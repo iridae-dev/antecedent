@@ -316,6 +316,41 @@ impl CheckedInterferenceOperation {
         result.payload =
             crate::result::ResultPayload::from_interference(estimated, interference_inference);
         result.posterior = posterior;
+        // The Student-t reference law of an arm of few clusters states its support row; the
+        // Dirichlet law of larger arms has none.
+        if matches!(self.procedure, InterferenceProcedure::ClusterBayesianBootstrap { .. })
+            && let antecedent_core::AssignmentDesign::ClusterRandomization { clusters, .. } =
+                &self.query.assignment
+        {
+            let arms = clusters
+                .iter()
+                .copied()
+                .zip(self.assignment.iter().copied())
+                .collect::<std::collections::BTreeSet<(u32, bool)>>();
+            let treated = arms.iter().filter(|(_, assigned)| *assigned).count();
+            let control = arms.len() - treated;
+            if treated.min(control) < antecedent_estimate::CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS {
+                super::bayesian_quasi_common::state_design_posterior_row(
+                    &mut result,
+                    crate::support::GraphlessSupportKey {
+                        family: "interference",
+                        design: "cluster_randomization_total",
+                        method: "cluster_student_reference_posterior",
+                        inference_claim: "exposure_contrast_pointwise_95_posterior_quantiles",
+                    },
+                    crate::support::GraphlessAssignmentSupport {
+                        assignment_unit: "cluster",
+                        treated,
+                        control,
+                        rows: self.assignment.len(),
+                        interval_95_published: true,
+                        reported_intervals: 1,
+                        all_reported_intervals: true,
+                        ..Default::default()
+                    },
+                );
+            }
+        }
         Ok(result)
     }
 
@@ -700,16 +735,45 @@ impl CheckedInterferenceOperation {
         )?;
         let mut diagnostics =
             InferenceDiagnostics::analytic("interference.cluster_bayesian_bootstrap");
-        let clusters = match &self.query.assignment {
+        // Clusters of the design and of its smaller arm; the assignment is constant within a
+        // cluster.
+        let (clusters, smaller_arm) = match &self.query.assignment {
             antecedent_core::AssignmentDesign::ClusterRandomization { clusters, .. } => {
-                clusters.iter().copied().collect::<std::collections::BTreeSet<_>>().len()
+                let arms = clusters
+                    .iter()
+                    .copied()
+                    .zip(self.assignment.iter().copied())
+                    .collect::<std::collections::BTreeSet<(u32, bool)>>();
+                let treated = arms.iter().filter(|(_, assigned)| *assigned).count();
+                (arms.len(), treated.min(arms.len() - treated))
             }
-            _ => 0,
+            _ => (0, 0),
         };
-        diagnostics.notes = [Arc::<str>::from(format!(
+        // The estimator publishes the Student-t reference law for an arm of few clusters.
+        let minimum = antecedent_estimate::CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS;
+        let reference_law = smaller_arm < minimum;
+        let mut notes = vec![Arc::<str>::from(format!(
             "clusters={clusters} draws={draws} interval=equal_tailed_95"
-        ))]
-        .into();
+        ))];
+        if reference_law {
+            notes.push(Arc::from(format!(
+                "law=student_reference: the smaller arm has {smaller_arm} clusters, fewer than \
+                 the {minimum} at which Dirichlet weights carry the spread of an arm mean, so the \
+                 Dirichlet-process prior of the declared assumptions is replaced by Gaussian \
+                 cluster totals under the noninformative prior; draws are the reference law's \
+                 quantile grid, not Monte Carlo samples"
+            )));
+        }
+        diagnostics.notes = notes;
+        let message: Arc<str> = if reference_law {
+            Arc::from(
+                "Student-t reference posterior (calibration status `not_measured`) of the cluster total-effect contrast, used in place of the Bayesian bootstrap because an arm has few clusters: centred at the design-based contrast with the conservative cluster Neyman standard error and Welch-Satterthwaite degrees of freedom; the declared complete cluster allocation (not the prior) identifies the contrast, and partial interference is declared, not tested",
+            )
+        } else {
+            Arc::from(
+                "Bayesian-bootstrap posterior (calibration status `not_measured`) of the cluster total-effect contrast: the declared complete cluster allocation (not the prior) identifies the contrast, and partial interference is declared, not tested",
+            )
+        };
         let posterior = CausalPosterior {
             summaries: posterior_draws.summarize(),
             draws: posterior_draws,
@@ -735,7 +799,7 @@ impl CheckedInterferenceOperation {
                 "estimate.interference.cluster_bayesian_bootstrap",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "Bayesian-bootstrap posterior (calibration status `not_measured`) of the cluster total-effect contrast: the declared complete cluster allocation (not the prior) identifies the contrast, and partial interference is declared, not tested",
+                message,
             ),
         ))
     }

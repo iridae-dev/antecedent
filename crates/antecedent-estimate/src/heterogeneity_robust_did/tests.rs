@@ -658,3 +658,212 @@ fn the_bayesian_bootstrap_posterior_recovers_the_effect_with_joint_draws() {
         assert!((mean - serial.columns[0].1[d]).abs() < 1e-9);
     }
 }
+
+/// A balanced panel from per-unit cohorts, one unit per cluster: `outcome(unit, period)` and
+/// one optional covariate value per unit.
+fn hand_panel(
+    cohorts: &[i64],
+    periods: i64,
+    outcome: impl Fn(usize, i64) -> f64,
+    covariate: Option<&[f64]>,
+) -> Simulated {
+    let mut sim = Simulated {
+        outcome: Vec::new(),
+        kept: Vec::new(),
+        units: Vec::new(),
+        clusters: Vec::new(),
+        periods: Vec::new(),
+        cohorts: Vec::new(),
+        covariates: covariate.map_or_else(Vec::new, |_| vec![Vec::new()]),
+    };
+    for (unit, cohort) in cohorts.iter().enumerate() {
+        let label: Arc<str> = Arc::from(format!("h{unit:03}"));
+        for period in 1..=periods {
+            sim.outcome.push(outcome(unit, period));
+            sim.kept.push(true);
+            sim.units.push(Arc::clone(&label));
+            sim.clusters.push(Arc::clone(&label));
+            sim.periods.push(period);
+            sim.cohorts.push(*cohort);
+            if let Some(values) = covariate {
+                sim.covariates[0].push(values[unit]);
+            }
+        }
+    }
+    sim
+}
+
+/// Mean of `change(unit)` over the units whose cohort is in `members`.
+fn mean_change(cohorts: &[i64], members: &[i64], change: impl Fn(usize) -> f64) -> f64 {
+    let units: Vec<usize> = (0..cohorts.len()).filter(|u| members.contains(&cohorts[*u])).collect();
+    units.iter().map(|u| change(*u)).sum::<f64>() / units.len() as f64
+}
+
+/// The 2x2 contrasts and their cohort-size-weighted simple aggregate, computed here from the
+/// outcome table, against the Callaway-Sant'Anna and Sun-Abraham fits; and the imputation
+/// fit on an exactly additive untreated outcome, where it returns the planted effects.
+#[test]
+fn rollout_point_estimates_match_the_hand_computed_contrasts() {
+    let cohorts = [0_i64, 0, 0, 2, 2, 3, 3];
+    let y = |unit: usize, period: i64| -> f64 {
+        let cohort = cohorts[unit];
+        let wobble = ((7 * i64::try_from(unit).unwrap() + 3 * period) % 5) as f64 * 0.1;
+        let effect =
+            if cohort > 0 && period >= cohort { 1.0 + (period - cohort) as f64 } else { 0.0 };
+        unit as f64 * 0.3 + 0.5 * period as f64 + wobble + effect
+    };
+    let contrast = |group: i64, period: i64, base: i64, controls: &[i64]| -> f64 {
+        mean_change(&cohorts, &[group], |u| y(u, period) - y(u, base))
+            - mean_change(&cohorts, controls, |u| y(u, period) - y(u, base))
+    };
+    let sim = hand_panel(&cohorts, 3, y, None);
+    let ctx = ExecutionContext::for_tests(1);
+    // Both adopting cohorts hold two units, so the simple aggregate is the plain cell mean.
+    let never = [contrast(2, 2, 1, &[0]), contrast(2, 3, 1, &[0]), contrast(3, 3, 2, &[0])];
+    let not_yet = [contrast(2, 2, 1, &[0, 3]), never[1], never[2]];
+    for (estimator, comparison, cells) in [
+        (RolloutDidEstimator::CallawaySantAnna, DidComparisonGroup::NeverTreated, never),
+        (RolloutDidEstimator::CallawaySantAnna, DidComparisonGroup::NotYetTreated, not_yet),
+        (RolloutDidEstimator::SunAbraham, DidComparisonGroup::NeverTreated, never),
+    ] {
+        let fit =
+            estimate_rollout_did(&sim.panel(), &spec(estimator, comparison), None, &ctx).unwrap();
+        for ((group, period), want) in [(2, 2), (2, 3), (3, 3)].into_iter().zip(cells) {
+            let cell = fit
+                .group_time
+                .iter()
+                .find(|cell| cell.group == Some(group) && cell.period == Some(period))
+                .unwrap();
+            assert!((cell.estimate - want).abs() < 1e-10, "{estimator:?} cell {group},{period}");
+        }
+        let aggregate = cells.iter().sum::<f64>() / 3.0;
+        assert!((fit.overall.estimate - aggregate).abs() < 1e-10, "{estimator:?} aggregate");
+        assert_eq!(fit.comparison_propensity_max, None);
+    }
+    // Additive untreated outcome: the imputed effects are the planted 1, 2 and 1.
+    let additive = |unit: usize, period: i64| -> f64 {
+        let cohort = cohorts[unit];
+        let effect =
+            if cohort > 0 && period >= cohort { 1.0 + (period - cohort) as f64 } else { 0.0 };
+        unit as f64 * 0.3 + 0.5 * (period * period) as f64 + effect
+    };
+    let fit = estimate_rollout_did(
+        &hand_panel(&cohorts, 3, additive, None).panel(),
+        &spec(RolloutDidEstimator::Imputation, DidComparisonGroup::NotYetTreated),
+        None,
+        &ctx,
+    )
+    .unwrap();
+    assert!((fit.overall.estimate - 4.0 / 3.0).abs() < 1e-8);
+}
+
+/// The two-point multiplier has mean, variance and third central moment one, and the
+/// degrees-of-freedom scale is `sqrt(K / (K - p - 1))` at the Kish count of the cluster totals.
+#[test]
+#[allow(clippy::float_cmp, reason = "the multipliers and the covariate levels are exact constants")]
+fn multiplier_law_and_degrees_of_freedom_scale_match_their_closed_forms() {
+    let (high, low, p) =
+        (super::MULTIPLIER_HIGH, super::MULTIPLIER_LOW, super::MULTIPLIER_HIGH_PROBABILITY);
+    let moment = |power: i32| p * (high - 1.0).powi(power) + (1.0 - p) * (low - 1.0).powi(power);
+    assert!(low > 0.0 && (p * high + (1.0 - p) * low - 1.0).abs() < 1e-12);
+    assert!((moment(2) - 1.0).abs() < 1e-12 && (moment(3) - 1.0).abs() < 1e-12);
+    let mut rng = antecedent_core::CausalRng::from_seed(3);
+    let drawn = super::moment_matched_multipliers(40_000, &mut rng);
+    assert!(drawn.iter().all(|weight| *weight == high || *weight == low));
+    assert!((drawn.iter().sum::<f64>() / 40_000.0 - 1.0).abs() < 0.02);
+
+    let singletons: Vec<usize> = (0..10).collect();
+    let equal = super::comparison_scale(&singletons, None, 1);
+    assert!((equal - (10.0_f64 / 8.0).sqrt()).abs() < 1e-12);
+    // Odds 1, 1, 2 on three clusters: K = 16 / 6, one coefficient fitted.
+    let weighted = super::comparison_scale(&[0, 1, 2], Some(&[1.0, 1.0, 2.0]), 0);
+    assert!((weighted - 1.6_f64.sqrt()).abs() < 1e-12);
+    // Two units of one cluster count once: totals 2 and 1, K = 1.8, denominator held at one.
+    let clustered = super::comparison_scale(&[0, 0, 1], None, 0);
+    assert!((clustered - 1.8_f64.sqrt()).abs() < 1e-12);
+    // The reference quantile falls to the normal one as clusters and replicates grow.
+    let normal = antecedent_stats::NORMAL_Q975;
+    let (few, many) = (super::pointwise_critical(11, 199), super::pointwise_critical(101, 199));
+    assert!(few > many && many > normal);
+    assert!((super::pointwise_critical(1_000_001, 4_000_000) - normal).abs() < 1e-4);
+}
+
+/// With one binary covariate the outcome regression and the logistic propensity are both
+/// saturated, so each adjusted 2x2 is the treated mean change minus the comparison mean
+/// change standardized to the treated covariate shares, and the largest fitted comparison
+/// propensity is the largest treated share of a covariate cell.
+#[test]
+#[allow(clippy::float_cmp, reason = "the multipliers and the covariate levels are exact constants")]
+fn covariate_adjusted_contrasts_match_the_closed_form_on_a_binary_covariate() {
+    // Covariate 0: three treated, four comparison; covariate 1: three treated, two comparison.
+    let cohorts = [2_i64, 2, 2, 0, 0, 0, 0, 2, 2, 2, 0, 0];
+    let x = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+    let change = |unit: usize| -> f64 {
+        0.4 + 0.9 * x[unit]
+            + ((5 * unit + 2) % 7) as f64 * 0.11
+            + if cohorts[unit] == 2 { 1.5 } else { 0.0 }
+    };
+    let y = |unit: usize, period: i64| -> f64 {
+        unit as f64 * 0.2 + if period == 2 { change(unit) } else { 0.0 }
+    };
+    let cell_mean = |cohort: i64, level: f64| -> f64 {
+        let units: Vec<usize> =
+            (0..cohorts.len()).filter(|u| cohorts[*u] == cohort && x[*u] == level).collect();
+        units.iter().map(|u| change(*u)).sum::<f64>() / units.len() as f64
+    };
+    let treated = mean_change(&cohorts, &[2], change);
+    let standardized = 0.5 * cell_mean(0, 0.0) + 0.5 * cell_mean(0, 1.0);
+    let want = treated - standardized;
+    let sim = hand_panel(&cohorts, 2, y, Some(&x));
+    for nuisance in [
+        DidNuisanceMethod::OutcomeRegression,
+        DidNuisanceMethod::InverseProbabilityWeighting,
+        DidNuisanceMethod::DoublyRobust,
+    ] {
+        let declared = RolloutDidSpec {
+            nuisance,
+            ..spec(RolloutDidEstimator::CallawaySantAnna, DidComparisonGroup::NeverTreated)
+        };
+        let fit =
+            estimate_rollout_did(&sim.panel(), &declared, None, &ExecutionContext::for_tests(2))
+                .unwrap();
+        assert!((fit.overall.estimate - want).abs() < 1e-6, "{nuisance:?}");
+        let overlap = fit.comparison_propensity_max.unwrap();
+        assert!((overlap - 0.6).abs() < 1e-6, "{nuisance:?} overlap {overlap}");
+    }
+}
+
+/// One cohort against never-treated units: the flat-Dirichlet posterior of a difference of two
+/// weighted means has the plug-in contrast as its mean and, for each arm of `m` units, the
+/// variance `sum (d - mean)^2 / (m (m + 1))`.
+#[test]
+fn bayesian_bootstrap_posterior_matches_the_dirichlet_moments_of_a_two_by_two() {
+    let cohorts: Vec<i64> = (0..70).map(|unit| if unit < 30 { 2 } else { 0 }).collect();
+    let change = |unit: usize| -> f64 {
+        ((13 * unit + 5) % 17) as f64 * 0.25 + if unit < 30 { 2.0 } else { 0.0 }
+    };
+    let y = |unit: usize, period: i64| -> f64 {
+        unit as f64 * 0.1 + if period == 2 { change(unit) } else { 0.0 }
+    };
+    let arm = |members: std::ops::Range<usize>| -> (f64, f64) {
+        let m = members.len() as f64;
+        let mean = members.clone().map(change).sum::<f64>() / m;
+        let variance = members.map(|u| (change(u) - mean).powi(2)).sum::<f64>() / (m * (m + 1.0));
+        (mean, variance)
+    };
+    let ((treated, treated_variance), (control, control_variance)) = (arm(0..30), arm(30..70));
+    let posterior = super::posterior_rollout_did(
+        &hand_panel(&cohorts, 2, y, None).panel(),
+        &spec(RolloutDidEstimator::CallawaySantAnna, DidComparisonGroup::NeverTreated),
+        4_000,
+        &ExecutionContext::for_tests(5),
+    )
+    .unwrap();
+    let draws = &posterior.columns[0].1;
+    let n = draws.len() as f64;
+    let mean = draws.iter().sum::<f64>() / n;
+    let variance = draws.iter().map(|draw| (draw - mean).powi(2)).sum::<f64>() / (n - 1.0);
+    let want = treated_variance + control_variance;
+    assert!((mean - (treated - control)).abs() < 5.0 * (want / n).sqrt(), "mean {mean}");
+    assert!((variance / want - 1.0).abs() < 0.1, "variance {variance} against {want}");
+}

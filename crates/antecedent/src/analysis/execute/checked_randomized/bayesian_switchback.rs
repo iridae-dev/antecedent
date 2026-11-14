@@ -147,6 +147,10 @@ fn declared_identification(
     identification
 }
 
+/// Periods per sequence the switchback support row was measured with; a shorter sequence
+/// states no support.
+const SWITCHBACK_ROW_MIN_PERIODS: usize = 12;
+
 impl super::CheckedRandomizedOperation {
     /// Execute the retained switchback design as a Bayesian posterior on complete outcomes.
     pub(super) fn execute_bayesian_switchback(
@@ -227,7 +231,7 @@ impl super::CheckedRandomizedOperation {
             ],
             sampler: None,
         };
-        finish_design_posterior_as(
+        let mut result = finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -243,6 +247,49 @@ impl super::CheckedRandomizedOperation {
                 IdentifierId::RandomizedDesign,
                 EstimatorId::BayesianSwitchback,
             ),
-        )
+        )?;
+        // The measured model (no carryover, declared compound-symmetric errors, no period
+        // effects) on balanced sequences of at least the measured length states its support row.
+        let mut sequences = std::collections::BTreeMap::<&str, usize>::new();
+        for &id in &sequence_ids {
+            *sequences.entry(id).or_default() += 1;
+        }
+        let shortest = sequences.values().copied().min().unwrap_or(0);
+        let balanced = shortest > 0 && sequences.values().all(|periods| *periods == shortest);
+        if model.carryover == CarryoverDeclaration::None
+            && matches!(model.dependence, SequenceDependence::CompoundSymmetric { .. })
+            && model.periods == antecedent_estimate::switchback_posterior::PeriodAdjustment::None
+            && shortest >= SWITCHBACK_ROW_MIN_PERIODS
+        {
+            let treated = self.query.realized_assignment.iter().filter(|arm| **arm).count();
+            let floor = self
+                .query
+                .assignment_probabilities
+                .iter()
+                .map(|p| p.min(1.0 - p))
+                .fold(f64::INFINITY, f64::min);
+            super::super::bayesian_quasi_common::state_design_posterior_row(
+                &mut result,
+                crate::support::GraphlessSupportKey {
+                    family: "randomized_effect",
+                    design: "switchback",
+                    method: "compound_symmetric_gaussian_sequence_posterior",
+                    inference_claim: "pointwise_95_posterior_quantiles",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "sequence",
+                    rows: outcomes.len(),
+                    blocks: sequences.len(),
+                    min_action_rows: treated.min(outcomes.len() - treated),
+                    min_probability: if floor.is_finite() { floor } else { 0.0 },
+                    balanced_sequences: balanced,
+                    interval_95_published: true,
+                    reported_intervals: 1,
+                    all_reported_intervals: true,
+                    ..Default::default()
+                },
+            );
+        }
+        Ok(result)
     }
 }

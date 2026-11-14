@@ -208,7 +208,9 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     if kind != "unavailable" and isinstance(rollout, Mapping):
         return Answer(
             "structured",
-            detail="unsupported_quasi_rollout_" + str(rollout.get("uncertainty")),
+            detail=("supported" if rollout.get("supported") else "unsupported")
+            + "_quasi_rollout_"
+            + str(rollout.get("uncertainty")),
             structured=canonical_from_wire("quasi_rollout", rollout),
         )
     if kind is None:
@@ -267,7 +269,9 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     if kind == "point" and isinstance(contrast, Mapping):
         return Answer(
             "structured",
-            detail="unsupported_sequential_contrast_" + str(contrast.get("uncertainty")),
+            detail=("supported" if contrast.get("supported") else "unsupported")
+            + "_sequential_contrast_"
+            + str(contrast.get("uncertainty")),
             structured=canonical_from_wire("sequential_contrast", contrast),
         )
     bounds_section = payload.get("iv_bounds")
@@ -275,21 +279,27 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         return Answer(
             "bounds",
             bounds=(float(bounds_section["lower"]), float(bounds_section["upper"])),
-            detail="unsupported_iv_bounds_" + str(bounds_section.get("uncertainty")),
+            detail=("supported" if bounds_section.get("supported") else "unsupported")
+            + "_iv_bounds_"
+            + str(bounds_section.get("uncertainty")),
             structured=canonical_from_wire("iv_bounds", bounds_section),
         )
     design = payload.get("temporal_design")
     if kind != "unavailable" and isinstance(design, Mapping):
         return Answer(
             "structured",
-            detail="unsupported_temporal_design_" + str(design.get("uncertainty")),
+            detail=("supported" if design.get("supported") else "unsupported")
+            + "_temporal_design_"
+            + str(design.get("uncertainty")),
             structured=canonical_from_wire("temporal_design", design),
         )
     matched = payload.get("history_match")
     if kind == "point" and isinstance(matched, Mapping):
         return Answer(
             "structured",
-            detail="unsupported_period_history_match_standard_error_no_interval",
+            detail="supported_period_history_match_fixed_b_period_interval"
+            if matched.get("supported")
+            else "unsupported_period_history_match_standard_error_no_interval",
             structured=canonical_from_wire("history_match", matched),
         )
     regime = payload.get("longitudinal_regime")
@@ -521,7 +531,9 @@ class ResultAPI:
         if contrast is not None:
             return Answer(
                 "structured",
-                detail="unsupported_sequential_contrast_" + contrast.uncertainty,
+                detail=("supported" if contrast.supported else "unsupported")
+                + "_sequential_contrast_"
+                + contrast.uncertainty,
                 structured=canonical_from_live("sequential_contrast", contrast),
             )
         association = getattr(self, "association", None)
@@ -536,28 +548,36 @@ class ResultAPI:
             return Answer(
                 "bounds",
                 bounds=(float(iv_bounds.lower), float(iv_bounds.upper)),
-                detail="unsupported_iv_bounds_" + str(iv_bounds.uncertainty),
+                detail=("supported" if iv_bounds.supported else "unsupported")
+                + "_iv_bounds_"
+                + str(iv_bounds.uncertainty),
                 structured=canonical_from_live("iv_bounds", iv_bounds),
             )
         design = getattr(self, "temporal_design", None)
         if design is not None:
             return Answer(
                 "structured",
-                detail="unsupported_temporal_design_" + str(design.uncertainty),
+                detail=("supported" if design.supported else "unsupported")
+                + "_temporal_design_"
+                + str(design.uncertainty),
                 structured=canonical_from_live("temporal_design", design),
             )
         rollout = getattr(self, "quasi_rollout", None)
         if rollout is not None:
             return Answer(
                 "structured",
-                detail="unsupported_quasi_rollout_" + str(rollout.uncertainty),
+                detail=("supported" if rollout.supported else "unsupported")
+                + "_quasi_rollout_"
+                + str(rollout.uncertainty),
                 structured=canonical_from_live("quasi_rollout", rollout),
             )
         matched = getattr(self, "history_match", None)
         if matched is not None:
             return Answer(
                 "structured",
-                detail="unsupported_period_history_match_standard_error_no_interval",
+                detail="supported_period_history_match_fixed_b_period_interval"
+                if matched.supported
+                else "unsupported_period_history_match_standard_error_no_interval",
                 structured=canonical_from_live("history_match", matched),
             )
         regime = getattr(self, "longitudinal_regime", None)
@@ -683,7 +703,13 @@ class ResultAPI:
             return (
                 f"Observational sequential contrast {contrast.contrast:g} of regime "
                 f"{contrast.active_regime} against {contrast.control_regime}: {spread}. "
-                "Unsupported; repeated-sampling calibration is not_measured."
+                + (
+                    "Supported: the fit meets the sequential-contrast support row, with "
+                    "sequential exchangeability and correctly specified nuisance models declared."
+                    if contrast.supported
+                    else "No support row is stated on this section; the runtime calibration "
+                    "slot is not_measured."
+                )
             )
         design = getattr(self, "temporal_design", None)
         if design is not None:
@@ -724,14 +750,27 @@ class ResultAPI:
             return (
                 f"Average effect under a binary instrument is partially identified: "
                 f"[{iv_bounds.lower:g}, {iv_bounds.upper:g}], a set and not a point."
-                f"{spread} Unsupported, calibration not_measured."
+                f"{spread} "
+                + (
+                    "Supported: the interval is stated for the endpoints of the set."
+                    if iv_bounds.supported
+                    else "Unsupported, calibration not_measured."
+                )
             )
         matched = getattr(self, "history_match", None)
         if matched is not None:
             return (
                 f"Within-period history-matched contrast {matched.contrast:g} on the matched "
-                "treated units. Abadie-Imbens standard error only; no interval, unsupported, "
-                "calibration not_measured."
+                "treated units. "
+                + (
+                    f"Supported fixed-b period interval [{matched.interval_lower:g}, "
+                    f"{matched.interval_upper:g}] for the expected matched contrast, with "
+                    "calendar periods as the sampling units."
+                    if matched.supported
+                    and matched.interval_lower is not None
+                    and matched.interval_upper is not None
+                    else "Unsupported; the runtime calibration slot is not_measured."
+                )
             )
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:

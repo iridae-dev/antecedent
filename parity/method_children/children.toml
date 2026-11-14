@@ -1612,7 +1612,7 @@ missing = "none"
 owner = "crates/antecedent"
 fixtures = "crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"
 consumer = "crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/quasi_rollout_routes.rs"
-notes = "Sharp discontinuity in time is the local ratio with treatment equal to the cutoff indicator (a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design). Executes unsupported; calibration not_measured. Declared: no concurrent discontinuity at the cutoff date, a smooth time path and weakly dependent errors; a clustered_panel or independent_subject_trajectories declaration is refused naming the next attempt."
+notes = "Sharp discontinuity in time is the local ratio with treatment equal to the cutoff indicator (a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design). The errors are AR(1)-prewhitened about a cubic trend and their innovations resampled in blocks at the fixed time design. Supported only where a local_polynomial_ratio support row admits the fit (sharp step, declared bandwidth, measured window rows and replicates); otherwise it executes unsupported. Calibration not_measured at run time. Declared: no concurrent discontinuity at the cutoff date, a smooth time path and errors no more dependent than a first-order autoregression; a clustered_panel or independent_subject_trajectories declaration is refused naming the next attempt."
 
 [[child]]
 id = "P11.rd.temporal.bayesian"
@@ -1626,7 +1626,7 @@ missing = "none"
 owner = "crates/antecedent"
 fixtures = "crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"
 consumer = "crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;python/tests/test_quasi_rollout.py"
-notes = "Executes calibration status `not_measured`; the prior supplies no identifying premise. Serial dependence within a block is kept and ignored across block boundaries."
+notes = "Calibration status `not_measured` at run time; supported only where a local_polynomial_ratio support row admits the fit. The prior supplies no identifying premise. The errors are AR(1)-prewhitened; dependence the AR(1) fit leaves is kept within a block."
 
 [[child]]
 id = "P11.local_ratio.static.frequentist"
@@ -1668,7 +1668,7 @@ missing = "none"
 owner = "crates/antecedent"
 fixtures = "crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"
 consumer = "crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;python/tests/test_quasi_rollout.py"
-notes = "Plan ids quasi.temporal_fuzzy_rd and quasi.temporal_regression_kink; executes unsupported with calibration not_measured. Declared: no concurrent discontinuity at the cutoff date, a smooth time path and weakly dependent errors."
+notes = "Plan ids quasi.temporal_fuzzy_rd and quasi.temporal_regression_kink; supported only where a local_polynomial_ratio support row admits the fit, otherwise executes unsupported; calibration not_measured at run time. Declared: no concurrent discontinuity at the cutoff date, a smooth time path and errors no more dependent than a first-order autoregression."
 
 [[child]]
 id = "P11.local_ratio.temporal.bayesian"
@@ -1682,7 +1682,7 @@ missing = "none"
 owner = "crates/antecedent"
 fixtures = "crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"
 consumer = "crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;python/tests/test_quasi_rollout.py"
-notes = "Executes calibration status `not_measured`; the prior supplies no identifying premise (test_bayesian_temporal_fuzzy_rd_widens_beyond_the_independent_row_error)."
+notes = "Calibration status `not_measured` at run time; supported only where a local_polynomial_ratio support row admits the fit. The prior supplies no identifying premise (test_bayesian_temporal_fuzzy_rd_widens_beyond_the_independent_row_error)."
 
 [[child]]
 id = "P12.intervention.static.frequentist"

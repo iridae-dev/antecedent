@@ -358,7 +358,7 @@ def recorded_operation_problems(
     problems: list[str] = []
     wrapper_names = {names[kind] for kind in wrappers if kind in names}
     for route in routes:
-        if route["status"] not in ("execution_only", "fitting_gap", "graphless"):
+        if route["status"] not in ("execution_only", "fitting_gap", "graphless", "capability"):
             continue
         cell = route_cell(route)
         if cell is None:
@@ -477,7 +477,7 @@ def axis_problems(root: Path, routes: list[dict], today: str) -> list[str]:
         return [f"{GRAPHLESS}: not found"]
     data = tomllib.loads(text)
     by_id = {route["id"]: route for route in routes}
-    executing = ("execution_only", "graphless", "supported", "fitting_gap")
+    executing = ("execution_only", "graphless", "capability", "supported", "fitting_gap")
     problems: list[str] = []
     seen_axes: set[tuple[str, str]] = set()
     for axis in data.get("family_axis", []):

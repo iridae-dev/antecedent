@@ -169,6 +169,7 @@ class Evidence:
             if len(part) > 5 and part not in (
                 "supported",
                 "graphless",
+                "capability",
                 "execution_only",
                 "closed",
                 "unlisted",

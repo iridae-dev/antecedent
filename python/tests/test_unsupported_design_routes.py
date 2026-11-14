@@ -3,7 +3,9 @@
 The sequential panel is a fixed linear congruential stream whose numpy reference values are pinned
 in the estimator's own tests. The policy and regime fixtures carry hand scores. The history match
 is recomputed here by brute force with the Abadie-Imbens variance written from its per-unit
-coefficients. Every route is unsupported, and the matching posterior is a typed refusal.
+coefficients. These small fixtures sit below every support row, so each runs unsupported; a
+sequential contrast and a history match large enough to meet their rows state ``supported``. The
+matching posterior is a typed refusal.
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ SUBJECTS = 80
 Z95 = 1.959963984540054
 
 
-def _panel() -> dict[str, np.ndarray]:
+def _panel(subjects: int = SUBJECTS) -> dict[str, np.ndarray]:
     state = 12345
 
     def uniform() -> float:
@@ -32,7 +34,7 @@ def _panel() -> dict[str, np.ndarray]:
         return (state >> 11) / 9007199254740992.0
 
     cols: dict[str, list[float]] = {k: [] for k in ("l0", "a0", "l1", "a1", "y")}
-    for _ in range(SUBJECTS):
+    for _ in range(subjects):
         u1, u2, u3, u4, u5 = (uniform() for _ in range(5))
         l0 = 2.0 * u1 - 1.0
         a0 = 1.0 if u2 < 0.5 + 0.2 * l0 else 0.0
@@ -44,7 +46,7 @@ def _panel() -> dict[str, np.ndarray]:
     return {key: np.asarray(values) for key, values in cols.items()}
 
 
-def _contrast_query() -> SequentialContrast:
+def _contrast_query(folds: int | None = None) -> SequentialContrast:
     return SequentialContrast(
         outcome="y",
         first_treatment="a0",
@@ -53,7 +55,7 @@ def _contrast_query() -> SequentialContrast:
         intermediate=["l1"],
         active=(1, 1),
         control=(0, 0),
-        folds=[int(row % 4 in (1, 2)) for row in range(SUBJECTS)],
+        folds=[int(row % 4 in (1, 2)) for row in range(SUBJECTS)] if folds is None else folds,
         min_probability=0.05,
     )
 
@@ -77,6 +79,21 @@ def test_sequential_contrast_normal_interval_matches_the_pinned_reference() -> N
     assert fit.supported is False and fit.calibration_measured is False
     assert fit.uncertainty == "normal_interval_calibration_not_measured"
     assert result.answer.detail.startswith("unsupported_sequential_contrast")
+    # Five folds on 400 subjects, with every fitted probability inside the floor, meet the
+    # support row of the always-treat against never-treat contrast.
+    wide = require_success(
+        ant.analyze(
+            _panel(400),
+            query=_contrast_query(folds=5),
+            refute="none",
+            execution=ant.Execution(seed=3),
+        )
+    )
+    supported = wide.sequential_contrast
+    assert supported is not None and supported.interval is not None
+    assert supported.supported is True and supported.support_status == "supported"
+    assert supported.interval[0] < supported.contrast < supported.interval[1]
+    assert wide.answer.detail.startswith("supported_sequential_contrast")
 
 
 def test_sequential_contrast_posterior_is_the_modular_dirichlet_posterior() -> None:
@@ -326,6 +343,38 @@ def test_period_history_match_matches_the_brute_force_reference(caliper: float |
     assert (
         fit.uncertainty == "abadie_imbens_and_newey_west_period_interval_calibration_not_measured"
     )
+    # Eight periods of 100 units with no caliper and no weights meet the support row: the
+    # fixed-b period interval is published and the fit states supported.
+    wide = require_success(
+        ant.analyze(
+            _period_panel(8, 100),
+            query=PeriodHistoryMatch(
+                outcome="y", treated="treated", history=["h1", "h2"], period="period"
+            ),
+            refute="none",
+        )
+    ).history_match
+    assert wide is not None and wide.supported is True and wide.support_status == "supported"
+    assert wide.interval_lower is not None and wide.interval_upper is not None
+    assert wide.interval_lower < wide.contrast < wide.interval_upper
+
+
+def _period_panel(periods: int, per_period: int) -> dict[str, np.ndarray]:
+    """Independent units in calendar periods; the effect of a treated unit is ``1 + 2 * score``."""
+    rng = np.random.default_rng(17)
+    n = periods * per_period
+    score = rng.normal(size=n)
+    spread = 0.3 * rng.normal(size=n)
+    treated = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-0.8 * score))).astype(float)
+    period = np.repeat(np.arange(periods, dtype=float), per_period)
+    outcome = 0.5 * period + 0.5 * score + treated * (1.0 + 2.0 * score) + rng.normal(size=n)
+    return {
+        "h1": score + spread,
+        "h2": score - spread,
+        "y": outcome,
+        "treated": treated,
+        "period": period,
+    }
 
 
 def test_bayesian_matching_is_the_typed_boundary() -> None:

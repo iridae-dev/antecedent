@@ -76,6 +76,9 @@ NEXT_ATTEMPT = {
     "theory": "derive the identification result for this counterpart or record the boundary proof",
 }
 EXECUTING = ("supported", "not_supported")
+# Statuses of a hand-written route outside the support matrix. Such a route keeps its
+# counterpart rows whichever unit closes it: a row is dropped only when the route is.
+UNIT_ROUTE_STATUSES = ("execution_only", "graphless", "capability")
 NO_INTERVAL_NEXT = (
     "derive the dependence-aware interval or posterior for this counterpart and publish it through "
     "the same route with the uncertainty port of its static twin"
@@ -306,14 +309,14 @@ def route_rows(routes: list[dict], lowerings: dict[str, str], evidenced: Evidenc
     """
     rows = []
     for route in routes:
-        if route["status"] not in ("supported", "closed", "execution_only"):
+        if route["status"] not in ("supported", "closed", *UNIT_ROUTE_STATUSES):
             continue
         design = route_design(route)
         closed = route["status"] == "closed"
         inferences = route_inferences(route)
         counterparts = route.get("counterpart_targets", [])
         if (
-            route["status"] == "execution_only"
+            route["status"] in UNIT_ROUTE_STATUSES
             and id_design(route) is None
             and "counterpart_design" not in route
         ):

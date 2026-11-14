@@ -12,7 +12,7 @@ Regenerate in two stages (the resampling draws of the library are an input, not 
     uv run --script estimate_association_reference.py final streams.json \
         > estimate_association_reference.json
 
-Every case carries its data, so the references are fully determined.  Linear fits, the HC1 and
+Every case carries its data, so the references are fully determined.  Linear fits, the row and
 Bartlett Newey-West sandwiches, weighted group means and their linearised errors, the Pearson
 error on the Kish count, the distance correlation and the leave-fold-out predictions are exact
 rational arithmetic on the binary64 inputs; the logistic and Poisson maximum likelihood fits run
@@ -22,11 +22,28 @@ weight draws (captured from the library's own streams and checked for equality b
 Definitions:
 
 * HC1 slope covariance  n/(n-p) A^-1 (sum s_i^2 x_i x_i') A^-1, A = sum I_i x_i x_i', s_i = w_i (y_i - mu_i),
-  I_i = w_i V(mu_i), over the rows of positive weight.
-* Newey-West  A^-1 [sum s^2 xx' + sum_{l=1..L} (1 - l/(L+1)) sum_t s_t s_{t-l} (x_t x_{t-l}' + x_{t-l} x_t')] A^-1
-  with L = floor(4 (n/100)^(2/9)) clamped to [1, n-1].
+  I_i = w_i V(mu_i), over the rows of positive weight: the scale of the bootstrap-t pivot only.
+* Row error of a model coefficient c: sqrt(sum psi^2) times t_{0.975}(n_eff) / z_{0.975}, with
+  psi_i = (A^-1 x_i)_c s_i / (1 - h_i), the leverage h_i = I_i x_i' A^-1 x_i and
+  n_eff = min(n, 3 (sum psi^2)^2 / sum psi^4).
+* Series error of a quantity with influence series psi: sqrt(sum psi^2 + 2 sum_{l=1..L} (1 - l/(L+1))
+  sum_t psi_t psi_{t-l}) with L = floor(4 (n/100)^(2/9)) clamped to [1, n-1], times the Bartlett
+  kernel-bias factor of psi at the bandwidth L + 1 (Kendall-corrected AR(1) and BIC AR(q) model long-run
+  variance over the share the kernel keeps), times t_{0.975}(nu) / z_{0.975} with nu = 1.5 n_eff / (L + 1)
+  and n_eff = min(n, 3 (sum psi^2)^2 / sum psi^4).  For a model coefficient c,
+  psi_t = (A^-1 x_t)_c s_t / (1 - h_t) with the leverage h_t = I_t x_t' A^-1 x_t.
 * Group mean m_k = sum w y / sum w; influence psi_r = w_r (y_r - m_k)/sum_k w; variance sum psi^2 n_k/(n_k-1)
-  (n_k rows of positive weight), or the Bartlett sum of the influence series for a series.
+  (n_k rows of positive weight), or the series error of the influence series for a series.
+* Spread of a row bootstrap of a model coefficient: with the HC1 error se of the rows and se*_b of
+  resample b (its rows repeated as drawn), the pivots t_b = (theta*_b - theta) / se*_b over the resamples
+  with se*_b > 1e-8 se; [theta - q_{0.975}(t) se, theta - q_{0.025}(t) se].  Every other quantity, and a
+  coefficient with fewer than 20 pivots, takes the percentile range of theta*.  Quantiles are
+  exchangeable-rank: rank p (D + 1) of D values.
+* Circular-block bootstrap: error = sd(theta*) times the circular fixed-b factor times the kernel-bias factor
+  of psi at the block length; spread = theta + that product times (percentile range - theta).
+* Block Bayesian bootstrap of a series with m blocks: sd and the equal-tailed range about the mean are scaled
+  by sqrt((m + 1)/(m - 1)) t_{0.975}(nu) / z_{0.975} times the kernel-bias factor at the block length, with
+  nu = min(m - 1, max(1, 3 (sum B^2)^2 / sum B^4 - 1)) over the centred block sums B of psi.
 * Pearson: weighted correlation, error |1 - r^2| / sqrt(max(neff - 1, 1)), neff = (sum w)^2 / sum w^2.
 * Distance correlation: V-statistic, sqrt(dCov2_xy / sqrt(dVar2_x dVar2_y)).
 * Conjugate: beta | s2 ~ N(0, s2 Lambda0^-1), s2 ~ InvGamma(1, var_y); Student-t marginals.
@@ -223,21 +240,187 @@ def sandwich(x, y, w, beta, family, modality):
     meat = [[one * 0] * p for _ in range(p)]
     for xi, si in zip(X, s):
         outer_add(meat, xi, si * si)
-    if modality == "rows":
-        f = conv(n) / conv(n - p)
-        meat = [[f * v for v in row] for row in meat]
-    else:
-        lag = newey_west_lag(n)
-        for ell in range(1, min(lag, n - 1) + 1):
-            wt = 1 - conv(ell) / conv(lag + 1)
-            for t in range(ell, n):
-                c = wt * s[t] * s[t - ell]
-                for i in range(p):
-                    for j in range(p):
-                        meat[i][j] += c * (X[t][i] * X[t - ell][j] + X[t - ell][i] * X[t][j])
+    assert modality == "rows"
+    f = conv(n) / conv(n - p)
+    meat = [[f * v for v in row] for row in meat]
     ainv = gauss_solve(a, identity(p, one), tol=None if exact else mp.mpf(10) ** -60)
+    if ainv is None:
+        return None
     tmp = [[sum(ainv[i][k] * meat[k][j] for k in range(p)) for j in range(p)] for i in range(p)]
     return [[sum(tmp[i][k] * ainv[k][j] for k in range(p)) for j in range(p)] for i in range(p)]
+
+
+def model_influence(x, y, w, beta, family, count):
+    """Influence series of the first `count` coefficients over the rows of positive weight:
+    psi_t = (A^-1 x_t)_c s_t / (1 - h_t), h_t = I_t x_t' A^-1 x_t."""
+    keep = [i for i in range(len(y)) if w[i] > 0]
+    p = len(x[0])
+    exact = family == "continuous"
+    conv = (lambda v: F(v)) if exact else (lambda v: mpf(F(v)))
+    X = [[conv(v) for v in x[i]] for i in keep]
+    s, info = [], []
+    for k, i in enumerate(keep):
+        eta = sum(c * b for c, b in zip(X[k], beta))
+        mu = mean_function(family, eta)
+        u = conv(y[i]) - mu
+        if family == "binary":
+            var = mu * (1 - mu)
+        elif family == "count":
+            var = mu
+        else:
+            var = conv(1)
+        s.append(conv(w[i]) * u)
+        info.append(conv(w[i]) * var)
+    one = conv(1.0)
+    a = [[one * 0] * p for _ in range(p)]
+    for xi, ii in zip(X, info):
+        outer_add(a, xi, ii)
+    ainv = gauss_solve(a, identity(p, one), tol=None if exact else mp.mpf(10) ** -60)
+    out = [[] for _ in range(count)]
+    for xi, si, ii in zip(X, s, info):
+        ax = [sum(ainv[c][j] * xi[j] for j in range(p)) for c in range(p)]
+        h = ii * sum(xi[c] * ax[c] for c in range(p))
+        for c in range(count):
+            out[c].append(ax[c] * si / (1 - h))
+    return out
+
+
+# ---------------------------------------------------------------- series references (binary64)
+MAX_AR_RHO = 0.97
+TAIL_TOLERANCE = 1e-12
+EPS = sys.float_info.epsilon
+
+
+def _dot(a, b):
+    return sum(u * v for u, v in zip(a, b))
+
+
+def bartlett_capture(acf, block):
+    full = 1.0 + 2.0 * sum(acf[1:])
+    kept = 1.0 + 2.0 * sum((1.0 - k / block) * acf[k] for k in range(1, min(block, len(acf))))
+    if not (math.isfinite(full) and math.isfinite(kept)) or full <= 1.0 or kept <= 0.0:
+        return 1.0
+    return min(kept / full, 1.0)
+
+
+def ar1_acf(rho, block):
+    decay = abs(rho)
+    tail = math.ceil(math.log(TAIL_TOLERANCE) / math.log(decay)) if 0.0 < decay < 1.0 else 0
+    acf, value = [1.0], 1.0
+    for k in range(1, max(block, tail) + 2):
+        value *= rho
+        if k > block and abs(value) < TAIL_TOLERANCE:
+            break
+        acf.append(value)
+    return acf
+
+
+def kendall_rho(s):
+    lead = s[:-1]
+    den = _dot(lead, lead)
+    rho = _dot(s[1:], lead) / den if den > 0 else 0.0
+    return min(max(rho + (1.0 + 3.0 * rho) / len(s), -MAX_AR_RHO), MAX_AR_RHO)
+
+
+def bic_autoregression(s, limit):
+    """Levinson-Durbin fit of a mean-zero series at the BIC order: (phi, r_0..r_q)."""
+    n = len(s)
+    top = min(limit, n - 2)
+    gamma = [_dot(s[k:], s) / n for k in range(top + 1)]
+    phi, variance = [], gamma[0]
+    best_bic, best = n * math.log(variance), []
+    for order in range(1, top + 1):
+        acc = gamma[order] - sum(f * gamma[order - 1 - j] for j, f in enumerate(phi))
+        reflection = acc / variance
+        if not math.isfinite(reflection) or 1.0 - reflection * reflection <= 64.0 * EPS:
+            break
+        phi = [phi[j] - reflection * phi[order - 2 - j] for j in range(order - 1)] + [reflection]
+        variance *= 1.0 - reflection * reflection
+        if not variance > 64.0 * EPS * gamma[0]:
+            break
+        bic = n * math.log(variance) + order * math.log(n)
+        if bic < best_bic:
+            best_bic, best = bic, list(phi)
+    return best, [g / gamma[0] for g in gamma[: len(best) + 1]]
+
+
+def model_acf(phi, rho, block, rows):
+    q = len(phi)
+    rho = list(rho)
+    limit = max(block + math.ceil(-math.log(TAIL_TOLERANCE) * max(rows, 1)), q + 2)
+    for k in range(q + 1, limit):
+        rho.append(sum(f * rho[k - 1 - j] for j, f in enumerate(phi)))
+        if k > block and all(abs(r) < TAIL_TOLERANCE for r in rho[k + 1 - q : k + 1]):
+            break
+    return rho
+
+
+def kernel_bias_factor(influence, block):
+    """1/sqrt of the share of the fitted autoregression's long-run variance that the Bartlett
+    kernel at `block` keeps: the smaller share of a Kendall-corrected AR(1) and a BIC AR(q >= 2)."""
+    n = len(influence)
+    if n < 8 or block == 0:
+        return 1.0
+    mean = sum(influence) / n
+    s = [v - mean for v in influence]
+    if not _dot(s, s) / n > 0.0:
+        return 1.0
+    fraction = 1.0
+    rho1 = kendall_rho(s)
+    if rho1 > 0.0:
+        fraction = min(fraction, bartlett_capture(ar1_acf(rho1, block), block))
+    phi, rho = bic_autoregression(s, max(math.floor(12.0 * (n / 100.0) ** 0.25), 4))
+    if len(phi) >= 2:
+        fraction = min(fraction, bartlett_capture(model_acf(phi, rho, block, n), block))
+    return 1.0 / math.sqrt(fraction) if 0.0 < fraction < 1.0 else 1.0
+
+
+def effective_count(values):
+    largest = max(abs(v) for v in values)
+    if not largest > 0.0:
+        return None
+    squares = [(v / largest) ** 2 for v in values]
+    return min(3.0 * sum(squares) ** 2 / sum(q * q for q in squares), float(len(values)))
+
+
+def student_ratio(df):
+    if df is None or not df > 0.0:
+        return 1.0
+    tail = mp.mpf((1.0 + 0.95) / 2.0)
+    normal = mp.sqrt(2) * mp.erfinv(2 * tail - 1)
+    return max(tof(t_ppf(tail, mp.mpf(df)) / normal), 1.0)
+
+
+def series_error(psi):
+    """Published error of a series quantity from its exact influence series."""
+    lag = newey_west_lag(len(psi))
+    values = [tof(v) for v in psi]
+    count = effective_count(values)
+    df = None if count is None else 1.5 * count / (lag + 1)
+    raw = mp.sqrt(mpf(lagged_variance(psi, lag)))
+    return tof(raw * mpf(kernel_bias_factor(values, lag + 1)) * mpf(student_ratio(df)))
+
+
+def row_error(psi):
+    """Published error of a row-model coefficient from its exact influence values."""
+    values = [tof(v) for v in psi]
+    raw = mp.sqrt(mpf(sum(v * v for v in psi)))
+    return tof(raw * mpf(student_ratio(effective_count(values))))
+
+
+def block_posterior_scale(rows, length, psi):
+    blocks = -(-rows // length)
+    if blocks < 2:
+        return 1.0
+    df, bias = blocks - 1.0, 1.0
+    if psi is not None:
+        sums = [sum(psi[i : i + length]) for i in range(0, len(psi), length)]
+        centre = sum(sums) / len(sums)
+        count = effective_count([v - centre for v in sums])
+        if count is not None:
+            df = min(df, max(count - 1.0, 1.0))
+        bias = kernel_bias_factor(psi, length)
+    return math.sqrt((blocks + 1.0) / (blocks - 1.0)) * student_ratio(df) * bias
 
 
 # ---------------------------------------------------------------- strata
@@ -280,7 +463,7 @@ def strata_of(case):
 def lagged_variance(psi, lag):
     total = sum(v * v for v in psi)
     for ell in range(1, min(lag, len(psi) - 1) + 1):
-        wt = 1 - F(ell) / F(lag + 1)
+        wt = 1 - mpf(F(ell, lag + 1)) if isinstance(psi[0], mp.mpf) else 1 - F(ell, lag + 1)
         total += 2 * wt * sum(psi[t] * psi[t - ell] for t in range(ell, len(psi)))
     return max(total, 0)
 
@@ -296,9 +479,9 @@ def strata_statistics(case, eff):
     return out
 
 
-def strata_errors(case, w):
-    of_row, k = strata_of(case)
-    y = case["columns"][case["outcome"]]
+def strata_influence(of_row, k, y, w):
+    """Influence series of each group mean (None where it has fewer than two weighted rows) and
+    the count of weighted rows."""
     n = len(y)
     out = []
     for g in range(k):
@@ -306,16 +489,30 @@ def strata_errors(case, w):
         total = sum(F(w[r]) for r in members)
         positive = sum(1 for r in members if w[r] > 0)
         if positive < 2 or total <= 0:
-            out.append(None)
+            out.append((None, positive))
             continue
         m = sum(F(w[r]) * F(y[r]) for r in members) / total
         psi = [F(w[r]) * (F(y[r]) - m) / total if of_row[r] == g else F(0) for r in range(n)]
-        if case["modality"] == "series":
-            var = lagged_variance(psi, newey_west_lag(n))
+        out.append((psi, positive))
+    return out
+
+
+def strata_errors_of(of_row, k, y, w, modality):
+    out = []
+    for psi, positive in strata_influence(of_row, k, y, w):
+        if psi is None:
+            out.append(None)
+        elif modality == "series":
+            out.append(series_error(psi))
         else:
             var = sum(v * v for v in psi) * F(positive) / F(positive - 1)
-        out.append(tof(mp.sqrt(mpf(var))))
+            out.append(tof(mp.sqrt(mpf(var))))
     return out
+
+
+def strata_errors(case, w):
+    of_row, k = strata_of(case)
+    return strata_errors_of(of_row, k, case["columns"][case["outcome"]], w, case["modality"])
 
 
 # ---------------------------------------------------------------- correlations
@@ -399,12 +596,60 @@ def analytic(case):
         y = case["columns"][case["outcome"]]
         x = design_rows(case)
         beta = fit_model(x, y, w, case["family"])
-        v = sandwich(x, y, w, beta, case["family"], case["modality"])
-        return [tof(mp.sqrt(max(mpf(v[i][i]), 0))) for i in range(report_count(case))]
+        if case["modality"] == "series":
+            psis = model_influence(x, y, w, beta, case["family"], report_count(case))
+            return [series_error(psi) for psi in psis]
+        psis = model_influence(x, y, w, beta, case["family"], report_count(case))
+        return [row_error(psi) for psi in psis]
     if kind == "pearson" and case["modality"] == "rows":
         r = statistic(case, w)[0]
         return [pearson_error(r, w)]
     return [None]
+
+
+def pivot_errors(case):
+    """HC1 errors of the coefficients of a row model, the scale of the bootstrap-t pivot."""
+    w = case_weights(case)
+    y = case["columns"][case["outcome"]]
+    x = design_rows(case)
+    beta = fit_model(x, y, w, case["family"])
+    v = sandwich(x, y, w, beta, case["family"], "rows")
+    return [tof(mp.sqrt(max(mpf(v[i][i]), 0))) for i in range(report_count(case))]
+
+
+def influence(case):
+    """Binary64 influence series of each reported quantity of a series; None where it has none."""
+    w = case_weights(case)
+    terms = len(case["term_count_hint"])
+    if case["modality"] != "series":
+        return [None] * terms
+    y = case["columns"][case["outcome"]]
+    if case["kind"] == "strata":
+        of_row, k = strata_of(case)
+        return [None if psi is None else [tof(v) for v in psi] for psi, _ in strata_influence(of_row, k, y, w)]
+    if case["kind"] == "model":
+        x = design_rows(case)
+        beta = fit_model(x, y, w, case["family"])
+        psis = model_influence(x, y, w, beta, case["family"], report_count(case))
+        return [[tof(v) for v in psi] for psi in psis]
+    return [None] * terms
+
+
+def analytic_resampled(case, index):
+    """HC1 errors of the model coefficients on the rows `index` (with repeats) as their own
+    sample of independent rows; None where the resample has none."""
+    w = case_weights(case)
+    y = case["columns"][case["outcome"]]
+    rows = design_rows(case)
+    xg, yg, wg = [rows[i] for i in index], [y[i] for i in index], [w[i] for i in index]
+    count = report_count(case)
+    beta = fit_model(xg, yg, wg, case["family"])
+    if beta is None:
+        return [None] * count
+    v = sandwich(xg, yg, wg, beta, case["family"], "rows")
+    if v is None:
+        return [None] * count
+    return [tof(mp.sqrt(max(mpf(v[i][i]), 0))) for i in range(count)]
 
 
 # ---------------------------------------------------------------- resampling summaries
@@ -414,20 +659,41 @@ def sample_std(values):
     return tof(mp.sqrt(mpf(sum((F(v) - m) ** 2 for v in values) / (n - 1))))
 
 
-def quantile7(sorted_values, p):
+def quantile_rank(sorted_values, p):
+    """Exchangeable-rank quantile: one-based rank p (D + 1) among D values, clamped to [1, D]."""
     d = len(sorted_values)
-    h = (d - 1) * mp.mpf(p)
-    lo = int(mp.floor(h))
-    hi = min(lo + 1, d - 1)
-    frac = h - lo
-    return tof(mpf(F(sorted_values[lo])) * (1 - frac) + mpf(F(sorted_values[hi])) * frac)
+    zero_based = min(max(p * (d + 1), 1.0), float(d)) - 1.0
+    lo, hi = math.floor(zero_based), math.ceil(zero_based)
+    frac = mp.mpf(zero_based - lo)
+    low, high = mpf(F(sorted_values[lo])), mpf(F(sorted_values[hi]))
+    return tof(low + (high - low) * frac)
+
+
+LOWER_TAIL = (1.0 - 0.95) / 2.0
+UPPER_TAIL = (1.0 + 0.95) / 2.0
 
 
 def spread(values):
     if len(values) < 20:
         return None
     s = sorted(values)
-    return [quantile7(s, 0.025), quantile7(s, 0.975)]
+    return [quantile_rank(s, LOWER_TAIL), quantile_rank(s, UPPER_TAIL)]
+
+
+def studentized_spread(estimate, error, draws, errors, k):
+    """Bootstrap-t interval of term k, or None when it has no analytic error or too few pivots."""
+    if error is None or not error > 0:
+        return None
+    floor = 1e-8 * error
+    pivots = sorted(
+        tof((mpf(F(d[k])) - mpf(F(estimate))) / mpf(F(e[k])))
+        for d, e in zip(draws, errors)
+        if d[k] is not None and e[k] is not None and e[k] > floor
+    )
+    if len(pivots) < 20:
+        return None
+    lower, upper = quantile_rank(pivots, LOWER_TAIL), quantile_rank(pivots, UPPER_TAIL)
+    return [estimate - upper * error, estimate - lower * error]
 
 
 def multiplicities(index, n):
@@ -446,21 +712,37 @@ def bootstrap_expect(case, streams):
     n = len(case["columns"][case["outcome"]])
     w = case_weights(case)
     terms = len(case["term_count_hint"])
-    draws = []
+    series = case["modality"] == "series"
+    draws, errors = [], []
     for index in streams["indexes"]:
         mult = multiplicities(index, n)
         draws.append(statistic(case, [a * b for a, b in zip(w, mult)]))
-    scale = circular_scale(streams["block_length"], n) if case["modality"] == "series" else 1.0
+        if not series and case["kind"] == "model":
+            errors.append(analytic_resampled(case, index))
+    estimates = statistic(case, w)
+    pivots = pivot_errors(case) if errors else None
+    psis = influence(case)
     attempted = len(draws)
     ok = attempted
     out = []
     for k in range(terms):
         vals = [d[k] for d in draws if d[k] is not None]
         ok = min(ok, len(vals))
+        scale = 1.0
+        if series:
+            ell = streams["block_length"]
+            scale = circular_scale(ell, n) * (1.0 if psis[k] is None else kernel_bias_factor(psis[k], ell))
         se = None
         if len(vals) >= 2 and len(vals) * 2 >= attempted:
             se = tof(mpf(sample_std(vals)) * mpf(scale))
-        out.append({"se": se, "spread": spread(vals)})
+        studentized = studentized_spread(estimates[k], pivots[k], draws, errors, k) if errors else None
+        if studentized is not None:
+            out.append({"se": se, "spread": studentized})
+            continue
+        sp = spread(vals)
+        if sp is not None:
+            sp = [estimates[k] + scale * (v - estimates[k]) for v in sp]
+        out.append({"se": se, "spread": sp})
     return {"terms": out, "ok": ok}
 
 
@@ -476,6 +758,7 @@ def bayes_boot_expect(case, streams):
         else:
             mult = weights
         draws.append(statistic(case, [a * b for a, b in zip(w, mult)]))
+    psis = influence(case)
     out = []
     for k in range(terms):
         vals = [d[k] for d in draws if d[k] is not None]
@@ -484,8 +767,17 @@ def bayes_boot_expect(case, streams):
             continue
         s = sorted(vals)
         mean = tof(sum(F(v) for v in vals) / len(vals))
+        scale = 1.0
+        if case["modality"] == "series":
+            scale = block_posterior_scale(n, streams["block_length"], psis[k])
+        lower, upper = quantile_rank(s, LOWER_TAIL), quantile_rank(s, UPPER_TAIL)
         out.append(
-            {"mean": mean, "sd": sample_std(vals), "lower": quantile7(s, 0.025), "upper": quantile7(s, 0.975)}
+            {
+                "mean": mean,
+                "sd": sample_std(vals) * scale,
+                "lower": mean + scale * (lower - mean),
+                "upper": mean + scale * (upper - mean),
+            }
         )
     return out
 

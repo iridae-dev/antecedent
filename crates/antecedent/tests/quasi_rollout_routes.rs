@@ -482,7 +482,9 @@ fn the_augmented_panel_publishes_a_whole_cluster_resample_interval() {
     let interval = fit.interval_95.unwrap();
     assert!(interval[0] < fit.effect && fit.effect < interval[1]);
     assert!(fit.uncertainty.contains("calibration_not_measured"));
-    assert_eq!(result.support_status(), None);
+    // 400 subjects, each its own cluster, a supplied propensity inside [0.25, 0.75] and 199
+    // completed bootstrap refits meet the augmented-panel support row.
+    assert_eq!(result.support_status().map(|status| status.as_str()), Some("supported"));
     assert!(has_assumption(&result, "independent_resampling_units"));
 }
 
@@ -636,6 +638,61 @@ fn multi_unit_synthetic_control_round_trips_and_did_refuses() {
     assert_eq!(stored.calibration, "not_measured");
 }
 
+/// Solve `a x = b` by Gaussian elimination with partial pivoting.
+fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
+    let k = b.len();
+    for col in 0..k {
+        let pivot = (col..k).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs())).unwrap();
+        a.swap(col, pivot);
+        b.swap(col, pivot);
+        for row in col + 1..k {
+            let f = a[row][col] / a[col][col];
+            for c in col..k {
+                a[row][c] -= f * a[col][c];
+            }
+            b[row] -= f * b[col];
+        }
+    }
+    let mut x = vec![0.0; k];
+    for row in (0..k).rev() {
+        let tail: f64 = (row + 1..k).map(|c| a[row][c] * x[c]).sum();
+        x[row] = (b[row] - tail) / a[row][row];
+    }
+    x
+}
+
+/// Signed row weights of the reference jump on the window rows, left side then right side in
+/// running order: the jump of a column is its weighted sum. A side's weight on a row is the
+/// cubic fit's intercept loading `w (G^-1 x)_0`, negative left of the cutoff.
+fn reference_jump_weights(running: &[f64], cutoff: f64, h: f64) -> Vec<f64> {
+    let basis = |d: f64| [1.0, d, d * d, d * d * d];
+    let mut weights = Vec::new();
+    for right in [false, true] {
+        let distances: Vec<f64> = running
+            .iter()
+            .map(|r| (r - cutoff) / h)
+            .filter(|d| d.abs() < 1.0 && if right { *d >= 0.0 } else { *d < 0.0 })
+            .collect();
+        let mut gram = vec![vec![0.0; 4]; 4];
+        for &d in &distances {
+            let (x, w) = (basis(d), 1.0 - d.abs());
+            for a in 0..4 {
+                for b in 0..4 {
+                    gram[a][b] += w * x[a] * x[b];
+                }
+            }
+        }
+        // The Gram matrix is symmetric, so this is the intercept row of its inverse.
+        let bread0 = solve(gram, vec![1.0, 0.0, 0.0, 0.0]);
+        let sign = if right { 1.0 } else { -1.0 };
+        weights.extend(distances.iter().map(|&d| {
+            let x = basis(d);
+            sign * (1.0 - d.abs()) * (0..4).map(|a| bread0[a] * x[a]).sum::<f64>()
+        }));
+    }
+    weights
+}
+
 /// Independent robust-bias-corrected fuzzy-RD reference. On each side of the cutoff it fits the
 /// triangular-kernel weighted cubic polynomial `y ~ 1 + d + d^2 + d^3` (`d = (r - c) / h`) by
 /// normal equations; the corrected side coefficient is the cubic fit's intercept (the quadratic
@@ -649,28 +706,6 @@ fn reference_fuzzy_rd(
     cutoff: f64,
     h: f64,
 ) -> (f64, f64, f64, f64) {
-    fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
-        let k = b.len();
-        for col in 0..k {
-            let pivot =
-                (col..k).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs())).unwrap();
-            a.swap(col, pivot);
-            b.swap(col, pivot);
-            for row in col + 1..k {
-                let f = a[row][col] / a[col][col];
-                for c in col..k {
-                    a[row][c] -= f * a[col][c];
-                }
-                b[row] -= f * b[col];
-            }
-        }
-        let mut x = vec![0.0; k];
-        for row in (0..k).rev() {
-            let tail: f64 = (row + 1..k).map(|c| a[row][c] * x[c]).sum();
-            x[row] = (b[row] - tail) / a[row][row];
-        }
-        x
-    }
     // (intercept_y, intercept_t, var_y, var_t, cov_yt) of one side.
     let side = |right: bool| -> (f64, f64, f64, f64, f64) {
         let rows: Vec<(usize, f64)> = (0..running.len())
@@ -836,10 +871,11 @@ fn a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_desi
     assert!((overall.estimate - reference).abs() < 1e-8, "{} vs {reference}", overall.estimate);
     let hc0 = rollout.diagnostic("hc0_ratio_standard_error").unwrap();
     assert!((hc0 - reference_hc0).abs() < 1e-8 * (1.0 + hc0), "{hc0} vs {reference_hc0}");
-    // The block-bootstrap SE is checked against an independent moving-block bootstrap run here:
-    // rows inside the window in time order, blocks of round(cbrt(min side rows)) consecutive
-    // rows drawn with replacement within each side and truncated to the side's length, the whole
-    // local fit repeated on the resampled rows.
+    // The interval is checked against the known error law, not against another resampling
+    // scheme. Time is a fixed design and the first stage is exactly one, so the estimate is
+    // the reference jump weights applied to the outcome, and its standard deviation under the
+    // generated AR(1) errors (coefficient 0.7, innovation sd 0.5, one recursion through the
+    // cutoff) is sqrt(a' G a) with G[i][j] = 0.25 / (1 - 0.49) * 0.7^|i - j|.
     let side_rows = |right: bool| -> Vec<usize> {
         (0..time.len())
             .filter(|&i| {
@@ -850,36 +886,30 @@ fn a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_desi
     };
     let (left, right) = (side_rows(false), side_rows(true));
     assert_eq!((left.len(), right.len()), (299, 300));
+    // Blocks of innovations are the rounded cube root of the smaller side's rows.
     let block = (left.len().min(right.len()) as f64).cbrt().round() as usize;
     assert_eq!(block, 7);
-    let mut reference_rng = Rng(0x5eed);
-    let mut draws = Vec::new();
-    for _ in 0..400 {
-        let (mut r, mut o, mut d) = (Vec::new(), Vec::new(), Vec::new());
-        for rows in [&left, &right] {
-            let starts = rows.len() + 1 - block;
-            let mut taken = 0;
-            for _ in 0..rows.len().div_ceil(block) {
-                let start = ((reference_rng.uniform() * starts as f64) as usize).min(starts - 1);
-                for &row in &rows[start..(start + block).min(rows.len())] {
-                    if taken == rows.len() {
-                        break;
-                    }
-                    r.push(time[row]);
-                    o.push(y[row]);
-                    d.push(treated[row]);
-                    taken += 1;
-                }
-            }
+    assert_eq!(rollout.diagnostic("block_length"), Some(7.0));
+    let weights = reference_jump_weights(&time, 1000.0, 300.0);
+    assert_eq!(weights.len(), left.len() + right.len());
+    let jump: f64 = left.iter().chain(&right).zip(&weights).map(|(&row, a)| a * y[row]).sum();
+    assert!((jump - reference).abs() < 1e-8, "{jump} vs {reference}");
+    let marginal_variance = 0.25 / (1.0 - 0.49);
+    let mut serial_variance = 0.0;
+    for (i, a) in weights.iter().enumerate() {
+        for (j, b) in weights.iter().enumerate() {
+            serial_variance += a * b * marginal_variance * 0.7_f64.powf(i.abs_diff(j) as f64);
         }
-        draws.push(reference_fuzzy_rd(&r, &o, &d, 1000.0, 300.0).0);
     }
-    let mean = draws.iter().sum::<f64>() / draws.len() as f64;
-    let reference_block_se =
-        (draws.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (draws.len() as f64 - 1.0)).sqrt();
+    let serial_sd = serial_variance.sqrt();
+    // The route estimates that standard deviation from an AR(1) model of the 599 window
+    // residuals and the interquartile range of 199 replicates. The coefficient's sampling sd
+    // (about 0.04) moves the long-run sd by 1 / (1 - 0.7) per unit (13%), the innovation
+    // variance adds 3% and the interquartile range of 199 replicates 8%: 16% together, so
+    // three standard deviations is a factor of 1.6 either way.
     assert!(
-        (block_se / reference_block_se - 1.0).abs() < 0.2,
-        "block bootstrap SE {block_se} vs independent moving-block bootstrap {reference_block_se}"
+        (block_se / serial_sd).ln().abs() < 1.6_f64.ln(),
+        "block bootstrap SE {block_se} vs the analytic AR(1) standard deviation {serial_sd}"
     );
     assert!(block_se > 1.3 * hc0);
     assert!((overall.estimate - 1.0).abs() < 4.0 * block_se);
@@ -895,12 +925,19 @@ fn a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_desi
     assert_eq!(posterior_rollout.design.as_ref(), "temporal_fuzzy_rd");
     assert!(posterior_rollout.uncertainty.starts_with("bayesian_"));
     let posterior_sd = posterior_rollout.diagnostic("posterior_sd").unwrap();
-    // Non-overlapping blocks under flat-Dirichlet weights are a different scheme from the moving
-    // block bootstrap, so the posterior spread is only required to be of the same order as the
-    // independent moving-block reference (observed ratio 0.78).
+    // The posterior redraws the error model the bootstrap fitted, so its sd shares that
+    // model's estimation error with the bootstrap SE and differs from it by resampling noise
+    // alone: the interquartile range of 199 replicates (8%) and the sd of 400 draws that also
+    // carry the coefficient's posterior spread (7%), 11% together, so a factor of 1.45 is
+    // about three and a half standard deviations. Against the analytic sd it carries the
+    // model's estimation error as well.
     assert!(
-        posterior_sd > 0.6 * reference_block_se && posterior_sd < 1.05 * reference_block_se,
-        "posterior sd {posterior_sd} vs moving-block bootstrap {reference_block_se}"
+        (posterior_sd / block_se).ln().abs() < 1.45_f64.ln(),
+        "posterior sd {posterior_sd} vs block bootstrap SE {block_se}"
+    );
+    assert!(
+        (posterior_sd / serial_sd).ln().abs() < 1.6_f64.ln(),
+        "posterior sd {posterior_sd} vs the analytic AR(1) standard deviation {serial_sd}"
     );
     assert!(posterior_sd > 1.3 * rollout.diagnostic("hc0_ratio_standard_error").unwrap());
     assert!((posterior_rollout.overall().unwrap().estimate - 1.0).abs() < 4.0 * posterior_sd);

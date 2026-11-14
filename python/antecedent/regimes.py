@@ -456,7 +456,11 @@ class SequentialContrast:
     exchangeability given the measured history, positivity, consistency and no interference are
     declared, not derived. Frequentist inference reports the normal interval of the cross-fit
     contrast; ``Bayesian`` inference reports the modular Bayesian-bootstrap posterior of the same
-    scores. Neither is supported and neither has a measured repeated-sampling calibration.
+    scores. Either is supported only for the always-treat against never-treat contrast with at
+    least five folds (none above a fifth of the rows), at least 200 subjects and fitted action
+    probabilities at least 0.05 (and at least 2,000 draws for the posterior): the interval's
+    support is ``SequentialContrastEstimate.supported`` and the posterior's is the
+    ``estimate.design_posterior.graphless_support`` diagnostic. Every other fit is unsupported.
     """
 
     outcome: str
@@ -499,7 +503,14 @@ class SequentialContrast:
 
 @dataclass(frozen=True, slots=True)
 class SequentialContrastEstimate:
-    """Cross-fit contrast of two regimes with its scores. Unsupported, calibration not_measured."""
+    """Cross-fit contrast of two regimes with its scores.
+
+    ``supported`` is ``True`` only when the normal interval meets the sequential-contrast support
+    row: the always-treat against never-treat contrast, at least five folds with none above a
+    fifth of the rows, at least 200 subjects and every fitted regime-action probability at least
+    0.05. A posterior states its row in the result's diagnostics instead. Every other fit is
+    unsupported.
+    """
 
     active_regime: tuple[int, int]
     control_regime: tuple[int, int]

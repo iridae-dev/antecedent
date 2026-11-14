@@ -2927,6 +2927,7 @@ id = "counterfactual.transported_path_specific"
 capability = "counterfactual.transported_path_specific"
 inference_inventory_disposition = "outputs_listed"
 status = "not_supported"
+closed_question = "No joint cross-world transport theorem is derived for temporal, continuous or non-finite path-specific counterfactuals; the finite discrete static case is answered by general counterfactual transport."
 consumer_question = "Can a static path-specific counterfactual answer be transported to a named target using a checked source-to-target derivation?"
 theorem = "Transporting a counterfactual requires both an identified target transport functional and a fixed-population cross-world theorem for the same quantity. Neither a transported mean nor a source counterfactual alone supports their composition. Gate that did not pass: the joint cross-world transport theorem is not derived, and the prerequisite gates (the ordinary transport support for the target functional, the fixed-population cross-world support for the same quantity, and stated cross-population assumptions) are not met. Only the closed gate is implemented: the route evaluates nothing whatever is supplied and returns prerequisite_missing with the first missing gate named as the offending input, or factor_missing only when all three gates pass and a required source or target regime factor is absent; both the missing-gate and missing-factor lists are retained either way. No joint proof search, composed artifact or composed truth exists for the temporal, continuous and non-finite scope, so the positive, artifact and budget fixtures below have no executing evidence and the route is not supported. The finite discrete, static, acyclic semi-Markovian scope is answered by the separately supported counterfactual.transport_general (antecedent.transport.advanced.identify_counterfactual); this function does not answer it, and its refusal remedy names that route and that scope."
 reference = "prerequisites counterfactual.path_specific_edge and transport.finite_scenario_envelope"
@@ -8589,20 +8590,20 @@ inherited_coverage_records = ["cov.average_effect.dag.frequentist.analytic_se.l9
 id = "estimate.quadratic_dose"
 capability = "estimate.quadratic_dose"
 inference_inventory_disposition = "outputs_listed"
-candidate_coverage_records = ["cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_level_l95.v2_validation_not_applicable", "cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_derivative_l95.v2_validation_not_applicable", "cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_contrast_l95.v2_validation_not_applicable"]
+coverage_records = ["cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_level_l95.v2_validation_not_applicable", "cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_derivative_l95.v2_validation_not_applicable", "cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_contrast_l95.v2_validation_not_applicable"]
 status = "supported"
-consumer_question = "What is the randomized-dose level, derivative or contrast under a declared exact quadratic conditional mean, with zero smoothing bias at fixed bandwidth?"
-theorem = "Caller attests randomized IID dose rows and E[Y|D]=beta0+beta1 D+beta2 D^2. For any admissible fixed Gaussian bandwidth and full-rank local quadratic design, weighted least squares reproduces the conditional mean polynomial and its derivative exactly in conditional expectation. Contrasts inherit this zero smoothing bias. This is a structural mean-model assumption, not authenticated by residuals or by a successful fit. Residual sandwich sampling uncertainty is separate and not_measured."
+consumer_question = "What is the randomized-dose level, derivative or contrast under a declared exact quadratic conditional mean, with zero smoothing bias at fixed bandwidth, and what pointwise 95% interval surrounds it?"
+theorem = "Caller attests randomized IID dose rows and E[Y|D]=beta0+beta1 D+beta2 D^2. For any admissible fixed Gaussian bandwidth and full-rank local quadratic design, weighted least squares reproduces the conditional mean polynomial and its derivative exactly in conditional expectation. Contrasts inherit this zero smoothing bias. This is a structural mean-model assumption, not authenticated by residuals or by a successful fit. With the smoothing bias zero under that premise, the pointwise interval is the estimate plus or minus the normal quantile times the HC0 residual sandwich standard error of the linear smoother (the contrast uses the shared-row influence covariance); its repeated-sampling coverage is measured at the level, the derivative and a two-dose contrast, not derived. Under any other mean function the interval leaves the smoothing bias out and is outside this record."
 reference = "provenance/estimate.quadratic_dose.toml; conformance/transport/quadratic_dose/README.md"
-guarantee = "declared_exact_quadratic_mean_zero_smoothing_bias_point_only"
+guarantee = "declared_exact_quadratic_mean_zero_smoothing_bias_pointwise_95_interval_measured_from_250_rows"
 graph_class = "A randomized dose, attested by the caller: the dose is independent of the potential-outcome process, so no adjustment is needed. An observational dose is refused (dose_grid.graph_not_certified); this row does not adjust and re-derives no graph."
 population_semantics = "One population and one row snapshot of independent (dose, outcome) rows; clustered, serial or linked rows are outside the row. Support is judged per requested dose."
 evidence_family = "Aligned finite (dose, outcome) rows, at least three, no external model or law; no nuisance fit beyond the fixed-bandwidth local quadratic."
 provider = "antecedent_estimate::dose_grid_functional (Gaussian-kernel local quadratic with a heteroskedasticity-robust sandwich standard error from the linearized influences), sealed by antecedent_io::dose_grid_functional_artifact (format version 1) and exposed through antecedent::analysis::dose_grid_functional and python/antecedent/dose_grid.py. The composed sampled provider and its intervals are not supported."
 estimand = "Conditional quadratic mean level, derivative or named-dose contrast under caller-attested randomized design."
-inference_claim = "point_only"
+inference_claim = "interval"
 noninferential_interval_fields = [{ name = "interval_reference", why = "Names the normal or Student-t reference distribution; this string contains no interval endpoints or coverage claim." }]
-inference_notes = "Zero smoothing bias is a declared exact-quadratic model premise. Original pointwise HC0 normal candidates have three real frozen randomized-dose harness allocations in candidate_coverage_records; none is measured or publicly activated. Level, derivative and covariance-aware contrast are distinct. A simultaneous band remains an unimplemented adjacent method."
+inference_notes = "Zero smoothing bias is a declared exact-quadratic model premise, and the interval claim holds only under it. The pointwise 95% HC0 normal intervals of the level, the derivative and the covariance-aware contrast are three distinct claims, each with a measured coverage record on randomized independent rows: Uniform[0, 4] dose, unit Gaussian errors, fixed bandwidth 0.6, 250 to 1,000 rows, evaluated at dose 2 and for the contrast from 1 to 3. Fewer rows, other levels, heteroskedastic or dependent rows, a bandwidth chosen from the data and a mean that is not exactly quadratic are outside the claim. The result itself still labels its calibration not_measured: the record is the unit, and nothing at run time checks the row count or the premise beyond the caller's declaration. A simultaneous band remains an unimplemented adjacent method."
 owners = ["antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent"]
 prerequisite_records = ["transport.smoothed_dose_response", "estimate.dose_grid_functional"]
 prerequisite_reason = "Reuses unchanged fixed-bandwidth local quadratic numerical engine, with an additional explicit mean-model premise and separately checked artifact marker."
@@ -8633,19 +8634,19 @@ refusals = [
   { detail = "dose_grid.result_replay_mismatch" },
   { detail = "dose_grid.undecodable" },
 ]
-routes = [{ name = "antecedent.dose_grid.quadratic_dose_functional", stage = "evaluate", status = "supported", claim = "point_only", covers = ["quadratic_dose_functional"] }]
-fixtures = [{ shared_evidence = true, id = "estimate.quadratic_dose.quadratic_mean_truth.positive", role = "positive", intent = "Exact quadratic m(d)=1+.5d+.25d² reproduces level/derivative/contrast across admissible fixed bandwidths.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "exact_quadratic_scope_derives_zero_bias_without_claiming_sampling_calibration" }, { id = "estimate.quadratic_dose.quadratic_mean_replay.artifact", role = "artifact", intent = "Independent scoped artifact replay checks all functionals across bandwidths.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "quadratic_mean_scope_replays_truth_across_fixed_bandwidths" }, { id = "estimate.quadratic_dose.quadratic_mean_mutations.negative", role = "negative", intent = "Mean-model premise, required feature and bias flag mutations refuse; absent historical optional field preserves legacy identity.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "quadratic_mean_premise_and_required_feature_cannot_be_silently_changed" }, { id = "estimate.quadratic_dose.quadratic_mean_python.positive", role = "positive", intent = "Public Python producer recovers independent polynomial truth across three functionals and three bandwidths.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_quadratic_scope_recovers_functional_across_fixed_bandwidths" }, { id = "estimate.quadratic_dose.quadratic_mean_sampling.negative", role = "negative", intent = "Sampling uncertainty remains not_measured and support/band refusals persist.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions" }, { id = "estimate.quadratic_dose.exact_quadratic_oracle.truth", role = "truth", shared_evidence = true, intent = "Under the declared exact quadratic mean the level equals b0 + b1 d + b2 d^2 and the derivative equals b1 + 2 b2 d from the frozen conformance coefficients, across fixed bandwidths.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "exact_quadratic_scope_derives_zero_bias_without_claiming_sampling_calibration" }]
+routes = [{ name = "antecedent.dose_grid.quadratic_dose_functional", stage = "evaluate", status = "supported", claim = "interval", covers = ["quadratic_dose_functional"] }]
+fixtures = [{ shared_evidence = true, id = "estimate.quadratic_dose.quadratic_mean_truth.positive", role = "positive", intent = "Exact quadratic m(d)=1+.5d+.25d² reproduces level/derivative/contrast across admissible fixed bandwidths.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "exact_quadratic_scope_derives_zero_bias_without_claiming_sampling_calibration" }, { id = "estimate.quadratic_dose.quadratic_mean_replay.artifact", role = "artifact", intent = "Independent scoped artifact replay checks all functionals across bandwidths.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "quadratic_mean_scope_replays_truth_across_fixed_bandwidths" }, { id = "estimate.quadratic_dose.quadratic_mean_mutations.negative", role = "negative", intent = "Mean-model premise, required feature and bias flag mutations refuse; absent historical optional field preserves legacy identity.", evidence_test = "crates/antecedent-io/tests/dose_grid_artifact.rs", evidence_assertion = "quadratic_mean_premise_and_required_feature_cannot_be_silently_changed" }, { id = "estimate.quadratic_dose.quadratic_mean_python.positive", role = "positive", intent = "Public Python producer recovers independent polynomial truth across three functionals and three bandwidths.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_quadratic_scope_recovers_functional_across_fixed_bandwidths" }, { id = "estimate.quadratic_dose.quadratic_mean_sampling.negative", role = "negative", intent = "Sampling uncertainty remains not_measured and support/band refusals persist.", evidence_test = "python/tests/test_dose_grid.py", evidence_assertion = "test_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions" }, { id = "estimate.quadratic_dose.hc0_normal_interval_multiprecision.construction", role = "construction", intent = "The level, its HC0 sandwich standard error and the normal 95% half-width of the Gaussian local quadratic equal a 50-digit reference of the linear smoother on five designs.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_local_quadratic_reference.rs", evidence_assertion = "level_derivative_standard_errors_and_support_match_the_multiprecision_fit" }, { id = "estimate.quadratic_dose.exact_quadratic_oracle.truth", role = "truth", shared_evidence = true, intent = "Under the declared exact quadratic mean the level equals b0 + b1 d + b2 d^2 and the derivative equals b1 + 2 b2 d from the frozen conformance coefficients, across fixed bandwidths.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs", evidence_assertion = "exact_quadratic_scope_derives_zero_bias_without_claiming_sampling_calibration" }]
 surface_exports = ["python/antecedent/dose_grid.py"]
 owned_exports = ["quadratic_dose_functional"]
 
 [[record.inference_outputs]]
 fields = ["levels.standard_error/interval", "derivatives.standard_error/interval", "contrast.standard_error/interval"]
 method = "local-quadratic residual sandwich, normal pointwise intervals and paired influence contrast"
-implementation_status = "implemented_not_measured"
-boundary = "Pointwise and derivative targets distinct; overlapping windows covariance retained. Smoothing bias absent only under declared exact quadratic model."
+implementation_status = "implemented_measured_scoped"
+boundary = "Pointwise and derivative targets distinct; overlapping windows covariance retained. Smoothing bias absent only under declared exact quadratic model, and only that case is measured: randomized independent rows, 250 to 1,000, fixed bandwidth 0.6, 95% level."
 truth_design = "Known randomized IID quadratic and nonquadratic smooth mean functions, bandwidth/local ESS/support edge grid; truth is original level/derivative/contrast, not fitted smooth target unless declared."
 method_source = "crates/antecedent-estimate/src/dose_grid_functional.rs"
-nominal_level = "per-output nominal_level"
+nominal_level = "0.95"
 measurement_suite = "crates/antecedent-estimate/tests/quadratic_dose_calibration.rs"
 id = "quadratic_dose_functional.1"
 owner = "antecedent-estimate"
@@ -8654,11 +8655,11 @@ public_producers = ["antecedent.dose_grid.quadratic_dose_functional"]
 closed_producers = []
 independent_consumers = ["estimate.quadratic_dose.quadratic_mean_replay.artifact"]
 truth_fixtures = ["crates/antecedent-io/tests/dose_grid_artifact.rs::quadratic_mean_scope_replays_truth_across_fixed_bandwidths"]
-acceptance_threshold = "Original shared frozen rules: nominal0.95±3MCSE; symmetric2000-replicate boundary/precision recheck; precisionfloor/ceiling±2MCSE after>=1000; all outer refusals count as misses,maximum1%skips; actual successful inner-work minima emitted. No measurement has run."
-activation_disposition = "retain_current_point_or_model_conditional_standing_no_new_guarantee"
-allocation_status = "frozen_harness_compiled_measurement_pending"
+acceptance_threshold = "Nominal 0.95 within 3 MCSE at each grid point; each of the three records passed at 250, 500 and 1,000 rows with no boundary."
+activation_disposition = "supported_exact_quadratic_premise_scope"
+allocation_status = "whole_method_measured_currently_attesting"
 role_allocation_note = "Registered consume/load/verify routes distinguished from producers; fixtures identify independent consumer execution. Nonregistered internal candidate producer stays in method_source rather than claiming a public route."
-measurement_design_status = "implemented_whole_method_harness_not_run"
+measurement_design_status = "harness_written_measured"
 truth_grid_allocation = "IID randomized Uniform[0,4] dose with independent N(0,1) error;exact quadratic mean1+.5d+.25d²;rows250/500/1000;fixed bandwidth.6;level2,derivative2,contrast1→3 truths3/1.5/3;HC0 and shared-row contrast covariance."
 allocated_coverage_records = ["cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_level_l95.v2_validation_not_applicable", "cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_derivative_l95.v2_validation_not_applicable", "cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_contrast_l95.v2_validation_not_applicable"]
 inherited_coverage_records = []
@@ -10078,6 +10079,76 @@ activation_disposition = "retain_existing_point_only_route_no_inferential_guaran
 allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
 measurement_design_status = "fixed_fixture_and_replay_tests_only_no_whole_method_sampling_calibration"
 truth_grid_allocation = "No repeated-sampling grid allocated. The only declared point check is crates/antecedent-estimate/tests/posterior_mean_linear.rs::dose_grid_posterior_mean_stays_near_the_linear_dose_response; it covers the named fixture in that test, not a population-level calibration grid."
+
+
+[[record]]
+id = "estimate.dose_grid_posterior"
+capability = "estimate.dose_grid_posterior"
+inference_inventory_disposition = "outputs_listed"
+status = "supported"
+consumer_question = "What is the joint posterior of a randomized-dose response level, derivative or contrast under a declared polynomial mean and prior, and what pointwise 95% credible interval does it publish?"
+theorem = "Caller attests a randomized dose (independent of the potential-outcome process) and independent Gaussian rows y = m(d) + e with m a polynomial of the declared degree in the dose rescaled to [-1, 1] on the declared support. With independent Gaussian coefficient priors N(0, sigma^2 s_j^2) and a known or inverse-gamma residual variance, the coefficient posterior is the conjugate Normal or Normal-Inverse-Gamma law, and a level, a derivative or a two-dose contrast is a linear map of it, so every draw gives the whole grid at once and the joint covariance is kept. The equal-tailed interval of the draws is a posterior statement under the declared prior and likelihood; its repeated-sampling coverage is measured, not derived, and only where the declared polynomial contains the true mean. The prior supplies no identifying premise: identification is the randomization the caller attests."
+reference = "provenance/estimate.dose_grid_functional.bayesian.toml"
+guarantee = "conjugate_polynomial_dose_posterior_pointwise_95_interval_measured_under_a_correct_quadratic_model_from_250_rows"
+graph_class = "A randomized dose, attested by the caller; an observational dose is refused (dose_grid.graph_not_certified). No graph is derived."
+population_semantics = "One population and one snapshot of independent (dose, outcome) rows. A dose outside the observed dose range is refused, never extrapolated."
+evidence_family = "Aligned finite (dose, outcome) rows, the declared support, coefficient prior scales and residual prior; no external model or law."
+provider = "antecedent_estimate::dose_grid_posterior::estimate_dose_grid_posterior, sealed and replayed by antecedent_io::bayesian_posterior_row_artifact and exposed through python/antecedent/dose_grid.py (dose_grid_posterior, consume_dose_grid_posterior_artifact)."
+estimand = "The dose response m(d) = E[Y(d)] at each grid dose, its derivative, or the contrast m(to) - m(from), under the declared polynomial mean; pointwise equal-tailed 95% posterior interval of each."
+inference_claim = "interval"
+inference_notes = "The interval is the equal-tailed 0.025 and 0.975 quantiles of the retained joint draws, pointwise per grid dose; no simultaneous band over the grid is claimed. The coverage harness (three groups, one per functional) uses a degree-two polynomial on an exactly quadratic mean, prior scale 10 on every rescaled coefficient, an inverse-gamma(1, 1) residual prior, 2,000 draws, Uniform[0, 4] doses with unit Gaussian errors and 250, 500 and 1,000 rows. The three coverage ids are allocated and not yet measured. A polynomial that does not contain the true mean, tighter priors, fewer draws or rows, non-Gaussian or dependent errors and other levels are outside the claim. The result and its artifact label calibration not_measured and supported false whatever the request: the record is the unit, and nothing at run time states this scope."
+owners = ["antecedent-estimate", "antecedent-io", "python/antecedent"]
+prerequisite_records = ["estimate.dose_grid_functional"]
+prerequisite_reason = "Reads the same randomized-dose design attestation, named functionals and support rule as the frequentist dose-grid row; the estimator and its uncertainty are its own."
+identity_inputs = ["design attestation", "named functional", "grid or the two contrast doses", "declared support", "coefficient prior scales", "residual prior", "draw count and seed", "the (dose, outcome) table bit for bit"]
+wire_changes = ["None: the posterior row artifact and its request are unchanged."]
+compatibility = "Additive record of an existing route; no request, result or artifact byte changes."
+search = false
+surface_rust = ["crates/antecedent-estimate/src/dose_grid_posterior.rs"]
+surface_values = ["DoseGridPosteriorRequest", "DoseGridPosterior", "CompiledDoseGridPosterior"]
+bounds = { cancellation = true }
+refusals = [
+  { detail = "dose_grid.cancelled", when = "Execution or artifact replay is cancelled before a posterior is delivered.", remedy = "Retry with an active execution context." },
+  { detail = "dose_grid.resource_refused", when = "The execution budget refuses the rows, the grid or the draws.", remedy = "Reduce the requested data, grid or draws, or increase the execution budget." },
+  { detail = "dose_grid.graph_not_certified", when = "The dose is declared observational.", remedy = "Attest a randomized dose, or use an adjusted route." },
+  { detail = "dose_grid.invalid_request", when = "The rows, support, prior scales, residual prior, grid or draw count are malformed.", remedy = "Correct the named field." },
+  { detail = "dose_grid.unsupported_dose", when = "A requested dose lies outside the observed dose range.", remedy = "Request doses inside the observed range." },
+]
+routes = [
+  { name = "antecedent.dose_grid.dose_grid_posterior", stage = "evaluate", status = "supported", claim = "interval", covers = ["estimate_dose_grid_posterior", "CompiledDoseGridPosterior.execute"] },
+  { name = "antecedent.dose_grid.consume_dose_grid_posterior_artifact", stage = "consume", status = "supported", claim = "interval" },
+]
+fixtures = [
+  { id = "estimate.dose_grid_posterior.conjugate_level.positive", role = "positive", intent = "The level posterior equals the closed-form conjugate posterior and keeps the covariance across the grid.", evidence_test = "python/tests/test_dose_grid_posterior.py", evidence_assertion = "test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance" },
+  { id = "estimate.dose_grid_posterior.typed_refusals.negative", role = "negative", intent = "An observational dose, a dose outside the observed range and a malformed request refuse with typed details.", evidence_test = "python/tests/test_dose_grid_posterior.py", evidence_assertion = "test_refusals_are_typed" },
+  { id = "estimate.dose_grid_posterior.fresh_process_replay.artifact", role = "artifact", intent = "The sealed posterior replays bit for bit in a fresh process and a truncated or over-limit artifact is refused.", evidence_test = "python/tests/test_dose_grid_posterior.py", evidence_assertion = "test_artifact_replays_in_a_fresh_process_and_refuses_corruption" },
+  { id = "estimate.dose_grid_posterior.equal_tailed_interval_of_exact_moments.construction", role = "construction", intent = "With a known residual variance the published 95% interval is centred on the exact posterior mean with the normal-quantile width of the exact posterior standard deviation, on the 50-digit reference cases.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional_bayesian_reference.rs", evidence_assertion = "gaussian_intervals_are_the_normal_quantiles_of_the_exact_moments" },
+  { id = "estimate.dose_grid_posterior.multiprecision_conjugate_moments.truth", role = "truth", intent = "The exact posterior mean and covariance of every functional equal the 50-digit conjugate reference.", evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional_bayesian_reference.rs", evidence_assertion = "known_variance_exact_moments_equal_the_multiprecision_conjugate_posterior" },
+]
+
+[[record.inference_outputs]]
+id = "estimate.dose_grid_posterior.credible_interval"
+fields = ["interval_95 of each grid level", "interval_95 of each grid derivative", "interval_95 of the contrast"]
+method = "Equal-tailed 0.025 and 0.975 quantiles of the retained joint posterior draws of the functional of the declared polynomial."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::dose_grid_posterior::estimate_dose_grid_posterior"
+public_producers = ["antecedent.dose_grid.dose_grid_posterior"]
+closed_producers = []
+independent_consumers = ["estimate.dose_grid_posterior.fresh_process_replay.artifact"]
+method_source = "crates/antecedent-estimate/src/dose_grid_posterior.rs; crates/antecedent-estimate/src/dose_basis_regression.rs"
+truth_design = "Randomized Uniform[0, 4] dose, independent N(0, 1) errors, exact quadratic mean 1 + 0.5 d + 0.25 d^2; degree-two polynomial, prior scale 10, inverse-gamma(1, 1) residual prior, 2,000 draws; level at 2 (truth 3), derivative at 2 (truth 1.5), contrast from 1 to 3 (truth 3)."
+truth_fixtures = ["estimate.dose_grid_posterior.multiprecision_conjugate_moments.truth", "estimate.dose_grid_posterior.equal_tailed_interval_of_exact_moments.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point; a refused request counts as a miss."
+measurement_suite = "crates/antecedent-estimate/tests/bayesian_dose_grid_calibration.rs"
+allocated_coverage_records = ["cov.dose_response.dag.bayesian.posterior_quantile.l95.bayesian_dose_grid_level_credible_interval.v2_validation_not_applicable", "cov.dose_response.dag.bayesian.posterior_quantile.l95.bayesian_dose_grid_derivative_credible_interval.v2_validation_not_applicable", "cov.dose_response.dag.bayesian.posterior_quantile.l95.bayesian_dose_grid_contrast_credible_interval.v2_validation_not_applicable"]
+inherited_coverage_records = []
+boundary = "Pointwise intervals of a correctly specified degree-two polynomial at 250 to 1,000 randomized independent rows, 95% level, 2,000 draws. The harness is written and its three groups are registered; no coverage record exists until they are measured. The interval under the inverse-gamma residual prior is checked through the draw moments, not against Student-t quantiles. No simultaneous band, no misspecified polynomial, no other level."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Three designs (level, derivative, contrast) at 250 / 500 / 1000 rows."
 
 
 [[record]]
@@ -12215,7 +12286,7 @@ prerequisite_records = ["distribution.joint_alignment", "external.scientific_pro
 prerequisite_reason = "Binds a measured column to a construct through the inherited scientific-quantity coordinates (variable, role, unit, scale, population, regime), and a provider-supplied latent posterior only through the typed external provider contract and its trust boundary (a provider posterior never carries native trust). No identification or coverage claim is inherited."
 bounds = { cancellation = true, max_artifact_bytes = 8388608 }
 inference_inventory_disposition = "outputs_listed_not_measured"
-inference_outputs = [{ id = "measurement.model_contract.pooled_differential_not_measured", fields = ["prevalence", "interval", "sensitivity", "specificity", "draws", "discarded_draws", "truncated_draws"], method = "Random-effects pooling of source-population sensitivity and specificity logits and simulation propagation through target prevalence correction, with optional target validation.", implementation_status = "implemented_not_measured", owner = "antecedent-estimate", operation_or_object = "transport_pooled_differential_prevalence", public_producers = ["antecedent.measurement_models.transport_pooled_differential"], closed_producers = [], independent_consumers = [], method_source = "crates/antecedent-estimate/src/measurement_transport_pooled.rs; python/src/pooled_measurement_api.rs; python/antecedent/measurement_models.py", boundary = "The prevalence and interval are conditional on declared validation samples and pooling assumptions. The returned interval is an uncalibrated simulation interval with calibration not_measured; no repeated-sampling coverage, measured interval or new support is claimed.", nominal_level = "simulation interval; calibration not_measured, no coverage target", truth_design = "One fixed seeded Python fixture with invariant and heterogeneous source validation counts and a target prevalence of 0.3; no external evidence or repeated-sampling study.", acceptance_threshold = "The fixture asserts corrected prevalence within 0.03 of 0.3, wider heterogeneous than invariant interval, narrower interval with target validation, and a single-source refusal; it does not measure coverage.", measurement_suite = "python/tests/test_pooled_differential_transport.py", truth_fixtures = ["measurement.model_contract.pooled_differential.positive"], allocated_coverage_records = [], inherited_coverage_records = [], activation_disposition = "retain_current_point_or_model_conditional_standing_no_new_guarantee", allocation_status = "no_coverage_ids_allocated_point_only_not_measured", measurement_design_status = "fixed_fixture_tests_only_no_whole_method_sampling_calibration", truth_grid_allocation = "No repeated-sampling grid allocated." }]
+inference_outputs = [{ id = "measurement.model_contract.pooled_differential_not_measured", fields = ["prevalence", "interval", "sensitivity", "specificity", "draws", "discarded_draws", "truncated_draws"], method = "Paule-Mandel random-effects pooling of source-population sensitivity and specificity logits; simulation propagation of the Q-profile draw of the between-population variance, the pooled mean, the target rate and the recorded prevalence through the target prevalence correction, with optional target validation.", implementation_status = "implemented_not_measured", owner = "antecedent-estimate", operation_or_object = "transport_pooled_differential_prevalence", public_producers = ["antecedent.measurement_models.transport_pooled_differential"], closed_producers = [], independent_consumers = [], method_source = "crates/antecedent-estimate/src/measurement_transport_pooled.rs; python/src/pooled_measurement_api.rs; python/antecedent/measurement_models.py", boundary = "The prevalence and interval are conditional on declared validation samples and the random-effects pooling model. The interval draws the between-population variance from its Q-profile confidence distribution (the reported value is the Paule-Mandel estimate), the pooled mean, the target rate and the recorded prevalence; the result states calibration not_measured. A 95% coverage harness (crates/antecedent/tests/measurement_composition_calibration.rs: measurement_pooled_differential_*) covers six validated sources of at least 100 units per margin and at least 500 target rows at a between-population logit sd of 0.3, with and without target validation; the homogeneous case is conservative by construction. It passed a 1,000-replicate pilot at its middle grid point and no coverage record exists until it is measured. Fewer sources are outside the harness: with two or three heterogeneous sources and no target validation the interval is close to [0, 1].", nominal_level = "simulation interval; calibration not_measured, no coverage target", truth_design = "One fixed seeded Python fixture with invariant and heterogeneous source validation counts and a target prevalence of 0.3; no external evidence or repeated-sampling study.", acceptance_threshold = "The fixture asserts corrected prevalence within 0.03 of 0.3, wider heterogeneous than invariant interval, narrower interval with target validation, and a single-source refusal; it does not measure coverage.", measurement_suite = "python/tests/test_pooled_differential_transport.py", truth_fixtures = ["measurement.model_contract.pooled_differential.positive"], allocated_coverage_records = [], inherited_coverage_records = [], activation_disposition = "retain_current_point_or_model_conditional_standing_no_new_guarantee", allocation_status = "no_coverage_ids_allocated_point_only_not_measured", measurement_design_status = "fixed_fixture_tests_only_no_whole_method_sampling_calibration", truth_grid_allocation = "No repeated-sampling grid allocated." }]
 surface_rust = ["crates/antecedent/src/analysis/measurement_model.rs"]
 surface = ["python/antecedent/measurement_models.py"]
 surface_pyo3 = ["python/src/measurement_model_api.rs"]
@@ -12386,11 +12457,35 @@ acceptance_threshold = "Asserted values within the stated absolute tolerances in
 measurement_suite = "crates/antecedent-estimate/tests/measurement_models.rs"
 allocated_coverage_records = []
 inherited_coverage_records = []
-boundary = "The route publishes a corrected point value and a first-order delta-method standard error labelled uncalibrated. No interval, posterior or coverage statement is supported: the interval route is not supported and refuses with not_supported until whole-method coverage (measurement plus estimation) is measured."
+boundary = "The route publishes a corrected point value and a first-order delta-method standard error labelled uncalibrated. The Wald interval built on that standard error is the separate output below; no posterior statement is supported."
 activation_disposition = "retain_point_only_route_no_inferential_guarantee"
 allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
 measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
 truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-estimate/tests/measurement_models.rs."
+
+[[record.inference_outputs]]
+id = "measurement.classical_continuous_error.wald_interval"
+fields = ["equal-tailed Wald interval of the corrected linear coefficient"]
+method = "Point -/+ z times the delta-method standard error of the moment-corrected coefficient, the variance of a validation-estimated error variance included."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::corrected_functional_interval"
+public_producers = ["antecedent_estimate.measurement.interval_not_supported.classical_continuous_error"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/measurement/mod.rs; crates/antecedent-estimate/src/measurement/linear.rs"
+truth_design = "Linear outcome with coefficient 2 on a latent Gaussian regressor measured with additive classical error; the error variance is declared at its truth or estimated from a validation sample; coverage of the coefficient."
+truth_fixtures = ["measurement.classical_continuous_error.attenuation_truth.truth", "measurement.classical_continuous_error.slope_wald_interval.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/measurement_composition_calibration.rs"
+allocated_coverage_records = ["cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_classical_error_declared_variance_wald_l95.v2_validation_not_applicable", "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_classical_error_estimated_variance_wald_l95.v2_validation_not_applicable"]
+inherited_coverage_records = []
+boundary = "Closed-form moment correction of a linear model with one error-prone regressor and no further covariate, a declared error variance or one estimated from at least 100 validation units, at least 250 rows, 95% level. The harness is written and passed a 1,000-replicate pilot at its middle grid point; no coverage record exists until it is measured. The result carries no calibration statement. The regression-calibration and SIMEX intervals of the continuous data-quality route (bootstrap standard errors) have no harness and are outside this scope."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Two designs at 250 / 500 / 1000 rows (validation 100 / 200 / 400 units)."
 
 [[record]]
 id = "measurement.repeated_measurements"
@@ -12475,11 +12570,35 @@ acceptance_threshold = "Asserted values within the stated absolute tolerances in
 measurement_suite = "crates/antecedent-estimate/tests/measurement_models.rs"
 allocated_coverage_records = []
 inherited_coverage_records = []
-boundary = "The route publishes a corrected point value and a first-order delta-method standard error labelled uncalibrated. No interval, posterior or coverage statement is supported: the interval route is not supported and refuses with not_supported until whole-method coverage (measurement plus estimation) is measured."
+boundary = "The route publishes a corrected point value and a first-order delta-method standard error labelled uncalibrated. The Wald interval built on that standard error is the separate output below; no posterior statement is supported."
 activation_disposition = "retain_point_only_route_no_inferential_guarantee"
 allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
 measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
 truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-estimate/tests/measurement_models.rs."
+
+[[record.inference_outputs]]
+id = "measurement.repeated_measurements.wald_interval"
+fields = ["equal-tailed Wald interval of the corrected linear coefficient"]
+method = "Point -/+ z times the delta-method standard error of the corrected coefficient, the replicate-estimated error variance's uncertainty included."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::corrected_functional_interval"
+public_producers = ["antecedent_estimate.measurement.interval_not_supported.repeated_measurements"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/measurement/mod.rs; crates/antecedent-estimate/src/measurement/linear.rs"
+truth_design = "Linear outcome with coefficient 1.5 on a latent regressor observed through replicated error-prone measurements; coverage of the coefficient."
+truth_fixtures = ["measurement.repeated_measurements.icc_and_recovery.truth", "measurement.repeated_measurements.slope_wald_interval_retained_influence.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/measurement_composition_calibration.rs"
+allocated_coverage_records = ["cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_repeated_measurements_wald_l95.v2_validation_not_applicable"]
+inherited_coverage_records = []
+boundary = "Replicated measurements of one continuous regressor in a linear outcome model, at least 250 units, 95% level. The harness is written and passed a 1,000-replicate pilot at its middle grid point; no coverage record exists until it is measured. The result carries no calibration statement."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "One design at 250 / 500 / 1000 units."
 
 [[record]]
 id = "measurement.binary_misclassification"
@@ -12571,11 +12690,35 @@ acceptance_threshold = "Asserted values within the stated absolute tolerances in
 measurement_suite = "crates/antecedent-estimate/tests/measurement_models.rs"
 allocated_coverage_records = []
 inherited_coverage_records = []
-boundary = "The route publishes a corrected point value and a first-order delta-method standard error labelled uncalibrated. No interval, posterior or coverage statement is supported: the interval route is not supported and refuses with not_supported until whole-method coverage (measurement plus estimation) is measured."
+boundary = "The route publishes a corrected point value and a first-order delta-method standard error labelled uncalibrated. The Wald interval built on that standard error is the separate output below; no posterior statement is supported."
 activation_disposition = "retain_point_only_route_no_inferential_guarantee"
 allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
 measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
 truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-estimate/tests/measurement_models.rs."
+
+[[record.inference_outputs]]
+id = "measurement.binary_misclassification.wald_interval"
+fields = ["equal-tailed Wald interval of the corrected prevalence", "equal-tailed Wald interval of the corrected risk difference"]
+method = "Point -/+ z times the delta-method standard error of the Rogan-Gladen correction, the variance of validation-estimated sensitivity and specificity included."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::corrected_functional_interval"
+public_producers = ["antecedent_estimate.measurement.interval_not_supported.binary_misclassification"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/measurement/mod.rs; crates/antecedent-estimate/src/measurement/binary.rs"
+truth_design = "Latent prevalence 0.3 and latent risk difference 0.2 recorded with sensitivity 0.9 and specificity 0.85; the rates are estimated from binomial validation draws with their binomial variances; coverage of the latent value."
+truth_fixtures = ["measurement.binary_misclassification.rogan_gladen_algebra.truth", "measurement.binary_misclassification.corrected_prevalence_wald_interval.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/measurement_composition_calibration.rs"
+allocated_coverage_records = ["cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_binary_prevalence_wald_l95.v2_validation_not_applicable", "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_binary_risk_difference_wald_l95.v2_validation_not_applicable"]
+inherited_coverage_records = []
+boundary = "Non-differential misclassification of a binary outcome with sensitivity and specificity estimated from an independent validation sample of at least 100 units per margin, at least 250 rows (prevalence) or 250 rows per arm (risk difference), 95% level. The harness is written and passed a 1,000-replicate pilot at its middle grid point; no coverage record exists until it is measured, and the lowest passing grid point then sets the scope. The result carries no calibration statement, so nothing at run time states this scope. Differential error, a misclassified exposure and other levels are outside it."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Two designs at 250 / 500 / 1000 rows with 100 / 200 / 400 validation units per margin."
 
 [[record]]
 id = "measurement.probabilistic_categorical"
@@ -12758,11 +12901,35 @@ acceptance_threshold = "Asserted values within the stated absolute tolerances in
 measurement_suite = "crates/antecedent-estimate/tests/measurement_models.rs"
 allocated_coverage_records = []
 inherited_coverage_records = []
-boundary = "The standard error is conditional on the supplied posterior being the correct law of the latent regressor; the provider's calibration is not established here. No interval, posterior or coverage statement is supported: the interval route is not supported and refuses with not_supported until whole-method coverage is measured."
+boundary = "The standard error is conditional on the supplied posterior being the correct law of the latent regressor; the provider's calibration is not established here. The outcome-free route regresses on the per-unit posterior means with the Monte Carlo error of a finite number of draws calibrated out. The Wald interval built on the standard error is the separate output below; no posterior statement is supported."
 activation_disposition = "retain_point_only_route_no_inferential_guarantee"
 allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
 measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
 truth_grid_allocation = "No repeated-sampling grid allocated. The declared point checks are the oracle tests in crates/antecedent-estimate/tests/measurement_models.rs."
+
+[[record.inference_outputs]]
+id = "measurement.external_latent_posterior.wald_interval"
+fields = ["equal-tailed Wald interval of the linear coefficient under an external latent posterior"]
+method = "Point -/+ z times the standard error: least squares on the calibrated per-unit posterior means (outcome-free posterior), or Rubin's total variance over outcome-conditioned imputations."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::corrected_functional_interval"
+public_producers = ["antecedent_estimate.measurement.interval_not_supported.external_latent_posterior"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/measurement/mod.rs; crates/antecedent-estimate/src/measurement/posterior.rs"
+truth_design = "Linear outcome with coefficient 2; the provider's draws are the exact Gaussian conditional posterior of the latent regressor given the indicator (outcome-free) or proper imputations given the indicator and the outcome; coverage of the coefficient."
+truth_fixtures = ["measurement.external_latent_posterior.posterior_mean_truth.truth", "measurement.external_latent_posterior.rubin_truth.truth", "measurement.external_latent_posterior.posterior_slope_wald_interval.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/measurement_composition_calibration.rs"
+allocated_coverage_records = ["cov.measurement_corrected_functional.dag.bayesian.delta_method_wald.l95.measurement_latent_posterior_mean_substitution_wald_l95.v2_validation_not_applicable", "cov.measurement_corrected_functional.dag.bayesian.delta_method_wald.l95.measurement_latent_posterior_multiple_imputation_wald_l95.v2_validation_not_applicable"]
+inherited_coverage_records = []
+boundary = "A provider posterior that is the correct law of the latent regressor, 40 joint draws, at least 150 rows, no further covariate, 95% level; the imputation route is declared for proper imputations (draws that carry the outcome model's parameter uncertainty), and its normal reference in place of Rubin's t costs about half a point at 40 imputations. The harness calls the estimator, not the attested-provider facade path; it is written and passed a 1,000-replicate pilot at its middle grid point, and no coverage record exists until it is measured. A miscalibrated provider posterior is not detected."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Two designs at 150 / 300 / 600 rows with 40 draws."
 
 [[record]]
 id = "counterfactual.transport_general"
@@ -13314,6 +13481,7 @@ truth_grid_allocation = "Three gated designs (randomized p=3, confounded p=4, co
 id = "cohort_decision.law_valued_request"
 capability = "cohort_decision.law_valued_request"
 status = "not_supported"
+closed_question = "A cohort mean is one expectation and determines no law, so a probability, quantile or nonlinear utility of it has no value to report."
 consumer_question = "Can a cohort-mean contrast answer a probability, a quantile, a nonlinear utility or a joint law?"
 theorem = "Closed adjacent variant of cohort_decision.mean_contrast. One expectation of a conditional contrast determines the expectation of an affine utility and nothing else: it does not determine the law of the contrast across units, a threshold probability, a quantile, the expectation of a nonlinear function, or the joint law with another quantity (Jensen's inequality separates E[g(tau)] from g(E[tau]) for nonlinear g). The quantity is undefined by logic, not for lack of measurement: no interval or law of the contrast can be derived from the single value the source carries, and the individual-level law of Y(1) - Y(0) is not identified from marginals at all (only Frechet bounds, an identified set). A law of the conditional contrast is available only from per-draw cohort utilities under a declared shared law (DecisionDraws, producer cohort_decision), which is the decision reliability surface. Each such request is refused with a typed reason that names that carrier."
 reference = "provenance/cohort_decision.law_valued_request.toml"
@@ -13572,6 +13740,7 @@ inference_outputs = [{ fields = ["DerivedUncertainty.numerical.probabilities", "
 id = "decision_reliability.combined_uncertainty"
 capability = "decision_reliability.combined_uncertainty"
 status = "not_supported"
+closed_question = "Uncertainty components of different meaning have no common scale, so one combined number is not defined."
 consumer_question = "Can source-distribution spread, Monte Carlo error and selection-induced uncertainty be reported as one combined number?"
 theorem = "Closed adjacent variant of decision_reliability.sampled_decision. The three components answer different questions (spread of the law, precision of the computation, optimism of the selection), have different dependence on the draw count, and are never summed. A combined statement is a whole-procedure claim needing its own calibration; the request is refused with a stated remedy."
 reference = "provenance/decision_reliability.combined_uncertainty.toml"
@@ -14100,6 +14269,7 @@ inherited_coverage_records = []
 id = "predictive_assessment.law_callback"
 capability = "predictive_assessment.law_callback"
 status = "not_supported"
+closed_question = "A predictive law supplied as an opaque callback cannot be checked for propriety; laws are supplied in the declared forms or as provider-evaluated densities."
 consumer_question = "Can a predictive law that exists only as a callback be scored?"
 theorem = "Closed adjacent variant of the proper_scores record. Law operations over callbacks (a cumulative distribution function, a density or a sampler supplied as a function) are not built into this contract: scoring a callback would execute unverified user code at every case and could not be replayed by a consumer from the stored artifact. The request is refused by name with the declaration that would support it: supply the law as a Gaussian, Bernoulli, categorical, finite or sample law, or as provider-evaluated density and cumulative values declared through the provider contract's object identity."
 reference = "provenance/predictive_assessment.law_callback.toml"
@@ -14138,6 +14308,7 @@ inference_outputs = []
 id = "predictive_assessment.causal_validity"
 capability = "predictive_assessment.causal_validity"
 status = "not_supported"
+closed_question = "A predictive score measures prediction of the assessed observations; it is not evidence for a causal claim and no rule converts one into the other."
 consumer_question = "Does a good predictive score establish causal validity, or the probability that a scientific claim holds?"
 theorem = "Closed adjacent variant. A proper score is a loss of a predictive law on the assessed observations; it does not identify a causal effect, validate a causal model or give the probability of a claim. A model can predict an association well and be wrong under intervention, and a score has no prior over claims. The request is refused with a typed reason; the refusal text is the one the scientific bridge's model-score-as-probability refusal states, so one declaration governs both surfaces: causal validity needs an identification argument and refutation, and a probability of a claim needs a declared prior and likelihood."
 reference = "provenance/predictive_assessment.causal_validity.toml"
@@ -14786,6 +14957,7 @@ truth_grid_allocation = "No repeated-sampling grid allocated. The declared point
 id = "scientific_bridge.law_substitution"
 capability = "scientific_bridge.law_substitution"
 status = "not_supported"
+closed_question = "A point-mean bridge carries no law, posterior or set, so none can be substituted for the value it maps."
 consumer_question = "Can a bridged mean stand in where a predictive law, a posterior, an identified set or a joint outcome law is required, or the reverse?"
 theorem = "Closed adjacent variant of scientific_bridge.typed_bridges and the decision-contract rule that a mean, a predictive law, a posterior, an identified set and a joint outcome law are not interchangeable. A mean does not determine the law it summarizes (the expectation of a nonlinear utility of a law is not the utility of its mean), a posterior over a mean effect is not a law of outcomes, an identified set is not a point, and marginal laws do not determine a joint law. No bridge relaxes the rule: a bridge carries a value of one kind to a quantity of the same kind; a point mean has the point route, the aligned draws of a posterior or a predictive law have the draws route (scientific_bridge.distribution_bridges), and an identified set and a joint outcome law have none."
 reference = "docs/scientific-bridges.md"
@@ -16165,6 +16337,7 @@ inference_outputs = []
 id = "composition_verification.revalidated_interval"
 capability = "composition_verification.revalidated_interval"
 status = "not_supported"
+closed_question = "Verification checks that a claim still answers its target; it produces no interval, and a claim whose target changed must be recomputed."
 consumer_question = "Can an interval, posterior or coverage statement be reported for a revalidated or composed claim, or can a calibration record established for one claim, target population or composition be carried to another?"
 theorem = "Variant of the claim revalidation record. Revalidation classifies claims and checks that a stated calibration record holds at the claim's own coordinate; it measures no coverage. Verification produces no estimate, so there is nothing for an interval to describe: an interval belongs to the route that produced the claim and is read there at that route's own measured coordinate, a component interval does not cover a composition, and a record established at one target population does not hold at another because coverage is a property of the method at one target. A lost calibration is carried as a withdrawn calibration that annotates the interval; a claim whose target changed refuses with claim_revalidation_required until it is recomputed, and a held or inherited record is resolved against the shipped coverage records by the facade (verify_against_registry)."
 reference = "provenance/composition_verification.revalidated_interval.toml"
@@ -16800,6 +16973,7 @@ inference_outputs = []
 id = "interface_contract.cyclic_composition"
 capability = "interface_contract.cyclic_composition"
 status = "not_supported"
+closed_question = "A composition with feedback between components has no declared loop semantics; feedback is modelled inside one component, where the cyclic routes apply."
 consumer_question = "Can components be composed when one component's output feeds back into another's input, directly or through a chain?"
 theorem = "Closed adjacent variant of interface_contract.scientific_interface. A composition is checked as a directed graph; Kahn's algorithm removes components with no remaining predecessor, and a non-empty remainder is exactly the set of components on or downstream of a directed cycle. The check refuses with the cycle path (found by walking predecessors within the remainder, then rotated to start at the smallest component name) before any component runs. Cyclic scientific composition is outside the supported surface: a feedback loop is never unrolled, iterated to a fixed point or treated as feed-forward."
 reference = "docs/interface-contracts.md"
@@ -17062,6 +17236,7 @@ inference_outputs = []
 id = "cross_world_execution.transported_row"
 capability = "cross_world_execution.transported_row"
 status = "not_supported"
+closed_question = "Depends on the joint cross-world transport theorem that is not derived for temporal, continuous or non-finite scope."
 consumer_question = "May a cross-world quantity be executed in a target population other than the one the mechanisms are declared for?"
 theorem = "No joint theorem composes transport support with factual abduction in a target population. A transport identification supplies no abduction, shared-noise or per-world receipts, and abduction in the source population is not abduction of a target unit. The row is not supported; the static additive linear path-specific case keeps its own theorem-scoped route."
 reference = "provenance/cross_world_execution.transported_row.toml"
@@ -17496,6 +17671,7 @@ inference_outputs = []
 id = "provider_callback.unsupported_claims"
 capability = "provider_callback.unsupported_claims"
 status = "not_supported"
+closed_question = "A callback supplies values without a sampling or posterior model, so no coverage, posterior guarantee or identification follows from it."
 consumer_question = "Can a callback supply an interval, a posterior or probability guarantee, native trust, an identification evidence or a joint law?"
 theorem = "Closed adjacent variant of provider_callback.law_posterior_protocol. A callback supplies values the provider computed; coverage is a property of a whole method at a coordinate and none was measured. An interval from a callback law, a posterior or probability guarantee, native trust conferred by metadata, an identification evidence and a joint law of independently produced draws each refuse with a typed reason and a remedy; the produced interface port is point-only or not_measured and the artifact carries no calibration record. The calibration design for any composed interval (whole method including the provider's own estimation, data-generating process, nominal level, support range, probes) is a recorded decision only. NOT inherited: any coverage statement."
 reference = "docs/provider-callbacks.md"
@@ -17745,6 +17921,7 @@ fixtures = [
 id = "discovery.selective_reuse_unsupported_guarantees"
 capability = "discovery.selective_reuse_unsupported_guarantees"
 status = "not_supported"
+closed_question = "Recovery and error-control statements about one discovered graph rest on faithfulness and sufficiency, which a single dataset cannot test."
 consumer_question = "Can a per-dataset recovery or error-control statement, an interval for an estimate computed on the rows discovery used, score-search reuse, multi-population discovery or transport of a discovered structure be offered from selective discovery?"
 theorem = "Closed adjacent variant of discovery.selective_reuse. No recovery, false-discovery or type-I statement can be supported for the graph discovered on one dataset: whether it is the true graph rests on faithfulness and causal sufficiency, and neither is testable from the data discovery ran on, however the procedure is calibrated. How often the method recovers the graph over a declared family of generating processes is a measured property of the method, published as a table in the documentation and never as support. An interval for an estimate computed on the rows discovery used has no construction with a measured coverage; the interval that is supported is the whole method on disjoint rows, owned by discovery.sample_split_effect. A discovered structure is an estimate, not a declared causal graph, so it supplies no selection diagram; an envelope across an equivalence class is not offered. Score-based reuse and multi-population discovery are not delivered."
 reference = "provenance/discovery.selective_reuse_unsupported_guarantees.toml"
@@ -19517,7 +19694,7 @@ evidence_family = "Component estimates with a covariance, aligned draws from one
 provider = "antecedent_stats::joint_law::{aligned_functional_draws, aligned_map_draws, draw_spread} and antecedent_io_core::joint_law_propagation_artifact (AlignedFunctionalSpread)"
 estimand = "The mean, spread and Monte Carlo standard error of a nonlinear functional of aligned draws."
 inference_claim = "none"
-inference_notes = "Every numeric result is labelled uncalibrated_spread; the interval and posterior readings of a composed quantity are not supported until a measured coverage record exists at the composed coordinate and construction."
+inference_notes = "A linear composition across the horizons of one temporal response has a 95% interval (horizon_composition_interval: the composed point value with the spread of the joint replicates at the dispersion of the composed influence; fixed-b normal reference for block-bootstrap replicates, batch-means Student-t reference for block-weight draws), measured by measurement_composition_horizon_calibration from 80 rows and 199 replicates for the cumulative effect and the contrast of two horizons at one dose; it is not sealed into the result, carries no calibration statement, and nonlinear compositions, gapped series and other levels have none. Every other numeric result is labelled uncalibrated_spread; the interval and posterior readings of a composed quantity are not supported until a measured coverage record exists at the composed coordinate and construction."
 owners = ["antecedent-contract", "antecedent-stats"]
 identity_inputs = ["alignment identity and draw count", "draws as IEEE bits", "functional", "label", "result names"]
 wire_changes = ["None for the numerics; the propagation artifact joint_law_propagation_v1 gains request variants AlignedFunctionalSpread, AlignedExceedance and MixtureExceedance without a version change (the format is unreleased and an older consumer fails at decode on the unknown variant)."]
@@ -19539,6 +19716,7 @@ routes = [
   { name = "antecedent_io_core.joint_law_propagation_artifact.AlignedFunctionalSpread", stage = "consume", status = "supported", claim = "none" },
   { name = "antecedent.joint_law_propagation.propagate_spread", stage = "evaluate", status = "supported", claim = "none" },
   { name = "antecedent.python.joint_law_propagation.spread", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.horizon_composition.horizon_composition_interval", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
 fixtures = [
   { id = "joint_law.composed_spread_aligned_functional.enumerated_rows.positive", role = "positive", intent = "Composed nonlinear rows match the ten-row enumerated joint law (variance 0.64 * 10/9) and the rotated-pairing control differs.", evidence_test = "crates/antecedent-stats/src/joint_law/tests.rs", evidence_assertion = "composed_nonlinear_rows_match_the_enumerated_joint_law" },
@@ -19547,6 +19725,9 @@ fixtures = [
   { id = "joint_law.composed_spread_aligned_functional.index_pairing.negative", role = "negative", intent = "Unrelated marginals are never paired by index.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "unrelated_marginals_are_never_paired_by_index" },
   { id = "joint_law.composed_spread_aligned_functional.fresh_consumer_replay.artifact", role = "artifact", intent = "The aligned spread replays in a fresh consumer (mean 0.4, variance 0.64 * 10/9, se 0.8/3); a resealed point reading and a relabelled label are refused.", evidence_test = "crates/antecedent-io-core/tests/joint_law_propagation_artifact.rs", evidence_assertion = "an_aligned_spread_replays_to_the_enumerated_joint_law" },
   { id = "joint_law.composed_spread_aligned_functional.facade_enumerated_rows.positive", role = "positive", intent = "Facade: an aligned nonlinear functional spread equals the enumerated rows.", evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs", evidence_assertion = "an_aligned_functional_spread_matches_the_enumerated_rows" },
+  { id = "joint_law.composed_spread_aligned_functional.horizon_interval_hand.construction", role = "construction", intent = "The 95% interval of a contrast of two horizons equals the hand construction: point value 2, composed deviations (2, 2, -3, -1) once each cell's kernel factor is removed, sample variance 6, kernel factor 1 on a six-row influence; half-width z sqrt(6) for bootstrap replicates, and that times t_4(0.975)/z sqrt(1.5)/1.25 for block-weight draws over five effective blocks; a persistent composed influence widens it by its own kernel-bias factor.", evidence_test = "crates/antecedent/tests/horizon_composition.rs", evidence_assertion = "a_linear_composition_interval_equals_the_hand_construction", shared_evidence = true },
+  { id = "joint_law.composed_spread_aligned_functional.horizon_interval_hand.truth", role = "truth", intent = "The interval arithmetic of a linear horizon composition against hand-computed endpoints (2 -/+ 1.959963984540054 sqrt(6), and the Student-t reference with t_4(0.975) = 2.7764451051977934), to 1e-9 and 1e-6.", evidence_test = "crates/antecedent/tests/horizon_composition.rs", evidence_assertion = "a_linear_composition_interval_equals_the_hand_construction", shared_evidence = true },
+  { id = "joint_law.composed_spread_aligned_functional.horizon_interval_compiled.positive", role = "positive", intent = "The compiled temporal mean curve seals the temporal response operation, retains its joint horizons in both modes, and the interval of the cumulative effect is rebuilt from the published replicates and dispersion readings with the construction of its mode.", evidence_test = "crates/antecedent/tests/horizon_composition.rs", evidence_assertion = "the_compiled_horizon_interval_runs_the_retained_temporal_response_in_both_modes" },
 ]
 inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
@@ -21040,7 +21221,11 @@ refusals = [
   { detail = "intrinsic_influence.draw_budget_exceeded" },
 ]
 surface_internal = [{ name = "intrinsic_influence_with_temporal_runs", why = "Hidden temporal-run helper called by the routed intrinsic-influence execution." }]
-routes = [{ name = "antecedent.gcm.attribute_intrinsic_influence", stage = "evaluate", status = "supported", claim = "none", covers = ["attribute_intrinsic_influence", "intrinsic_influence", "fitted_intrinsic_influence"] }]
+routes = [
+  { name = "antecedent.gcm.attribute_intrinsic_influence", stage = "evaluate", status = "supported", claim = "none", covers = ["attribute_intrinsic_influence", "intrinsic_influence", "fitted_intrinsic_influence"] },
+  { name = "antecedent.gcm.attribute_intrinsic_influence.whole_procedure_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.gcm.attribute_intrinsic_influence.mechanism_posterior", stage = "uncertainty", status = "supported", claim = "interval" },
+]
 fixtures = [
   { shared_evidence = true, id = "gcm.attribution.intrinsic_influence.linear_chain.positive", role = "positive", intent = "On a linear Gaussian chain the contributions equal the squared total path coefficients times the noise variances within the estimator's standard errors, and sum to the target variance.", evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs", evidence_assertion = "a_linear_chain_recovers_squared_path_coefficients_times_noise_variance" },
   { id = "gcm.attribution.intrinsic_influence.correlated_noise.negative", role = "negative", intent = "A bidirected edge, undeclared independence, unfitted or serially dependent mechanisms, a categorical target, an oversized exact request and invalid settings are refused with their details.", evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs", evidence_assertion = "a_bidirected_edge_is_refused" },
@@ -21048,6 +21233,7 @@ fixtures = [
   { id = "gcm.attribution.intrinsic_influence.python_chain.positive", role = "positive", intent = "The Python surface recovers the closed-form contributions of a fitted chain within the reported component uncertainty and marks an unrequested mechanism-fit component unquantified.", evidence_test = "python/tests/test_intrinsic_influence.py", evidence_assertion = "test_contributions_match_the_closed_form_within_the_reported_uncertainty" },
   { id = "gcm.attribution.intrinsic_influence.exact_shapley_reference.parity", role = "parity", intent = "Intrinsic contributions of small structural models (large intercepts beside tiny noise scales, cancelling paths, interaction) equal exact rational Shapley values of the variance game v(S) = Var(E[Y | U_S]) frozen from oracle_data/intrinsic_influence_reference.py, within the derived and reported Monte-Carlo error band.", evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence_reference.rs", evidence_assertion = "contributions_match_exact_shapley_values_of_the_variance_game" },
   { id = "gcm.attribution.intrinsic_influence.fitted_handle.positive", role = "positive", intent = "Python wiring: fitted_intrinsic_influence on a fit_gcm handle equals the standalone intrinsic_influence on the same data and seed, and the per-source contributions recover the closed-form squared path coefficients.", evidence_test = "python/tests/test_policy_workflows.py", evidence_assertion = "test_the_fitted_handle_reaches_expression_policies_selection_influence_and_noise_replay" },
+  { id = "gcm.attribution.intrinsic_influence.refit_spread.construction", role = "construction", intent = "The whole-procedure standard error of each source is the spread of the returned mechanism refits, with the degrees of freedom of their count, under the row bootstrap and under Dirichlet row weights.", evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs", evidence_assertion = "the_posterior_over_the_mechanisms_returns_its_refits_beside_the_bootstrap" },
 ]
 
 [[record.inference_outputs]]
@@ -21073,6 +21259,54 @@ activation_disposition = "new_diagnostic_route_no_inferential_guarantee"
 allocation_status = "frozen_harness_compiled_measurement_pending"
 measurement_design_status = "no_calibration_design_diagnostic_only"
 truth_grid_allocation = "None: the route makes no coverage claim, so no calibration design is allocated."
+
+[[record.inference_outputs]]
+id = "gcm.attribution.intrinsic_influence.whole_procedure_interval"
+fields = ["SourceInfluence.whole_procedure"]
+method = "Student-t interval of each source contribution from the spread of full row-bootstrap refits with mechanism re-selection and fresh simulation, the permutation variance added."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-attribution"
+operation_or_object = "antecedent_attribution::intrinsic_influence"
+public_producers = ["antecedent.gcm.attribute_intrinsic_influence.whole_procedure_interval"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-attribution/src/intrinsic_influence.rs"
+truth_design = "Linear Gaussian chain z -> t -> y with z -> y and unit noise variances: contributions 3.24, 2.25 and 1; coverage of each."
+truth_fixtures = ["gcm.attribution.intrinsic_influence.refit_spread.construction", "gcm.attribution.intrinsic_influence.exact_shapley_reference.parity"]
+nominal_level = "0.95 (and 0.90 re-formed from the published estimate, standard error and degrees of freedom)"
+acceptance_threshold = "Nominal within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Static DAG, independent rows, at least 40 whole-procedure refits, at least 150 rows, exact allocation with 100 outer and 20 inner draws and 3 replicates. Passed the 1,000-replicate pilot at 300 rows (0.940 to 0.950 at 95%). No coverage record exists until it is measured. NOT covered: the block bootstrap on a TemporalDag, the permutation, simulation and mechanism-fit component intervals (intervals for a Monte Carlo or fit component of the fitted value, not for the population value). At run time the result carries the diagnostic gcm.model.interval_scope, which states measured_conditions only inside these conditions and not_measured with the reason otherwise."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "One design at 150 / 300 / 600 rows, 40 refits."
+
+[[record.inference_outputs]]
+id = "gcm.attribution.intrinsic_influence.mechanism_posterior"
+fields = ["posterior.draws", "posterior.summaries.q025", "posterior.summaries.q975"]
+method = "Equal-tailed quantiles of the contributions of Dirichlet row-weight refits drawn inside the engine, each refit with its own nested simulation."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-attribution"
+operation_or_object = "antecedent_attribution::intrinsic_influence"
+public_producers = ["antecedent.gcm.attribute_intrinsic_influence.mechanism_posterior"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-attribution/src/intrinsic_influence.rs"
+truth_design = "The same chain; coverage of each contribution."
+truth_fixtures = ["gcm.attribution.intrinsic_influence.refit_spread.construction", "gcm.attribution.intrinsic_influence.exact_shapley_reference.parity"]
+nominal_level = "0.95 (and 0.90), held to at least nominal"
+acceptance_threshold = "At least nominal at each grid point: every refit draw carries independent nested-simulation noise, so the interval is at least as wide as the posterior over the mechanisms (Anderson inequality for symmetric unimodal laws)."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Static DAG, independent rows, at least 1,000 posterior draws, at least 150 rows. Passed the 1,000-replicate pilot at 300 rows (0.983 to 1.000 at 95%). Held one-sided: the interval is conservative by an amount set by the simulation budget, so the claim is at least nominal, never exact. A study that sets no draw count runs 100 refits and is outside this scope. No coverage record exists until it is measured. NOT covered: block weights on a TemporalDag. At run time the result carries the diagnostic gcm.model.interval_scope, which states measured_conditions only inside these conditions and not_measured with the reason otherwise."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "One design at 150 / 300 / 600 rows, 1,000 draws."
 
 
 [[record]]
@@ -21663,3 +21897,860 @@ fixtures = [
  { id = "decision.compiled_joint_scenarios.negative", role = "negative", intent = "Missing dependence, marginal laws, Bayes, admission and cancellation refuse.", evidence_test = "crates/antecedent/tests/compiled_robust_decisions.rs", evidence_assertion = "joint_policy_identity_admission_and_cancellation_refusals_preserve_the_owner" },
  { id = "decision.compiled_joint_scenarios.artifact", role = "artifact", shared_evidence = true, intent = "Source identity, separately compiled program and recomputed readout verified; resealed changes refused.", evidence_test = "crates/antecedent/tests/compiled_robust_decisions.rs", evidence_assertion = "compiler_binds_joint_source_without_scalar_fit_and_replays_under_independent_owner" },
 ]
+
+[[record]]
+id = "gcm.attribute.mechanism_refit"
+capability = "gcm.attribute.mechanism_refit"
+inference_inventory_disposition = "outputs_listed"
+status = "supported"
+consumer_question = "What does a fitted graphical causal model attribute a change, a path effect, a feature shift or an anomaly to, and how uncertain is that answer given the rows the mechanisms were fitted on?"
+theorem = "The attribution is a functional of the fitted mechanisms of a declared DAG. Its uncertainty over the mechanisms is read from refits: under a frequentist replicate count every mechanism is refit on a multinomial row resample (circular blocks of consecutive times on a lag-aligned series) and the standard deviation of the recomputed quantity is the standard error of a normal interval; under Bayesian inference every mechanism is refit under Exp(1) weights on the rows (one weight per block of consecutive times on a series; one weight vector per population of a change target) and the recomputed quantities are the posterior draws. A weighted mean under Exp(1) weights on K units has posterior variance s^2 (K - 1) / (K (K + 1)) and normal tails, where the reference posterior of a mean with unknown scale is the mean plus s / sqrt(K) times a Student-t variate on K - 1 degrees of freedom; each draw is therefore referred to that reference by multiplying its deviation from the posterior mean by sqrt((K + 1) / (K - 1)) sqrt(nu / chi2_nu), nu = P (K - 1) for P independently weighted populations, with one chi-square variate per draw so that a total and its components stay additive. Not inherited: the mechanism families are held at the ones selected on the original rows, so selection uncertainty is not in the interval; the data references an attribution reads (feature means, parent means, the anomaly reference) stay at their observed values; misspecification and identification are not addressed."
+reference = "Rubin (1981) The Bayesian bootstrap; Efron (1979) Bootstrap methods; Kuensch (1989) and Politis and Romano (1992) for block resampling; provenance/estimate.gcm.fit.bayesian.toml"
+guarantee = "mechanism_refit_interval_of_a_fitted_model_attribution_measured_targets_only_selection_held"
+graph_class = "A caller-declared or accepted static DAG, or a TemporalDag run on its lag-aligned unfolding; no latent confounding between mechanisms."
+population_semantics = "Independent rows of one table (two row ranges for a change target), or one dependent series whose consecutive times are kept inside blocks of length ceil(n^(1/3))."
+evidence_family = "Linear-Gaussian two-node and lag-one laws with closed-form change, path, feature and anomaly values."
+provider = "Native implementation: the sealed attribution operation of the compiled Attribute route."
+estimand = "the total and mechanism components of a mean-difference change, the path products, the feature relevance scores and the mean anomaly score of the fitted model"
+inference_claim = "interval"
+owners = ["antecedent", "antecedent-attribution", "python/antecedent"]
+identity_inputs = ["graph", "mechanism program", "attribute target and its estimator settings", "inference mode", "posterior draw count or bootstrap replicate count", "declared sampling design", "execution seed", "data"]
+wire_changes = ["None: the scope of a published interval is a diagnostic of the result (gcm.model.interval_scope, discovery.posterior_scope); no artifact section changes."]
+compatibility = "Additive: the compiled routes, their payloads and the supported matrix cells are unchanged."
+search = false
+search_impl = ["crates/antecedent/src/analysis/execute/checked_attribution.rs"]
+bounds = { cancellation = true, contract = "antecedent_core::ExecutionContext" }
+refusals = []
+routes = [
+  { name = "antecedent.gcm.attribute.fitted_model_point", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.gcm.attribute.row_bootstrap_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.gcm.attribute.row_weight_posterior", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.gcm.attribute.temporal.block_bootstrap_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.gcm.attribute.temporal.block_weight_posterior", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+fixtures = [
+  { id = "gcm.attribute.mechanism_refit.refit_targets.positive", role = "positive", intent = "Every refit-covered attribution target publishes a posterior over the mechanisms under Bayesian inference and a refit bootstrap under a replicate count.", evidence_test = "crates/antecedent/tests/attribute_mechanism_posterior.rs", evidence_assertion = "every_refit_target_has_a_posterior_and_a_bootstrap" },
+  { id = "gcm.attribute.mechanism_refit.temporal_blocks.positive", role = "positive", intent = "On a TemporalDag the attribution resamples or weights blocks of consecutive times in both inference modes.", evidence_test = "crates/antecedent/tests/attribute_mechanism_posterior.rs", evidence_assertion = "a_temporal_dag_attribution_resamples_blocks_in_both_inference_modes" },
+  { shared_evidence = true, id = "gcm.attribute.mechanism_refit.cancelled_or_unleased.negative", role = "negative", intent = "A cancelled context or an exhausted admission pool refuses the route before it allocates.", evidence_test = "crates/antecedent/tests/structure_compiler_routes.rs", evidence_assertion = "a_cancelled_or_unleased_route_refuses_before_allocating" },
+  { id = "gcm.attribute.mechanism_refit.sealed_plans.artifact", role = "artifact", intent = "Every Bayesian static attribution plan is sealed, and its contracted result is recognized by the artifact consumer with named dependencies only.", evidence_test = "crates/antecedent/tests/checked_attribution_route_evidence.rs", evidence_assertion = "all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused" },
+  { shared_evidence = true, id = "gcm.attribute.mechanism_refit.student_t_reference.construction", role = "construction", intent = "The scale mixture applied to the refit draws has the second moment of the Student-t reference, (K + 1) / (K - 1) times nu / (nu - 2), keeps each posterior mean, keeps a total equal to the sum of its components in every draw and leaves simulated paths as drawn.", evidence_test = "crates/antecedent/src/analysis/execute/checked_attribution.rs", evidence_assertion = "mechanism_refit_reference_matches_the_student_t_variance_and_keeps_sums" },
+  { id = "gcm.attribute.mechanism_refit.change_exact_shapley.truth", role = "truth", intent = "The mean-difference change attribution equals the exact Shapley values of the mean game on fitted linear mechanisms.", evidence_test = "crates/antecedent-attribution/tests/distribution_change_reference.rs", evidence_assertion = "regression_hybrid_path_equals_the_exact_mean_shapley_values" },
+  { id = "gcm.attribute.mechanism_refit.path_products.truth", role = "truth", intent = "Path contributions equal the exact products of the path coefficients and sum to the total effect.", evidence_test = "crates/antecedent-attribution/tests/path_reference.rs", evidence_assertion = "path_products_match_exact_total_effects" },
+  { id = "gcm.attribute.mechanism_refit.feature_linear_game.truth", role = "truth", intent = "On an additive linear game each feature scores its own coefficient times the shift.", evidence_test = "crates/antecedent-attribution/tests/feature_relevance_reference.rs", evidence_assertion = "an_additive_linear_game_gives_each_feature_its_own_coefficient_times_the_shift" },
+  { id = "gcm.attribute.mechanism_refit.anomaly_fixed_reference.truth", role = "truth", intent = "Anomaly scores against a fixed reference and their exact Shapley split equal the definition.", evidence_test = "crates/antecedent-attribution/tests/anomaly_arrow_reference.rs", evidence_assertion = "fixed_reference_scores_and_exact_shapley_equal_the_definition" },
+  { id = "gcm.attribute.mechanism_refit.temporal_frequentist.truth", role = "truth", intent = "The temporal attribution recovers the known change of a lag-one law under the block bootstrap.", evidence_test = "crates/antecedent/tests/temporal_attribution_route_evidence.rs", evidence_assertion = "temporal_attribution_frequentist_known_truth" },
+  { id = "gcm.attribute.mechanism_refit.temporal_bayesian.truth", role = "truth", intent = "The temporal attribution recovers the known change of a lag-one law under block weights.", evidence_test = "crates/antecedent/tests/temporal_attribution_route_evidence.rs", evidence_assertion = "temporal_attribution_bayesian_known_truth" },
+]
+
+[[record.inference_outputs]]
+id = "gcm.attribute.mechanism_refit.point"
+fields = ["AttributionPayload.outcome", "AttributionPayload.mechanisms"]
+method = "The fitted model evaluated on the attribute target; no interval."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "antecedent::CausalQuery::Attribute"
+public_producers = ["antecedent.gcm.attribute.fitted_model_point"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/execute/structural_route.rs"
+truth_design = "Exact Shapley, path-product, linear-game and anomaly-definition references at fixed inputs."
+truth_fixtures = ["gcm.attribute.mechanism_refit.change_exact_shapley.truth", "gcm.attribute.mechanism_refit.path_products.truth", "gcm.attribute.mechanism_refit.feature_linear_game.truth", "gcm.attribute.mechanism_refit.anomaly_fixed_reference.truth"]
+nominal_level = "none; point answer of the fitted model"
+acceptance_threshold = "Agreement with the exact references within their stated tolerances; no coverage threshold."
+measurement_suite = "crates/antecedent/src/analysis/execute/structural_route.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Point answer of the fitted model: no interval, posterior or coverage statement. A unit-change target, a structure-change target and a frequentist mechanism-change flag are point or qualitative answers under this output."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated."
+
+[[record.inference_outputs]]
+id = "gcm.attribute.mechanism_refit.row_bootstrap_interval"
+fields = ["estimate.ate", "estimate.uncertainty.bootstrap.se"]
+method = "Normal interval from the standard deviation of the total change over multinomial row-bootstrap refits of every mechanism."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "CheckedAttributionOperation::model_bootstrap"
+public_producers = ["antecedent.gcm.attribute.row_bootstrap_interval"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/execute/checked_attribution.rs; crates/antecedent/src/analysis/execute/checked_attribution/model_uncertainty.rs"
+truth_design = "Two stacked populations of x -> y that differ in the intercept of y by 2; coverage of the total change, for the distribution-change and the root-cause target."
+truth_fixtures = ["gcm.attribute.mechanism_refit.change_exact_shapley.truth"]
+nominal_level = "0.95 (and 0.90 re-formed from the same standard error)"
+acceptance_threshold = "Nominal within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Total of a sampled mean-difference change (distribution change or root causes) on a static DAG, at least 300 rows per population, at least 200 replicates, at least 2,000 estimator samples, independent rows. Passed the 1,000-replicate pilot at 600 rows per population (0.950 and 0.952 at 95%); no coverage record exists until it is measured. NOT covered: the bootstrap standard errors of path, feature-relevance, anomaly, unit-change and structure-change targets (published as diagnostic fields only), and the robust change estimator. At run time the result carries the diagnostic gcm.model.interval_scope, which states measured_conditions only when the target, the resampling, the draw or replicate count, the smallest population and the simulation budget are all inside these conditions, and not_measured with the reason otherwise."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Two designs at 300 / 600 / 1200 rows per population, 200 replicates."
+
+[[record.inference_outputs]]
+id = "gcm.attribute.mechanism_refit.row_weight_posterior"
+fields = ["posterior.draws", "posterior.summaries.q025", "posterior.summaries.q975"]
+method = "Equal-tailed quantiles of the Exp(1) row-weight refit draws of every quantity, each referred to the Student-t reference of a mean of the weighted rows."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "CheckedAttributionOperation::model_posterior"
+public_producers = ["antecedent.gcm.attribute.row_weight_posterior"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/execute/checked_attribution.rs; crates/antecedent/src/analysis/execute/checked_attribution/model_uncertainty.rs"
+truth_design = "x -> y with slope 2 and noise scale 0.7: the total and both mechanism components of an intercept shift of 2, the path product, the feature relevance at the observed feature mean, and the mean anomaly score against a fixed reference at the true location and scale (truth 1)."
+truth_fixtures = ["gcm.attribute.mechanism_refit.student_t_reference.construction", "gcm.attribute.mechanism_refit.change_exact_shapley.truth", "gcm.attribute.mechanism_refit.path_products.truth", "gcm.attribute.mechanism_refit.feature_linear_game.truth", "gcm.attribute.mechanism_refit.anomaly_fixed_reference.truth"]
+nominal_level = "0.95 (and 0.90 re-formed from the same draws)"
+acceptance_threshold = "Nominal within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Static DAG, independent rows, at least 1,000 posterior draws (with B draws the interpolated order statistics of an exact posterior cover 0.948 at B = 1000 and 0.931 at B = 100, so a study that keeps the bounded default of 100 draws for a feature-relevance target is outside this scope). Measured targets: total and mechanism components of a sampled mean-difference change and its root-cause form (at least 300 rows per population, 2,000 estimator samples), the path decomposition (300 rows), feature relevance at the observed feature means (300 rows, 50,000 samples per coalition value), the mean anomaly score against a FIXED reference (300 rows). The harness passed a 1,000-replicate pilot at its middle grid point before the finite-sample reference was added; no coverage record exists until it is measured, and the lowest passing grid point then sets the scope. NOT covered: unit change, structure change, the robust change estimator, an anomaly score against the empirical reference, mechanism-family selection. At run time the result carries the diagnostic gcm.model.interval_scope, which states measured_conditions only when the target, the resampling, the draw or replicate count, the smallest population and the simulation budget are all inside these conditions, and not_measured with the reason otherwise."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Five designs at 300 / 600 / 1200 rows (per population for the change targets), 1,000 draws."
+
+[[record.inference_outputs]]
+id = "gcm.attribute.mechanism_refit.temporal_block_bootstrap_interval"
+fields = ["estimate.ate", "estimate.uncertainty.bootstrap.se"]
+method = "Normal interval from the standard deviation of the total change over circular-block refits on the lag-aligned unfolding."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "CheckedAttributionOperation::model_bootstrap"
+public_producers = ["antecedent.gcm.attribute.temporal.block_bootstrap_interval"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/execute/checked_attribution.rs; crates/antecedent-attribution/src/temporal_resampling.rs"
+truth_design = "y_t = c + 2 x_(t-1) + 0.7 e with an intercept shift of 2 between two time ranges; coverage of the total change."
+truth_fixtures = ["gcm.attribute.mechanism_refit.temporal_frequentist.truth"]
+nominal_level = "0.95 (and 0.90)"
+acceptance_threshold = "Nominal within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Total of a sampled mean-difference change on one series, at least 43 blocks (300 retained rows) per population, at least 200 replicates, independent innovations with a one-lag mean dependence. Passed the 1,000-replicate pilot at 600 rows per population (0.941 at 95%); no coverage record exists until it is measured. NOT covered: strongly autocorrelated innovations, other temporal targets (they publish no result-level interval), panels. At run time the result carries the diagnostic gcm.model.interval_scope, which states measured_conditions only when the target, the resampling, the draw or replicate count, the smallest population and the simulation budget are all inside these conditions, and not_measured with the reason otherwise."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "One design at 300 / 600 / 1200 rows per population, 200 replicates."
+
+[[record.inference_outputs]]
+id = "gcm.attribute.mechanism_refit.temporal_block_weight_posterior"
+fields = ["posterior.draws", "posterior.summaries.q025", "posterior.summaries.q975"]
+method = "Equal-tailed quantiles of the Exp(1) block-weight refit draws of the total change, referred to the Student-t reference of a mean of the weighted blocks of the two populations."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "CheckedAttributionOperation::model_posterior"
+public_producers = ["antecedent.gcm.attribute.temporal.block_weight_posterior"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/execute/checked_attribution.rs; crates/antecedent-attribution/src/temporal_resampling.rs"
+truth_design = "The same lag-one law; coverage of the total change."
+truth_fixtures = ["gcm.attribute.mechanism_refit.student_t_reference.construction", "gcm.attribute.mechanism_refit.temporal_bayesian.truth"]
+nominal_level = "0.95 (and 0.90)"
+acceptance_threshold = "Nominal within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Total of a sampled mean-difference change on one series, at least 43 blocks per population, at least 1,000 draws. Before the reference the pilot measured 0.879 at 90% at 600 rows per population; an offline replica of the corrected posterior covers 0.944 / 0.944 / 0.949 at 95% at 300 / 600 / 1200 rows per population. No coverage record exists until it is measured. NOT covered: the mechanism components on the unfolding, other temporal targets, strongly autocorrelated innovations. At run time the result carries the diagnostic gcm.model.interval_scope, which states measured_conditions only when the target, the resampling, the draw or replicate count, the smallest population and the simulation budget are all inside these conditions, and not_measured with the reason otherwise."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "One design at 300 / 600 / 1200 rows per population, 1,000 draws."
+
+
+[[record]]
+id = "gcm.simulate.mechanism_refit"
+capability = "gcm.simulate.mechanism_refit"
+inference_inventory_disposition = "outputs_listed"
+status = "supported"
+consumer_question = "What does a fitted graphical causal model say an intervention program does to an outcome, and how uncertain is that value given the rows the mechanisms were fitted on?"
+theorem = "A simulation draws from the fitted mechanisms under an intervention program (a hard set, a shift, an assignment or a transform compiled as an overlay) and reports the fitted model's value. Its uncertainty over the mechanisms is read from refits exactly as for the attribution record gcm.attribute.mechanism_refit: a row bootstrap (standard error of the paired mean difference, the quantity the point is) or Exp(1) row or block weights whose draws are referred to the Student-t reference of a mean of the weighted units. Every refit simulates on the query's own seed, so the Monte Carlo error of the simulation is an offset common to all refits and is not in the interval: it is negligible only when the simulated draws are many times the fitted rows. Not inherited: selection of the mechanism families, misspecification, identification; the value is the fitted model's, not an identified estimand."
+reference = "Rubin (1981) The Bayesian bootstrap; Efron (1979) Bootstrap methods; provenance/estimate.gcm.fit.bayesian.toml; provenance/model.intervention_programs.toml"
+guarantee = "mechanism_refit_interval_of_a_fitted_model_policy_value_measured_targets_only_simulation_error_excluded"
+graph_class = "A caller-declared or accepted static DAG; a temporal rollout on a TemporalDag steps the fitted dynamics on the lag-aligned unfolding."
+population_semantics = "Independent rows of one table, or one dependent series kept in blocks of consecutive times."
+evidence_family = "Linear-Gaussian chain z -> t -> y with z -> y and a lag-one law, with closed-form policy means."
+provider = "Native implementation: the compiled Simulate route and, with uncertainty, its sealed attribution operation."
+estimand = "the policy mean, the baseline mean and their paired difference of the fitted model; the per-step means of a temporal rollout"
+inference_claim = "interval"
+owners = ["antecedent", "antecedent-model", "python/antecedent"]
+identity_inputs = ["graph", "mechanism program", "simulation target, intervention program, draw count and seed", "inference mode", "posterior draw count or bootstrap replicate count", "execution seed", "data"]
+wire_changes = ["None: the scope of a published interval is a diagnostic of the result (gcm.model.interval_scope, discovery.posterior_scope); no artifact section changes."]
+compatibility = "Additive: the compiled routes, their payloads and the supported matrix cells are unchanged."
+search = false
+search_impl = ["crates/antecedent/src/analysis/execute/checked_attribution.rs", "crates/antecedent-model/src/program.rs"]
+bounds = { cancellation = true, contract = "antecedent_core::ExecutionContext" }
+refusals = []
+routes = [
+  { name = "antecedent.gcm.simulate.fitted_model_draws", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.gcm.simulate.policy_value.row_bootstrap_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.gcm.simulate.policy_value.row_weight_posterior", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.gcm.simulate.temporal_rollout.block_weight_posterior", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+fixtures = [
+  { id = "gcm.simulate.mechanism_refit.simulation_targets.positive", role = "positive", intent = "Every simulation target carries refit uncertainty in both inference modes.", evidence_test = "crates/antecedent/tests/attribute_mechanism_posterior.rs", evidence_assertion = "every_simulation_target_carries_refit_uncertainty_in_both_modes" },
+  { id = "gcm.simulate.mechanism_refit.rollout.positive", role = "positive", intent = "A temporal rollout steps the fitted dynamics and carries block-refit uncertainty.", evidence_test = "crates/antecedent/tests/attribute_mechanism_posterior.rs", evidence_assertion = "a_temporal_rollout_steps_the_fitted_dynamics_and_carries_block_refit_uncertainty" },
+  { shared_evidence = true, id = "gcm.simulate.mechanism_refit.cancelled_or_unleased.negative", role = "negative", intent = "A cancelled context or an exhausted admission pool refuses the route before it allocates.", evidence_test = "crates/antecedent/tests/structure_compiler_routes.rs", evidence_assertion = "a_cancelled_or_unleased_route_refuses_before_allocating" },
+  { id = "gcm.simulate.mechanism_refit.portable_policy.artifact", role = "artifact", intent = "A policy program artifact reproduces the same value bits in Rust and Python.", evidence_test = "crates/antecedent/tests/policy_python_parity.rs", evidence_assertion = "a_discrete_parent_policy_has_portable_rust_python_bits" },
+  { shared_evidence = true, id = "gcm.simulate.mechanism_refit.student_t_reference.construction", role = "construction", intent = "The scale mixture applied to the refit draws has the second moment of the Student-t reference, keeps each posterior mean and leaves simulated paths as drawn.", evidence_test = "crates/antecedent/src/analysis/execute/checked_attribution.rs", evidence_assertion = "mechanism_refit_reference_matches_the_student_t_variance_and_keeps_sums" },
+  { id = "gcm.simulate.mechanism_refit.published_quantity.construction", role = "construction", intent = "The bootstrap standard error stored on the estimate is the one of the quantity the point is (the paired mean difference), not of the first replicate column.", evidence_test = "crates/antecedent/src/analysis/execute/checked_attribution.rs", evidence_assertion = "fitted_model_bootstrap_publishes_the_standard_error_of_the_published_quantity" },
+  { id = "gcm.simulate.mechanism_refit.program_semantics.truth", role = "truth", intent = "A price-floor program holds for every realized draw and flows downstream on the same noise.", evidence_test = "crates/antecedent-model/tests/intervention_programs.rs", evidence_assertion = "a_price_floor_holds_for_every_realized_price_and_flows_downstream_on_the_same_noise" },
+  { id = "gcm.simulate.mechanism_refit.program_interpreter.parity", role = "parity", intent = "The program executor agrees with an independent interpreter on awkward inputs.", evidence_test = "crates/antecedent-model/tests/program_expression_reference.rs", evidence_assertion = "the_executor_agrees_with_an_independent_interpreter_on_awkward_inputs" },
+]
+
+[[record.inference_outputs]]
+id = "gcm.simulate.mechanism_refit.draws"
+fields = ["SimulationPayload.outcome", "SimulationPayload.mechanisms"]
+method = "Seeded draws of the fitted model under the program; the policy value reports the Monte Carlo error of its own draws."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "antecedent::CausalQuery::Simulate"
+public_producers = ["antecedent.gcm.simulate.fitted_model_draws"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/execute/structural_route.rs; crates/antecedent-model/src/program.rs"
+truth_design = "Program semantics against closed-form draws and an independent interpreter."
+truth_fixtures = ["gcm.simulate.mechanism_refit.program_semantics.truth", "gcm.simulate.mechanism_refit.program_interpreter.parity"]
+nominal_level = "none; fitted-model draws"
+acceptance_threshold = "Agreement with the references; no coverage threshold."
+measurement_suite = "crates/antecedent/src/analysis/execute/structural_route.rs; crates/antecedent-model/src/program.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Draws-only simulation: the fitted model's value with the Monte Carlo error of its own draws, which is not an interval about the population. Interventional samples, noise samples and replays, unit effects, counterfactuals, temporal counterfactuals and the simulated paths of a rollout are under this output; their refit posteriors and bootstraps have no coverage measurement and the result says so."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated."
+
+[[record.inference_outputs]]
+id = "gcm.simulate.mechanism_refit.policy_value_row_bootstrap_interval"
+fields = ["estimate.ate", "estimate.uncertainty.bootstrap.se"]
+method = "Normal interval of the paired mean difference from the standard deviation of that difference over row-bootstrap refits."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "CheckedAttributionOperation::model_bootstrap"
+public_producers = ["antecedent.gcm.simulate.policy_value.row_bootstrap_interval"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/execute/checked_attribution.rs; crates/antecedent/src/analysis/execute/checked_attribution/model_uncertainty.rs"
+truth_design = "do(t = 1) on z -> t -> y, z -> y (difference 1.5) and a shift of t by 0.5 (difference 0.75)."
+truth_fixtures = ["gcm.simulate.mechanism_refit.published_quantity.construction", "gcm.simulate.mechanism_refit.program_semantics.truth"]
+nominal_level = "0.95 (and 0.90)"
+acceptance_threshold = "Nominal within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Policy value on a static DAG, a hard set or a shift program, at least 250 rows, at least 200 replicates, at least 50 simulated draws per fitted row. Passed the 1,000-replicate pilot at 500 rows; no coverage record exists until it is measured. NOT covered: assignment and transform programs, a temporal rollout under the bootstrap (its first quantity is a constant, so it publishes no standard error). At run time the result carries the diagnostic gcm.model.interval_scope, which states measured_conditions only when the target, the resampling, the draw or replicate count, the smallest population and the simulation budget are all inside these conditions, and not_measured with the reason otherwise."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Two designs at 250 / 500 / 1000 rows, 200 replicates, 50,000 draws."
+
+[[record.inference_outputs]]
+id = "gcm.simulate.mechanism_refit.policy_value_row_weight_posterior"
+fields = ["posterior.draws", "posterior.summaries.q025", "posterior.summaries.q975"]
+method = "Equal-tailed quantiles of the row-weight refit draws of the policy mean, the baseline mean and their difference, referred to the Student-t reference."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "CheckedAttributionOperation::model_posterior"
+public_producers = ["antecedent.gcm.simulate.policy_value.row_weight_posterior"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/execute/checked_attribution.rs; crates/antecedent/src/analysis/execute/checked_attribution/model_uncertainty.rs"
+truth_design = "The same two programs; policy mean, baseline mean 0 and difference."
+truth_fixtures = ["gcm.simulate.mechanism_refit.student_t_reference.construction", "gcm.simulate.mechanism_refit.program_semantics.truth"]
+nominal_level = "0.95 (and 0.90)"
+acceptance_threshold = "Nominal within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Policy value on a static DAG, a hard set or a shift program, at least 250 rows, at least 1,000 posterior draws, at least 50 simulated draws per fitted row. A study that sets no draw count runs 100 refits, where an exact posterior covers 0.931: it is outside this scope and the result says so. The harness passed a 1,000-replicate pilot at its middle grid point before the finite-sample reference was added; no coverage record exists until it is measured, and the lowest passing grid point then sets the scope. At run time the result carries the diagnostic gcm.model.interval_scope, which states measured_conditions only when the target, the resampling, the draw or replicate count, the smallest population and the simulation budget are all inside these conditions, and not_measured with the reason otherwise."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Two designs at 250 / 500 / 1000 rows, 1,000 draws, 50,000 simulated draws."
+
+[[record.inference_outputs]]
+id = "gcm.simulate.mechanism_refit.temporal_rollout_block_weight_posterior"
+fields = ["posterior.draws", "posterior.summaries.q025", "posterior.summaries.q975"]
+method = "Equal-tailed quantiles of the block-weight refit draws of the per-step means of a rollout, referred to the Student-t reference of a mean of the weighted blocks."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "CheckedAttributionOperation::model_posterior"
+public_producers = ["antecedent.gcm.simulate.temporal_rollout.block_weight_posterior"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/execute/checked_attribution.rs; crates/antecedent-attribution/src/temporal_resampling.rs"
+truth_design = "y_t = 1 + 2 x_(t-1) + 0.7 e with x held at 1: the mean of y is 3 from the second step on; three steps scored."
+truth_fixtures = ["gcm.simulate.mechanism_refit.student_t_reference.construction"]
+nominal_level = "0.95 (and 0.90)"
+acceptance_threshold = "Nominal within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Per-step means of a temporal rollout on one series, at least 25 blocks (150 steps), at least 1,000 draws, at least 1,000 simulated rollout rows per 6 fitted rows. Before the reference the pilot measured 0.935 at 95% and 0.879 at 90% at 300 steps and an offline replica 0.92 at 150 steps; the corrected posterior covers 0.946 / 0.945 / 0.946 at 150 / 300 / 600 steps in the offline replica. No coverage record exists until it is measured. NOT covered: the simulated-path columns (a predictive law, left as drawn), a rollout from a supplied history, strongly autocorrelated innovations. At run time the result carries the diagnostic gcm.model.interval_scope, which states measured_conditions only when the target, the resampling, the draw or replicate count, the smallest population and the simulation budget are all inside these conditions, and not_measured with the reason otherwise."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "One design at 150 / 300 / 600 steps, 1,000 draws, 100,000 rollout rows."
+
+
+[[record]]
+id = "attribution.mechanism_change_detection"
+capability = "attribution.mechanism_change_detection"
+inference_inventory_disposition = "outputs_listed"
+status = "supported"
+consumer_question = "Did the mechanism of a variable change between two populations, and how probable is a change under a declared prior?"
+theorem = "The frequentist reading is a two-sample test of the residual law of the target given its parents: a changed flag at the declared level with a raw and a family-adjusted p-value from a permutation or closed-form null; it carries no magnitude and no interval. The Bayesian reading is the posterior probability of a change under the prior over the change indicator the query declares, from conjugate normal-inverse-gamma marginal likelihoods of the pooled and the split residual models. A credible set over {no change, change} is the more probable value alone once its mass reaches the level, else both values, so it holds at least its stated mass by construction. Not inherited: the alternative's prior on the size of a change is the conjugate default, not a statement about the data; no error rate of the frequentist flag is measured."
+reference = "provenance/attribution.mechanism_change_detection.toml"
+guarantee = "qualitative_detection_flag_no_interval_and_posterior_probability_credible_set_at_least_nominal_under_declared_prior"
+graph_class = "A caller-declared or accepted static DAG; on a TemporalDag the test runs on the lag-aligned unfolding with a block-permutation null."
+population_semantics = "Two row ranges of one table, each of independent rows."
+evidence_family = "Linear-Gaussian two-node law with a known intercept shift of the target mechanism, the indicator drawn from the declared prior."
+provider = "Native implementation: the sealed attribution operation of the compiled route."
+estimand = "the indicator that the target mechanism differs between the two populations"
+inference_claim = "interval"
+owners = ["antecedent", "antecedent-attribution", "python/antecedent"]
+identity_inputs = ["graph", "mechanism program", "targets and populations", "test and significance level", "declared change prior", "execution seed", "data"]
+wire_changes = ["None: the scope of a published interval is a diagnostic of the result (gcm.model.interval_scope, discovery.posterior_scope); no artifact section changes."]
+compatibility = "Additive: the compiled routes, their payloads and the supported matrix cells are unchanged."
+search = false
+search_impl = ["crates/antecedent-attribution/src/mechanism_change/posterior.rs"]
+bounds = { cancellation = true, contract = "antecedent_core::ExecutionContext" }
+refusals = []
+routes = [
+  { name = "antecedent.attribution.mechanism_change.detection", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.attribution.mechanism_change.posterior_probability", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+fixtures = [
+  { id = "attribution.mechanism_change_detection.declared_posterior.positive", role = "positive", intent = "An attribute mechanism change has a block null for every statistic and a posterior probability under a declared prior.", evidence_test = "crates/antecedent/tests/attribute_mechanism_posterior.rs", evidence_assertion = "an_attribute_mechanism_change_has_a_block_null_for_every_statistic_and_a_declared_posterior" },
+  { id = "attribution.mechanism_change_detection.no_refit_posterior.negative", role = "negative", intent = "Without a declared prior a mechanism-change detection publishes no posterior and says why.", evidence_test = "crates/antecedent/tests/attribute_mechanism_posterior.rs", evidence_assertion = "mechanism_change_detection_has_no_posterior_and_says_why" },
+  { shared_evidence = true, id = "attribution.mechanism_change_detection.retained_path.artifact", role = "artifact", intent = "Mechanism change and unit change run on the retained compiled path with a stamped identity.", evidence_test = "crates/antecedent/tests/structure_compiler_routes.rs", evidence_assertion = "mechanism_and_unit_change_run_on_the_retained_path" },
+  { shared_evidence = true, id = "attribution.mechanism_change_detection.reference_statistics.construction", role = "construction", intent = "Detection statistics, p-values and the family correction equal an independent reference.", evidence_test = "crates/antecedent-attribution/tests/mechanism_change_detection_reference.rs", evidence_assertion = "detection_statistics_and_family_correction_match_the_reference" },
+  { shared_evidence = true, id = "attribution.mechanism_change_detection.reference_statistics.parity", role = "parity", intent = "Detection statistics, p-values and the family correction equal an independent reference.", evidence_test = "crates/antecedent-attribution/tests/mechanism_change_detection_reference.rs", evidence_assertion = "detection_statistics_and_family_correction_match_the_reference" },
+]
+
+[[record.inference_outputs]]
+id = "attribution.mechanism_change_detection.flag"
+fields = ["MechanismChangeDetection.changed", "MechanismChangeDetection.p_value", "MechanismChangeDetection.adjusted_p_value"]
+method = "Two-sample test of the residual law with a permutation or closed-form null and a family correction."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-attribution"
+operation_or_object = "antecedent_attribution::detect_mechanism_changes"
+public_producers = ["antecedent.attribution.mechanism_change.detection"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-attribution/src/mechanism_change"
+truth_design = "Reference statistics and corrections at fixed inputs."
+truth_fixtures = ["attribution.mechanism_change_detection.reference_statistics.parity"]
+nominal_level = "none; a qualitative flag at the declared level, no measured error rate"
+acceptance_threshold = "Agreement with the reference; no rejection-rate threshold is claimed."
+measurement_suite = "crates/antecedent-attribution/src/mechanism_change"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "A qualitative detection: no magnitude, no interval, and no measured size or power at the declared level."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated."
+
+[[record.inference_outputs]]
+id = "attribution.mechanism_change_detection.posterior_probability"
+fields = ["MechanismChangeDetection.posterior_probability"]
+method = "Posterior probability of a change from conjugate normal-inverse-gamma marginal likelihoods under the declared prior; scored as the smallest credible set over the indicator."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-attribution"
+operation_or_object = "antecedent_attribution::mechanism_change::posterior"
+public_producers = ["antecedent.attribution.mechanism_change.posterior_probability"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-attribution/src/mechanism_change/posterior.rs"
+truth_design = "x -> y with the intercept of y shifted by 1 when a change is drawn from the declared prior 0.5; coverage of the indicator by the credible set."
+truth_fixtures = ["attribution.mechanism_change_detection.reference_statistics.construction"]
+nominal_level = "0.95 (and 0.90), held to at least nominal"
+acceptance_threshold = "At least nominal at each grid point (a credible set of whole values holds at least its stated mass)."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Static DAG, likelihood-ratio statistic, a declared change prior, at least 75 rows per population, an intercept shift of 1 residual-scale unit over 0.7. Passed the 1,000-replicate pilot (1.000). Held one-sided: the claim is at least nominal, not exact. No coverage record exists until it is measured. NOT covered: a series (block-tempered likelihood), other statistics, small shifts near the prior scale. At run time the result carries the diagnostic gcm.model.interval_scope, which states measured_conditions only when the target, the resampling, the draw or replicate count, the smallest population and the simulation budget are all inside these conditions, and not_measured with the reason otherwise."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "One design at 75 / 150 / 300 rows per population."
+
+
+[[record]]
+id = "discovery.structure_posterior"
+capability = "discovery.structure_posterior"
+inference_inventory_disposition = "outputs_listed"
+status = "supported"
+consumer_question = "Which structures does a compiled structure search return, and how much posterior mass does a Bayesian search put on the true one?"
+theorem = "A frequentist search is the exact evaluation of its decision rule on the data and publishes no interval; wrapped by bootstrap_stability it tabulates selection frequencies over resamples drawn under the declared sampling design, a bootstrap distribution of the search with no nominal level. A Bayesian search publishes a structure posterior under a declared prior and the Gaussian BIC score. For the exact DAG posterior collapsed onto Markov equivalence classes and for the bounded-lag template posterior, the smallest set of atoms holding at least a stated mass is a credible set; a set of whole atoms holds at least its stated mass. Not inherited: no recovery or error-rate statement about one discovered graph (faithfulness and sufficiency are untestable on the data searched), and no coverage of any other posterior search."
+reference = "provenance/discovery.class_posterior.toml; provenance/discovery.dbn_posterior.toml; provenance/discovery.bootstrap_stability.toml"
+guarantee = "structure_posterior_credible_set_at_least_nominal_two_measured_searches_other_searches_no_statement"
+graph_class = "Searched: a DAG, CPDAG or PAG over tabular columns, or a temporal DAG, CPDAG or PAG over a series, panel or environments."
+population_semantics = "Independent rows, or one dependent series; the search states its own premises."
+evidence_family = "A Gaussian chain of three variables with no collider, and a two-variable lag-one law."
+provider = "Native implementation: the compiled Discover route over the discovery engines."
+estimand = "the Markov equivalence class of the generating DAG; the bounded-lag template of the generating series"
+inference_claim = "interval"
+owners = ["antecedent", "antecedent-discovery", "python/antecedent"]
+identity_inputs = ["variables", "search method and bounds", "prior and score", "MCMC schedule", "declared sampling design", "execution seed", "data"]
+wire_changes = ["None: the scope of a published interval is a diagnostic of the result (gcm.model.interval_scope, discovery.posterior_scope); no artifact section changes."]
+compatibility = "Additive: the compiled routes, their payloads and the supported matrix cells are unchanged."
+search = false
+search_impl = ["crates/antecedent-discovery/src/graph_posterior.rs"]
+bounds = { cancellation = true, contract = "antecedent_core::ExecutionContext", memory_limit = "admission lease sized by the query before the search" }
+refusals = []
+routes = [
+  { name = "antecedent.discovery.search.decision_rule", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.discovery.bootstrap_stability.frequencies", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.discovery.static.class_posterior_credible_set", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.discovery.temporal.dbn_posterior_credible_set", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+fixtures = [
+  { id = "discovery.structure_posterior.compiled_posterior.positive", role = "positive", intent = "A structure posterior declares Bayesian inference and equals its engine.", evidence_test = "crates/antecedent/tests/structure_compiler_routes.rs", evidence_assertion = "a_structure_posterior_declares_bayesian_inference_and_equals_its_engine" },
+  { id = "discovery.structure_posterior.class_collapse_route.positive", role = "positive", intent = "A compiled class posterior collapses the DAG posterior it wraps.", evidence_test = "crates/antecedent/tests/structure_uncertainty_routes.rs", evidence_assertion = "a_class_posterior_collapses_the_dag_posterior_it_wraps" },
+  { id = "discovery.structure_posterior.invalid_declarations.negative", role = "negative", intent = "Discovery queries refuse invalid declarations before any identity is formed.", evidence_test = "crates/antecedent/tests/structure_uncertainty_routes.rs", evidence_assertion = "discovery_queries_refuse_invalid_declarations_before_identity" },
+  { id = "discovery.structure_posterior.provenance_downstream.artifact", role = "artifact", intent = "The provenance of a discovered structure reaches the downstream contract and program.", evidence_test = "crates/antecedent/tests/structure_compiler_routes.rs", evidence_assertion = "discovered_provenance_reaches_the_downstream_contract_and_program" },
+  { id = "discovery.structure_posterior.class_partition.construction", role = "construction", intent = "The class collapse partitions every DAG on three and four variables by skeleton and unshielded colliders and pools the exact mass.", evidence_test = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs", evidence_assertion = "class_collapse_partitions_every_dag_by_skeleton_and_unshielded_colliders" },
+  { id = "discovery.structure_posterior.exact_bic_enumeration.parity", role = "parity", intent = "The exact engine reproduces an independent BIC enumeration and the samplers agree with it.", evidence_test = "crates/antecedent-discovery/tests/dag_posterior_conformance.rs", evidence_assertion = "exact_engine_reproduces_an_independent_bic_enumeration_and_samplers_agree_with_it" },
+  { id = "discovery.structure_posterior.dbn_brute_force.parity", role = "parity", intent = "The exact template posterior matches a brute-force enumeration over a two-unit panel.", evidence_test = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs", evidence_assertion = "dbn_exact_template_posterior_matches_brute_force_over_a_two_unit_panel" },
+  { id = "discovery.structure_posterior.stability_counting.truth", role = "truth", intent = "Tabulated stability frequencies equal exact counting in every regime.", evidence_test = "crates/antecedent-discovery/tests/bootstrap_stability_reference.rs", evidence_assertion = "tabulated_frequencies_equal_exact_counting_in_every_regime" },
+  { id = "discovery.structure_posterior.static_reference_searches.parity", role = "parity", intent = "FCI and GES match a reference implementation across motifs and all permutations.", evidence_test = "crates/antecedent-discovery/tests/static_discovery_oracle.rs", evidence_assertion = "fci_and_ges_match_causal_learn_across_motifs_and_all_permutations" },
+]
+
+[[record.inference_outputs]]
+id = "discovery.structure_posterior.decision_rule"
+fields = ["DiscoveryPayload.structure"]
+method = "Exact evaluation of the search's decision rule; no interval."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "antecedent::CausalQuery::Discover"
+public_producers = ["antecedent.discovery.search.decision_rule"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/execute/structural_route.rs"
+truth_design = "Reference implementations and exhaustive oracles of the searches."
+truth_fixtures = ["discovery.structure_posterior.static_reference_searches.parity"]
+nominal_level = "none; a decision rule"
+acceptance_threshold = "Agreement with the references; no error-rate threshold."
+measurement_suite = "crates/antecedent/src/analysis/execute/structural_route.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Frequentist searches (pc, fci, rfci, ges, direct_lingam, notears, pcmci, pcmci_plus, lpcmci, jpcmci_plus, rpcmci and panel searches) publish a structure and no interval, posterior or recovery statement."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated."
+
+[[record.inference_outputs]]
+id = "discovery.structure_posterior.stability_frequencies"
+fields = ["StructureStability"]
+method = "Selection frequencies of the wrapped search over resamples drawn under the declared sampling design."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "DiscoveryMethod::BootstrapStability"
+public_producers = ["antecedent.discovery.bootstrap_stability.frequencies"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-discovery/src"
+truth_design = "Exact counting of the tabulated frequencies."
+truth_fixtures = ["discovery.structure_posterior.stability_counting.truth"]
+nominal_level = "none; frequencies carry no nominal level"
+acceptance_threshold = "Tabulated frequencies equal exact counts; no coverage threshold."
+measurement_suite = "crates/antecedent-discovery/src"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "A bootstrap distribution of the search, not a posterior: no nominal level, no threshold claim, and the result states that its coverage is not measured."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated."
+
+[[record.inference_outputs]]
+id = "discovery.structure_posterior.static_class_credible_set"
+fields = ["GraphPosterior.atoms", "GraphPosterior.weights"]
+method = "Smallest set of Markov equivalence classes of the exact DAG posterior holding at least the stated mass."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "DiscoverySpec::exact_dag_posterior().equivalence_classes()"
+public_producers = ["antecedent.discovery.static.class_posterior_credible_set"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-discovery/src/graph_posterior.rs"
+truth_design = "A Gaussian chain z -> t -> y with no direct edge; coverage of the class of the chain."
+truth_fixtures = ["discovery.structure_posterior.class_partition.construction", "discovery.structure_posterior.exact_bic_enumeration.parity"]
+nominal_level = "0.95 (and 0.90), held to at least nominal"
+acceptance_threshold = "At least nominal at each grid point."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Exact DAG posterior collapsed onto equivalence classes, at most three variables, tabular independent rows, at least 75 rows, default prior and Gaussian BIC. Passed the 1,000-replicate pilot (0.994 at 90%). Held one-sided. No coverage record exists until it is measured. At run time the result carries the diagnostic discovery.posterior_scope, which states measured_conditions only inside these conditions. NOT covered, and stated as not measured by that diagnostic: order MCMC, structure MCMC, the CI-screened posterior, the exact and sampled PAG posteriors, exact edge marginals, larger graphs."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "One design at 75 / 150 / 300 rows."
+
+[[record.inference_outputs]]
+id = "discovery.structure_posterior.temporal_dbn_credible_set"
+fields = ["GraphPosterior.atoms", "GraphPosterior.lag_masks", "GraphPosterior.weights"]
+method = "Smallest set of bounded-lag templates holding at least the stated mass."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "DiscoverySpec::dbn_posterior"
+public_producers = ["antecedent.discovery.temporal.dbn_posterior_credible_set"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-discovery/src/graph_posterior.rs"
+truth_design = "x_t iid, y_t = 2 x_(t-1) + 0.5 e; coverage of the template with the single lagged edge."
+truth_fixtures = ["discovery.structure_posterior.dbn_brute_force.parity"]
+nominal_level = "0.95 (and 0.90), held to at least nominal"
+acceptance_threshold = "At least nominal at each grid point."
+measurement_suite = "crates/antecedent/tests/fitted_model_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Bounded-lag template posterior of two variables with one lag on one series of at least 100 steps, four chains of 400 draws. Passed the 1,000-replicate pilot (0.992 at 90%). Held one-sided. No coverage record exists until it is measured. The diagnostic discovery.posterior_scope states the scope at run time. NOT covered: the class-collapsed template posterior, more variables or lags, panels and multi-environment data."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "One design at 100 / 200 / 400 steps."
+
+
+[[record]]
+id = "gcm.model.mechanism_selection"
+capability = "gcm.model.mechanism_selection"
+inference_inventory_disposition = "point_output_listed_not_measured"
+status = "supported"
+consumer_question = "Which mechanism family was fitted for each node of a graphical causal model, and on what held-out evidence was it chosen?"
+theorem = "Each node's candidate families are scored on the same held-out folds (shuffled, time-ordered or clustered splits) and the selection rule picks one; ties keep the listing order; a family that cannot be fit is listed as failed, never dropped. The selection record is part of the compiled program identity. Not inherited: a selected fit is not a causal identification claim, and the route publishes no interval: selection uncertainty reaches a result only through the whole-procedure interval of an intrinsic influence, which re-selects inside every refit."
+reference = "provenance/model.registry.toml"
+guarantee = "held_out_score_selection_record_point_only_no_interval"
+graph_class = "The declared DAG of a fitted graphical causal model; one mechanism per node."
+population_semantics = "All rows of the data under the declared split design."
+evidence_family = "Known-truth families recovered by the basis candidates, exact ties, constraints and failures."
+provider = "Native implementation: the mechanism registry."
+estimand = "the selected family, the candidate scores and the failed families of every node"
+inference_claim = "point_only"
+owners = ["antecedent-model", "antecedent", "python/antecedent"]
+identity_inputs = ["graph", "candidate families and constraints", "selection rule", "split design and seed", "data"]
+wire_changes = ["None: the scope of a published interval is a diagnostic of the result (gcm.model.interval_scope, discovery.posterior_scope); no artifact section changes."]
+compatibility = "Additive: the compiled routes, their payloads and the supported matrix cells are unchanged."
+search = false
+search_impl = ["crates/antecedent-model/src/registry/selection.rs"]
+bounds = { cancellation = true, contract = "antecedent_core::ExecutionContext" }
+refusals = []
+routes = [
+  { name = "antecedent.gcm.mechanism_selection.selection_record", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+fixtures = [
+  { id = "gcm.model.mechanism_selection.known_truth_families.truth", role = "truth", intent = "The basis families recover the family that suits each known truth.", evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs", evidence_assertion = "basis_families_recover_the_family_that_suits_each_known_truth" },
+  { id = "gcm.model.mechanism_selection.same_folds.positive", role = "positive", intent = "Every candidate is scored on the same folds with a comparable decomposition.", evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs", evidence_assertion = "every_candidate_is_scored_on_the_same_folds_with_a_comparable_decomposition" },
+  { id = "gcm.model.mechanism_selection.inconsistent_constraints.negative", role = "negative", intent = "Inconsistent constraints are refused before any fit.", evidence_test = "crates/antecedent-model/tests/mechanism_selection.rs", evidence_assertion = "inconsistent_constraints_are_refused_before_any_fit" },
+  { id = "gcm.model.mechanism_selection.program_identity.artifact", role = "artifact", intent = "Wrapped mechanisms name themselves in the compiled program.", evidence_test = "crates/antecedent/tests/structure_compiler_routes.rs", evidence_assertion = "wrapped_mechanisms_name_themselves_in_the_program" },
+  { id = "gcm.model.mechanism_selection.exact_ties.parity", role = "parity", intent = "Exact ties keep the listing order, against an independent reference.", evidence_test = "crates/antecedent-model/tests/registry_family_selection_reference.rs", evidence_assertion = "registry_family_selection_reference_exact_ties_keep_the_listing_order" },
+]
+
+[[record.inference_outputs]]
+id = "gcm.model.mechanism_selection.selection_record"
+fields = ["MechanismAssignment.selected", "MechanismAssignment.candidates", "MechanismAssignment.failed_families", "MechanismAssignment.provenance"]
+method = "Held-out scoring of the candidate families of each node and the declared selection rule."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-model"
+operation_or_object = "antecedent_model::MechanismRegistry"
+public_producers = ["antecedent.gcm.mechanism_selection.selection_record"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-model/src/registry/selection.rs"
+truth_design = "Known-truth families and exact-tie references at fixed seeds."
+truth_fixtures = ["gcm.model.mechanism_selection.known_truth_families.truth"]
+nominal_level = "none; a selection record"
+acceptance_threshold = "Recovery of the known family and agreement with the tie reference; no coverage threshold."
+measurement_suite = "crates/antecedent-model/src/registry/selection.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "A selection record: held-out scores and provenance, no interval on any causal target. The posteriors and bootstraps of the attribution and simulation routes hold the selected families fixed."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated."
+
+
+[[record]]
+id = "attribution.unit_change"
+capability = "attribution.unit_change"
+inference_inventory_disposition = "point_output_listed_not_measured"
+status = "supported"
+consumer_question = "How much of each unit's deviation of the outcome from its reference does each parent account for under the fitted mechanism?"
+theorem = "For a mechanism with additive noise abducted per unit, the coalition payoff evaluates the outcome mechanism on factual or parent-mean values with that noise held fixed, and the per-unit Shapley values over the outcome's parents sum to the factual-minus-reference change. For a linear mechanism each parent's value is its slope times the unit's deviation from the parent mean. Not inherited: the route publishes the fitted model's point answer; the component standard error is the permutation-sampling error about that answer, not an interval about a population value."
+reference = "provenance/attribution.unit_change.toml"
+guarantee = "per_unit_shapley_contributions_of_parents_point_only_no_interval"
+graph_class = "A caller-declared or accepted static DAG with a fitted additive-noise outcome mechanism."
+population_semantics = "The submitted unit rows; parent means of the whole table are the reference point."
+evidence_family = "Additive linear and interacting-parent unit games with closed forms and order enumeration."
+provider = "Native implementation: the sealed attribution operation over crates/antecedent-attribution/src/unit_change.rs."
+estimand = "the per-unit Shapley contribution of each parent to the outcome's deviation from its reference"
+inference_claim = "point_only"
+owners = ["antecedent-attribution", "antecedent", "python/antecedent"]
+identity_inputs = ["graph", "mechanism program", "outcome and unit rows", "permutation count and seed", "data"]
+wire_changes = ["None: the scope of a published interval is a diagnostic of the result (gcm.model.interval_scope, discovery.posterior_scope); no artifact section changes."]
+compatibility = "Additive: the compiled routes, their payloads and the supported matrix cells are unchanged."
+search = false
+search_impl = ["crates/antecedent-attribution/src/unit_change.rs"]
+bounds = { cancellation = true, contract = "antecedent_core::ExecutionContext" }
+refusals = []
+routes = [
+  { name = "antecedent.attribution.unit_change.contributions", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+fixtures = [
+  { id = "attribution.unit_change.linear_closed_form.truth", role = "truth", intent = "For a linear mechanism each parent's per-unit value is its slope times the unit's deviation from the parent mean.", evidence_test = "crates/antecedent-attribution/tests/unit_change_reference.rs", evidence_assertion = "linear_mechanism_unit_contributions_are_slope_times_deviation_from_the_mean" },
+  { id = "attribution.unit_change.order_enumeration.parity", role = "parity", intent = "Interacting parents receive the average marginal contribution over all orders.", evidence_test = "crates/antecedent-attribution/tests/unit_change_reference.rs", evidence_assertion = "interacting_parents_receive_the_permutation_average_marginal_contribution" },
+  { id = "attribution.unit_change.standalone_queries.positive", role = "positive", intent = "Standalone queries on a TemporalDag say what runs and what does not; a unit change runs as the fitted-model point answer.", evidence_test = "crates/antecedent/tests/attribute_mechanism_posterior.rs", evidence_assertion = "standalone_temporal_queries_say_what_runs_and_what_does_not" },
+  { id = "attribution.unit_change.out_of_range_row.negative", role = "negative", intent = "A unit row outside the table is refused.", evidence_test = "crates/antecedent-attribution/src/unit_change.rs", evidence_assertion = "unit_change_rejects_out_of_range_unit_row" },
+  { shared_evidence = true, id = "attribution.unit_change.retained_path.artifact", role = "artifact", intent = "Mechanism change and unit change run on the retained compiled path with a stamped identity.", evidence_test = "crates/antecedent/tests/structure_compiler_routes.rs", evidence_assertion = "mechanism_and_unit_change_run_on_the_retained_path" },
+]
+
+[[record.inference_outputs]]
+id = "attribution.unit_change.contributions"
+fields = ["UnitChangeResult.contributions", "UnitChangeResult.component_mc_stderr"]
+method = "Per-unit Shapley allocation over the outcome's parents with the outcome noise abducted and held fixed."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-attribution"
+operation_or_object = "antecedent_attribution::unit_change"
+public_producers = ["antecedent.attribution.unit_change.contributions"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-attribution/src/unit_change.rs"
+truth_design = "Closed-form linear contributions and an enumeration of all orders."
+truth_fixtures = ["attribution.unit_change.linear_closed_form.truth"]
+nominal_level = "none; point answer"
+acceptance_threshold = "Agreement with the closed form and the enumeration; no coverage threshold."
+measurement_suite = "crates/antecedent-attribution/src/unit_change.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Point answer of the fitted model for the standalone UnitChange query: no posterior and no refit bootstrap. As an Attribute target the mean unit contributions do have a refit posterior and bootstrap; those have no coverage measurement (the mean over the submitted rows is a sample-dependent functional) and the result states not_measured."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated."
+
+
+[[record]]
+id = "joint_response.interval_readings"
+capability = "joint_response.interval_readings"
+status = "supported"
+consumer_question = "Which intervals of a joint-response result are reported with a calibration statement, and inside which measured conditions?"
+theorem = "Five readings publish a 95% interval or simultaneous region together with the calibration key the result derives for it: a prespecified contrast of a compiled native design, the held-out value of a selected program (randomized and structural), the four contributions of a population reference decomposition, and a contrast after an experiment update. The key names the procedure, estimator, target, inference mode, prior model and interval construction, counts the independent units behind the fit and its resampling or posterior size, and states the support condition the interval was measured under; it is resolved against the shipped coverage records, so a reading at another level, on another construction, outside the measured sample-size range, below the measured resampling or posterior size, or outside the support condition reports not_measured or outside_measured_scope and is never labelled calibrated. The caller supplies no record. Each construction is checked against an interval computed independently from the published law; coverage is an annotation measured by the calibration groups named in parity/calibration_routes.toml. Bayesian readings are posterior statements under the declared model: their repeated-sampling coverage was measured with every likelihood scale declared at its generating value."
+reference = "docs/guides/joint-intervention-responses.md"
+guarantee = "interval_reported_with_runtime_derived_calibration_key_calibrated_only_inside_measured_conditions"
+graph_class = "Not applicable: each reading rests on a compiled design proof (assignment, history, instrument, cohort or donor premises) retained by its result."
+population_semantics = "The population, sampling unit and target kind the compiled design retains; a local or structural effect is never read as a population mean."
+evidence_family = "Original units of a compiled joint design, a held-out sample for selection, and an independent experiment for the update."
+provider = "antecedent::analysis::joint_panel (native design owners in antecedent-estimate joint_design)"
+estimand = "A prespecified linear contrast of the design's targets; the value of the selected program; the four Shapley contributions of a population change; a contrast of the target worlds after an experiment."
+inference_claim = "interval"
+owners = ["antecedent", "antecedent-estimate", "antecedent-design"]
+identity_inputs = ["the compiled design recipe and its inference recipe, including priors, seeds and resampling sizes", "the contrast coefficients and the level", "the retained law the interval is built from"]
+wire_changes = ["None: a reading is computed from an executed result and is not serialized into its artifact."]
+compatibility = "Additive. NativeJointDesignResult.support and .calibration, every artifact and every existing result field are unchanged; the result-level labels still describe the result as a whole and the reading carries the interval's own standing."
+search = false
+bounds = { cancellation = true }
+inference_inventory_disposition = "outputs_listed"
+refusals = [
+  { detail = "joint_response.reading_level_invalid" },
+  { detail = "joint_response.reading_law_unavailable" },
+]
+routes = [
+  { name = "antecedent.joint_panel.NativeJointDesignResult.contrast_interval_reading", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.joint_panel.RandomizedSelectionResult.selected_value_reading", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.joint_panel.InstrumentedSelectionResult.selected_value_reading", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.joint_panel.JointDesignResult.population_reference_region", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.joint_panel.JointDesignResult.updated_contrast_reading", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+fixtures = [
+ { id = "joint_response.interval_readings.native_contrast.positive", role = "positive", intent = "A compiled native design reports its contrast interval with the key the runtime derives and the standing of that key.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "native_contrast_reading_is_the_hand_computed_interval_and_is_keyed_by_its_support", shared_evidence = true },
+ { id = "joint_response.interval_readings.native_contrast_student_interval.construction", role = "construction", intent = "Eight equally weighted units on two programs: the interval is the mean score 3 -/+ t(0.975, 7) sqrt(328 / 56), computed by hand from the inverse-probability scores.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "native_contrast_reading_is_the_hand_computed_interval_and_is_keyed_by_its_support", shared_evidence = true },
+ { id = "joint_response.interval_readings.native_contrast_student_interval.truth", role = "truth", intent = "The hand-computed Student interval of the equal-weight randomized contrast and the exact switchback interaction 4.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "native_contrast_reading_is_the_hand_computed_interval_and_is_keyed_by_its_support", shared_evidence = true },
+ { id = "joint_response.interval_readings.native_contrast_outside_support.negative", role = "negative", intent = "Four units per program and four sequences per history are keyed outside the measured support and never report calibrated; a level outside (0, 1) is refused.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "native_contrast_reading_is_the_hand_computed_interval_and_is_keyed_by_its_support", shared_evidence = true },
+ { id = "joint_response.interval_readings.native_design_replay.artifact", role = "artifact", intent = "The executed native design exports and replays to the retained law.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "native_contrast_reading_is_the_hand_computed_interval_and_is_keyed_by_its_support", shared_evidence = true },
+ { id = "joint_response.interval_readings.synthetic_prior_and_pre_periods.negative", role = "negative", intent = "A declared variance prior more than a factor of two from the pre-period fit error is keyed outside the measured support, and a joint 95% conformal region below 39 pre-periods is refused.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "synthetic_readings_check_the_declared_prior_and_the_pre_period_count", shared_evidence = true },
+ { id = "joint_response.interval_readings.selected_value_normal_interval.construction", role = "construction", intent = "Both selected-value readings equal the held-out estimate -/+ 1.959964 standard errors recomputed from the published estimate.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "selected_value_readings_are_the_heldout_normal_interval", shared_evidence = true },
+ { id = "joint_response.interval_readings.selected_value_normal_interval.truth", role = "truth", intent = "The held-out normal interval recomputed from the published value and standard error; the key counts the smaller sample.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "selected_value_readings_are_the_heldout_normal_interval", shared_evidence = true },
+ { id = "joint_response.interval_readings.selected_value_invalid_level.negative", role = "negative", intent = "A level outside (0, 1) refuses with joint_response.reading_level_invalid and an unmeasured level never reports calibrated.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "selected_value_readings_are_the_heldout_normal_interval", shared_evidence = true },
+ { id = "joint_response.interval_readings.selection_replay.artifact", role = "artifact", intent = "Both selections export and replay to the same report.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "selected_value_readings_are_the_heldout_normal_interval", shared_evidence = true },
+ { id = "joint_response.interval_readings.reference_region_bonferroni.construction", role = "construction", intent = "The frequentist region is each contribution -/+ 2.497705 propagated standard errors and the Bayesian region cuts 12 of 2,048 draws from each tail, recomputed from the published covariance and draws.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "population_reference_region_is_the_bonferroni_region_of_each_mode", shared_evidence = true },
+ { id = "joint_response.interval_readings.reference_region_bonferroni.truth", role = "truth", intent = "The Bonferroni region recomputed from the published decomposition in both modes.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "population_reference_region_is_the_bonferroni_region_of_each_mode", shared_evidence = true },
+ { id = "joint_response.interval_readings.updated_contrast_weighted_quantiles.construction", role = "construction", intent = "The updated interval equals the weighted 2.5% and 97.5% quantiles of the contrast recomputed from the updated law's draws and weights.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "updated_contrast_reading_is_the_weighted_equal_tailed_interval", shared_evidence = true },
+ { id = "joint_response.interval_readings.updated_contrast_weighted_quantiles.truth", role = "truth", intent = "The weighted equal-tailed interval recomputed from the updated law; mismatched coefficients refuse.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "updated_contrast_reading_is_the_weighted_equal_tailed_interval", shared_evidence = true },
+ { id = "joint_response.interval_readings.updated_law_replay.artifact", role = "artifact", intent = "The updated law and its source design export and are consumed by a current consumer.", evidence_test = "crates/antecedent/tests/joint_response_calibration.rs", evidence_assertion = "updated_contrast_reading_is_the_weighted_equal_tailed_interval", shared_evidence = true },
+]
+[[record.inference_outputs]]
+id = "joint_response.interval_readings.native_contrast"
+fields = ["JointResponseReading.bounds", "JointResponseReading.basis", "JointResponseReading.calibration"]
+method = "Two-sided 95% interval of a prespecified linear contrast of a compiled native design: Student-t with a leverage-corrected variance and Satterthwaite degrees of freedom for whole-program randomization, the normal interval of the joint sandwich covariance (or of the covariance of whole-procedure bootstrap refits) for switchback, structural-instrument, cohort and longitudinal designs, the projection of the joint conformal rectangle for synthetic rollouts, the retained Wald interval for an encouragement complier effect, and the equal-tailed interval of the aligned posterior draws in Bayesian mode."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "antecedent::analysis::joint_panel::designs::NativeJointDesignResult::contrast_interval_reading"
+public_producers = ["antecedent.joint_panel.NativeJointDesignResult.contrast_interval_reading"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/joint_panel/measured_intervals.rs; crates/antecedent/src/analysis/joint_panel/designs/native.rs"
+truth_design = "Nine designs with known contrasts: a two-period four-arm switchback with carryover, a three-feature structural instrument design, four-regime cohort difference-in-differences, two synthetic rollouts on three donors, a two-period continuous design with a treatment-affected covariate, an unequally weighted two-program geo census scored on its realized census contrast, a two-by-two factorial, a binary two-period longitudinal design and a one-sided encouragement design; each in frequentist and Bayesian form."
+truth_fixtures = ["joint_response.interval_readings.native_contrast_student_interval.truth", "joint_response.interval_readings.native_contrast_student_interval.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point; the conformal contrast and the decomposition regions are held to at least nominal."
+measurement_suite = "crates/antecedent/tests/joint_response_calibration.rs"
+allocated_coverage_records = ["cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_switchback_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_switchback_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_cohort_did_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_cohort_did_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.conformal_projection.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.bootstrap_covariance_normal.l95.joint_response_continuous_longitudinal_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_continuous_longitudinal_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.satterthwaite_t.l95.joint_response_weighted_geo_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_weighted_geo_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.satterthwaite_t.l95.joint_response_factorial_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_factorial_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_finite_longitudinal_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_finite_longitudinal_contrast_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.wald_ratio.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_local_complier_effect_l95.v2_validation_not_applicable"]
+inherited_coverage_records = []
+boundary = "Measured smallest designs, each up to four times larger: switchback 512 sequences over 16 histories (the runtime requires at least 32 sequences per requested history: at 64 and 256 sequences the unnormalized inverse-probability estimator is skewed and the interval covers 0.933 and 0.941, and with fewer than about 30 per history some history is often unobserved and the design refuses); structural instruments 128 units; cohort difference-in-differences 16 units, four per regime; synthetic rollouts 40 pre-periods (a joint 95% conformal region over two rollouts is refused below 39; the conformal contrast is conservative by the union bound); continuous longitudinal 96 episodes with 128 bootstrap refits and 512 posterior draws; weighted geo 8 units with unequal weights and at least four units per program, a data set with an empty arm refused; factorial 128 equally weighted units, at least 32 per program; finite longitudinal 512 episodes; encouragement 800 units with an estimated first stage of at least 0.4. Every Bayesian cell declares its likelihood scale at the generating value, which the library cannot check, except the synthetic posterior: its inverse-gamma variance prior is measured with its mean at the generating residual variance (a prior mean 3.3 times larger covered 0.9975), and the runtime keys the interval as measured only when that mean is within a factor of two of the pre-period fit error. One contrast per design was measured; the key does not restrict the coefficients. Other native designs (adaptive and static regimes, excursions, cluster and matched-pair decision experiments, the exact switchback randomization test) have no measured interval."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "harness_written_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Nine designs in two modes at one, two and four times the smallest design."
+
+[[record.inference_outputs]]
+id = "joint_response.interval_readings.selected_value"
+fields = ["JointResponseReading.bounds", "JointResponseReading.basis", "JointResponseReading.calibration"]
+method = "Held-out estimate of the selected program's value -/+ the normal quantile times its standard error, at 95%."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "antecedent::analysis::joint_panel::selection::RandomizedSelectionResult::selected_value_reading; antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult::selected_value_reading"
+public_producers = ["antecedent.joint_panel.RandomizedSelectionResult.selected_value_reading"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/joint_panel/measured_intervals.rs; crates/antecedent/src/analysis/joint_panel/designs/native.rs"
+truth_design = "Three randomized programs with the two best on training data generated and one selected, at exact ties, a 0.02 and a 0.2 standard-deviation advantage; and a continuous dose with a nearly flat quadratic structural response selected by certified search over the training dose range; the truth is the value of whichever program was selected."
+truth_fixtures = ["joint_response.interval_readings.selected_value_normal_interval.truth", "joint_response.interval_readings.selected_value_normal_interval.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point; the conformal contrast and the decomposition regions are held to at least nominal."
+measurement_suite = "crates/antecedent/tests/joint_response_calibration.rs"
+allocated_coverage_records = ["cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_exact_ties_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_near_ties_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_separated_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_structural_selection_weak_separation_l95.v2_validation_not_applicable"]
+inherited_coverage_records = []
+boundary = "Randomized selection: 240 to 960 units in each of the training and held-out samples, three programs of equal cost, unit outcome noise. Structural selection: 64 to 256 units a side, one dose, a two-term polynomial response, a strong instrument, weak separation. The interval covers the value of the selected program on independent held-out units from the same sampling frame, a premise the caller declares; it is not a statement about the best program. The simultaneous max-statistic intervals of the feasible set, training values, optimism diagnostics and certificates carry no coverage record."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "harness_written_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Four designs at one, two and four times the smallest samples."
+
+[[record.inference_outputs]]
+id = "joint_response.interval_readings.reference_region"
+fields = ["JointResponseReading.bounds", "JointResponseReading.basis", "JointResponseReading.calibration"]
+method = "Simultaneous 95% region of the four Shapley contributions of a population reference decomposition: Bonferroni normal intervals of the propagated covariance in frequentist mode, Bonferroni equal-tailed intervals of the aligned posterior draws in Bayesian mode."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "antecedent::analysis::joint_panel::designs::JointDesignResult::population_reference_region"
+public_producers = ["antecedent.joint_panel.JointDesignResult.population_reference_region"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/joint_panel/measured_intervals.rs; crates/antecedent/src/analysis/joint_panel/designs/native.rs"
+truth_design = "A sixteen-arm randomized experiment over exposure, saturation, mechanism and a baseline stratum with a saturating response; the population moves from 20% to 80% of the second stratum; the four true contributions are computed from the generating response."
+truth_fixtures = ["joint_response.interval_readings.reference_region_bonferroni.truth", "joint_response.interval_readings.reference_region_bonferroni.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point; the conformal contrast and the decomposition regions are held to at least nominal."
+measurement_suite = "crates/antecedent/tests/joint_response_calibration.rs"
+allocated_coverage_records = ["cov.joint_response.not_applicable.frequentist.bonferroni_normal_approximation.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.bonferroni_normal_approximation.l95.joint_response_reference_decomposition_temporal_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_temporal_l95.v2_validation_not_applicable"]
+inherited_coverage_records = []
+boundary = "Equal-weight randomized source design of 512 to 2,048 units with at least 32 units per program, 2,048 posterior draws under the Gaussian arm-mean posterior with the outcome variance declared at its generating value. Held to at least nominal: the region is conservative by the union bound. The static and two-period cells fit the same arm means and differ only in the compiled target. Fitted-panel decompositions, bootstrap sources, sequential and per-ordering contributions and the coarser fallback have no coverage record; ordering sensitivity is not a statistical interval."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "harness_written_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Two compiled targets in two modes at 512 / 1,024 / 2,048 units."
+
+[[record.inference_outputs]]
+id = "joint_response.interval_readings.updated_contrast"
+fields = ["JointResponseReading.bounds", "JointResponseReading.basis", "JointResponseReading.calibration"]
+method = "Weighted equal-tailed 95% interval of a contrast of the target worlds over the draws of the experiment-conditioned law."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "antecedent::analysis::joint_panel::designs::JointDesignResult::updated_contrast_reading"
+public_producers = ["antecedent.joint_panel.JointDesignResult.updated_contrast_reading"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent/src/analysis/joint_panel/measured_intervals.rs; crates/antecedent/src/analysis/joint_panel/designs/native.rs"
+truth_design = "Four arm means drawn from the declared Gaussian prior, a uniformly randomized four-program experiment with unit noise, the Gaussian arm-mean posterior, and an independent experiment of eight observations of the target contrast translated by the identity."
+truth_fixtures = ["joint_response.interval_readings.updated_contrast_weighted_quantiles.truth", "joint_response.interval_readings.updated_contrast_weighted_quantiles.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point; the conformal contrast and the decomposition regions are held to at least nominal."
+measurement_suite = "crates/antecedent/tests/joint_response_calibration.rs"
+allocated_coverage_records = ["cov.joint_response.not_applicable.bayesian.weighted_equal_tailed_posterior.l95.joint_response_experiment_update_contrast_l95.v2_validation_not_applicable"]
+inherited_coverage_records = []
+boundary = "Equal-weight four-program randomized source design of 64 to 256 units with at least 16 units per program and 2,048 retained posterior draws. The truth is drawn from the declared prior and every likelihood scale is declared at its generating value, so the coverage is averaged over that prior and is not coverage at a fixed truth. Identity translation with no mapping uncertainty only: uncertain, dependent or non-identity mappings and changed populations or horizons have no coverage record. A frequentist source refuses the update. The terminal decision and the next-study ranking are point results."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "harness_written_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "One design at 64 / 128 / 256 units."
+
+[[record.inference_outputs]]
+id = "joint_response.interval_readings.values.1"
+fields = ["fitted-panel responses and parameter law", "search certificates and best-found programs", "training values and optimism diagnostics", "per-ordering and sequential contributions", "terminal decisions and next-study rankings"]
+method = "None: these are point values, numerical certificates or model-conditional laws. No interval is published for them."
+implementation_status = "point_only_no_interval"
+owner = "antecedent"
+operation_or_object = "antecedent::analysis::joint_panel"
+public_producers = []
+closed_producers = []
+independent_consumers = []
+boundary = "The fitted joint panel (JointPanelResult), its change-point and smooth selections, program search and certificates, decomposition orderings, the terminal decision and the next-study ranking publish values and laws with their stated meaning and no supported interval; nothing measures them and their calibration reads not_measured."
+activation_disposition = "no_interval_claim"
+
+[[record]]
+id = "quasi.synthetic_control"
+capability = "quasi.synthetic_control"
+inference_inventory_disposition = "point_output_listed_not_measured"
+status = "supported"
+consumer_question = "What is the average post-intervention gap between one treated unit and the convex combination of donors that best tracks it before the intervention?"
+theorem = "The donor weights minimize the pre-intervention squared gap over the simplex; the reported effect is the mean post-intervention gap between the treated unit and that weighted donor combination, and equals the treatment effect when the treated unit's untreated path is that convex combination of the donors (a declared premise). Under a declared uniform choice of the treated unit, the share of units whose statistic is at least the treated unit's is an exact sharp-null tail fraction. Not inherited: no interval and no standard error is published; the leave-one-donor-out placebo rank is descriptive, not a p-value."
+reference = "provenance/quasi.synthetic_control.toml"
+guarantee = "point_estimate_with_descriptive_placebo_rank_and_exact_randomization_tail_no_interval"
+graph_class = "Not applicable: a graphless balanced unit-by-period panel with one treated unit."
+population_semantics = "The treated unit over the observed post-intervention periods; the donors are the comparison pool."
+evidence_family = "Panels with a known convex donor combination or additive unit and time effects, and the exhaustive sharp-null assignment over every unit."
+provider = "Native implementation: the sealed synthetic-control operation over crates/antecedent-estimate/src/synthetic_control.rs."
+estimand = "the average post-intervention treated-minus-synthetic outcome gap of the treated unit"
+inference_claim = "point_only"
+owners = ["antecedent-estimate", "antecedent", "python/antecedent"]
+identity_inputs = ["outcome, unit and period columns", "treated unit and intervention period", "panel method and augmentation ridge", "declared unit randomization and sharp null", "data"]
+wire_changes = ["None: the synthetic-control result section and its artifact checks are unchanged."]
+compatibility = "Additive: the compiled route, its payload and the supported matrix cells are unchanged."
+search = false
+bounds = { cancellation = true, contract = "antecedent_core::ExecutionContext" }
+refusals = []
+routes = [
+  { name = "antecedent.Study.synthetic_control", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+fixtures = [
+  { id = "quasi.synthetic_control.convex_donor_truth.truth", role = "truth", intent = "A treated unit that is an exact convex combination of its donors before the intervention recovers the planted effect and the planted weights.", evidence_test = "crates/antecedent-estimate/src/synthetic_control.rs", evidence_assertion = "known_convex_donor_truth_and_support_refusal" },
+  { id = "quasi.synthetic_control.additive_effects.parity", role = "parity", intent = "With additive unit and time effects the difference-in-differences variant recovers the planted treatment.", evidence_test = "crates/antecedent-estimate/src/synthetic_control.rs", evidence_assertion = "additive_unit_and_time_effects_recover_known_treatment_and_refuse_sparse_pre_support" },
+  { shared_evidence = true, id = "quasi.synthetic_control.retained_route.positive", role = "positive", intent = "The retained route recovers the effect of 5, reports three donor weights and placebo effects, and publishes no interval and no standard error.", evidence_test = "crates/antecedent/tests/synthetic_control_route.rs", evidence_assertion = "synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim" },
+  { id = "quasi.synthetic_control.donor_support.negative", role = "negative", intent = "Too few donors and an unbalanced panel are refused.", evidence_test = "crates/antecedent/tests/synthetic_control_route.rs", evidence_assertion = "synthetic_control_refuses_insufficient_donors_and_unbalanced_panel" },
+  { shared_evidence = true, id = "quasi.synthetic_control.fabricated_error.artifact", role = "artifact", intent = "The contracted artifact carries the point, the weights and the placebo effects, and a body with a fabricated standard error is refused.", evidence_test = "crates/antecedent/tests/synthetic_control_route.rs", evidence_assertion = "synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim" },
+]
+
+[[record.inference_outputs]]
+id = "quasi.synthetic_control.effect"
+fields = ["SyntheticControlEstimate.effect", "SyntheticControlEstimate.placebo_rank", "SyntheticControlEstimate.randomization_p_value"]
+method = "Simplex donor weights on the pre-intervention periods; the mean post-intervention gap; leave-one-donor-out placebo effects and, under declared uniform unit randomization, the exhaustive sharp-null tail fraction."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::synthetic_control"
+public_producers = ["antecedent.Study.synthetic_control"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/synthetic_control.rs"
+truth_design = "A known convex donor combination, additive unit and time effects, and every sharp-null assignment enumerated."
+truth_fixtures = ["quasi.synthetic_control.convex_donor_truth.truth"]
+nominal_level = "none; point answer"
+acceptance_threshold = "Agreement with the planted effect and weights; the randomization tail is superuniform over every assignment; no coverage threshold."
+measurement_suite = "crates/antecedent-estimate/src/synthetic_control.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Point answer with a descriptive placebo rank and an exact randomization tail fraction: no interval and no standard error. Intervals of the same design are separate routes with their own support rows (the conformal sets, the placebo-variance interval of a staggered rollout, and the donor-weight posterior)."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated."

@@ -973,6 +973,8 @@ def _sequential_contrast_from_raw(raw: Any) -> SequentialContrastEstimate | None
         interval=None if section.interval is None else tuple(section.interval),
         fits_computed=section.fits_computed,
         fits_reused=section.fits_reused,
+        supported=bool(section.supported),
+        support_status="supported" if section.supported else "unsupported_uncalibrated",
     )
 
 
@@ -992,6 +994,11 @@ def _history_match_from_raw(raw: Any) -> PeriodHistoryMatchEstimate | None:
         uncertainty=section.uncertainty,
         standard_error=section.standard_error,
         caliper=section.caliper,
+        serial_standard_error=section.serial_standard_error,
+        interval_lower=section.interval_lower,
+        interval_upper=section.interval_upper,
+        supported=bool(section.supported),
+        support_status="supported" if section.supported else "unsupported_uncalibrated",
     )
 
 
@@ -1035,6 +1042,7 @@ def _iv_bounds_from_raw(raw: Any) -> IvBoundsEstimate | None:
             lower_sd=posterior.lower_sd,
             upper_sd=posterior.upper_sd,
         ),
+        supported=bool(getattr(section, "supported", False)),
     )
 
 

@@ -749,10 +749,13 @@ impl CheckedAttributionOperation {
                     "Each draw refits every mechanism under {} (one weight vector per population \
                      for a change target), with the mechanism families held at the ones selected \
                      on the original rows, and recomputes the attribution on the refit: the \
-                     posterior is over the mechanisms, given the empirical row law. The data \
+                     posterior is over the mechanisms, given the empirical row law. The draws of \
+                     every refit mean are referred to the Student-t posterior of a mean of the \
+                     independently weighted rows or blocks (their spread about the posterior \
+                     mean restored by (K + 1) / (K - 1) and mixed over a chi-square scale); an \
+                     intrinsic influence keeps the refits its engine returned. The data \
                      references an attribution reads (feature means, parent means, anomaly \
-                     reference) stay at their observed values. No coverage record measures this \
-                     interval.",
+                     reference) stay at their observed values.",
                     self.weights_description(data.row_count()),
                 )));
             }
@@ -776,6 +779,9 @@ impl CheckedAttributionOperation {
                     ));
                 }
             }
+        }
+        if let Some(scope) = self.mechanism_refit_scope(query, data) {
+            answer.diagnostics.push(scope.diagnostic());
         }
         let row_lease = if let Some(input) = observed {
             let lease = self.retain_mapped_rows(Self::model_row_count(&answer.slot)?, ctx)?;
@@ -1111,9 +1117,13 @@ impl Replicates {
 
 /// Publish accounting even if no replicate established a named quantity. This keeps a
 /// requested all-failed bootstrap distinguishable from a point-only execution.
+///
+/// The estimate carries the standard error of the quantity its point is: `published` when the
+/// route's point is a named quantity other than the first, else the first quantity.
 fn disclose_model_bootstrap(
     outcome: &Replicates,
     requested: u32,
+    published: Option<&str>,
     estimate: &mut EffectEstimate,
     disclosure: impl FnOnce(&str, &mut EffectEstimate) -> Diagnostic,
 ) -> Diagnostic {
@@ -1122,14 +1132,17 @@ fn disclose_model_bootstrap(
         .iter()
         .map(|(_, values)| super::gcm_bootstrap::accounting(values, outcome.failed, requested))
         .collect();
-    let primary = accounted.first().copied().unwrap_or_else(|| {
+    let primary_index = published
+        .and_then(|name| columns.iter().position(|(column, _)| column == name))
+        .unwrap_or(0);
+    let primary = accounted.get(primary_index).copied().unwrap_or_else(|| {
         let mut accounting = super::gcm_bootstrap::accounting(&[], outcome.failed, requested);
         // Empty successful rows are successful refits, but supply no scalar SE.
         accounting.replicates_ok = Some(u32::try_from(outcome.rows.len()).unwrap_or(u32::MAX));
         accounting
     });
     estimate.uncertainty.bootstrap = primary;
-    let target = columns.first().map_or("the attribution", |(name, _)| name.as_str());
+    let target = columns.get(primary_index).map_or("the attribution", |(name, _)| name.as_str());
     let mut diagnostic = disclosure(&format!("{target} of the fitted-model attribution"), estimate);
     if columns.is_empty() && !outcome.rows.is_empty() {
         diagnostic.severity = DiagnosticSeverity::Warning;
@@ -1409,7 +1422,7 @@ mod bayesian_checked_attribution_tests {
             OverlapPolicy::ExplicitOverride,
         );
         let diagnostic =
-            disclose_model_bootstrap(&outcome, 4, &mut estimate, |target, estimate| {
+            disclose_model_bootstrap(&outcome, 4, None, &mut estimate, |target, estimate| {
                 super::super::gcm_bootstrap::bootstrap_diagnostic(
                     target,
                     &estimate.uncertainty.bootstrap,
@@ -1449,12 +1462,13 @@ mod bayesian_checked_attribution_tests {
             OverlapPolicy::ExplicitOverride,
         );
         let empty = Replicates { names: vec![], rows: vec![vec![], vec![]], failed: 1 };
-        let diagnostic = disclose_model_bootstrap(&empty, 3, &mut estimate, |target, estimate| {
-            super::super::gcm_bootstrap::bootstrap_diagnostic(
-                target,
-                &estimate.uncertainty.bootstrap,
-            )
-        });
+        let diagnostic =
+            disclose_model_bootstrap(&empty, 3, None, &mut estimate, |target, estimate| {
+                super::super::gcm_bootstrap::bootstrap_diagnostic(
+                    target,
+                    &estimate.uncertainty.bootstrap,
+                )
+            });
         assert_eq!(estimate.uncertainty.bootstrap.replicates_ok, Some(2));
         assert_eq!(estimate.uncertainty.bootstrap.replicates_failed, Some(1));
         assert!(estimate.uncertainty.bootstrap.se.is_none());
@@ -1468,7 +1482,7 @@ mod bayesian_checked_attribution_tests {
             failed: 0,
         };
         let diagnostic =
-            disclose_model_bootstrap(&success, 3, &mut estimate, |target, estimate| {
+            disclose_model_bootstrap(&success, 3, None, &mut estimate, |target, estimate| {
                 super::super::gcm_bootstrap::bootstrap_diagnostic(
                     target,
                     &estimate.uncertainty.bootstrap,
@@ -1483,7 +1497,7 @@ mod bayesian_checked_attribution_tests {
         let partial =
             Replicates { names: vec!["total_change".into()], rows: vec![vec![1.0]], failed: 3 };
         let diagnostic =
-            disclose_model_bootstrap(&partial, 4, &mut estimate, |target, estimate| {
+            disclose_model_bootstrap(&partial, 4, None, &mut estimate, |target, estimate| {
                 super::super::gcm_bootstrap::bootstrap_diagnostic(
                     target,
                     &estimate.uncertainty.bootstrap,
@@ -1493,6 +1507,77 @@ mod bayesian_checked_attribution_tests {
         assert_eq!(estimate.uncertainty.bootstrap.replicates_failed, Some(3));
         assert!(estimate.uncertainty.bootstrap.se.is_none());
         assert_eq!(diagnostic.severity, DiagnosticSeverity::Warning);
+    }
+
+    #[test]
+    fn fitted_model_bootstrap_publishes_the_standard_error_of_the_published_quantity() {
+        let mut estimate = EffectEstimate::new(
+            7.0,
+            f64::NAN,
+            antecedent_core::AssumptionSet::default(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let outcome = Replicates {
+            names: vec!["policy_mean".into(), "mean_difference".into()],
+            rows: vec![vec![1.0, 10.0], vec![2.0, 30.0], vec![3.0, 50.0]],
+            failed: 0,
+        };
+        let disclose = |published: Option<&str>, estimate: &mut EffectEstimate| {
+            disclose_model_bootstrap(&outcome, 3, published, estimate, |target, estimate| {
+                super::super::gcm_bootstrap::bootstrap_diagnostic(
+                    target,
+                    &estimate.uncertainty.bootstrap,
+                )
+            })
+        };
+        let diagnostic = disclose(Some("mean_difference"), &mut estimate);
+        assert_eq!(estimate.uncertainty.bootstrap.se, Some(20.0));
+        assert!(diagnostic.fields.iter().any(|(k, _)| k.as_ref() == "bootstrap_se.policy_mean"));
+        assert!(
+            diagnostic.fields.iter().any(|(k, _)| k.as_ref() == "bootstrap_se.mean_difference")
+        );
+        // An unnamed or absent quantity falls back to the first one.
+        disclose(None, &mut estimate);
+        assert_eq!(estimate.uncertainty.bootstrap.se, Some(1.0));
+        disclose(Some("absent"), &mut estimate);
+        assert_eq!(estimate.uncertainty.bootstrap.se, Some(1.0));
+    }
+
+    /// With eleven units in one population the scale mixture has second moment
+    /// `(K + 1) / (K - 1) * nu / (nu - 2) = (12 / 10) * (10 / 8) = 1.5`.
+    #[test]
+    fn mechanism_refit_reference_matches_the_student_t_variance_and_keeps_sums() {
+        let mut rng = antecedent_core::CausalRng::from_seed(0x5EED_0A11);
+        let draws = 40_000_usize;
+        let mut normal =
+            || (0..draws).map(|_| antecedent_kernels::standard_normal(&mut rng)).collect();
+        let first: Vec<f64> = normal();
+        let second: Vec<f64> = normal();
+        let total: Vec<f64> = first.iter().zip(&second).map(|(a, b)| 3.0 + a + b).collect();
+        let mut columns = vec![
+            ("total_change".to_owned(), total),
+            ("component[0]".to_owned(), first.clone()),
+            ("component[1]".to_owned(), second),
+            ("step[0].path[0]".to_owned(), first.clone()),
+        ];
+        model_uncertainty::mechanism_refit_reference(&mut columns, 11, 1, &mut rng);
+        let mean = |values: &[f64]| values.iter().sum::<f64>() / values.len() as f64;
+        let variance = |values: &[f64]| {
+            let centre = mean(values);
+            values.iter().map(|value| (value - centre).powi(2)).sum::<f64>() / values.len() as f64
+        };
+        assert!((variance(&columns[1].1) / variance(&first) - 1.5).abs() < 0.06);
+        assert!((mean(&columns[1].1) - mean(&first)).abs() < 1e-9);
+        for draw in 0..draws {
+            let sum = 3.0 + columns[1].1[draw] + columns[2].1[draw];
+            assert!((columns[0].1[draw] - sum).abs() < 1e-9, "components sum to the total");
+        }
+        // A simulated path is a predictive draw and stays as drawn.
+        assert_eq!(columns[3].1, first);
+        // Fewer than three units have no reference.
+        let mut few = vec![("total_change".to_owned(), first.clone())];
+        model_uncertainty::mechanism_refit_reference(&mut few, 2, 1, &mut rng);
+        assert_eq!(few[0].1, first);
     }
 
     fn context() -> ExecutionContext {

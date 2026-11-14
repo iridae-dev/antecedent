@@ -1549,3 +1549,55 @@ path = "tests/prepared_adjusted_retarget_calibration.rs"
 [[test]]
 name = "compiled_robust_decisions"
 path = "tests/compiled_robust_decisions.rs"
+
+[[test]]
+name = "bayesian_randomized_calibration"
+
+[[test]]
+name = "bayesian_design_support_rows"
+
+[[test]]
+name = "bounds_association_calibration"
+
+[[test]]
+name = "bounds_association_support"
+
+[[test]]
+name = "local_designs_calibration"
+
+[[test]]
+name = "local_design_support_routes"
+
+[[test]]
+name = "measurement_composition_calibration"
+
+[[test]]
+name = "measurement_composition_horizon_calibration"
+
+[[test]]
+name = "panel_did_calibration"
+
+[[test]]
+name = "synthetic_control_calibration"
+
+[[test]]
+name = "rollout_design_support_rows"
+
+[[test]]
+name = "temporal_design_calibration"
+
+[[test]]
+name = "temporal_routes_calibration"
+
+[[test]]
+name = "temporal_route_support_rows"
+
+[[test]]
+name = "fitted_model_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "fitted_model_support_routes"
+
+[[test]]
+name = "joint_response_calibration"

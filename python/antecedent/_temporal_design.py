@@ -566,9 +566,10 @@ def describe_temporal_design(estimate: TemporalDesignEstimate) -> str:
         scale = f"posterior standard deviation {spread:g} ({estimate.draws} draws)"
     else:
         scale = f"standard error {spread:g}"
+    support = "Supported" if estimate.supported else "Unsupported"
     return (
         f"{estimate.design} temporal design, {name} = {value:g}: 95% interval "
-        f"[{lower:g}, {upper:g}], {scale} ({estimate.uncertainty}). Unsupported; calibration "
+        f"[{lower:g}, {upper:g}], {scale} ({estimate.uncertainty}). {support}; calibration "
         f"is {estimate.calibration}."
     )
 

@@ -16313,3 +16313,15 @@ id = "decision_joint_scenarios.carrier"
 family = "decision_joint_scenarios"
 codes = ["decision_contract_unsatisfied"]
 meaning = "The requested decision carrier is unavailable, incompatible or lacks explicit joint scenario structure."
+
+[[detail]]
+id = "joint_response.reading_level_invalid"
+family = "joint_response"
+codes = ["invalid_argument"]
+meaning = "The requested interval level is outside (0, 1), or the contrast coefficients do not match the retained law."
+
+[[detail]]
+id = "joint_response.reading_law_unavailable"
+family = "joint_response"
+codes = ["uncertainty_representation_insufficient"]
+meaning = "The result retains no finite covariance, draws or weights from which the requested interval is built, or too few draws to resolve the level."

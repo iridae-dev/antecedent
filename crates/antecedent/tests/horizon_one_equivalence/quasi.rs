@@ -115,7 +115,8 @@ fn horizon_one_time_discontinuity_local_ratio_matches_the_static_fit_with_block_
         fixed.standard_error
     );
     assert!(rollout.diagnostic("block_length").is_some(), "the block length is recorded");
-    assert!(!rollout.supported);
+    // A sharp step with 299 and 300 window periods and 199 replicates meets its support row.
+    assert!(rollout.supported);
 }
 
 const RD_ROWS: usize = 2000;

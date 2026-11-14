@@ -6,7 +6,10 @@
 //! their labels. The references below match by brute force, form the period residuals
 //! `sum_q w_q (d_q - contrast)` and sum the autocovariances over every pair of period labels at
 //! each lag, so they share no code with the product. A hand-solved three-period case pins the
-//! arithmetic. The penalized propensity interval is the subject-level influence-function sandwich
+//! arithmetic. The interval is the Kiefer-Vogelsang fixed-b interval: the half-width is the
+//! standard error times the normal 97.5% point scaled by `cv(b) / 1.96`,
+//! `cv(b) = 1.96 + 2.9694 b + 0.4160 b^2 - 0.5324 b^3`, at the share `b = (lag + 1) / T` of the
+//! matched periods the Bartlett bandwidth spans, written here from that definition. The penalized propensity interval is the subject-level influence-function sandwich
 //! of the ridge mode, checked against a two-parameter Newton solve and explicit 2x2 algebra.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -67,6 +70,13 @@ fn newey_west_reference(periods: &[i64], d: &[f64], w: &[f64]) -> (f64, f64, usi
     (contrast, variance.sqrt(), bandwidth)
 }
 
+/// Two-sided 95% Kiefer-Vogelsang fixed-b critical value of a contrast studentized by a
+/// Bartlett long-run variance at truncation lag `lag` over `periods` periods.
+fn fixed_b_critical_value(lag: usize, periods: usize) -> f64 {
+    let b = (lag + 1) as f64 / periods as f64;
+    Z975 * (1.96 + 2.9694 * b + 0.4160 * b * b - 0.5324 * b * b * b) / 1.96
+}
+
 struct Record {
     treated: bool,
     period: i64,
@@ -122,6 +132,8 @@ fn brute_force_pairs(records: &[Record]) -> (Vec<i64>, Vec<f64>, Vec<f64>) {
     reason = "the reference fixture preserves its exact values and bounded inputs"
 )]
 fn a_three_period_hand_case_pins_the_newey_west_arithmetic() {
+    // Bandwidth lag 1 of T = 3 periods is the share b = 2/3:
+    // cv = 1.96 + 2.9694 (2/3) + 0.4160 (4/9) - 0.5324 (8/27) = 3.966741...
     // One treated and one control per period at equal scores, so each pair difference is the
     // treated outcome minus the control outcome: 1, 3, 2 with unit weights.
     // contrast = 2; period residuals -1, 1, 0; T = 3 gives bandwidth floor(4 (0.03)^(2/9)) = 1.
@@ -140,8 +152,11 @@ fn a_three_period_hand_case_pins_the_newey_west_arithmetic() {
     assert_eq!(serial.bandwidth, 1);
     assert_eq!(serial.periods, vec![1, 2, 3]);
     assert!((serial.standard_error - expected).abs() < 1e-14, "{}", serial.standard_error);
-    assert!((serial.lower - (2.0 - Z975 * expected)).abs() < 1e-13);
-    assert!((serial.upper - (2.0 + Z975 * expected)).abs() < 1e-13);
+    let critical =
+        Z975 * (1.96 + 2.9694 * (2.0 / 3.0) + 0.4160 * (4.0 / 9.0) - 0.5324 * (8.0 / 27.0)) / 1.96;
+    assert!((critical - Z975 * 3.966_740_740_740_741 / 1.96).abs() < 1e-12);
+    assert!((serial.lower - (2.0 - critical * expected)).abs() < 1e-13);
+    assert!((serial.upper - (2.0 + critical * expected)).abs() < 1e-13);
 }
 
 #[test]
@@ -155,8 +170,9 @@ fn the_serial_interval_equals_the_period_series_long_run_variance_of_the_matched
         assert!((estimate.contrast - contrast).abs() < 1e-12);
         assert_eq!(serial.bandwidth, bandwidth);
         assert!((serial.standard_error - se).abs() < 1e-12, "{} vs {se}", serial.standard_error);
-        assert!((serial.lower - (contrast - Z975 * se)).abs() < 1e-12);
-        assert!((serial.upper - (contrast + Z975 * se)).abs() < 1e-12);
+        let critical = fixed_b_critical_value(bandwidth, labels.len());
+        assert!((serial.lower - (contrast - critical * se)).abs() < 1e-12);
+        assert!((serial.upper - (contrast + critical * se)).abs() < 1e-12);
         assert_eq!(serial.periods, labels);
     }
 }

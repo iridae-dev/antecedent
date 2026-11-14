@@ -5,14 +5,22 @@
 //! leaves its treated units unmatched. The estimand is the sampling-weighted effect on the matched
 //! treated units, conditional on the period and the history-mean score. The standard error is the
 //! Abadie-Imbens form for one match with replacement; the interval allows serial dependence
-//! between periods (Newey-West over the matched periods, normal at 97.5%) and is absent when
-//! fewer than two periods hold a match. The route is unsupported and its calibration is `not_measured`. A posterior of this contrast does not exist (a
+//! between periods (Newey-West over the matched periods, with the Kiefer-Vogelsang fixed-b 95%
+//! critical value for the few periods a matched panel holds) and is absent when
+//! fewer than two periods hold a match. The interval's sampling units are the periods, so it is
+//! an interval for the expected matched contrast, not for the effect on the units one sample
+//! matched. A fit that meets the history-match support row (no caliper, no sampling weights,
+//! every treated unit matched, enough matched periods and pairs in each) states it on the
+//! section's `supported` field; every other fit runs and states no support, and the runtime
+//! calibration slot stays `not_measured`. A posterior of this contrast does not exist (a
 //! matching rule has no likelihood): Bayesian inference with the matching estimator is refused
 //! with that premise and the next attempt. That next attempt is the estimator
 //! `bayesian.period_history_outcome_model`: the posterior of a declared Gaussian outcome model
 //! with period effects, the history-mean score and a treatment-by-score interaction centred at
 //! the treated mean, reported as the model-based effect on the treated units (a different
-//! estimand, with no donor pairing). It is reported with calibration status `not_measured` as well.
+//! estimand, with no donor pairing). A fit of it that meets its own support row (default prior
+//! scale, enough draws, periods, rows and units in each arm, every treated unit used) states
+//! the row in the design-posterior diagnostic.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_quasi_common::{
@@ -37,6 +45,65 @@ use antecedent_estimate::history_outcome_model::prepare_history_outcome_model;
 
 /// Uncertainty label of the history-matched contrast.
 const UNCERTAINTY: &str = "abadie_imbens_and_newey_west_period_interval_calibration_not_measured";
+
+/// Code of the standing note of a matched contrast that states no support row.
+const NO_ROW_CODE: &str = "estimate.history_match.unsupported";
+
+/// Prior scale the outcome-model support row was measured with.
+const OUTCOME_MODEL_ROW_PRIOR_SCALE: f64 = 10.0;
+
+/// Whether the query is the design both support rows were measured on: calendar periods
+/// declared, no caliper and no sampling weights.
+fn period_history_row_design(query: &antecedent_core::HistoryMatchQuery) -> bool {
+    query.period.is_some() && query.caliper.is_none() && query.weight.is_none()
+}
+
+/// Whether the matched contrast meets its support row: the measured design, every treated
+/// unit matched, a published period interval, and the row's matched periods and pairs.
+fn period_history_row_support(
+    query: &antecedent_core::HistoryMatchQuery,
+    estimate: &antecedent_estimate::history_match::PeriodHistoryEstimate,
+) -> bool {
+    let mut pairs_in_period = std::collections::BTreeMap::<i64, usize>::new();
+    for period in &estimate.matched_periods {
+        *pairs_in_period.entry(*period).or_default() += 1;
+    }
+    period_history_row_design(query)
+        && estimate.unmatched_treated.is_empty()
+        && crate::support::support_if_graphless(
+            crate::support::GraphlessSupportKey {
+                family: "history_match",
+                design: "within_period_nearest_history",
+                method: "period_newey_west_fixed_b",
+                inference_claim: "pointwise_95_fixed_b_interval",
+            },
+            crate::support::GraphlessAssignmentSupport {
+                assignment_unit: "cluster",
+                rows: estimate.matched_queries.len(),
+                blocks: pairs_in_period.len(),
+                min_block_arm: pairs_in_period.values().copied().min().unwrap_or(0),
+                interval_95_published: estimate.serial.is_some(),
+                reported_intervals: usize::from(estimate.serial.is_some()),
+                all_reported_intervals: estimate.serial.is_some(),
+                ..Default::default()
+            },
+        )
+        .is_some()
+}
+
+/// Replace the standing note of a supported matched contrast with one naming its row.
+fn note_period_history_row(result: &mut StudyResult) {
+    result.diagnostics.retain(|diagnostic| diagnostic.code.as_ref() != NO_ROW_CODE);
+    result.diagnostics.push(Diagnostic::new(
+        "estimate.history_match.graphless_support",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "supported graphless row history_match/within_period_nearest_history/\
+         period_newey_west_fixed_b: the fixed-b period interval is for the expected matched \
+         contrast with calendar periods as the sampling units; the mean history carrying the \
+         confounding stays the caller's assumption",
+    ));
+}
 
 /// Frozen history match. The extra is the Bayesian configuration of the outcome-model estimator;
 /// the matching contrast itself has no posterior and holds none.
@@ -161,7 +228,7 @@ impl CheckedHistoryMatchOperation {
             )
             .identify_cached(true)
             .extra_diagnostics(vec![Diagnostic::new(
-                "estimate.history_match.unsupported",
+                NO_ROW_CODE,
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 "route with calibration status `not_measured`: the mean history carrying the confounding is \
@@ -173,6 +240,10 @@ impl CheckedHistoryMatchOperation {
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
         result.support_status = None;
+        let supported = period_history_row_support(&self.query, &estimate);
+        if supported {
+            note_period_history_row(&mut result);
+        }
         result.payload = crate::result::ResultPayload::HistoryMatch(crate::HistoryMatchEstimate {
             contrast: estimate.contrast,
             standard_error: estimate.standard_error,
@@ -192,6 +263,7 @@ impl CheckedHistoryMatchOperation {
             serial_bandwidth: estimate.serial.as_ref().map_or(0, |s| s.bandwidth),
             caliper: self.query.caliper,
             uncertainty: Arc::from(UNCERTAINTY),
+            supported,
         });
         Ok(result)
     }
@@ -257,8 +329,7 @@ impl CheckedHistoryMatchOperation {
                     "bayesian.period_history_outcome_model.model_based_effect_on_treated",
                     "the reported effect is the model's contrast averaged over the treated \
                      units of the periods that hold both arms; it is a different estimand from \
-                     the history-matched contrast and its interval is unsupported with calibration \
-                     not_measured"
+                     the history-matched contrast"
                         .to_string(),
                 ),
             ],
@@ -277,7 +348,9 @@ impl CheckedHistoryMatchOperation {
             )],
             sampler: None,
         };
-        finish_design_posterior_as(
+        let (rows, treated, periods) = (problem.rows, problem.treated_rows, problem.periods);
+        let every_treated_used = problem.unused_treated.is_empty();
+        let mut result = finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -293,7 +366,37 @@ impl CheckedHistoryMatchOperation {
                 IdentifierId::RandomizedDesign,
                 EstimatorId::BayesianPeriodHistoryOutcomeModel,
             ),
-        )
+        )?;
+        // The measured design at the measured prior scale, with every treated unit in the
+        // fit, states the outcome-model row when the observed support meets it.
+        if period_history_row_design(&self.query)
+            && every_treated_used
+            && (config.prior_scale - OUTCOME_MODEL_ROW_PRIOR_SCALE).abs() <= 1e-9
+        {
+            let draws = result.posterior.as_ref().map_or(0, |posterior| posterior.draws.n_draws);
+            super::bayesian_quasi_common::state_design_posterior_row(
+                &mut result,
+                crate::support::GraphlessSupportKey {
+                    family: "history_match",
+                    design: "within_period_history_outcome_model",
+                    method: "conjugate_gaussian_period_outcome_model_prior_scale_10",
+                    inference_claim: "pointwise_95_posterior_quantiles",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit",
+                    treated,
+                    control: rows.saturating_sub(treated),
+                    rows,
+                    blocks: periods,
+                    interval_95_published: true,
+                    reported_intervals: 1,
+                    all_reported_intervals: true,
+                    interval_resamples: draws,
+                    ..Default::default()
+                },
+            );
+        }
+        Ok(result)
     }
 }
 

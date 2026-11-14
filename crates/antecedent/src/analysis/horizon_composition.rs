@@ -13,8 +13,11 @@
 //! its per-horizon draws are independent marginals, and pairing them by draw index would assert
 //! a dependence the fit does not carry.
 //!
-//! The result is a labelled spread (`uncalibrated_spread`); an interval at the composed
-//! coordinate has no construction here; the spread is the result.
+//! The composed draws are a labelled spread (`uncalibrated_spread`). A linear composition also
+//! has a 95% interval ([`horizon_composition_interval`]): the composed point value with the
+//! spread of the composed replicates under the dispersion of the composition's own influence,
+//! read against the fixed-b normal reference (bootstrap replicates) or the batch-means Student-t
+//! reference (block-weight draws). A nonlinear composition has the spread only.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -23,7 +26,10 @@ use antecedent_contract::{
     RequestedReading, UNCALIBRATED_SPREAD_LABEL, check_horizon_composition,
 };
 use antecedent_core::{CausalResponse, ExecutionContext, ResponseFunctional};
-use antecedent_estimate::{JOINT_HORIZON_LAYOUT, JOINT_HORIZON_REPLICATES};
+use antecedent_estimate::{
+    JOINT_HORIZON_DISPERSION, JOINT_HORIZON_INFLUENCE, JOINT_HORIZON_LAYOUT,
+    JOINT_HORIZON_REPLICATES,
+};
 use antecedent_stats::{DrawSpread, aligned_linear_draws, aligned_map_draws, draw_spread};
 
 /// The draws of one dose's cells across the horizons of a temporal response, one column per
@@ -236,6 +242,195 @@ pub fn compose_horizons(
         draws: composed,
         spread,
         label: UNCALIBRATED_SPREAD_LABEL,
+    })
+}
+
+/// Interval construction of a linear horizon composition over joint circular-block bootstrap
+/// replicates: the fixed-b normal interval at the dispersion of the composed influence.
+pub const HORIZON_BLOCK_BOOTSTRAP_INTERVAL: &str = "horizon_block_bootstrap_fixed_b";
+
+/// Interval construction of a linear horizon composition over joint block-weight draws: the
+/// batch-means Student-t interval at the dispersion of the composed influence.
+pub const HORIZON_BLOCK_WEIGHT_INTERVAL: &str = "horizon_block_weight_student_t";
+
+/// Level of a horizon composition interval. The fixed-b ratio carried by the replicates is the
+/// 95% one, so no other level has a construction.
+pub const HORIZON_INTERVAL_LEVEL: f64 = 0.95;
+
+/// The 95% interval of a linear composition across horizons.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HorizonCompositionInterval {
+    /// The checked composition and its composed draws.
+    pub composed: ComposedHorizons,
+    /// The composed point value `Σ coefficients[k] · horizon k`.
+    pub center: f64,
+    /// The standard error the interval is built on.
+    pub standard_error: f64,
+    /// Lower endpoint.
+    pub lower: f64,
+    /// Upper endpoint.
+    pub upper: f64,
+    /// Nominal level ([`HORIZON_INTERVAL_LEVEL`]).
+    pub level: f64,
+    /// [`HORIZON_BLOCK_BOOTSTRAP_INTERVAL`] or [`HORIZON_BLOCK_WEIGHT_INTERVAL`].
+    pub construction: &'static str,
+    /// Kernel-bias factor of the composed influence at the block length.
+    pub kernel_factor: f64,
+    /// Lag-aligned rows every horizon fits (the resampled window).
+    pub rows: u64,
+    /// Joint realizations composed.
+    pub replicates: usize,
+    /// Effective number of weighted blocks behind the Student-t reference; `None` for
+    /// bootstrap replicates.
+    pub effective_blocks: Option<f64>,
+}
+
+/// The 95% interval of the linear combination `Σ coefficients[k] · horizon k` of the cells of
+/// dose number `dose_index` of `response`.
+///
+/// The published replicates scale each cell's deviation by that cell's kernel-bias factor. A
+/// combination of cells has its own influence (the combination of the cells' influences), and a
+/// contrast of two serially dependent levels is often close to white: the per-cell factors are
+/// removed and the factor of the composed influence applied. Bootstrap replicates already carry
+/// the fixed-b ratio of the circular-block variance, so `center ± z·se` is the fixed-b interval.
+/// Block-weight draws weight `B` consecutive blocks by Dirichlet(1, …, 1): their variance is
+/// `(B − 1)/(B + 1)` of the batch-means variance of the estimate, whose studentized error is
+/// Student-t on `B − 1` degrees of freedom, so the fixed-b ratio is replaced by
+/// `t_{B−1} / z · sqrt((B + 1)/(B − 1))` with `B` the effective block count.
+///
+/// # Errors
+///
+/// What [`horizon_draws`] and [`compose_horizons`] refuse, a nonlinear operation, a response
+/// that carries no dispersion or influence readings (a series with missing time points), and
+/// fewer than three effective blocks under block-weight draws.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
+pub fn horizon_composition_interval(
+    response: &CausalResponse,
+    dose_index: usize,
+    coefficients: &[f64],
+    operation: PropagationOperation,
+) -> Result<HorizonCompositionInterval, ExternalRefusal> {
+    if operation.class() == antecedent_contract::PropagationClass::Nonlinear {
+        return Err(refuse(
+            antecedent_core::reason_code!("option_not_applicable"),
+            "joint_law_propagation.horizon_composition",
+            operation.as_str(),
+            "a nonlinear composition of horizons has a spread and no interval; ask for the \
+             interval of a linear combination",
+        ));
+    }
+    let draws = horizon_draws(response, dose_index)?;
+    let composed = compose_horizons(&draws, coefficients, operation)?;
+    let unreadable = || {
+        refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "joint_law_propagation.horizon_draws_layout",
+            "dispersion",
+            "the response carries no dispersion and influence readings matching its joint \
+             replicates (a series with missing time points publishes none): the composed spread \
+             is the result",
+        )
+    };
+    let (Some(layout), Some(dispersion), Some(influence)) = (
+        diagnostic(response, JOINT_HORIZON_LAYOUT),
+        diagnostic(response, JOINT_HORIZON_DISPERSION),
+        diagnostic(response, JOINT_HORIZON_INFLUENCE),
+    ) else {
+        return Err(unreadable());
+    };
+    let n_horizons = draws.horizons.len();
+    let cells = layout.get(1).map_or(0, |count| recorded_count(*count));
+    let first = dose_index * n_horizons;
+    let [block, rows, _, fixed_b, weighted, effective_blocks, kernel @ ..] = dispersion else {
+        return Err(unreadable());
+    };
+    let (block, rows) = (recorded_count(*block), recorded_count(*rows));
+    let cell_factors = kernel.get(first..first + n_horizons).unwrap_or(&[]);
+    if kernel.len() != cells
+        || cell_factors.len() != n_horizons
+        || rows < 2
+        || rows.checked_mul(cells) != Some(influence.len())
+        || cell_factors.iter().any(|factor| !(factor.is_finite() && *factor > 0.0))
+    {
+        return Err(unreadable());
+    }
+    let composed_influence: Vec<f64> = (0..rows)
+        .map(|t| {
+            coefficients
+                .iter()
+                .enumerate()
+                .map(|(k, coefficient)| coefficient * influence[(first + k) * rows + t])
+                .sum::<f64>()
+        })
+        .collect();
+    let kernel_factor = antecedent_estimate::kernel_bias_factor(&composed_influence, block);
+    let replicates = draws.columns.first().map_or(0, Vec::len);
+    let deviations: Vec<f64> = (0..replicates)
+        .map(|r| {
+            coefficients
+                .iter()
+                .enumerate()
+                .map(|(k, coefficient)| {
+                    coefficient * (draws.columns[k][r] - draws.center[k]) / cell_factors[k]
+                })
+                .sum::<f64>()
+        })
+        .collect();
+    let spread = draw_spread(&deviations, None).map_err(|error| {
+        refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "joint_law_propagation.horizon_composition",
+            error.to_string(),
+            "compose at least two joint realizations",
+        )
+    })?;
+    let z = antecedent_stats::normal_ppf(0.5 + HORIZON_INTERVAL_LEVEL / 2.0);
+    let block_weights = *weighted > 0.5;
+    let reference = if block_weights {
+        let blocks = *effective_blocks;
+        if !(blocks.is_finite() && blocks >= 3.0 && fixed_b.is_finite() && *fixed_b > 0.0) {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "joint_law_propagation.horizon_composition",
+                "blocks",
+                "block-weight draws over fewer than three effective blocks carry no interval; \
+                 use a longer series",
+            ));
+        }
+        let quantile =
+            antecedent_stats::student_t_ppf(0.5 + HORIZON_INTERVAL_LEVEL / 2.0, blocks - 1.0);
+        quantile / z * ((blocks + 1.0) / (blocks - 1.0)).sqrt() / fixed_b
+    } else {
+        1.0
+    };
+    let standard_error = spread.standard_deviation * kernel_factor * reference;
+    let center: f64 = coefficients
+        .iter()
+        .zip(&draws.center)
+        .map(|(coefficient, value)| coefficient * value)
+        .sum();
+    if !(standard_error.is_finite() && center.is_finite()) {
+        return Err(unreadable());
+    }
+    Ok(HorizonCompositionInterval {
+        composed,
+        center,
+        standard_error,
+        lower: center - z * standard_error,
+        upper: center + z * standard_error,
+        level: HORIZON_INTERVAL_LEVEL,
+        construction: if block_weights {
+            HORIZON_BLOCK_WEIGHT_INTERVAL
+        } else {
+            HORIZON_BLOCK_BOOTSTRAP_INTERVAL
+        },
+        kernel_factor,
+        rows: u64::try_from(rows).unwrap_or(u64::MAX),
+        replicates,
+        effective_blocks: block_weights.then_some(*effective_blocks),
     })
 }
 

@@ -559,6 +559,13 @@ pub(crate) fn estimate_cluster_interference_total_pointwise(
     Ok((estimate, interval))
 }
 
+/// Fewest clusters in each arm at which the cluster posterior of
+/// [`estimate_cluster_interference_bayesian_bootstrap`] is the Dirichlet-weight law. An arm of
+/// `m` clusters gives its weighted mean the variance `s^2 (m - 1) / (m (m + 1))` against the
+/// `s^2 / m` of the mean, with near-normal tails, so the law is too narrow for a small arm; from
+/// fifty clusters its 95% interval is within about three percent of the Student-t reference.
+pub const CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS: usize = 50;
+
 /// Cluster-level Bayesian-bootstrap posterior of the total-effect contrast under complete
 /// cluster randomization.
 ///
@@ -568,7 +575,14 @@ pub(crate) fn estimate_cluster_interference_total_pointwise(
 /// weighted means of the scaled cluster totals, on the same totals as
 /// [`estimate_cluster_interference_total`]. The declared complete cluster allocation identifies
 /// the contrast; the prior on the cluster law does not. All design refusals of the
-/// design-based estimator apply, and the posterior carries no calibration.
+/// design-based estimator apply.
+///
+/// When either arm has fewer than [`CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS`] clusters the posterior
+/// is instead the Student-t reference law of the same contrast: centred at the design-based
+/// contrast, scaled by the conservative cluster Neyman standard error, with Welch-Satterthwaite
+/// degrees of freedom (the usual approximation to the Behrens-Fisher posterior of two Gaussian
+/// arm means under the noninformative prior). Its draws are the law's quantiles at
+/// `(i + 1/2) / draws`, not Monte Carlo samples.
 ///
 /// # Errors
 /// Every refusal of [`estimate_cluster_interference_total`], and the option refusals of
@@ -598,6 +612,23 @@ pub fn estimate_cluster_interference_bayesian_bootstrap(
         by_cluster.entry(cluster).or_insert((assigned, 0.0)).1 += value;
     }
     let scale = by_cluster.len() as f64 / assignment.len() as f64;
+    let arm_totals = |arm: bool| {
+        by_cluster
+            .values()
+            .filter(|entry| entry.0 == arm)
+            .map(|entry| entry.1 * scale)
+            .collect::<Vec<_>>()
+    };
+    let (treated_arm, control_arm) = (arm_totals(true), arm_totals(false));
+    if treated_arm.len().min(control_arm.len()) < CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS {
+        let posterior = cluster_student_reference(
+            estimate.contrast.horvitz_thompson,
+            &treated_arm,
+            &control_arm,
+            options,
+        )?;
+        return Ok((estimate, posterior));
+    }
     let (mut treated_total, mut treated_flag) = (Vec::new(), Vec::new());
     let (mut control_total, mut control_flag) = (Vec::new(), Vec::new());
     for &(assigned, total) in by_cluster.values() {
@@ -628,6 +659,85 @@ pub fn estimate_cluster_interference_bayesian_bootstrap(
     }
     let posterior = summarize(draws, estimate.contrast.horvitz_thompson, options.coverage);
     Ok((estimate, posterior))
+}
+
+/// Student-t reference law of the cluster total-effect contrast for arms of few clusters: location
+/// `centre`, scale the conservative cluster Neyman standard error of the scaled arm totals, and
+/// Welch-Satterthwaite degrees of freedom. The draws are its quantiles at `(i + 1/2) / draws`.
+fn cluster_student_reference(
+    centre: f64,
+    treated: &[f64],
+    control: &[f64],
+    options: ScorePosteriorOptions,
+) -> Result<ScorePosterior, EstimationError> {
+    if options.draws < 2
+        || !options.coverage.is_finite()
+        || options.coverage <= 0.0
+        || options.coverage >= 1.0
+    {
+        return Err(EstimationError::data_msg(
+            "score posterior requires two draws and a coverage in (0, 1)",
+        ));
+    }
+    // Variance of an arm's mean and its degrees of freedom; every arm has at least two clusters.
+    let component = |totals: &[f64]| {
+        let clusters = totals.len() as f64;
+        let mean = totals.iter().sum::<f64>() / clusters;
+        let squares = totals.iter().map(|total| (total - mean).powi(2)).sum::<f64>();
+        (squares / (clusters - 1.0) / clusters, clusters - 1.0)
+    };
+    let ((treated_variance, treated_df), (control_variance, control_df)) =
+        (component(treated), component(control));
+    let variance = treated_variance + control_variance;
+    if !variance.is_finite() {
+        return Err(EstimationError::stats_msg("cluster posterior produced a non-finite draw"));
+    }
+    let draws = if variance > 0.0 {
+        let df = variance.powi(2)
+            / (treated_variance.powi(2) / treated_df + control_variance.powi(2) / control_df);
+        let scale = variance.sqrt();
+        student_quantile_grid(options.draws, df)
+            .into_iter()
+            .map(|quantile| centre + scale * quantile)
+            .collect::<Vec<_>>()
+    } else {
+        // Constant totals in both arms: the contrast is known.
+        vec![centre; options.draws]
+    };
+    if draws.iter().any(|draw| !draw.is_finite()) {
+        return Err(EstimationError::stats_msg("cluster posterior produced a non-finite draw"));
+    }
+    Ok(summarize(draws, centre, options.coverage))
+}
+
+/// Quantiles of the standard Student-t law with `df` degrees of freedom at the levels
+/// `(i + 1/2) / count`, ascending and symmetric about zero.
+fn student_quantile_grid(count: usize, df: f64) -> Vec<f64> {
+    let log_norm = antecedent_stats::ln_gamma(0.5 * (df + 1.0))
+        - antecedent_stats::ln_gamma(0.5 * df)
+        - 0.5 * (df * std::f64::consts::PI).ln();
+    let density = |t: f64| (log_norm - 0.5 * (df + 1.0) * (t * t / df).ln_1p()).exp();
+    let mut grid = vec![0.0; count];
+    let mut quantile = 0.0_f64;
+    for index in count / 2..count {
+        let upper_tail = ((count - index) as f64 - 0.5) / count as f64;
+        // Newton from the previous quantile: the distribution function is concave above zero,
+        // so the iterates rise to the root without overshooting it.
+        for _ in 0..50 {
+            let step =
+                (antecedent_stats::student_t_sf(quantile, df) - upper_tail) / density(quantile);
+            if !step.is_finite() {
+                break;
+            }
+            quantile += step;
+            if step.abs() <= 1e-12 * (1.0 + quantile.abs()) {
+                break;
+            }
+        }
+        grid[index] = quantile;
+        grid[count - 1 - index] = -quantile;
+    }
+    grid
 }
 
 /// Convenience exposure level for an own-treatment contrast on an empty network.
@@ -831,16 +941,17 @@ mod tests {
         assert!((gap - sv(&effects) / k as f64).abs() < 1e-10, "gap equals S_tau^2 / K exactly");
     }
 
-    #[test]
-    fn cluster_bayesian_bootstrap_spread_matches_the_dirichlet_moment_of_each_arm() {
-        // With m clusters in an arm, Dirichlet(1..1) weights give the arm mean of the scaled
-        // cluster totals the exact variance (biased variance of the totals) / (m + 1); the two
-        // arms are independent, so the contrast variance is the sum over arms.
-        let outcomes =
-            [3.0, 4.0, 1.0, 2.0, 8.0, 6.0, 2.0, 2.0, 5.0, 9.0, 0.0, 1.0, 7.0, 3.0, 4.0, 4.0];
-        let k = 8_usize;
+    /// Two-unit clusters with alternating arms and a fixed outcome pattern, and the scaled
+    /// cluster totals of each arm.
+    fn paired_cluster_posterior(
+        k: usize,
+        draws: usize,
+    ) -> (InterferenceEstimate, ScorePosterior, Vec<f64>, Vec<f64>) {
+        let outcomes = (0..2 * k)
+            .map(|unit| 4.0 + 3.0 * (unit as f64 * 0.7).sin() + f64::from(u8::from(unit % 4 < 2)))
+            .collect::<Vec<_>>();
         let clusters = (0..k).flat_map(|c| [u32::try_from(c).unwrap(); 2]).collect::<Vec<_>>();
-        let assignment = (0..16).map(|unit| (unit / 2) % 2 == 0).collect::<Vec<_>>();
+        let assignment = (0..2 * k).map(|unit| (unit / 2) % 2 == 0).collect::<Vec<_>>();
         let edges = (0..k as u64)
             .flat_map(|c| {
                 [
@@ -854,7 +965,7 @@ mod tests {
         let query = InterferenceQuery::new(
             AssignmentDesign::ClusterRandomization {
                 clusters: Arc::from(clusters),
-                treated_clusters: 4,
+                treated_clusters: k / 2,
             },
             ExposureMapping::NeighborFraction,
             InterferenceFunctional::ExposureContrast {
@@ -863,7 +974,7 @@ mod tests {
                 to: ExposureLevel { own: 1.0, neighbors: 1.0 },
             },
         );
-        let options = ScorePosteriorOptions { draws: 8_000, coverage: 0.95 };
+        let options = ScorePosteriorOptions { draws, coverage: 0.95 };
         let ctx = ExecutionContext::for_tests(41);
         let (estimate, posterior) = estimate_cluster_interference_bayesian_bootstrap(
             &query,
@@ -873,23 +984,66 @@ mod tests {
             &ctx,
         )
         .unwrap();
-        let scale = k as f64 / 16.0;
+        let scale = k as f64 / (2 * k) as f64;
         let totals = |treated: bool| {
             (0..k)
                 .filter(|c| (c % 2 == 0) == treated)
                 .map(|c| (outcomes[2 * c] + outcomes[2 * c + 1]) * scale)
                 .collect::<Vec<_>>()
         };
+        (estimate, posterior, totals(true), totals(false))
+    }
+
+    #[test]
+    fn cluster_bayesian_bootstrap_spread_matches_the_dirichlet_moment_of_each_arm() {
+        // With m clusters in an arm, Dirichlet(1..1) weights give the arm mean of the scaled
+        // cluster totals the exact variance (biased variance of the totals) / (m + 1); the two
+        // arms are independent, so the contrast variance is the sum over arms. Fifty clusters
+        // per arm is the smallest design that takes the Dirichlet law.
+        let arm = CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS;
+        let (estimate, posterior, treated, control) = paired_cluster_posterior(2 * arm, 8_000);
         let spread = |v: &[f64]| {
             let m = v.iter().sum::<f64>() / v.len() as f64;
             v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / v.len() as f64
         };
-        let (treated, control) = (totals(true), totals(false));
-        let expected_sd = (spread(&treated) / 5.0 + spread(&control) / 5.0).sqrt();
+        let weights = (arm + 1) as f64;
+        let expected_sd = (spread(&treated) / weights + spread(&control) / weights).sqrt();
         let relative = (posterior.standard_deviation - expected_sd).abs() / expected_sd;
         assert!(relative < 0.05, "sd {} expected {expected_sd}", posterior.standard_deviation);
         let tolerance = 5.0 * expected_sd / 8_000.0_f64.sqrt();
         assert!((posterior.posterior_mean - estimate.contrast.horvitz_thompson).abs() < tolerance);
+    }
+
+    #[test]
+    fn cluster_posterior_of_few_clusters_is_the_student_reference_law() {
+        // Below fifty clusters per arm the posterior is the Student-t law at the design-based
+        // contrast with the cluster Neyman standard error and Welch-Satterthwaite degrees of
+        // freedom, so its central 95% interval is the design-based interval's.
+        for arm in [2_usize, 4, 9, CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS - 1] {
+            let (estimate, posterior, treated, control) = paired_cluster_posterior(2 * arm, 4_000);
+            let component = |v: &[f64]| {
+                let m = v.iter().sum::<f64>() / v.len() as f64;
+                v.iter().map(|x| (x - m).powi(2)).sum::<f64>()
+                    / (v.len() - 1) as f64
+                    / v.len() as f64
+            };
+            let (a, b) = (component(&treated), component(&control));
+            let se = (a + b).sqrt();
+            assert!((se * se - estimate.contrast.conservative_variance).abs() < 1e-12);
+            let df = (a + b).powi(2) / ((a * a + b * b) / (arm - 1) as f64);
+            let centre = estimate.contrast.horvitz_thompson;
+            let critical = antecedent_stats::student_t_ppf(0.975, df);
+            let half = critical * se;
+            assert!((posterior.posterior_mean - centre).abs() < 1e-9 * (1.0 + half), "arm {arm}");
+            assert!((posterior.interval.0 - (centre - half)).abs() < 0.01 * half, "arm {arm}");
+            assert!((posterior.interval.1 - (centre + half)).abs() < 0.01 * half, "arm {arm}");
+            // The draws are the law's quantile grid: ascending and symmetric about the centre.
+            assert!(posterior.draws.windows(2).all(|pair| pair[0] <= pair[1]));
+            let draw = posterior.draws[3_000];
+            let level = 3_000.5 / 4_000.0;
+            let expected = centre + se * antecedent_stats::student_t_ppf(level, df);
+            assert!((draw - expected).abs() < 1e-8 * (1.0 + expected.abs()), "arm {arm}");
+        }
     }
 
     #[test]

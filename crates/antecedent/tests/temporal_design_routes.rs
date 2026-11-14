@@ -3,8 +3,9 @@
 //!
 //! Every fixture draws a panel from a known law: the excursion effects, the dose response, the
 //! quantile shift and the regime survival contrast are known, and the routes must recover them
-//! within their own reported uncertainty. The routes are unsupported: no support status, a
-//! `calibration = "not_measured"` section, and a refusal for every option they do not read.
+//! within their own reported uncertainty. The routes carry no matrix support status, a
+//! `calibration = "not_measured"` section, and a refusal for every option they do not read; a
+//! fit that matches a row of the graphless support table states `supported` on its section.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -19,6 +20,9 @@ use antecedent_core::{
     TemporalDoseTarget, VariableId,
 };
 use antecedent_data::TabularData;
+
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
 
 /// `SplitMix64` uniform stream.
 struct Stream(u64);
@@ -147,7 +151,8 @@ fn the_two_arm_excursion_recovers_the_effect_under_carryover_in_both_modes() {
     assert_eq!(frequentist.support_status(), None);
     let fit = section(&frequentist);
     assert_eq!(&*fit.design, "two_arm");
-    assert!(!fit.supported && &*fit.calibration == "not_measured");
+    // 300 units, 2,700 pairs and probabilities of 0.35 and 0.65 meet the two-arm support row.
+    assert!(fit.supported && &*fit.calibration == "not_measured");
     assert_eq!(&*fit.coordinates[0], "excursion_effect");
     within(fit, 0, 1.25, 4.0);
     assert!(fit.lower[0] < fit.estimate[0] && fit.estimate[0] < fit.upper[0]);
@@ -229,11 +234,20 @@ fn options_the_design_does_not_read_are_refused_with_the_next_attempt() {
 /// A multi-arm panel at lag 0 with arm effects `0, 0.5, 1.5` and a probability row that moves
 /// with the period.
 fn multi_arm(ordered: bool, categorical: bool) -> (TabularData, TemporalDesignQuery) {
+    multi_arm_of(250, ordered, categorical)
+}
+
+/// [`multi_arm`] with `units` units.
+fn multi_arm_of(
+    units_total: usize,
+    ordered: bool,
+    categorical: bool,
+) -> (TabularData, TemporalDesignQuery) {
     let mut stream = Stream(21);
     let (mut units, mut periods, mut assignment, mut probabilities, mut outcome) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
     let effects = [0.0, 0.5, 1.5];
-    for i in 0..250 {
+    for i in 0..units_total {
         let level = stream.next() - 0.5;
         for t in 0..6_i64 {
             let row = if t % 2 == 0 { vec![0.5, 0.25, 0.25] } else { vec![0.2, 0.4, 0.4] };
@@ -384,10 +398,18 @@ fn the_factorial_and_interference_designs_recover_their_effects() {
 /// Doses uniform on `(0, 2)` (density 0.5) at every decision; outcome `1 + d + 0.5 d^2` plus
 /// noise in the same period.
 fn dose_panel(target: TemporalDoseTarget) -> (TabularData, TemporalDesignQuery) {
+    dose_panel_of(300, target)
+}
+
+/// [`dose_panel`] with `units` units.
+fn dose_panel_of(
+    units_total: usize,
+    target: TemporalDoseTarget,
+) -> (TabularData, TemporalDesignQuery) {
     let mut stream = Stream(31);
     let (mut units, mut periods, mut dose, mut outcome) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for i in 0..300 {
+    for i in 0..units_total {
         for t in 0..8_i64 {
             let d = 2.0 * stream.next();
             units.push(format!("u{i}"));
@@ -453,12 +475,13 @@ fn the_dose_targets_recover_the_curve_with_a_bias_aware_band() {
     assert!(error.to_string().contains("curvature_bound"), "{error}");
 }
 
-#[test]
-fn the_quantile_excursion_recovers_a_location_shift_in_both_modes() {
+/// A two-arm panel at lag 0 whose outcome is a uniform draw plus `2` under treatment, so every
+/// quantile shifts by `2`; the treatment probability alternates between 0.4 and 0.6.
+fn quantile_panel_of(units_total: usize, level: f64) -> (TabularData, TemporalDesignQuery) {
     let mut stream = Stream(41);
     let (mut units, mut periods, mut assignment, mut probability, mut outcome) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for i in 0..200 {
+    for i in 0..units_total {
         for t in 0..6_i64 {
             let p = if t % 2 == 0 { 0.4 } else { 0.6 };
             let a = stream.next() < p;
@@ -478,11 +501,16 @@ fn the_quantile_excursion_recovers_a_location_shift_in_both_modes() {
             assignment: assignment.as_slice().into(),
             probability: probability.as_slice().into(),
         },
-        functional: TemporalDesignFunctional::Quantile { level: 0.5 },
+        functional: TemporalDesignFunctional::Quantile { level },
         min_probability: 0.05,
         outcome_misclassification: None,
     };
-    let data = table(&[("y", outcome.as_slice())]);
+    (table(&[("y", outcome.as_slice())]), query)
+}
+
+#[test]
+fn the_quantile_excursion_recovers_a_location_shift_in_both_modes() {
+    let (data, query) = quantile_panel_of(200, 0.5);
     let ctx = ExecutionContext::for_tests(43);
     let result = run(&data, query.clone(), InferenceMode::Frequentist, 199, &ctx);
     let fit = section(&result);
@@ -492,8 +520,8 @@ fn the_quantile_excursion_recovers_a_location_shift_in_both_modes() {
     assert!((section(&posterior).estimate[0] - 2.0).abs() < 0.1);
 }
 
-#[test]
-fn regime_survival_recovers_the_contrast_with_both_procedures() {
+/// Subject trajectories with time-varying confounding and a horizon of three periods.
+fn survival_panel_of(subjects: usize) -> (TabularData, TemporalDesignQuery) {
     // Time-varying confounding: L_k = 0.5 L_{k-1} - 0.4 A_{k-1} + e, treatment more likely
     // when L_k is high, hazard expit(-2.5 + 0.8 L_k - 0.7 A_k), light censoring.
     let expit = |x: f64| 1.0 / (1.0 + (-x).exp());
@@ -502,7 +530,7 @@ fn regime_survival_recovers_the_contrast_with_both_procedures() {
     let (mut units, mut periods) = (Vec::new(), Vec::new());
     let (mut events, mut treated, mut censored, mut confounder) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for i in 0..1200 {
+    for i in 0..subjects {
         let mut current = 2.0 * stream.next() - 1.0;
         let mut previous = false;
         for k in 0..horizon {
@@ -526,25 +554,6 @@ fn regime_survival_recovers_the_contrast_with_both_procedures() {
             }
         }
     }
-    // Monte Carlo truth under each static regime.
-    let mut truth_stream = Stream(53);
-    let mut totals = [0.0; 2];
-    let draws = 200_000;
-    for (index, arm) in [true, false].into_iter().enumerate() {
-        for _ in 0..draws {
-            let mut current = 2.0 * truth_stream.next() - 1.0;
-            let mut surviving = 1.0;
-            for k in 0..horizon {
-                if k > 0 {
-                    current = 0.5 * current - 0.4 * f64::from(u8::from(arm))
-                        + (truth_stream.next() - 0.5);
-                }
-                surviving *= 1.0 - expit(-2.5 + 0.8 * current - 0.7 * f64::from(u8::from(arm)));
-            }
-            totals[index] += surviving;
-        }
-    }
-    let truth = (totals[0] - totals[1]) / f64::from(draws);
     let data = table(&[
         ("event", events.as_slice()),
         ("treated", treated.as_slice()),
@@ -566,6 +575,38 @@ fn regime_survival_recovers_the_contrast_with_both_procedures() {
         min_probability: 0.02,
         outcome_misclassification: None,
     };
+    (data, query)
+}
+
+/// Always-treat minus never-treat survival at the horizon of [`survival_panel_of`], by Monte
+/// Carlo under each static regime.
+fn survival_truth() -> f64 {
+    let expit = |x: f64| 1.0 / (1.0 + (-x).exp());
+    let horizon = 3_u32;
+    let mut truth_stream = Stream(53);
+    let mut totals = [0.0; 2];
+    let draws = 200_000;
+    for (index, arm) in [true, false].into_iter().enumerate() {
+        for _ in 0..draws {
+            let mut current = 2.0 * truth_stream.next() - 1.0;
+            let mut surviving = 1.0;
+            for k in 0..horizon {
+                if k > 0 {
+                    current = 0.5 * current - 0.4 * f64::from(u8::from(arm))
+                        + (truth_stream.next() - 0.5);
+                }
+                surviving *= 1.0 - expit(-2.5 + 0.8 * current - 0.7 * f64::from(u8::from(arm)));
+            }
+            totals[index] += surviving;
+        }
+    }
+    (totals[0] - totals[1]) / f64::from(draws)
+}
+
+#[test]
+fn regime_survival_recovers_the_contrast_with_both_procedures() {
+    let (data, query) = survival_panel_of(1200);
+    let truth = survival_truth();
     let ctx = ExecutionContext::for_tests(59);
     let frequentist = run(&data, query.clone(), InferenceMode::Frequentist, 99, &ctx);
     assert_eq!(
@@ -696,6 +737,88 @@ fn the_exported_artifact_carries_the_section_and_a_fresh_consumer_rejects_forger
     )
     .unwrap_err();
     assert!(error.to_string().contains("missing its section"), "{error}");
+}
+
+/// The two-arm support row: a panel that meets its thresholds states `supported` on the retained
+/// program's section and in the exported artifact; an artifact that claims the row below a
+/// threshold or under another method is refused, and a thinner panel runs unsupported.
+#[test]
+fn supported_two_arm_excursion_interval_round_trips_and_refuses_forgery() {
+    let panel = two_arm_panel(300, 10, 1.25, 7);
+    let data = table(&[("y", panel.outcome.as_slice())]);
+    let ctx = ExecutionContext::for_tests(11);
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::TemporalDesign(two_arm_query(&panel, TemporalDesignFunctional::Mean)))
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "supported_two_arm_excursion_interval",
+        &prepared,
+        &result,
+        &ctx,
+    );
+    let fit = section(&result).clone();
+    assert!(fit.supported);
+    assert_eq!(&*fit.uncertainty, "cluster_robust_ratio_normal");
+    assert_eq!((fit.clusters, fit.pairs, fit.unpaired), (300, 2700, 300));
+    assert!(fit.minimum_probability >= 0.35 - 1e-12, "{}", fit.minimum_probability);
+    within(&fit, 0, 1.25, 4.0);
+    // Every coordinate publishes the normal interval of its own standard error.
+    for index in 0..fit.coordinates.len() {
+        let half = 1.959_963_984_540_054 * fit.standard_error[index];
+        assert!((fit.lower[index] - (fit.estimate[index] - half)).abs() < 1e-9);
+        assert!((fit.upper[index] - (fit.estimate[index] + half)).abs() < 1e-9);
+    }
+
+    let bytes =
+        prepared.encode_contracted_result(&result, "temporal-design-supported", &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let wire = body.temporal_design.as_ref().expect("the section is exported");
+    assert!(wire.supported && wire.calibration == "not_measured");
+    assert_eq!(wire.lower, fit.lower.to_vec());
+    assert_eq!(wire.upper, fit.upper.to_vec());
+    let refused = |forged: &antecedent_io::analysis_result_artifact::AnalysisResultWire| {
+        antecedent_io::encode_analysis_result_artifact(
+            forged,
+            header.variable_names.clone(),
+            "forged-support",
+        )
+        .unwrap_err()
+        .to_string()
+    };
+    let mut thin = body.clone();
+    thin.temporal_design.as_mut().unwrap().clusters = 149;
+    assert!(refused(&thin).contains("claims no support"));
+    let mut weak = body.clone();
+    weak.temporal_design.as_mut().unwrap().minimum_probability = Some(0.3);
+    assert!(refused(&weak).contains("claims no support"));
+    let mut other = body.clone();
+    other.temporal_design.as_mut().unwrap().uncertainty = "another_method".to_owned();
+    assert!(refused(&other).contains("claims no support"));
+    // A section may state less than its row grants; it then loads as an unsupported result.
+    let mut unclaimed = body;
+    unclaimed.temporal_design.as_mut().unwrap().supported = false;
+    antecedent_io::encode_analysis_result_artifact(
+        &unclaimed,
+        header.variable_names.clone(),
+        "unclaimed-support",
+    )
+    .unwrap();
+
+    // 120 units are below the row: the same route runs and states no support.
+    let small = two_arm_panel(120, 10, 1.25, 7);
+    let small_data = table(&[("y", small.outcome.as_slice())]);
+    let unsupported = run(
+        &small_data,
+        two_arm_query(&small, TemporalDesignFunctional::Mean),
+        InferenceMode::Frequentist,
+        0,
+        &ctx,
+    );
+    assert!(!section(&unsupported).supported);
 }
 
 /// A decision-time covariate drives both the treatment and the outcome, and no assignment
@@ -973,10 +1096,15 @@ fn the_observational_regime_refuses_what_it_cannot_identify_or_resample() {
 /// A factorial panel: main effects `1.0` and `0.5` and an interaction `0.4`, the factors drawn
 /// independently with probabilities `0.5` and `0.4`.
 fn factorial_panel() -> (TabularData, TemporalDesignQuery) {
+    factorial_panel_of(300)
+}
+
+/// [`factorial_panel`] with `units` units.
+fn factorial_panel_of(units_total: usize) -> (TabularData, TemporalDesignQuery) {
     let mut stream = Stream(29);
     let (mut units, mut periods, mut first, mut second, mut outcome) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for i in 0..300 {
+    for i in 0..units_total {
         for t in 0..5_i64 {
             let a = stream.next() < 0.5;
             let b = stream.next() < 0.4;
@@ -1010,10 +1138,15 @@ fn factorial_panel() -> (TabularData, TemporalDesignQuery) {
 /// Pairs of units share an interference cluster; the own effect is `1.0` and a treated peer adds
 /// `0.6`.
 fn interference_panel() -> (TabularData, TemporalDesignQuery) {
+    interference_panel_of(300)
+}
+
+/// [`interference_panel`] with `clusters` interference clusters.
+fn interference_panel_of(clusters_total: usize) -> (TabularData, TemporalDesignQuery) {
     let mut stream = Stream(61);
     let (mut units, mut periods, mut clusters, mut assignment) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for c in 0..300 {
+    for c in 0..clusters_total {
         for t in 0..4_i64 {
             for member in 0..2 {
                 units.push(format!("u{c}_{member}"));
@@ -1151,4 +1284,602 @@ fn the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoot
     let fit = section(&posterior);
     assert_eq!(fit.draws, Some(300));
     within(fit, 0, m(1.2) - m(0.8), 4.0);
+}
+
+// ------------------------------------------------------------ support rows
+
+/// The kernel-smoothed response `int_0^2 K_0.3(u - at) m(u) du` of [`dose_panel`] by Simpson's
+/// rule: the target of the smoothed dose designs under the uniform dose law.
+fn smoothed_dose_truth(at: f64) -> f64 {
+    let integrand = |u: f64| {
+        let z = (u - at) / 0.3;
+        (-0.5 * z * z).exp() / (0.3 * (2.0 * std::f64::consts::PI).sqrt()) * (1.0 + u + 0.5 * u * u)
+    };
+    let steps = 4000_u32;
+    let h = 2.0 / f64::from(steps);
+    let mut sum = integrand(0.0) + integrand(2.0);
+    for k in 1..steps {
+        sum += integrand(h * f64::from(k)) * if k % 2 == 1 { 4.0 } else { 2.0 };
+    }
+    sum * h / 3.0
+}
+
+/// The panel of a design of the support table with `units` independent sequences.
+fn support_row_panel(design: &str, units: usize) -> (TabularData, TemporalDesignQuery) {
+    let grid: Arc<[f64]> = Arc::from([0.5, 1.0, 1.5]);
+    match design {
+        "two_arm" => {
+            let panel = two_arm_panel(units, 10, 1.25, 7);
+            let query = two_arm_query(&panel, TemporalDesignFunctional::Mean);
+            (table(&[("y", panel.outcome.as_slice())]), query)
+        }
+        "multi_arm" => multi_arm_of(units, false, false),
+        "categorical" => multi_arm_of(units, true, true),
+        "factorial" => factorial_panel_of(units),
+        "interference" => interference_panel_of(units),
+        "continuous_dose" => {
+            dose_panel_of(units, TemporalDoseTarget::SmoothedContrast { active: 1.2, control: 0.8 })
+        }
+        "smoothed_dose" => dose_panel_of(units, TemporalDoseTarget::SmoothedCurve { grid }),
+        "dose_grid" => dose_panel_of(
+            units,
+            TemporalDoseTarget::LocalQuadratic {
+                grid,
+                derivative: false,
+                curvature_bound: Some(0.0),
+            },
+        ),
+        "quantile" => quantile_panel_of(units, 0.5),
+        "regime_survival" => survival_panel_of(units),
+        "two_arm_misclassified" => misclassified_panel(units, [90, 10, 85, 15]),
+        other => panic!("no support row for design {other}"),
+    }
+}
+
+/// What one support row requires and the coordinate its coverage was measured on.
+struct SupportRowCase {
+    design: &'static str,
+    posterior: bool,
+    method: &'static str,
+    /// Independent sequences of the supported panel and of a panel below the row.
+    units: (usize, usize),
+    /// The row's fewest independent sequences.
+    min_blocks: u64,
+    /// The row's smallest realized probability, where the section carries one.
+    min_probability: Option<f64>,
+    /// Index, name and known value of the scored coordinate.
+    coordinate: (usize, &'static str, f64),
+}
+
+impl SupportRowCase {
+    /// Posterior draws the row was measured with.
+    fn draws(&self) -> usize {
+        if matches!(self.design, "dose_grid" | "regime_survival") { 500 } else { 1000 }
+    }
+
+    /// Whole-procedure bootstrap replicates the row was measured with.
+    fn replicates(&self) -> u32 {
+        if !self.posterior && matches!(self.design, "quantile" | "regime_survival") {
+            99
+        } else {
+            0
+        }
+    }
+
+    fn inference(&self, draws: usize) -> InferenceMode {
+        if self.posterior { bayesian(draws) } else { InferenceMode::Frequentist }
+    }
+}
+
+/// One support row of the family: a panel that meets the row states `supported` on the retained
+/// program's section and in the exported artifact; an artifact that claims the row with fewer
+/// sequences, a smaller probability, fewer draws or replicates, or another method is refused;
+/// and the same route below the row runs and states no support.
+fn assert_support_row_round_trips_and_refuses_forgery(label: &'static str, case: &SupportRowCase) {
+    let ctx = ExecutionContext::for_tests(11);
+    let (data, query) = support_row_panel(case.design, case.units.0);
+    let mut builder = Study::tabular(data.clone())
+        .query(CausalQuery::TemporalDesign(query.clone()))
+        .inference(case.inference(case.draws()));
+    if case.replicates() > 0 {
+        builder = builder.bootstrap_replicates(case.replicates());
+    }
+    let prepared = builder.build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(label, &prepared, &result, &ctx);
+    let fit = section(&result).clone();
+    assert!(fit.supported, "{label}");
+    assert_eq!(&*fit.uncertainty, case.method, "{label}");
+    assert_eq!(fit.clusters, case.units.0 as u64, "{label}");
+    assert_eq!(fit.draws, case.posterior.then(|| case.draws() as u64), "{label}");
+    if case.replicates() > 0 {
+        assert_eq!(fit.replicates, Some((99, 0)), "{label}");
+    }
+    // The scored coordinate sits at its known value within its own reported uncertainty.
+    let (index, name, truth) = case.coordinate;
+    assert_eq!(&*fit.coordinates[index], name, "{label}");
+    let (estimate, scale) = (fit.estimate[index], fit.standard_error[index]);
+    assert!((estimate - truth).abs() < 5.0 * scale + 0.01, "{label}: {estimate} vs {truth}");
+    assert!(fit.lower[index] < estimate && estimate < fit.upper[index], "{label}");
+    if !case.posterior && case.replicates() == 0 {
+        // A normal interval of the coordinate's own standard error.
+        let half = 1.959_963_984_540_054 * scale;
+        assert!((fit.lower[index] - (estimate - half)).abs() < 1e-5 * scale + 1e-9, "{label}");
+        assert!((fit.upper[index] - (estimate + half)).abs() < 1e-5 * scale + 1e-9, "{label}");
+    }
+
+    let bytes = prepared.encode_contracted_result(&result, label, &ctx).unwrap();
+    let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let wire = body.temporal_design.as_ref().expect("the section is exported");
+    assert!(wire.supported && wire.calibration == "not_measured", "{label}");
+    assert_eq!(wire.lower, fit.lower.to_vec(), "{label}");
+    type Forgery =
+        fn(&mut antecedent_io::analysis_result_artifact::TemporalDesignWire, &SupportRowCase);
+    let forgeries: [(&str, Forgery); 5] = [
+        ("sequences", |wire, case| wire.clusters = case.min_blocks - 1),
+        ("method", |wire, _| wire.uncertainty = "another_method".to_owned()),
+        ("probability", |wire, case| {
+            if let (Some(_), Some(floor)) = (wire.minimum_probability, case.min_probability) {
+                wire.minimum_probability = Some(floor - 0.05);
+            } else {
+                wire.clusters = 2;
+            }
+        }),
+        ("draws", |wire, case| match wire.draws {
+            Some(_) => wire.draws = Some(case.draws() as u64 - 1),
+            None => wire.clusters = 2,
+        }),
+        ("replicates", |wire, _| match wire.replicates {
+            Some(_) => wire.replicates = Some([98, 0]),
+            None => wire.clusters = 2,
+        }),
+    ];
+    for (what, forge) in forgeries {
+        let mut forged = body.clone();
+        forge(forged.temporal_design.as_mut().unwrap(), case);
+        let error = antecedent_io::encode_analysis_result_artifact(
+            &forged,
+            header.variable_names.clone(),
+            "forged-support",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("claims no support"), "{label} ({what}): {error}");
+    }
+    // A section may state less than its row grants; it then loads as an unsupported result.
+    let mut unclaimed = body;
+    unclaimed.temporal_design.as_mut().unwrap().supported = false;
+    antecedent_io::encode_analysis_result_artifact(
+        &unclaimed,
+        header.variable_names.clone(),
+        "unclaimed-support",
+    )
+    .unwrap();
+
+    // Fewer sequences than the row: the same route runs and states no support.
+    let (small, small_query) = support_row_panel(case.design, case.units.1);
+    let thin = run(&small, small_query, case.inference(case.draws()), case.replicates(), &ctx);
+    assert!(!section(&thin).supported, "{label}: below the row");
+    if case.posterior {
+        // Fewer posterior draws than the measured posterior: no support either.
+        let few = run(&data, query, case.inference(case.draws() / 2), 0, &ctx);
+        assert!(!section(&few).supported, "{label}: fewer draws");
+    }
+}
+
+const RATIO_NORMAL: &str = "cluster_robust_ratio_normal";
+const UNIT_POSTERIOR: &str = "bayesian_bootstrap_over_clusters";
+
+fn arm_row(
+    design: &'static str,
+    posterior: bool,
+    units: (usize, usize, u64),
+    min_probability: f64,
+    coordinate: (usize, &'static str, f64),
+) -> SupportRowCase {
+    SupportRowCase {
+        design,
+        posterior,
+        method: if posterior { UNIT_POSTERIOR } else { RATIO_NORMAL },
+        units: (units.0, units.1),
+        min_blocks: units.2,
+        min_probability: Some(min_probability),
+        coordinate,
+    }
+}
+
+fn dose_row(design: &'static str, posterior: bool) -> SupportRowCase {
+    let (method, coordinate) = match (design, posterior) {
+        ("continuous_dose", _) => (
+            if posterior { UNIT_POSTERIOR } else { RATIO_NORMAL },
+            (0, "smoothed_contrast:1.2-0.8", smoothed_dose_truth(1.2) - smoothed_dose_truth(0.8)),
+        ),
+        ("smoothed_dose", _) => (
+            if posterior { UNIT_POSTERIOR } else { RATIO_NORMAL },
+            (1, "smoothed_response@1", smoothed_dose_truth(1.0)),
+        ),
+        (_, false) => ("cluster_robust_local_quadratic_bias_aware", (1, "level@1", 2.5)),
+        (_, true) => ("bayesian_bootstrap_local_quadratic_projection", (1, "level@1", 2.5)),
+    };
+    SupportRowCase {
+        design,
+        posterior,
+        method,
+        units: (300, 100),
+        min_blocks: 150,
+        min_probability: None,
+        coordinate,
+    }
+}
+
+fn resampled_row(design: &'static str, posterior: bool) -> SupportRowCase {
+    let survival = design == "regime_survival";
+    SupportRowCase {
+        design,
+        posterior,
+        method: match (survival, posterior) {
+            (false, false) => "whole_procedure_cluster_bootstrap_percentile",
+            (false, true) => "bayesian_bootstrap_over_units_weighted_quantile",
+            (true, false) => {
+                "whole_procedure_subject_bootstrap_refitting_treatment_and_censoring_models"
+            }
+            (true, true) => "joint_likelihood_parametric_g_formula_posterior",
+        },
+        units: if survival { (1200, 400) } else { (200, 80) },
+        min_blocks: if survival { 600 } else { 100 },
+        min_probability: None,
+        coordinate: if survival {
+            (0, "survival_difference", survival_truth())
+        } else {
+            (0, "quantile_effect", 2.0)
+        },
+    }
+}
+
+#[test]
+fn supported_two_arm_excursion_posterior_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_two_arm_excursion_posterior",
+        &arm_row("two_arm", true, (300, 120, 150), 0.35, (0, "excursion_effect", 1.25)),
+    );
+}
+
+#[test]
+fn supported_multi_arm_contrast_interval_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_multi_arm_contrast_interval",
+        &arm_row("multi_arm", false, (250, 100, 125), 0.2, (0, "contrast:mid-low", 0.5)),
+    );
+}
+
+#[test]
+fn supported_multi_arm_contrast_posterior_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_multi_arm_contrast_posterior",
+        &arm_row("multi_arm", true, (250, 100, 125), 0.2, (0, "contrast:mid-low", 0.5)),
+    );
+}
+
+#[test]
+fn supported_categorical_step_interval_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_categorical_step_interval",
+        &arm_row("categorical", false, (250, 100, 125), 0.2, (2, "step:high-mid", 1.0)),
+    );
+}
+
+#[test]
+fn supported_categorical_step_posterior_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_categorical_step_posterior",
+        &arm_row("categorical", true, (250, 100, 125), 0.2, (2, "step:high-mid", 1.0)),
+    );
+}
+
+#[test]
+fn supported_factorial_main_effect_interval_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_factorial_main_effect_interval",
+        &arm_row("factorial", false, (300, 120, 150), 0.2, (0, "main_effect:first", 1.2)),
+    );
+}
+
+#[test]
+fn supported_factorial_main_effect_posterior_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_factorial_main_effect_posterior",
+        &arm_row("factorial", true, (300, 120, 150), 0.2, (0, "main_effect:first", 1.2)),
+    );
+}
+
+#[test]
+fn supported_interference_direct_effect_interval_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_interference_direct_effect_interval",
+        &arm_row("interference", false, (300, 120, 150), 0.25, (0, "direct_effect", 1.0)),
+    );
+}
+
+#[test]
+fn supported_interference_direct_effect_posterior_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_interference_direct_effect_posterior",
+        &arm_row("interference", true, (300, 120, 150), 0.25, (0, "direct_effect", 1.0)),
+    );
+}
+
+#[test]
+fn supported_continuous_dose_contrast_interval_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_continuous_dose_contrast_interval",
+        &dose_row("continuous_dose", false),
+    );
+}
+
+#[test]
+fn supported_continuous_dose_contrast_posterior_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_continuous_dose_contrast_posterior",
+        &dose_row("continuous_dose", true),
+    );
+}
+
+#[test]
+fn supported_smoothed_dose_curve_interval_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_smoothed_dose_curve_interval",
+        &dose_row("smoothed_dose", false),
+    );
+}
+
+#[test]
+fn supported_smoothed_dose_curve_posterior_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_smoothed_dose_curve_posterior",
+        &dose_row("smoothed_dose", true),
+    );
+}
+
+#[test]
+fn supported_dose_grid_level_interval_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_dose_grid_level_interval",
+        &dose_row("dose_grid", false),
+    );
+    // A positive curvature bound and a narrow bandwidth are outside the measured row.
+    let ctx = ExecutionContext::for_tests(11);
+    let grid: Arc<[f64]> = Arc::from([0.5, 1.0, 1.5]);
+    let (data, query) = dose_panel_of(
+        300,
+        TemporalDoseTarget::LocalQuadratic { grid, derivative: false, curvature_bound: Some(0.5) },
+    );
+    assert!(!section(&run(&data, query, InferenceMode::Frequentist, 0, &ctx)).supported);
+    let (data, mut narrow) = support_row_panel("dose_grid", 300);
+    if let TemporalAssignment::Dose { bandwidth, .. } = &mut narrow.assignment {
+        *bandwidth = 0.1;
+    }
+    let fit = run(&data, narrow, InferenceMode::Frequentist, 0, &ctx);
+    assert!((section(&fit).estimate[1] - 2.5).abs() < 0.5);
+    assert!(!section(&fit).supported);
+}
+
+#[test]
+fn supported_dose_grid_level_posterior_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_dose_grid_level_posterior",
+        &dose_row("dose_grid", true),
+    );
+}
+
+#[test]
+fn supported_quantile_effect_bootstrap_interval_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_quantile_effect_bootstrap_interval",
+        &resampled_row("quantile", false),
+    );
+    // Only the median was measured: another level runs and states no support.
+    let ctx = ExecutionContext::for_tests(11);
+    let (data, query) = quantile_panel_of(200, 0.25);
+    let fit = run(&data, query, InferenceMode::Frequentist, 99, &ctx);
+    assert!((section(&fit).estimate[0] - 2.0).abs() < 0.2);
+    assert!(!section(&fit).supported);
+}
+
+#[test]
+fn supported_quantile_effect_posterior_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_quantile_effect_posterior",
+        &resampled_row("quantile", true),
+    );
+}
+
+#[test]
+fn supported_regime_survival_bootstrap_interval_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_regime_survival_bootstrap_interval",
+        &resampled_row("regime_survival", false),
+    );
+}
+
+#[test]
+fn supported_regime_survival_posterior_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_regime_survival_posterior",
+        &resampled_row("regime_survival", true),
+    );
+}
+
+/// A two-arm panel of `units` sequences over six periods with a known assignment probability
+/// of 0.5 and a binary outcome `P(Y = 1) = 0.3 + 0.25 A` recorded with sensitivity 0.9 and
+/// specificity 0.85; `validation` is the validation sample (true positive, false negative,
+/// true negative, false positive).
+fn misclassified_panel(units: usize, validation: [u64; 4]) -> (TabularData, TemporalDesignQuery) {
+    let mut stream = Stream(0x5EED_0000_0000_0031);
+    let (mut names, mut periods, mut assignment, mut recorded) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for i in 0..units {
+        for t in 0..6_i64 {
+            let treated = stream.next() < 0.5;
+            let truth = stream.next() < 0.3 + if treated { 0.25 } else { 0.0 };
+            let observed = if truth { stream.next() < 0.9 } else { stream.next() >= 0.85 };
+            names.push(format!("u{i}"));
+            periods.push(t);
+            assignment.push(treated);
+            recorded.push(f64::from(u8::from(observed)));
+        }
+    }
+    let query = misclassified_query(&names, &periods, &assignment, validation);
+    (table(&[("y", recorded.as_slice())]), query)
+}
+
+fn misclassified_query(
+    names: &[String],
+    periods: &[i64],
+    assignment: &[bool],
+    validation: [u64; 4],
+) -> TemporalDesignQuery {
+    TemporalDesignQuery {
+        outcome: VariableId::from_raw(0),
+        units: labels(names),
+        periods: periods.into(),
+        lag: 0,
+        assignment: TemporalAssignment::TwoArm {
+            assignment: assignment.into(),
+            probability: vec![0.5; names.len()].into(),
+        },
+        functional: TemporalDesignFunctional::Mean,
+        min_probability: 0.05,
+        outcome_misclassification: Some(antecedent_core::OutcomeMisclassification {
+            true_positive: validation[0],
+            false_negative: validation[1],
+            true_negative: validation[2],
+            false_positive: validation[3],
+        }),
+    }
+}
+
+fn coordinate_of(fit: &TemporalDesignEstimate, name: &str) -> usize {
+    fit.coordinates.iter().position(|c| &**c == name).unwrap_or_else(|| panic!("no {name}"))
+}
+
+/// The corrected two-arm means against the inverted misclassification algebra, by hand.
+///
+/// Frequentist. Twelve units of two periods at assignment probability 0.5: eight units are
+/// treated at both periods (sixteen decisions, nine recorded positives) and four are control
+/// (eight decisions, three recorded positives), so the recorded arm means are 9/16 and 3/8.
+/// With 90 of 100 true positives and 85 of 100 true negatives recorded correctly, sensitivity
+/// 0.9 and specificity 0.85 give the corrected control mean `(0.375 + 0.85 - 1) / 0.75 = 0.3`,
+/// the corrected treated mean `(0.5625 - 0.15) / 0.75 = 0.55` and the contrast 0.25.
+///
+/// Bayesian. Twelve identical units (treated twice with outcomes 1, 0; control four times with
+/// outcomes 1, 0, 0, 0): every cluster weighting leaves the recorded arm means at 0.5 and 0.25,
+/// so the posterior varies only through the validation draws, and a validation sample of a
+/// million per margin at sensitivity and specificity 0.9 pins them. The corrected control mean
+/// is `(0.25 - 0.1) / 0.8 = 0.1875` and the contrast `0.25 / 0.8 = 0.3125`.
+#[test]
+fn the_misclassification_corrected_two_arm_means_equal_the_inverted_error_algebra() {
+    let ctx = ExecutionContext::for_tests(41);
+    let (mut names, mut periods, mut assignment, mut recorded) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for unit in 0..12 {
+        for period in 0..2_i64 {
+            let decision = unit * 2 + usize::try_from(period).unwrap();
+            let treated = unit < 8;
+            // Decisions 0..16 are treated (positives at 0..9); 16..24 control (positives at 16..19).
+            let positive = if treated { decision < 9 } else { decision < 19 };
+            names.push(format!("u{unit}"));
+            periods.push(period);
+            assignment.push(treated);
+            recorded.push(f64::from(u8::from(positive)));
+        }
+    }
+    let query = misclassified_query(&names, &periods, &assignment, [90, 10, 85, 15]);
+    let result =
+        run(&table(&[("y", recorded.as_slice())]), query, InferenceMode::Frequentist, 0, &ctx);
+    let fit = section(&result);
+    assert_eq!(&*fit.uncertainty, "cluster_robust_ratio_normal_with_validation_delta");
+    let (effect, control) =
+        (coordinate_of(fit, "excursion_effect"), coordinate_of(fit, "control_mean"));
+    assert!((fit.estimate[effect] - 0.25).abs() < 1e-9, "{}", fit.estimate[effect]);
+    assert!((fit.estimate[control] - 0.3).abs() < 1e-9, "{}", fit.estimate[control]);
+    // The uncorrected recorded contrast is 9/16 - 3/8 = 0.1875: the correction is not a no-op.
+    assert!((fit.estimate[effect] - 0.1875).abs() > 0.05);
+
+    let (mut names, mut periods, mut assignment, mut recorded) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for unit in 0..12 {
+        for (period, (treated, positive)) in [
+            (true, true),
+            (true, false),
+            (false, true),
+            (false, false),
+            (false, false),
+            (false, false),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            names.push(format!("u{unit}"));
+            periods.push(i64::try_from(period).unwrap());
+            assignment.push(treated);
+            recorded.push(f64::from(u8::from(positive)));
+        }
+    }
+    let query =
+        misclassified_query(&names, &periods, &assignment, [900_000, 100_000, 900_000, 100_000]);
+    let result = run(&table(&[("y", recorded.as_slice())]), query, bayesian(1000), 0, &ctx);
+    let fit = section(&result);
+    assert_eq!(&*fit.uncertainty, "bayesian_bootstrap_with_beta_validation_draws");
+    for (name, truth) in [("excursion_effect", 0.3125), ("control_mean", 0.1875)] {
+        let index = coordinate_of(fit, name);
+        assert!((fit.estimate[index] - truth).abs() < 2e-3, "{name}: {}", fit.estimate[index]);
+        assert!(fit.lower[index] <= truth && truth <= fit.upper[index], "{name}");
+        assert!(fit.upper[index] - fit.lower[index] < 0.01, "{name}");
+    }
+}
+
+const CORRECTED_NORMAL: &str = "cluster_robust_ratio_normal_with_validation_delta";
+const CORRECTED_POSTERIOR: &str = "bayesian_bootstrap_with_beta_validation_draws";
+
+fn corrected_row(posterior: bool) -> SupportRowCase {
+    SupportRowCase {
+        design: "two_arm_misclassified",
+        posterior,
+        method: if posterior { CORRECTED_POSTERIOR } else { CORRECTED_NORMAL },
+        units: (200, 60),
+        min_blocks: 100,
+        min_probability: Some(0.5),
+        coordinate: (0, "excursion_effect", 0.25),
+    }
+}
+
+/// The corrected route states support only inside the measured validation conditions: a
+/// validation margin below 100 units, or a validated Youden index below 0.6, runs unsupported.
+fn assert_validation_conditions_gate_the_corrected_row(inference: InferenceMode) {
+    let ctx = ExecutionContext::for_tests(11);
+    for validation in [[89, 10, 85, 15], [90, 10, 84, 15], [70, 30, 70, 30]] {
+        let (data, query) = misclassified_panel(200, validation);
+        let fit = run(&data, query, inference.clone(), 0, &ctx);
+        assert!(!section(&fit).supported, "{validation:?}");
+        let width = section(&fit).upper[0] - section(&fit).lower[0];
+        assert!(width > 0.0 && width < 1.0, "{validation:?}: the route still runs");
+    }
+}
+
+#[test]
+fn supported_misclassified_two_arm_interval_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_misclassified_two_arm_interval",
+        &corrected_row(false),
+    );
+    assert_validation_conditions_gate_the_corrected_row(InferenceMode::Frequentist);
+}
+
+#[test]
+fn supported_misclassified_two_arm_posterior_round_trips_and_refuses_forgery() {
+    assert_support_row_round_trips_and_refuses_forgery(
+        "supported_misclassified_two_arm_posterior",
+        &corrected_row(true),
+    );
+    assert_validation_conditions_gate_the_corrected_row(bayesian(1000));
 }

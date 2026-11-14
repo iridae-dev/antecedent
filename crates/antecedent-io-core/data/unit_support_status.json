@@ -327,6 +327,14 @@
       "inference_claim": "conditional_pseudo_posterior_pointwise_95_quantiles",
       "status": "supported",
       "missing_evidence": []
+    },
+    {
+      "family": "temporal_design",
+      "design": "two_arm",
+      "method": "cluster_robust_ratio_normal",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
     }
   ],
   "capabilities": [

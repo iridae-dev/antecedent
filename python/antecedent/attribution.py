@@ -5,10 +5,15 @@ on mechanisms fitted to the data. Each accepts ``posterior_draws`` (the posterio
 mechanisms: that many Dirichlet-weighted refits of every mechanism, the families held at the ones
 selected on the data) or ``bootstrap_replicates`` (the mechanism-refit row bootstrap), and then
 returns an :class:`AttributionWithUncertainty` holding the point result and the uncertainty of
-every quantity it reports. Neither construction is matched against a coverage record, so the
-uncertainty carries no calibration status. Without either, the functions return the point
-result alone. Mechanism-change detection has no posterior over the mechanisms: it is a
-two-sample test, not a smooth functional of the refitted mechanisms.
+every quantity it reports. The posterior draws of every refit mean are referred to the Student-t
+posterior of a mean of the independently weighted rows (or blocks of a series). The result's
+``gcm.model.interval_scope`` diagnostic says whether an interval is inside the conditions its
+coverage was measured under (the total of a sampled mean-difference change in both modes; the
+change components, path decomposition, feature relevance and the mean anomaly score against a
+fixed reference under at least 1000 posterior draws) or has no coverage measurement, in which
+case no support is stated for it. Without either option, the functions return the point result
+alone. Mechanism-change detection has no posterior over the mechanisms: it is a two-sample
+test, not a smooth functional of the refitted mechanisms.
 """
 
 from __future__ import annotations

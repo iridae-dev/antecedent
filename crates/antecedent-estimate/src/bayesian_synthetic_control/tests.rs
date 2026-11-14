@@ -140,3 +140,29 @@ fn malformed_panels_and_specs_are_refused() {
             .to_string();
     assert!(text.contains("one observed treated unit"), "{text}");
 }
+
+/// Each post period's predictive draws are the treated outcome minus the weighted donors
+/// minus a zero-mean error, so their mean is the gap at the posterior-mean weights; and the
+/// average of those means is the posterior mean of the average effect.
+#[test]
+fn predictive_path_draws_are_centred_on_the_posterior_mean_gap() {
+    let (y, _, _) = panel(0.0);
+    let estimate = fit(0.0, &BayesianSyntheticControlSpec::new("t", 9)).unwrap();
+    assert_eq!(estimate.post_periods, vec![9, 10, 11]);
+    let weights: Vec<f64> = estimate.donor_weight_means.iter().map(|(_, mean)| *mean).collect();
+    let n = estimate.effect_draws.len() as f64;
+    let (mut total, mut spread) = (0.0, estimate.sd);
+    for (k, period) in estimate.post_periods.iter().enumerate() {
+        // Rows are d1, d2, d3, t within each period, periods from one.
+        let row = 4 * usize::try_from(*period - 1).unwrap();
+        let gap = y[row + 3] - (0..3).map(|j| weights[j] * y[row + j]).sum::<f64>();
+        let draws = &estimate.period_effect_draws[k];
+        assert_eq!(draws.len(), estimate.effect_draws.len());
+        let mean = draws.iter().sum::<f64>() / n;
+        let sd = (draws.iter().map(|draw| (draw - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
+        assert!((mean - gap).abs() < 5.0 * sd / n.sqrt(), "period {period}: {mean} against {gap}");
+        total += mean / 3.0;
+        spread += sd / 3.0;
+    }
+    assert!((total - estimate.mean).abs() < 5.0 * spread / n.sqrt());
+}

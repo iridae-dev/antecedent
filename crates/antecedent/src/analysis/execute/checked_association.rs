@@ -7,8 +7,9 @@
 //! program, or for a program lowered on different data, is refused with `route_not_lowered`
 //! before any work runs. The result is a [`crate::analysis::association::AssociationPayload`]:
 //! never an intervention effect, never a ranking of actions, with the assumptions of a
-//! description, and with every uncertainty labelled `not_measured` because no coverage record
-//! measures it.
+//! description. A fit that meets a row of the graphless support table (family `association`:
+//! the slope of a linear regression of a real outcome on one numeric predictor) states
+//! `supported`; every other fit is unsupported. The calibration label is `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -139,12 +140,13 @@ impl Study {
         }
         let refused_after = retained_refusal(program);
         let estimate = estimator.estimate(&prepared, ctx)?;
+        let supported = association_slope_row(query, &estimate);
         let scores = estimate
             .prediction
             .as_ref()
             .map(|fit| score_predictions(estimate.selection.outcome_kind, &fit.cases));
         let (identification, estimand) = association_identification(&self.query, query, &estimate);
-        let diagnostics = vec![disclosure(&estimate, refused_after.as_deref())];
+        let diagnostics = vec![disclosure(&estimate, refused_after.as_deref(), supported)];
         let replicates_ok = estimate.resampling.map(|record| record.replicates_ok);
         let draws =
             estimate.posterior.map(|record| u32::try_from(record.draws).unwrap_or(u32::MAX));
@@ -159,6 +161,7 @@ impl Study {
                 estimate,
                 scores,
                 refused_after,
+                supported,
             })),
             refutations: Vec::new(),
             diagnostics,
@@ -276,10 +279,119 @@ pub(crate) fn association_identification(
     (identification, estimand)
 }
 
-fn disclosure(estimate: &AssociationEstimate, refused_after: Option<&str>) -> Diagnostic {
+/// Whether the fit runs under a row of the graphless support table. The key and the observed
+/// support are read from the query and the published estimate alone, so the artifact check
+/// recomputes the same answer. Rows and resamples are thresholds of the row; the measured
+/// conditions the table has no field for are checked here: a linear regression of a real
+/// outcome on one numeric predictor, nothing held fixed, unweighted, no row dropped, and every
+/// requested replicate fitted, and a conjugate prior that moves the slope by at most a
+/// hundredth of its posterior standard deviation. The claim is the one interval the slope term
+/// publishes: its posterior interval, else its resampling spread, else its standard error.
+fn association_slope_row(query: &AssociationQuery, fit: &AssociationEstimate) -> bool {
+    if fit.selection.analysis.as_str() != "linear_regression"
+        || fit.selection.outcome_kind.as_str() != "continuous"
+        || query.predictors.len() != 1
+        || !query.conditioning.is_empty()
+        || query.weight.is_some()
+        || fit.rows_dropped != 0
+        || fit.terms.len() != 2
+        || fit.terms[0].label != "intercept"
+        || fit.terms[1].label.contains('=')
+        || fit.terms[1].scale != "outcome_units"
+    {
+        return false;
+    }
+    let slope = &fit.terms[1];
+    // One series is one dependent sequence; table rows are independent units.
+    let (design, assignment_unit, blocks) = match fit.selection.modality.as_str() {
+        "cross_section" => ("cross_section_linear_slope", "unit", 0),
+        "series" => ("series_linear_slope", "sequence", 1),
+        _ => return false,
+    };
+    let (method, inference_claim, band, resamples) = if let Some(record) = fit.posterior {
+        let Some(summary) = slope.posterior else {
+            return false;
+        };
+        // Measured with a prior the data swamp; a prior that moves the slope has no row.
+        if record.method == "conjugate_normal_inverse_gamma"
+            && (summary.mean - slope.estimate).abs() > 0.01 * summary.sd
+        {
+            return false;
+        }
+        (
+            record.method,
+            "slope_95_posterior_equal_tailed_interval",
+            (summary.lower, summary.upper),
+            record.draws,
+        )
+    } else if let Some(record) = fit.resampling {
+        let Some(spread) = slope.spread else {
+            return false;
+        };
+        let (method, inference_claim) = match record.unit {
+            "row" => ("bootstrap_row", "slope_95_studentized_spread"),
+            "calendar_block" => ("bootstrap_circular_block", "slope_95_fixed_b_percentile_spread"),
+            _ => return false,
+        };
+        if record.replicates_ok != record.replicates_requested
+            || slope.standard_error_method != Some(method)
+        {
+            return false;
+        }
+        (
+            method,
+            inference_claim,
+            spread,
+            usize::try_from(record.replicates_ok).unwrap_or(usize::MAX),
+        )
+    } else {
+        let (Some(error), Some(method)) = (slope.standard_error, slope.standard_error_method)
+        else {
+            return false;
+        };
+        (
+            method,
+            "slope_standard_error_95_normal_reference_interval",
+            (slope.estimate - error, slope.estimate + error),
+            0,
+        )
+    };
+    crate::support::support_if_graphless(
+        crate::support::GraphlessSupportKey {
+            family: "association",
+            design,
+            method,
+            inference_claim,
+        },
+        crate::support::GraphlessAssignmentSupport {
+            assignment_unit,
+            rows: fit.rows,
+            blocks,
+            interval_95_published: band.0.is_finite() && band.1.is_finite() && band.0 < band.1,
+            reported_intervals: 1,
+            all_reported_intervals: true,
+            interval_resamples: resamples,
+            ..Default::default()
+        },
+    )
+    .is_some()
+}
+
+fn disclosure(
+    estimate: &AssociationEstimate,
+    refused_after: Option<&str>,
+    supported: bool,
+) -> Diagnostic {
     let follows = refused_after.map_or_else(String::new, |reason| {
         format!("; it follows a causal query refused with `{reason}`, which it does not answer")
     });
+    let scope = if supported {
+        "the uncertainty of the slope term is stated under a supported graphless row of family \
+         `association`; no other quantity's uncertainty is supported"
+    } else {
+        "its standard errors, spreads and posteriors are reported with calibration status \
+         `not_measured`, and no coverage record names them"
+    };
     Diagnostic::new(
         DESCRIPTIVE_DISCLOSURE,
         DiagnosticKind::Scientific,
@@ -287,8 +399,7 @@ fn disclosure(estimate: &AssociationEstimate, refused_after: Option<&str>) -> Di
         format!(
             "a noncausal description of the observed law: the {} picked by the {} for a {} \
              outcome on {} ({}) is not the effect of changing any variable and ranks no action{follows}; \
-             its standard errors, spreads and posteriors are reported with calibration status `not_measured`, and no \
-             coverage record names them",
+             {scope}",
             estimate.selection.analysis.as_str(),
             estimate.selection.rule,
             estimate.selection.outcome_kind.as_str(),
@@ -301,5 +412,6 @@ fn disclosure(estimate: &AssociationEstimate, refused_after: Option<&str>) -> Di
         ("rows", estimate.rows.to_string()),
         ("rows_dropped", estimate.rows_dropped.to_string()),
         ("calibration", "not_measured".to_owned()),
+        ("supported", supported.to_string()),
     ])
 }

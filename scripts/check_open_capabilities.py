@@ -5,10 +5,11 @@ A release has two resting states for a capability: supported, with the evidence 
 needs, or refused because the question has no answer. Everything else is open work, whatever
 ledger records it:
 
-  route         a public route that executes without support (`execution_only`, `fitting_gap`)
-  measurement   a scenario cell whose calibration is still owed
+  route         a public route that executes without support (`execution_only`, `fitting_gap`),
+                or a `capability` route its capability records do not close
+  measurement   a scenario cell whose calibration is still owed, or a coverage record a
+                capability route's interval allocates that is not measured
   attempt       a mandatory scope row whose attempt has no recorded outcome
-  procedure     a registered whole-procedure measurement that grants no support
   capability    a capability record that is not supported and names no closed question
 
     python3 scripts/check_open_capabilities.py                 # print the open list
@@ -22,29 +23,57 @@ from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
 from _repo import load_toml
+from route_closure import (
+    CAPABILITY,
+    OPEN_STATUSES,
+    capability_route_problems,
+    mapped_groups,
+    measured_coverage_ids,
+    owed_measurements,
+    tests_by_target,
+)
 
-OPEN_ROUTE_STATUSES = ("execution_only", "fitting_gap")
+OPEN_ROUTE_STATUSES = OPEN_STATUSES
+
+
+def route_items(
+    routes: list[dict],
+    records: list[dict],
+    measured: set[str],
+    groups: dict[str, list[str]] | None = None,
+    group_tests: dict[str, list[str]] | None = None,
+) -> list[tuple[str, str, str]]:
+    """Open routes: executing without a unit, or a capability route its records do not close."""
+    by_id = {str(record["id"]): record for record in records}
+    items: list[tuple[str, str, str]] = []
+    for route in routes:
+        if route.get("status") in OPEN_ROUTE_STATUSES:
+            items.append(("route", route["id"], str(route.get("uncertainty", route["status"]))))
+        elif route.get("status") == CAPABILITY:
+            for problem in capability_route_problems(route, by_id, groups):
+                items.append(("route", route["id"], problem.split(": ", 1)[-1]))
+    for rid, owed in owed_measurements(routes, records, measured, groups, group_tests):
+        items.append(("measurement", rid, f"{owed} is allocated, not measured"))
+    return items
 
 
 def open_items(root: Path = ROOT) -> list[tuple[str, str, str]]:
     """Every open item as (kind, id, what is missing)."""
     parity = root / "parity"
-    items: list[tuple[str, str, str]] = []
-    for route in load_toml(parity / "capabilities/route_manifest.toml").get("route", []):
-        if route.get("status") in OPEN_ROUTE_STATUSES:
-            items.append(("route", route["id"], str(route.get("uncertainty", route["status"]))))
+    records = load_toml(parity / "capability_records.toml").get("record", [])
+    items = route_items(
+        load_toml(parity / "capabilities/route_manifest.toml").get("route", []),
+        records,
+        measured_coverage_ids(root),
+        mapped_groups(root),
+        tests_by_target(root),
+    )
     for row in load_toml(parity / "pending_measurement.toml").get("pending", []):
         items.append(("measurement", row["row"], f"{row['owed']} ({row['facet']})"))
     for entry in load_toml(parity / "release_scope/scope.toml").get("entry", []):
         if entry.get("status") == "pending_attempt":
             items.append(("attempt", entry["id"], str(entry.get("implementation_status", ""))))
-    registry = parity / "joint_response_calibration.toml"
-    if registry.is_file():
-        document = load_toml(registry)
-        if not document.get("grants_release_support", False):
-            for row in document.get("procedure", []):
-                items.append(("procedure", row["id"], str(document.get("status", ""))))
-    for record in load_toml(parity / "capability_records.toml").get("record", []):
+    for record in records:
         if record.get("status") != "supported" and not record.get("closed_question"):
             items.append(("capability", record["id"], str(record.get("guarantee", ""))))
     return items

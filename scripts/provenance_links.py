@@ -260,6 +260,22 @@ MODULE_RECORDS = {
     "crates/antecedent-estimate/src/temporal_design/misclassification.rs": (
         "measurement.binary_misclassification",
     ),
+    # Checked execution of the sequential contrast, the history routes and the Bayesian
+    # regime and policy values: the methods are the estimators' own records.
+    "crates/antecedent/src/analysis/execute/checked_sequential_contrast.rs": (
+        "estimate.sequential_aipw_inference",
+    ),
+    "crates/antecedent/src/analysis/execute/checked_history_match.rs": (
+        "estimate.history_match",
+        "estimate.history_outcome_model",
+    ),
+    "crates/antecedent/src/analysis/execute/checked_longitudinal_regime/bayesian_regime.rs": (
+        "estimate.policy_value.bayesian_bootstrap",
+        "estimate.longitudinal.sequential_dr_regime",
+    ),
+    "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_policy.rs": (
+        "estimate.policy_value.bayesian_bootstrap",
+    ),
 }
 
 

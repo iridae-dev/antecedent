@@ -2,9 +2,21 @@
 
 Estimate what a decision at one period did to a later outcome, or what a whole treatment path would have produced, from tables with one row per unit and period. You can analyse micro-randomized or sequentially randomized trials (the excursion effect of one decision), observational decision data (modelling the decision on measured history), static regimes on a continuous outcome, and survival under always-treat versus never-treat.
 
-`CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design` (Python) read the table. Where the experimenter recorded the assignment law, the recorded law identifies the target by design. Regime survival, the observational excursion and the observational regime contrast read observational data under declared sequential exchangeability. No route here has a row in
-the support matrix: each executes as an **unsupported** structured answer, and every interval
-and posterior carries its calibration status in `TemporalDesignEstimate.calibration`.
+`CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design` (Python) read the table. Where the experimenter recorded the assignment law, the recorded law identifies the target by design. Regime survival, the observational excursion and the observational regime contrast read observational data under declared sequential exchangeability. No route here has a cell in
+the support matrix. The sequentially randomized designs (two-arm, multi-arm, categorical,
+factorial, interference, the three dose targets and the median) and regime survival each have a
+frequentist and a Bayesian row in the
+[graphless support matrix](../graphless-support-matrix.md): a fit that meets its row's
+thresholds states `TemporalDesignEstimate.supported`. A row names the fewest independent
+sequences and decisions and the smallest assignment probability it was measured at, and a
+posterior or bootstrap row also needs the measured number of draws or replicates. A row is
+stated for the settings that were measured: the median (not another quantile level), the
+local-quadratic level with a declared curvature bound of zero, and a survival horizon of at
+most three periods. Each row's coverage was measured on one named coordinate; the simultaneous
+band, the Holm-adjusted p-values and the other coordinates are published and not covered by
+the row. Every other fit, and both observational designs, executes as an **unsupported**
+structured answer, and every interval and posterior carries its calibration status in
+`TemporalDesignEstimate.calibration`.
 
 ## Typed queries
 
@@ -25,7 +37,8 @@ result.value.temporal_design  # TemporalDesignEstimate
 `InterferenceExcursion`, `DoseExcursion` (target `SmoothedDoseCurve`, `SmoothedDoseContrast` or
 `LocalQuadraticDoseGrid`) and `RegimeSurvivalContrast` take `quantile_level=` and
 `misclassification=OutcomeMisclassification(...)` where the design reads them. The answer is
-structured (`unsupported_temporal_design_<uncertainty>`), and `load(result.export())`
+structured (`unsupported_temporal_design_<uncertainty>`, or
+`supported_temporal_design_<uncertainty>` for a fit its support row admits), and `load(result.export())`
 reads back an equal `temporal_design`. `TemporalDesignEstimate.bootstrap_standard_error` is the
 whole-procedure bootstrap standard deviation (set when the route resampled with `bootstrap=`);
 `posterior_standard_deviation` is set for a Bayesian result. A rebound table must

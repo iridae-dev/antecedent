@@ -724,6 +724,7 @@ class SequentialContrastSection:
     control_scores: list[float]
     contrast_scores: list[float]
     uncertainty: str
+    supported: bool
     fits_computed: int
     fits_reused: int
 
@@ -737,8 +738,12 @@ class HistoryMatchSection:
     pair_weights: list[float]
     unmatched_treated: list[int]
     periods_matched: int
+    serial_standard_error: float | None
+    interval_lower: float | None
+    interval_upper: float | None
     caliper: float | None
     uncertainty: str
+    supported: bool
 
 class IvBoundsIntervalSection:
     level: float
@@ -769,6 +774,7 @@ class IvBoundsSection:
     rows_dropped: int
     interval: IvBoundsIntervalSection | None
     posterior: IvBoundsPosteriorSection | None
+    supported: bool
 
 class AssociationTermSection:
     label: str

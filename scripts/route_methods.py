@@ -41,6 +41,7 @@ from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
 import provenance_links  # noqa: E402
+from route_closure import owns_method_record  # noqa: E402
 from method_evidence import (  # noqa: E402
     INTERVAL_KIND,
     INTERVAL_REF,
@@ -88,6 +89,11 @@ GRAPHLESS_CLAIM_KIND = {
     "conditional_q_pointwise_95_normal_interval": "analytic",
     "intercept_and_period_effects_pointwise_95_normal_intervals": "analytic",
     "conditional_pseudo_posterior_pointwise_95_quantiles": "posterior",
+    "pointwise_95_posterior_quantiles": "posterior",
+    "pointwise_95_percentile_interval": "design_aware_resampling",
+    "pointwise_95_fixed_b_interval": "analytic",
+    "conditional_q_pointwise_95_posterior_quantiles": "posterior",
+    "incremental_pointwise_95_posterior_quantiles": "posterior",
 }
 # Declared procedures of the executing routes that no construction fixture covers. Each is the
 # procedure the owning source implements; `CORROBORATION` names what that source must contain.
@@ -897,7 +903,7 @@ def route_methods(src: Sources) -> list[dict]:
         by_route[child["route"]].append(child)
     methods = []
     for route in src.manifest["route"]:
-        if route["status"] not in ("graphless", "execution_only", "fitting_gap"):
+        if not owns_method_record(route):
             continue
         rid = route["id"]
         owner = route["owning_module"].split(" ")[0]

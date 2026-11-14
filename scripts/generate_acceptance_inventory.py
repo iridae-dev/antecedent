@@ -388,7 +388,7 @@ def manifest_row(route: dict, ix: Index) -> dict:
         "compiler_execution": execution,
         "status": route["status"],
         "scientific_claim": "supported"
-        if route["status"] in ("supported", "graphless")
+        if route["status"] in ("supported", "graphless", "capability")
         else "unsupported",
         "support_obligations": [],
         "uncertainty": uncertainty,

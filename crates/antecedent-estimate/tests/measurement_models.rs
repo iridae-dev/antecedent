@@ -1175,9 +1175,23 @@ fn posterior_slope_intervals_equal_the_hand_rubin_and_hc0_constructions() {
     assert!((lo - (mean - z * total.sqrt())).abs() < 1e-8);
     assert!((hi - (mean + z * total.sqrt())).abs() < 1e-8);
 
-    // Outcome-free posterior: regression on the posterior means, HC0 variance.
+    // Outcome-free posterior: regression on the posterior means with the Monte Carlo error of
+    // three draws calibrated out, HC0 variance. The pooled within-unit draw variance over the
+    // draw count is the error variance of a mean; each mean is pulled toward the grand mean by
+    // lambda = 1 - error variance / variance of the means (no covariates, so the fitted value
+    // of a mean is the grand mean).
     let means: Vec<f64> = (0..6).map(|i| draws.iter().map(|d| d[i]).sum::<f64>() / 3.0).collect();
-    let (slope, variance) = ols_slope_hc0(&means, &y);
+    let within: f64 = draws
+        .iter()
+        .map(|d| d.iter().zip(&means).map(|(x, m)| (x - m) * (x - m)).sum::<f64>())
+        .sum();
+    let monte_carlo = within / (6.0 * 2.0) / 3.0;
+    let grand = means.iter().sum::<f64>() / 6.0;
+    let spread = means.iter().map(|m| (m - grand) * (m - grand)).sum::<f64>() / 6.0;
+    let lambda = 1.0 - monte_carlo / spread;
+    assert!(lambda > 0.9 && lambda < 1.0, "the calibration is a small shrinkage here: {lambda}");
+    let calibrated: Vec<f64> = means.iter().map(|m| grand + lambda * (m - grand)).collect();
+    let (slope, variance) = ols_slope_hc0(&calibrated, &y);
     let result = correct_latent_posterior_linear_effect(
         &small_posterior_model(false),
         &data_binding(),

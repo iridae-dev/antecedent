@@ -49,10 +49,22 @@
 //! declares; per-cohort support and the dropped rows and units are reported with the fit.
 //!
 //! **Uncertainty** is a whole-procedure resample ([`crate::rollout_resampling`]): whole
-//! clusters are redrawn (or reweighted by exponential multipliers), every cell, nuisance fit
-//! and aggregation is refit, and the interquartile bootstrap standard error gives pointwise
-//! normal intervals and a sup-t simultaneous band within each block (aggregates, group-time
-//! cells, pre-trend leads). The coverage of these intervals has not been measured.
+//! clusters are redrawn (or reweighted by mean-one two-point multipliers), every cell, nuisance
+//! fit and aggregation is refit, and the interquartile bootstrap standard error gives pointwise
+//! Student-t intervals and a sup-t simultaneous band within each block (aggregates, group-time
+//! cells, pre-trend leads). The t reference carries the two sources of error in the standard
+//! error, the finite number of clusters and the finite number of replicates.
+//!
+//! Two finite-sample properties of the multiplier refit are built in. The multipliers are
+//! Mammen's (1993) two-point law shifted to mean one, whose variance and third central moment
+//! are both one, as a resampled unit's count has: the variance of a refit ratio depends on the
+//! weights' third moment at relative order one over the effective sample, and exponential
+//! weights (third moment two) put twice the resample's weight on that negative term, which
+//! shortens the odds-weighted and regression-adjusted comparisons most. And a
+//! covariate-adjusted comparison's standard error is scaled by `sqrt(K / (K − p − 1))`, `K` the
+//! effective number of comparison clusters under the comparison's own weights and `p` the
+//! covariates: a reweighted refit reproduces the fitted residuals, which are short of the
+//! errors by the fitted coefficients' degrees of freedom (the HC0 to HC1 factor).
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[cfg(test)]
@@ -181,6 +193,11 @@ pub struct RolloutDidFit {
     pub dropped_units: usize,
     /// Resample record, when one was run.
     pub resampling: Option<RolloutResampleRecord>,
+    /// Largest fitted probability of belonging to the treated cohort among the comparison
+    /// units of a covariate-adjusted comparison (the logistic propensity of the cell, fitted
+    /// for this report when the outcome regression alone is declared); `None` without
+    /// covariates or when that propensity cannot be fitted.
+    pub comparison_propensity_max: Option<f64>,
 }
 
 /// What the panel observes of one treated cohort and what the fit could estimate from it.
@@ -252,6 +269,11 @@ struct Cell {
     att: f64,
     treated: usize,
     comparison: usize,
+    /// Degrees-of-freedom scale of the cell's resampled standard error; one without
+    /// covariates.
+    scale: f64,
+    /// Largest fitted propensity among the comparison units; zero when none was fitted.
+    propensity_max: f64,
 }
 
 /// Every quantity of one evaluation of the procedure.
@@ -489,18 +511,81 @@ pub fn estimate_rollout_did(
         })
         .collect();
     let mut fit = assemble(&prepared, spec, &point, dropped_cohorts);
+    fit.comparison_propensity_max = comparison_overlap(&prepared, spec, comparison, &point);
     if let Some(resampling) = resampling {
         let layout = Layout::of(&point, spec.anticipation);
         let width = layout.width();
         let draws = resample_draws(ctx, RESAMPLE_OPERATION, resampling.replicates, width, |rng| {
-            let weights = unit_weights(resampling.weighting, prepared.clusters, rng);
+            let weights = match resampling.weighting {
+                UnitWeighting::Resample => {
+                    unit_weights(resampling.weighting, prepared.clusters, rng)
+                }
+                UnitWeighting::Multiplier => moment_matched_multipliers(prepared.clusters, rng),
+            };
             evaluate(&prepared, spec, comparison, &weights)
                 .ok()
                 .map(|replicate| layout.vector(&replicate))
         })?;
-        attach(&mut fit, &layout, &layout.vector(&point), &draws, resampling);
+        // One scale for the fit: the largest over the point fit's comparisons.
+        let scale = point.cells.values().map(|cell| cell.scale).fold(1.0_f64, f64::max);
+        let support = ResampleSupport { clusters: prepared.clusters, scale };
+        attach(&mut fit, &layout, &layout.vector(&point), &draws, resampling, support);
     }
     Ok(fit)
+}
+
+/// Larger and smaller value of the mean-one two-point multiplier, `(3 ± √5) / 2`, and the
+/// probability of the larger, `(5 − √5) / 10`: Mammen's golden-section law plus one. Mean one,
+/// variance one, third central moment one.
+const MULTIPLIER_HIGH: f64 = 2.618_033_988_749_895;
+const MULTIPLIER_LOW: f64 = 0.381_966_011_250_105_1;
+const MULTIPLIER_HIGH_PROBABILITY: f64 = 0.276_393_202_250_021;
+
+/// One mean-one two-point multiplier per sampling unit; every unit keeps a positive weight.
+fn moment_matched_multipliers(units: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
+    (0..units)
+        .map(|_| {
+            if rng.next_f64() < MULTIPLIER_HIGH_PROBABILITY {
+                MULTIPLIER_HIGH
+            } else {
+                MULTIPLIER_LOW
+            }
+        })
+        .collect()
+}
+
+/// Largest fitted comparison propensity over the point fit's covariate-adjusted cells. The
+/// outcome regression fits no propensity, so its cells are read from one evaluation of the
+/// inverse-probability comparison on the same units.
+fn comparison_overlap(
+    prepared: &PreparedRollout,
+    spec: &RolloutDidSpec,
+    comparison: Comparison,
+    point: &Evaluation,
+) -> Option<f64> {
+    if prepared.covariates == 0 {
+        return None;
+    }
+    let largest = |evaluation: &Evaluation| {
+        evaluation.cells.values().map(|cell| cell.propensity_max).fold(0.0_f64, f64::max)
+    };
+    let value = if spec.nuisance == DidNuisanceMethod::OutcomeRegression {
+        let probe =
+            RolloutDidSpec { nuisance: DidNuisanceMethod::InverseProbabilityWeighting, ..*spec };
+        largest(&evaluate(prepared, &probe, comparison, &vec![1.0; prepared.clusters]).ok()?)
+    } else {
+        largest(point)
+    };
+    (value > 0.0 && value.is_finite()).then_some(value)
+}
+
+/// What a block summary needs of the fit beside its replicates.
+#[derive(Clone, Copy, Debug)]
+struct ResampleSupport {
+    /// Independent clusters.
+    clusters: usize,
+    /// Degrees-of-freedom scale of the standard errors; one without covariates.
+    scale: f64,
 }
 
 /// Semantic operation tag of the Bayesian-bootstrap posterior.
@@ -662,6 +747,54 @@ impl Layout {
     }
 }
 
+/// Equivalent degrees of freedom of an interquartile scale estimate per replicate: the
+/// asymptotic efficiency of the normal interquartile range relative to the standard deviation.
+const INTERQUARTILE_EFFICIENCY: f64 = 0.3675;
+
+/// Fewest finite replicates behind any reported standard error.
+const MIN_REPLICATES: u32 = 20;
+
+/// Critical value of a pointwise interval: the Student-t quantile whose degrees of freedom
+/// combine the two independent errors of the standard error (Satterthwaite), `clusters − 1`
+/// for a variance over independent clusters and `0.3675 × replicates` for an interquartile
+/// scale estimate over the replicates. Never below the normal quantile.
+fn pointwise_critical(clusters: usize, replicates_ok: u32) -> f64 {
+    let normal = antecedent_stats::NORMAL_Q975;
+    let sampling = clusters.saturating_sub(1) as f64;
+    let monte_carlo = INTERQUARTILE_EFFICIENCY * f64::from(replicates_ok.max(MIN_REPLICATES));
+    if sampling <= 0.0 {
+        return normal;
+    }
+    let degrees_of_freedom = 1.0 / (1.0 / sampling + 1.0 / monte_carlo);
+    let critical = antecedent_stats::student_t_ppf(0.975, degrees_of_freedom);
+    if critical.is_finite() { critical.max(normal) } else { normal }
+}
+
+/// Summarize one block of replicates around `point` with Student-t pointwise intervals; the
+/// simultaneous band keeps its sup-t critical value, raised where needed to contain them. The
+/// standard errors carry the fit's degrees-of-freedom scale.
+fn summarize_block(
+    point: &[f64],
+    draws: &[Option<Vec<f64>>],
+    requested: u32,
+    support: ResampleSupport,
+) -> ReplicateSummary {
+    let mut summary = summarize_replicates(point, draws, requested);
+    let critical = pointwise_critical(support.clusters, summary.replicates_ok);
+    let band_critical = summary.critical_value.map(|value| value.max(critical));
+    summary.critical_value = band_critical;
+    for (quantity, estimate) in summary.quantities.iter_mut().zip(point) {
+        if let Some(se) = quantity.standard_error {
+            let se = se * support.scale;
+            quantity.standard_error = Some(se);
+            quantity.interval = Some([estimate - critical * se, estimate + critical * se]);
+            quantity.band =
+                band_critical.map(|value| [estimate - value * se, estimate + value * se]);
+        }
+    }
+    summary
+}
+
 /// Attach the block summaries of a resample to the fit.
 fn attach(
     fit: &mut RolloutDidFit,
@@ -669,25 +802,30 @@ fn attach(
     point: &[f64],
     draws: &[Option<Vec<f64>>],
     resampling: RolloutResampling,
+    support: ResampleSupport,
 ) {
     let a = 1 + layout.aggregate.len();
     let c = a + layout.cells.len();
     let w = layout.width();
     // The scalar summary and its aggregation components share one band.
     let aggregate: ReplicateSummary =
-        summarize_replicates(&point[0..a], &block_draws(draws, 0..a), resampling.replicates);
+        summarize_block(&point[0..a], &block_draws(draws, 0..a), resampling.replicates, support);
     fit.overall.attach(&aggregate.quantities[0]);
     for (effect, quantity) in fit.aggregated.iter_mut().zip(&aggregate.quantities[1..]) {
         effect.attach(quantity);
     }
     let cells =
-        summarize_replicates(&point[a..c], &block_draws(draws, a..c), resampling.replicates);
+        summarize_block(&point[a..c], &block_draws(draws, a..c), resampling.replicates, support);
     for (effect, quantity) in fit.group_time.iter_mut().zip(&cells.quantities) {
         effect.attach(quantity);
     }
     if c < w {
-        let leads =
-            summarize_replicates(&point[c..w], &block_draws(draws, c..w), resampling.replicates);
+        let leads = summarize_block(
+            &point[c..w],
+            &block_draws(draws, c..w),
+            resampling.replicates,
+            support,
+        );
         for (effect, quantity) in fit.leads.iter_mut().zip(&leads.quantities) {
             effect.attach(quantity);
         }
@@ -785,6 +923,7 @@ fn assemble(
         dropped_rows: point.loss.rows.values().sum(),
         dropped_units: point.loss.units,
         resampling: None,
+        comparison_propensity_max: None,
     }
 }
 
@@ -934,6 +1073,7 @@ fn two_by_two(
     }
     let mut treated: Vec<(f64, &[f64], f64)> = Vec::new();
     let mut controls: Vec<(f64, &[f64], f64)> = Vec::new();
+    let mut control_clusters: Vec<usize> = Vec::new();
     for (unit, weight) in prepared.units.iter().zip(weights) {
         if *weight <= 0.0 {
             continue;
@@ -946,22 +1086,48 @@ fn two_by_two(
             treated.push((change, unit.covariates.as_slice(), *weight));
         } else if compares(unit, comparison, group, period, base, spec.anticipation) {
             controls.push((change, unit.covariates.as_slice(), *weight));
+            control_clusters.push(unit.cluster);
         }
     }
     if treated.is_empty() || controls.is_empty() {
         return Ok(None);
     }
     let counts = (treated.len(), controls.len());
-    let att = if prepared.covariates == 0 {
-        weighted_mean(treated.iter().map(|&(y, _, w)| (y, w)))
-            - weighted_mean(controls.iter().map(|&(y, _, w)| (y, w)))
+    let (att, scale, propensity_max) = if prepared.covariates == 0 {
+        let att = weighted_mean(treated.iter().map(|&(y, _, w)| (y, w)))
+            - weighted_mean(controls.iter().map(|&(y, _, w)| (y, w)));
+        (att, 1.0, 0.0)
     } else {
-        covariate_two_by_two(&treated, &controls, spec.nuisance)?
+        let (att, odds) = covariate_two_by_two(&treated, &controls, spec.nuisance)?;
+        let propensity_max = odds.as_deref().map_or(0.0, |odds| {
+            odds.iter().map(|odds| odds / (1.0 + odds)).fold(0.0_f64, f64::max)
+        });
+        let scale = comparison_scale(&control_clusters, odds.as_deref(), prepared.covariates);
+        (att, scale, propensity_max)
     };
     if !att.is_finite() {
         return Err("a group-time comparison overflowed finite precision");
     }
-    Ok(Some(Cell { att, treated: counts.0, comparison: counts.1 }))
+    Ok(Some(Cell { att, treated: counts.0, comparison: counts.1, scale, propensity_max }))
+}
+
+/// Degrees-of-freedom scale `sqrt(K / (K − p − 1))` of a covariate-adjusted comparison: `K` is
+/// the Kish effective number of comparison clusters under the comparison's own weights
+/// (`odds`, each unit's propensity odds, or equal weights when absent) and `p + 1` the
+/// coefficients fitted on them. The denominator is held at one or above.
+fn comparison_scale(clusters: &[usize], odds: Option<&[f64]>, covariates: usize) -> f64 {
+    let mut totals: BTreeMap<usize, f64> = BTreeMap::new();
+    for (index, cluster) in clusters.iter().enumerate() {
+        *totals.entry(*cluster).or_insert(0.0) += odds.map_or(1.0, |odds| odds[index]);
+    }
+    let sum: f64 = totals.values().sum();
+    let squares: f64 = totals.values().map(|total| total * total).sum();
+    if !(squares > 0.0 && sum.is_finite() && squares.is_finite()) {
+        return 1.0;
+    }
+    let effective = sum * sum / squares;
+    let scale = (effective / (effective - covariates as f64 - 1.0).max(1.0)).sqrt();
+    if scale.is_finite() { scale.max(1.0) } else { 1.0 }
 }
 
 fn weighted_mean(values: impl Iterator<Item = (f64, f64)>) -> f64 {
@@ -974,12 +1140,17 @@ fn weighted_mean(values: impl Iterator<Item = (f64, f64)>) -> f64 {
 }
 
 /// The covariate-adjusted 2×2: outcome regression, normalized inverse probability weighting,
-/// or the doubly robust combination of the two.
+/// or the doubly robust combination of the two. Returned with the comparison units'
+/// propensity odds when the comparison is odds-weighted.
+#[allow(
+    clippy::type_complexity,
+    reason = "the effect and the comparison odds are returned together"
+)]
 fn covariate_two_by_two(
     treated: &[(f64, &[f64], f64)],
     controls: &[(f64, &[f64], f64)],
     nuisance: DidNuisanceMethod,
-) -> Result<f64, &'static str> {
+) -> Result<(f64, Option<Vec<f64>>), &'static str> {
     let regression = if matches!(
         nuisance,
         DidNuisanceMethod::OutcomeRegression | DidNuisanceMethod::DoublyRobust
@@ -995,7 +1166,7 @@ fn covariate_two_by_two(
     };
     let predict = |x: &[f64]| -> f64 { regression.as_ref().map_or(0.0, |beta| linear(beta, x)) };
     if nuisance == DidNuisanceMethod::OutcomeRegression {
-        return Ok(weighted_mean(treated.iter().map(|&(y, x, w)| (y - predict(x), w))));
+        return Ok((weighted_mean(treated.iter().map(|&(y, x, w)| (y - predict(x), w))), None));
     }
     let mut rows: Vec<(Vec<f64>, f64, f64)> = Vec::with_capacity(treated.len() + controls.len());
     rows.extend(treated.iter().map(|&(_, x, w)| (with_intercept(x), 1.0, w)));
@@ -1006,6 +1177,7 @@ fn covariate_two_by_two(
          regression 2×2",
     )?;
     let mut odds = Vec::with_capacity(controls.len());
+    let mut unit_odds = Vec::with_capacity(controls.len());
     for &(_, x, w) in controls {
         let p = logistic(linear(&gamma, x));
         if p >= OVERLAP_CEILING {
@@ -1015,11 +1187,12 @@ fn covariate_two_by_two(
             );
         }
         odds.push(w * p / (1.0 - p));
+        unit_odds.push(p / (1.0 - p));
     }
     let treated_term = weighted_mean(treated.iter().map(|&(y, x, w)| (y - predict(x), w)));
     let control_term =
         weighted_mean(controls.iter().zip(&odds).map(|(&(y, x, _), &odds)| (y - predict(x), odds)));
-    Ok(treated_term - control_term)
+    Ok((treated_term - control_term, Some(unit_odds)))
 }
 
 /// `[1, x…]`.
@@ -1382,6 +1555,8 @@ fn saturated_cells(
                 att: beta[col],
                 treated: treated_at[&(group, t)],
                 comparison: control_at[t],
+                scale: 1.0,
+                propensity_max: 0.0,
             };
             ((group, prepared.periods[t]), cell)
         })
@@ -1449,7 +1624,16 @@ fn imputation_cells(
         .into_iter()
         .filter(|(_, (_, total, _))| *total > 0.0)
         .map(|(key, (sum, total, count))| {
-            (key, Cell { att: sum / total, treated: count, comparison: untreated_units })
+            (
+                key,
+                Cell {
+                    att: sum / total,
+                    treated: count,
+                    comparison: untreated_units,
+                    scale: 1.0,
+                    propensity_max: 0.0,
+                },
+            )
         })
         .collect();
     Ok((cells, unimputed))

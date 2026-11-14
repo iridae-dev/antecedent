@@ -1,12 +1,15 @@
 schema = 1
 owner = "X07"
 closure_kind = "delivered"
-release_calibration = "registered_not_measured_candidate_bound"
+release_calibration = "contrast_interval_coverage_measured_by_calibration_groups"
+calibration_groups = ["joint_response_calibration: joint_response_switchback_contrast_l95", "joint_response_calibration: joint_response_structural_iv_contrast_l95", "joint_response_calibration: joint_response_cohort_did_contrast_l95", "joint_response_calibration: joint_response_synthetic_rollout_contrast_l95", "joint_response_calibration: joint_response_continuous_longitudinal_contrast_l95", "joint_response_calibration: joint_response_weighted_geo_contrast_l95", "joint_response_calibration: joint_response_factorial_contrast_l95", "joint_response_calibration: joint_response_finite_longitudinal_contrast_l95", "joint_response_calibration: joint_response_local_complier_effect_l95"]
+support_unit = "parity/capability_records.toml#joint_response.interval_readings"
 proof = "JointPanelDesignProof::V1; JointDesignProof v1 and NativeJointIdentification v1"
 artifact = "Versioned full source recipe, identification, inference/prior/seed and retained law; original-data replay; independently supplied current recipe checks"
 public_rust = ["PreparedJointDesign", "PreparedNativeJointDesign"]
 public_python = ["antecedent.joint_panel.prepare_joint_design", "antecedent.joint_panel.prepare_native_joint_design"]
 source = "crates/antecedent/src/analysis/joint_panel/designs/native/tests.rs"
+calibration_source = "crates/antecedent/tests/joint_response_calibration.rs"
 
 [[design]]
 name = "factorial_multi_arm"

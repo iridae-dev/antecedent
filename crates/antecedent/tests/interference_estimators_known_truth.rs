@@ -16,10 +16,15 @@
 //!   scaling by `K / n = 3 / 7` gives treated totals 3, 6, 9 and control totals 3, 6, 3, so the
 //!   contrast is `6 - 4 = 2`, the variance is `9 / 3 + 3 / 3 = 4` and the Hajek contrast is
 //!   `7 - 3.5 = 3.5`;
-//! * cluster Bayesian bootstrap: the posterior of the same contrast is the difference of two
-//!   independent Dirichlet(1, 1, 1) weighted means of the arm totals, so its mean is 2 and its
-//!   variance is `(Sum x^2 / n - mean^2) / (n + 1)` per arm, `1.5 + 0.5 = 2`; the draws are a
-//!   Monte Carlo sample of that posterior and are held to six standard errors of the mean;
+//! * cluster Bayesian bootstrap: with fifty clusters per arm the posterior of the cluster
+//!   contrast is the difference of two independent Dirichlet(1, ..., 1) weighted means of the
+//!   arm totals, so its mean is the contrast and its variance is
+//!   `(Sum x^2 / m - mean^2) / (m + 1)` per arm; the draws are a Monte Carlo sample of that
+//!   posterior and are held to six standard errors of the mean. With the three clusters per
+//!   arm of the Neyman fixture the posterior is the Student-t reference law of few clusters,
+//!   centred at 2 with scale `sqrt(4) = 2` and Welch-Satterthwaite degrees of freedom
+//!   `4^2 / (3^2 / 2 + 1^2 / 2) = 3.2`; the draws are that law's quantile grid, so their mean
+//!   is 2 and their central 95% interval is `2 -+ 2 t(0.975; 3.2)`;
 //! * saturation: outcomes are a deterministic function `1 + 2 own + 3 f + 4 own f` of the
 //!   exposure `(own, f)`, so the Hajek contrast is the difference of that function at the two
 //!   levels, and the Horvitz-Thompson contrast is rebuilt from the exact level probabilities
@@ -424,9 +429,14 @@ fn cluster_rerandomization_moments() -> (f64, f64) {
 
 /// The realized cluster allocation against the declared design: three whole clusters treated.
 fn assert_cluster_calibration(result: &StudyResult, label: &str) {
+    assert_treated_cluster_calibration(result, 3.0, label);
+}
+
+/// The realized allocation treats the declared number of clusters.
+fn assert_treated_cluster_calibration(result: &StudyResult, treated_clusters: f64, label: &str) {
     let calibration = report(result, "interference.assignment_calibration");
-    near(calibration.original_ate, 3.0, 1e-12, label);
-    near(calibration.refuted_ate, 3.0, 1e-12, label);
+    near(calibration.original_ate, treated_clusters, 1e-12, label);
+    near(calibration.refuted_ate, treated_clusters, 1e-12, label);
     near(calibration.comparison, 1.0, 1e-12, label);
     assert!(calibration.passed, "{label}: {calibration:?}");
 }
@@ -503,23 +513,123 @@ fn cluster_neyman_matches_the_hand_counted_cluster_totals_on_every_coordinate() 
     });
 }
 
+/// Two-unit clusters of the Dirichlet-weight design: fifty per arm, the fewest at which the
+/// route publishes the Bayesian bootstrap rather than its few-cluster reference law.
+const DIRICHLET_CLUSTERS: usize = 100;
+
+/// Unit outcomes of the Dirichlet-weight design: even clusters are treated and carry a total
+/// effect of 3 per unit.
+fn dirichlet_cluster_outcomes() -> Vec<f64> {
+    (0..2 * DIRICHLET_CLUSTERS)
+        .map(|unit| {
+            let cluster = unit / 2;
+            let effect = if cluster % 2 == 0 { 3.0 } else { 0.0 };
+            2.0 + ((cluster * 7) % 11) as f64 + 0.5 * (unit % 2) as f64 + effect
+        })
+        .collect()
+}
+
+fn dirichlet_cluster_design() -> Design {
+    let ids: Vec<u32> = (0..2 * DIRICHLET_CLUSTERS).map(|unit| (unit / 2) as u32).collect();
+    let assignment: Vec<bool> = ids.iter().map(|cluster| cluster % 2 == 0).collect();
+    Design::new(
+        dirichlet_cluster_outcomes(),
+        &within_cluster_edges(&ids),
+        assignment,
+        contrast_query(
+            AssignmentDesign::ClusterRandomization {
+                clusters: Arc::from(ids),
+                treated_clusters: DIRICHLET_CLUSTERS / 2,
+            },
+            ExposureMapping::NeighborFraction,
+            (0.0, 0.0),
+            (1.0, 1.0),
+        ),
+    )
+}
+
 #[test]
 fn cluster_bayesian_bootstrap_matches_the_dirichlet_posterior_moments_on_every_coordinate() {
     on_large_stack(|| {
         const DRAWS: usize = 20_000;
-        let truth = cluster_truth();
-        let design = cluster_design();
+        let design = dirichlet_cluster_design();
+        // Scaled cluster totals of each arm from their definition: the cluster sum times K / n.
+        let outcomes = dirichlet_cluster_outcomes();
+        let scale = DIRICHLET_CLUSTERS as f64 / outcomes.len() as f64;
+        let totals = |treated: bool| -> Vec<f64> {
+            (0..DIRICHLET_CLUSTERS)
+                .filter(|cluster| (cluster % 2 == 0) == treated)
+                .map(|cluster| (outcomes[2 * cluster] + outcomes[2 * cluster + 1]) * scale)
+                .collect()
+        };
+        let (treated, control) = (totals(true), totals(false));
+        let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+        let horvitz_thompson = mean(&treated) - mean(&control);
         // Within an arm the posterior weights are Dirichlet(1, ..., 1), for which
         // Var(Sum v x) = (Sum x^2 / m - mean^2) / (m + 1) = s^2 (m - 1) / (m (m + 1)).
         let arm_variance = |totals: &[f64]| {
             sample_variance(totals) * (totals.len() - 1) as f64
                 / (totals.len() * (totals.len() + 1)) as f64
         };
-        let posterior_variance = arm_variance(&truth.treated) + arm_variance(&truth.control);
-        assert!((posterior_variance - 2.0).abs() < 1e-12);
-        let posterior_sd = posterior_variance.sqrt();
+        let posterior_sd = (arm_variance(&treated) + arm_variance(&control)).sqrt();
         // Six standard errors of the mean of the draws about the exact posterior mean.
         let mean_tolerance = 6.0 * posterior_sd / (DRAWS as f64).sqrt() + 1e-9;
+        walk(
+            &design,
+            &InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(DRAWS)),
+            EstimatorId::InterferenceClusterBayesianBootstrap,
+            horvitz_thompson,
+            mean_tolerance,
+            9_103,
+            &|result: &StudyResult, suite: RefuteSuite, label: &str| {
+                let posterior = result.posterior.as_ref().expect("a contrast posterior");
+                assert_eq!(posterior.draws.n_draws, DRAWS, "{label}");
+                let column = posterior.effect_column().unwrap();
+                near(posterior.summaries.mean[column], horvitz_thompson, mean_tolerance, label);
+                // The spread of the draws is the exact posterior sd to within 5%.
+                let sd = posterior.summaries.sd[column];
+                assert!(
+                    (sd / posterior_sd - 1.0).abs() < 0.05,
+                    "{label}: sd {sd} vs exact {posterior_sd}"
+                );
+                let found = ids(result);
+                if suite == RefuteSuite::None {
+                    assert!(found.is_empty(), "{label}: {found:?}");
+                } else {
+                    // The model-based route reports no design-based estimate, so only the
+                    // realized cluster allocation is checked.
+                    assert_eq!(found, ["interference.assignment_calibration"], "{label}");
+                    assert_treated_cluster_calibration(
+                        result,
+                        (DIRICHLET_CLUSTERS / 2) as f64,
+                        label,
+                    );
+                }
+            },
+        );
+    });
+}
+
+#[test]
+fn cluster_bayesian_bootstrap_of_few_clusters_is_the_student_reference_law_on_every_coordinate() {
+    on_large_stack(|| {
+        const DRAWS: usize = 20_000;
+        let truth = cluster_truth();
+        let design = cluster_design();
+        // Three clusters per arm is below the fifty at which the Dirichlet weights carry the
+        // spread of an arm mean, so the posterior is the Student-t reference law: centred at the
+        // design-based contrast, scale the cluster Neyman standard error sqrt(9/3 + 3/3) = 2,
+        // Welch-Satterthwaite degrees of freedom 4^2 / (3^2 / 2 + 1^2 / 2) = 3.2.
+        let arm = |totals: &[f64]| sample_variance(totals) / totals.len() as f64;
+        let (treated, control) = (arm(&truth.treated), arm(&truth.control));
+        assert!((treated + control - truth.variance).abs() < 1e-12);
+        let scale = truth.variance.sqrt();
+        let df = truth.variance.powi(2) / (treated.powi(2) / 2.0 + control.powi(2) / 2.0);
+        assert!((df - 3.2).abs() < 1e-12);
+        let half = scale * antecedent_stats::student_t_ppf(0.975, df);
+        // The draws are the law's symmetric quantile grid, so their mean is its centre; draws
+        // resampled across structures are held to six standard errors of the mean.
+        let mean_tolerance = 6.0 * scale * (df / (df - 2.0)).sqrt() / (DRAWS as f64).sqrt();
         walk(
             &design,
             &InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(DRAWS)),
@@ -537,11 +647,19 @@ fn cluster_bayesian_bootstrap_matches_the_dirichlet_posterior_moments_on_every_c
                     mean_tolerance,
                     label,
                 );
-                // The spread of the draws is the exact posterior sd to within 5%.
-                let sd = posterior.summaries.sd[column];
-                assert!(
-                    (sd / posterior_sd - 1.0).abs() < 0.05,
-                    "{label}: sd {sd} vs exact {posterior_sd}"
+                // The central 95% interval is the design-based contrast plus and minus the
+                // Student-t critical value times the standard error, to within 1%.
+                near(
+                    posterior.summaries.q025[column],
+                    truth.horvitz_thompson - half,
+                    0.01 * half,
+                    label,
+                );
+                near(
+                    posterior.summaries.q975[column],
+                    truth.horvitz_thompson + half,
+                    0.01 * half,
+                    label,
                 );
                 let found = ids(result);
                 if suite == RefuteSuite::None {

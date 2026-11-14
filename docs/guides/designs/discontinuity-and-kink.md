@@ -49,9 +49,28 @@ The route refuses singular local fits, too few positive-kernel observations on e
 | `bandwidth_rule="mse_optimal"` | Selects a plug-in MSE-optimal window, capped at the declared `bandwidth`. It is not the full rdrobust selector. |
 | `density_test=True` | Runs a McCrary-style density test of the running variable at the cutoff. A diagnostic only. |
 | `balance_covariates=(...)` | Reports each covariate's jump at the cutoff. A diagnostic only. |
-| `temporal_replicates=B` | Declares that the running variable is calendar time. The interval comes from a within-side moving-block bootstrap that refits the whole ratio. |
+| `temporal_replicates=B` | Declares that the running variable is calendar time. Time is held fixed and the errors are redrawn: the errors about a cubic trend on each side are prewhitened by an AR(1) fit, their innovations are resampled in moving blocks within each side and recolored through the cutoff, and the whole ratio is refit per replicate. The interval is the estimate plus or minus a Student-t quantile times the interquartile bootstrap standard error. |
 
-Any of these options returns the answer on `result.quasi_rollout`, outside the support matrix rows above: its interval is marked unsupported and carries its calibration status (`result.inspect().calibration`). Under Bayesian inference the local ratio reads a selected window, and a calendar-time running variable uses a within-side block Bayesian bootstrap: flat-Dirichlet weights on consecutive time blocks, with the whole ratio refit per draw.
+Any of these options returns the answer on `result.quasi_rollout`. Under Bayesian inference the local ratio reads a selected window, and a calendar-time running variable uses a within-side block Bayesian bootstrap of the same prewhitened errors: flat-Dirichlet weights on consecutive blocks of innovations, each prewhitening coefficient drawn from its posterior, and the whole ratio refit per draw.
+
+### When these results are supported
+
+`result.quasi_rollout.supported` is true only when the fit meets its own row in the [graphless support matrix](../../graphless-support-matrix.md); a Bayesian fixed-bandwidth posterior states its row in the `estimate.design_posterior.graphless_support` diagnostic instead. Every other fit runs, publishes its interval and states no support. The rows cover what was measured:
+
+| Design | Supported when |
+| --- | --- |
+| Fuzzy RD or kink, `bandwidth_rule="mse_optimal"` | At least 600 rows, at least 114 (jump) or 99 (kink) window rows on each side, and a first stage at least 4.8 (jump) or 4.46 (kink) of its standard errors at the selected bandwidth. |
+| Fuzzy RD at the declared bandwidth with diagnostics | At least 150 window rows on each side and a first stage at least 5.5 of its standard errors. The kink at a declared bandwidth with diagnostics has no row. |
+| Calendar time, declared bandwidth | At least 149 periods on each side and 199 replicates (500 draws under Bayesian inference). The jump's row is a sharp step: a treatment that changes without error at the cutoff. The kink's row needs a first stage at least 16.6 of its standard errors. |
+| Bayesian fuzzy RD or kink, declared bandwidth | `prior_scale=100`, at least 80 window rows on each side, at least 2,000 draws, and a denominator at least 6.33 (jump) or 8.77 (kink) posterior standard deviations from zero. |
+
+Three limits come with these rows.
+
+- **First-stage strength.** The route refuses a first stage whose 95% interval includes zero, but a first stage only just past that screen gives a ratio interval that under-covers. Support therefore needs the stronger first stage shown above; the statistic compared is the absolute first-stage estimate over its standard error (HC0 for the frequentist and calendar-time fits, the posterior mean over the posterior standard deviation for the Bayesian fixed-bandwidth posterior).
+- **Serial dependence in calendar time.** The errors are modelled as a first-order autoregression. This is a premise you declare, not something the route checks: the rows were measured with AR(1) errors at coefficient 0.7, and a strongly persistent higher-order error (an AR(2) at 0.5 and 0.3) under-covers.
+- **The Bayesian fixed-bandwidth posterior** was measured on data that follow its own model: Gaussian responses that are linear on each side of the cutoff inside the window, with coefficient prior scale 100. Curvature inside the window, another prior scale or a selected bandwidth is outside the row.
+
+The interval at a selected bandwidth does not account for choosing the bandwidth on the same data. Each interval carries its calibration status (`result.inspect().calibration`).
 
 ## Assumptions you declare
 

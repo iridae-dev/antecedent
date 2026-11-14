@@ -34,6 +34,20 @@ pub const JOINT_HORIZON_REPLICATES: &str = "response.joint_horizon.replicates";
 /// of the horizon it reads. Its detail names the resampling that drew the replicates.
 pub const JOINT_HORIZON_LAYOUT: &str = "response.joint_horizon.layout";
 
+/// Support-diagnostic id carrying the dispersion readings behind the joint replicates:
+/// `[block length, resampled rows, replicate dispersion factor, circular fixed-b scale,
+/// block-weight draws (1) or bootstrap counts (0), effective blocks, kernel-bias factor of each
+/// cell …]`. The effective block count is `rows² / Σ block sizes²` over the consecutive blocks
+/// that carry one weight each. A composition across cells reads these to replace the per-cell
+/// kernel-bias factors by the factor of its own influence.
+pub const JOINT_HORIZON_DISPERSION: &str = "response.joint_horizon.dispersion";
+
+/// Support-diagnostic id carrying each cell's level influence over the series times every
+/// horizon fits, cell-major: `values[c * rows + t]` is cell `c` at the `t`-th such time, `rows`
+/// the resampled rows of [`JOINT_HORIZON_DISPERSION`]. Published with the joint replicates of a
+/// series without missing time points.
+pub const JOINT_HORIZON_INFLUENCE: &str = "response.joint_horizon.influence";
+
 /// Index of the treatment column in the compiled design (col0 = intercept, col1 = treatment).
 /// Verified against `CompiledDesign::linear_adjustment`.
 pub(super) const TREATMENT_COL: usize = 1;
@@ -115,6 +129,8 @@ pub(super) struct SurfaceCells {
     pub(super) band: Option<CellBand>,
     /// Index of the horizon each cell reads.
     pub(super) cell_horizon: Vec<usize>,
+    /// What each cell evaluates at its horizon.
+    pub(super) evals: Vec<CellEval>,
 }
 
 /// Pointwise band and the joint replicate draws behind it.
@@ -207,7 +223,12 @@ impl FittedSurface {
                 },
             }
         });
-        SurfaceCells { mean, band, cell_horizon: cells.iter().map(|&(h, _)| h).collect() }
+        SurfaceCells {
+            mean,
+            band,
+            cell_horizon: cells.iter().map(|&(h, _)| h).collect(),
+            evals: cells.iter().map(|&(_, eval)| eval).collect(),
+        }
     }
 
     /// Record how the band was built and publish (or withhold) the simultaneous band.
@@ -302,6 +323,57 @@ impl FittedSurface {
             ),
             scope: DiagnosticScope::Global,
         });
+        let rows = self.rows();
+        let block = self.block.length.clamp(1, rows.max(1));
+        let (full, rest) = (rows / block, rows % block);
+        let squares = (full * block * block + rest * rest) as f64;
+        let effective_blocks = if squares > 0.0 { (rows * rows) as f64 / squares } else { 0.0 };
+        let mut dispersion = vec![
+            self.block.length as f64,
+            rows as f64,
+            self.inflation(),
+            crate::temporal_block::circular_fixed_b_scale(self.block.length, rows),
+            f64::from(u8::from(self.weighted)),
+            effective_blocks,
+        ];
+        dispersion.extend_from_slice(&band.dispersion.kernel_factors);
+        support.diagnostics.push(SupportDiagnostic {
+            id: Arc::from(JOINT_HORIZON_DISPERSION),
+            values: Arc::from(dispersion),
+            detail: Arc::from(
+                "[block length, resampled rows, replicate dispersion factor, circular fixed-b \
+                 scale, 1 for block-weight draws and 0 for bootstrap counts, effective blocks \
+                 rows²/Σ block sizes², kernel-bias factor of each cell]",
+            ),
+            scope: DiagnosticScope::Global,
+        });
+        if let Some(influence) = self.cell_influence_window(cells, rows) {
+            support.diagnostics.push(SupportDiagnostic {
+                id: Arc::from(JOINT_HORIZON_INFLUENCE),
+                values: Arc::from(influence),
+                detail: Arc::from(
+                    "cell-major level influence of every cell over the series times every \
+                     horizon fits (the resampled rows); a composition across cells reads the \
+                     kernel-bias factor of its own influence from these",
+                ),
+                scope: DiagnosticScope::Global,
+            });
+        }
+    }
+
+    /// Each cell's level influence over the last `rows` series times (the window every horizon
+    /// fits), cell-major. `None` on a series with missing time points, whose rows are not
+    /// consecutive, or when a horizon's influence is unavailable.
+    fn cell_influence_window(&self, cells: &SurfaceCells, rows: usize) -> Option<Vec<f64>> {
+        if rows == 0 || self.horizons.iter().any(|fitted| fitted.selection.is_some()) {
+            return None;
+        }
+        let mut values = Vec::with_capacity(cells.evals.len() * rows);
+        for (&h, &eval) in cells.cell_horizon.iter().zip(&cells.evals) {
+            let influence = self.horizons[h].level_influence(eval)?;
+            values.extend_from_slice(influence.get(influence.len().checked_sub(rows)?..)?);
+        }
+        Some(values)
     }
 }
 

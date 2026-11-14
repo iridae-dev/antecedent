@@ -1449,6 +1449,11 @@ class joint_law_propagation:  # noqa: N801
     TRANSPORTED_DEPENDENCE_REQUIRED: Final = "joint_law_propagation.transported_dependence_required"
 
 
+class joint_response:  # noqa: N801
+    READING_LAW_UNAVAILABLE: Final = "joint_response.reading_law_unavailable"
+    READING_LEVEL_INVALID: Final = "joint_response.reading_level_invalid"
+
+
 class joint_sensitivity:  # noqa: N801
     BOUNDS_EXCEEDED: Final = "joint_sensitivity.bounds_exceeded"
     BUDGET: Final = "joint_sensitivity.budget"
@@ -4559,6 +4564,8 @@ ALL: Final[tuple[str, ...]] = (
     "joint_law_propagation.structure_not_verified",
     "joint_law_propagation.transport_pieces_incomplete",
     "joint_law_propagation.transported_dependence_required",
+    "joint_response.reading_law_unavailable",
+    "joint_response.reading_level_invalid",
     "joint_sensitivity.bounds_exceeded",
     "joint_sensitivity.budget",
     "joint_sensitivity.budget_coupling",
@@ -7294,6 +7301,8 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "joint_law_propagation.structure_not_verified": ("route_not_supported",),
     "joint_law_propagation.transport_pieces_incomplete": ("joint_law_required",),
     "joint_law_propagation.transported_dependence_required": ("joint_law_required",),
+    "joint_response.reading_law_unavailable": ("uncertainty_representation_insufficient",),
+    "joint_response.reading_level_invalid": ("invalid_argument",),
     "joint_sensitivity.bounds_exceeded": ("route_not_supported",),
     "joint_sensitivity.budget": ("transport_budget_cancel",),
     "joint_sensitivity.budget_coupling": ("route_not_supported",),

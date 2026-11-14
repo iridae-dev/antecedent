@@ -7,7 +7,8 @@
 //! are randomized. The interval partition and the gamma prior are declared on the study's
 //! Bayesian configuration and never selected from the data; the prior supplies no identifying
 //! premise. Competing causes, known censoring weights and a bootstrap request are refused
-//! with the next attempt named. The result is an unsupported, uncalibrated posterior.
+//! with the next attempt named. A fit that matches its graphless support row states it in a
+//! coded diagnostic; every other fit is unsupported. Calibration is `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
@@ -181,6 +182,36 @@ impl CheckedSurvivalOperation {
             Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::BayesianPiecewiseSurvival),
         )?;
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
+        // Without delayed entry, both scalar intervals of the two-arm posterior state the
+        // support row when the observed arms meet it.
+        if self.query.delayed_entry.is_none() {
+            let treated = columns.treated.iter().filter(|arm| **arm).count();
+            let published = row
+                .lower
+                .iter()
+                .zip(&row.upper)
+                .filter(|(lower, upper)| lower.is_finite() && upper.is_finite() && lower <= upper)
+                .count();
+            super::super::bayesian_quasi_common::state_design_posterior_row(
+                &mut result,
+                crate::support::GraphlessSupportKey {
+                    family: "survival",
+                    design: "two_arm_individual_randomized",
+                    method: "piecewise_exponential_gamma_posterior",
+                    inference_claim: "rmst_and_horizon_survival_pointwise_95_posterior_quantiles",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit",
+                    treated,
+                    control: columns.treated.len() - treated,
+                    rows: columns.treated.len(),
+                    interval_95_published: published == row.coordinates.len(),
+                    reported_intervals: published,
+                    all_reported_intervals: published == row.coordinates.len(),
+                    ..Default::default()
+                },
+            );
+        }
         result.payload = crate::result::ResultPayload::PosteriorRow(row);
         Ok(result)
     }

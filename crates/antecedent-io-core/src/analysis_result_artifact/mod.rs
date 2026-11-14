@@ -969,7 +969,8 @@ impl PosteriorRowWire {
 /// Retained observational two-decision regime contrast and its uncertainty.
 ///
 /// The cross-fit scores are kept so a loader recomputes the means, the standard error and the
-/// interval. The result is unsupported and its repeated-sampling calibration is `not_measured`.
+/// interval, and the support row the section claims. The runtime calibration slot is
+/// `not_measured`.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SequentialContrastWire {
@@ -1007,7 +1008,8 @@ pub struct SequentialContrastWire {
     pub uncertainty: String,
     /// Always `not_measured`.
     pub calibration: String,
-    /// Always `false`.
+    /// The normal interval meets the sequential-contrast support row; a loader recomputes it
+    /// from the query's regimes and folds and the retained scores.
     pub supported: bool,
 }
 
@@ -1024,7 +1026,7 @@ const fn is_zero_lag(lag: &usize) -> bool {
 /// The pairs and the within-arm variance estimates of their units are kept so a loader recomputes
 /// the contrast, the weight total and the Abadie-Imbens standard error. The periods of the pairs
 /// are kept so a loader recomputes the Newey-West standard error and interval over the matched
-/// periods too. The result is unsupported.
+/// periods too, and the support row the section claims.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryMatchWire {
@@ -1063,7 +1065,7 @@ pub struct HistoryMatchWire {
     /// hold a match.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub serial_standard_error: Option<f64>,
-    /// Lower endpoint of the 95% normal interval around the contrast.
+    /// Lower endpoint of the 95% fixed-b interval around the contrast.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval_lower: Option<f64>,
     /// Upper endpoint of that interval.
@@ -1079,7 +1081,8 @@ pub struct HistoryMatchWire {
     pub uncertainty: String,
     /// Always `not_measured`.
     pub calibration: String,
-    /// Always `false`.
+    /// The period interval meets the history-match support row; a loader recomputes it from
+    /// the query and the retained pairs and periods.
     pub supported: bool,
 }
 
@@ -1303,12 +1306,13 @@ pub struct AnalysisResultWire {
     /// Within-period history-matched contrast, unsupported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub history_match: Option<HistoryMatchWire>,
-    /// Sharp bounds on the average effect under a binary instrument, unsupported. Absent on
-    /// every other result, so their bodies and digests are unchanged.
+    /// Sharp bounds on the average effect under a binary instrument; supported only when the
+    /// section meets its graphless row. Absent on every other result, so their bodies and
+    /// digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iv_bounds: Option<IvBoundsWire>,
-    /// Noncausal association of the observed data, unsupported. Absent on every other result,
-    /// so their bodies and digests are unchanged.
+    /// Noncausal association of the observed data; supported only when the section meets its
+    /// graphless row. Absent on every other result, so their bodies and digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub association: Option<AssociationWire>,
     /// Rollout design effects with whole-procedure uncertainty, unsupported. Absent on every
@@ -1749,7 +1753,10 @@ pub use iv_bounds::{
     IV_BOUNDS_BAYESIAN_METHOD, IV_BOUNDS_FREQUENTIST_METHOD, IV_BOUNDS_POINT_UNCERTAINTY,
     IvBoundsIntervalWire, IvBoundsPosteriorWire, IvBoundsWire,
 };
-pub use quasi_rollout::{DesignEffectWire, QuasiRolloutWire, rederive_rollout_summary};
+pub use quasi_rollout::{
+    DesignEffectWire, DidRolloutRowSpec, QuasiRolloutWire, did_rollout_row_admits,
+    local_design_row_admits, rederive_rollout_summary, synthetic_rollout_row_admits,
+};
 pub use temporal_design::TemporalDesignWire;
 
 pub(crate) use validate::validate_interventional_distribution;

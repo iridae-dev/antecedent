@@ -264,3 +264,98 @@ fn temporal_blocks_keep_order_of_retained_rows_on_each_side() {
     assert_eq!(&left[1..3], &[2, 4]);
     assert_eq!(right.chunks(2).next().unwrap(), &[1, 3]);
 }
+
+/// Reduced form and first stage as the estimator weights give them, for the rows of `sample`.
+fn weighted_changes(sample: &Sample, bandwidth: f64, kink: bool) -> (f64, f64) {
+    let (left, right) = super::temporal_side_rows(&sample.running, 0.0, bandwidth);
+    let (mut reduced_form, mut first_stage) = (0.0, 0.0);
+    for (rows, sign) in [(&left, -1.0), (&right, 1.0)] {
+        let distances: Vec<f64> = rows.iter().map(|&row| sample.running[row] / bandwidth).collect();
+        let weights = super::estimator_weights(&distances, bandwidth, kink).unwrap();
+        for (&row, weight) in rows.iter().zip(&weights) {
+            reduced_form += sign * weight * sample.outcome[row];
+            first_stage += sign * weight * sample.treatment[row];
+        }
+    }
+    (reduced_form, first_stage)
+}
+
+#[test]
+fn the_estimator_weights_reproduce_the_fitted_jump_and_slope_change() {
+    let jump = fuzzy(47, 2000);
+    let mut rng = FixtureRng::new(48);
+    let mut kink = Sample {
+        running: Vec::new(),
+        outcome: Vec::new(),
+        treatment: Vec::new(),
+        covariate: Vec::new(),
+    };
+    for _ in 0..4000 {
+        let r = 2.0 * rng.uniform() - 1.0;
+        let t = 0.5 * r + r.max(0.0) + 0.02 * normal(&mut rng);
+        kink.running.push(r);
+        kink.treatment.push(t);
+        kink.outcome.push(2.0 * t + 0.3 * r * r + 0.2 * normal(&mut rng));
+    }
+    for (sample, is_kink) in [(&jump, false), (&kink, true)] {
+        let fit = crate::local_polynomial_ratio::fit_local_polynomial_ratio(
+            &sample.running,
+            &sample.outcome,
+            &sample.treatment,
+            0.0,
+            0.8,
+            is_kink,
+        )
+        .unwrap();
+        let (reduced_form, first_stage) = weighted_changes(sample, 0.8, is_kink);
+        assert!(
+            (reduced_form - fit.reduced_form).abs() < 1e-6 * (1.0 + fit.reduced_form.abs()),
+            "{reduced_form} vs {}",
+            fit.reduced_form
+        );
+        assert!(
+            (first_stage - fit.first_stage).abs() < 1e-6 * (1.0 + fit.first_stage.abs()),
+            "{first_stage} vs {}",
+            fit.first_stage
+        );
+    }
+}
+
+#[test]
+fn the_trend_correction_recovers_the_autocorrelation_of_a_persistent_error() {
+    // White noise leaves the residual maker itself: its trace is the residual degrees of
+    // freedom.
+    let distances: Vec<f64> = (0..200).map(|i| f64::from(i) / 200.0).collect();
+    let trend = |distances: &[f64]| super::SideTrend {
+        inverse: super::inverse_gram(distances, super::TREND_ORDER, |_| 1.0).unwrap(),
+        basis: distances.iter().map(|&d| super::monomials(d, super::TREND_ORDER)).collect(),
+    };
+    let (_, square) = trend(&distances).residual_moments(0.0);
+    assert!((square - 196.0).abs() < 1e-6, "{square}");
+    // AR(1) errors at 0.7 about a cubic on each side: the raw residual autocorrelation is
+    // biased down, the corrected coefficient is not.
+    let mut rng = FixtureRng::new(49);
+    let (mut raw, mut corrected) = (0.0, 0.0);
+    let replicates = 200;
+    for _ in 0..replicates {
+        let mut error = normal(&mut rng);
+        let mut series = [Vec::new(), Vec::new()];
+        for side in &mut series {
+            for &d in &distances {
+                error = 0.7 * error + 0.51_f64.sqrt() * normal(&mut rng);
+                side.push(1.0 + d - 2.0 * d.powi(3) + error);
+            }
+        }
+        let trends = [trend(&distances), trend(&distances)];
+        let residuals = [trends[0].residuals(&series[0]), trends[1].residuals(&series[1])];
+        let cross: f64 =
+            residuals.iter().map(|r| r.windows(2).map(|p| p[0] * p[1]).sum::<f64>()).sum();
+        let square: f64 = residuals.iter().flatten().map(|r| r * r).sum();
+        raw += cross / square / f64::from(replicates);
+        let fitted =
+            super::error_series(&trends, [series[0].as_slice(), series[1].as_slice()]).unwrap();
+        corrected += fitted.coefficient / f64::from(replicates);
+    }
+    assert!(raw < corrected - 0.015, "{raw} vs {corrected}");
+    assert!((corrected - 0.7).abs() < 0.02, "{corrected}");
+}

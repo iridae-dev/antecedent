@@ -10,7 +10,9 @@
 //! Bayesian-bootstrap posterior of the same functional. Regime survival reads observational
 //! trajectories: its frequentist interval refits the treatment and censoring models in every
 //! subject-bootstrap replicate, and its posterior is the joint-likelihood parametric g-formula.
-//! Every route is unsupported and its calibration is `not_measured`.
+//! A fit whose design, method and observed support match a row of the graphless support table
+//! states `supported`; every other fit is unsupported. Every section's calibration is
+//! `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
@@ -247,7 +249,24 @@ impl CheckedTemporalDesignOperation {
         let started = std::time::Instant::now();
         let (output, extras) = self.fit_with_extras(data, ctx)?;
         let estimator_id = estimator_for(&self.query, self.extra.bayesian.is_some());
-        let (payload, posterior) = self.assemble(output)?;
+        let (mut payload, posterior) = self.assemble(output)?;
+        payload.supported = self.excursion_support_row(&payload).is_some();
+        // A supported fit names its row through the section; only an unsupported one is flagged.
+        let unsupported = if payload.supported {
+            Vec::new()
+        } else {
+            vec![Diagnostic::new(
+                "estimate.temporal_design.unsupported",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "route with calibration status `not_measured` ({} design, {}): the identifying premises \
+                     are declared and not checked, and no repeated-sampling calibration of the \
+                     reported uncertainty has been measured",
+                    payload.design, payload.uncertainty
+                ),
+            )]
+        };
         let n_draws = posterior
             .as_ref()
             .map(|posterior| u32::try_from(posterior.draws.n_draws).unwrap_or(u32::MAX));
@@ -270,17 +289,7 @@ impl CheckedTemporalDesignOperation {
             )
             .identify_cached(true)
             .wall_time_ns(super::elapsed_ns(started))
-            .extra_diagnostics(vec![Diagnostic::new(
-                "estimate.temporal_design.unsupported",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "route with calibration status `not_measured` ({} design, {}): the identifying premises \
-                     are declared and not checked, and no repeated-sampling calibration of the \
-                     reported uncertainty has been measured",
-                    payload.design, payload.uncertainty
-                ),
-            )])
+            .extra_diagnostics(unsupported)
             .extras(IdentifiedExecuteExtras {
                 posterior,
                 n_draws,
@@ -306,6 +315,59 @@ impl CheckedTemporalDesignOperation {
         result.extras.missing_data = extras.missing;
         result.payload = crate::result::ResultPayload::TemporalDesign(Box::new(payload));
         Ok(result)
+    }
+
+    /// The graphless support row this fit runs under, when its exact key and observed support
+    /// match one. The key and the observed support are read from the published section and the
+    /// query alone, so the artifact check recomputes the same answer.
+    fn excursion_support_row(
+        &self,
+        fit: &crate::result::TemporalDesignEstimate,
+    ) -> Option<crate::support::CellStatus> {
+        let design = excursion_row_design(&self.query)?;
+        let inference_claim = excursion_row_claim(design, fit)?;
+        // A weighted or misclassification-corrected arm functional is no longer the plain mean,
+        // and a missing-outcome policy that dropped a pair leaves the counts short of the rows.
+        // The corrected two-arm mean under a measured validation sample keeps a key: its method
+        // names the correction, so it derives a row of its own.
+        if (arm_mean_design(&self.query)
+            && &*fit.functional != "mean"
+            && !validated_correction_row(&self.query, &fit.functional))
+            || fit.pairs.checked_add(fit.unpaired) != u64::try_from(self.query.rows()).ok()
+        {
+            return None;
+        }
+        let published = fit
+            .lower
+            .iter()
+            .zip(fit.upper.iter())
+            .filter(|(lower, upper)| lower.is_finite() && upper.is_finite() && lower < upper)
+            .count();
+        let all_published = published > 0 && published == fit.coordinates.len();
+        let (declared_probability, local_rows) = excursion_row_positivity(&self.query, fit.pairs);
+        crate::support::support_if_graphless(
+            crate::support::GraphlessSupportKey {
+                family: "temporal_design",
+                design,
+                method: fit.uncertainty.as_ref(),
+                inference_claim,
+            },
+            crate::support::GraphlessAssignmentSupport {
+                assignment_unit: "sequence",
+                rows: usize::try_from(fit.pairs).unwrap_or(usize::MAX),
+                blocks: usize::try_from(fit.clusters).unwrap_or(usize::MAX),
+                min_probability: if fit.minimum_probability.is_finite() {
+                    fit.minimum_probability
+                } else {
+                    declared_probability
+                },
+                min_local_rows: local_rows,
+                interval_95_published: all_published,
+                reported_intervals: published,
+                all_reported_intervals: all_published,
+                ..Default::default()
+            },
+        )
     }
 
     /// Run the design's procedure, with what an arm design adds to the result.
@@ -918,6 +980,136 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         CheckedTemporalDesignOperation::checked(self, data, physical)?.execute(data, ctx)
+    }
+}
+
+/// Fewest posterior draws a posterior row is stated for: the count its measured intervals
+/// were formed from.
+const EXCURSION_ROW_DRAWS: u64 = 1000;
+/// The same floor for the dose grid and regime survival, which were measured at fewer draws.
+const EXCURSION_ROW_REFIT_DRAWS: u64 = 500;
+/// Completed bootstrap replicates behind the measured percentile intervals.
+const EXCURSION_ROW_REPLICATES: u64 = 99;
+/// Longest regime-survival horizon the measured rows are stated for.
+const EXCURSION_ROW_HORIZON: u32 = 3;
+/// Fewest validation units per true-outcome margin a misclassification-corrected row is stated
+/// for: the smallest validation sample its measured intervals were formed from.
+const EXCURSION_ROW_VALIDATION: u64 = 100;
+/// Smallest validated Youden index of such a row: the low end of what the measured design
+/// realizes (sensitivity 0.9, specificity 0.85, 100 units per margin).
+const EXCURSION_ROW_YOUDEN: f64 = 0.6;
+
+/// Whether the fit is the misclassification-corrected two-arm mean inside the measured
+/// validation conditions: both validation margins hold at least [`EXCURSION_ROW_VALIDATION`]
+/// units, the validated Youden index is at least [`EXCURSION_ROW_YOUDEN`], and the functional
+/// carries the correction and nothing else (a sampling-weighted fit names its weights first).
+#[allow(clippy::cast_precision_loss, reason = "validation counts are far below 2^53")]
+fn validated_correction_row(query: &TemporalDesignQuery, functional: &str) -> bool {
+    let Some(counts) = query.outcome_misclassification else {
+        return false;
+    };
+    let positives = counts.true_positive.saturating_add(counts.false_negative);
+    let negatives = counts.true_negative.saturating_add(counts.false_positive);
+    if !matches!(query.assignment, TemporalAssignment::TwoArm { .. })
+        || !matches!(query.functional, TemporalDesignFunctional::Mean)
+        || positives < EXCURSION_ROW_VALIDATION
+        || negatives < EXCURSION_ROW_VALIDATION
+    {
+        return false;
+    }
+    let youden = counts.true_positive as f64 / positives as f64
+        + counts.true_negative as f64 / negatives as f64
+        - 1.0;
+    let corrected = "mean; outcome misclassification corrected";
+    youden >= EXCURSION_ROW_YOUDEN
+        && functional.strip_prefix(corrected).is_some_and(|rest| {
+            rest.is_empty() || (rest.starts_with(" (Youden index ") && rest.ends_with(')'))
+        })
+}
+
+/// Design name of the graphless support key: the design of the route manifest, which splits
+/// the quantile functional and the dose targets that [`TemporalDesignQuery::design_name`]
+/// groups. An observational design has no key, and neither has a setting outside the measured
+/// ones: a quantile level other than the median, a local-quadratic derivative or a positive
+/// curvature bound, or a survival horizon past [`EXCURSION_ROW_HORIZON`].
+#[allow(
+    clippy::float_cmp,
+    reason = "the measured settings are the exact declared values 0.5 and 0.0"
+)]
+fn excursion_row_design(query: &TemporalDesignQuery) -> Option<&'static str> {
+    if let TemporalDesignFunctional::Quantile { level } = query.functional {
+        let two_arm = matches!(query.assignment, TemporalAssignment::TwoArm { .. });
+        return (two_arm && level == 0.5).then_some("quantile");
+    }
+    match &query.assignment {
+        TemporalAssignment::TwoArm { .. } => Some("two_arm"),
+        TemporalAssignment::MultiArm { categorical: true, .. } => Some("categorical"),
+        TemporalAssignment::MultiArm { .. } => Some("multi_arm"),
+        TemporalAssignment::Factorial { .. } => Some("factorial"),
+        TemporalAssignment::Interference { .. } => Some("interference"),
+        TemporalAssignment::Dose { target, .. } => match target {
+            TemporalDoseTarget::SmoothedContrast { .. } => Some("continuous_dose"),
+            TemporalDoseTarget::SmoothedCurve { .. } => Some("smoothed_dose"),
+            TemporalDoseTarget::LocalQuadratic { derivative, curvature_bound, .. } => {
+                (!*derivative && *curvature_bound == Some(0.0)).then_some("dose_grid")
+            }
+        },
+        TemporalAssignment::RegimeSurvival { horizon, .. } => {
+            (*horizon <= EXCURSION_ROW_HORIZON).then_some("regime_survival")
+        }
+        TemporalAssignment::ObservationalExcursion { .. }
+        | TemporalAssignment::ObservationalRegime { .. } => None,
+    }
+}
+
+/// Inference claim of the graphless support key, from the kind of pointwise 95% interval the
+/// section publishes: posterior quantiles, bootstrap percentiles or a normal interval. A
+/// posterior with fewer draws, or a bootstrap with fewer completed replicates, than the
+/// measured intervals were formed from has no key.
+fn excursion_row_claim(
+    design: &str,
+    fit: &crate::result::TemporalDesignEstimate,
+) -> Option<&'static str> {
+    if let Some(draws) = fit.draws {
+        let floor = if matches!(design, "dose_grid" | "regime_survival") {
+            EXCURSION_ROW_REFIT_DRAWS
+        } else {
+            EXCURSION_ROW_DRAWS
+        };
+        return (draws >= floor).then_some("pointwise_95_posterior_quantiles");
+    }
+    if let Some((completed, _)) = fit.replicates {
+        return (completed >= EXCURSION_ROW_REPLICATES)
+            .then_some("pointwise_95_percentile_interval");
+    }
+    Some("pointwise_95_normal_interval")
+}
+
+/// Positivity the section does not carry, read from the query: the smallest realized arm
+/// probability of a two-arm design (the quantile section reports none), and for a dose design
+/// the expected number of analysed decisions within one bandwidth of dose at the smallest
+/// recorded density (`pairs * density * bandwidth`, rounded down).
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    reason = "a saturating count of expected decisions"
+)]
+fn excursion_row_positivity(query: &TemporalDesignQuery, pairs: u64) -> (f64, usize) {
+    match &query.assignment {
+        TemporalAssignment::TwoArm { assignment, probability } => {
+            let realized = assignment
+                .iter()
+                .zip(probability.iter())
+                .map(|(treated, p)| if *treated { *p } else { 1.0 - *p })
+                .fold(1.0_f64, f64::min);
+            (realized, 0)
+        }
+        TemporalAssignment::Dose { density, bandwidth, .. } => {
+            let thinnest = density.iter().copied().fold(f64::INFINITY, f64::min);
+            (0.0, (pairs as f64 * thinnest * *bandwidth).floor() as usize)
+        }
+        _ => (0.0, 0),
     }
 }
 

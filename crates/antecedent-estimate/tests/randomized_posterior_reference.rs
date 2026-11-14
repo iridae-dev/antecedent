@@ -3,9 +3,9 @@
 //! `oracle_data/randomized_posterior_reference.py` (frozen in the JSON beside it) derives, in
 //! 30-digit arithmetic, the contrast laws for Bernoulli arms with a Beta prior and Gaussian arms
 //! with a Normal-Inverse-Gamma prior under both estimands: the superpopulation contrast (a
-//! difference of independent Beta or Student-t variables, by numerical integration of the
-//! distribution function) and the finite-population contrast (an exactly enumerated
-//! Beta-Binomial convolution, or a Student-t predictive sum for Gaussian arms).
+//! contrast of independent Beta or Student-t variables, by numerical integration of the
+//! distribution function) and the finite-population contrast, which is published under additive
+//! unit effects and so has the same law.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -74,9 +74,9 @@ fn every_contrast_law_matches_the_exact_reference() {
         }
         let got = &fit.contrasts[0];
         let (mean, sd) = (case["mean"].as_f64().unwrap(), case["sd"].as_f64().unwrap());
-        // The lattice is a discretization with sixteen cells per arm scale, so the continuous
-        // laws are compared to a fraction of a percent of the sd; the discrete one is exact.
-        let tol = if finite && case["model"] == "bernoulli" { 1e-9 } else { 0.01 * sd };
+        // The lattice is a discretization with sixteen cells per arm scale, so the laws are
+        // compared to a fraction of a percent of the sd.
+        let tol = 0.01 * sd;
         assert!((got.mean - mean).abs() < tol.max(1e-9), "{name} mean {} vs {mean}", got.mean);
         assert!(
             (got.standard_deviation / sd - 1.0).abs() < 0.01,

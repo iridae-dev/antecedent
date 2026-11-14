@@ -9,7 +9,7 @@ schema = 1
 recorded_by = "B05"
 unresolved_mandatory_blocks_release = true
 public_claim_changes_only_after_named_attempts_are_exhausted = true
-delta_ab_identified_claim = "pending"
+delta_ab_identified_claim = "identified_in_each_world_a_supported_design_or_joint_assignment_covers_model_conditional_otherwise"
 model_conditional_rule = "A world becomes model-conditional only after both the supported-world design and the joint-assignment design leave it unsupported."
 gaussian_panel_record = "parity/method_specs/specs.toml"
 retired_capabilities = [
@@ -1305,133 +1305,150 @@ specs = "parity/method_specs/specs.toml"
 
 [[entry]]
 id = "X02.supported_worlds"
-status = "pending_attempt"
+status = "closed_adjusted"
 list = "mandatory"
 source = "attempt"
 attempt_of = "X02"
 attempt_order = 1
 end_state = "Each of the four worlds of Delta_AB = E[Y(a,b)]-E[Y(a,0)]-E[Y(0,b)]+E[Y(0,0)] is identified from a design with support there, using the existing supported linear or g-computation intervention route, and the fitted mechanism carries parameter uncertainty only inside supported worlds."
-implementation_status = "implemented_not_measured"
+implementation_status = "implemented_no_interval_claim"
 implementation_outcome = "Implemented exact retained static-source proof transfer after independent nonparametric graph/support and empirical-context checks; the Gaussian numerical restriction is not transferred. Unsupported observational designs are recorded and start the assignment attempt."
 evidence = "docs/guides/joint-intervention-responses.md"
-acceptance = "Statistical calibration, scientific support and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
+adjusted_claim = "Each supported world is identified by transfer of the retained static-source proof and ships as a point contrast (known-truth tests in parity/release_scope/evidence.toml). The fitted panel publishes its parameter law as model-conditional uncertainty and no interval is supported."
+not_shown = "No coverage harness measures the fitted panel, so the end state's parameter-uncertainty statement is not shown by measurement: nothing establishes that an interval built from the fitted panel's law covers, inside or outside supported worlds."
 
 [[entry]]
 id = "X02.joint_assignment"
-status = "pending_attempt"
+status = "closed_earned"
 list = "mandatory"
 source = "attempt"
 attempt_of = "X02"
 attempt_order = 2
 end_state = "A world the observational panel leaves unsupported is identified by an experimental or quasi-experimental joint assignment, and a world is model-conditional only after both designs leave it unsupported."
-implementation_status = "implemented_not_measured"
+implementation_status = "implemented_measured_scoped"
 implementation_outcome = "Implemented whole-program randomized identification with exact declared trajectories, initial histories, context law and assignment probabilities. Per-period-only or unsupported/confounded trajectories withhold the causal claim. Numerical uncertainty retains its own conditional/calibration meaning."
 evidence = "docs/guides/joint-intervention-responses.md"
-acceptance = "Statistical calibration, scientific support and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
+outcome = "A world is identified by a compiled experimental or quasi-experimental joint assignment (whole-program randomization with equal or unequal weights, switchback with finite carryover, cohort difference-in-differences, synthetic rollouts, structural and encouragement instruments, finite and continuous longitudinal designs), and a prespecified contrast of its worlds has a 95% interval in frequentist and Bayesian form whose coverage the named groups measure. Scope: the sample sizes and conditions of parity/capability_records.toml#joint_response.interval_readings; the fitted panel under an identified design keeps a model-conditional law with no supported interval."
+calibration_groups = ["joint_response_calibration: joint_response_switchback_contrast_l95", "joint_response_calibration: joint_response_structural_iv_contrast_l95", "joint_response_calibration: joint_response_cohort_did_contrast_l95", "joint_response_calibration: joint_response_synthetic_rollout_contrast_l95", "joint_response_calibration: joint_response_continuous_longitudinal_contrast_l95", "joint_response_calibration: joint_response_weighted_geo_contrast_l95", "joint_response_calibration: joint_response_factorial_contrast_l95", "joint_response_calibration: joint_response_finite_longitudinal_contrast_l95", "joint_response_calibration: joint_response_local_complier_effect_l95"]
+support_unit = "parity/capability_records.toml#joint_response.interval_readings"
 
 [[entry]]
 id = "X03.piecewise_constant"
-status = "pending_attempt"
+status = "closed_adjusted"
 list = "mandatory"
 source = "attempt"
 attempt_of = "X03"
 attempt_order = 1
 end_state = "Piecewise-constant change points are identified where the design supports them."
-implementation_status = "implemented_not_measured"
+implementation_status = "implemented_no_interval_claim"
 implementation_outcome = "Implemented candidate change-point likelihoods with prespecified selection, full-selection frequentist bootstrap and Bayesian model/path uncertainty. Finite fitting does not identify a unique causal mechanism change."
 evidence = "docs/guides/joint-intervention-responses.md"
-acceptance = "Statistical calibration, scientific support and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
+adjusted_claim = "Piecewise-constant candidates ship as a model-conditional response change with their full-selection bootstrap or model and path law. No change point is claimed as identified, no interval is supported and a unique causal mechanism change is not claimed."
+not_shown = "No measurement shows that a change point is identified where the design supports it: false-change rates, location coverage and whole-procedure coverage are not measured."
 
 [[entry]]
 id = "X03.smooth"
-status = "pending_attempt"
+status = "closed_adjusted"
 list = "mandatory"
 source = "attempt"
 attempt_of = "X03"
 attempt_order = 2
 end_state = "Smoothly varying parameters follow a weakly identified change point."
-implementation_status = "implemented_not_measured"
+implementation_status = "implemented_no_interval_claim"
 implementation_outcome = "Implemented regularized smooth fallback under weak piecewise evidence, preserving smoothing/model uncertainty through the retained program."
 evidence = "docs/guides/joint-intervention-responses.md"
-acceptance = "Statistical calibration, scientific support and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
+adjusted_claim = "The smooth fallback under weak piecewise evidence ships as a model-conditional response path with its smoothing and model uncertainty retained. No interval is supported."
+not_shown = "No measurement covers the smooth fallback: neither its path coverage nor the rule that selects it is measured."
 
 [[entry]]
 id = "X03.coarser_contrast"
-status = "pending_attempt"
+status = "closed_earned"
 list = "mandatory"
 source = "attempt"
 attempt_of = "X03"
 attempt_order = 3
 end_state = "A unique attribution the design cannot support is followed by a coarser contrast that design can support."
-implementation_status = "implemented_not_measured"
+implementation_status = "implemented_measured_scoped"
 implementation_outcome = "Unique exposure/saturation/composition/mechanism attribution refuses; explicit chosen-versus-reference window change is actually evaluated with real prefix-world targets and the same frozen fit."
 evidence = "docs/guides/joint-intervention-responses.md"
-acceptance = "Statistical calibration, scientific support and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
+outcome = "A unique attribution the design cannot support refuses and the caller-explicit coarser contrast executes on the same frozen fit (deterministic tests in parity/release_scope/evidence.toml). Where a randomized design identifies every hybrid world, the four reference contributions of a population change have a simultaneous 95% region whose coverage the named groups measure, conservative by the union bound. The coarser fallback itself, fitted-panel decompositions and per-ordering contributions publish their law without a coverage record."
+calibration_groups = ["joint_response_calibration: joint_response_reference_decomposition_static_l95", "joint_response_calibration: joint_response_reference_decomposition_temporal_l95"]
+support_unit = "parity/capability_records.toml#joint_response.interval_readings"
 
 [[entry]]
 id = "X04.finite_certificate"
-status = "pending_attempt"
+status = "closed_earned"
 list = "mandatory"
 source = "attempt"
 attempt_of = "X04"
 attempt_order = 1
 end_state = "An exhaustive finite candidate set ships with an optimum certificate scoped to that set."
-implementation_status = "implemented_not_measured"
+implementation_status = "implemented_measured_scoped"
 implementation_outcome = "Implemented actual program bounds, schedules, budgets, restrictions and existing decision/risk demands. Exhaustion certificates apply only to supplied finite candidates under the retained scientific law."
 evidence = "docs/guides/joint-intervention-responses.md"
-acceptance = "Statistical calibration, scientific support and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
+outcome = "An exhaustive finite candidate set ships with an optimum certificate scoped to that set (a numerical statement, checked against independent optima). The value of the program selected from a finite randomized set on training data and evaluated on reserved units has a 95% interval whose coverage the named groups measure at exact ties, near ties and a separated winner. The certificate carries no statistical claim, and the simultaneous max-statistic intervals of the feasible set have no coverage record."
+calibration_groups = ["joint_response_calibration: joint_response_randomized_selection_exact_ties_l95", "joint_response_calibration: joint_response_randomized_selection_near_ties_l95", "joint_response_calibration: joint_response_randomized_selection_separated_l95"]
+support_unit = "parity/capability_records.toml#joint_response.interval_readings"
 
 [[entry]]
 id = "X04.continuous_best_found"
-status = "pending_attempt"
+status = "closed_earned"
 list = "mandatory"
 source = "attempt"
 attempt_of = "X04"
 attempt_order = 2
 end_state = "A missing certificate starts continuous search, which ships as best-found until it earns a certificate."
-implementation_status = "implemented_not_measured"
+implementation_status = "implemented_measured_scoped"
 implementation_outcome = "Implemented checked coordinate pattern search through the frozen-fit compiler adapter. Best feasible point, convergence/failure and missing global gap are explicit; unsupported coupled criteria retain finite/set fallback."
 evidence = "docs/guides/joint-intervention-responses.md"
-acceptance = "Statistical calibration, scientific support and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
+outcome = "A missing certificate starts continuous search, which reports the best feasible point with its stop reason and no global gap unless a bound is certified. The structural value of a continuous dose selected by certified search on the training fit and evaluated by an independent held-out fit has a 95% interval whose coverage the named group measures under weak separation. Best-found search on the fitted panel is a numerical statement with no statistical claim."
+calibration_groups = ["joint_response_calibration: joint_response_structural_selection_weak_separation_l95"]
+support_unit = "parity/capability_records.toml#joint_response.interval_readings"
 
 [[entry]]
 id = "X05.geo_translation"
-status = "pending_attempt"
+status = "closed_adjusted"
 list = "mandatory"
 source = "attempt"
 attempt_of = "X05"
 attempt_order = 1
 end_state = "One geo-experiment estimand is translated into the longitudinal model."
-implementation_status = "implemented_not_measured"
+implementation_status = "implemented_measured_identity_translation_only"
 implementation_outcome = "Implemented complete supported population/window/dose/duration/exposure/recency/spend/transport translation and paired affine mapping uncertainty with ledger origin/dependence checks. Unsupported translation refuses."
 evidence = "docs/guides/joint-intervention-responses.md"
-acceptance = "Statistical calibration, scientific support and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
+adjusted_claim = "An experimental estimand is translated into the longitudinal target by a declared affine mapping with its population, window, dose, duration, exposure, recency, spend and transport terms, verified against independently written references (parity/fixtures/joint_panel_experiment_acceptance.toml); an unsupported translation refuses. Interval support covers the identity translation only."
+not_shown = "The measured update uses an identity translation with no mapping uncertainty. No coverage record exists for a non-identity, uncertain or dependent mapping or for a changed population or horizon, so calibrated uncertainty of a translated geo estimand is not shown."
+calibration_groups = ["joint_response_calibration: joint_response_experiment_update_contrast_l95"]
+support_unit = "parity/capability_records.toml#joint_response.interval_readings"
 
 [[entry]]
 id = "X05.weaker_conditional"
-status = "pending_attempt"
+status = "closed_earned"
 list = "mandatory"
 source = "attempt"
 attempt_of = "X05"
 attempt_order = 2
 end_state = "An unsupported mapping ships the weaker conditional result and the update-to-decision chain continues."
-implementation_status = "implemented_not_measured"
+implementation_status = "implemented_measured_scoped"
 implementation_outcome = "Implemented FrozenJointImportance conditional Bayesian update with changed responses and decision; it grants no new causal identification. Current extracted sources and artifact consumption recheck caller-current ledger authority; historical replay remains distinct."
 evidence = "docs/guides/joint-intervention-responses.md"
-acceptance = "Statistical calibration, scientific support and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
+outcome = "The frozen conditional importance update ships, grants no new causal identification, and the update-to-decision chain continues from it. The updated contrast has a 95% posterior interval whose coverage the named group measures, averaged over the declared prior with every likelihood scale declared at its generating value, from a four-program randomized source design of 64 to 256 units. A frequentist source refuses the update: a sampling law is not a prior."
+calibration_groups = ["joint_response_calibration: joint_response_experiment_update_contrast_l95"]
+support_unit = "parity/capability_records.toml#joint_response.interval_readings"
 
 [[entry]]
 id = "X05.smaller_ranking"
-status = "pending_attempt"
+status = "closed_adjusted"
 list = "mandatory"
 source = "attempt"
 attempt_of = "X05"
 attempt_order = 3
 end_state = "An unsupported ranking is followed by a smaller ranking the declared model can support."
-implementation_status = "implemented_not_measured"
+implementation_status = "implemented_no_interval_claim"
 implementation_outcome = "Unsupported new-regime ranking starts additional independent Gaussian sampling of the same mapped estimand, using the existing weighted preposterior engine and declared actions, utility and cost."
 evidence = "docs/guides/joint-intervention-responses.md"
-acceptance = "Statistical calibration, scientific support and release attestation remain under Q09/E14 and the method review; pending_attempt does not mean the implementation is absent."
+adjusted_claim = "An unsupported new-regime ranking is followed by the ranking of additional independent samples of the same mapped estimand by preposterior net value. The ranking ships as point values under the declared model, with no interval and no reliability statement."
+not_shown = "No measurement shows that the smaller ranking is reliable: net-value error and ranking stability are not measured."
 
 [[entry]]
 id = "X02.broader.static.frequentist"

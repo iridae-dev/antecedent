@@ -89,7 +89,10 @@ pub use plan::{
     TemporalInterventionPlan, plan_from_response_query, requires_temporal_overlays,
     single_temporal_intervention, validate_temporal_response_within,
 };
-pub use surface::{JOINT_HORIZON_LAYOUT, JOINT_HORIZON_REPLICATES, PreparedTemporalSurface};
+pub use surface::{
+    JOINT_HORIZON_DISPERSION, JOINT_HORIZON_INFLUENCE, JOINT_HORIZON_LAYOUT,
+    JOINT_HORIZON_REPLICATES, PreparedTemporalSurface,
+};
 
 /// Temporal response estimator: dose × horizon surfaces and temporal intervention responses.
 #[derive(Clone, Debug)]

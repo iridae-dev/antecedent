@@ -348,10 +348,11 @@ pub use identified_set::{
 };
 pub use inference::InferenceSpec;
 pub use interference::{
-    BayesianInterferenceEstimate, ClusterTotalInterval, InterferenceEstimate,
-    estimate_cluster_interference_bayesian_bootstrap, estimate_cluster_interference_total,
-    estimate_cluster_interference_total_with_inference, estimate_interference,
-    estimate_interference_bayesian, estimate_interference_with_context, own_treatment_level,
+    BayesianInterferenceEstimate, CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS, ClusterTotalInterval,
+    InterferenceEstimate, estimate_cluster_interference_bayesian_bootstrap,
+    estimate_cluster_interference_total, estimate_cluster_interference_total_with_inference,
+    estimate_interference, estimate_interference_bayesian, estimate_interference_with_context,
+    own_treatment_level,
 };
 pub use interference_observational::{
     ObservationalExposureEstimate, ObservationalExposureSpec, estimate_observational_exposure,
@@ -472,16 +473,17 @@ pub use temporal_mediation::{
     TemporalMediationSlice, TemporalMediationUncertainty, shared_mediation_block_bootstrap,
 };
 pub use temporal_response::{
-    AdmittedIdentificationSchedule, AdmittedMechanismOverlays, JOINT_HORIZON_LAYOUT,
-    JOINT_HORIZON_REPLICATES, MaxDeviationBand, PreparedTemporalSurface, ResponseBlockLength,
-    SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER, SIMULTANEOUS_BAND_MIN_REPLICATES,
-    SIMULTANEOUS_BAND_UPPER, TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC,
-    TEMPORAL_RESPONSE_BLOCK_LENGTH, TEMPORAL_RESPONSE_FEW_REPLICATES,
-    TEMPORAL_RESPONSE_NO_BAND_METHOD, TemporalIdentification, TemporalInterventionKind,
-    TemporalInterventionPlan, TemporalResponseEstimator, block_dispersion_inflation,
-    circular_block_positions_into, clear_simultaneous_band, disclose_response_block_bootstrap,
-    inflate_replicates, max_deviation_band, plan_from_response_query, publish_simultaneous_band,
-    requires_temporal_overlays, single_temporal_intervention, validate_temporal_response_within,
+    AdmittedIdentificationSchedule, AdmittedMechanismOverlays, JOINT_HORIZON_DISPERSION,
+    JOINT_HORIZON_INFLUENCE, JOINT_HORIZON_LAYOUT, JOINT_HORIZON_REPLICATES, MaxDeviationBand,
+    PreparedTemporalSurface, ResponseBlockLength, SIMULTANEOUS_BAND_CRITICAL,
+    SIMULTANEOUS_BAND_LOWER, SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER,
+    TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC, TEMPORAL_RESPONSE_BLOCK_LENGTH,
+    TEMPORAL_RESPONSE_FEW_REPLICATES, TEMPORAL_RESPONSE_NO_BAND_METHOD, TemporalIdentification,
+    TemporalInterventionKind, TemporalInterventionPlan, TemporalResponseEstimator,
+    block_dispersion_inflation, circular_block_positions_into, clear_simultaneous_band,
+    disclose_response_block_bootstrap, inflate_replicates, max_deviation_band,
+    plan_from_response_query, publish_simultaneous_band, requires_temporal_overlays,
+    single_temporal_intervention, validate_temporal_response_within,
 };
 pub use temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROWS};
 pub use temporal_sequential::{

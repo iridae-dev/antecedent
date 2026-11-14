@@ -8,7 +8,8 @@
 //! coefficient prior and residual prior declared on the study's Bayesian configuration. The
 //! dose density does not enter a likelihood for the outcome given the dose, so it is not read.
 //! Conditional exchangeability within groups and local positivity stay declared premises; the
-//! prior supplies none. The result is an unsupported, uncalibrated posterior.
+//! prior supplies none. A fit that matches its graphless support row states it in a coded
+//! diagnostic; every other fit is unsupported. Calibration is `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
@@ -174,6 +175,40 @@ impl CheckedContinuousDoseOperation {
             ),
         )?;
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
+        // The measured quadratic model states its support row when the groups and the dose
+        // windows meet it.
+        if coefficient_scales.len() == 3 {
+            let mut group_rows = std::collections::BTreeMap::<&str, usize>::new();
+            for group in &groups {
+                *group_rows.entry(group.as_str()).or_default() += 1;
+            }
+            let published = row
+                .lower
+                .iter()
+                .zip(&row.upper)
+                .filter(|(lower, upper)| lower.is_finite() && upper.is_finite() && lower <= upper)
+                .count();
+            super::super::bayesian_quasi_common::state_design_posterior_row(
+                &mut result,
+                crate::support::GraphlessSupportKey {
+                    family: "continuous_dose_policy",
+                    design: "fixed_group_kernel",
+                    method: "quadratic_group_dose_conjugate_posterior",
+                    inference_claim: "policy_reference_incremental_pointwise_95_posterior_quantiles",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit",
+                    rows: self.rows,
+                    min_group_rows: group_rows.values().copied().min().unwrap_or(0),
+                    min_local_rows: posterior.minimum_local_rows,
+                    interval_95_published: published == row.coordinates.len(),
+                    reported_intervals: published,
+                    all_reported_intervals: published == row.coordinates.len(),
+                    known_density: self.query.density_provenance.as_ref() == "known",
+                    ..Default::default()
+                },
+            );
+        }
         result.payload = crate::result::ResultPayload::PosteriorRow(row);
         Ok(result)
     }

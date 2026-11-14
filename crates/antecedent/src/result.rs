@@ -358,20 +358,22 @@ pub struct TemporalDesignEstimate {
     pub uncertainty: Arc<str>,
     /// Calibration status of every interval: always `not_measured`.
     pub calibration: Arc<str>,
-    /// Always `false`: the route is not supported.
+    /// Whether the fit matched a row of the graphless support table: its exact design, method
+    /// and inference claim, with the observed support the row requires.
     pub supported: bool,
 }
 
 /// Effects of a rollout design with the uncertainty of its whole-procedure path
-/// (unsupported; calibration `not_measured`).
+/// (calibration `not_measured`; supported only where a support row admits the fit).
 ///
 /// Carries a heterogeneity-robust or covariate-adjusted difference in differences (group-time,
 /// aggregated and pre-trend effects), a conformal or multi-unit synthetic control (per-period
 /// or per-unit effects), or a local ratio with a selected bandwidth or a calendar-time running
 /// variable. The first effect is the scalar summary. Pointwise intervals and simultaneous bands
 /// come from the design's own procedure (whole-unit resample, conformal test inversion,
-/// placebo variance or block bootstrap), each refitting the whole estimator; none has a
-/// coverage record and the route is not supported.
+/// placebo variance or block bootstrap), each refitting the whole estimator. A local-ratio
+/// design states support when a `local_polynomial_ratio` support row admits it; the other
+/// designs are not supported.
 #[derive(Clone, Debug, PartialEq)]
 pub struct QuasiRolloutEstimate {
     /// Design: `staggered_did`, `covariate_adjusted_did`, `conformal_synthetic_control`,
@@ -397,7 +399,9 @@ pub struct QuasiRolloutEstimate {
     /// Named numeric diagnostics (pre-trend statistic, two-way fixed-effects comparison,
     /// density test, covariate balance, selected bandwidth).
     pub diagnostics: Arc<[(Arc<str>, f64)]>,
-    /// Always `false`: the route is not supported.
+    /// Whether a support row admits the design, interval procedure and observed support.
+    /// A design without a row, and a Bayesian section (whose row is stated in a diagnostic),
+    /// reports `false`.
     pub supported: bool,
 }
 
@@ -415,7 +419,8 @@ impl QuasiRolloutEstimate {
     }
 }
 
-/// Within-period history-matched contrast (unsupported, uncalibrated).
+/// Within-period history-matched contrast; `supported` says whether the period interval meets
+/// its support row.
 ///
 /// The matched pairs are retained so a loader recomputes every summary.
 #[derive(Clone, Debug, PartialEq)]
@@ -451,7 +456,9 @@ pub struct HistoryMatchEstimate {
     /// dependence between periods; absent when fewer than two periods hold a match or a matched
     /// weight is not positive.
     pub serial_standard_error: Option<f64>,
-    /// Lower endpoint of the 95% normal interval around the contrast with `serial_standard_error`.
+    /// Lower endpoint of the 95% fixed-b interval around the contrast with
+    /// `serial_standard_error` (Kiefer-Vogelsang critical value at the bandwidth's share of the
+    /// matched periods).
     pub interval_lower: Option<f64>,
     /// Upper endpoint of that interval.
     pub interval_upper: Option<f64>,
@@ -461,9 +468,13 @@ pub struct HistoryMatchEstimate {
     pub caliper: Option<f64>,
     /// Uncertainty semantics.
     pub uncertainty: Arc<str>,
+    /// The period interval meets the history-match support row: enough matched periods and
+    /// pairs in each, every treated unit matched, no caliper and no sampling weights.
+    pub supported: bool,
 }
 
-/// Observational two-decision contrast of two static regimes (unsupported, uncalibrated).
+/// Observational two-decision contrast of two static regimes; `supported` says whether the
+/// normal interval meets its support row.
 ///
 /// The cross-fit scores are retained so a loader recomputes every summary.
 #[derive(Clone, Debug, PartialEq)]
@@ -498,6 +509,10 @@ pub struct SequentialContrastEstimate {
     pub contrast_scores: Arc<[f64]>,
     /// Uncertainty semantics.
     pub uncertainty: Arc<str>,
+    /// The normal interval meets the sequential-contrast support row: the measured regimes
+    /// and folds, enough subjects and fitted probabilities inside the measured floor. A
+    /// posterior states its row in a diagnostic instead.
+    pub supported: bool,
     /// Nuisance fits computed.
     pub fits_computed: u64,
     /// Nuisance fits reused.

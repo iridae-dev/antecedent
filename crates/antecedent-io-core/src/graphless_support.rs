@@ -93,6 +93,11 @@ pub struct GraphlessAssignmentSupport {
     pub rank_ownership: bool,
     /// Every independent sequence has the same observed number of periods.
     pub balanced_sequences: bool,
+    /// Absolute first-stage estimate over its standard error (infinite for a first stage
+    /// without error); zero when the design has no first stage.
+    pub first_stage_t: f64,
+    /// Bootstrap replicates or posterior draws that produced the published interval.
+    pub interval_resamples: usize,
 }
 
 /// Runtime status for one exact graphless support key.
@@ -188,6 +193,104 @@ pub fn classify_graphless(
     })
 }
 
+/// Code of the diagnostic by which a Bayesian design posterior states the support row it ran
+/// under. Such a result has no design section of its own, so the row key and the observed
+/// support ride in the diagnostic's fields.
+pub const DESIGN_POSTERIOR_ROW_CODE: &str = "estimate.design_posterior.graphless_support";
+
+/// The fields of the [`DESIGN_POSTERIOR_ROW_CODE`] diagnostic for `key` under `observed`.
+#[must_use]
+pub fn design_posterior_row_fields(
+    key: GraphlessSupportKey<'_>,
+    observed: GraphlessAssignmentSupport,
+) -> Vec<(String, String)> {
+    let text = |name: &str, value: &str| (name.to_owned(), value.to_owned());
+    let count = |name: &str, value: usize| (name.to_owned(), value.to_string());
+    let real = |name: &str, value: f64| (name.to_owned(), format!("{value:?}"));
+    let flag = |name: &str, value: bool| (name.to_owned(), value.to_string());
+    let mut fields = vec![
+        text("family", key.family),
+        text("design", key.design),
+        text("method", key.method),
+        text("inference_claim", key.inference_claim),
+        text("assignment_unit", observed.assignment_unit),
+        count("treated", observed.treated),
+        count("control", observed.control),
+        count("rows", observed.rows),
+        count("blocks", observed.blocks),
+        count("min_action_rows", observed.min_action_rows),
+        count("min_group_rows", observed.min_group_rows),
+        count("min_local_rows", observed.min_local_rows),
+        count("reported_intervals", observed.reported_intervals),
+        real("min_probability", observed.min_probability),
+        real("min_expected_arm_units", observed.min_expected_arm_units),
+        flag("all_reported_intervals", observed.all_reported_intervals),
+        flag("known_density", observed.known_density),
+        flag("balanced_sequences", observed.balanced_sequences),
+        real("first_stage_t", observed.first_stage_t),
+        count("interval_resamples", observed.interval_resamples),
+    ];
+    // Policy and reference matches are stated only by a design that counts them.
+    if observed.policy_matches > 0 || observed.reference_matches > 0 {
+        fields.push(count("policy_matches", observed.policy_matches));
+        fields.push(count("reference_matches", observed.reference_matches));
+    }
+    fields
+}
+
+/// Whether the row and observed support a [`DESIGN_POSTERIOR_ROW_CODE`] diagnostic states are
+/// admitted by the support table. A missing or unreadable field is not admitted.
+#[must_use]
+pub fn design_posterior_row_stated(fields: &[(String, String)]) -> bool {
+    let get = |name: &str| {
+        fields.iter().find(|(field, _)| field == name).map(|(_, value)| value.as_str())
+    };
+    let count = |name: &str| get(name).and_then(|value| value.parse::<usize>().ok());
+    let real = |name: &str| {
+        get(name).and_then(|value| value.parse::<f64>().ok()).filter(|value| value.is_finite())
+    };
+    let flag = |name: &str| get(name).and_then(|value| value.parse::<bool>().ok());
+    let assignment_unit = match get("assignment_unit") {
+        Some("unit") => "unit",
+        Some("cluster") => "cluster",
+        Some("sequence") => "sequence",
+        _ => return false,
+    };
+    let (Some(family), Some(design), Some(method), Some(inference_claim)) =
+        (get("family"), get("design"), get("method"), get("inference_claim"))
+    else {
+        return false;
+    };
+    let observed = (|| {
+        Some(GraphlessAssignmentSupport {
+            assignment_unit,
+            treated: count("treated")?,
+            control: count("control")?,
+            rows: count("rows")?,
+            blocks: count("blocks")?,
+            min_action_rows: count("min_action_rows")?,
+            min_group_rows: count("min_group_rows")?,
+            min_local_rows: count("min_local_rows")?,
+            reported_intervals: count("reported_intervals")?,
+            min_probability: real("min_probability")?,
+            min_expected_arm_units: real("min_expected_arm_units")?,
+            all_reported_intervals: flag("all_reported_intervals")?,
+            known_density: flag("known_density")?,
+            balanced_sequences: flag("balanced_sequences")?,
+            // Absent on a statement of a row without these thresholds.
+            first_stage_t: real("first_stage_t").unwrap_or(0.0),
+            interval_resamples: count("interval_resamples").unwrap_or(0),
+            policy_matches: count("policy_matches").unwrap_or(0),
+            reference_matches: count("reference_matches").unwrap_or(0),
+            interval_95_published: true,
+            ..Default::default()
+        })
+    })();
+    observed.is_some_and(|observed| {
+        graphless_admits(GraphlessSupportKey { family, design, method, inference_claim }, observed)
+    })
+}
+
 impl GraphlessSupportRow {
     /// Whether this row matches `key` and every threshold is met by `observed`.
     fn admits(&self, key: GraphlessSupportKey<'_>, observed: GraphlessAssignmentSupport) -> bool {
@@ -226,6 +329,8 @@ impl GraphlessSupportRow {
             && (!row.requires_rank_ownership || observed.rank_ownership)
             && (!row.requires_balanced_sequences || observed.balanced_sequences)
             && (!row.requires_known_density || observed.known_density)
+            && observed.first_stage_t >= row.min_first_stage_t
+            && observed.interval_resamples >= row.min_interval_resamples
     }
 }
 

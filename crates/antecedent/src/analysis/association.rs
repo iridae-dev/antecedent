@@ -1,8 +1,10 @@
 //! The result of the associational route and the proper scores of its predictive model.
 //!
 //! An association describes the observed law of the columns. It is never the effect of an
-//! intervention, ranks no action, and carries no coverage record: its standard errors, spreads
-//! and posterior intervals are labelled `not_measured`. A predictive model is scored on held-out
+//! intervention and ranks no action. Its calibration label is `not_measured`; the payload
+//! states `supported` only when the fit met a row of the graphless support table (family
+//! `association`), which covers the slope of a linear regression of a real outcome on one
+//! numeric predictor. A predictive model is scored on held-out
 //! cases with the proper scores of the predictive-assessment contract (the Gaussian logarithmic
 //! score and CRPS for a real outcome, the Brier score for a 0/1 outcome, the Poisson logarithmic
 //! score and the finite-law CRPS for a count), against the training-mean baseline on the same
@@ -48,6 +50,9 @@ pub struct AssociationPayload {
     pub scores: Option<PredictionScores>,
     /// Reason code of the refused causal query this association follows.
     pub refused_after: Option<Arc<str>>,
+    /// Whether the fit matched a row of the graphless support table. The claim is the
+    /// uncertainty of the slope term; every other quantity stays unsupported.
+    pub supported: bool,
 }
 
 impl AssociationPayload {

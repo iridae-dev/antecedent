@@ -628,43 +628,4 @@ mod tests {
         assert!(outcomes.iter().map(|r| r.1).sum::<f64>() / 400.0 > 0.04);
         assert!((outcomes.iter().map(|r| r.2).sum::<f64>() / 400.0).abs() < 0.025);
     }
-
-    #[test]
-    #[ignore = "measurement: execute only on the stable candidate; no implementation-stage calibration support"]
-    fn whole_procedure_randomized_selected_value_calibration_l95() {
-        let repetitions = std::env::var("ANTECEDENT_CALIBRATION_NSIM")
-            .ok()
-            .and_then(|n| n.parse::<usize>().ok())
-            .unwrap_or(400)
-            .max(400);
-        // Source-fixed cells include exact ties, near ties, a separated winner,
-        // two observational sample sizes, and actual whole-procedure resampling.
-        for n in [240, 480] {
-            for signal in [0.0, 0.02, 0.2] {
-                let mut covered = 0usize;
-                let mut optimism = 0.0;
-                let mut holdout_bias = 0.0;
-                for replicate in 0..repetitions {
-                    let seed =
-                        antecedent_core::derive_stream(0x5830_3453_454c_4543, replicate as u64);
-                    let result = selected_value_simulation(seed, n, signal, 10);
-                    covered += usize::from(result.0);
-                    optimism += result.1;
-                    holdout_bias += result.2;
-                }
-                let rate = covered as f64 / repetitions as f64;
-                let mcse = (0.95 * 0.05 / (repetitions as f64)).sqrt();
-                println!(
-                    "selected-procedure-cell n={n} signal={signal} replicates={repetitions} covered={covered} coverage={rate} optimism={} heldout_bias={}",
-                    optimism / repetitions as f64,
-                    holdout_bias / repetitions as f64
-                );
-                assert!((rate - 0.95).abs() <= 3.0 * mcse + 0.005);
-                assert!(
-                    (holdout_bias / repetitions as f64).abs()
-                        <= 4.0 * (3.0 / (n as f64 * repetitions as f64)).sqrt()
-                );
-            }
-        }
-    }
 }

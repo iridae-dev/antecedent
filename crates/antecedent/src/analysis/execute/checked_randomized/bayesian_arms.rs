@@ -5,7 +5,9 @@
 //! route states a likelihood (independent Bernoulli or Gaussian arms) and a declared prior and
 //! answers one of two estimands, chosen by the estimator id: the trial's own units
 //! (`bayesian.randomized_finite_population`, the same target as the design-based row) or the
-//! population the units are sampled from (`bayesian.randomized_superpopulation`). The prior is
+//! population the units are sampled from (`bayesian.randomized_superpopulation`). A unit shows
+//! one potential outcome, so the finite-population contrast is published under additive unit
+//! effects, where it has the superpopulation contrast's law (Neyman's variance bound). The prior is
 //! declared with `BayesianConfig::design_model`; it has no default, because a prior alone never
 //! identifies a contrast. Assignment probabilities must be known and identical across units.
 //!
@@ -28,6 +30,11 @@ use antecedent_estimate::randomized_posterior::{
     ArmContrastRequest, ArmOutcomeModel, RandomizedEstimand, RandomizedPosterior,
     posterior_arm_contrasts_with_draws,
 };
+
+/// Smallest posterior-mean first stage at which the complier posterior states its support
+/// row. The row was measured at a population first stage of 0.7; the allowance below it is
+/// the sampling spread of that first stage at the smallest measured trial.
+const COMPLIER_ROW_MIN_FIRST_STAGE: f64 = 0.6;
 
 const ROUTE: &str = "the Bayesian randomized arm contrast";
 const CREDIBLE_LEVEL: f64 = 0.95;
@@ -291,8 +298,9 @@ fn arm_design_posterior(
              sampled from"
         }
         RandomizedEstimand::FinitePopulation => {
-            "contrasts of the arm means of the potential outcomes over the trial's own units, \
-             the unobserved share of each arm drawn from the arm's posterior predictive"
+            "contrasts of the arm means of the potential outcomes over the trial's own units \
+             under additive unit effects, the dependence that gives Neyman's variance bound, so \
+             the interval is conservative when unit effects vary"
         }
     };
     Ok(DesignPosterior {
@@ -340,6 +348,30 @@ fn arm_design_posterior(
         ],
         sampler: None,
     })
+}
+
+/// Method of the graphless support key of a two-arm arm-contrast posterior: the measured
+/// combinations of design, arm model and estimand. Every other combination has no row.
+fn arm_posterior_row_method(
+    design: &RandomizationDesign,
+    model: ArmOutcomeModel,
+    estimand: RandomizedEstimand,
+) -> Option<&'static str> {
+    if !matches!(design, RandomizationDesign::Complete { .. }) {
+        return None;
+    }
+    match (model, estimand) {
+        (ArmOutcomeModel::Gaussian(_), RandomizedEstimand::FinitePopulation) => {
+            Some("gaussian_arm_finite_population_posterior")
+        }
+        (ArmOutcomeModel::Gaussian(_), RandomizedEstimand::Superpopulation) => {
+            Some("gaussian_arm_superpopulation_posterior")
+        }
+        (ArmOutcomeModel::Bernoulli(_), RandomizedEstimand::Superpopulation) => {
+            Some("bernoulli_arm_superpopulation_posterior")
+        }
+        (ArmOutcomeModel::Bernoulli(_), RandomizedEstimand::FinitePopulation) => None,
+    }
 }
 
 impl super::CheckedRandomizedOperation {
@@ -447,6 +479,33 @@ impl super::CheckedRandomizedOperation {
             fit,
             super::super::Strategy::new(IdentifierId::RandomizedDesign, estimator),
         )?;
+        // A complete two-arm trial with every outcome observed states its support row.
+        if observed.is_none()
+            && rows.contrasts.len() == 1
+            && let Some(method) = arm_posterior_row_method(&self.query.design, model, estimand)
+        {
+            let units = self.query.realized_assignment.len();
+            let treated = self.query.realized_assignment.iter().filter(|arm| **arm).count();
+            super::super::bayesian_quasi_common::state_design_posterior_row(
+                &mut result,
+                crate::support::GraphlessSupportKey {
+                    family: "randomized_effect",
+                    design: "complete",
+                    method,
+                    inference_claim: "pointwise_95_posterior_quantiles",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit",
+                    treated,
+                    control: units - treated,
+                    rows: units,
+                    interval_95_published: true,
+                    reported_intervals: 1,
+                    all_reported_intervals: true,
+                    ..Default::default()
+                },
+            );
+        }
         if let Some(observed) = observed {
             result.extras.missing_data = Some(self.missing_report(data, &observed)?);
         }
@@ -566,8 +625,8 @@ impl super::CheckedRandomizedOperation {
         if estimand != RandomizedEstimand::Superpopulation {
             return Err(unread_option(
                 ROUTE,
-                "weighted outcomes under the finite-population estimand, whose unobserved share \
-                 of each arm is a posterior predictive of observed values",
+                "weighted outcomes under the finite-population estimand, which is stated for \
+                 the observed outcomes of the trial's own units",
                 "estimator=bayesian.randomized_superpopulation with the inverse_probability policy",
             ));
         }
@@ -645,6 +704,8 @@ impl super::CheckedRandomizedOperation {
             ctx,
         )
         .map_err(CausalError::from)?;
+        let rows = outcomes.len();
+        let first_stage_mean = fit.first_stage.posterior_mean;
         let name = match self.query.estimand {
             antecedent_core::RandomizedEstimand::TreatmentOnTreated => "treated_on_treated_effect",
             _ => "complier_effect",
@@ -685,7 +746,7 @@ impl super::CheckedRandomizedOperation {
             notes: vec![format!("draws={} interval=equal_tailed_95", config.n_draws)],
             sampler: None,
         };
-        finish_design_posterior_as(
+        let mut result = finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -701,6 +762,36 @@ impl super::CheckedRandomizedOperation {
                 IdentifierId::RandomizedDesign,
                 EstimatorId::BayesianComplierEffect,
             ),
-        )
+        )?;
+        // The complier-average estimand with a first stage at least as strong as the weakest
+        // one the row was measured near states its support row.
+        if !matches!(self.query.estimand, antecedent_core::RandomizedEstimand::TreatmentOnTreated)
+            && first_stage_mean >= COMPLIER_ROW_MIN_FIRST_STAGE
+        {
+            let probabilities = &self.query.assignment_probabilities;
+            let expected_treated: f64 = probabilities.iter().sum();
+            let expected_control: f64 = probabilities.iter().map(|p| 1.0 - p).sum();
+            let floor = probabilities.iter().map(|p| p.min(1.0 - p)).fold(f64::INFINITY, f64::min);
+            super::super::bayesian_quasi_common::state_design_posterior_row(
+                &mut result,
+                crate::support::GraphlessSupportKey {
+                    family: "complier_effect",
+                    design: "bernoulli",
+                    method: "bayesian_bootstrap_wald_ratio",
+                    inference_claim: "pointwise_95_posterior_quantiles",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit",
+                    rows,
+                    min_probability: if floor.is_finite() { floor } else { 0.0 },
+                    min_expected_arm_units: expected_treated.min(expected_control),
+                    interval_95_published: true,
+                    reported_intervals: 1,
+                    all_reported_intervals: true,
+                    ..Default::default()
+                },
+            );
+        }
+        Ok(result)
     }
 }

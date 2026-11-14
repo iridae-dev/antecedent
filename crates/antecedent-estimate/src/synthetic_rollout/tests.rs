@@ -242,3 +242,150 @@ fn unconverged_simplex_is_an_optimizer_failure_not_support_or_interval() {
         super::fit_simplex(&[1.0, 0.5], &[vec![1.0, 0.0], vec![1.0, 1.0]], None).unwrap();
     assert!((ordinary[0] - 0.5).abs() < 1e-12 && (ordinary[1] - 0.5).abs() < 1e-12);
 }
+
+/// With two donors the simplex fit is one weight in `[0, 1]` with a closed form, so the
+/// residuals and the rank share of the tested positions are computed here.
+fn two_donor_p(target: &[f64], first: &[f64], second: &[f64], post: usize) -> f64 {
+    let n = target.len();
+    let (mut cross, mut square) = (0.0, 0.0);
+    for t in 0..n {
+        let gap = first[t] - second[t];
+        cross += (target[t] - second[t]) * gap;
+        square += gap * gap;
+    }
+    let weight = (cross / square).clamp(0.0, 1.0);
+    let residual: Vec<f64> = (0..n)
+        .map(|t| (target[t] - weight * first[t] - (1.0 - weight) * second[t]).abs())
+        .collect();
+    let statistic =
+        |shift: usize| -> f64 { (n - post..n).map(|at| residual[(at + n - shift) % n]).sum() };
+    let observed = statistic(0);
+    (0..n).filter(|shift| statistic(*shift) >= observed - 1e-12).count() as f64 / n as f64
+}
+
+/// The conformal p-value against the two-donor closed form, for one tested period and for a
+/// block of two; and each end of a published set sits where that closed-form p-value
+/// crosses 5%.
+#[test]
+fn conformal_p_value_and_set_match_the_two_donor_closed_form() {
+    let mut rng = FixtureRng::new(41);
+    let (pre, post) = (24_usize, 2_usize);
+    let first: Vec<f64> = (0..pre + post).map(|_| 1.0 + normal(&mut rng)).collect();
+    let second: Vec<f64> = (0..pre + post).map(|_| 3.0 + normal(&mut rng)).collect();
+    let target: Vec<f64> = (0..pre + post)
+        .map(|t| {
+            0.7 * first[t]
+                + 0.3 * second[t]
+                + 0.4 * normal(&mut rng)
+                + if t >= pre { 2.0 } else { 0.0 }
+        })
+        .collect();
+    let donors = [first.clone(), second.clone()];
+    for tested in [1, 2] {
+        let got = super::conformal_p(&target, &donors, tested, &[0.5, 0.5]).unwrap();
+        let want = two_donor_p(&target, &first, &second, tested);
+        assert!((got - want).abs() < 1e-9, "block {tested}: {got} against {want}");
+    }
+
+    let labels: [Arc<str>; 3] = [Arc::from("a"), Arc::from("b"), Arc::from("treated")];
+    let mut rows = Rows { outcome: Vec::new(), units: Vec::new(), periods: Vec::new() };
+    for t in 0..pre + post {
+        for (label, value) in labels.iter().zip([first[t], second[t], target[t]]) {
+            rows.outcome.push(value);
+            rows.units.push(Arc::clone(label));
+            rows.periods.push(i64::try_from(t).unwrap() + 1);
+        }
+    }
+    let fit = conformal_synthetic_control(
+        &rows.panel(),
+        "treated",
+        i64::try_from(pre).unwrap() + 1,
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap();
+    // The first post period is tested on the pre-periods and itself, its value moved by theta.
+    let pick = |series: &[f64]| -> Vec<f64> {
+        series[..pre].iter().copied().chain(std::iter::once(series[pre])).collect()
+    };
+    let p_at = |theta: f64| -> f64 {
+        let mut adjusted = pick(&target);
+        adjusted[pre] -= theta;
+        two_donor_p(&adjusted, &pick(&first), &pick(&second), 1)
+    };
+    let [lower, upper] = fit.periods[0].interval.unwrap();
+    assert!(lower < upper);
+    let step = 1e-4;
+    assert!(p_at(lower + step) > 0.05 && p_at(upper - step) > 0.05);
+    assert!(p_at(lower - step) <= 0.05 && p_at(upper + step) <= 0.05);
+}
+
+/// One adopting unit and three never-treated donors: each placebo refit assigns the adoption
+/// to one donor and fits it on the other two, a one-weight problem with a closed form. The
+/// placebo standard error is the spread of those three effects and the interval is its
+/// normal interval.
+#[test]
+fn placebo_interval_is_the_normal_interval_of_the_enumerated_placebo_spread() {
+    let mut rng = FixtureRng::new(77);
+    let (periods, adoption) = (12_usize, 9_usize);
+    let series: Vec<Vec<f64>> = (0..4)
+        .map(|unit| {
+            (0..periods)
+                .map(|t| {
+                    f64::from(unit) * 0.8
+                        + 0.3 * t as f64
+                        + normal(&mut rng)
+                        + if unit == 3 && t + 1 >= adoption { 2.0 } else { 0.0 }
+                })
+                .collect()
+        })
+        .collect();
+    let labels: [Arc<str>; 4] = [Arc::from("d0"), Arc::from("d1"), Arc::from("d2"), Arc::from("t")];
+    let mut rows = Rows { outcome: Vec::new(), units: Vec::new(), periods: Vec::new() };
+    for t in 0..periods {
+        for (label, unit) in labels.iter().zip(&series) {
+            rows.outcome.push(unit[t]);
+            rows.units.push(Arc::clone(label));
+            rows.periods.push(i64::try_from(t).unwrap() + 1);
+        }
+    }
+    let replicates = 3_000;
+    let fit = multi_unit_synthetic(
+        &rows.panel(),
+        &[(Arc::clone(&labels[3]), i64::try_from(adoption).unwrap())],
+        SyntheticPanelMethod::Control,
+        replicates,
+        &ExecutionContext::for_tests(9),
+    )
+    .unwrap();
+    assert_eq!(fit.placebo.unwrap().replicates_ok, replicates);
+
+    let pre = adoption - 1;
+    let post_mean = |unit: usize| series[unit][pre..].iter().sum::<f64>() / (periods - pre) as f64;
+    let placebo: Vec<f64> = (0..3)
+        .map(|unit| {
+            let (a, b) = match unit {
+                0 => (1, 2),
+                1 => (0, 2),
+                _ => (0, 1),
+            };
+            let (mut cross, mut square) = (0.0, 0.0);
+            for t in 0..pre {
+                let gap = series[a][t] - series[b][t];
+                cross += (series[unit][t] - series[b][t]) * gap;
+                square += gap * gap;
+            }
+            let weight = (cross / square).clamp(0.0, 1.0);
+            post_mean(unit) - weight * post_mean(a) - (1.0 - weight) * post_mean(b)
+        })
+        .collect();
+    let center = placebo.iter().sum::<f64>() / 3.0;
+    let spread = (placebo.iter().map(|effect| (effect - center).powi(2)).sum::<f64>() / 3.0).sqrt();
+    let se = fit.overall.standard_error.unwrap();
+    // Each donor is drawn about a third of the time, so the replicate spread is the
+    // enumerated one up to the draw frequencies.
+    assert!((se / spread - 1.0).abs() < 0.05, "placebo se {se} against {spread}");
+    let [lower, upper] = fit.overall.interval.unwrap();
+    let z = 1.959_963_984_540_054;
+    assert!((lower - (fit.overall.estimate - z * se)).abs() < 1e-12);
+    assert!((upper - (fit.overall.estimate + z * se)).abs() < 1e-12);
+}

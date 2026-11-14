@@ -830,13 +830,15 @@ impl CheckedPolicyValueOperation {
             evaluation.independent_policy_rows,
         );
         if let Some(config) = self.extra.as_ref() {
-            // The posterior route reports no interval and holds no support.
+            // The posterior route reports no frequentist interval and no matrix support; a fit
+            // that meets its support row states it in the design-posterior diagnostic.
             let posterior = self.bayesian_policy_posterior(y, config, ctx)?;
             let mut evaluation = evaluation;
             evaluation.intervals = None;
             let mut result = self.policy_value_result(data, evaluation, Some(posterior));
             result.support_status = None;
             result.diagnostics.push(bayesian_policy::unsupported_diagnostic());
+            self.state_policy_posterior_row(&mut result, y.len(), counts.0, counts.1);
             return Ok(result);
         }
         let mut result = self.policy_value_result(data, evaluation, None);

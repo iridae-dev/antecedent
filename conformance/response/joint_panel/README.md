@@ -64,10 +64,11 @@ runs in `scripts/check_conformance_references.py` alongside other independent
 references. The public retained workflow in
 `crates/antecedent/tests/joint_panel_workflow.rs` exercises actual fitting,
 aligned uncertainty slots, design refusal, reuse and independent artifact
-consumption. Whole-procedure Q09/E14 grids are registered in
-`parity/fixtures/joint_panel_procedures.toml` but remain not_measured. The additive
-and interaction references isolate the declared mechanism features; neither
-reference grants a calibration claim.
+consumption. `parity/fixtures/joint_panel_procedures.toml` states, per procedure, whether an
+interval is published and where its coverage is measured
+(`crates/antecedent/tests/joint_response_calibration.rs`); the fitted panel publishes no
+supported interval. The additive and interaction references isolate the declared mechanism
+features; neither reference grants a calibration claim.
 
 Truth checking retains every committed decimal digit. `expected.json` numeric
 floats compare with absolute tolerance `1e-13` and zero relative tolerance, to

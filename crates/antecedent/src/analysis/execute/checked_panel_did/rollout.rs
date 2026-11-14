@@ -11,8 +11,9 @@
 //! declared informative is refused because no route here corrects for it.
 //!
 //! Uncertainty is a whole-procedure resample of the inference clusters (whole subjects under a
-//! declared independent-subject design; a dependent single series is refused), and every
-//! interval is unsupported with calibration `not_measured`.
+//! declared independent-subject design; a dependent single series is refused). A fit whose
+//! published section a difference_in_differences support row admits states `supported`; every
+//! other is unsupported, and every section's calibration is `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt::Write as _;
@@ -165,8 +166,64 @@ impl super::CheckedPanelDidOperation {
             Strategy::new(IdentifierId::ParallelTrends, EstimatorId::PanelDid),
             self.report(&fit, n),
         );
+        self.rollout_did_state_support(&mut result, robust);
         result.extras.missing_data = Some(self.missing_report(data, &complete, &kept)?);
         Ok(result)
+    }
+
+    /// The declared specification a rollout support row is keyed on, read from the query.
+    fn rollout_did_row_spec<'a>(
+        &self,
+        robust: &'a antecedent_core::HeterogeneityRobustDid,
+    ) -> antecedent_io::analysis_result_artifact::DidRolloutRowSpec<'a> {
+        antecedent_io::analysis_result_artifact::DidRolloutRowSpec {
+            two_period: self.query.design == DidSamplingDesign::CovariateAdjustedTwoPeriod,
+            estimator: robust.estimator.as_str(),
+            comparison: robust.comparison.as_str(),
+            nuisance: robust.nuisance.as_str(),
+            scheme: self.query.resampling.map(|resampling| match resampling.scheme {
+                DidResamplingScheme::ClusterBootstrap => "cluster_bootstrap",
+                DidResamplingScheme::ClusterMultiplier => "cluster_multiplier",
+            }),
+            covariates: robust.covariates.len(),
+            measured_options: robust.aggregation == DidAggregation::Simple
+                && robust.anticipation == 0
+                && robust.base_period == antecedent_core::DidBasePeriod::Varying
+                && robust.observation == PanelObservationProcess::default(),
+        }
+    }
+
+    /// State support on a frequentist rollout result whose section a difference-in-differences
+    /// support row admits, and replace the unsupported note with the scope of that row. The
+    /// section is read in its artifact form, so the loader recomputes the same answer.
+    fn rollout_did_state_support(
+        &self,
+        result: &mut StudyResult,
+        robust: &antecedent_core::HeterogeneityRobustDid,
+    ) {
+        let crate::result::ResultPayload::QuasiRollout(rollout) = &mut result.payload else {
+            return;
+        };
+        let section = antecedent_io::analysis_result_artifact::QuasiRolloutWire::from(&**rollout);
+        if !antecedent_io::analysis_result_artifact::did_rollout_row_admits(
+            self.rollout_did_row_spec(robust),
+            &section,
+        ) {
+            return;
+        }
+        rollout.supported = true;
+        result
+            .diagnostics
+            .retain(|diagnostic| diagnostic.code.as_ref() != "estimate.quasi.rollout.unsupported");
+        result.diagnostics.push(Diagnostic::new(
+            "estimate.quasi.rollout.design_support",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "supported design: a difference_in_differences support row admits this estimator, \
+             comparison or nuisance method, resampling scheme, cluster counts and completed \
+             refits for the overall effect's pointwise interval; the other reported intervals \
+             and bands, and the identifying premises, are outside that statement",
+        ));
     }
 
     /// The Bayesian-bootstrap posterior of the rollout, with its credible intervals and bands
@@ -238,7 +295,57 @@ impl super::CheckedPanelDidOperation {
         result.payload = rollout_payload(parts);
         result.treatment = None;
         result.support_status = None;
+        self.rollout_posterior_state_row(&mut result, fit, posterior.draws_ok, rows);
         Ok(result)
+    }
+
+    /// State the support row of a Bayesian-bootstrap rollout posterior: the simple aggregate
+    /// of a balanced staggered panel read whole, one unit per inference cluster, without
+    /// covariates, anticipation, a universal base period or a declared observation process.
+    fn rollout_posterior_state_row(
+        &self,
+        result: &mut StudyResult,
+        fit: &RolloutDidFit,
+        draws_ok: u32,
+        rows_supplied: usize,
+    ) {
+        let Some(robust) = self.query.robust.as_ref() else {
+            return;
+        };
+        let spec = self.rollout_did_row_spec(robust);
+        if spec.two_period
+            || spec.covariates > 0
+            || !spec.measured_options
+            || !fit.balanced
+            || fit.clusters != fit.units
+            || fit.rows != rows_supplied
+            || fit.overall.interval.is_none()
+        {
+            return;
+        }
+        let smallest_cohort =
+            fit.cohort_support.iter().map(|cohort| cohort.units).min().unwrap_or(0);
+        let method = format!("bayesian_bootstrap_{}_{}", spec.estimator, spec.comparison);
+        super::super::bayesian_quasi_common::state_design_posterior_row(
+            result,
+            crate::support::GraphlessSupportKey {
+                family: "difference_in_differences",
+                design: "staggered_heterogeneity_robust",
+                method: &method,
+                inference_claim: "simple_aggregate_pointwise_95_posterior_quantiles",
+            },
+            crate::support::GraphlessAssignmentSupport {
+                assignment_unit: "cluster",
+                treated: smallest_cohort,
+                control: fit.never_treated_units,
+                rows: fit.rows,
+                blocks: fit.clusters,
+                interval_95_published: true,
+                reported_intervals: 1,
+                interval_resamples: draws_ok as usize,
+                ..Default::default()
+            },
+        );
     }
 
     /// The rows a rollout reads under the declared missing-data policy.
@@ -321,6 +428,9 @@ impl super::CheckedPanelDidOperation {
             if slope > 0.0 {
                 diagnostics.push(("attrition_tipping_shift".to_string(), estimate.abs() / slope));
             }
+        }
+        if let Some(largest) = fit.comparison_propensity_max {
+            diagnostics.push(("comparison_propensity_max".to_string(), largest));
         }
         if let Some(statistic) = fit.pretrend_max_abs_t {
             diagnostics.push(("pretrend_max_abs_t".to_string(), statistic));

@@ -41,6 +41,8 @@ pub use explanation::{
 pub use gaussian_restriction::declare_joint_panel_gaussian_restriction;
 mod imputed;
 pub use imputed::{JointPanelImputedResult, PreparedJointPanelImputation};
+mod measured_intervals;
+pub use measured_intervals::{JOINT_RESPONSE_QUERY, JointResponseReading};
 mod ports;
 mod projection;
 mod search;

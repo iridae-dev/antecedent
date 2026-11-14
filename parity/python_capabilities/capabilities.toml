@@ -10747,7 +10747,7 @@ rust = ["export:antecedent::HistoryMatchQuery"]
 rust_types = ["antecedent::HistoryMatchEstimate"]
 status = "plumbing"
 owner = "Python API integration: antecedent::HistoryMatchEstimate"
-behavior = "antecedent::HistoryMatchEstimate: period-history matching returns the matched contrast with an Abadie-Imbens standard error and no supported interval."
+behavior = "antecedent::HistoryMatchEstimate: period-history matching returns the matched contrast with an Abadie-Imbens standard error and the fixed-b period interval, and states supported only when the fit meets the history-match support row."
 python = "antecedent.quasi.PeriodHistoryMatchEstimate"
 composed_caller = "antecedent.analyze(query=PeriodHistoryMatch) -> _native analyze -> HistoryMatchSection (python/src/unsupported_design_api.rs) -> quasi.PeriodHistoryMatchEstimate"
 required_dimensions = ["success", "inspection"]
@@ -10755,7 +10755,7 @@ required_dimensions = ["success", "inspection"]
 test = "python/tests/test_unsupported_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
 assertion_scopes = ["test_period_history_match_matches_the_brute_force_reference"]
 dimensions = ["success", "controls", "inspection"]
-assertion_contract = "With and without a caliper the matched query and donor indices equal a brute-force nearest-score reference, the contrast and standard error agree within 1e-12, and the fit is unsupported with the abadie_imbens_and_newey_west_period_interval_calibration_not_measured uncertainty label."
+assertion_contract = "With and without a caliper the matched query and donor indices equal a brute-force nearest-score reference, the contrast and standard error agree within 1e-12, and the fit is unsupported with the abadie_imbens_and_newey_west_period_interval_calibration_not_measured uncertainty label; eight periods of 100 units with no caliper and no weights publish an interval that contains the contrast and state supported."
 
 [[capability]]
 id = "analysis.batch.retarget"
@@ -11465,7 +11465,7 @@ required_dimensions = ["success", "refusal", "artifact"]
 test = "python/tests/test_association_compiled.py::test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal"
 assertion_scopes = ["test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal"]
 dimensions = ["success", "inspection"]
-assertion_contract = "The compiled study reports the least-squares slope to 1e-8 with an HC1 sandwich standard error, is unsupported with not_measured calibration, never ranks actions or claims an intervention effect, lists the descriptive-only premise, and its answer is associational with no value and detail noncausal_association."
+assertion_contract = "The compiled study reports the least-squares slope to 1e-8 with the leverage-adjusted sandwich standard error (sandwich_leverage_student: the influence root sum of squares times a Student-t over normal quantile ratio), states supported under its graphless row (120 rows, one numeric predictor) with the not_measured calibration label, never ranks actions or claims an intervention effect, lists the descriptive-only premise, and its answer is associational with no value and detail noncausal_association."
 [[capability.evidence]]
 test = "python/tests/test_association_compiled.py::test_correlations_and_a_scored_predictive_model"
 assertion_scopes = ["test_correlations_and_a_scored_predictive_model"]
@@ -12619,7 +12619,7 @@ required_dimensions = ["success", "inspection", "refusal", "branch"]
 test = "python/tests/test_temporal_designs.py::test_the_two_arm_excursion_recovers_the_effect_in_both_modes"
 assertion_scopes = ["test_the_two_arm_excursion_recovers_the_effect_in_both_modes"]
 dimensions = ["success", "inspection", "branch"]
-assertion_contract = "The excursion estimate recovers 1.2 within four standard errors with lower<estimate<upper, is unsupported with not_measured calibration, and the Bayesian mode with 300 draws agrees with the frequentist estimate."
+assertion_contract = "The excursion estimate recovers 1.2 within four standard errors with lower<estimate<upper, states the support its two-arm row grants with not_measured calibration, and the Bayesian mode with 300 draws agrees with the frequentist estimate."
 [[capability.evidence]]
 test = "python/tests/test_temporal_designs.py::test_the_local_quadratic_dose_grid_needs_its_curvature_bound"
 assertion_scopes = ["test_the_local_quadratic_dose_grid_needs_its_curvature_bound"]
@@ -12637,14 +12637,14 @@ rust = ["export:antecedent::query::SequentialContrastQuery", "export:antecedent:
 rust_types = ["antecedent::SequentialContrastEstimate"]
 status = "covered"
 owner = "Python API integration: antecedent::result"
-behavior = "A sequential contrast query cross-fits two regimes into a SequentialContrastEstimate with scores and an unsupported normal interval or a modular Dirichlet posterior, and refuses an estimator/inference mismatch and a positivity violation."
+behavior = "A sequential contrast query cross-fits two regimes into a SequentialContrastEstimate with scores and a normal interval (supported only when the fit meets the sequential-contrast support row) or a modular Dirichlet posterior, and refuses an estimator/inference mismatch and a positivity violation."
 python = "antecedent.regimes.SequentialContrast"
 required_dimensions = ["success", "inspection", "refusal", "branch"]
 [[capability.evidence]]
 test = "python/tests/test_unsupported_design_routes.py::test_sequential_contrast_normal_interval_matches_the_pinned_reference"
 assertion_scopes = ["test_sequential_contrast_normal_interval_matches_the_pinned_reference"]
 dimensions = ["success", "inspection"]
-assertion_contract = "Active mean 3.5770, control mean 1.3462 and contrast 2.2309 equal the pinned reference to 1e-4, the standard error and normal interval equal those computed from the contrast scores, and the estimate is unsupported with not_measured calibration."
+assertion_contract = "Active mean 3.5770, control mean 1.3462 and contrast 2.2309 equal the pinned reference to 1e-4, the standard error and normal interval equal those computed from the contrast scores, and the 80-subject two-fold estimate is unsupported with not_measured calibration; five folds on 400 subjects state supported with an interval that contains the contrast."
 [[capability.evidence]]
 test = "python/tests/test_unsupported_design_routes.py::test_sequential_contrast_posterior_is_the_modular_dirichlet_posterior"
 assertion_scopes = ["test_sequential_contrast_posterior_is_the_modular_dirichlet_posterior"]

@@ -7,6 +7,10 @@
 //! no finite mean, so the reported point is the posterior median, and the credible interval is
 //! withheld, with a weak-first-stage diagnostic, when the denominator has posterior mass near
 //! zero.
+//!
+//! The posterior states support only when a `local_polynomial_ratio` support row admits it: a
+//! declared (not selected) bandwidth, the prior scale the row was measured at, and the row's
+//! window rows, draws and first-stage strength. Every other posterior is unsupported.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
@@ -25,6 +29,75 @@ use std::time::Instant;
 
 /// Fraction of the window treatment spread below which the first stage is treated as unidentified.
 const FIRST_STAGE_FLOOR_FRACTION: f64 = 0.05;
+
+/// Coefficient prior scale, in residual standard deviations, the support rows were measured at.
+const SUPPORT_ROW_PRIOR_SCALE: f64 = 100.0;
+
+/// What a fixed-bandwidth local-ratio posterior shows a support row.
+struct LocalRatioPosteriorFacts {
+    /// Window rows left of the cutoff and at or right of it.
+    sides: [usize; 2],
+    /// Ratio draws behind the interval.
+    draws: usize,
+    /// Absolute posterior mean of the denominator over its posterior standard deviation.
+    first_stage_t: f64,
+    /// The ratio interval was published.
+    published: bool,
+}
+
+/// Window rows on each side of the cutoff, by the posterior's own window rule.
+fn local_ratio_posterior_sides(
+    sample: &LocalRatioSample<'_>,
+    cutoff: f64,
+    bandwidth: f64,
+) -> [usize; 2] {
+    let mut sides = [0_usize; 2];
+    for running in sample.running {
+        if (running - cutoff).abs() <= bandwidth {
+            sides[usize::from(*running >= cutoff)] += 1;
+        }
+    }
+    sides
+}
+
+/// The support row key and observed support of a fixed-bandwidth local-ratio posterior.
+///
+/// The key exists only at a declared bandwidth and the measured prior scale; the row then
+/// bounds the window rows on each side, the draws and the first-stage strength.
+fn local_ratio_posterior_row(
+    query: &antecedent_core::LocalPolynomialRatioQuery,
+    config: &BayesianConfig,
+    facts: &LocalRatioPosteriorFacts,
+) -> Option<(
+    crate::support::GraphlessSupportKey<'static>,
+    crate::support::GraphlessAssignmentSupport,
+)> {
+    let selected = query.options.as_ref().is_some_and(|options| {
+        options.bandwidth_rule == antecedent_core::LocalBandwidthRule::MseOptimal
+    });
+    if selected || (config.prior_scale - SUPPORT_ROW_PRIOR_SCALE).abs() > 1e-9 {
+        return None;
+    }
+    Some((
+        crate::support::GraphlessSupportKey {
+            family: "local_polynomial_ratio",
+            design: if query.kink { "regression_kink" } else { "fuzzy_jump" },
+            method: "joint_local_linear_gaussian_posterior_prior_scale_100",
+            inference_claim: "pointwise_95_posterior_quantiles",
+        },
+        crate::support::GraphlessAssignmentSupport {
+            assignment_unit: "unit",
+            treated: facts.sides[1],
+            control: facts.sides[0],
+            interval_95_published: facts.published,
+            rows: facts.sides[0] + facts.sides[1],
+            reported_intervals: usize::from(facts.published),
+            first_stage_t: facts.first_stage_t,
+            interval_resamples: facts.draws,
+            ..Default::default()
+        },
+    ))
+}
 
 /// Plan id, identifier and estimator a compiled Bayesian local-ratio plan records.
 pub(in crate::analysis::execute) fn bayesian_local_polynomial_ratio_plan_ids(
@@ -152,6 +225,16 @@ impl super::CheckedLocalPolynomialRatioOperation {
         )?;
         let kind = if query.kink { "slope change" } else { "jump" };
         let diagnostics = local_ratio_diagnostics(&fit, kind, floor);
+        let facts = LocalRatioPosteriorFacts {
+            sides: local_ratio_posterior_sides(sample, query.cutoff, query.bandwidth),
+            draws: fit.ratio_draws.len(),
+            first_stage_t: if fit.first_stage_sd > 0.0 && fit.first_stage_mean.is_finite() {
+                fit.first_stage_mean.abs() / fit.first_stage_sd
+            } else {
+                0.0
+            },
+            published: !fit.weak_first_stage && fit.ratio_interval.is_some(),
+        };
         let mut columns = Vec::with_capacity(3);
         if !fit.weak_first_stage {
             columns.push((effect_quantity("ratio"), fit.ratio_draws));
@@ -191,7 +274,7 @@ impl super::CheckedLocalPolynomialRatioOperation {
             ],
             sampler: None,
         };
-        finish_design_posterior_as(
+        let mut result = finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -207,6 +290,16 @@ impl super::CheckedLocalPolynomialRatioOperation {
                 IdentifierId::for_local_ratio(self.query.kink),
                 EstimatorId::BayesianLocalRatio,
             ),
-        )
+        )?;
+        // The shared design-posterior statement: the row and the observed support ride in a
+        // coded diagnostic the artifact loader rechecks.
+        if let Some((key, observed)) = local_ratio_posterior_row(query, config, &facts) {
+            super::super::bayesian_quasi_common::state_design_posterior_row(
+                &mut result,
+                key,
+                observed,
+            );
+        }
+        Ok(result)
     }
 }

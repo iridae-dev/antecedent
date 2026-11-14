@@ -1,7 +1,8 @@
 //! Result sections of the observational sequential contrast and the within-period history match.
 //!
-//! Both are reported with calibration status `not_measured`: the sections carry no support status, the retained scores
-//! or matched pairs a consumer recomputes from, and the standing of the reported uncertainty.
+//! Both sections carry the retained scores or matched pairs a consumer recomputes from, the
+//! standing of the reported uncertainty, and whether the published interval meets its graphless
+//! support row. The runtime calibration slot stays `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -26,6 +27,7 @@ pub struct SequentialContrastSection {
     pub control_scores: Vec<f64>,
     pub contrast_scores: Vec<f64>,
     pub uncertainty: String,
+    pub supported: bool,
     pub fits_computed: u64,
     pub fits_reused: u64,
 }
@@ -48,6 +50,7 @@ impl From<&antecedent::SequentialContrastEstimate> for SequentialContrastSection
             control_scores: value.control_scores.to_vec(),
             contrast_scores: value.contrast_scores.to_vec(),
             uncertainty: value.uncertainty.to_string(),
+            supported: value.supported,
             fits_computed: value.fits_computed,
             fits_reused: value.fits_reused,
         }
@@ -67,8 +70,12 @@ pub struct HistoryMatchSection {
     pub pair_weights: Vec<f64>,
     pub unmatched_treated: Vec<usize>,
     pub periods_matched: usize,
+    pub serial_standard_error: Option<f64>,
+    pub interval_lower: Option<f64>,
+    pub interval_upper: Option<f64>,
     pub caliper: Option<f64>,
     pub uncertainty: String,
+    pub supported: bool,
 }
 
 impl From<&antecedent::HistoryMatchEstimate> for HistoryMatchSection {
@@ -83,8 +90,12 @@ impl From<&antecedent::HistoryMatchEstimate> for HistoryMatchSection {
             pair_weights: value.pair_weights.to_vec(),
             unmatched_treated: value.unmatched_treated.to_vec(),
             periods_matched: value.periods_matched,
+            serial_standard_error: value.serial_standard_error,
+            interval_lower: value.interval_lower,
+            interval_upper: value.interval_upper,
             caliper: value.caliper,
             uncertainty: value.uncertainty.to_string(),
+            supported: value.supported,
         }
     }
 }

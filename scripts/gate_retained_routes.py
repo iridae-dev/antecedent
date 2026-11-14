@@ -16,6 +16,8 @@ The route set is derived from three records and the sources that implement them:
   only a program-only operation rather than the route's own computation;
 * a manifest `retained_operation` that names no sealed operation, or one that does
   not serve the route's cell, or a graphless row without the field and its test;
+* a `capability` route its capability records do not close, or a supported estimator route
+  whose estimator no supported cell lists with evidence (`route_closure`);
 * a sealed operation without a sealer, a retained-operation variant or a name;
 * an `OrdinaryDispatch` or `LoweredDispatch` identifier in library code, an `EstimatorId` the
   estimator-family sealer's table omits, or a program-only operation built outside its owner;
@@ -36,6 +38,13 @@ from retained_computation import (
     sealed_payloads,
     wrapper_kinds,
 )
+from route_closure import (
+    CAPABILITY,
+    mapped_groups,
+    estimator_route_problems,
+    is_estimator_route,
+    manifest_capability_problems,
+)
 from test_evidence import rust_test_declaration_problems
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +53,8 @@ ANALYSIS = f"{SRC}/analysis"
 REGISTRY = f"{ANALYSIS}/lowering/registry.rs"
 MANIFEST = "parity/capabilities/route_manifest.toml"
 SUPPORTED_ROUTES = "parity/supported_routes.toml"
+SUPPORT_CELLS = "parity/support_cells.toml"
+CAPABILITY_RECORDS = "parity/capability_records.toml"
 EXECUTING = ("supported", "graphless", "execution_only")
 
 # Plan routes that are not registry cells and the module that lowers each.
@@ -67,6 +78,8 @@ ROUTE_CELLS = (
     (r"^(?:measurement|composition\.static)\.", "PropagationChain"),
     (r"^(?:bayesian\.)?temporal\.(?:glm_link_contrast|lagged_instrument)$", "TemporalEffectDag"),
     (r"^bayesian\.temporal\.white_innovation_linear$", "TemporalEffectDag"),
+    # Before the design-name patterns below: a temporal design names its design in its id.
+    (r"^(?:bayesian\.)?temporal_design\.", "TemporalDesign"),
     (r"(?:^|\.)interference", "InterferenceDag"),
     (r"survival", "Survival"),
     (r"continuous_dose|dose_grid", "ContinuousDoseResponse"),
@@ -84,7 +97,6 @@ ROUTE_CELLS = (
     (r"longitudinal_regime|sequential_regime_value", "LongitudinalRegime"),
     (r"sequential[._]crossfit", "SequentialContrast"),
     (r"period_history", "HistoryMatch"),
-    (r"^(?:bayesian\.)?temporal_design\.", "TemporalDesign"),
     (r"^(?:bayesian\.)?iv_bounds\.", "IvBounds"),
     (r"^(?:bayesian\.)?association\.descriptive\.static$", "AssociationStatic"),
     (r"^(?:bayesian\.)?association\.descriptive\.temporal$", "AssociationTemporal"),
@@ -455,10 +467,25 @@ def manifest_problems(
     name_to_variant = {name: variant for variant, name in names.items()}
     wrappers = wrapper_kinds(sealed_payloads(root))
 
-    # Supported geometric routes: manifest records and supported-route rows agree.
+    # Supported geometric routes: manifest records and supported-route rows agree. A supported
+    # route that describes one estimator is checked against the cells that list it.
     manifest_keys = {
-        (route["target"], route["graph_class"]) for route in routes if route["status"] == "supported"
+        (route["target"], route["graph_class"])
+        for route in routes
+        if route["status"] == "supported" and not is_estimator_route(route)
     }
+    cells_text = _read(root, SUPPORT_CELLS)
+    problems.extend(
+        estimator_route_problems(routes, tomllib.loads(cells_text).get("cell", []) if cells_text else [])
+    )
+    records_text = _read(root, CAPABILITY_RECORDS)
+    problems.extend(
+        manifest_capability_problems(
+            routes,
+            tomllib.loads(records_text).get("record", []) if records_text else [],
+            mapped_groups(root),
+        )
+    )
     record_keys = set()
     for row in supported:
         target, graph_class = row["coordinate"].split(":")[:2]
@@ -494,7 +521,9 @@ def manifest_problems(
             problems.append(
                 f"{rid}: graphless route records no retained_operation and retained_route_test"
             )
-        if status not in EXECUTING or status == "supported":
+        # A capability route with a sealed operation is a compiled route: its cell is checked.
+        compiled = status == CAPABILITY and operation is not None
+        if (status not in EXECUTING and not compiled) or status == "supported":
             continue
         lowered_cells = route_cells(route)
         if not lowered_cells:

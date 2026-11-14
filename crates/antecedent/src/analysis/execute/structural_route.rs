@@ -249,6 +249,75 @@ fn discovery_note(structure: &DiscoveredStructure, query: &DiscoverQuery) -> Dia
     }
 }
 
+/// Where a structure posterior stands against the coverage measurements of the search route:
+/// the class posterior of the exact DAG posterior of at most three variables from 75 rows, and
+/// the bounded-lag template posterior of two variables with one lag from a series of 100 steps,
+/// each measured as a credible set held to at least nominal. Every other posterior has none.
+fn discovery_posterior_scope(
+    structure: &DiscoveredStructure,
+    query: &DiscoverQuery,
+    data: &DiscoverData<'_>,
+) -> Option<Diagnostic> {
+    if !matches!(
+        structure,
+        DiscoveredStructure::Posterior(_) | DiscoveredStructure::EdgeMarginals(_)
+    ) {
+        return None;
+    }
+    let variables = query.variables.len();
+    let rows = data.rows();
+    let statement = match &query.method {
+        DiscoveryMethod::ClassPosterior { base }
+            if matches!(**base, DiscoveryMethod::ExactDagPosterior)
+                && matches!(data, DiscoverData::Tabular(_))
+                && variables <= 3
+                && rows >= 75 =>
+        {
+            Some(
+                "smallest credible set of Markov equivalence classes of the exact DAG \
+                 posterior, at most three variables and at least 75 rows, held to at least \
+                 nominal coverage",
+            )
+        }
+        DiscoveryMethod::DbnPosterior { .. }
+            if matches!(data, DiscoverData::Series(_))
+                && variables <= 2
+                && query.bounds.max_lag == 1
+                && rows >= 100 =>
+        {
+            Some(
+                "smallest credible set of bounded-lag templates of two variables with one \
+                 lag, a series of at least 100 steps, held to at least nominal coverage",
+            )
+        }
+        _ => None,
+    };
+    let (message, fields) = match statement {
+        Some(statement) => (
+            format!(
+                "credible sets of this structure posterior are inside the conditions their \
+                 coverage measurement ran under ({statement})"
+            ),
+            vec![("coverage_scope", "measured_conditions"), ("statement", statement)],
+        ),
+        None => (
+            "no coverage measurement covers a credible set or a marginal of this structure \
+             posterior at this method, size and sample; the route states no support for it"
+                .to_owned(),
+            vec![("coverage_scope", "not_measured")],
+        ),
+    };
+    Some(
+        Diagnostic::new(
+            "discovery.posterior_scope",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            message,
+        )
+        .with_fields(fields),
+    )
+}
+
 impl super::Study {
     /// Admission of a structure search: the query is valid and the method runs
     /// on the study's data modality.
@@ -352,6 +421,7 @@ impl super::Study {
                 Ok(structure_search_identification(self.query.clone(), query))
             })?;
         let mut diagnostics = vec![discovery_note(&structure, query)];
+        diagnostics.extend(discovery_posterior_scope(&structure, query, data));
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }

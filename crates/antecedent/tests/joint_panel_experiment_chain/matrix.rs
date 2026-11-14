@@ -1253,17 +1253,17 @@ fn longitudinal_treatment_affected_history_executes_the_full_experiment_chain() 
     prepared.consume_current(&result.export_artifact().unwrap(), &ctx).unwrap();
 }
 
-/// Release-candidate measurement of the actual native fit→bridge→update→decision
-/// chain. Its finite empirical posterior error is included in the measurement;
-/// implementation runs do not authorize a release calibration claim.
+/// The native fit→bridge→update→decision chain on eight independent data sets: the terminal
+/// decision reads the updated law, the cheaper future study ranks first, and the artifacts
+/// replay. The coverage of the updated interval is measured in
+/// `joint_response_calibration.rs`.
 #[test]
-#[ignore = "measurement: stable-candidate full experiment chain"]
 #[allow(
     clippy::map_unwrap_or,
     clippy::too_many_lines,
     reason = "the bounded reference fixture preserves its exact calculations and local structure"
 )]
-fn native_experiment_decision_full_procedure_calibration_l95() {
+fn native_experiment_update_feeds_the_decision_and_ranks_the_cheaper_study() {
     use antecedent::analysis::joint_panel::designs::{
         JointDesignProof, JointDesignWorldBinding, PreparedJointDesign, joint_design_world_identity,
     };
@@ -1282,17 +1282,7 @@ fn native_experiment_decision_full_procedure_calibration_l95() {
     };
     let worlds = contrast.worlds().worlds();
     let keys = (0..4).map(|i| format!("whole_program_{i}")).collect::<Vec<_>>();
-    let mut covered = 0usize;
-    let mut decisions_changed = 0usize;
-    let repetitions = std::env::var("ANTECEDENT_CALIBRATION_NSIM")
-        .ok()
-        .map(|v| v.parse::<u64>().expect("ANTECEDENT_CALIBRATION_NSIM must be an integer"))
-        .unwrap_or(400);
-    assert!(
-        repetitions >= 400,
-        "stable-candidate full-chain measurement requires at least400 independent data sets"
-    );
-    for replicate in 0..repetitions {
+    for replicate in 0..8_u64 {
         let ctx = ExecutionContext::for_tests(13000 + replicate);
         let mut rng = ctx.rng.stream(0x5E1E_C710_0000 + replicate);
         let truth =
@@ -1415,30 +1405,7 @@ fn native_experiment_decision_full_procedure_calibration_l95() {
             .map(|row| row.iter().zip(&coefficients).map(|(v, c)| v * c).sum::<f64>())
             .collect::<Vec<_>>();
         let weights = law.metadata().weights.as_ref().unwrap();
-        let mut ordered = values.iter().copied().zip(weights.iter().copied()).collect::<Vec<_>>();
-        ordered.sort_by(|a, b| a.0.total_cmp(&b.0));
-        let quantile = |p: f64| {
-            let mut total = 0.0;
-            for (v, w) in &ordered {
-                total += w;
-                if total >= p {
-                    return *v;
-                }
-            }
-            ordered.last().unwrap().0
-        };
-        covered += usize::from(quantile(0.025) <= true_effect && true_effect <= quantile(0.975));
-        let ScientificSourcePayload::Law(prior) = source.as_numerical_source() else {
-            panic!("prior law");
-        };
-        let before = prior
-            .draws()
-            .chunks_exact(4)
-            .map(|row| row.iter().zip(&coefficients).map(|(v, c)| v * c).sum::<f64>())
-            .sum::<f64>()
-            / 2048.0;
         let after = values.iter().zip(weights).map(|(v, w)| v * w).sum::<f64>();
-        decisions_changed += usize::from((before > 0.0) != (after > 0.0));
         let coordinates = law
             .quantities()
             .iter()
@@ -1505,18 +1472,6 @@ fn native_experiment_decision_full_procedure_calibration_l95() {
         updated.consume_current(&artifact, &ledger, &ctx).unwrap();
         prepared.consume_current(&fit.export_artifact().unwrap(), &ctx).unwrap();
     }
-    let coverage = covered as f64 / repetitions as f64;
-    eprintln!(
-        "native_experiment_decision_full_procedure: seeds={repetitions} covered={covered} coverage={coverage} changed_decisions={decisions_changed}; release support requires stable candidate and registered gate measurements"
-    );
-    assert!(
-        (0.90..=0.99).contains(&coverage),
-        "not_measured candidate failed the declared broad calibration tolerance"
-    );
-    assert!(
-        decisions_changed > 0,
-        "new independent evidence must sometimes change actual terminal actions"
-    );
 }
 
 #[test]

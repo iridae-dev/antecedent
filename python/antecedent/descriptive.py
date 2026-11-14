@@ -27,7 +27,9 @@ decompose a causal effect.
   predictive model scored on held-out folds, from the outcome scale and the functional. The
   answer (``result.answer.kind == "associational"``, ``result.association``) describes the
   observed law: identification is not claimed, it is never the effect of an intervention, it ranks
-  no action, and every uncertainty it reports is unsupported with calibration ``not_measured``.
+  no action. ``result.association.supported`` is ``True`` only for the configurations the
+  graphless support table lists (family ``association``): the slope of a linear regression of a
+  real outcome on one numeric predictor; every other uncertainty it reports is unsupported.
   Rows are independent units (``temporal=False``) or the consecutive points of one series
   (``temporal=True``, resampled in circular blocks under the declared dependent-series design).
   After a causal query was refused, ``refused_after=`` keeps the refusal's reason code beside the
@@ -582,7 +584,9 @@ class Association:
     The answer describes the observed law: ``result.answer.kind == "associational"``, identification
     is not claimed, and it is never the effect of an intervention or a ranking of actions. Pass
     ``refused_after=`` the reason code (or the error) of a refused causal query to keep the
-    refusal beside the description. The route is unsupported and its calibration is not_measured.
+    refusal beside the description. The result states ``supported`` only when the fit met a row
+    of the graphless support table (the slope of a linear regression of a real outcome on one
+    numeric predictor, unweighted, at 100 rows or steps or more); otherwise it is unsupported.
     """
 
     outcome: str
@@ -657,8 +661,10 @@ class AssociationTerm:
     """One reported quantity: a stratum value, a coefficient, a correlation.
 
     ``standard_error`` is the construction named by ``standard_error_method``;
-    ``spread_lower`` / ``spread_upper`` are the uncalibrated percentile spread of the resampling
-    replicates and the ``posterior_*`` fields the summary of a posterior. None is a coverage claim.
+    ``spread_lower`` / ``spread_upper`` are the resampling spread (the studentized interval of a
+    regression coefficient under a row bootstrap, the percentile range of the replicates
+    otherwise, widened for the block length of a series) and the ``posterior_*`` fields the
+    summary of a posterior. None is a coverage claim.
     """
 
     label: str
@@ -712,7 +718,10 @@ class AssociationPrediction:
 
 @dataclass(frozen=True, slots=True)
 class AssociationEstimate:
-    """A noncausal association and the evidence behind it. Unsupported, calibration not_measured.
+    """A noncausal association and the evidence behind it.
+
+    ``supported`` is ``True`` when the fit met a row of the graphless support table (family
+    ``association``); the claim then covers the slope term only.
 
     ``analysis`` is what the declared selection rule (``rule``) picked for the ``outcome_kind``
     and ``modality``; ``requested`` is the functional the query asked for. The result is never an
@@ -833,5 +842,10 @@ def describe_association(association: AssociationEstimate) -> str:
     )
     return (
         f"{head}{spread}. Identification is not claimed: this is not the effect of changing any "
-        f"variable and ranks no action.{follows} Unsupported, calibration not_measured."
+        f"variable and ranks no action.{follows} "
+        + (
+            "Supported for the slope's uncertainty (graphless row of family association)."
+            if association.supported
+            else "Unsupported, calibration not_measured."
+        )
     )

@@ -9,10 +9,421 @@ use super::{
     disclose_model_bootstrap, intrinsic_posterior_columns, population_refit,
 };
 
+/// The replicate quantity a fitted-model query publishes as its point when that is not the first
+/// quantity of its replicates: a policy value's point is the paired mean difference, listed
+/// after the policy and baseline means.
+fn published_quantity(query: &CausalQuery) -> Option<&'static str> {
+    match query {
+        CausalQuery::Simulate(simulate)
+            if matches!(simulate.target, antecedent_core::SimulationTarget::PolicyValue { .. }) =>
+        {
+            Some("mean_difference")
+        }
+        _ => None,
+    }
+}
+
+/// Posterior draws the coverage measurements of the fitted-model posteriors ran with.
+const MEASURED_POSTERIOR_DRAWS: usize = 1_000;
+/// Refit replicates the coverage measurements of the fitted-model bootstraps ran with.
+const MEASURED_BOOTSTRAP_REPLICATES: u32 = 200;
+
+/// Whether a replicate column is one simulated path of a rollout: a draw of the predictive law,
+/// innovations included, rather than a refit of a mean.
+fn mechanism_refit_path_column(name: &str) -> bool {
+    name.contains("].path[")
+}
+
+/// Refer the refit draws of each mean-type column to the finite-sample posterior of a mean of
+/// `units` exchangeable units in each of `populations` independent populations.
+///
+/// Under `Exp(1)` (Dirichlet) weights on `K` units a weighted mean has posterior variance
+/// `s^2 (K - 1) / (K (K + 1))` and normal tails, where the reference posterior of a mean with an
+/// unknown scale is `mean + s / sqrt(K) * t_{K-1}`. Each draw's deviation from the column mean
+/// is therefore multiplied by `sqrt((K + 1) / (K - 1)) * sqrt(nu / chi2_nu)` with
+/// `nu = populations * (K - 1)`: the first factor restores the variance, the second is the
+/// scale mixture that turns normal tails into Student-t ones. One chi-square variate is shared
+/// by every column of a draw and each column keeps its mean, so sums across columns (a total and
+/// its components) are kept.
+/// Columns that are simulated paths, or hold a non-finite value, are left as drawn.
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "unit and draw counts are far below the exact range of f64"
+)]
+pub(super) fn mechanism_refit_reference(
+    columns: &mut [(String, Vec<f64>)],
+    units: usize,
+    populations: usize,
+    rng: &mut antecedent_core::CausalRng,
+) {
+    let draws = columns.first().map_or(0, |(_, values)| values.len());
+    if units < 3 || populations == 0 || draws == 0 {
+        return;
+    }
+    let k = units as f64;
+    let nu = populations as f64 * (k - 1.0);
+    let restore = ((k + 1.0) / (k - 1.0)).sqrt();
+    let scales: Vec<f64> = (0..draws)
+        .map(|_| {
+            // chi2_nu is Gamma(nu / 2, rate 1 / 2).
+            let chi_square = antecedent_kernels::sample_gamma(0.5 * nu, 0.5, rng);
+            restore * (nu / chi_square).sqrt()
+        })
+        .collect();
+    if scales.iter().any(|scale| !scale.is_finite()) {
+        return;
+    }
+    for (name, values) in columns.iter_mut() {
+        if mechanism_refit_path_column(name)
+            || values.len() != draws
+            || values.iter().any(|value| !value.is_finite())
+        {
+            continue;
+        }
+        let centre = values.iter().sum::<f64>() / draws as f64;
+        for (value, scale) in values.iter_mut().zip(&scales) {
+            *value = (*value - centre) * scale;
+        }
+        // The scaled deviations are re-centred, so the posterior mean stays the refit mean.
+        let shift = centre - values.iter().sum::<f64>() / draws as f64;
+        for value in values.iter_mut() {
+            *value += shift;
+        }
+    }
+}
+
+/// Where a fitted-model interval stands against the coverage measurements of its route.
+pub(super) struct MechanismRefitScope {
+    /// The measured statement the interval falls under, when it does.
+    pub(super) statement: Option<&'static str>,
+    /// Why the interval is outside every measured statement; empty inside one.
+    pub(super) outside: String,
+}
+
+impl MechanismRefitScope {
+    fn inside(statement: &'static str) -> Self {
+        Self { statement: Some(statement), outside: String::new() }
+    }
+
+    fn outside(reason: impl Into<String>) -> Self {
+        Self { statement: None, outside: reason.into() }
+    }
+
+    /// The scope as an informational diagnostic of the result.
+    pub(super) fn diagnostic(&self) -> Diagnostic {
+        let (message, fields) = match self.statement {
+            Some(statement) => (
+                format!(
+                    "the published interval is inside the conditions its coverage measurement \
+                     ran under ({statement})"
+                ),
+                vec![
+                    ("coverage_scope".to_owned(), "measured_conditions".to_owned()),
+                    ("statement".to_owned(), statement.to_owned()),
+                ],
+            ),
+            None => (
+                format!(
+                    "no coverage measurement covers the published interval: {}. The route \
+                     states no support for it",
+                    self.outside
+                ),
+                vec![
+                    ("coverage_scope".to_owned(), "not_measured".to_owned()),
+                    ("reason".to_owned(), self.outside.clone()),
+                ],
+            ),
+        };
+        Diagnostic::new(
+            "gcm.model.interval_scope",
+            super::DiagnosticKind::Scientific,
+            super::DiagnosticSeverity::Info,
+            message,
+        )
+        .with_fields(fields)
+    }
+}
+
 impl CheckedAttributionOperation {
+    /// The independently weighted units behind a refit of `query` on `data`: rows of a static
+    /// table, blocks of consecutive times on a lag-aligned unfolding. A change target weights
+    /// its two populations separately, so it reports the smaller population's units and two
+    /// populations; `None` when a population cannot be resolved.
+    pub(super) fn mechanism_refit_units(
+        &self,
+        query: &CausalQuery,
+        data: &TabularData,
+    ) -> Option<(usize, usize)> {
+        use antecedent_core::AttributeTarget;
+        let units = |rows: usize| -> usize {
+            if self.lag_aligned.is_some() {
+                rows.div_ceil(self.temporal_block_length(rows).max(1))
+            } else {
+                rows
+            }
+        };
+        let change = match query {
+            CausalQuery::Attribute(attribute) => match &attribute.target {
+                AttributeTarget::DistributionChange { change, .. }
+                | AttributeTarget::RootCauses { change, .. }
+                | AttributeTarget::StructureChange { change, .. } => Some(change),
+                _ => None,
+            },
+            _ => None,
+        };
+        match change {
+            Some(change) => {
+                let baseline =
+                    antecedent_attribution::resolve_rows(data, &change.baseline).ok()?.len();
+                let comparison =
+                    antecedent_attribution::resolve_rows(data, &change.comparison).ok()?.len();
+                Some((units(baseline).min(units(comparison)), 2))
+            }
+            None => Some((units(data.row_count()), 1)),
+        }
+    }
+
+    /// Where the uncertainty statement this execution publishes for `query` stands against the
+    /// measured statements of its route (the target, the resampling, the draw or replicate
+    /// count and the smallest measured support), or `None` when it publishes a point alone.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one table of the measured statements of the fitted-model routes"
+    )]
+    pub(super) fn mechanism_refit_scope(
+        &self,
+        query: &CausalQuery,
+        data: &TabularData,
+    ) -> Option<MechanismRefitScope> {
+        use antecedent_core::AttributeTarget;
+        let temporal = self.lag_aligned.is_some();
+        if self.procedure == AttributionProcedure::Point {
+            let CausalQuery::Attribute(attribute) = query else {
+                return None;
+            };
+            return match &attribute.target {
+                // The whole-procedure interval of an intrinsic influence is in the payload.
+                AttributeTarget::IntrinsicInfluence(target)
+                    if target.fit_bootstrap_replicates > 0 =>
+                {
+                    Some(if temporal {
+                        MechanismRefitScope::outside(
+                            "the block-bootstrap whole-procedure interval has no coverage \
+                             measurement",
+                        )
+                    } else if target.fit_bootstrap_replicates < 40 {
+                        MechanismRefitScope::outside(format!(
+                            "{} whole-procedure refits, where the measurement ran 40",
+                            target.fit_bootstrap_replicates
+                        ))
+                    } else if data.row_count() < 150 {
+                        MechanismRefitScope::outside(format!(
+                            "{} rows, where the measurement starts at 150",
+                            data.row_count()
+                        ))
+                    } else {
+                        MechanismRefitScope::inside(
+                            "whole-procedure Student-t interval of the intrinsic influence of \
+                             each noise source, at least 40 refits and 150 rows",
+                        )
+                    })
+                }
+                // The posterior probability of a change under the declared prior.
+                AttributeTarget::MechanismChange { query: change, .. }
+                    if self.inference.is_bayesian() && change.change_prior.is_some() =>
+                {
+                    let least = antecedent_attribution::resolve_rows(data, &change.baseline)
+                        .ok()
+                        .zip(antecedent_attribution::resolve_rows(data, &change.comparison).ok())
+                        .map(|(baseline, comparison)| baseline.len().min(comparison.len()));
+                    Some(match least {
+                        _ if temporal => MechanismRefitScope::outside(
+                            "the posterior probability of a change on a series has no \
+                             coverage measurement",
+                        ),
+                        Some(rows) if rows >= 75 => MechanismRefitScope::inside(
+                            "credible set of the change indicator from the posterior \
+                             probability of a change, held to at least nominal coverage, at \
+                             least 75 rows per population",
+                        ),
+                        Some(rows) => MechanismRefitScope::outside(format!(
+                            "{rows} rows in the smaller population, where the measurement \
+                             starts at 75"
+                        )),
+                        None => MechanismRefitScope::outside(
+                            "a population of the target could not be read",
+                        ),
+                    })
+                }
+                _ => None,
+            };
+        }
+        Some(self.mechanism_refit_interval_scope(query, data))
+    }
+
+    /// [`Self::mechanism_refit_scope`] for a posterior or a refit bootstrap.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one table of the measured statements of the fitted-model routes"
+    )]
+    fn mechanism_refit_interval_scope(
+        &self,
+        query: &CausalQuery,
+        data: &TabularData,
+    ) -> MechanismRefitScope {
+        use antecedent_core::{
+            AnomalyReference, AttributeTarget, ChangeEstimator, SimulationTarget,
+        };
+        let temporal = self.lag_aligned.is_some();
+        let (bayesian, count_ok, count_reason) = match self.procedure {
+            AttributionProcedure::SharedDirichletRowWeights { draws } => (
+                true,
+                draws >= MEASURED_POSTERIOR_DRAWS,
+                format!(
+                    "{draws} posterior draws, where the measurement ran \
+                     {MEASURED_POSTERIOR_DRAWS}"
+                ),
+            ),
+            AttributionProcedure::RowBootstrap { replicates } => (
+                false,
+                replicates >= MEASURED_BOOTSTRAP_REPLICATES,
+                format!(
+                    "{replicates} bootstrap replicates, where the measurement ran \
+                     {MEASURED_BOOTSTRAP_REPLICATES}"
+                ),
+            ),
+            AttributionProcedure::Point => {
+                return MechanismRefitScope::outside("the execution publishes no interval");
+            }
+        };
+        let Some((units, _)) = self.mechanism_refit_units(query, data) else {
+            return MechanismRefitScope::outside("a population of the target could not be read");
+        };
+        let rows = data.row_count();
+        // (statement, least units, further condition and its reason).
+        let measured: Option<(&'static str, usize, bool, &'static str)> = match query {
+            CausalQuery::Attribute(attribute) => match &attribute.target {
+                AttributeTarget::DistributionChange {
+                    estimator: ChangeEstimator::Sampled { n_samples, .. },
+                    ..
+                }
+                | AttributeTarget::RootCauses {
+                    estimator: ChangeEstimator::Sampled { n_samples, .. },
+                    ..
+                } => {
+                    let enough = *n_samples >= 2_000;
+                    let reason = "fewer than 2000 samples of the change estimator";
+                    match (temporal, bayesian) {
+                        (false, true) => Some((
+                            "row-weight posterior of the total and mechanism components of a \
+                             sampled mean-difference change, at least 300 rows per population",
+                            300,
+                            enough,
+                            reason,
+                        )),
+                        (false, false) => Some((
+                            "row-bootstrap normal interval of the total of a sampled \
+                             mean-difference change, at least 300 rows per population",
+                            300,
+                            enough,
+                            reason,
+                        )),
+                        (true, true) => Some((
+                            "block-weight posterior of the total of a sampled mean-difference \
+                             change on one series, at least 43 blocks per population",
+                            43,
+                            enough,
+                            reason,
+                        )),
+                        (true, false) => Some((
+                            "circular-block bootstrap normal interval of the total of a \
+                             sampled mean-difference change on one series, at least 43 blocks \
+                             per population",
+                            43,
+                            enough,
+                            reason,
+                        )),
+                    }
+                }
+                AttributeTarget::Paths { .. } if bayesian && !temporal => Some((
+                    "row-weight posterior of the path decomposition, at least 300 rows",
+                    300,
+                    true,
+                    "",
+                )),
+                AttributeTarget::FeatureRelevance { n_samples, .. } if bayesian && !temporal => {
+                    Some((
+                        "row-weight posterior of the feature relevance scores at the observed \
+                         feature means, at least 300 rows",
+                        300,
+                        *n_samples >= 50_000,
+                        "fewer than 50000 samples per coalition value",
+                    ))
+                }
+                AttributeTarget::Anomaly(anomaly) if bayesian && !temporal => Some((
+                    "row-weight posterior of the mean anomaly score against a fixed \
+                     reference, at least 300 rows",
+                    300,
+                    matches!(anomaly.reference, AnomalyReference::Fixed { .. }),
+                    "the anomaly reference is estimated from the rows",
+                )),
+                AttributeTarget::IntrinsicInfluence(_) if bayesian && !temporal => Some((
+                    "row-weight posterior of the intrinsic influence of each noise source, \
+                     held to at least nominal coverage, at least 150 rows",
+                    150,
+                    true,
+                    "",
+                )),
+                _ => None,
+            },
+            CausalQuery::Simulate(simulate) => match &simulate.target {
+                SimulationTarget::PolicyValue { draws, .. } if !temporal => Some((
+                    if bayesian {
+                        "row-weight posterior of the policy mean, the baseline mean and their \
+                         difference, at least 250 rows"
+                    } else {
+                        "row-bootstrap normal interval of the policy mean difference, at \
+                         least 250 rows"
+                    },
+                    250,
+                    *draws >= rows.saturating_mul(50),
+                    "fewer than 50 simulated draws per fitted row",
+                )),
+                SimulationTarget::TemporalRollout { n_rows, .. } if temporal && bayesian => Some((
+                    "block-weight posterior of the per-step means of a temporal rollout, at \
+                     least 25 blocks",
+                    25,
+                    n_rows.saturating_mul(6) >= rows.saturating_mul(1_000),
+                    "fewer than 1000 simulated rollout rows per 6 fitted rows",
+                )),
+                _ => None,
+            },
+            _ => None,
+        };
+        let Some((statement, least, condition, condition_reason)) = measured else {
+            return MechanismRefitScope::outside(
+                "this target under this resampling has no coverage measurement",
+            );
+        };
+        if !count_ok {
+            return MechanismRefitScope::outside(count_reason);
+        }
+        if units < least {
+            return MechanismRefitScope::outside(format!(
+                "{units} independently weighted {} in the smallest population, where the \
+                 measurement starts at {least}",
+                if temporal { "blocks" } else { "rows" }
+            ));
+        }
+        if !condition {
+            return MechanismRefitScope::outside(condition_reason);
+        }
+        MechanismRefitScope::inside(statement)
+    }
+
     /// The posterior over the mechanisms of a fitted-model target: the Dirichlet-weighted
-    /// refits of the attribution, or the refit contributions the intrinsic-influence engine
-    /// returned.
+    /// refits of the attribution referred to their finite-sample reference, or the refit
+    /// contributions the intrinsic-influence engine returned.
     pub(super) fn model_posterior(
         &self,
         query: &CausalQuery,
@@ -27,7 +438,13 @@ impl CheckedAttributionOperation {
         } else {
             let replicates = self.attribute_replicates(query, data, draws, true, observed, ctx)?;
             let primary = replicates.names.first().is_some_and(|name| name == "total_change");
-            (replicates.columns(), primary)
+            let mut columns = replicates.columns();
+            if let Some((units, populations)) = self.mechanism_refit_units(query, data) {
+                let mut reference =
+                    ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, 0xA77B_7EF5);
+                mechanism_refit_reference(&mut columns, units, populations, &mut reference);
+            }
+            (columns, primary)
         };
         super::super::attribution_path::attribution_posterior(
             columns,
@@ -39,7 +456,8 @@ impl CheckedAttributionOperation {
     }
 
     /// The mechanism-refit bootstrap of a fitted-model target: the standard error of the
-    /// primary quantity on the estimate, and every quantity's standard error in a diagnostic.
+    /// quantity the estimate's point is on the estimate, and every quantity's standard error in
+    /// a diagnostic.
     pub(super) fn model_bootstrap(
         &self,
         query: &CausalQuery,
@@ -54,6 +472,7 @@ impl CheckedAttributionOperation {
         let diagnostic = disclose_model_bootstrap(
             &outcome,
             replicates,
+            published_quantity(query),
             &mut answer.estimate,
             |target, estimate| self.bootstrap_disclosure(target, data.row_count(), estimate),
         );

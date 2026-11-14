@@ -117,6 +117,8 @@ routes = [
 ]
 groups = [
   "joint_law_composed_interval_calibration",
+  "measurement_composition_calibration: composed_contrast_aligned_posterior_gaussian_l95",
+  "measurement_composition_calibration: composed_contrast_aligned_posterior_skewed_pair_l95",
 ]
 
 [[route]]
@@ -196,28 +198,55 @@ routes = [
   "antecedent_estimate.measurement.interval_not_supported",
   "antecedent.measurement_models.MeasurementEstimate.interval",
 ]
-no_interval = "Measurement interval requests are refused; the corrected estimates carry an uncalibrated standard error only."
+groups = [
+  "measurement_composition_calibration: measurement_binary_prevalence_wald_l95",
+  "measurement_composition_calibration: measurement_binary_risk_difference_wald_l95",
+  "measurement_composition_calibration: measurement_classical_error_declared_variance_wald_l95",
+  "measurement_composition_calibration: measurement_classical_error_estimated_variance_wald_l95",
+  "measurement_composition_calibration: measurement_repeated_measurements_wald_l95",
+  "measurement_composition_calibration: measurement_latent_posterior_mean_substitution_wald_l95",
+  "measurement_composition_calibration: measurement_latent_posterior_multiple_imputation_wald_l95",
+]
+
+[[route]]
+record = "measurement.model_contract"
+routes = [
+  "antecedent.measurement_models.transport_pooled_differential",
+]
+groups = [
+  "measurement_composition_calibration: measurement_pooled_differential_heterogeneous_l95",
+  "measurement_composition_calibration: measurement_pooled_differential_target_validated_l95",
+  "measurement_composition_calibration: measurement_pooled_differential_homogeneous_l95",
+]
 
 [[route]]
 record = "measurement.classical_continuous_error"
 routes = [
   "antecedent_estimate.measurement.interval_not_supported.classical_continuous_error",
 ]
-no_interval = "The interval request is refused; the correction publishes a point and an uncalibrated standard error."
+groups = [
+  "measurement_composition_calibration: measurement_classical_error_declared_variance_wald_l95",
+  "measurement_composition_calibration: measurement_classical_error_estimated_variance_wald_l95",
+]
 
 [[route]]
 record = "measurement.repeated_measurements"
 routes = [
   "antecedent_estimate.measurement.interval_not_supported.repeated_measurements",
 ]
-no_interval = "The interval request is refused; the correction publishes a point and an uncalibrated standard error."
+groups = [
+  "measurement_composition_calibration: measurement_repeated_measurements_wald_l95",
+]
 
 [[route]]
 record = "measurement.binary_misclassification"
 routes = [
   "antecedent_estimate.measurement.interval_not_supported.binary_misclassification",
 ]
-no_interval = "The interval request is refused; the correction publishes a point and an uncalibrated standard error."
+groups = [
+  "measurement_composition_calibration: measurement_binary_prevalence_wald_l95",
+  "measurement_composition_calibration: measurement_binary_risk_difference_wald_l95",
+]
 
 [[route]]
 record = "measurement.probabilistic_categorical"
@@ -231,7 +260,10 @@ record = "measurement.external_latent_posterior"
 routes = [
   "antecedent_estimate.measurement.interval_not_supported.external_latent_posterior",
 ]
-no_interval = "The interval request is refused; the correction publishes a point and a conditional standard error."
+groups = [
+  "measurement_composition_calibration: measurement_latent_posterior_mean_substitution_wald_l95",
+  "measurement_composition_calibration: measurement_latent_posterior_multiple_imputation_wald_l95",
+]
 
 
 [[route]]
@@ -317,3 +349,176 @@ groups = ["prepared_adjusted_retarget_calibration: prepared_adjusted_fixed_targe
 record = "sensitivity.joint_uncertainty"
 routes = ["antecedent.JointSensitivityIntervalArtifact.checked", "antecedent.JointSensitivityIntervalArtifact.consume", "antecedent.python.transport.advanced.export_joint_sensitivity_interval", "antecedent.python.transport.advanced.consume_joint_sensitivity_interval"]
 groups = ["joint_sensitivity_calibration: z_joint_sensitivity_zero_box", "joint_sensitivity_calibration: z_joint_sensitivity_positive_box"]
+
+[[route]]
+record = "joint_law.composed_spread_aligned_functional"
+routes = [
+  "antecedent.horizon_composition.horizon_composition_interval",
+]
+groups = [
+  "measurement_composition_horizon_calibration",
+]
+
+[[route]]
+record = "gcm.attribute.mechanism_refit"
+routes = [
+  "antecedent.gcm.attribute.row_bootstrap_interval",
+]
+groups = [
+  "fitted_model_calibration: attribute_distribution_change_dag_frequentist_bootstrap_coverage",
+  "fitted_model_calibration: attribute_root_causes_dag_frequentist_bootstrap_coverage",
+]
+
+[[route]]
+record = "gcm.attribute.mechanism_refit"
+routes = [
+  "antecedent.gcm.attribute.row_weight_posterior",
+]
+groups = [
+  "fitted_model_calibration: attribute_distribution_change_dag_bayesian_dirichlet_coverage",
+  "fitted_model_calibration: attribute_root_causes_dag_bayesian_dirichlet_coverage",
+  "fitted_model_calibration: attribute_paths_dag_bayesian_dirichlet_coverage",
+  "fitted_model_calibration: attribute_feature_relevance_dag_bayesian_dirichlet_coverage",
+  "fitted_model_calibration: attribute_anomaly_dag_bayesian_dirichlet_coverage",
+]
+
+[[route]]
+record = "gcm.attribute.mechanism_refit"
+routes = [
+  "antecedent.gcm.attribute.temporal.block_bootstrap_interval",
+]
+groups = [
+  "fitted_model_calibration: attribute_temporal_dag_frequentist_block_bootstrap_coverage",
+]
+
+[[route]]
+record = "gcm.attribute.mechanism_refit"
+routes = [
+  "antecedent.gcm.attribute.temporal.block_weight_posterior",
+]
+groups = [
+  "fitted_model_calibration: attribute_temporal_dag_bayesian_block_weights_coverage",
+]
+
+[[route]]
+record = "gcm.simulate.mechanism_refit"
+routes = [
+  "antecedent.gcm.simulate.policy_value.row_bootstrap_interval",
+]
+groups = [
+  "fitted_model_calibration: simulate_policy_value_dag_frequentist_bootstrap_coverage",
+  "fitted_model_calibration: intervention_program_shift_dag_frequentist_bootstrap_coverage",
+]
+
+[[route]]
+record = "gcm.simulate.mechanism_refit"
+routes = [
+  "antecedent.gcm.simulate.policy_value.row_weight_posterior",
+]
+groups = [
+  "fitted_model_calibration: simulate_policy_value_dag_bayesian_dirichlet_coverage",
+  "fitted_model_calibration: intervention_program_shift_dag_bayesian_dirichlet_coverage",
+]
+
+[[route]]
+record = "gcm.simulate.mechanism_refit"
+routes = [
+  "antecedent.gcm.simulate.temporal_rollout.block_weight_posterior",
+]
+groups = [
+  "fitted_model_calibration: simulate_temporal_rollout_bayesian_block_weights_coverage",
+]
+
+[[route]]
+record = "attribution.mechanism_change_detection"
+routes = [
+  "antecedent.attribution.mechanism_change.posterior_probability",
+]
+groups = [
+  "fitted_model_calibration: mechanism_change_posterior_probability_credible_set_coverage",
+]
+
+[[route]]
+record = "discovery.structure_posterior"
+routes = [
+  "antecedent.discovery.static.class_posterior_credible_set",
+]
+groups = [
+  "fitted_model_calibration: discovery_static_exact_class_posterior_credible_set_coverage",
+]
+
+[[route]]
+record = "discovery.structure_posterior"
+routes = [
+  "antecedent.discovery.temporal.dbn_posterior_credible_set",
+]
+groups = [
+  "fitted_model_calibration: discovery_temporal_dbn_posterior_credible_set_coverage",
+]
+
+[[route]]
+record = "gcm.attribution.intrinsic_influence"
+routes = [
+  "antecedent.gcm.attribute_intrinsic_influence.whole_procedure_interval",
+]
+groups = [
+  "fitted_model_calibration: intrinsic_influence_whole_procedure_interval_coverage",
+]
+
+[[route]]
+record = "gcm.attribution.intrinsic_influence"
+routes = [
+  "antecedent.gcm.attribute_intrinsic_influence.mechanism_posterior",
+]
+groups = [
+  "fitted_model_calibration: attribute_intrinsic_influence_dag_bayesian_dirichlet_coverage",
+]
+
+[[route]]
+record = "joint_response.interval_readings"
+routes = [
+  "antecedent.joint_panel.NativeJointDesignResult.contrast_interval_reading",
+]
+groups = [
+  "joint_response_calibration: joint_response_switchback_contrast_l95",
+  "joint_response_calibration: joint_response_structural_iv_contrast_l95",
+  "joint_response_calibration: joint_response_cohort_did_contrast_l95",
+  "joint_response_calibration: joint_response_synthetic_rollout_contrast_l95",
+  "joint_response_calibration: joint_response_continuous_longitudinal_contrast_l95",
+  "joint_response_calibration: joint_response_weighted_geo_contrast_l95",
+  "joint_response_calibration: joint_response_factorial_contrast_l95",
+  "joint_response_calibration: joint_response_finite_longitudinal_contrast_l95",
+  "joint_response_calibration: joint_response_local_complier_effect_l95",
+]
+
+[[route]]
+record = "joint_response.interval_readings"
+routes = [
+  "antecedent.joint_panel.RandomizedSelectionResult.selected_value_reading",
+  "antecedent.joint_panel.InstrumentedSelectionResult.selected_value_reading",
+]
+groups = [
+  "joint_response_calibration: joint_response_randomized_selection_exact_ties_l95",
+  "joint_response_calibration: joint_response_randomized_selection_near_ties_l95",
+  "joint_response_calibration: joint_response_randomized_selection_separated_l95",
+  "joint_response_calibration: joint_response_structural_selection_weak_separation_l95",
+]
+
+[[route]]
+record = "joint_response.interval_readings"
+routes = [
+  "antecedent.joint_panel.JointDesignResult.population_reference_region",
+]
+groups = [
+  "joint_response_calibration: joint_response_reference_decomposition_static_l95",
+  "joint_response_calibration: joint_response_reference_decomposition_temporal_l95",
+]
+
+[[route]]
+record = "joint_response.interval_readings"
+routes = [
+  "antecedent.joint_panel.JointDesignResult.updated_contrast_reading",
+]
+groups = [
+  "joint_response_calibration: joint_response_experiment_update_contrast_l95",
+]

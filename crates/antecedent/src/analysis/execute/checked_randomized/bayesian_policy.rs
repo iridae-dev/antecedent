@@ -4,8 +4,12 @@
 //! its frequentist row: the net value of the fixed policy, of the fixed reference, and their
 //! paired difference, under the declared assignment probabilities. The posterior is the
 //! Bayesian-bootstrap functional of the per-subject augmented score. The declared probabilities
-//! identify the value; the prior on the subject law does not. The route is unsupported and its
-//! calibration is `not_measured`.
+//! identify the value; the prior on the subject law does not.
+//!
+//! An inverse-probability fit under a fair-coin assignment with enough rows, units in each
+//! arm, rows on which the policy and its reference differ and draws states its support row in
+//! the design-posterior diagnostic; the row covers the incremental-value interval only. Every
+//! other fit runs and states no support.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
@@ -62,10 +66,17 @@ pub(super) fn admit_bayesian_policy(
     Ok(())
 }
 
-/// The standing diagnostic of every policy-value posterior.
+/// Code of the standing note of a posterior that states no support row.
+const NO_ROW_CODE: &str = "estimate.policy_value.bayesian.unsupported";
+
+/// Rows on which the policy and its reference must differ for the support row: the count the
+/// incremental score is nonzero on, at the smallest measured sample less its sampling spread.
+const POLICY_ROW_MIN_DISAGREEMENTS: usize = 80;
+
+/// The standing diagnostic of a policy-value posterior that states no support row.
 pub(super) fn unsupported_diagnostic() -> Diagnostic {
     Diagnostic::new(
-        "estimate.policy_value.bayesian.unsupported",
+        NO_ROW_CODE,
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
         "Bayesian route with calibration status `not_measured`: the Bayesian-bootstrap posterior of the \
@@ -118,5 +129,58 @@ impl CheckedPolicyValueOperation {
         inference.notes =
             [note].iter().map(|text| std::sync::Arc::<str>::from(text.as_str())).collect();
         assemble_posterior(&columns, &self.identification, assumptions, inference)
+    }
+
+    /// State the support row of the incremental-value posterior when the fit is the measured
+    /// design: the inverse-probability score and a policy that differs from its reference on
+    /// enough rows. The row's thresholds then require the fair coin, the rows, the units in
+    /// each arm, the policy and reference matches and the draws.
+    pub(super) fn state_policy_posterior_row(
+        &self,
+        result: &mut super::super::StudyResult,
+        rows: usize,
+        policy_matches: usize,
+        reference_matches: usize,
+    ) {
+        let query = &self.query;
+        let disagreements = query
+            .actions
+            .iter()
+            .zip(query.reference.iter())
+            .filter(|(action, reference)| action != reference)
+            .count();
+        if !query.mu0.is_empty() || disagreements < POLICY_ROW_MIN_DISAGREEMENTS {
+            return;
+        }
+        let (treated, control, _, min_probability) = self.policy_assignment_support(rows);
+        let draws = result.posterior.as_ref().map_or(0, |posterior| posterior.draws.n_draws);
+        super::super::bayesian_quasi_common::state_design_posterior_row(
+            result,
+            crate::support::GraphlessSupportKey {
+                family: "policy_value",
+                design: "binary_ipw",
+                method: "fixed_randomized_ipw_scores_bayesian_bootstrap",
+                inference_claim: "incremental_pointwise_95_posterior_quantiles",
+            },
+            crate::support::GraphlessAssignmentSupport {
+                assignment_unit: "unit",
+                treated,
+                control,
+                rows,
+                min_probability: if min_probability.is_finite() { min_probability } else { 0.0 },
+                interval_95_published: true,
+                reported_intervals: 1,
+                all_reported_intervals: true,
+                policy_matches,
+                reference_matches,
+                interval_resamples: draws,
+                ..Default::default()
+            },
+        );
+        if result.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code.as_ref() == antecedent_io::graphless_support::DESIGN_POSTERIOR_ROW_CODE
+        }) {
+            result.diagnostics.retain(|diagnostic| diagnostic.code.as_ref() != NO_ROW_CODE);
+        }
     }
 }

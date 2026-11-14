@@ -2,8 +2,9 @@
 //! robust bias-corrected interval, a calendar-time running variable with a within-side block
 //! bootstrap, and the density and covariate-balance diagnostics.
 //!
-//! The result is unsupported and its calibration is `not_measured`; the existing fixed-bandwidth
-//! support row covers only the declared-bandwidth independent-row route.
+//! A result states support only when a `local_polynomial_ratio` support row admits its design,
+//! interval procedure, window rows, first-stage strength and replicates; the check is the one
+//! the artifact loader repeats on the stored section. Every other result is unsupported.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
@@ -43,6 +44,69 @@ pub(in crate::analysis::execute) fn local_ratio_query_plan_ids(
         plan,
         IdentifierId::for_local_ratio(query.kink).as_str().to_string(),
         format!("quasi.{label}.{estimator}"),
+    )
+}
+
+/// State support on a local-design result whose rollout section a support row admits, and
+/// replace the route's unsupported note with the scope of that row.
+///
+/// `selected_bandwidth` is the query's MSE-optimal rule. The section is read in its artifact
+/// form, so the loader's recomputation sees exactly what is decided here.
+fn local_design_state_support(result: &mut StudyResult, selected_bandwidth: bool) {
+    let crate::result::ResultPayload::QuasiRollout(rollout) = &mut result.payload else {
+        return;
+    };
+    let section = antecedent_io::analysis_result_artifact::QuasiRolloutWire::from(&**rollout);
+    if !antecedent_io::analysis_result_artifact::local_design_row_admits(
+        selected_bandwidth,
+        &section,
+    ) {
+        return;
+    }
+    rollout.supported = true;
+    result.diagnostics.retain(|diagnostic| {
+        !matches!(
+            diagnostic.code.as_ref(),
+            "estimate.quasi.rollout.unsupported" | "estimate.quasi.bayesian.unsupported"
+        )
+    });
+    result.diagnostics.push(Diagnostic::new(
+        "estimate.quasi.local_ratio.design_support",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "supported design: a local_polynomial_ratio support row admits this design, interval \
+         procedure, window rows on each side, first-stage estimate over its standard error and \
+         replicate count; the identifying premises, and for calendar time the dependence of \
+         the errors, stay declared",
+    ));
+}
+
+/// The first-stage estimate and its HC0 standard error at `bandwidth`, with the window rows on
+/// each side, as named diagnostics; empty when the fit is refused.
+fn local_design_first_stage_facts(
+    columns: &LocalRatioColumns<'_>,
+    cutoff: f64,
+    bandwidth: f64,
+    kink: bool,
+) -> Vec<(String, f64)> {
+    antecedent_estimate::local_polynomial_ratio::fit_local_polynomial_ratio(
+        columns.running,
+        columns.outcome,
+        columns.treatment,
+        cutoff,
+        bandwidth,
+        kink,
+    )
+    .map_or_else(
+        |_| Vec::new(),
+        |fit| {
+            named(&[
+                ("first_stage", fit.first_stage),
+                ("first_stage_standard_error", fit.first_stage_standard_error),
+                ("rows_left", fit.n_left as f64),
+                ("rows_right", fit.n_right as f64),
+            ])
+        },
     )
 }
 
@@ -111,13 +175,20 @@ impl super::CheckedLocalPolynomialRatioOperation {
             ctx,
         )
         .map_err(CausalError::Estimate)?;
-        Ok(finish_rollout(
+        let mut report = self.design_report(&fit);
+        report.diagnostics.push(("rows".to_string(), columns.running.len() as f64));
+        let mut result = finish_rollout(
             self,
             data,
             self.query.outcome,
             Strategy::new(IdentifierId::for_local_ratio(self.query.kink), EstimatorId::LocalRatio),
-            self.design_report(&fit),
-        ))
+            report,
+        );
+        local_design_state_support(
+            &mut result,
+            options.bandwidth_rule == LocalBandwidthRule::MseOptimal,
+        );
+        Ok(result)
     }
 
     /// The within-side block Bayesian-bootstrap posterior of a local ratio in calendar time.
@@ -145,12 +216,12 @@ impl super::CheckedLocalPolynomialRatioOperation {
             outcome: column(self.query.outcome)?,
             treatment: column(self.query.treatment)?,
         };
-        let bandwidth = if self
+        let selected = self
             .query
             .options
             .as_ref()
-            .is_some_and(|options| options.bandwidth_rule == LocalBandwidthRule::MseOptimal)
-        {
+            .is_some_and(|options| options.bandwidth_rule == LocalBandwidthRule::MseOptimal);
+        let bandwidth = if selected {
             selected_bandwidth(&self.query, &columns, ctx)?
         } else {
             self.query.bandwidth
@@ -167,28 +238,36 @@ impl super::CheckedLocalPolynomialRatioOperation {
         .map_err(CausalError::Estimate)?;
         let label = if self.query.kink { "regression_kink" } else { "fuzzy_rd" };
         let summary = posterior.summary;
+        // A ratio's draws have no finite mean when the first stage is uncertain, so the point
+        // is the posterior median.
+        let mut sorted = posterior.draws.clone();
+        sorted.sort_by(f64::total_cmp);
+        let median = antecedent_estimate::rollout_resampling::quantile_sorted(&sorted, 0.5);
         let overall = DesignEffect {
             interval: Some(summary.interval),
-            ..DesignEffect::point(DesignEffectKind::Overall, summary.mean)
+            ..DesignEffect::point(DesignEffectKind::Overall, median)
         };
         let design = DesignPosterior {
             columns: vec![(effect_quantity("local_ratio"), posterior.draws.clone())],
-            point: summary.mean,
+            point: median,
             point_sd: summary.sd,
             n_obs: columns.running.len() as u64,
             interval_withheld: false,
             backend: "bayesian_bootstrap.within_side_block_dirichlet",
             model: format!(
-                "within-side block Bayesian bootstrap: flat-Dirichlet weights on consecutive \
-                 blocks of {} time-ordered rows refit the robust bias-corrected local ratio per \
-                 draw; serial dependence within a block is kept, across block boundaries it is \
-                 ignored",
+                "within-side block Bayesian bootstrap of the errors at the fixed time design: \
+                 flat-Dirichlet weights on consecutive blocks of {} time-ordered AR(1)-prewhitened \
+                 innovations redraw each side's errors, the prewhitening coefficient is drawn \
+                 from its large-sample posterior, and the robust bias-corrected local ratio is \
+                 refit per draw; serial dependence within a block is kept, across block \
+                 boundaries its AR(1) part is",
                 posterior.block_length
             ),
             assumptions: vec![(
                 "bayesian_block_bootstrap_serial_dependence",
-                "serial dependence near the cutoff is shorter than a block, and blocks are \
-                 exchangeable draws within each side"
+                "the errors about a smooth time path are stationary within each side, their \
+                 serial dependence beyond an AR(1) fit is shorter than a block, and blocks of \
+                 innovations are exchangeable draws within each side"
                     .to_string(),
             )],
             diagnostics: vec![Diagnostic::new(
@@ -197,8 +276,7 @@ impl super::CheckedLocalPolynomialRatioOperation {
                 DiagnosticSeverity::Info,
                 format!(
                     "{label} in calendar time at bandwidth {bandwidth}; {} of {} block \
-                     Bayesian-bootstrap draws produced a finite ratio; unsupported and \
-                     uncalibrated",
+                     Bayesian-bootstrap draws produced a finite ratio",
                     posterior.draws_ok, posterior.requested
                 ),
             )],
@@ -236,12 +314,22 @@ impl super::CheckedLocalPolynomialRatioOperation {
                 posterior.requested.saturating_sub(posterior.draws_ok),
             ],
             critical_value: None,
-            diagnostics: named(&[
-                ("bandwidth", bandwidth),
-                ("block_length", posterior.block_length as f64),
-                ("posterior_sd", summary.sd),
-            ]),
+            diagnostics: {
+                let mut diagnostics = named(&[
+                    ("bandwidth", bandwidth),
+                    ("block_length", posterior.block_length as f64),
+                    ("posterior_sd", summary.sd),
+                ]);
+                diagnostics.extend(local_design_first_stage_facts(
+                    &columns,
+                    self.query.cutoff,
+                    bandwidth,
+                    self.query.kink,
+                ));
+                diagnostics
+            },
         });
+        local_design_state_support(&mut result, selected);
         Ok(result)
     }
 
@@ -318,8 +406,9 @@ impl super::CheckedLocalPolynomialRatioOperation {
                     if fit.bandwidth.capped { ", capped at the declared bandwidth" } else { "" }
                 )),
                 if temporal.is_some() {
-                    "calendar-time rows: within-side moving-block bootstrap refits the whole local \
-                     ratio and its interquartile standard error gives the normal interval"
+                    "calendar-time rows: within-side moving-block bootstrap of the prewhitened \
+                     errors refits the whole local ratio and its interquartile standard error \
+                     gives the Student-t interval"
                 } else {
                     "independent rows: HC0 delta-method interval of the bias-corrected ratio"
                 }
@@ -353,7 +442,7 @@ impl super::CheckedLocalPolynomialRatioOperation {
         }
         let (uncertainty, replicates) = match temporal {
             Some(record) => (
-                "within_side_moving_block_bootstrap_refit_iqr_se_normal_interval",
+                "within_side_moving_block_bootstrap_refit_iqr_se_student_t_interval",
                 [record.requested, record.replicates_ok, record.replicates_failed],
             ),
             None if fit.bandwidth.mse_optimal.is_some() || fit.bandwidth.capped => {

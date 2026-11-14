@@ -2,7 +2,8 @@
 //!
 //! The bounds are computed by the compiled `IvBounds` study (`Study.compile` and
 //! `prepare_iv_bounds`); this module only carries the identified set and the evidence behind it to
-//! Python. The result is reported with calibration status `not_measured`, and it is never a point.
+//! Python. The result is never a point; it states `supported` when the fit met a row of the
+//! graphless support table, and its calibration label is `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -49,6 +50,8 @@ pub struct IvBoundsSection {
     pub rows_dropped: usize,
     pub interval: Option<IvBoundsIntervalSection>,
     pub posterior: Option<IvBoundsPosteriorSection>,
+    /// Whether the fit matched a row of the graphless support table.
+    pub supported: bool,
 }
 
 impl From<&antecedent::IvBoundsEstimate> for IvBoundsSection {
@@ -80,6 +83,7 @@ impl From<&antecedent::IvBoundsEstimate> for IvBoundsSection {
                 lower_sd: posterior.lower_sd,
                 upper_sd: posterior.upper_sd,
             }),
+            supported: value.supported,
         }
     }
 }

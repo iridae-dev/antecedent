@@ -1,10 +1,10 @@
 //! Randomized-trial arm posteriors against independent references.
 //!
 //! References: `scipy.integrate.quad` of the Beta (Student-t) densities against the other arm's
-//! CDF for the two-arm superpopulation laws; brute-force enumeration of the two Beta-Binomial
-//! missing-count laws for the exact finite-population law; and 2e7-draw Monte Carlo from the
-//! hierarchical model for the 2x2 factorial contrasts and the Gaussian finite-population law
-//! (tolerances sit above the Monte Carlo error).
+//! CDF for the two-arm contrast laws, and 2e7-draw Monte Carlo from the hierarchical model for
+//! the 2x2 factorial contrasts (tolerances sit above the Monte Carlo error). The
+//! finite-population contrast is published under additive unit effects, where it has the law of
+//! the superpopulation contrast.
 
 use antecedent_estimate::multi_arm::estimate_multi_arm;
 use antecedent_estimate::randomized_posterior::{
@@ -73,32 +73,23 @@ fn superpopulation_two_arm_matches_quadrature_of_the_beta_difference() {
 }
 
 #[test]
-fn finite_population_two_arm_is_the_exact_beta_binomial_convolution() {
+fn finite_population_two_arm_has_the_law_of_the_arm_mean_contrast() {
     let (y, treated) = binary_trial();
-    let posterior = posterior_two_arm(
-        &y,
-        &treated,
-        &[0.5; 10],
-        &spec(UNIFORM, RandomizedEstimand::FinitePopulation),
-    )
-    .unwrap();
-    let c = &posterior.contrasts[0];
-    // Enumeration of BetaBinomial(6; 4, 2) and BetaBinomial(4; 3, 5) missing counts.
-    close(c.mean, 0.35, 1e-12, "mean");
-    close(c.standard_deviation, 0.188_034_951_158, 1e-9, "sd");
-    close(c.probability_positive, 0.934_474_616_293, 1e-9, "P(delta > 0)");
-    close(c.interval[0], 0.0, 1e-12, "lower endpoint");
-    close(c.interval[1], 0.6, 1e-12, "upper endpoint");
-    // The finite-population law is tighter than the superpopulation one (0.188 < 0.240).
-    let superpopulation = posterior_two_arm(
-        &y,
-        &treated,
-        &[0.5; 10],
-        &spec(UNIFORM, RandomizedEstimand::Superpopulation),
-    )
-    .unwrap();
-    assert!(c.standard_deviation < superpopulation.contrasts[0].standard_deviation);
+    let at = |estimand| posterior_two_arm(&y, &treated, &[0.5; 10], &spec(UNIFORM, estimand));
+    let finite = at(RandomizedEstimand::FinitePopulation).unwrap();
+    let superpopulation = at(RandomizedEstimand::Superpopulation).unwrap();
+    let c = &finite.contrasts[0];
     assert_eq!(c.estimand, RandomizedEstimand::FinitePopulation);
+    // Additive unit effects make the finite-population contrast the contrast of the arm means:
+    // Beta(4, 2) minus Beta(3, 5), with Neyman's variance 8/252 + 15/576 and no
+    // finite-population reduction of it.
+    close(c.mean, 0.291_666_666_667, 1e-3, "mean");
+    close(c.standard_deviation, 0.240_390_720_313, 1e-3, "sd");
+    let reference = &superpopulation.contrasts[0];
+    assert_eq!(c.mean.to_bits(), reference.mean.to_bits());
+    assert_eq!(c.standard_deviation.to_bits(), reference.standard_deviation.to_bits());
+    assert_eq!(c.interval, reference.interval);
+    assert_eq!(c.probability_positive.to_bits(), reference.probability_positive.to_bits());
 }
 
 #[test]
@@ -174,13 +165,12 @@ fn gaussian_arms_superpopulation_and_finite_population() {
         &spec(model, RandomizedEstimand::FinitePopulation),
     )
     .unwrap();
-    let c = &fp.contrasts[0];
-    // Hierarchical Monte Carlo of the missing sums; the mean is exact.
-    close(c.mean, 1.405_274_971_942, 2e-3, "FP mean");
-    close(c.standard_deviation, 0.384_068_652_6, 4e-3, "FP sd");
-    close(c.interval[0], 0.782_124_6, 6e-3, "FP 5%");
-    close(c.interval[1], 2.028_485_7, 6e-3, "FP 95%");
-    close(c.probability_positive, 0.999_03, 2e-3, "FP P(> 0)");
+    // The finite-population contrast under additive unit effects has the same law.
+    let (c, reference) = (&fp.contrasts[0], &sp.contrasts[0]);
+    assert_eq!(c.estimand, RandomizedEstimand::FinitePopulation);
+    assert_eq!(c.interval, reference.interval);
+    assert_eq!(c.mean.to_bits(), reference.mean.to_bits());
+    assert_eq!(c.standard_deviation.to_bits(), reference.standard_deviation.to_bits());
 }
 
 #[test]

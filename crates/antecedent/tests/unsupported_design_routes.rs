@@ -3,8 +3,10 @@
 //!
 //! The sequential panel is the fixed linear congruential stream whose numpy reference values are
 //! pinned in the estimator's own tests. The history fixture carries a brute-force nearest-donor
-//! reference with the Abadie-Imbens variance computed from per-unit coefficients. Both routes are
-//! unsupported: they hold no support status and the matching posterior is a typed refusal.
+//! reference with the Abadie-Imbens variance computed from per-unit coefficients. These fixtures
+//! sit below the routes' support rows (80 subjects on two folds, three matched periods), so each
+//! runs unsupported; the supported fits are in `temporal_route_support_rows.rs`. Neither route
+//! holds a matrix support status, and the matching posterior is a typed refusal.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -281,8 +283,11 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
     assert_eq!(fit.serial_bandwidth, 1);
     let serial_se = 2.0 * 2.0_f64.sqrt() / 9.0;
     close(fit.serial_standard_error.unwrap(), serial_se, 1.0e-12);
-    close(fit.interval_lower.unwrap(), fit.contrast - 1.959_963_984_540_054 * serial_se, 1.0e-12);
-    close(fit.interval_upper.unwrap(), fit.contrast + 1.959_963_984_540_054 * serial_se, 1.0e-12);
+    // Bandwidth 2 of 2 periods is the share b = 1, where the fixed-b critical value is the
+    // normal 97.5% point times (1.96 + 2.9694 + 0.4160 - 0.5324) / 1.96.
+    let half_width = 1.959_963_984_540_054 * (4.813 / 1.96) * serial_se;
+    close(fit.interval_lower.unwrap(), fit.contrast - half_width, 1.0e-12);
+    close(fit.interval_upper.unwrap(), fit.contrast + half_width, 1.0e-12);
     assert_eq!(
         &*fit.uncertainty,
         "abadie_imbens_and_newey_west_period_interval_calibration_not_measured"

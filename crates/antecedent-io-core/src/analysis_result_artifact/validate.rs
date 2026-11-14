@@ -188,6 +188,17 @@ pub(super) fn validate_result(
         ));
     }
     validate_randomized_graphless(result, allow_legacy_graphless_missing)?;
+    // A Bayesian design posterior states its support row in a coded diagnostic. The stated row
+    // must admit the support stated with it, and only a result with a posterior can state one.
+    if result.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == crate::graphless_support::DESIGN_POSTERIOR_ROW_CODE
+            && (result.posterior_artifact.is_none()
+                || !crate::graphless_support::design_posterior_row_stated(&diagnostic.fields))
+    }) {
+        return Err(IoError::Convert(
+            "a design posterior states a graphless support row that does not admit it".into(),
+        ));
+    }
     // A Bayesian design result carries its posterior in place of the design-specific frequentist
     // section; exactly one of the two must be present.
     let design_posterior = result.posterior_artifact.is_some();

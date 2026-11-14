@@ -2,11 +2,14 @@
 //!
 //! `oracle_data/estimate_association_reference.py` (frozen in the JSON beside it) recomputes, from
 //! each case's data alone: the linear fit and the logistic and Poisson maximum likelihood fits
-//! with their HC1 (rows) and Bartlett Newey-West (series) slope covariances, weighted group
-//! means with their linearised errors, the Pearson error on the Kish count, the distance
+//! with the row error of each coefficient (leverage-adjusted influence values with a Student-t
+//! factor; the HC1 covariance scales the bootstrap-t pivot) and the series error of each
+//! influence series (the Bartlett Newey-West error with its leverage, kernel-bias and Student-t
+//! factors), weighted
+//! group means with their linearised errors, the Pearson error on the Kish count, the distance
 //! correlation, the leave-fold-out predictions with their predictive and baseline laws, the
 //! conjugate Normal-Inverse-Gamma marginals and, from frozen draws, the row and circular-block
-//! bootstrap and the Bayesian bootstrap summaries. The draws are the library's own streams: this
+//! bootstrap (studentized and widened spreads included) and the Bayesian bootstrap summaries. The draws are the library's own streams: this
 //! test regenerates them and asserts equality with the frozen values, so a changed stream is a
 //! visible failure rather than a silent change of the references. The selection rule is checked
 //! against a decision table written from its documentation.
@@ -351,7 +354,7 @@ fn estimates_and_analytic_errors_match_the_definition_references() {
         let series = case["modality"] == "series";
         let method = match case["kind"].as_str().unwrap() {
             "model" if series => Some("sandwich_newey_west"),
-            "model" => Some("sandwich_hc1"),
+            "model" => Some("sandwich_leverage_student"),
             "strata" if series => Some("newey_west_influence"),
             "strata" => Some("linearised_influence"),
             "pearson" if !series => Some("normal_theory_delta"),

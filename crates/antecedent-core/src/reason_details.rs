@@ -1139,6 +1139,8 @@ pub const REASON_DETAILS: &[&str] = &[
     "joint_law_propagation.structure_not_verified",
     "joint_law_propagation.transport_pieces_incomplete",
     "joint_law_propagation.transported_dependence_required",
+    "joint_response.reading_law_unavailable",
+    "joint_response.reading_level_invalid",
     "joint_sensitivity.bounds_exceeded",
     "joint_sensitivity.budget",
     "joint_sensitivity.budget_coupling",
@@ -3861,6 +3863,8 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("joint_law_propagation.structure_not_verified", &["route_not_supported"]),
     ("joint_law_propagation.transport_pieces_incomplete", &["joint_law_required"]),
     ("joint_law_propagation.transported_dependence_required", &["joint_law_required"]),
+    ("joint_response.reading_law_unavailable", &["uncertainty_representation_insufficient"]),
+    ("joint_response.reading_level_invalid", &["invalid_argument"]),
     ("joint_sensitivity.bounds_exceeded", &["route_not_supported"]),
     ("joint_sensitivity.budget", &["transport_budget_cancel"]),
     ("joint_sensitivity.budget_coupling", &["route_not_supported"]),
@@ -8057,6 +8061,14 @@ pub mod joint_law_propagation {
     pub const TRANSPORT_PIECES_INCOMPLETE: &str = "joint_law_propagation.transport_pieces_incomplete";
     /// Detail `joint_law_propagation.transported_dependence_required`.
     pub const TRANSPORTED_DEPENDENCE_REQUIRED: &str = "joint_law_propagation.transported_dependence_required";
+}
+
+/// Details in the `joint_response` family.
+pub mod joint_response {
+    /// Detail `joint_response.reading_law_unavailable`.
+    pub const READING_LAW_UNAVAILABLE: &str = "joint_response.reading_law_unavailable";
+    /// Detail `joint_response.reading_level_invalid`.
+    pub const READING_LEVEL_INVALID: &str = "joint_response.reading_level_invalid";
 }
 
 /// Details in the `joint_sensitivity` family.

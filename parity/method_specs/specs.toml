@@ -5460,7 +5460,7 @@ failure_policy = "Adjusted claim: comprehensive closure is a longitudinal estima
 references = [
   "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
   "scripts/run_joint_panel_experiment_acceptance.py (executed full matrix and retained source-bound row evidence)",
-  "parity/joint_response_calibration.toml (registered stable-candidate full experiment-chain measurement)",
+  "crates/antecedent/tests/joint_response_calibration.rs (coverage harness of the experiment-updated contrast interval: joint_response_experiment_update_contrast_l95)",
   "Release scope and gates",
   "X05 — Preserve experiment-to-update-to-decision meaning",
 ]
@@ -5487,7 +5487,7 @@ failure_policy = "Adjusted claim: Theory boundary: the target does not exist for
 references = [
   "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
   "scripts/run_joint_panel_experiment_acceptance.py (executed full matrix and retained source-bound row evidence)",
-  "parity/joint_response_calibration.toml (registered stable-candidate full experiment-chain measurement)",
+  "crates/antecedent/tests/joint_response_calibration.rs (coverage harness of the experiment-updated contrast interval: joint_response_experiment_update_contrast_l95)",
   "Release scope and gates",
   "X05 — Preserve experiment-to-update-to-decision meaning",
   "Standardize the envelope and preserve the representation",
@@ -5515,7 +5515,7 @@ failure_policy = "Adjusted claim: comprehensive closure is a longitudinal estima
 references = [
   "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
   "scripts/run_joint_panel_experiment_acceptance.py (executed full matrix and retained source-bound row evidence)",
-  "parity/joint_response_calibration.toml (registered stable-candidate full experiment-chain measurement)",
+  "crates/antecedent/tests/joint_response_calibration.rs (coverage harness of the experiment-updated contrast interval: joint_response_experiment_update_contrast_l95)",
   "Release scope and gates",
   "X05 — Preserve experiment-to-update-to-decision meaning",
 ]
@@ -5542,7 +5542,7 @@ failure_policy = "Adjusted claim: Joint observational-experimental refitting, ne
 references = [
   "conformance/response/joint_panel/experiment_reference.py (independent estimands, finite likelihood and bounded-error nested integration)",
   "scripts/run_joint_panel_experiment_acceptance.py (executed full matrix and retained source-bound row evidence)",
-  "parity/joint_response_calibration.toml (registered stable-candidate full experiment-chain measurement)",
+  "crates/antecedent/tests/joint_response_calibration.rs (coverage harness of the experiment-updated contrast interval: joint_response_experiment_update_contrast_l95)",
   "Release scope and gates",
   "X05 — Preserve experiment-to-update-to-decision meaning",
   "Standardize the envelope and preserve the representation",

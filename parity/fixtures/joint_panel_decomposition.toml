@@ -1,7 +1,7 @@
 schema = 1
 id = "response.joint_panel.reference_decomposition"
 owner = "X03.2"
-status = "implemented_calibration_not_measured"
+status = "implemented_region_coverage_measured_by_calibration_groups"
 closure_kind = "delivered"
 components = ["exposure", "saturation", "population", "mechanism"]
 hybrids = 16
@@ -19,8 +19,10 @@ artifact = "Version-one full native source design plus component/population reci
 python = "antecedent.joint_panel.JointDesignResult.decompose_reference_components and decompose_population_reference; export_population_reference, consume_population_reference_current, replay_population_reference"
 positive_evidence = ["crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::continuous_history_bootstrap_and_posterior_reference_preserve_the_actual_law", "crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::actual_parameter_factorial_reference_decomposes_static_and_temporal_posterior_sources", "crates/antecedent/src/analysis/joint_panel/explanation/scientific.rs::actual_population_transport_decomposition_is_positive_in_both_modes_and_time_forms", "python/tests/test_joint_panel_reference_decomposition.py", "crates/antecedent/tests/joint_panel_workflow.rs"]
 counterexamples = ["overlapping component bindings", "missing/mixed hybrid intervention", "unidentified source", "selection at response mechanism", "baseline latent confounding", "unsupported baseline values/history", "changed current population/diagram/scope", "resource/cancellation"]
-calibration_procedure = "parity/joint_response_calibration.toml#compiled_reference_decomposition"
-grants_release_support = false
+calibration_groups = ["joint_response_calibration: joint_response_reference_decomposition_static_l95", "joint_response_calibration: joint_response_reference_decomposition_temporal_l95"]
+coverage_records = ["cov.joint_response.not_applicable.frequentist.bonferroni_normal_approximation.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.frequentist.bonferroni_normal_approximation.l95.joint_response_reference_decomposition_temporal_l95.v2_validation_not_applicable", "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_temporal_l95.v2_validation_not_applicable"]
+measured_scope = "Simultaneous 95% region of the four Shapley contributions from JointDesignResult.population_reference_region: an equal-weight randomized source design of 512 to 2,048 units with at least 32 units per program, Bonferroni normal intervals of the propagated covariance (frequentist) or Bonferroni equal-tailed intervals of 2,048 aligned posterior draws (Bayesian, outcome variance declared at its generating value). Held to at least nominal: the region is conservative by the union bound. The static and two-period cells fit the same arm means; only the compiled target differs. Fitted-panel decompositions, bootstrap sources, sequential and per-ordering contributions and the coarser fallback publish their law with no coverage record."
+support_unit = "parity/capability_records.toml#joint_response.interval_readings"
 
 [[axis]]
 time = "static"

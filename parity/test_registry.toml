@@ -22874,6 +22874,13 @@ path = "scripts/test_gate_support.py"
 gates = ["inventory"]
 
 [[test]]
+id = "route-closure-rules"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_route_closure.py"
+gates = ["inventory"]
+
+[[test]]
 id = "prepared-adjusted-retarget-engineering"
 crate = "antecedent"
 cargo_target = "prepared_adjusted_retarget"
@@ -23432,3 +23439,150 @@ crate = "antecedent"
 cargo_target = "grid_mechanism_design_calibration"
 path = "crates/antecedent/tests/grid_mechanism_design_calibration.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "temporal-design-calibration"
+crate = "antecedent"
+cargo_target = "temporal_design_calibration"
+path = "crates/antecedent/tests/temporal_design_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-randomized-calibration"
+crate = "antecedent"
+cargo_target = "bayesian_randomized_calibration"
+path = "crates/antecedent/tests/bayesian_randomized_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bayesian-dose-grid-calibration"
+crate = "antecedent-estimate"
+cargo_target = "bayesian_dose_grid_calibration"
+path = "crates/antecedent-estimate/tests/bayesian_dose_grid_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "bayesian-design-support-rows"
+crate = "antecedent"
+cargo_target = "bayesian_design_support_rows"
+path = "crates/antecedent/tests/bayesian_design_support_rows.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-design-dose-quantile-known-truth"
+crate = "antecedent-estimate"
+cargo_target = "temporal_design_dose_quantile_known_truth"
+path = "crates/antecedent-estimate/tests/temporal_design_dose_quantile_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "measurement-composition-calibration"
+crate = "antecedent"
+cargo_target = "measurement_composition_calibration"
+path = "crates/antecedent/tests/measurement_composition_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "measurement-composition-horizon-calibration"
+crate = "antecedent"
+cargo_target = "measurement_composition_horizon_calibration"
+path = "crates/antecedent/tests/measurement_composition_horizon_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "local-designs-calibration"
+crate = "antecedent"
+cargo_target = "local_designs_calibration"
+path = "crates/antecedent/tests/local_designs_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "local-design-support-routes"
+crate = "antecedent"
+cargo_target = "local_design_support_routes"
+path = "crates/antecedent/tests/local_design_support_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "fitted-model-calibration"
+crate = "antecedent"
+cargo_target = "fitted_model_calibration"
+path = "crates/antecedent/tests/fitted_model_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "joint-response-calibration"
+crate = "antecedent"
+cargo_target = "joint_response_calibration"
+path = "crates/antecedent/tests/joint_response_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "fitted-model-support-routes"
+crate = "antecedent"
+cargo_target = "fitted_model_support_routes"
+path = "crates/antecedent/tests/fitted_model_support_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-routes-calibration"
+crate = "antecedent"
+cargo_target = "temporal_routes_calibration"
+path = "crates/antecedent/tests/temporal_routes_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-route-support-rows"
+crate = "antecedent"
+cargo_target = "temporal_route_support_rows"
+path = "crates/antecedent/tests/temporal_route_support_rows.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "score-posterior-interval-known-truth"
+crate = "antecedent-estimate"
+cargo_target = "score_posterior_interval_known_truth"
+path = "crates/antecedent-estimate/tests/score_posterior_interval_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bounds-association-calibration"
+crate = "antecedent"
+cargo_target = "bounds_association_calibration"
+path = "crates/antecedent/tests/bounds_association_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "bounds-association-support"
+crate = "antecedent"
+cargo_target = "bounds_association_support"
+path = "crates/antecedent/tests/bounds_association_support.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "iv-bounds-interval-reference"
+crate = "antecedent-estimate"
+cargo_target = "iv_bounds_interval_reference"
+path = "crates/antecedent-estimate/tests/iv_bounds_interval_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "panel-did-calibration"
+crate = "antecedent"
+cargo_target = "panel_did_calibration"
+path = "crates/antecedent/tests/panel_did_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "synthetic-control-calibration"
+crate = "antecedent"
+cargo_target = "synthetic_control_calibration"
+path = "crates/antecedent/tests/synthetic_control_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "rollout-design-support-rows"
+crate = "antecedent"
+cargo_target = "rollout_design_support_rows"
+path = "crates/antecedent/tests/rollout_design_support_rows.rs"
+gates = ["inventory", "named"]

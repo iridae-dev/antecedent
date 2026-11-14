@@ -231,6 +231,44 @@ pub(super) fn finish_design_posterior_as(
     Ok(result)
 }
 
+/// Posterior draws every design-posterior support row was measured with.
+pub(super) const DESIGN_ROW_MEASURED_DRAWS: usize = 2_000;
+
+/// State the graphless support row a Bayesian design posterior ran under. When `key` and
+/// `observed` match a supported row and the posterior holds at least the measured number of
+/// draws, the "no coverage record" diagnostic is replaced by one naming the row, with the
+/// observed support in its fields so the artifact check recomputes the admission. A fit that
+/// matches no row is left as it was.
+pub(super) fn state_design_posterior_row(
+    result: &mut StudyResult,
+    key: crate::support::GraphlessSupportKey<'_>,
+    observed: crate::support::GraphlessAssignmentSupport,
+) {
+    let draws = result.posterior.as_ref().map_or(0, |posterior| posterior.draws.n_draws);
+    if draws < DESIGN_ROW_MEASURED_DRAWS
+        || crate::support::support_if_graphless(key, observed).is_none()
+    {
+        return;
+    }
+    result
+        .diagnostics
+        .retain(|diagnostic| diagnostic.code.as_ref() != "estimate.quasi.bayesian.unsupported");
+    result.diagnostics.push(
+        Diagnostic::new(
+            antecedent_io::graphless_support::DESIGN_POSTERIOR_ROW_CODE,
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "supported graphless row {}/{}/{}/{}: the design, the method and the observed \
+                 support match the row; the identifying premises stay declared, and the prior \
+                 supplies none",
+                key.family, key.design, key.method, key.inference_claim
+            ),
+        )
+        .with_fields(antecedent_io::graphless_support::design_posterior_row_fields(key, observed)),
+    );
+}
+
 /// A named effect quantity.
 pub(super) fn effect_quantity(name: impl AsRef<str>) -> PosteriorQuantityKind {
     PosteriorQuantityKind::Effect { name: Arc::from(name.as_ref()) }

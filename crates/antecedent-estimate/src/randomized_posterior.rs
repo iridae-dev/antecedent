@@ -16,19 +16,20 @@
 //!   Student-t (Gaussian outcomes with unknown variance) and a contrast `sum_k w_k theta_k` is a
 //!   linear combination of independent posteriors.
 //! * [`RandomizedEstimand::FinitePopulation`]: `ybar_k = n^-1 sum_i Y_i(k)`, the mean of arm `k`
-//!   over the trial's own units. The `n_k` observed values are known; the `n - n_k` unobserved
-//!   `Y_i(k)` are drawn from the arm's posterior predictive. Contrasts are linear in the arm
-//!   means, so the unknown cross-arm dependence of `(Y_i(0), Y_i(1))` plays no role and the
-//!   finite-population contrast has an exact posterior too (a Beta-Binomial convolution for
-//!   binary outcomes; a Student-t predictive sum for Gaussian outcomes).
+//!   over the trial's own units. A unit shows one potential outcome, so the law of a contrast
+//!   of these means depends on how a unit's unobserved outcomes move with its observed one, and
+//!   the data never identify that dependence. The published law is the one under additive unit
+//!   effects, `Y_i(k) = Y_i(0) + delta_k`: the contrast is then `sum_k w_k delta_k` for every
+//!   unit set, which is the superpopulation contrast, so the two estimands share one law.
 //!
-//! The two laws answer different questions. The finite-population arm mean replaces the unobserved
-//! share of each arm by its posterior predictive, so it is pulled toward the observed arm means
-//! and each arm's parameter variance is scaled by `(1 - n_k / n)^2`: at fixed allocation fractions
-//! the two contrast variances keep a constant ratio below one and never coincide, while their
-//! centres converge to the same value as `n` grows. When every unit is observed under the arm the
-//! finite-population arm mean is the observed mean and has no uncertainty at all. The report
-//! always says which estimand it answers.
+//! That choice is Neyman's bound. Under complete randomization the contrast of observed arm
+//! means has variance `sum_k w_k^2 S_k^2 / n_k - S_tau^2 / n`, with `S_tau^2` the variance of the
+//! unit-level contrast; additive effects set `S_tau^2 = 0`, the largest value, so the interval
+//! covers the finite-population contrast at no less than its level in large trials and is
+//! conservative when unit effects vary. Imputing the unobserved outcomes independently of the
+//! observed one instead scales each arm's variance by `1 - n_k / n`, which is the variance under
+//! uncorrelated potential outcomes and understates the spread whenever they move together. The
+//! report always says which estimand it answers.
 //!
 //! # Randomization and ignorability
 //!
@@ -44,21 +45,18 @@
 //! # Numerics
 //!
 //! A contrast law is the convolution of the independent arm laws on a common lattice
-//! (the private `posterior_lattice` module); the finite-population Beta-Binomial arm laws are carried
-//! exactly and the continuous ones are discretized with a within-cell variance inflation of
-//! about `1 / 3000` of the arm variance.
+//! (the private `posterior_lattice` module); the arm laws are discretized with a within-cell
+//! variance inflation of about `1 / 3000` of the arm variance.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::reason_code;
 use antecedent_stats::adaptive_inference::{BetaPosterior, regularized_incomplete_beta};
-use antecedent_stats::{ln_gamma, student_t_ppf, student_t_sf};
+use antecedent_stats::{student_t_ppf, student_t_sf};
 
 use crate::error::EstimationError;
 use crate::gaussian_linear_posterior::StudentPosterior;
-use crate::posterior_lattice::{
-    CELLS_PER_SCALE, LatticeTerm, convolve_terms, discretize, normalize,
-};
+use crate::posterior_lattice::{CELLS_PER_SCALE, LatticeTerm, convolve_terms, discretize};
 use crate::util::refuse;
 
 /// Likelihood label of the binary-outcome posterior, for evidence records.
@@ -75,7 +73,7 @@ const WINDOW_TAIL: f64 = 1e-8;
 pub enum RandomizedEstimand {
     /// Contrast of the arm means in the sampled population.
     Superpopulation,
-    /// Contrast of the arm means over the trial's own units.
+    /// Contrast of the arm means over the trial's own units, under additive unit effects.
     FinitePopulation,
 }
 
@@ -155,11 +153,9 @@ pub struct ContrastSummary {
     pub mean: f64,
     /// Posterior standard deviation.
     pub standard_deviation: f64,
-    /// Equal-tailed credible interval. For the exact discrete finite-population law the endpoints
-    /// are the smallest support values whose CDF reaches each tail level, so the interval holds
-    /// at least the stated mass.
+    /// Equal-tailed credible interval.
     pub interval: [f64; 2],
-    /// Posterior probability that the contrast is positive (strictly, for a discrete law).
+    /// Posterior probability that the contrast is positive.
     pub probability_positive: f64,
     /// Deterministic quantile-grid draws of the contrast law (the quantiles at `(i + 1/2) / m`),
     /// empty unless a draw count was requested with [`posterior_arm_contrasts_with_draws`].
@@ -214,7 +210,6 @@ struct ArmData {
 enum ArmLaw {
     Beta(BetaPosterior),
     Student(StudentPosterior),
-    FiniteBinary { observed: u64, missing: u64, alpha: f64, beta: f64 },
 }
 
 fn validate_rows(
@@ -324,19 +319,18 @@ fn arm_laws(
     request: &ArmContrastRequest<'_>,
     data: &[ArmData],
 ) -> Result<Vec<(ArmLaw, ArmPosteriorSummary)>, EstimationError> {
-    let n = request.outcome.len();
+    // Both estimands read the arm-mean posterior: the finite-population contrast under additive
+    // unit effects is the contrast of the arm means.
     data.iter()
         .map(|arm| match request.model {
-            ArmOutcomeModel::Bernoulli(prior) => bernoulli_arm(request, arm, n, prior),
-            ArmOutcomeModel::Gaussian(prior) => gaussian_arm(request, arm, n, prior),
+            ArmOutcomeModel::Bernoulli(prior) => bernoulli_arm(arm, prior),
+            ArmOutcomeModel::Gaussian(prior) => gaussian_arm(arm, prior),
         })
         .collect()
 }
 
 fn bernoulli_arm(
-    request: &ArmContrastRequest<'_>,
     arm: &ArmData,
-    n: usize,
     prior: ArmBetaPrior,
 ) -> Result<(ArmLaw, ArmPosteriorSummary), EstimationError> {
     // Rows were validated as 0 or 1, so the arm sum is its success count.
@@ -364,22 +358,11 @@ fn bernoulli_arm(
         mean: posterior.mean(),
         standard_deviation: posterior.variance().sqrt(),
     };
-    let law = match request.estimand {
-        RandomizedEstimand::Superpopulation => ArmLaw::Beta(posterior),
-        RandomizedEstimand::FinitePopulation => ArmLaw::FiniteBinary {
-            observed: successes,
-            missing: (n - arm.rows) as u64,
-            alpha: posterior.alpha(),
-            beta: posterior.beta(),
-        },
-    };
-    Ok((law, summary))
+    Ok((ArmLaw::Beta(posterior), summary))
 }
 
 fn gaussian_arm(
-    request: &ArmContrastRequest<'_>,
     arm: &ArmData,
-    n: usize,
     prior: ArmNormalPrior,
 ) -> Result<(ArmLaw, ArmPosteriorSummary), EstimationError> {
     let positive = |v: f64| v.is_finite() && v > 0.0;
@@ -413,38 +396,7 @@ fn gaussian_arm(
         mean: posterior_mean,
         standard_deviation: marginal.standard_deviation(),
     };
-    let law = match request.estimand {
-        RandomizedEstimand::Superpopulation => ArmLaw::Student(marginal),
-        RandomizedEstimand::FinitePopulation => {
-            // Mean of the n units: observed sum plus the predictive sum of the n - n_k missing
-            // values, a Student-t with scale^2 = (b / a)(N + N^2 / kappa).
-            let n_f = n as f64;
-            let missing = n_f - rows;
-            let predictive = (scale / shape * (missing + missing * missing / kappa)).sqrt();
-            ArmLaw::Student(StudentPosterior {
-                location: (arm.sum + missing * posterior_mean) / n_f,
-                scale: predictive / n_f,
-                degrees_of_freedom: df,
-            })
-        }
-    };
-    Ok((law, summary))
-}
-
-/// Exact Beta-Binomial pmf of the number of successes among `missing` unobserved units.
-fn beta_binomial_pmf(missing: u64, alpha: f64, beta: f64) -> Option<Vec<f64>> {
-    let m = missing as f64;
-    let ln_beta = |a: f64, b: f64| ln_gamma(a) + ln_gamma(b) - ln_gamma(a + b);
-    let base = ln_beta(alpha, beta);
-    let mut pmf: Vec<f64> = (0..=missing)
-        .map(|k| {
-            let k = k as f64;
-            let choose = ln_gamma(m + 1.0) - ln_gamma(k + 1.0) - ln_gamma(m - k + 1.0);
-            (choose + ln_beta(k + alpha, m - k + beta) - base).exp()
-        })
-        .collect();
-    normalize(&mut pmf)?;
-    Some(pmf)
+    Ok((ArmLaw::Student(marginal), summary))
 }
 
 /// A scale that sets the lattice width: the arm's posterior standard deviation or scale.
@@ -452,7 +404,6 @@ fn law_scale(law: &ArmLaw) -> f64 {
     match law {
         ArmLaw::Beta(beta) => beta.variance().sqrt(),
         ArmLaw::Student(t) => t.scale,
-        ArmLaw::FiniteBinary { .. } => f64::INFINITY,
     }
 }
 
@@ -482,11 +433,6 @@ fn arm_term(law: &ArmLaw, h: f64) -> Result<LatticeTerm, EstimationError> {
                 return Err(numerical());
             }
             discretize(&cdf, t.location - radius * t.scale, t.location + radius * t.scale, h)
-        }
-        ArmLaw::FiniteBinary { observed, missing, alpha, beta } => {
-            let pmf = beta_binomial_pmf(*missing, *alpha, *beta).ok_or_else(numerical)?;
-            // The lattice is the integer success count of the n units; `h` equals `1 / n`.
-            Ok(LatticeTerm { start: i64::try_from(*observed).unwrap_or(i64::MAX), pmf })
         }
     }
 }
@@ -551,16 +497,14 @@ pub fn posterior_arm_contrasts_with_draws(
     let mut contrasts = Vec::with_capacity(coefficients.len());
     for (weights, integers) in request.contrasts.iter().zip(&coefficients) {
         let used: Vec<usize> = (0..integers.len()).filter(|k| integers[*k] != 0).collect();
-        let discrete = used.iter().all(|k| matches!(laws[*k].0, ArmLaw::FiniteBinary { .. }));
         let scale = used.iter().map(|k| law_scale(&laws[*k].0)).fold(f64::INFINITY, f64::min);
-        // Exact discrete laws live on the lattice of width 1 / n; a mixed or continuous request
-        // takes the width from the narrowest continuous marginal.
-        let h = if discrete { 1.0 / n as f64 } else { scale / CELLS_PER_SCALE };
+        // The lattice width comes from the narrowest arm marginal.
+        let h = scale / CELLS_PER_SCALE;
         let mut terms = Vec::with_capacity(used.len());
         for k in &used {
             terms.push((integers[*k], arm_term(&laws[*k].0, h)?));
         }
-        let law = convolve_terms(&terms, 0.5 * h, !discrete)?;
+        let law = convolve_terms(&terms, 0.5 * h, true)?;
         contrasts.push(summarize_contrast(&law, weights, request.estimand, level, draws));
     }
     Ok(RandomizedPosterior {

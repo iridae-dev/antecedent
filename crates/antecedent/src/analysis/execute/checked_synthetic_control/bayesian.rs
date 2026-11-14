@@ -156,6 +156,7 @@ impl super::CheckedSyntheticControlOperation {
             |((unit, mean), sd)| format!("donor_weight unit={unit} mean={mean:.6} sd={sd:.6}"),
         ));
         let diagnostics = synthetic_control_diagnostics(&fit);
+        let (donors, pre_periods) = (fit.donor_weight_means.len(), fit.n_pre_periods);
         let design = DesignPosterior {
             columns: vec![(effect_quantity("att"), fit.effect_draws)],
             point: fit.mean,
@@ -187,7 +188,7 @@ impl super::CheckedSyntheticControlOperation {
                 acceptance_rate: fit.acceptance_rate,
             }),
         };
-        finish_design_posterior_as(
+        let mut result = finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -203,6 +204,55 @@ impl super::CheckedSyntheticControlOperation {
                 IdentifierId::ConvexDonorCounterfactual,
                 EstimatorId::BayesianSyntheticControl,
             ),
+        )?;
+        // One treated unit against its donors: the average-effect interval states its row.
+        super::super::bayesian_quasi_common::state_design_posterior_row(
+            &mut result,
+            synthetic_posterior_row_key(false),
+            synthetic_posterior_row_support(pre_periods, donors, 1),
+        );
+        Ok(result)
+    }
+}
+
+/// Support key of the one-treated-unit simplex posterior: the average-effect interval, or
+/// with `predictive_path` the per-period and average predictive intervals.
+pub(super) const fn synthetic_posterior_row_key(
+    predictive_path: bool,
+) -> crate::support::GraphlessSupportKey<'static> {
+    let (method, inference_claim) = if predictive_path {
+        (
+            "simplex_dirichlet_posterior_predictive_path",
+            "per_period_and_average_95_posterior_predictive_intervals",
         )
+    } else {
+        (
+            "simplex_dirichlet_donor_weight_posterior",
+            "average_effect_pointwise_95_posterior_quantiles",
+        )
+    };
+    crate::support::GraphlessSupportKey {
+        family: "synthetic_control",
+        design: "single_treated_unit",
+        method,
+        inference_claim,
+    }
+}
+
+/// Observed support of the one-treated-unit simplex posterior: the pre-intervention periods,
+/// the donor series and the published intervals.
+pub(super) fn synthetic_posterior_row_support(
+    pre_periods: usize,
+    donors: usize,
+    intervals: usize,
+) -> crate::support::GraphlessAssignmentSupport {
+    crate::support::GraphlessAssignmentSupport {
+        assignment_unit: "sequence",
+        rows: pre_periods,
+        blocks: donors,
+        interval_95_published: intervals > 0,
+        reported_intervals: intervals,
+        all_reported_intervals: intervals > 0,
+        ..Default::default()
     }
 }

@@ -102,8 +102,12 @@ described object say so, and the host record (`antecedent.host.fallback_response
 `CausalQuery::Association` (Rust) and `antecedent.descriptive.Association` (Python) describe how
 an outcome varies with predictors in the observed data. It answers a different question from a
 causal query. Identification is **not claimed**, the result is never the effect of an
-intervention, and it ranks no action. Every standard error, spread and posterior it reports is
-unsupported: no independent check covers any of them, and the calibration label is `not_measured`.
+intervention, and it ranks no action. One quantity has support rows (family `association` of
+the [graphless support matrix](../graphless-support-matrix.md)): the slope of a linear regression
+of a real outcome on one numeric predictor, unweighted, with nothing held fixed and no row
+dropped, at 100 rows or steps or more. `result.association.supported` is true when the fit meets
+its row; the claim is the slope's uncertainty only. Every other standard error, spread and
+posterior it reports is unsupported, and the calibration label is `not_measured`.
 
 ```python
 import antecedent as ant
@@ -152,8 +156,8 @@ A table's rows are independent units (`ProgramCell` `AssociationStatic`). With
 
 | | Table | Series |
 | --- | --- | --- |
-| Analytic standard error | sandwich (HC1), linearised influence for strata | Newey-West sandwich, Newey-West influence for strata |
-| `bootstrap=` | row bootstrap and percentile spread | circular-block bootstrap, block length from the outcome's own persistence |
+| Analytic standard error | leverage-adjusted sandwich with a Student-t factor (`sandwich_leverage_student`), linearised influence for strata | Newey-West error of the influence series with leverage, kernel-bias and Student-t factors |
+| `bootstrap=` | row bootstrap; the spread of a regression coefficient is the studentized (bootstrap-t) interval, a percentile range otherwise | circular-block bootstrap, block length from the outcome's own persistence; the spread is the percentile range widened by the fixed-b and kernel-bias factors |
 | Declared design | independent subjects, or none | dependent time series, or none; any other design is refused naming the next attempt |
 | Bayesian, Gaussian outcome, no `weight=` | conjugate Normal-Inverse-Gamma marginals | Bayesian bootstrap on contiguous blocks |
 | Bayesian, anything else | Bayesian bootstrap (Dirichlet row weights) | Bayesian bootstrap on contiguous blocks |
@@ -163,6 +167,16 @@ series uses the block Bayesian bootstrap whatever the outcome. The conjugate pri
 informative and scaled to the outcome (`prior_scale` in standard deviations of the outcome per
 standard deviation of a predictor).
 
+A standard error is published so that the estimate plus or minus 1.96 standard errors is the 95%
+interval of its own reference distribution. The supported slope rows are: that interval for a
+table and for a series; the studentized spread of at least 399 row-bootstrap replicates; the
+fixed-b spread of at least 399 circular-block replicates; the conjugate posterior interval of a
+table, when the prior moves the slope by at most a hundredth of its posterior standard deviation;
+and the block Bayesian bootstrap interval of a series with at least 400 draws. Series coverage
+was measured at AR(1) persistence 0.5; stronger dependence is not checked. Stratified laws,
+logistic and Poisson coefficients, correlations, predictive models, several predictors, weighted
+rows and the Bayesian bootstrap of a table have no row.
+
 ### What it will not do
 
 An association is refused wherever a causal quantity is required: the claim kind is
@@ -171,7 +185,8 @@ it as a source (`association_as_intervention`), and a decision or experiment-pla
 is refused. It is no substitute for an identified effect, and a good predictive score is not
 evidence of a causal relation. The assumptions it carries say so beside every number:
 `descriptive_only`, `no_confounding_adjustment`, the sampling premise of its modality, and
-`uncalibrated_uncertainty`.
+`uncalibrated_uncertainty` (outside the supported slope rows no coverage record measures the
+reported uncertainty).
 
 ## From Rust
 

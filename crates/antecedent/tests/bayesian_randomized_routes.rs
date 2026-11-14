@@ -105,10 +105,11 @@ fn the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_b
     );
     assert_eq!(result.support_status(), None, "the Bayesian randomized route is unsupported");
     assert!(result.randomized_effect().is_none());
-    // Enumeration of BetaBinomial(6; 4, 2) and BetaBinomial(4; 3, 5) missing counts.
+    // Under additive unit effects the contrast is Beta(4, 2) minus Beta(3, 5): mean
+    // 4/6 - 3/8 and Neyman's variance 8/252 + 15/576.
     let (mean, sd, lower, upper) = column(&result, 0);
-    close(mean, 0.35, 5e-3, "finite-population mean");
-    close(sd, 0.188_034_951_158, 6e-3, "finite-population sd");
+    close(mean, 0.291_666_666_667, 5e-3, "finite-population mean");
+    close(sd, 0.240_390_720_313, 6e-3, "finite-population sd");
     assert!(lower <= mean && mean <= upper);
     assert!(result.diagnostics.iter().any(|d| {
         d.code.as_ref() == "estimate.randomized.bayesian_arm_contrast.estimand"
@@ -999,8 +1000,8 @@ fn weighted_bayesian_boundaries_are_typed_refusals() {
         run_weighted(&data, query, bayes(Some(gaussian_arms())), None, None).expect_err("refused");
     assert_eq!(error.reason_code(), Some("missing_policy_required"), "{error}");
 
-    // The finite-population estimand needs the unobserved share of every arm, which the
-    // weighted pseudo-outcomes do not describe.
+    // The finite-population estimand is stated for the observed outcomes of the trial's own
+    // units, which the weighted pseudo-outcomes are not.
     let (data, query) = ipw_trial(RandomizationDesign::Bernoulli);
     let error =
         run_weighted(&data, query, bayes(Some(gaussian_arms())), None, inverse_probability(&[]))

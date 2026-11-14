@@ -12,20 +12,24 @@ Each `[[entry]]` has an `id`, a `status`, and a `list`.
 | --- | --- |
 | `mandatory` | Required for release. `obligation = "fit"` is the finite-lag family that must still be fit. `obligation = "flagship"` is X06. |
 | `pending_attempt` | The next attempt, in `attempt_order`. `end_state` is the one-line result that attempt is aiming at. Unresolved until an outcome is written back. |
+| `closed_earned` | An attempt that reached its `end_state`. `outcome` states the claim earned and its scope; `calibration_groups` names the coverage groups (`parity/calibration_groups.toml`) when an interval is part of the claim, and `support_unit` the capability record that carries it. |
+| `closed_adjusted` | An attempt whose `end_state` the evidence does not show. `adjusted_claim` is what ships instead and `not_shown` says what was not shown. |
 | `closed_failed` | An attempt that already failed. `attempt_order = 0` is the Gaussian panel B04 closed. |
 | `research` | Not a release blocker. |
 
-`list = "mandatory"` includes mandatory rows, pending attempts, and the closed attempt. `list = "research"` does not block release.
+`list = "mandatory"` includes mandatory rows, pending attempts, and the closed attempts. `list = "research"` does not block release.
 
 `source` says where the id came from: `route_manifest`, `method_children`, `feedback`, `workflow`, `joint_response`, `attempt`, or `research`.
 
-`delta_ab_identified_claim = "pending"` until `X02.supported_worlds` and `X02.joint_assignment` have outcomes. A world becomes model-conditional only after both of those designs leave it unsupported.
+`delta_ab_identified_claim` was `"pending"` until `X02.supported_worlds` and `X02.joint_assignment` had outcomes. Both are written back: a world is identified where a supported design or a joint assignment covers it, and becomes model-conditional only after both of those designs leave it unsupported.
+
+An attempt row's `implementation_status` says what its outcome rests on: `implemented_measured_scoped` (an interval with coverage groups, inside the scope of its support unit), `implemented_measured_identity_translation_only`, or `implemented_no_interval_claim` (a point or model-conditional result; nothing is measured and no interval is supported).
 
 ## What is included
 
 Mandatory rows are the supported routes in `parity/capabilities/route_manifest.toml` (`status = "supported"`), the B03 counterparts whose gap is not a closed research boundary, the feedback minimum (Y01 cyclic graph, Y02 SCC schedule, Y03 linear solution contract, Y10 experimental recovery recipe, Y09 sigma-separation), Q04, X01's two-intervention contrast on `supported.AverageEffect.Dag`, the four X02 fit rows, and the two X06 flagship rows.
 
-A closed research boundary is not a row. That is a B03 child whose B04 failure policy starts with `Refuse this axis`, or whose route is already `closed.*` and whose failure policy starts with `Identification is blocked`. X03, X04, and X05 are the pending attempt rows rather than a second copy of those children.
+A closed research boundary is not a row. That is a B03 child whose B04 failure policy starts with `Refuse this axis`, or whose route is already `closed.*` and whose failure policy starts with `Identification is blocked`. X03, X04, and X05 are the attempt rows rather than a second copy of those children.
 
 The research list is the four `X02.broader` children and G08. The 20 October 2026 scope amendment makes Y18, Y19 and their ten acceptance children mandatory 3.0 implementation work. Calibration and release attestation remain separate from those implementation tickets. The executing acceptance contract is `parity/cyclic/acceptance.toml`.
 
@@ -36,7 +40,9 @@ Graphless, closed, `execution_only`, and `fitting_gap` manifest rows are not sup
 | status | Rows |
 | --- | --- |
 | mandatory | 218 |
-| pending_attempt | 10 |
+| pending_attempt | 0 |
+| closed_earned | 5 |
+| closed_adjusted | 5 |
 | research | 5 |
 | closed_failed | 1 |
 

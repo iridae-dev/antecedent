@@ -462,22 +462,31 @@ pub struct PeriodHistoryEstimate {
     pub serial: Option<SerialHistoryInterval>,
 }
 
-/// Newey-West standard error and normal interval of a period-matched contrast.
+/// Newey-West standard error and fixed-b interval of a period-matched contrast.
 ///
 /// Matched pairs are aggregated by calendar period, the weighted-mean linearization residual of
 /// each period is `sum_q w_q (d_q - contrast)`, and the long-run variance of that period series
 /// is the Bartlett-kernel Newey-West estimator at the truncation lag
 /// `floor(4 (T / 100)^(2/9))` (periods enter by their labels, so a missing period invents no
 /// adjacency), scaled by `T / (T - 1) / (sum of weights)^2`. This is the estimator the arm
-/// designs use for serially dependent unit-period data. The interval is normal at the 97.5%
-/// point and is conditional on the periods that hold a match; its calibration is `not_measured`.
+/// designs use for serially dependent unit-period data.
+///
+/// The interval is `contrast +- c * standard_error` with `c` the Kiefer-Vogelsang (2005)
+/// fixed-b 95% critical value of a Bartlett long-run variance whose bandwidth `lag + 1` is the
+/// share `b = (lag + 1) / T` of the periods. A matched panel has few
+/// periods, so the long-run variance is a noisy estimate that the centring biases down; the
+/// normal 97.5% point ignores both and the fixed-b value prices them. The periods are the
+/// sampling units, so the interval is for the expected matched contrast over periods drawn the
+/// same way: it carries the variation of the matched units' own effects between periods, and so
+/// is conservative for the effect on the units that happened to be matched. Its calibration is
+/// `not_measured`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SerialHistoryInterval {
     /// Newey-West standard error.
     pub standard_error: f64,
-    /// Lower endpoint of the 95% normal interval.
+    /// Lower endpoint of the 95% fixed-b interval.
     pub lower: f64,
-    /// Upper endpoint of the 95% normal interval.
+    /// Upper endpoint of the 95% fixed-b interval.
     pub upper: f64,
     /// Bartlett truncation lag used.
     pub bandwidth: usize,
@@ -515,13 +524,23 @@ pub fn serial_history_interval(
         periods.iter().map(|period| labels.binary_search(period).unwrap_or_default()).collect();
     let scores = ClusterScores::accumulate_weighted(differences, 1, &cluster, Some(weights))?;
     let summary = serial_sampling_summary(&scores, &labels)?;
+    let bandwidth = newey_west_bandwidth(labels.len());
+    let (contrast, standard_error) = (summary.estimate[0], summary.standard_error[0]);
+    let half_width = period_critical_value(bandwidth, labels.len()) * standard_error;
     Ok(SerialHistoryInterval {
-        standard_error: summary.standard_error[0],
-        lower: summary.lower[0],
-        upper: summary.upper[0],
-        bandwidth: newey_west_bandwidth(labels.len()),
+        standard_error,
+        lower: contrast - half_width,
+        upper: contrast + half_width,
+        bandwidth,
         periods: labels,
     })
+}
+
+/// Two-sided 95% fixed-b critical value of a contrast studentized by the Newey-West standard
+/// error at truncation lag `bandwidth` over `periods` periods: the normal 97.5% point times the
+/// Kiefer-Vogelsang ratio at the Bartlett bandwidth `bandwidth + 1`.
+fn period_critical_value(bandwidth: usize, periods: usize) -> f64 {
+    antecedent_stats::NORMAL_Q975 * crate::temporal_block::fixed_b_scale(bandwidth + 1, periods)
 }
 
 /// Abadie-Imbens (2006) standard error of a weighted matched mean with one match, conditional on

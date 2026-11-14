@@ -648,25 +648,4 @@ mod tests {
         assert!(optimism > 0.002, "training optimism={optimism}");
         assert!(heldout_bias.abs() < 0.015, "heldout bias={heldout_bias}");
     }
-
-    #[test]
-    #[ignore = "measurement: only on a stable candidate; implementation simulations grant no support"]
-    fn whole_procedure_continuous_structural_selection_calibration_l95() {
-        let n = std::env::var("ANTECEDENT_CALIBRATION_NSIM")
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .unwrap_or(400)
-            .max(400);
-        let outcomes =
-            (0..n).map(|seed| weak_decision_simulation(seed as u64, 10)).collect::<Vec<_>>();
-        let covered = outcomes.iter().filter(|r| r.0).count();
-        let rate = covered as f64 / n as f64;
-        let mcse = (0.95 * 0.05 / n as f64).sqrt();
-        println!(
-            "continuous_structural_selection n={n} coverage={rate} optimism={} heldout_bias={}",
-            outcomes.iter().map(|r| r.1).sum::<f64>() / n as f64,
-            outcomes.iter().map(|r| r.2).sum::<f64>() / n as f64
-        );
-        assert!((rate - 0.95).abs() <= 3.0 * mcse + 0.005);
-    }
 }

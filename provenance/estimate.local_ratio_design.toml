@@ -1,0 +1,57 @@
+feature_id = "estimate.local_ratio_design"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Design layer of the local-polynomial fuzzy discontinuity and regression kink
+# (crates/antecedent-estimate/src/local_ratio_design.rs, executed by
+# crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/design.rs;
+# plan ids quasi.fuzzy_rd and quasi.regression_kink with options,
+# quasi.temporal_fuzzy_rd, quasi.temporal_regression_kink, and the Bayesian
+# calendar-time posterior under bayesian.fuzzy_rd and bayesian.regression_kink).
+#
+# The cited papers supply the pieces: the robust bias-corrected interval the
+# selection is paired with, the plug-in form of an MSE-optimal bandwidth, the
+# binned-density manipulation test, AR(1) prewhitening of a dependent error,
+# the moving-block bootstrap and the Bayesian bootstrap. Their combination for
+# a running variable that is calendar time (a fixed design, errors prewhitened
+# about a cubic trend on each side with the coefficient corrected for the
+# trend fit, innovations redrawn in blocks and recolored through the cutoff,
+# a Student-t reference with Satterthwaite degrees of freedom) is the
+# repository's own construction and inherits no theorem from them.
+modules = [
+ "crates/antecedent-estimate/src/local_ratio_design.rs",
+ "crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/design.rs",
+]
+
+papers = [
+ { title = "Robust Nonparametric Confidence Intervals for Regression-Discontinuity Designs", doi = "10.3982/ECTA11757", sections = ["robust bias-corrected interval, valid at an MSE-optimal bandwidth because the bias is estimated and its variance carried"] },
+ { title = "Optimal Bandwidth Choice for the Regression Discontinuity Estimator", doi = "10.1093/restud/rdr043", sections = ["plug-in bandwidth minimizing the asymptotic mean squared error of the boundary estimate from pilot variance, density and curvature estimates"] },
+ { title = "Manipulation of the Running Variable in the Regression Discontinuity Design: A Density Test", doi = "10.1016/j.jeconom.2007.05.005", sections = ["binned local linear test of a discontinuity in the density of the running variable at the cutoff"] },
+ { title = "Inference on Causal Effects in a Generalized Regression Kink Design", doi = "10.3982/ECTA11224", sections = ["regression kink: ratio of the outcome slope change to the treatment slope change at the kink point"] },
+ { title = "An Improved Heteroskedasticity and Autocorrelation Consistent Covariance Matrix Estimator", doi = "10.2307/2951574", sections = ["prewhitening a dependent series by a low-order autoregression before estimating its long-run variance, and recoloring"] },
+ { title = "The Jackknife and the Bootstrap for General Stationary Observations", doi = "10.1214/aos/1176347265", sections = ["moving-block bootstrap of consecutive observations"] },
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet posterior weights on the observed support, here on blocks of innovations"] },
+]
+
+implementation_deviations = [
+ "Bandwidth: a single plug-in step for the local quadratic jump (or slope change) of the linearized outcome Y - r T, r the ratio at the declared bandwidth; exact triangular-kernel boundary constants, residual variance from a local linear pilot, density from a pilot window, third derivative from a global quartic on each side. No iterated pilot bandwidths and no regularization term, so it is not the selector of the cited works; the selected bandwidth is capped at the declared one and at least eight rows are kept on each side.",
+ "The interval at the selected bandwidth is the robust bias-corrected HC0 delta-method interval of the fixed-bandwidth route (record estimate.local_polynomial_ratio) with the same bandwidth for estimation and bias correction; it does not account for the selection of the bandwidth on the same data. For the kink, the bandwidth minimizes the error of the local quadratic slope change while the reported estimate is the local quartic slope change.",
+ "Density test: a binned local linear log-density difference at the cutoff with its normal p-value, reported as a diagnostic; it does not gate the estimate. Covariate balance is the robust bias-corrected jump of each declared covariate at the reporting bandwidth.",
+ "Calendar time: the design is held fixed and the errors are redrawn, not the rows. The errors of the structural series Y - r T and of the treatment about a cubic trend on each side are modeled as AR(1); the coefficient and the marginal variance are the ones whose expected trend residuals match the observed lag-one ratio and sum of squares (exact for the trend design), not the raw residual autocorrelation. Innovations are redrawn in moving blocks of the rounded cube root of the smaller side's window rows within each side and recolored by one recursion through the cutoff; the ratio is refit in closed form through the estimator's linear row weights.",
+ "The calendar-time interval is the estimate plus or minus a Student-t quantile times the interquartile bootstrap standard error; the degrees of freedom are a Satterthwaite combination of the innovation variance, the prewhitening coefficient and the finite number of replicates. This reference is the repository's construction.",
+ "The calendar-time posterior puts flat-Dirichlet weights on consecutive non-overlapping blocks of the same innovations within each side, redraws each side's innovations in whole blocks from that weighted block distribution, draws each prewhitening coefficient from a normal approximation of its posterior, and refits the ratio; the reported point is the posterior median.",
+ "Dependence beyond a first-order autoregression is carried only within a block: a strongly persistent higher-order error is outside what the model reproduces. A first stage close to zero makes the ratio interval unreliable even when the 1.96 screen passes. Both are declared conditions of the supported rows, not properties the estimator verifies.",
+ "Continuity at the cutoff, no concurrent discontinuity at the cutoff date, exclusion and monotone compliance are declared assumptions, not tested.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/local_ratio_design/tests.rs (selected-bandwidth recovery, density test, estimator weights against the fit, trend-corrected autocorrelation)",
+ "crates/antecedent/tests/quasi_rollout_routes.rs (independent cubic-fit reference of the estimate and HC0 standard error at the selected bandwidth; the calendar-time standard error and posterior spread against the analytic AR(1) standard deviation of the reference jump weights)",
+ "crates/antecedent/tests/local_design_support_routes.rs (the kink in calendar time against the analytic AR(1) standard deviation of independently computed quartic slope weights; support statement, artifact round trip and forged-support refusal of each route)",
+ "crates/antecedent/tests/local_designs_calibration.rs (repeated-sampling coverage: calibration evidence, not an independent check)",
+]

@@ -4413,11 +4413,11 @@ route = "antecedent.dose_grid.quadratic_dose_functional"
 graph = "A randomized dose, attested by the caller: the dose is independent of the potential-outcome process, so no adjustment is needed. An observational dose is refused (dose_grid.graph_not_certified); this row does not adjust and re-derives no graph."
 evidence = "Aligned finite (dose, outcome) rows, at least three, no external model or law; no nuisance fit beyond the fixed-bandwidth local quadratic."
 functional = "Conditional quadratic mean level, derivative or named-dose contrast under caller-attested randomized design."
-guarantee = "declared_exact_quadratic_mean_zero_smoothing_bias_point_only"
+guarantee = "declared_exact_quadratic_mean_zero_smoothing_bias_pointwise_95_interval_measured_from_250_rows"
 limits = "Historical generic request bytes/digests and their omitted-bias flags remain unchanged. Generic smooth functions do not inherit zero bias. Observational design, weak support, unknown features and simultaneous bands refuse."
 evidence_test = "python/tests/test_dose_grid.py"
 evidence_assertion = "test_quadratic_scope_recovers_functional_across_fixed_bandwidths"
-notes = "Zero smoothing bias is derived only under the declared exact quadratic mean model. Pointwise normal candidates and residual sandwich standard errors remain not_measured; no coverage or simultaneous band support. Allocate cov.dose_quadratic.randomized_iid.l95.level, cov.dose_quadratic.randomized_iid.l95.derivative and cov.dose_quadratic.randomized_iid.l95.contrast before final measurement."
+notes = "Zero smoothing bias is derived only under the declared exact quadratic mean model. Under that premise the pointwise 95% HC0 normal intervals of the level, the derivative and the contrast have measured coverage records from 250 to 1,000 randomized independent rows at fixed bandwidth 0.6; any other mean function, level or dependence is outside them. No simultaneous band."
 
 [[routes]]
 feature = "recalculation.bayesian"
@@ -4886,6 +4886,28 @@ guarantee = "dose_grid_posterior_mean_point_only"
 evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs"
 evidence_assertion = "dose_grid_posterior_mean_stays_near_the_linear_dose_response"
 notes = "Point-only posterior mean. No interval."
+
+[[routes]]
+route = "antecedent.dose_grid.dose_grid_posterior"
+graph = "A randomized dose, attested by the caller; an observational dose is refused (dose_grid.graph_not_certified). No graph is derived."
+evidence = "Aligned finite (dose, outcome) rows, the declared support, coefficient prior scales and residual prior; no external model or law."
+functional = "The dose response level, derivative or two-dose contrast under the declared polynomial mean, with its joint posterior."
+guarantee = "conjugate_polynomial_dose_posterior_pointwise_95_interval_measured_under_a_correct_quadratic_model_from_250_rows"
+limits = "A dose outside the observed range, an observational dose and a malformed request refuse. No simultaneous band."
+evidence_test = "python/tests/test_dose_grid_posterior.py"
+evidence_assertion = "test_level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance"
+notes = "Joint conjugate posterior of a declared polynomial dose response. The pointwise 95% intervals have a coverage harness under a correctly specified quadratic from 250 rows; the coverage ids are allocated, not measured."
+
+[[routes]]
+route = "antecedent.dose_grid.consume_dose_grid_posterior_artifact"
+graph = "A randomized dose, attested by the caller; an observational dose is refused (dose_grid.graph_not_certified). No graph is derived."
+evidence = "The sealed posterior row artifact: request, premises digest and posterior."
+functional = "The dose response level, derivative or two-dose contrast under the declared polynomial mean, with its joint posterior."
+guarantee = "conjugate_polynomial_dose_posterior_pointwise_95_interval_measured_under_a_correct_quadratic_model_from_250_rows"
+limits = "A truncated, forged or over-limit artifact is refused."
+evidence_test = "python/tests/test_dose_grid_posterior.py"
+evidence_assertion = "test_artifact_replays_in_a_fresh_process_and_refuses_corruption"
+notes = "Replays the sealed posterior bit for bit from the stored request and seed."
 
 [[routes]]
 route = "antecedent.decision.functionals.posterior_mean"
@@ -10612,3 +10634,115 @@ notes = "Conditional finite explicit joint scenarios; independent scientific enu
 [[routes]]
 route = "antecedent.python.decision_robust.consume_compiled_robust_decision"
 notes = "Conditional finite explicit joint scenarios; independent scientific enumeration remains owed. No posterior or sampling interval is inferred."
+
+[[routes]]
+route = "antecedent.horizon_composition.horizon_composition_interval"
+graph = "not_applicable_aligned_joint_law"
+evidence = "joint_horizon_replicates_of_one_temporal_response"
+functional = "interval_of_a_linear_composition_across_horizons"
+guarantee = "composed_point_value_with_the_dispersion_of_the_composed_influence_95_percent_coverage_harness_from_80_rows"
+evidence_test = "crates/antecedent/tests/horizon_composition.rs"
+evidence_assertion = "a_linear_composition_interval_equals_the_hand_construction"
+notes = "Fixed-b normal reference for joint block-bootstrap replicates, batch-means Student-t reference for block-weight draws; nonlinear compositions, gapped series and levels other than 0.95 have no interval."
+
+[[routes]]
+route = "antecedent.gcm.attribute.fitted_model_point"
+notes = "Point answer of the fitted model on the compiled Attribute route; no interval."
+
+[[routes]]
+route = "antecedent.gcm.attribute.row_bootstrap_interval"
+notes = "Row-bootstrap normal interval of the total of a sampled mean-difference change; measured scope in the record."
+
+[[routes]]
+route = "antecedent.gcm.attribute.row_weight_posterior"
+notes = "Row-weight posterior of the measured attribution targets, referred to its Student-t reference; measured scope in the record."
+
+[[routes]]
+route = "antecedent.gcm.attribute.temporal.block_bootstrap_interval"
+notes = "Circular-block bootstrap normal interval of the total change on one series; measured scope in the record."
+
+[[routes]]
+route = "antecedent.gcm.attribute.temporal.block_weight_posterior"
+notes = "Block-weight posterior of the total change on one series, referred to its Student-t reference; measured scope in the record."
+
+[[routes]]
+route = "antecedent.gcm.simulate.fitted_model_draws"
+notes = "Seeded draws of the fitted model under an intervention program; no interval."
+
+[[routes]]
+route = "antecedent.gcm.simulate.policy_value.row_bootstrap_interval"
+notes = "Row-bootstrap normal interval of the paired policy mean difference; measured scope in the record."
+
+[[routes]]
+route = "antecedent.gcm.simulate.policy_value.row_weight_posterior"
+notes = "Row-weight posterior of a policy value, referred to its Student-t reference; measured scope in the record."
+
+[[routes]]
+route = "antecedent.gcm.simulate.temporal_rollout.block_weight_posterior"
+notes = "Block-weight posterior of the per-step means of a temporal rollout, referred to its Student-t reference; measured scope in the record."
+
+[[routes]]
+route = "antecedent.attribution.mechanism_change.detection"
+notes = "Qualitative mechanism-change flag with its p-values; no interval and no measured error rate."
+
+[[routes]]
+route = "antecedent.attribution.mechanism_change.posterior_probability"
+notes = "Posterior probability of a mechanism change under a declared prior, scored as a credible set held to at least nominal; measured scope in the record."
+
+[[routes]]
+route = "antecedent.discovery.search.decision_rule"
+notes = "Frequentist structure search: a decision rule, no interval or recovery statement."
+
+[[routes]]
+route = "antecedent.discovery.bootstrap_stability.frequencies"
+notes = "Selection frequencies of a resampled search; no nominal level."
+
+[[routes]]
+route = "antecedent.discovery.static.class_posterior_credible_set"
+notes = "Credible set of equivalence classes of the exact DAG posterior, held to at least nominal; measured scope in the record."
+
+[[routes]]
+route = "antecedent.discovery.temporal.dbn_posterior_credible_set"
+notes = "Credible set of bounded-lag templates, held to at least nominal; measured scope in the record."
+
+[[routes]]
+route = "antecedent.gcm.mechanism_selection.selection_record"
+notes = "Per-node mechanism selection record; point only, no interval."
+
+[[routes]]
+route = "antecedent.attribution.unit_change.contributions"
+notes = "Per-unit Shapley contributions of the outcome parents; point only, no interval."
+
+[[routes]]
+route = "antecedent.gcm.attribute_intrinsic_influence.whole_procedure_interval"
+notes = "Whole-procedure Student-t interval of each source contribution; measured scope in the record."
+
+[[routes]]
+route = "antecedent.gcm.attribute_intrinsic_influence.mechanism_posterior"
+notes = "Row-weight posterior of each source contribution, held to at least nominal; measured scope in the record."
+
+[[routes]]
+route = "antecedent.joint_panel.NativeJointDesignResult.contrast_interval_reading"
+notes = "Contrast interval of a compiled native design with its runtime-derived calibration key; measured conditions in the record."
+
+[[routes]]
+route = "antecedent.joint_panel.RandomizedSelectionResult.selected_value_reading"
+notes = "Held-out normal interval of the selected randomized program's value with its calibration key; measured conditions in the record."
+
+[[routes]]
+route = "antecedent.joint_panel.InstrumentedSelectionResult.selected_value_reading"
+notes = "Held-out normal interval of the selected structural dose program's value with its calibration key; measured conditions in the record."
+
+[[routes]]
+route = "antecedent.joint_panel.JointDesignResult.population_reference_region"
+notes = "Simultaneous Bonferroni region of the four reference contributions with its calibration key, held to at least nominal; measured conditions in the record."
+
+[[routes]]
+route = "antecedent.joint_panel.JointDesignResult.updated_contrast_reading"
+notes = "Weighted equal-tailed posterior interval of a contrast after an experiment update with its calibration key; coverage is averaged over the declared prior."
+
+[[routes]]
+route = "antecedent.Study.synthetic_control"
+stage = "evaluate"
+status = "supported"
+notes = "Point-only synthetic control: the mean post-intervention gap with a descriptive placebo rank and an exact randomization tail; no interval."

@@ -10,8 +10,8 @@
 //! * a conditional mean (real or count outcome) or probability (0/1 outcome) in each stratum of
 //!   the predictors, with a linearised standard error;
 //! * regression coefficients of the predictors: linear (real outcome), logistic (0/1) or Poisson
-//!   (count), with a sandwich standard error (heteroskedasticity-robust for rows,
-//!   Newey-West for a series);
+//!   (count), with a sandwich standard error (heteroskedasticity-robust with small-sample
+//!   corrections for rows, Newey-West with small-sample corrections for a series);
 //! * the Pearson or distance correlation of the outcome with one predictor;
 //! * the coefficients of a predictive model together with its out-of-fold predictions, which
 //!   the caller scores with the predictive-assessment proper scores.
@@ -19,12 +19,45 @@
 //! Uncertainty is stated as what it is. Frequentist: the analytic standard error, replaced by the
 //! standard deviation of resampling replicates when replicates are requested (a row bootstrap
 //! for rows under independent sampling, a circular-block bootstrap for a dependent series), and
-//! the percentile spread of those replicates. Bayesian: the closed-form conjugate
+//! the resampling spread of those replicates. Bayesian: the closed-form conjugate
 //! Normal-Inverse-Gamma posterior for a Gaussian outcome on independent, equally weighted rows,
 //! and the Bayesian bootstrap (Dirichlet row weights, or Dirichlet weights on contiguous blocks
-//! for a series) for every other analysis. No interval here is calibrated: no coverage record
-//! measures any construction, so a spread or posterior interval carries the label
-//! `not_measured`.
+//! for a series) for every other analysis. Every result carries the calibration label
+//! `not_measured`; the checked executor states support only for the configurations the graphless
+//! support table lists for the family `association` (the slope of a linear regression of a real
+//! outcome on one numeric predictor), and no other construction here has a coverage record.
+//!
+//! A standard error is published so that `estimate +- z * standard_error` at the normal quantile
+//! of [`SPREAD_LEVEL`] is the interval of its own reference distribution:
+//!
+//! * a coefficient of a model fitted to independent rows is the root sum of squares of its
+//!   influence values with the residuals divided by `1 - leverage` (MacKinnon and White 1985),
+//!   times the ratio of the Student-t to the normal quantile at the Satterthwaite-effective
+//!   number of rows of those values;
+//! * a series quantity is the Bartlett Newey-West error of its influence series, with the
+//!   residuals of a model divided by `1 - leverage` (the fit shrinks them), times the Bartlett
+//!   kernel-bias factor of that series at the bandwidth ([`kernel_bias_scale`]), times the ratio
+//!   of the Student-t to the normal quantile at the Bartlett equivalent degrees of freedom
+//!   `1.5 n / bandwidth` (Lazarus, Lewis, Stock and Watson 2018), with `n` the
+//!   Satterthwaite-effective number of rows `3 (sum psi^2)^2 / sum psi^4` of the influence
+//!   series (a few rows of large influence carry the variance estimate);
+//! * a circular-block bootstrap error is the replicate standard deviation times the circular
+//!   fixed-b factor of the block length and the same kernel-bias factor at that length, and the
+//!   spread is the percentile range of the replicates widened about the estimate by both;
+//! * the spread of a row bootstrap is the studentized (bootstrap-t) interval for a regression
+//!   coefficient: each replicate is divided by the HC1 error of its own resample and the
+//!   quantiles of those pivots are scaled back by the HC1 error of the rows (Hall 1992);
+//!   a stratum value or a correlation is bounded and has no stable pivot, so it keeps the
+//!   percentile range of its replicates;
+//! * the block Bayesian bootstrap of a series puts Dirichlet weights on `m` contiguous blocks,
+//!   whose posterior variance is the batch-means variance times `(m - 1) / (m + 1)`; its
+//!   interval and standard deviation are widened about the posterior mean by
+//!   `sqrt((m + 1) / (m - 1))`, by the ratio of the Student-t quantile of the batch means
+//!   (`m - 1` degrees of freedom, fewer when a few blocks carry the influence) to the normal
+//!   one, and by the kernel-bias factor at the block length.
+//!
+//! Percentiles of replicates and of posterior draws are exchangeable-rank quantiles
+//! (`p (D + 1)` among `D` values), which do not shorten an interval at a finite count.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -40,20 +73,21 @@ use antecedent_data::{
 use antecedent_kernels::{
     bayesian_bootstrap_weights, sample_std, shuffled_fold_assignment, sigmoid, unbiased_index,
 };
+use antecedent_stats::special::{normal_ppf, student_t_ppf};
 use antecedent_stats::{
-    FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace, QuantileRule,
-    SandwichKind, distance_correlation, equal_tail_interval_sorted, fit_glm_weighted,
+    DenseLinearAlgebra, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
+    QuantileRule, SandwichKind, distance_correlation, equal_tail_interval_sorted, fit_glm_weighted,
     score_coefficient_covariance,
 };
 
 use crate::error::EstimationError;
 use crate::gaussian_linear_posterior::{GaussianLinearPrior, conjugate_posterior_from_residuals};
-use crate::temporal_block::{circular_fixed_b_scale, dependence_block_length};
+use crate::temporal_block::{circular_fixed_b_scale, dependence_block_length, kernel_bias_scale};
 use crate::util::SamplingDeclaration;
 
 /// Identifier of the declared selection rule, recorded on every result.
 pub const SELECTION_RULE: &str = "association_selection_rule";
-/// Level of the percentile spread and of the credible interval.
+/// Level of the resampling spread and of the credible interval.
 pub const SPREAD_LEVEL: f64 = 0.95;
 /// Strata a conditional law always reports; a larger sample admits `rows / 4` (an average of
 /// four rows per stratum).
@@ -74,6 +108,11 @@ const FOLD_STREAM: u64 = 0xA550_C003;
 const CODE_TOLERANCE: f64 = 1e-12;
 /// Smallest fitted probability or mean a score is evaluated at.
 const SCORE_FLOOR: f64 = 1e-12;
+/// Smallest `1 - leverage` a residual is divided by.
+const LEVERAGE_FLOOR: f64 = 1e-8;
+/// A resample whose own standard error is at most this share of the analytic error of the rows
+/// (a resample its model fits exactly) has no pivot.
+const PIVOT_ERROR_FLOOR: f64 = 1e-8;
 
 /// The measurement scale of the outcome the rule read.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -239,7 +278,10 @@ pub struct AssociationTerm {
     pub standard_error: Option<f64>,
     /// Name of the standard-error construction.
     pub standard_error_method: Option<&'static str>,
-    /// Percentile spread of the resampling replicates (uncalibrated).
+    /// Resampling spread at [`SPREAD_LEVEL`]: the studentized interval of a regression
+    /// coefficient under a row bootstrap, the percentile range of the replicates of any other
+    /// quantity, or the percentile range of a circular-block bootstrap widened by its fixed-b
+    /// and kernel-bias factors.
     pub spread: Option<(f64, f64)>,
     /// Posterior summary.
     pub posterior: Option<TermPosterior>,
@@ -579,6 +621,57 @@ impl PreparedAssociation {
     pub const fn rows_dropped(&self) -> usize {
         self.rows_dropped
     }
+
+    /// The rows `index` (with repeats) as their own sample, on the design and the strata of
+    /// these rows.
+    fn resampled(&self, index: &[usize]) -> Self {
+        let gather =
+            |values: &[f64]| -> Vec<f64> { index.iter().map(|&row| values[row]).collect() };
+        let column = |column: &PreparedColumn| PreparedColumn {
+            name: column.name.clone(),
+            values: match &column.values {
+                ColumnValues::Numeric(values) => ColumnValues::Numeric(gather(values)),
+                ColumnValues::Levels { codes, labels, reference } => ColumnValues::Levels {
+                    codes: index.iter().map(|&row| codes[row]).collect(),
+                    labels: labels.clone(),
+                    reference: *reference,
+                },
+            },
+        };
+        let design = self.design.as_ref().map(|design| {
+            let mut matrix = Vec::with_capacity(index.len() * design.ncols);
+            for c in 0..design.ncols {
+                matrix.extend(gather(&design.matrix[c * self.rows..(c + 1) * self.rows]));
+            }
+            Design {
+                matrix,
+                ncols: design.ncols,
+                names: design.names.clone(),
+                report: design.report.clone(),
+            }
+        });
+        let strata = self.strata.as_ref().map(|strata| {
+            let of_row: Vec<usize> = index.iter().map(|&row| strata.of_row[row]).collect();
+            let mut counts = vec![0_usize; strata.labels.len()];
+            for &k in &of_row {
+                counts[k] += 1;
+            }
+            Strata { labels: strata.labels.clone(), of_row, counts }
+        });
+        Self {
+            selection: self.selection.clone(),
+            rows: index.len(),
+            rows_dropped: self.rows_dropped,
+            outcome_name: self.outcome_name.clone(),
+            y: gather(&self.y),
+            weight: gather(&self.weight),
+            unit_weights: self.unit_weights,
+            predictors: self.predictors.iter().map(column).collect(),
+            conditioning: self.conditioning.iter().map(column).collect(),
+            design,
+            strata,
+        }
+    }
 }
 
 struct RawColumn {
@@ -869,7 +962,33 @@ struct TermSpec {
 /// Draws of the statistic vector, one entry per replicate, a quantity that did not fit `NaN`.
 struct ReplicateDraws {
     draws: Vec<Vec<f64>>,
+    /// HC1 errors of each row resample of a model, `NaN` where it has none;
+    /// empty for every other analysis, for block resamples and for posterior draws.
+    errors: Vec<Vec<f64>>,
     block_length: Option<usize>,
+}
+
+/// Analytic uncertainty of the reported quantities.
+struct Analytic {
+    errors: Vec<Option<f64>>,
+    method: Option<&'static str>,
+    /// Influence series of each quantity of a series (its values sum to the estimation error
+    /// to first order); `None` for rows of a table and for a quantity with no analytic error.
+    influence: Vec<Option<Vec<f64>>>,
+    /// HC1 errors of the coefficients of a model fitted to independent rows, the scale of the
+    /// bootstrap-t pivot; empty for every other analysis.
+    pivot: Vec<Option<f64>>,
+}
+
+impl Analytic {
+    fn without_influence(errors: Vec<Option<f64>>, method: Option<&'static str>) -> Self {
+        let influence = vec![None; errors.len()];
+        Self { errors, method, influence, pivot: Vec::new() }
+    }
+
+    fn influence_of(&self, term: usize) -> Option<&[f64]> {
+        self.influence.get(term).and_then(Option::as_deref)
+    }
 }
 
 impl AssociationEstimator {
@@ -1110,6 +1229,82 @@ fn newey_west_lag(rows: usize) -> usize {
     rule.min(rows.saturating_sub(1)).max(1)
 }
 
+/// Student-t quantile at `df` degrees of freedom over the normal quantile, at the upper tail of
+/// [`SPREAD_LEVEL`]; `1` when the degrees of freedom are not positive and finite.
+fn student_ratio(df: f64) -> f64 {
+    if !(df.is_finite() && df > 0.0) {
+        return 1.0;
+    }
+    let tail = f64::midpoint(1.0, SPREAD_LEVEL);
+    let ratio = student_t_ppf(tail, df) / normal_ppf(tail);
+    if ratio.is_finite() { ratio.max(1.0) } else { 1.0 }
+}
+
+/// Satterthwaite-effective number of `values` read as independent Gaussian terms of unequal
+/// variance: `3 (sum v^2)^2 / sum v^4`, at most their count (`Var(sum v^2) = 2 sum var_i^2` and
+/// `E v^4 = 3 var_i^2`). `NaN` when every value is zero.
+fn effective_count(values: &[f64]) -> f64 {
+    let largest = values.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+    if !(largest.is_finite() && largest > 0.0) {
+        return f64::NAN;
+    }
+    let (mut squares, mut fourths) = (0.0, 0.0);
+    for value in values {
+        let square = (value / largest).powi(2);
+        squares += square;
+        fourths += square * square;
+    }
+    (3.0 * squares * squares / fourths).min(values.len() as f64)
+}
+
+/// Standard error of a series quantity from its influence series: the Bartlett Newey-West
+/// error at `lag`, times the kernel-bias factor of the series at the bandwidth `lag + 1`, times
+/// the Student-t ratio at the Bartlett equivalent degrees of freedom `1.5 n / (lag + 1)` on the
+/// effective number of rows `n` of the series.
+fn series_standard_error(influence: &[f64], lag: usize) -> f64 {
+    let bandwidth = lag + 1;
+    let df = 1.5 * effective_count(influence) / bandwidth as f64;
+    newey_west_variance(influence, lag).sqrt()
+        * kernel_bias_scale(&[influence], bandwidth)
+        * student_ratio(df)
+}
+
+/// Standard error of a coefficient of a model fitted to independent rows from its
+/// leverage-adjusted influence values: their root sum of squares times the Student-t ratio at
+/// their effective number.
+fn row_standard_error(influence: &[f64]) -> f64 {
+    let raw: f64 = influence.iter().map(|v| v * v).sum();
+    raw.max(0.0).sqrt() * student_ratio(effective_count(influence))
+}
+
+/// Factor that widens the block Bayesian bootstrap of `rows` points in blocks of `length` to
+/// the batch-means interval: `sqrt((m + 1) / (m - 1))` for the Dirichlet variance of `m` blocks,
+/// the Student-t ratio at `m - 1` degrees of freedom (the Satterthwaite-effective number of
+/// block sums of the influence series less one, when that is fewer), and the kernel-bias factor
+/// of the influence series at the block length.
+fn block_posterior_scale(rows: usize, length: usize, influence: Option<&[f64]>) -> f64 {
+    let length = length.max(1);
+    let blocks = rows.div_ceil(length) as f64;
+    if blocks < 2.0 {
+        return 1.0;
+    }
+    let mut df = blocks - 1.0;
+    let mut bias = 1.0;
+    if let Some(series) = influence {
+        let mut sums: Vec<f64> = series.chunks(length).map(|block| block.iter().sum()).collect();
+        let centre = sums.iter().sum::<f64>() / sums.len() as f64;
+        for sum in &mut sums {
+            *sum -= centre;
+        }
+        let effective = effective_count(&sums) - 1.0;
+        if effective.is_finite() {
+            df = df.min(effective.max(1.0));
+        }
+        bias = kernel_bias_scale(&[series], length);
+    }
+    ((blocks + 1.0) / (blocks - 1.0)).sqrt() * student_ratio(df) * bias
+}
+
 impl AssociationEstimator {
     fn layout(prepared: &PreparedAssociation) -> Vec<TermSpec> {
         let analysis = prepared.selection.analysis;
@@ -1265,8 +1460,8 @@ impl AssociationEstimator {
         Ok(WeightedFit { coefficients: fit.coefficients, kept, x, y, w, family })
     }
 
-    /// Sandwich covariance of a fitted model.
-    fn sandwich(&self, fit: &WeightedFit, ncols: usize) -> Result<Vec<f64>, EstimationError> {
+    /// Score multiplier and Fisher weight of each fitted row.
+    fn score_and_information(fit: &WeightedFit, ncols: usize) -> (Vec<f64>, Vec<f64>) {
         let n = fit.kept.len();
         let mut score = vec![0.0; n];
         let mut information = vec![0.0; n];
@@ -1287,23 +1482,114 @@ impl AssociationEstimator {
             score[row] = u * fit.w[row];
             information[row] = w * fit.w[row];
         }
-        let kind = match self.modality {
-            Modality::CrossSection => SandwichKind::Hc1,
-            Modality::Series => SandwichKind::NeweyWest { lag: newey_west_lag(n) },
-        };
-        Ok(score_coefficient_covariance(&fit.x, n, ncols, &score, &information, kind)?)
+        (score, information)
     }
 
-    /// Analytic standard errors of the reported quantities and the construction's name.
-    fn analytic(
-        &self,
-        prepared: &PreparedAssociation,
-    ) -> Result<(Vec<Option<f64>>, Option<&'static str>), EstimationError> {
+    /// Heteroskedasticity-robust (HC1) covariance of a model fitted to independent rows.
+    fn row_covariance(fit: &WeightedFit, ncols: usize) -> Result<Vec<f64>, EstimationError> {
+        let (score, information) = Self::score_and_information(fit, ncols);
+        Ok(score_coefficient_covariance(
+            &fit.x,
+            fit.kept.len(),
+            ncols,
+            &score,
+            &information,
+            SandwichKind::Hc1,
+        )?)
+    }
+
+    /// HC1 errors of the reported coefficients of a model fitted to independent rows, `NaN`
+    /// where the covariance has none.
+    fn pivot_errors(fit: &WeightedFit, design: &Design) -> Vec<f64> {
+        match Self::row_covariance(fit, design.ncols) {
+            Ok(covariance) => design
+                .report
+                .iter()
+                .map(|&c| covariance[c * design.ncols + c].max(0.0).sqrt())
+                .collect(),
+            Err(_) => vec![f64::NAN; design.report.len()],
+        }
+    }
+
+    /// Influence values of the coefficients `report` of a fitted model, over the fitted rows
+    /// in order: `(A^-1 x_t)_c s_t / (1 - h_t)` with `A` the information matrix,
+    /// `s_t` the score multiplier and `h_t` the leverage of row `t`.
+    ///
+    /// Row `c` of `A^-1 Z'`, `Z` the design scaled by the root Fisher weights, is the residual
+    /// of column `c` of `Z` on the other columns over its squared length, so each coefficient
+    /// takes one least-squares fit and no information matrix is inverted.
+    fn model_influence(
+        fit: &WeightedFit,
+        ncols: usize,
+        report: &[usize],
+    ) -> Result<Vec<Vec<f64>>, EstimationError> {
+        let n = fit.kept.len();
+        let (score, information) = Self::score_and_information(fit, ncols);
+        let root: Vec<f64> = information.iter().map(|w| w.max(0.0).sqrt()).collect();
+        let mut scaled = Vec::with_capacity(n * ncols);
+        for c in 0..ncols {
+            scaled.extend((0..n).map(|row| fit.x[c * n + row] * root[row]));
+        }
+        let column = |c: usize| &scaled[c * n..(c + 1) * n];
+        let degenerate = || {
+            EstimationError::refused(
+                reason_code!("design_rank_deficient"),
+                "a coefficient is not separately determined by the rows of the series. Next \
+                 attempt: drop a collinear predictor or a level with no rows",
+            )
+        };
+        let mut workspace = LeastSquaresWorkspace::default();
+        let mut projector: Vec<Vec<f64>> = Vec::with_capacity(ncols);
+        for c in 0..ncols {
+            let residual = if ncols == 1 {
+                column(c).to_vec()
+            } else {
+                let others: Vec<f64> = (0..ncols)
+                    .filter(|&other| other != c)
+                    .flat_map(|other| column(other).iter().copied())
+                    .collect();
+                let fitted =
+                    FaerBackend.least_squares(&others, n, ncols - 1, column(c), &mut workspace)?;
+                if fitted.rank != ncols - 1 {
+                    return Err(degenerate());
+                }
+                fitted.residuals
+            };
+            let length: f64 = residual.iter().map(|v| v * v).sum();
+            if !(length.is_finite() && length > 0.0) {
+                return Err(degenerate());
+            }
+            projector.push(residual.into_iter().map(|v| v / length).collect());
+        }
+        let leverage: Vec<f64> = (0..n)
+            .map(|row| (0..ncols).map(|c| column(c)[row] * projector[c][row]).sum::<f64>())
+            .collect();
+        Ok(report
+            .iter()
+            .map(|&c| {
+                (0..n)
+                    .map(|row| {
+                        if root[row] > 0.0 {
+                            projector[c][row] / root[row] * score[row]
+                                / (1.0 - leverage[row]).max(LEVERAGE_FLOOR)
+                        } else {
+                            0.0
+                        }
+                    })
+                    .collect::<Vec<f64>>()
+            })
+            .collect())
+    }
+
+    /// Analytic standard errors of the reported quantities, the construction's name and, for a
+    /// series, the influence series behind each error.
+    fn analytic(&self, prepared: &PreparedAssociation) -> Result<Analytic, EstimationError> {
         let analysis = prepared.selection.analysis;
+        let series = self.modality == Modality::Series;
         if let Some(strata) = &prepared.strata {
             let means = Self::statistics(prepared, &vec![1.0; prepared.rows])?;
-            let series = self.modality == Modality::Series;
             let mut errors = Vec::with_capacity(means.len());
+            let mut influence = Vec::with_capacity(means.len());
             for (k, mean) in means.iter().enumerate() {
                 let total: f64 = (0..prepared.rows)
                     .filter(|&r| strata.of_row[r] == k)
@@ -1317,6 +1603,7 @@ impl AssociationEstimator {
                     .count();
                 if count < 2 || total.is_nan() || total <= 0.0 {
                     errors.push(None);
+                    influence.push(None);
                     continue;
                 }
                 let psi: Vec<f64> = (0..prepared.rows)
@@ -1328,43 +1615,54 @@ impl AssociationEstimator {
                         }
                     })
                     .collect();
-                let variance = if series {
-                    newey_west_variance(&psi, newey_west_lag(prepared.rows))
+                if series {
+                    errors.push(Some(series_standard_error(&psi, newey_west_lag(prepared.rows))));
+                    influence.push(Some(psi));
                 } else {
                     let raw: f64 = psi.iter().map(|v| v * v).sum();
-                    raw * count as f64 / (count as f64 - 1.0)
-                };
-                errors.push(Some(variance.max(0.0).sqrt()));
+                    let variance = raw * count as f64 / (count as f64 - 1.0);
+                    errors.push(Some(variance.max(0.0).sqrt()));
+                    influence.push(None);
+                }
             }
             let method = if series { "newey_west_influence" } else { "linearised_influence" };
-            return Ok((errors, Some(method)));
+            return Ok(Analytic { errors, method: Some(method), influence, pivot: Vec::new() });
         }
         if analysis.fits_model() {
             let design = prepared.design.as_ref().ok_or_else(|| refuse_invalid("no design"))?;
             let fit = Self::fit_with_weights(prepared, &prepared.weight)?;
-            let covariance = self.sandwich(&fit, design.ncols)?;
-            let errors = design
-                .report
-                .iter()
-                .map(|&c| Some(covariance[c * design.ncols + c].max(0.0).sqrt()))
-                .collect();
-            let method = match self.modality {
-                Modality::CrossSection => "sandwich_hc1",
-                Modality::Series => "sandwich_newey_west",
-            };
-            return Ok((errors, Some(method)));
+            if series {
+                let lag = newey_west_lag(fit.kept.len());
+                let influence = Self::model_influence(&fit, design.ncols, &design.report)?;
+                let errors =
+                    influence.iter().map(|psi| Some(series_standard_error(psi, lag))).collect();
+                return Ok(Analytic {
+                    errors,
+                    method: Some("sandwich_newey_west"),
+                    influence: influence.into_iter().map(Some).collect(),
+                    pivot: Vec::new(),
+                });
+            }
+            let influence = Self::model_influence(&fit, design.ncols, &design.report)?;
+            let errors: Vec<Option<f64>> =
+                influence.iter().map(|psi| Some(row_standard_error(psi))).collect();
+            let pivot = Self::pivot_errors(&fit, design).into_iter().map(Some).collect();
+            return Ok(Analytic {
+                influence: vec![None; errors.len()],
+                errors,
+                method: Some("sandwich_leverage_student"),
+                pivot,
+            });
         }
-        if analysis == AssociationAnalysis::PearsonCorrelation
-            && self.modality == Modality::CrossSection
-        {
+        if analysis == AssociationAnalysis::PearsonCorrelation && !series {
             let r = Self::statistics(prepared, &vec![1.0; prepared.rows])?[0];
             let total: f64 = prepared.weight.iter().sum();
             let squares: f64 = prepared.weight.iter().map(|w| w * w).sum();
             let effective_rows = total * total / squares;
             let se = ((1.0 - r * r) / (effective_rows - 1.0).max(1.0).sqrt()).abs();
-            return Ok((vec![Some(se)], Some("normal_theory_delta")));
+            return Ok(Analytic::without_influence(vec![Some(se)], Some("normal_theory_delta")));
         }
-        Ok((vec![None; Self::layout(prepared).len()], None))
+        Ok(Analytic::without_influence(vec![None; Self::layout(prepared).len()], None))
     }
 }
 
@@ -1385,7 +1683,40 @@ fn percentile_spread(mut values: Vec<f64>) -> Option<(f64, f64)> {
         return None;
     }
     values.sort_by(f64::total_cmp);
-    Some(equal_tail_interval_sorted(&values, SPREAD_LEVEL, QuantileRule::Interpolated))
+    Some(equal_tail_interval_sorted(&values, SPREAD_LEVEL, QuantileRule::ExchangeableRank))
+}
+
+/// Studentized (bootstrap-t) interval of coefficient `term`: the pivots
+/// `(replicate - estimate) / replicate error` of the row resamples, their equal-tailed quantiles
+/// scaled back by the HC1 `error` of the rows. `None` when `error` is not positive or
+/// fewer than [`MIN_REPLICATES`] resamples have a pivot.
+fn studentized_spread(
+    estimate: f64,
+    error: f64,
+    drawn: &ReplicateDraws,
+    term: usize,
+) -> Option<(f64, f64)> {
+    if !(error.is_finite() && error > 0.0) {
+        return None;
+    }
+    let floor = PIVOT_ERROR_FLOOR * error;
+    let mut pivots: Vec<f64> = drawn
+        .draws
+        .iter()
+        .zip(&drawn.errors)
+        .filter_map(|(draw, errors)| {
+            let (value, replicate_error) = (draw[term], errors[term]);
+            (value.is_finite() && replicate_error.is_finite() && replicate_error > floor)
+                .then(|| (value - estimate) / replicate_error)
+        })
+        .collect();
+    if pivots.len() < MIN_REPLICATES {
+        return None;
+    }
+    pivots.sort_by(f64::total_cmp);
+    let (lower, upper) =
+        equal_tail_interval_sorted(&pivots, SPREAD_LEVEL, QuantileRule::ExchangeableRank);
+    Some((estimate - upper * error, estimate - lower * error))
 }
 
 impl AssociationEstimator {
@@ -1405,6 +1736,7 @@ impl AssociationEstimator {
             dependence_block_length(1, rows, &[centred.as_slice()]).clamp(1, rows)
         });
         let mut draws = Vec::with_capacity(replicates);
+        let mut errors = Vec::new();
         let mut index = vec![0_usize; rows];
         for replicate in 0..replicates {
             if ctx.cancellation.is_cancelled() {
@@ -1433,8 +1765,26 @@ impl AssociationEstimator {
             draws.push(
                 Self::statistics(prepared, &multiplier).unwrap_or_else(|_| vec![f64::NAN; terms]),
             );
+            // Only a regression coefficient is studentized, so only a model resample is
+            // given its own errors.
+            if block_length.is_none() && prepared.design.is_some() {
+                errors.push(Self::replicate_errors(prepared, &index, terms));
+            }
         }
-        Ok(ReplicateDraws { draws, block_length })
+        Ok(ReplicateDraws { draws, errors, block_length })
+    }
+
+    /// HC1 errors of the coefficients on the resampled rows `index`; `NaN` where the resample
+    /// has none.
+    fn replicate_errors(prepared: &PreparedAssociation, index: &[usize], terms: usize) -> Vec<f64> {
+        let resample = prepared.resampled(index);
+        let Some(design) = &resample.design else {
+            return vec![f64::NAN; terms];
+        };
+        match Self::fit_with_weights(&resample, &resample.weight) {
+            Ok(fit) if design.report.len() == terms => Self::pivot_errors(&fit, design),
+            _ => vec![f64::NAN; terms],
+        }
     }
 
     /// Draws of the statistic vector under Dirichlet row (or block) weights.
@@ -1480,7 +1830,7 @@ impl AssociationEstimator {
                 Self::statistics(prepared, &multiplier).unwrap_or_else(|_| vec![f64::NAN; terms]),
             );
         }
-        Ok(ReplicateDraws { draws, block_length })
+        Ok(ReplicateDraws { draws, errors: Vec::new(), block_length })
     }
 
     /// Whether the closed-form conjugate posterior applies: a Gaussian outcome on independent
@@ -1715,7 +2065,7 @@ impl AssociationEstimator {
             ));
         }
         let layout = Self::layout(prepared);
-        let (analytic, analytic_method) = self.analytic(prepared)?;
+        let analytic = self.analytic(prepared)?;
         let mut terms: Vec<AssociationTerm> = layout
             .into_iter()
             .enumerate()
@@ -1723,8 +2073,8 @@ impl AssociationEstimator {
                 label: spec.label,
                 scale: spec.scale,
                 estimate: point[k],
-                standard_error: analytic[k],
-                standard_error_method: analytic[k].and(analytic_method),
+                standard_error: analytic.errors[k],
+                standard_error_method: analytic.errors[k].and(analytic.method),
                 spread: None,
                 posterior: None,
                 rows: spec.rows,
@@ -1734,7 +2084,7 @@ impl AssociationEstimator {
         let mut posterior = None;
         match self.bayesian {
             None if self.bootstrap_replicates > 0 => {
-                resampling = Some(self.publish_bootstrap(prepared, &mut terms, ctx)?);
+                resampling = Some(self.publish_bootstrap(prepared, &mut terms, &analytic, ctx)?);
             }
             None => {}
             Some(settings) if Self::conjugate_applies(prepared) => {
@@ -1766,13 +2116,18 @@ impl AssociationEstimator {
                     let (lower, upper) = equal_tail_interval_sorted(
                         &values,
                         SPREAD_LEVEL,
-                        QuantileRule::Interpolated,
+                        QuantileRule::ExchangeableRank,
                     );
+                    let mean = values.iter().sum::<f64>() / values.len() as f64;
+                    // Blocks of a series are few: widen to the batch-means interval.
+                    let scale = drawn.block_length.map_or(1.0, |length| {
+                        block_posterior_scale(rows, length, analytic.influence_of(k))
+                    });
                     term.posterior = Some(TermPosterior {
-                        mean: values.iter().sum::<f64>() / values.len() as f64,
-                        sd: sample_std(&values),
-                        lower,
-                        upper,
+                        mean,
+                        sd: sample_std(&values) * scale,
+                        lower: mean + scale * (lower - mean),
+                        upper: mean + scale * (upper - mean),
                     });
                 }
                 posterior =
@@ -1801,23 +2156,46 @@ impl AssociationEstimator {
         &self,
         prepared: &PreparedAssociation,
         terms: &mut [AssociationTerm],
+        analytic: &Analytic,
         ctx: &ExecutionContext,
     ) -> Result<ResamplingRecord, EstimationError> {
         let rows = prepared.rows;
         let drawn = self.bootstrap_draws(prepared, ctx)?;
         let series = self.modality == Modality::Series;
-        let scale = drawn.block_length.map_or(1.0, |length| circular_fixed_b_scale(length, rows));
         let attempted = drawn.draws.len();
         let mut ok = attempted;
         for (k, term) in terms.iter_mut().enumerate() {
             let values = finite_column(&drawn.draws, k);
             ok = ok.min(values.len());
+            // A block resample: the fixed-b factor of the block length and the kernel-bias
+            // factor of the quantity's influence series at that length.
+            let scale = drawn.block_length.map_or(1.0, |length| {
+                circular_fixed_b_scale(length, rows)
+                    * analytic.influence_of(k).map_or(1.0, |psi| kernel_bias_scale(&[psi], length))
+            });
+            // A row resample of a model: the pivots are scaled back by the HC1 error of the
+            // rows.
+            let studentized = if drawn.errors.is_empty() {
+                None
+            } else {
+                analytic
+                    .pivot
+                    .get(k)
+                    .copied()
+                    .flatten()
+                    .and_then(|error| studentized_spread(term.estimate, error, &drawn, k))
+            };
             if values.len() >= 2 && values.len() * 2 >= attempted {
                 term.standard_error = Some(sample_std(&values) * scale);
                 term.standard_error_method =
                     Some(if series { "bootstrap_circular_block" } else { "bootstrap_row" });
             }
-            term.spread = percentile_spread(values);
+            let estimate = term.estimate;
+            term.spread = studentized.or_else(|| {
+                percentile_spread(values).map(|(lower, upper)| {
+                    (estimate + scale * (lower - estimate), estimate + scale * (upper - estimate))
+                })
+            });
         }
         Ok(ResamplingRecord {
             method: if series { "block_bootstrap" } else { "bootstrap" },
@@ -1893,7 +2271,8 @@ pub fn descriptive_assumptions(selection: &AssociationSelection) -> Vec<&'static
         }
     });
     premises.push(
-        "uncalibrated_uncertainty: no coverage record measures the standard errors, spreads or \
+        "uncalibrated_uncertainty: outside the configurations the graphless support table lists \
+         for the association family, no coverage record measures the standard errors, spreads or \
          posterior intervals reported here",
     );
     premises
@@ -1968,19 +2347,24 @@ mod tests {
         assert_eq!(estimate.terms.len(), 2);
         assert!((estimate.terms[0].estimate - intercept).abs() < 1e-8);
         assert!((estimate.terms[1].estimate - slope).abs() < 1e-8);
-        // HC1 variance of the slope of a simple regression.
-        let meat: f64 = x
+        // Slope influence of a simple regression with each residual over one less its
+        // leverage, and the Student-t ratio at the effective number of rows.
+        let psi: Vec<f64> = x
             .iter()
             .zip(&y)
             .map(|(a, b)| {
                 let e = b - intercept - slope * a;
-                (a - mx).powi(2) * e * e
+                let leverage = 1.0 / n + (a - mx).powi(2) / sxx;
+                (a - mx) / sxx * e / (1.0 - leverage)
             })
-            .sum();
-        let expected = (n / (n - 2.0) * meat).sqrt() / sxx;
+            .collect();
+        let squares: f64 = psi.iter().map(|v| v * v).sum();
+        let fourths: f64 = psi.iter().map(|v| v.powi(4)).sum();
+        let df = (3.0 * squares * squares / fourths).min(n);
+        let expected = squares.sqrt() * student_t_ppf(0.975, df) / normal_ppf(0.975);
         let published = estimate.terms[1].standard_error.unwrap();
         assert!((published - expected).abs() < 1e-8, "{published} vs {expected}");
-        assert_eq!(estimate.terms[1].standard_error_method, Some("sandwich_hc1"));
+        assert_eq!(estimate.terms[1].standard_error_method, Some("sandwich_leverage_student"));
         assert!(estimate.resampling.is_none() && estimate.posterior.is_none());
         assert!(estimate.terms.iter().all(|t| t.spread.is_none()));
         assert!(estimate.assumptions.iter().any(|a| a.starts_with("descriptive_only")));
@@ -2024,7 +2408,7 @@ mod tests {
         let mut prepared = estimator.prepare(data.storage(), &query).unwrap();
         prepared.weight = vec![1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0];
         prepared.unit_weights = false;
-        let (errors, _) = estimator.analytic(&prepared).unwrap();
+        let errors = estimator.analytic(&prepared).unwrap().errors;
         assert!(errors[0].is_some_and(|se| se > 0.0));
         assert_eq!(errors[1], None);
     }

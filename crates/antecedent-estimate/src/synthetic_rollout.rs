@@ -24,8 +24,6 @@
 //! procedure on the remaining donors, and the variance of the placebo estimates gives a normal
 //! interval. That variance is valid when the treated units' untreated errors are exchangeable
 //! with the donors'; with very few donors it is unstable.
-//!
-//! No coverage of these intervals has been measured.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #[cfg(test)]

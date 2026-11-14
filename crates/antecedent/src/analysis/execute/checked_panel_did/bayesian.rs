@@ -36,6 +36,9 @@ pub(in crate::analysis::execute) fn bayesian_panel_did_plan_ids(
     )
 }
 
+/// Coefficient prior scale the two-period posterior's support row was measured with.
+const TWO_PERIOD_ROW_PRIOR_SCALE: f64 = 100.0;
+
 /// Rows of `values` where `keep` is true, in order.
 fn pick<T: Clone>(values: &[T], keep: &[bool]) -> Vec<T> {
     values.iter().zip(keep).filter(|(_, kept)| **kept).map(|(value, _)| value.clone()).collect()
@@ -150,7 +153,17 @@ impl super::CheckedPanelDidOperation {
                     .to_string(),
             );
         }
-        finish_design_posterior_as(
+        // The balanced two-period posterior under the measured prior scale, on every declared
+        // row, states its support row from the subjects in each group.
+        let two_period_groups = if self.query.design == DidSamplingDesign::BalancedPanel
+            && !self.extra.restricted
+            && (config.prior_scale - TWO_PERIOD_ROW_PRIOR_SCALE).abs() <= f64::EPSILON
+        {
+            Some(self.balanced_subject_changes(y)?.2)
+        } else {
+            None
+        };
+        let mut result = finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -163,7 +176,29 @@ impl super::CheckedPanelDidOperation {
             },
             fit,
             Strategy::new(IdentifierId::ParallelTrends, EstimatorId::BayesianPanelDid),
-        )
+        )?;
+        if let Some([comparison, treated]) = two_period_groups {
+            super::super::bayesian_quasi_common::state_design_posterior_row(
+                &mut result,
+                crate::support::GraphlessSupportKey {
+                    family: "difference_in_differences",
+                    design: "panel_2x2",
+                    method: "normal_inverse_gamma_change_score_posterior_prior_scale_100",
+                    inference_claim: "pointwise_95_posterior_quantiles",
+                },
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit",
+                    treated,
+                    control: comparison,
+                    rows: treated + comparison,
+                    interval_95_published: true,
+                    reported_intervals: 1,
+                    all_reported_intervals: true,
+                    ..Default::default()
+                },
+            );
+        }
+        Ok(result)
     }
 
     /// Posterior of the difference in mean subject change scores of a balanced two-period panel.

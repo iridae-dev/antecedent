@@ -490,8 +490,9 @@ class DesignEffect:
 @dataclass(frozen=True, slots=True)
 class QuasiRolloutEstimate:
     """Heterogeneity-robust or covariate-adjusted DiD, conformal or multi-unit synthetic panel,
-    or optioned local ratio. The first effect is the scalar summary. Never supported; the
-    calibration of every interval is not_measured."""
+    or optioned local ratio. The first effect is the scalar summary. ``supported`` is true
+    only for a local-ratio design a support row admits; the calibration of every interval is
+    not_measured."""
 
     design: str
     method: str
@@ -892,13 +893,19 @@ class PeriodHistoryMatch:
     a match never crosses a period. ``weight`` is a sampling-weight column and ``caliper`` a
     maximum absolute score distance. The estimand is the weighted effect on the matched treated
     units given the period and the history-mean score. The standard error is Abadie-Imbens for one
-    match with replacement; no interval is reported and the route is unsupported. A posterior of a
+    match with replacement. With two or more matched periods the estimate also carries the
+    fixed-b period interval, whose sampling units are the periods: an interval for the expected
+    matched contrast, supported only when the fit meets the history-match support row (declared
+    periods, no caliper, no weights, every treated unit matched, at least 8 matched periods of at
+    least 25 pairs). A posterior of a
     matching contrast does not exist (a matching rule has no likelihood): ``Bayesian`` inference
     raises ``CausalUnsupportedError`` naming that premise and the next attempt. That attempt is
     ``estimator="bayesian.period_history_outcome_model"`` with ``Bayesian`` inference: the
     posterior of a Gaussian outcome model with period effects, the history-mean score and a
     treatment-by-score interaction centred at the treated mean, reported as the model-based
-    effect on the treated units (a different estimand, unsupported, equal sampling weights only).
+    effect on the treated units (a different estimand, equal sampling weights only). That
+    posterior states its own support row in the result's diagnostics when the fit meets it (the
+    default prior scale, at least 2,000 draws, 3 periods, 135 units and 50 units in each arm).
     """
 
     outcome: str
@@ -925,7 +932,14 @@ class PeriodHistoryMatch:
 
 @dataclass(frozen=True, slots=True)
 class PeriodHistoryMatchEstimate:
-    """History-matched contrast with its matched pairs. Unsupported, no interval."""
+    """History-matched contrast with its matched pairs and its fixed-b period interval.
+
+    The interval treats the calendar periods as the sampling units, so it is an interval for the
+    expected matched contrast, not for the effect on the units this sample matched. ``supported``
+    is ``True`` only when the fit meets the history-match support row: calendar periods declared,
+    no caliper, no sampling weights, every treated unit matched, at least 8 matched periods and
+    at least 25 matched pairs in each. Every other fit is unsupported.
+    """
 
     contrast: float
     weight_total: float
@@ -939,6 +953,11 @@ class PeriodHistoryMatchEstimate:
     #: Abadie-Imbens standard error; ``None`` with fewer than two matched units.
     standard_error: float | None = None
     caliper: float | None = None
+    #: Newey-West standard error over the matched periods; ``None`` with fewer than two.
+    serial_standard_error: float | None = None
+    #: Endpoints of the 95% Kiefer-Vogelsang fixed-b interval around the contrast.
+    interval_lower: float | None = None
+    interval_upper: float | None = None
     supported: bool = False
     calibration_measured: bool = False
     support_status: str = "unsupported_uncalibrated"
@@ -956,7 +975,10 @@ class IvBounds:
     interval about the set from row-bootstrap endpoint replicates; ``Bayesian`` inference reports
     the Bayesian-bootstrap posterior of the endpoints. Rows are independent subjects, so a
     declared dependent-series, trajectory or clustered sampling design refuses the row-level
-    draw. The route is unsupported and its calibration is not_measured.
+    draw. The interval is stated for the endpoints of the identified set, not for a point effect;
+    the result states ``supported`` when it comes from at least 500 unweighted complete rows and
+    at least 399 bootstrap replicates (400 posterior draws), none left out, and is unsupported
+    otherwise. The calibration label is not_measured.
     """
 
     outcome: str
@@ -1005,10 +1027,14 @@ class IvBoundsPosterior:
 
 @dataclass(frozen=True, slots=True)
 class IvBoundsEstimate:
-    """Identified set of average effects under a binary instrument. Unsupported, never a point.
+    """Identified set of average effects under a binary instrument. Never a point.
 
     ``cells`` is the observed law ``P(Y=y, D=d | Z=z)``, instrument arm major, cell order
-    ``(0,0) (1,0) (0,1) (1,1)``; the bounds are recomputable from it.
+    ``(0,0) (1,0) (0,1) (1,1)``; the bounds are recomputable from it. ``supported`` is ``True``
+    when the fit met a row of the graphless support table (family ``iv_bounds``): a 95% interval
+    for the endpoints of the set from at least 500 unweighted complete rows and at least 399
+    row-bootstrap replicates or 400 posterior draws, none left out. Every other fit is
+    unsupported.
     """
 
     lower: float

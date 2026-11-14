@@ -9,7 +9,7 @@ use super::{
     interval_bound_replay,
 };
 
-/// Uncertainty label of the augmented panel's unsupported whole-cluster resample interval.
+/// Uncertainty label of the augmented panel's whole-cluster resample interval.
 const AUGMENTED_RESAMPLE_UNCERTAINTY: &str =
     "whole_cluster_resample_supplied_nuisance_held_fixed_calibration_not_measured";
 
@@ -280,7 +280,7 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
                     && se.is_finite()
                     && se > 0.0 =>
             {
-                // The unsupported whole-cluster resample interval: the normal interval of its
+                // The whole-cluster resample interval: the normal interval of its
                 // interquartile bootstrap standard error, never published as the scalar's.
                 let radius = antecedent_stats::NORMAL_Q975 * se;
                 let tolerance =
@@ -288,7 +288,6 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
                 tolerance.close(bounds[0], did.effect - radius)
                     && tolerance.close(bounds[1], did.effect + radius)
                     && result.standard_error.is_none()
-                    && did.graphless_support_status.is_none()
             }
             (None, _) => {
                 result.standard_error.is_none()
@@ -344,9 +343,40 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
                     ..GraphlessAssignmentSupport::default()
                 },
             )
+    } else if query.augmented.is_some() {
+        // The whole-cluster bootstrap interval of a declared resample: every subject read and
+        // its own cluster, the declared refits, and the supplied propensity range the section
+        // records. A section the producer left unstated is accepted as written.
+        let room = did.augmented.map_or(0.0, |(lowest, highest, _, _)| lowest.min(1.0 - highest));
+        interval_valid
+            && did.interval_95.is_some()
+            && did.uncertainty == AUGMENTED_RESAMPLE_UNCERTAINTY
+            && did.clusters == subjects.len()
+            && query.resampling.as_ref().is_some_and(|resampling| {
+                resampling.scheme == "cluster_bootstrap"
+                    && graphless_admits(
+                        GraphlessSupportKey {
+                            family: "difference_in_differences",
+                            design: "augmented_panel",
+                            method: "whole_cluster_bootstrap_supplied_nuisance_held_fixed",
+                            inference_claim: "pointwise_95_normal_interval",
+                        },
+                        GraphlessAssignmentSupport {
+                            assignment_unit: "cluster",
+                            treated: treated_subjects,
+                            control: comparison_subjects,
+                            interval_95_published: true,
+                            rows: subjects.len(),
+                            blocks: subjects.len(),
+                            min_probability: room,
+                            reported_intervals: 1,
+                            interval_resamples: resampling.replicates as usize,
+                            ..GraphlessAssignmentSupport::default()
+                        },
+                    )
+            })
     } else {
-        query.augmented.is_none()
-            && query.staggered_target.is_none()
+        query.staggered_target.is_none()
             && !query.staggered_event_study
             && interval_valid
             && did.interval_95.is_some()

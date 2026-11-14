@@ -1,7 +1,8 @@
 //! Synthetic control with intervals: conformal inference for one treated unit, placebo variance
 //! for a staggered multi-unit rollout, and the Bayesian posterior of the multi-unit average.
 //!
-//! The frequentist intervals are unsupported and their calibration is `not_measured`. The Bayesian
+//! A frequentist fit whose section a synthetic_control support row admits states `supported`;
+//! every other is unsupported, and every section's calibration is `not_measured`. The Bayesian
 //! multi-unit posterior runs the simplex donor-weight posterior of each adopting unit against
 //! the never-treated donors and averages the per-unit draws with post-period weights; treating
 //! the per-unit posteriors as independent given the shared donors is a declared modelling
@@ -87,6 +88,32 @@ fn estimation(error: antecedent_estimate::EstimationError) -> CausalError {
     CausalError::Estimate(error)
 }
 
+/// State support on a frequentist synthetic rollout whose section a synthetic_control support
+/// row admits, and replace the unsupported note with the scope of that row. The section is
+/// read in its artifact form, so the loader recomputes the same answer.
+fn synthetic_rollout_state_support(result: &mut StudyResult) {
+    let crate::result::ResultPayload::QuasiRollout(rollout) = &mut result.payload else {
+        return;
+    };
+    let section = antecedent_io::analysis_result_artifact::QuasiRolloutWire::from(&**rollout);
+    if !antecedent_io::analysis_result_artifact::synthetic_rollout_row_admits(&section) {
+        return;
+    }
+    rollout.supported = true;
+    result
+        .diagnostics
+        .retain(|diagnostic| diagnostic.code.as_ref() != "estimate.quasi.rollout.unsupported");
+    result.diagnostics.push(Diagnostic::new(
+        "estimate.quasi.synthetic_control.design_support",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        "supported design: a synthetic_control support row admits this interval construction, \
+         its pre-period and donor counts and, for placebo variance, its adopting units and \
+         completed placebo refits; exchangeability of the untreated errors and the convex-donor \
+         premise stay declared",
+    ));
+}
+
 impl super::CheckedSyntheticControlOperation {
     /// Execute a synthetic panel with conformal or placebo-variance intervals.
     #[allow(
@@ -149,6 +176,17 @@ impl super::CheckedSyntheticControlOperation {
                 }
             }
             SyntheticInterval::PlaceboVariance => {
+                // Panel periods before the earliest-adopting unit's adoption.
+                let calendar: std::collections::BTreeSet<i64> =
+                    self.query.periods.iter().copied().collect();
+                let fewest_pre_periods = rollout
+                    .adoptions
+                    .iter()
+                    .map(|(_, adoption)| {
+                        calendar.iter().filter(|period| *period < adoption).count()
+                    })
+                    .min()
+                    .unwrap_or(0);
                 let fit = multi_unit_synthetic(
                     &panel,
                     &rollout.adoptions,
@@ -190,6 +228,7 @@ impl super::CheckedSyntheticControlOperation {
                     diagnostics: named(&[
                         ("adopting_units", rollout.adoptions.len() as f64),
                         ("never_treated_donors", fit.donors as f64),
+                        ("fewest_pre_periods", fewest_pre_periods as f64),
                     ]),
                     notes: vec![Diagnostic::new(
                         "estimate.quasi.synthetic_control.placebo_variance",
@@ -203,7 +242,7 @@ impl super::CheckedSyntheticControlOperation {
                 }
             }
         };
-        Ok(finish_rollout(
+        let mut result = finish_rollout(
             self,
             data,
             self.query.outcome,
@@ -212,7 +251,9 @@ impl super::CheckedSyntheticControlOperation {
                 EstimatorId::SyntheticControl,
             ),
             report,
-        ))
+        );
+        synthetic_rollout_state_support(&mut result);
+        Ok(result)
     }
 
     /// The Bayesian posterior of the post-weighted average effect of a multi-unit rollout.
@@ -466,6 +507,9 @@ impl super::CheckedSyntheticControlOperation {
             }),
         };
         let draws = u32::try_from(fit.effect_draws.len()).unwrap_or(u32::MAX);
+        let published = effects.iter().filter(|effect| effect.interval.is_some()).count();
+        let every_interval = published == effects.len();
+        let (donors, pre_periods) = (fit.donor_weight_means.len(), fit.n_pre_periods);
         let parts = RolloutPayloadParts {
             design: "posterior_predictive_synthetic_control",
             method: "simplex_dirichlet_posterior.predictive_counterfactual_path".to_string(),
@@ -499,6 +543,14 @@ impl super::CheckedSyntheticControlOperation {
         result.payload = rollout_payload(parts);
         result.treatment = None;
         result.support_status = None;
+        // The average and every post period published an interval: the path states its row.
+        if every_interval {
+            super::super::bayesian_quasi_common::state_design_posterior_row(
+                &mut result,
+                super::bayesian::synthetic_posterior_row_key(true),
+                super::bayesian::synthetic_posterior_row_support(pre_periods, donors, published),
+            );
+        }
         Ok(result)
     }
 }

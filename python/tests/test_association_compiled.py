@@ -63,14 +63,19 @@ def test_the_compiled_study_reports_the_least_squares_line_and_is_noncausal() ->
     slope = np.cov(x, y, bias=True)[0, 1] / np.var(x)
     assert section.analysis == "linear_regression"
     assert section.terms[1].estimate == pytest.approx(slope, abs=1e-8)
-    # HC1 sandwich standard error of the slope, recomputed from the residuals.
+    # Leverage-adjusted sandwich error of the slope, recomputed from the residuals, times a
+    # Student-t over normal quantile ratio whose degrees of freedom lie between 3 and n.
     n = len(x)
     centered = x - x.mean()
     residual = y - y.mean() - slope * centered
-    hc1 = np.sqrt(n / (n - 2) * np.sum(centered**2 * residual**2) / np.sum(centered**2) ** 2)
-    assert section.terms[1].standard_error == pytest.approx(hc1, rel=1e-9)
-    assert section.terms[1].standard_error_method == "sandwich_hc1"
-    assert section.supported is False and section.calibration == "not_measured"
+    leverage = 1.0 / n + centered**2 / np.sum(centered**2)
+    influence = centered * residual / (1.0 - leverage) / np.sum(centered**2)
+    adjusted = np.sqrt(np.sum(influence**2))
+    ratio = section.terms[1].standard_error / adjusted
+    assert 1.0101 < ratio < 1.6237  # t(0.975, 120) / z and t(0.975, 3) / z
+    assert section.terms[1].standard_error_method == "sandwich_leverage_student"
+    # 120 rows, one numeric predictor: the slope's standard error meets its graphless row.
+    assert section.supported is True and section.calibration == "not_measured"
     assert section.ranks_actions is False and section.is_intervention_effect is False
     assert section.refused_after is None
     assert any(premise.startswith("descriptive_only") for premise in section.assumptions)

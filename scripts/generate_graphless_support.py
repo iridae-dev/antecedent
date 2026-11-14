@@ -30,8 +30,16 @@ INTEGER_LIMITS = (
     "min_group_rows",
     "min_group_arm_rows",
     "min_local_rows",
+    # Bootstrap replicates or posterior draws that produced the interval.
+    "min_interval_resamples",
 )
-FLOAT_LOWER_LIMITS = ("min_effective_sample_size", "min_dose_density", "min_expected_arm_units")
+FLOAT_LOWER_LIMITS = (
+    "min_effective_sample_size",
+    "min_dose_density",
+    "min_expected_arm_units",
+    # Absolute first-stage estimate over its standard error.
+    "min_first_stage_t",
+)
 FLOAT_UPPER_LIMITS = ("max_normalized_weight",)
 BOOLEAN_REQUIREMENTS = (
     "requires_uncoupled_constraints",

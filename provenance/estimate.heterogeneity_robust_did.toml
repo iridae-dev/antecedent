@@ -1,0 +1,50 @@
+feature_id = "estimate.heterogeneity_robust_did"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Heterogeneity-robust and covariate-adjusted difference in differences
+# (crates/antecedent-estimate/src/heterogeneity_robust_did.rs, executed by
+# crates/antecedent/src/analysis/execute/checked_panel_did/rollout.rs; estimators
+# quasi.staggered_heterogeneity_robust and quasi.covariate_adjusted_two_period, and the
+# Bayesian bootstrap under bayesian.panel_did).
+#
+# The cited papers supply the point estimators and the pieces of the interval. The interval
+# itself (a whole-procedure refit of every cell and nuisance fit, an interquartile standard
+# error, a Student-t reference with Satterthwaite degrees of freedom, two-point multipliers
+# and a degrees-of-freedom scale of a covariate-adjusted comparison) is the repository's own
+# construction and inherits no theorem from them.
+modules = [
+ "crates/antecedent-estimate/src/heterogeneity_robust_did.rs",
+ "crates/antecedent/src/analysis/execute/checked_panel_did/rollout.rs",
+]
+
+papers = [
+ { title = "Difference-in-Differences with multiple time periods", doi = "10.1016/j.jeconom.2020.12.001", sections = ["group-time average treatment effects by 2x2 comparisons with never-treated or not-yet-treated units, and their simple, dynamic, group and calendar aggregations"] },
+ { title = "Estimating dynamic treatment effects in event studies with heterogeneous treatment effects", doi = "10.1016/j.jeconom.2020.09.006", sections = ["interaction-weighted cohort-by-period contrasts against never-treated or last-treated units"] },
+ { title = "Revisiting Event-Study Designs: Robust and Efficient Estimation", doi = "10.1093/restud/rdae007", sections = ["imputation of untreated outcomes from unit and period effects fitted on untreated observations"] },
+ { title = "Doubly robust difference-in-differences estimators", doi = "10.1016/j.jeconom.2020.06.003", sections = ["outcome regression, inverse probability weighting with normalized odds weights and their doubly robust combination for a two-period comparison"] },
+ { title = "Bootstrap and Wild Bootstrap for High Dimensional Linear Models", doi = "10.1214/aos/1176349025", sections = ["two-point multiplier law with unit variance and unit third moment"] },
+ { title = "Some heteroskedasticity-consistent covariance matrix estimators with improved finite sample properties", doi = "10.1016/0304-4076(85)90158-7", sections = ["degrees-of-freedom rescaling of a residual-based variance (HC1)"] },
+ { title = "An Approximate Distribution of Estimates of Variance Components", doi = "10.2307/3002019", sections = ["effective degrees of freedom of a sum of independent variance estimates"] },
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["flat-Dirichlet posterior weights on the observed units"] },
+]
+
+implementation_deviations = [
+ "Uncertainty is a whole-procedure refit, not the papers' influence-function variance or multiplier bootstrap of influence functions: every replicate reweights whole clusters and refits each group-time comparison, nuisance model and aggregation. The standard error is the interquartile range of the refits over the normal interquartile range, and the pointwise interval is the estimate plus or minus a Student-t quantile whose degrees of freedom combine clusters minus one with 0.3675 times the completed refits (Satterthwaite).",
+ "The multiplier scheme draws Mammen's two-point law shifted to mean one (values (3 - sqrt 5)/2 and (3 + sqrt 5)/2 with probabilities (5 + sqrt 5)/10 and (5 - sqrt 5)/10): mean one, variance one and third central moment one, every weight positive. Exponential multipliers have third moment two; the variance of a refit ratio carries the weights' third moment times the sum of each unit's influence and own curvature at relative order one over the effective sample, a negative term for an odds-weighted mean, so exponential weights understate the variance of the inverse-probability and doubly robust comparisons (offline: about 2% in the standard error at 200 comparison units against the resample). The Bayesian bootstrap keeps exponential (flat-Dirichlet) weights: it is a posterior, not a sampling interval.",
+ "A covariate-adjusted comparison's standard error is scaled by sqrt(K / (K - p - 1)), K the Kish effective number of comparison clusters under the comparison's own weights (the propensity odds for inverse probability weighting and the doubly robust comparison, equal weights for the outcome regression) and p the covariates, the denominator held at one or above; the fit uses the largest scale over its comparisons. A reweighted refit reproduces the fitted residuals, which fall short of the errors by the fitted degrees of freedom. Unadjusted comparisons are not scaled: with the two-point multipliers their interval measured at nominal without it.",
+ "Offline check of the adjusted interval (numpy replica, 6,000 panels per size, one uniform covariate with the propensity inside (0.15, 0.85)): outcome regression, inverse probability weighting and doubly robust cover 0.9505, 0.9480, 0.9488 at 200 units, 0.9498, 0.9503, 0.9500 at 400 and 0.9505, 0.9537, 0.9525 at 800; with exponential multipliers and no scale the same designs cover 0.943, 0.929, 0.934 at 200. The unadjusted rollout (6,000 panels, 135 to 360 units) covers 0.950 to 0.954 with the two-point multipliers against 0.946 to 0.949 with exponential ones.",
+ "Sun-Abraham on a balanced panel is computed as the equivalent 2x2 contrasts; on an unbalanced panel as the saturated regression on the observed unit-periods. The imputation estimator fits unit and period effects by alternating projections on untreated observations.",
+ "Parallel untreated trends (conditional on the covariates when declared), no anticipation beyond the declared periods, overlap and the nuisance model forms are declared assumptions; the pre-trend leads are falsification diagnostics.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/heterogeneity_robust_did/tests.rs (hand-computed 2x2 contrasts and aggregate; imputation on an exactly additive untreated outcome; the saturated binary-covariate closed form of the three adjusted comparisons and the fitted overlap; the multiplier law's moments and the degrees-of-freedom scale; Dirichlet moments of the Bayesian bootstrap; the unbalanced Sun-Abraham fit against the full dummy regression and a recorded fixest fit)",
+ "crates/antecedent/tests/quasi_rollout_routes.rs and crates/antecedent/tests/rollout_design_support_rows.rs (route recovery, artifact round trip, support statement and forged-support refusal)",
+ "crates/antecedent/tests/panel_did_calibration.rs (repeated-sampling coverage: calibration evidence, not an independent check)",
+]

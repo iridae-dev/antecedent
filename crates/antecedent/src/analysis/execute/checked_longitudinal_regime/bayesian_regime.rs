@@ -4,8 +4,14 @@
 //! the mean terminal outcome if every subject followed the prespecified regime. The posterior is
 //! the Bayesian-bootstrap functional of the backward-recursive subject scores, computed from the
 //! declared sequential probabilities and frozen subject-excluded Q predictions. The declared
-//! probabilities identify the value; the prior on the subject law does not. The route is
-//! unsupported and its calibration is `not_measured`.
+//! probabilities identify the value; the prior on the subject law does not.
+//!
+//! A two-period fit under known fair-coin randomization without censoring, with Q predictions
+//! declared subject-excluded under the subjects' own folds, enough subjects and enough draws
+//! states its support row in the design-posterior diagnostic. The row was measured with Q
+//! predictions that are fixed functions of each subject's own history; whether declared
+//! subject-excluded predictions were instead fitted on the other folds cannot be seen here,
+//! and that construction is not covered. Every other fit runs and states no support.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
@@ -35,6 +41,9 @@ const BAYESIAN_REGIME_INTERVAL_REASON: &str = "bayesian_posterior_reports_no_int
 
 /// Central coverage of the posterior's equal-tailed interval.
 const COVERAGE: f64 = 0.95;
+
+/// Code of the standing note of a posterior that states no support row.
+const NO_ROW_CODE: &str = "estimate.longitudinal.bayesian_sequential_regime_value.unsupported";
 
 /// Refuse the methods and options the posterior does not read, naming the next attempt.
 pub(super) fn admit_bayesian_regime(
@@ -126,7 +135,7 @@ impl CheckedLongitudinalRegimeOperation {
             )
             .identify_cached(true)
             .extra_diagnostics(vec![Diagnostic::new(
-                "estimate.longitudinal.bayesian_sequential_regime_value.unsupported",
+                NO_ROW_CODE,
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 "Bayesian route with calibration status `not_measured`: the Bayesian-bootstrap posterior of \
@@ -149,6 +158,57 @@ impl CheckedLongitudinalRegimeOperation {
         payload.uncertainty = std::sync::Arc::from(BAYESIAN_REGIME_UNCERTAINTY);
         payload.interval_reason = Some(std::sync::Arc::from(BAYESIAN_REGIME_INTERVAL_REASON));
         result.payload = crate::result::ResultPayload::LongitudinalRegime(payload);
+        self.state_regime_posterior_row(&mut result);
         Ok(result)
+    }
+
+    /// State the support row of the posterior when the fit is the measured design: two
+    /// periods of known randomization, no censoring, and Q predictions declared
+    /// subject-excluded under the subjects' own folds. The row's thresholds then require the
+    /// fair coin, the subjects and the draws.
+    fn state_regime_posterior_row(&self, result: &mut StudyResult) {
+        let query = &self.query;
+        let uncensored = query.censoring_probabilities.iter().all(|kept| *kept >= 1.0)
+            && query.outcome_observed.iter().all(|seen| *seen)
+            && query
+                .observation_history
+                .as_deref()
+                .is_some_and(|history| history.iter().all(|seen| *seen));
+        let owned = query.excluded_fold_predictions
+            && query.prediction_fold_ids.as_deref() == Some(query.fold_ids.as_ref());
+        if query.periods != 2 || !query.probabilities_known_by_design || !uncensored || !owned {
+            return;
+        }
+        // Smaller of the two action probabilities at any decision: 0.5 only for a fair coin.
+        let floor = query
+            .treatment_probabilities
+            .iter()
+            .map(|probability| probability.min(1.0 - probability))
+            .fold(f64::INFINITY, f64::min);
+        let draws = result.posterior.as_ref().map_or(0, |posterior| posterior.draws.n_draws);
+        super::super::bayesian_quasi_common::state_design_posterior_row(
+            result,
+            crate::support::GraphlessSupportKey {
+                family: "longitudinal_regime",
+                design: "known_sequential_randomized_two_period",
+                method: "subject_excluded_q_sequential_dr_bayesian_bootstrap",
+                inference_claim: "conditional_q_pointwise_95_posterior_quantiles",
+            },
+            crate::support::GraphlessAssignmentSupport {
+                assignment_unit: "unit",
+                rows: query.outcome_observed.len(),
+                min_probability: if floor.is_finite() { floor } else { 0.0 },
+                interval_95_published: true,
+                reported_intervals: 1,
+                all_reported_intervals: true,
+                interval_resamples: draws,
+                ..Default::default()
+            },
+        );
+        if result.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code.as_ref() == antecedent_io::graphless_support::DESIGN_POSTERIOR_ROW_CODE
+        }) {
+            result.diagnostics.retain(|diagnostic| diagnostic.code.as_ref() != NO_ROW_CODE);
+        }
     }
 }

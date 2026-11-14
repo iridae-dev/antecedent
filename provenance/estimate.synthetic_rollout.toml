@@ -1,0 +1,38 @@
+feature_id = "estimate.synthetic_rollout"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Synthetic control with intervals (crates/antecedent-estimate/src/synthetic_rollout.rs,
+# executed by crates/antecedent/src/analysis/execute/checked_synthetic_control/rollout.rs;
+# estimators quasi.synthetic_control_conformal and quasi.multi_unit_synthetic_control_placebo,
+# and the Bayesian predictive path over the simplex posterior of
+# estimate.bayesian_synthetic_control).
+modules = [
+ "crates/antecedent-estimate/src/synthetic_rollout.rs",
+ "crates/antecedent/src/analysis/execute/checked_synthetic_control/rollout.rs",
+]
+
+papers = [
+ { title = "An Exact and Robust Conformal Inference Method for Counterfactual and Synthetic Controls", doi = "10.1080/01621459.2021.1920957", sections = ["permutation test of a hypothesized effect with the counterfactual model refit under the null, moving-block permutations, and its inversion into a confidence set"] },
+ { title = "Synthetic Difference-in-Differences", doi = "10.1257/aer.20190159", sections = ["placebo variance estimator: reassign the treatment to control units and refit"] },
+ { title = "Synthetic Control Methods for Comparative Case Studies: Estimating the Effect of California's Tobacco Control Program", doi = "10.1198/jasa.2009.ap08746", sections = ["simplex donor weights fitted on the pre-intervention periods"] },
+]
+
+implementation_deviations = [
+ "Conformal sets: the counterfactual model is the simplex-constrained least-squares donor fit with no covariates or intercept. Each per-period test uses the pre-periods and that one period with the absolute residual as the statistic; the constant-effect test sums the absolute residuals of the post block over all cyclic shifts. The set is the hull of the accepted effects found on a grid scaled by the pre-fit error and refined by bisection; a set reaching the widest searched range is reported as absent.",
+ "The p-value is a multiple of one over the permutation count n, so the size of the 5% test is floor(0.05 n) / n: exact at 5% only where n is a multiple of twenty and conservative elsewhere. Exactness needs residuals exchangeable over time; under serial dependence the test is approximate.",
+ "Placebo variance: each adopting unit is fitted against the never-treated donors only, at its own adoption period, and the reported effect is the post-period-weighted average of the per-unit effects. Each placebo refit assigns the observed adoption periods to randomly drawn never-treated units and fits them on the remaining donors, so a placebo fit has fewer donors than the reported one. The interval is the normal interval of the population standard deviation of the placebo estimates. Synthetic difference in differences is refused: the unit-weight intercept and ridge penalty of the cited estimator are not implemented.",
+ "Offline check of the placebo interval (numpy replica, 1,500 panels per size, three adoptions among exchangeable units): 0.946 at 15 and at 20 never-treated donors, with a placebo standard error about 5% above the estimator's spread and a normal quantile that ignores the error of that standard error.",
+ "The convex-donor counterfactual, donors unaffected by the intervention and exchangeability of the untreated errors (over time for the conformal sets, across units for the placebo variance) are declared assumptions.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/synthetic_rollout/tests.rs (the conformal p-value and the ends of a published set against the two-donor closed form; the placebo standard error against the enumerated placebo effects of a three-donor panel; recovery on simulated panels)",
+ "crates/antecedent/tests/quasi_rollout_routes.rs and crates/antecedent/tests/rollout_design_support_rows.rs (route recovery, artifact round trip, support statement and forged-support refusal)",
+ "crates/antecedent/tests/synthetic_control_calibration.rs (repeated-sampling coverage: calibration evidence, not an independent check)",
+]

@@ -443,6 +443,377 @@ impl NativeJointDesignResult {
         check_cancel(ctx)?;
         Ok(bytes)
     }
+    /// Two-sided interval at `level` for a prespecified contrast of the retained targets.
+    ///
+    /// A posterior law gives the equal-tailed interval of its aligned contrast draws. A
+    /// whole-program randomized design gives a Student-t interval whose variance is unbiased
+    /// under equal unit-outcome variance and whose degrees of freedom are Satterthwaite's
+    /// (bias-reduced linearization), so few or unequally weighted units widen the interval; with
+    /// equal weights it is the retained sandwich variance on `units - 1` degrees of freedom.
+    /// Other frequentist moment laws give the large-sample normal interval of their joint
+    /// covariance. A conformal region is projected at its own joint level, and a local
+    /// complier ratio returns its posterior interval or its retained 95% Wald interval.
+    /// # Errors
+    /// Invalid level or coefficients, a level the retained law cannot resolve, a withheld or
+    /// unbounded component, or a law that carries no joint uncertainty.
+    pub fn contrast_interval(
+        &self,
+        coefficients: &[f64],
+        level: f64,
+    ) -> Result<[f64; 2], JointPanelError> {
+        use antecedent_estimate::joint_design::compiled::JointDesignLaw;
+        if !level.is_finite()
+            || level <= 0.0
+            || level >= 1.0
+            || coefficients.iter().any(|c| !c.is_finite())
+        {
+            return Err(failure(
+                "a contrast interval needs a level strictly inside (0, 1) and finite coefficients",
+            ));
+        }
+        match (self.prepared.recipe.as_ref(), self.law.as_ref()) {
+            (_, JointNativeDesignLaw::Moments(JointDesignLaw::Bayesian(posterior))) => {
+                if posterior.draws.iter().any(|draw| draw.len() != coefficients.len()) {
+                    return Err(failure("contrast coefficients do not match the retained targets"));
+                }
+                let values = posterior
+                    .draws
+                    .iter()
+                    .map(|draw| draw.iter().zip(coefficients).map(|(v, c)| v * c).sum::<f64>())
+                    .collect();
+                equal_tailed(values, level)
+            }
+            (
+                JointDesignRecipe::Randomized { units, .. },
+                JointNativeDesignLaw::Moments(JointDesignLaw::Frequentist(_)),
+            ) => randomized_contrast_interval(units, coefficients, level),
+            (_, JointNativeDesignLaw::Moments(law)) => {
+                let (mean, variance) = law.estimate().contrast(coefficients).map_err(failure)?;
+                let radius = antecedent_stats::normal_ppf(0.5 + 0.5 * level) * variance.sqrt();
+                Ok([mean - radius, mean + radius])
+            }
+            (_, JointNativeDesignLaw::SyntheticConformal(region)) => {
+                if (region.joint_level - level).abs() > 1e-12 {
+                    return Err(failure(
+                        "a conformal region is projected only at its own retained joint level",
+                    ));
+                }
+                region
+                    .contrast_interval(coefficients)
+                    .map(|(_, interval)| interval)
+                    .map_err(failure)
+            }
+            (_, JointNativeDesignLaw::LocalComplier(local)) => {
+                let &[scale] = coefficients else {
+                    return Err(failure("a local complier effect has exactly one coordinate"));
+                };
+                let [lower, upper] = match &local.posterior {
+                    Some(draws) => equal_tailed(draws.iter().map(|draw| draw[0]).collect(), level)?,
+                    None if (level - 0.95).abs() <= 1e-12 => {
+                        local.interval_95.ok_or_else(|| {
+                            failure("the Wald interval is withheld at a weak stage or thin support")
+                        })?
+                    }
+                    None => {
+                        return Err(failure("the retained Wald interval is at the 95% level only"));
+                    }
+                };
+                let (a, b) = (scale * lower, scale * upper);
+                Ok([a.min(b), a.max(b)])
+            }
+            _ => Err(failure(
+                "the retained native law carries no joint uncertainty for a contrast interval",
+            )),
+        }
+    }
+}
+/// Equal-tailed interval of retained draws; the tail must hold at least one draw on each side.
+fn equal_tailed(mut values: Vec<f64>, level: f64) -> Result<[f64; 2], JointPanelError> {
+    let n = values.len();
+    let tail = 0.5 * (1.0 - level) * n as f64;
+    // Largest whole number of draws not exceeding the tail mass.
+    let cut = (1..=n).take_while(|k| *k as f64 <= tail).count();
+    if cut == 0 || values.iter().any(|v| !v.is_finite()) {
+        return Err(failure("too few finite retained draws to resolve the requested level"));
+    }
+    values.sort_by(f64::total_cmp);
+    Ok([values[cut], values[n - 1 - cut]])
+}
+/// Student-t interval for a contrast of population-weighted Horvitz--Thompson program means.
+///
+/// The contrast is `sum z_i / W` with `z_i = c[arm_i] w_i y_i / p_i` and residual
+/// `d_i = z_i - w_i * estimate`. Under the working model `Var(z_i) = s^2 w_i^2` (a common
+/// outcome variance) `E d_i^2 = s^2 w_i^2 (1 - 2 w_i / W + sum w^2 / W^2)`, so dividing each
+/// squared residual by that factor makes the variance unbiased. The degrees of freedom are
+/// Satterthwaite's `tr(A O)^2 / tr(A O A O)` for the variance's quadratic form `A` and the
+/// working covariance `O = diag(w_i^2)`, evaluated without forming a unit-by-unit matrix.
+fn randomized_contrast_interval(
+    units: &[antecedent_estimate::joint_design::randomized::JointRandomizedUnit],
+    coefficients: &[f64],
+    level: f64,
+) -> Result<[f64; 2], JointPanelError> {
+    if units.iter().any(|u| u.arm >= coefficients.len() || u.probabilities.len() <= u.arm) {
+        return Err(failure("contrast coefficients do not match the retained programs"));
+    }
+    let total = units.iter().map(|u| u.population_weight).sum::<f64>();
+    let scores = units
+        .iter()
+        .map(|u| coefficients[u.arm] * u.population_weight * u.outcome / u.probabilities[u.arm])
+        .collect::<Vec<_>>();
+    let estimate = scores.iter().sum::<f64>() / total;
+    let weight_square = units.iter().map(|u| u.population_weight.powi(2)).sum::<f64>();
+    let mut variance = 0.0_f64;
+    // g_i, the reciprocal of each residual's expected share of its own working variance.
+    let mut correction = Vec::with_capacity(units.len());
+    for (unit, score) in units.iter().zip(&scores) {
+        let w = unit.population_weight;
+        let share = 1.0 - 2.0 * w / total + weight_square / total.powi(2);
+        if share <= 1e-12 {
+            return Err(failure(
+                "one unit carries too much of the population weight for a small-sample interval",
+            ));
+        }
+        correction.push(1.0 / share);
+        variance += (score - w * estimate).powi(2) / share / total.powi(2);
+    }
+    // A = diag(g) - (1 u' + u 1') / W + q 1 1' with u_i = g_i w_i and q = sum g_i w_i^2 / W^2;
+    // its off-diagonal part is r_i + r_j with r_i = q / 2 - u_i / W.
+    let q =
+        units.iter().zip(&correction).map(|(u, g)| g * u.population_weight.powi(2)).sum::<f64>()
+            / total.powi(2);
+    let (mut trace, mut diagonal, mut omega_sum, mut omega_r, mut omega_rr) =
+        (0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64, 0.0_f64);
+    for (unit, g) in units.iter().zip(&correction) {
+        let w = unit.population_weight;
+        let omega = w * w;
+        let r = 0.5 * q - g * w / total;
+        trace += omega * (g + 2.0 * r);
+        diagonal += omega * omega * (g * g + 4.0 * g * r);
+        omega_sum += omega;
+        omega_r += omega * r;
+        omega_rr += omega * r * r;
+    }
+    let trace_square = diagonal + 2.0 * omega_rr * omega_sum + 2.0 * omega_r * omega_r;
+    let degrees = trace * trace / trace_square;
+    let radius = antecedent_stats::student_t_ppf(0.5 + 0.5 * level, degrees) * variance.sqrt();
+    if !(estimate.is_finite() && radius.is_finite() && degrees > 0.0) {
+        return Err(failure("randomized contrast interval is not finite"));
+    }
+    Ok([estimate - radius, estimate + radius])
+}
+/// Fewest sequences per requested history at which the switchback intervals were measured.
+const SWITCHBACK_SEQUENCES_PER_HISTORY: usize = 32;
+/// Smallest estimated receipt first stage at which the complier intervals were measured.
+const COMPLIER_FIRST_STAGE: f64 = 0.4;
+/// Largest ratio, either way, between the declared prior mean of the residual variance and the
+/// pre-period mean squared fit error at which the synthetic posterior interval was measured.
+const SYNTHETIC_PRIOR_RATIO: f64 = 2.0;
+
+impl NativeJointDesignResult {
+    /// Calibration key of [`Self::contrast_interval`] at `level`.
+    ///
+    /// The key names the design's estimator and target, the interval construction, the
+    /// inference mode and prior model, the independent units behind the fit (pre-periods for
+    /// a synthetic rollout), the resampling or posterior size, and the support condition the
+    /// interval was measured under: sequences per requested history for a switchback, units
+    /// per program and weight equality for a randomized design, the estimated first stage
+    /// for a complier effect, and for a synthetic posterior whether the declared prior mean
+    /// of the residual variance is within a factor of two of the pre-period fit error.
+    /// # Errors
+    /// A law that carries no joint uncertainty, or a design with no measured interval.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one arm per native design keeps each measured condition beside its design"
+    )]
+    pub fn contrast_interval_basis(
+        &self,
+        level: f64,
+    ) -> Result<antecedent_core::CalibrationBasis, JointPanelError> {
+        use antecedent_estimate::joint_design::compiled::JointDesignLaw;
+        let recipe = self.prepared.recipe.as_ref();
+        let (inference, interval_method) = match (recipe, self.law.as_ref()) {
+            (_, JointNativeDesignLaw::Moments(JointDesignLaw::Bayesian(_))) => {
+                ("Bayesian", "equal_tailed_posterior")
+            }
+            (
+                JointDesignRecipe::Randomized { .. },
+                JointNativeDesignLaw::Moments(JointDesignLaw::Frequentist(_)),
+            ) => ("Frequentist", "satterthwaite_t"),
+            (_, JointNativeDesignLaw::Moments(JointDesignLaw::FrequentistBootstrap { .. })) => {
+                ("Frequentist", "bootstrap_covariance_normal")
+            }
+            (_, JointNativeDesignLaw::Moments(JointDesignLaw::Frequentist(_))) => {
+                ("Frequentist", "normal_approximation")
+            }
+            (_, JointNativeDesignLaw::SyntheticConformal(_)) => {
+                ("Frequentist", "conformal_projection")
+            }
+            (_, JointNativeDesignLaw::LocalComplier(local)) if local.posterior.is_some() => {
+                ("Bayesian", "equal_tailed_posterior")
+            }
+            (_, JointNativeDesignLaw::LocalComplier(_)) => ("Frequentist", "wald_ratio"),
+            _ => {
+                return Err(failure(
+                    "the retained native law carries no joint uncertainty for a contrast interval",
+                ));
+            }
+        };
+        let (posterior, replicates, draws) = match self.inference.as_ref() {
+            JointDesignInference::Frequentist
+            | JointDesignInference::SyntheticConformal { .. }
+            | JointDesignInference::SwitchbackExactRandomization { .. } => ("", None, None),
+            JointDesignInference::StaticRegimeBootstrap { replicates, .. }
+            | JointDesignInference::GaussianLongitudinalBootstrap { replicates, .. } => {
+                ("", Some(*replicates), None)
+            }
+            JointDesignInference::LocalComplierBayesian { draws, .. } => {
+                ("bayesian_bootstrap_ratio", None, Some(*draws))
+            }
+            JointDesignInference::GaussianLongitudinalBayesian { prior } => {
+                ("gaussian_longitudinal", None, Some(prior.draws))
+            }
+            JointDesignInference::RandomizedGaussian { prior } => {
+                ("randomized_gaussian", None, Some(prior.draws))
+            }
+            JointDesignInference::RandomizedFinitePopulationGaussian { prior } => {
+                ("randomized_finite_population_gaussian", None, Some(prior.arm.draws))
+            }
+            JointDesignInference::LongitudinalDirichlet { prior } => {
+                ("longitudinal_dirichlet", None, Some(prior.draws))
+            }
+            JointDesignInference::SwitchbackGaussian { prior } => {
+                ("switchback_gaussian", None, Some(prior.draws))
+            }
+            JointDesignInference::InstrumentedGaussian { prior } => {
+                ("instrumented_gaussian", None, Some(prior.draws))
+            }
+            JointDesignInference::RolloutGaussian { prior } => {
+                ("rollout_gaussian", None, Some(prior.draws))
+            }
+            JointDesignInference::SyntheticBayesian { prior } => {
+                ("synthetic_dirichlet_inverse_gamma", None, Some(prior.draws))
+            }
+        };
+        let (rows, support) = match recipe {
+            JointDesignRecipe::Switchback { design, sequences } => (
+                sequences.len(),
+                if sequences.len() >= SWITCHBACK_SEQUENCES_PER_HISTORY * design.worlds.len() {
+                    "sequences_per_history_at_least_32"
+                } else {
+                    "sequences_per_history_below_32"
+                },
+            ),
+            JointDesignRecipe::Randomized { design, units } => {
+                let equal = units.windows(2).all(|pair| {
+                    pair[0].population_weight.to_bits() == pair[1].population_weight.to_bits()
+                });
+                let per_program = if equal {
+                    super::super::measured_intervals::EQUAL_WEIGHT_UNITS_PER_PROGRAM
+                } else {
+                    super::super::measured_intervals::UNEQUAL_WEIGHT_UNITS_PER_PROGRAM
+                };
+                let dense = units.len() >= per_program * design.worlds.len();
+                (
+                    units.len(),
+                    match (equal, dense) {
+                        (true, true) => "equal_weights_32_units_per_program",
+                        (true, false) => "equal_weights_sparse_programs",
+                        (false, true) => "unequal_weights_4_units_per_program",
+                        (false, false) => "unequal_weights_sparse_programs",
+                    },
+                )
+            }
+            JointDesignRecipe::Instrumented { units, .. } => (units.len(), "independent_units"),
+            JointDesignRecipe::DifferenceInDifferences { units, .. } => {
+                (units.len(), "independent_units")
+            }
+            JointDesignRecipe::GaussianLongitudinal { episodes, .. } => {
+                (episodes.len(), "independent_episodes")
+            }
+            JointDesignRecipe::Longitudinal { episodes, .. } => {
+                (episodes.len(), "independent_episodes")
+            }
+            JointDesignRecipe::InstrumentedLocal { units, .. } => (
+                units.len(),
+                match self.law.as_ref() {
+                    JointNativeDesignLaw::LocalComplier(local)
+                        if local.first_stage.abs() >= COMPLIER_FIRST_STAGE =>
+                    {
+                        "first_stage_at_least_0_4"
+                    }
+                    _ => "first_stage_below_0_4",
+                },
+            ),
+            JointDesignRecipe::SyntheticControl { design, observations } => {
+                let pre_periods = design
+                    .worlds
+                    .iter()
+                    .map(|world| {
+                        observations
+                            .iter()
+                            .filter(|row| {
+                                row.unit == world.treated_unit && row.time < world.intervention
+                            })
+                            .count()
+                    })
+                    .min()
+                    .unwrap_or(0);
+                let support = match (self.inference.as_ref(), self.prepared.point.as_ref()) {
+                    (
+                        JointDesignInference::SyntheticBayesian { prior },
+                        JointNativeDesignLaw::SyntheticPoint(points),
+                    ) => {
+                        let fit_error =
+                            points.iter().map(|p| p.preperiod_rmse.powi(2)).sum::<f64>()
+                                / points.len().max(1) as f64;
+                        let declared = prior.variance_scale / (prior.variance_shape - 1.0);
+                        if fit_error > 0.0
+                            && declared.is_finite()
+                            && declared >= fit_error / SYNTHETIC_PRIOR_RATIO
+                            && declared <= fit_error * SYNTHETIC_PRIOR_RATIO
+                        {
+                            "variance_prior_within_2x_preperiod_error"
+                        } else {
+                            "variance_prior_outside_2x_preperiod_error"
+                        }
+                    }
+                    _ => "exchangeable_residuals",
+                };
+                (pre_periods, support)
+            }
+            _ => return Err(failure("no contrast interval of this native design was measured")),
+        };
+        Ok(super::super::measured_intervals::joint_response_basis(
+            &super::super::measured_intervals::JointResponseAxes {
+                procedure: "native_design_contrast",
+                inference,
+                estimator: recipe.method(),
+                interval_method,
+                support,
+                posterior,
+                functional: recipe.target_kind(),
+            },
+            level,
+            rows,
+            replicates,
+            draws,
+        ))
+    }
+    /// [`Self::contrast_interval`] with its calibration key and that key's standing against
+    /// the shipped coverage records: calibrated only at a measured level, construction,
+    /// support condition, sample size and resampling or posterior size.
+    /// # Errors
+    /// As [`Self::contrast_interval`] and [`Self::contrast_interval_basis`].
+    pub fn contrast_interval_reading(
+        &self,
+        coefficients: &[f64],
+        level: f64,
+    ) -> Result<super::super::JointResponseReading<[f64; 2]>, JointPanelError> {
+        let bounds = self.contrast_interval(coefficients, level)?;
+        let basis = self.contrast_interval_basis(level)?;
+        let calibration = crate::analysis::joint_law_composed_basis::slot(&basis);
+        Ok(super::super::JointResponseReading { bounds, basis, calibration })
+    }
 }
 #[derive(Serialize)]
 struct NativeReplayRef<'a> {

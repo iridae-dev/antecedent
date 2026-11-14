@@ -362,6 +362,7 @@ fn every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_term
     // (design, inference) of the four counterparts, each with its own prepared handle.
     let mut artifacts = Vec::new();
     for inference in [InferenceMode::Frequentist, bayesian()] {
+        let posterior = matches!(inference, InferenceMode::Bayesian(_));
         let study = Study::tabular(table.clone())
             .query(CausalQuery::Association(query.clone()))
             .inference(inference.clone())
@@ -371,7 +372,10 @@ fn every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_term
         let result = prepared.estimate(&table, &ctx(8)).unwrap();
         let bytes =
             prepared.encode_contracted_result(&result, "association-static", &ctx(8)).unwrap();
-        artifacts.push(("static", result.association().unwrap().estimate.terms.len(), bytes));
+        // This tight line lets the conjugate prior move the slope by more than a hundredth of
+        // its posterior standard deviation, which is outside the posterior's row.
+        let terms = result.association().unwrap().estimate.terms.len();
+        artifacts.push(("static", !posterior, terms, bytes));
         let study = Study::series(rows.clone())
             .query(CausalQuery::Association(query.clone()))
             .inference(inference)
@@ -381,14 +385,18 @@ fn every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_term
         let result = prepared.estimate_series(&rows, &ctx(8)).unwrap();
         let bytes =
             prepared.encode_contracted_result(&result, "association-temporal", &ctx(8)).unwrap();
-        artifacts.push(("temporal", result.association().unwrap().estimate.terms.len(), bytes));
+        // The block posterior of a series is measured at 400 draws; 200 are below its row.
+        let terms = result.association().unwrap().estimate.terms.len();
+        artifacts.push(("temporal", !posterior, terms, bytes));
     }
-    for (modality, terms, bytes) in artifacts {
+    for (modality, supported, terms, bytes) in artifacts {
         let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
         let wire =
             consumed.body.association.as_ref().expect("the artifact carries the association");
         assert_eq!(wire.terms.len(), terms, "{modality}");
-        assert!(!wire.supported, "{modality}: an association is never a supported route");
+        // The standard error of a linear-regression slope on 120 rows or steps meets its
+        // graphless row; neither posterior of these fixtures does.
+        assert_eq!(wire.supported, supported, "{modality}");
         assert_eq!(wire.calibration, "not_measured", "{modality}");
         assert!(consumed.contract.is_some(), "{modality}");
     }

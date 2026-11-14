@@ -11,7 +11,8 @@
 use std::sync::Arc;
 
 use antecedent::analysis::horizon_composition::{
-    compose_horizons, compose_horizons_with, horizon_draws,
+    HORIZON_BLOCK_BOOTSTRAP_INTERVAL, HORIZON_BLOCK_WEIGHT_INTERVAL, compose_horizons,
+    compose_horizons_with, horizon_composition_interval, horizon_draws,
 };
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::PropagationOperation;
@@ -23,7 +24,10 @@ use antecedent_core::{
 };
 use antecedent_core::{ExecutionContext, Lag, TemporalPolicy, TemporalResponseSpec};
 use antecedent_data::TimeSeriesData;
-use antecedent_estimate::{JOINT_HORIZON_LAYOUT, JOINT_HORIZON_REPLICATES};
+use antecedent_estimate::{
+    JOINT_HORIZON_DISPERSION, JOINT_HORIZON_INFLUENCE, JOINT_HORIZON_LAYOUT,
+    JOINT_HORIZON_REPLICATES,
+};
 use antecedent_graph::{TemporalDag, ensure_lagged};
 
 fn horizons(list: &[u32]) -> Arc<[HorizonIdentification]> {
@@ -289,4 +293,201 @@ fn the_horizons_of_an_intervention_level_response_compose_too() {
     let cumulative = compose_horizons(&draws, &[1.0, 1.0], PropagationOperation::Sum).unwrap();
     assert_eq!(cumulative.coordinate.horizons, vec![1, 2]);
     assert!(cumulative.spread.standard_deviation > 0.0);
+}
+
+/// The response of the interval hand example: four joint replicates of two cells with centers
+/// `(1, 3)`, raw deviations `u1 = (1, -1, 2, -2)` and `u2 = (3, 1, -1, -3)` published at the
+/// per-cell kernel factors 2 and 4, and the dispersion and influence readings given.
+fn interval_response(weighted: bool, influence: &[f64], rows: usize) -> CausalResponse {
+    let published = [[3.0, 15.0], [-1.0, 7.0], [5.0, -1.0], [-3.0, -9.0]];
+    let mut response = response(Some(&published));
+    response.support.diagnostics.push(SupportDiagnostic {
+        id: Arc::from(JOINT_HORIZON_DISPERSION),
+        values: Arc::from([
+            3.0,
+            rows as f64,
+            1.3,
+            1.25,
+            if weighted { 1.0 } else { 0.0 },
+            5.0,
+            2.0,
+            4.0,
+        ]),
+        detail: Arc::from("dispersion"),
+        scope: DiagnosticScope::Global,
+    });
+    response.support.diagnostics.push(SupportDiagnostic {
+        id: Arc::from(JOINT_HORIZON_INFLUENCE),
+        values: Arc::from(influence),
+        detail: Arc::from("influence"),
+        scope: DiagnosticScope::Global,
+    });
+    response
+}
+
+/// Hand construction of the composed interval. The contrast `h2 - h1` has point value
+/// `3 - 1 = 2` and raw composed deviations `u2 - u1 = (2, 2, -3, -1)`: mean 0, sum of squares
+/// 18, sample variance `18 / 3 = 6`. A six-row influence is below the eight rows a kernel-bias
+/// fit needs, so the composed factor is exactly 1.
+///
+/// Bootstrap replicates: `2 -/+ z sqrt(6)`, `z = 1.959963984540054`.
+/// Block-weight draws over 5 effective blocks with a fixed-b scale of 1.25 carried by the
+/// draws: the reference is `t_4(0.975) / z * sqrt(6 / 4) / 1.25` with
+/// `t_4(0.975) = 2.7764451051977934` (standard table value), so the standard error is
+/// `sqrt(6) * 2.7764451051977934 / 1.959963984540054 * sqrt(1.5) / 1.25`.
+#[test]
+fn a_linear_composition_interval_equals_the_hand_construction() {
+    let z = 1.959_963_984_540_054_f64;
+    let short = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0];
+    let bootstrap = horizon_composition_interval(
+        &interval_response(false, &short, 6),
+        0,
+        &[-1.0, 1.0],
+        PropagationOperation::Contrast,
+    )
+    .unwrap();
+    assert_eq!(bootstrap.construction, HORIZON_BLOCK_BOOTSTRAP_INTERVAL);
+    assert!((bootstrap.center - 2.0).abs() < 1e-12);
+    assert!((bootstrap.kernel_factor - 1.0).abs() < 1e-12);
+    assert!((bootstrap.standard_error - 6.0_f64.sqrt()).abs() < 1e-12);
+    assert!((bootstrap.lower - (2.0 - z * 6.0_f64.sqrt())).abs() < 1e-9);
+    assert!((bootstrap.upper - (2.0 + z * 6.0_f64.sqrt())).abs() < 1e-9);
+    assert_eq!((bootstrap.rows, bootstrap.replicates, bootstrap.effective_blocks), (6, 4, None));
+    assert!(bootstrap.composed.coordinate.id().ends_with("|horizons=1,2"));
+
+    let weights = horizon_composition_interval(
+        &interval_response(true, &short, 6),
+        0,
+        &[-1.0, 1.0],
+        PropagationOperation::Contrast,
+    )
+    .unwrap();
+    let reference = 2.776_445_105_197_793_4 / z * 1.5_f64.sqrt() / 1.25;
+    assert_eq!(weights.construction, HORIZON_BLOCK_WEIGHT_INTERVAL);
+    assert_eq!(weights.effective_blocks, Some(5.0));
+    assert!((weights.standard_error - 6.0_f64.sqrt() * reference).abs() < 1e-7);
+    assert!((weights.upper - (2.0 + z * 6.0_f64.sqrt() * reference)).abs() < 1e-6);
+    assert!((weights.lower - (2.0 - z * 6.0_f64.sqrt() * reference)).abs() < 1e-6);
+
+    // A persistent composed influence widens the interval by its own kernel-bias factor, not
+    // by the cells' factors: 40 rows of h2 influence in runs of five, h1 influence zero.
+    let rows = 40;
+    let runs: Vec<f64> = (0..rows).map(|t| if (t / 5) % 2 == 0 { 1.0 } else { -1.0 }).collect();
+    let mut persistent = vec![0.0; rows];
+    persistent.extend_from_slice(&runs);
+    let widened = horizon_composition_interval(
+        &interval_response(false, &persistent, rows),
+        0,
+        &[-1.0, 1.0],
+        PropagationOperation::Contrast,
+    )
+    .unwrap();
+    let factor = antecedent_estimate::kernel_bias_factor(&runs, 3);
+    assert!(factor > 1.05, "a run-length-five influence is persistent at block 3: {factor}");
+    assert!((widened.kernel_factor - factor).abs() < 1e-12);
+    assert!((widened.standard_error - 6.0_f64.sqrt() * factor).abs() < 1e-9);
+
+    // No readings, a nonlinear operation and too few weighted blocks have no interval.
+    let rows4 = [[3.0, 15.0], [-1.0, 7.0], [5.0, -1.0], [-3.0, -9.0]];
+    assert!(
+        horizon_composition_interval(
+            &response(Some(&rows4)),
+            0,
+            &[-1.0, 1.0],
+            PropagationOperation::Contrast
+        )
+        .is_err()
+    );
+    assert!(
+        horizon_composition_interval(
+            &interval_response(false, &short, 6),
+            0,
+            &[-1.0, 1.0],
+            PropagationOperation::NonlinearFunctional
+        )
+        .is_err()
+    );
+    let mut few = interval_response(true, &short, 6);
+    let last = few.support.diagnostics.len() - 2;
+    few.support.diagnostics[last].values = Arc::from([3.0, 6.0, 1.3, 1.25, 1.0, 2.0, 2.0, 4.0]);
+    assert!(
+        horizon_composition_interval(&few, 0, &[-1.0, 1.0], PropagationOperation::Contrast)
+            .is_err()
+    );
+}
+
+/// The retained route of the composed interval: the compiled temporal mean curve seals the
+/// temporal response operation, retains its joint horizons in both modes, and the interval of
+/// the cumulative effect is the composed point value with the construction of its mode. The
+/// interval is rebuilt here from the published replicates and dispersion readings: the composed
+/// deviations with each cell's kernel factor removed, their sample standard deviation, and the
+/// reference factor recomputed from the composed standard error.
+#[test]
+fn the_compiled_horizon_interval_runs_the_retained_temporal_response_in_both_modes() {
+    use antecedent::analysis::RetainedOperation;
+    use antecedent_estimate::JOINT_HORIZON_DISPERSION;
+    std::thread::Builder::new()
+        .name("compiled-horizon-interval".into())
+        .stack_size(32 * 1024 * 1024)
+        .spawn(|| {
+            let ctx = ExecutionContext::for_tests(8);
+            let bayesian = InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(120));
+            for (inference, replicates, construction) in [
+                (InferenceMode::Frequentist, 120, HORIZON_BLOCK_BOOTSTRAP_INTERVAL),
+                (bayesian, 0, HORIZON_BLOCK_WEIGHT_INTERVAL),
+            ] {
+                let study = compiled_study(inference, true, replicates);
+                let prepared = study.prepare(&ctx).unwrap();
+                assert!(matches!(
+                    prepared.retained_operation(),
+                    RetainedOperation::TemporalDagResponse(_)
+                ));
+                let result = study.run(&ctx).unwrap();
+                let response = result.response().unwrap();
+                let interval = horizon_composition_interval(
+                    response,
+                    1,
+                    &[1.0, 1.0],
+                    PropagationOperation::Sum,
+                )
+                .unwrap();
+                assert_eq!(interval.construction, construction);
+                assert_eq!(interval.replicates, 120);
+
+                let draws = horizon_draws(response, 1).unwrap();
+                let dispersion = response
+                    .support
+                    .diagnostics
+                    .iter()
+                    .find(|d| d.id.as_ref() == JOINT_HORIZON_DISPERSION)
+                    .expect("dispersion readings")
+                    .values
+                    .clone();
+                // Cells are dose-major: dose 1 of two horizons reads kernel factors 2 and 3.
+                let factors = [dispersion[6 + 2], dispersion[6 + 3]];
+                let raw: Vec<f64> = (0..120)
+                    .map(|r| {
+                        (draws.columns[0][r] - draws.center[0]) / factors[0]
+                            + (draws.columns[1][r] - draws.center[1]) / factors[1]
+                    })
+                    .collect();
+                let mean = raw.iter().sum::<f64>() / 120.0;
+                let sd = (raw.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / 119.0).sqrt();
+                let center = draws.center[0] + draws.center[1];
+                assert!((interval.center - center).abs() < 1e-12);
+                let reference = interval.standard_error / (sd * interval.kernel_factor);
+                if construction == HORIZON_BLOCK_BOOTSTRAP_INTERVAL {
+                    assert!((reference - 1.0).abs() < 1e-9, "bootstrap reference {reference}");
+                } else {
+                    assert!(reference > 1.0, "the Student-t reference widens: {reference}");
+                }
+                assert!(interval.kernel_factor >= 1.0);
+                let half = 1.959_963_984_540_054 * interval.standard_error;
+                assert!((interval.lower - (center - half)).abs() < 1e-9);
+                assert!((interval.upper - (center + half)).abs() < 1e-9);
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
 }

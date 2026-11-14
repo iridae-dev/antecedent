@@ -931,10 +931,10 @@ def test_multi_covariate_ancova_refuses_collinear_and_missing_covariates():
 # ------------------------------------------------------------------ Bayesian arm contrasts
 #
 # The Bayesian routes are reported with calibration status `not_measured`. References are computed here,
-# independently of the library: the exact finite-population law by enumeration of the two
-# Beta-Binomial missing-count laws, and the closed-form Beta moments of the superpopulation arms.
+# independently of the library: the closed-form Beta moments of the arm means, which both
+# estimands share because the finite-population contrast is published under additive unit effects.
 
-from math import lgamma, sqrt  # noqa: E402
+from math import sqrt  # noqa: E402
 
 from antecedent.design_models import (  # noqa: E402
     BernoulliArms,
@@ -943,38 +943,6 @@ from antecedent.design_models import (  # noqa: E402
 
 _TRIAL_TREATED = [True, False, False, True, False, True, False, True, False, False]
 _TRIAL_Y = [1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
-
-
-def _beta_binomial(missing: int, a: float, b: float) -> list[float]:
-    def ln_beta(x: float, y: float) -> float:
-        return lgamma(x) + lgamma(y) - lgamma(x + y)
-
-    return [
-        np.exp(
-            lgamma(missing + 1)
-            - lgamma(k + 1)
-            - lgamma(missing - k + 1)
-            + ln_beta(k + a, missing - k + b)
-            - ln_beta(a, b)
-        )
-        for k in range(missing + 1)
-    ]
-
-
-def _finite_population_reference() -> tuple[float, float]:
-    # 4 treated (3 successes) and 6 control (2 successes) under a uniform prior: the treated mean
-    # over the 10 units is (3 + BB(6; 4, 2)) / 10, the control mean (2 + BB(4; 3, 5)) / 10.
-    treated = _beta_binomial(6, 4.0, 2.0)
-    control = _beta_binomial(4, 3.0, 5.0)
-    mean = var = 0.0
-    values = {}
-    for i, p in enumerate(treated):
-        for j, q in enumerate(control):
-            d = ((3 + i) - (2 + j)) / 10.0
-            values[d] = values.get(d, 0.0) + p * q
-    mean = sum(d * w for d, w in values.items())
-    var = sum(w * (d - mean) ** 2 for d, w in values.items())
-    return mean, sqrt(var)
 
 
 def _bayes(model, n_draws=4000):
@@ -997,7 +965,9 @@ def test_bayesian_ids_are_public():
 
 
 def test_bayesian_finite_population_is_the_default_and_matches_enumeration():
-    mean, sd = _finite_population_reference()
+    # Beta(4, 2) minus Beta(3, 5), with no finite-population reduction of the variance.
+    mean = 4 / 6 - 3 / 8
+    sd = sqrt(4 * 2 / (36 * 7) + 3 * 5 / (64 * 9))
     result = require_success(
         ant.analyze(
             {"outcome": np.asarray(_TRIAL_Y)},

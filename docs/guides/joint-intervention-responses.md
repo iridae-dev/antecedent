@@ -141,7 +141,30 @@ Exact interventions with the same empirical population, parameter path and ident
 
 ## Limits
 
-Frequentist cluster-sandwich and local Gaussian realizations are approximations, not posterior draws. Bayesian consumption requires its convergence checks. Calibration of the whole procedure and the reliability of a selected decision need their own measured evidence; successful numerical execution does not supply it, and `calibration` reads `not_measured` wherever no such evidence applies.
+Frequentist cluster-sandwich and local Gaussian realizations are approximations, not posterior draws. Bayesian consumption requires its convergence checks. The fitted panel publishes no supported interval: its parameter law is model-conditional, nothing measures its coverage, and `calibration` reads `not_measured`. The reliability of a selected decision and of a next-study ranking is not measured either; successful numerical execution does not supply it.
+
+## Intervals with a calibration statement
+
+Five readings (Rust) return a 95% interval together with the calibration key the result derives for it and that key's standing against the shipped coverage records:
+
+| Reading | Interval |
+| --- | --- |
+| `NativeJointDesignResult::contrast_interval_reading` | A prespecified contrast of a compiled native design: Student-t with Satterthwaite degrees of freedom for whole-program randomization, a normal interval for switchback, instrument, cohort and longitudinal designs, the conformal projection for synthetic rollouts, the Wald interval for a complier effect, or the equal-tailed posterior interval. |
+| `RandomizedSelectionResult::selected_value_reading`, `InstrumentedSelectionResult::selected_value_reading` | The held-out value of the selected program, plus and minus the normal quantile times its standard error. |
+| `JointDesignResult::population_reference_region` | A simultaneous region for the four Shapley contributions of a population reference decomposition (Bonferroni, so at least nominal). |
+| `JointDesignResult::updated_contrast_reading` | The weighted equal-tailed posterior interval of a contrast after an experiment update. |
+
+A reading is `calibrated` only at the level, construction, sample-size range, resampling or posterior size and support condition its coverage record measured; anywhere else it still returns the interval and says `not_measured` or `outside_measured_scope`. The conditions the key checks:
+
+- A switchback needs every requested history observed (the design refuses otherwise) and at least 32 sequences per requested history, from 512 sequences. With fewer, the inverse-probability estimator is skewed and its normal interval under-covers (0.933 at 64 sequences, 0.941 at 256).
+- A joint 95% conformal region over two synthetic rollouts needs at least 39 pre-periods and is refused below that; it was measured from 40.
+- A synthetic posterior interval depends on the declared inverse-gamma prior of the residual variance. It was measured with the prior mean at the residual variance, and the key requires the declared mean to be within a factor of two of the pre-period fit error. A prior mean several times too large over-covers.
+- Whole-program randomization with equal weights was measured from 128 units with at least 32 per program; with unequal population weights from 8 units with at least four per program, where the interval uses a leverage-corrected variance.
+- A complier effect needs an estimated first stage of at least 0.4, from 800 units.
+- Every Bayesian interval was measured with its likelihood scale declared at the generating value. The library cannot check that declaration.
+- The updated-contrast interval was measured with the truth drawn from the declared prior and an identity translation; its coverage is an average over that prior.
+
+`NativeJointDesignResult::support` and `calibration` still describe the result as a whole and are unchanged; the reading carries the interval's own standing. The measured scope of each reading is recorded in `parity/capability_records.toml` under `joint_response.interval_readings`.
 
 Frozen artifacts keep the numerical law, dependencies, uncertainty meaning and failed slots. Independent historical replay grants no current authorization and does not attest that stored fit numbers were generated honestly. Current consumers supply the expected compiled program, frozen law and relevant evidence authority.
 

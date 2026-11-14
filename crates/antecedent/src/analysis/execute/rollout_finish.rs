@@ -2,9 +2,10 @@
 //! difference in differences, conformal and multi-unit synthetic control, and the local ratio
 //! with a selected bandwidth or a calendar-time running variable.
 //!
-//! Every rollout result is unsupported: its scalar summary carries no published interval, the
-//! design's own whole-procedure intervals ride on the [`crate::QuasiRolloutEstimate`] payload,
-//! and their calibration is `not_measured` until a coverage record measures them.
+//! A rollout result is assembled unsupported: its scalar summary carries no published interval
+//! and the design's own whole-procedure intervals ride on the [`crate::QuasiRolloutEstimate`]
+//! payload with calibration `not_measured`. The executor of a design with support rows then
+//! states `supported` on the payload when a row admits the published section.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
