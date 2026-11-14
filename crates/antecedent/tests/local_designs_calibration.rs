@@ -207,6 +207,81 @@ fn time_kink_rows(seed: u64) -> (TabularData, LocalPolynomialRatioQuery, f64) {
     (tabular(&time, &treatment, &outcome), query(cutoff, bandwidth, true, Some(options)), TREATMENT)
 }
 
+/// Stationary AR(2) noise `e_t = phi1 e_{t-1} + phi2 e_{t-2} + innovation` with marginal
+/// standard deviation `sd`, after a burn-in of 500 periods.
+///
+/// The marginal variance of an AR(2) is `s^2 (1 - phi2) / ((1 + phi2) ((1 - phi2)^2 - phi1^2))`
+/// for innovation variance `s^2`, which fixes the innovation scale.
+fn ar2_noise(n: usize, phi1: f64, phi2: f64, sd: f64, seed: u64) -> Vec<f64> {
+    const BURN_IN: usize = 500;
+    let mut z = gaussian(seed);
+    let innovation =
+        sd * ((1.0 + phi2) * ((1.0 - phi2).powi(2) - phi1 * phi1) / (1.0 - phi2)).sqrt();
+    let (mut previous, mut before) = (0.0, 0.0);
+    let mut out = Vec::with_capacity(n);
+    for period in 0..BURN_IN + n {
+        let e = phi1 * previous + phi2 * before + innovation * z();
+        before = previous;
+        previous = e;
+        if period >= BURN_IN {
+            out.push(e);
+        }
+    }
+    out
+}
+
+/// The sharp step of [`time_jump_rows`] with AR(2) errors (`0.5`, `0.3`, marginal standard
+/// deviation `0.7`): dependence beyond the first-order autoregression the interval models.
+/// The jump is the coefficient 1 of the step, whatever the law of the errors.
+fn time_jump_ar2_rows(seed: u64) -> (TabularData, LocalPolynomialRatioQuery, f64) {
+    let n = grid_n(2_000);
+    let cutoff = n as f64 / 2.0;
+    let time: Vec<f64> = (1..=n).map(|i| i as f64).collect();
+    let error = ar2_noise(n, 0.5, 0.3, 0.7, stream_seed(seed, 0x5C));
+    let treatment: Vec<f64> = time.iter().map(|&t| f64::from(t >= cutoff)).collect();
+    let outcome: Vec<f64> =
+        (0..n).map(|i| 2.0 * time[i] / n as f64 + treatment[i] + error[i]).collect();
+    let options =
+        LocalRatioOptions { temporal_replicates: Some(199), ..LocalRatioOptions::default() };
+    (
+        tabular(&time, &treatment, &outcome),
+        query(cutoff, 0.15 * n as f64, false, Some(options)),
+        1.0,
+    )
+}
+
+/// Periods `1..=n` with a fuzzy step at the middle period: the treatment is received with
+/// probability `0.1` before it and `0.9` from it on, independently by period, and the outcome
+/// is a linear trend plus `2 t` plus AR(1) errors (`0.7`, marginal standard deviation `0.7`).
+/// The outcome jumps by `2 * 0.8` and the uptake by `0.8`, so the ratio is 2.
+fn time_fuzzy_rows(seed: u64) -> (TabularData, LocalPolynomialRatioQuery, f64) {
+    let n = grid_n(2_000);
+    let cutoff = n as f64 / 2.0;
+    let time: Vec<f64> = (1..=n).map(|i| i as f64).collect();
+    let error = ar1_noise(n, 0.7, 0.7, stream_seed(seed, 0x5D));
+    let mut assign = uniform(seed, 0x5E);
+    let treatment: Vec<f64> =
+        time.iter().map(|&t| f64::from(assign() < if t >= cutoff { 0.9 } else { 0.1 })).collect();
+    let outcome: Vec<f64> =
+        (0..n).map(|i| 2.0 * time[i] / n as f64 + TREATMENT * treatment[i] + error[i]).collect();
+    let options =
+        LocalRatioOptions { temporal_replicates: Some(199), ..LocalRatioOptions::default() };
+    (
+        tabular(&time, &treatment, &outcome),
+        query(cutoff, 0.15 * n as f64, false, Some(options)),
+        TREATMENT,
+    )
+}
+
+/// The same design at the MSE-optimal plug-in bandwidth, capped at the declared one. The
+/// target is unchanged: the ratio at the cutoff does not depend on the window.
+fn at_selected_bandwidth(mut query: LocalPolynomialRatioQuery) -> LocalPolynomialRatioQuery {
+    if let Some(options) = query.options.as_mut() {
+        options.bandwidth_rule = LocalBandwidthRule::MseOptimal;
+    }
+    query
+}
+
 /// A fixed-bandwidth Bayesian fuzzy jump drawn from the model's own likelihood: on an even grid
 /// over `[-1, 1]` the dose is `0.2 + 0.1 x + 0.6 [x >= 0] + 0.3 noise` and the outcome
 /// `1 + 0.3 x + 2 dose + 0.2 noise`, linear on each side of the cutoff; the jump ratio is 2.
@@ -423,6 +498,106 @@ fn temporal_regression_kink_block_bootstrap_interval_covers_the_slope_ratio() {
     });
 }
 
+const KINK_DECLARED: Cell = Cell {
+    test: "regression_kink_declared_bandwidth_rbc_with_diagnostics_interval_covers_the_slope_ratio",
+    dgp: "kink_rows",
+    estimator: "quasi.regression_kink.declared_bandwidth_rbc_with_diagnostics",
+    interval: "analytic_se",
+    dependence: "iid",
+};
+
+/// Regression kink at the declared bandwidth 1.0 with the density test on. The outcome is a
+/// cubic plus twice a piecewise-linear dose, which the quartic fit reproduces at any window,
+/// so the slope-change ratio is 2.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn regression_kink_declared_bandwidth_rbc_with_diagnostics_interval_covers_the_slope_ratio() {
+    measure_design(KINK_DECLARED, TREATMENT, 0x1D_0006, |seed| {
+        let (data, _) = kink_rows(seed);
+        let options = LocalRatioOptions {
+            bandwidth_rule: LocalBandwidthRule::Declared,
+            density_test: true,
+            ..LocalRatioOptions::default()
+        };
+        (data, query(0.0, 1.0, true, Some(options)))
+    });
+}
+
+const TIME_JUMP_SELECTED: Cell = Cell {
+    test: "temporal_fuzzy_rd_selected_bandwidth_block_bootstrap_interval_covers_the_jump",
+    dgp: "time_jump_rows",
+    estimator: "quasi.fuzzy_rd.mse_optimal_bandwidth_rbc_block_bootstrap",
+    interval: "bootstrap_se",
+    dependence: "moving_block",
+};
+
+/// A sharp discontinuity in time at the selected bandwidth: the block bootstrap interval of
+/// the fit at the MSE-optimal window, capped at the declared one.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn temporal_fuzzy_rd_selected_bandwidth_block_bootstrap_interval_covers_the_jump() {
+    measure_design(TIME_JUMP_SELECTED, 1.0, 0x1D_0007, |seed| {
+        let (data, query, _) = time_jump_rows(seed);
+        (data, at_selected_bandwidth(query))
+    });
+}
+
+const TIME_KINK_SELECTED: Cell = Cell {
+    test: "temporal_regression_kink_selected_bandwidth_block_bootstrap_interval_covers_the_slope_ratio",
+    dgp: "time_kink_rows",
+    estimator: "quasi.regression_kink.mse_optimal_bandwidth_rbc_block_bootstrap",
+    interval: "bootstrap_se",
+    dependence: "moving_block",
+};
+
+/// A kink in time at the selected bandwidth.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn temporal_regression_kink_selected_bandwidth_block_bootstrap_interval_covers_the_slope_ratio() {
+    measure_design(TIME_KINK_SELECTED, TREATMENT, 0x1D_0008, |seed| {
+        let (data, query, _) = time_kink_rows(seed);
+        (data, at_selected_bandwidth(query))
+    });
+}
+
+const TIME_FUZZY: Cell = Cell {
+    test: "temporal_fuzzy_step_block_bootstrap_interval_covers_the_local_ratio",
+    dgp: "time_fuzzy_rows",
+    estimator: "quasi.fuzzy_rd.declared_bandwidth_rbc_block_bootstrap",
+    interval: "bootstrap_se",
+    dependence: "moving_block",
+};
+
+/// A fuzzy step in time under AR(1) errors: the block bootstrap redraws the uptake errors as
+/// well as the outcome's.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn temporal_fuzzy_step_block_bootstrap_interval_covers_the_local_ratio() {
+    measure_design(TIME_FUZZY, TREATMENT, 0x1D_0009, |seed| {
+        let (data, query, _) = time_fuzzy_rows(seed);
+        (data, query)
+    });
+}
+
+const TIME_JUMP_AR2: Cell = Cell {
+    test: "temporal_fuzzy_rd_block_bootstrap_interval_covers_the_jump_under_ar2_errors",
+    dgp: "time_jump_ar2_rows",
+    estimator: "quasi.fuzzy_rd.declared_bandwidth_rbc_block_bootstrap",
+    interval: "bootstrap_se",
+    dependence: "moving_block",
+};
+
+/// A sharp discontinuity in time under AR(2) errors, which the first-order prewhitening
+/// leaves dependent; only the blocks carry the rest.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn temporal_fuzzy_rd_block_bootstrap_interval_covers_the_jump_under_ar2_errors() {
+    measure_design(TIME_JUMP_AR2, 1.0, 0x1D_000A, |seed| {
+        let (data, query, _) = time_jump_ar2_rows(seed);
+        (data, query)
+    });
+}
+
 // ------------------------------------------------------------------ Bayesian
 
 const POSTERIOR_DRAWS: usize = 2_000;
@@ -551,6 +726,53 @@ fn bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio() {
     };
     measure_posterior(cell, TREATMENT, 0x1D_0104, TEMPORAL_DRAWS, |seed| {
         let (data, query, _) = time_kink_rows(seed);
+        (data, query)
+    });
+}
+
+/// A sharp discontinuity in time at the selected bandwidth: the block Bayesian bootstrap at the
+/// MSE-optimal window, capped at the declared one.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn bayesian_temporal_fuzzy_rd_selected_bandwidth_block_posterior_covers_the_jump() {
+    let cell = BayesCell {
+        test: "bayesian_temporal_fuzzy_rd_selected_bandwidth_block_posterior_covers_the_jump",
+        dgp: "time_jump_rows",
+        estimator: "bayesian.local_ratio",
+    };
+    measure_posterior(cell, 1.0, 0x1D_0105, TEMPORAL_DRAWS, |seed| {
+        let (data, query, _) = time_jump_rows(seed);
+        (data, at_selected_bandwidth(query))
+    });
+}
+
+/// A kink in time at the selected bandwidth.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn bayesian_temporal_regression_kink_selected_bandwidth_block_posterior_covers_the_slope_ratio() {
+    let cell = BayesCell {
+        test: "bayesian_temporal_regression_kink_selected_bandwidth_block_posterior_covers_the_slope_ratio",
+        dgp: "time_kink_rows",
+        estimator: "bayesian.local_ratio",
+    };
+    measure_posterior(cell, TREATMENT, 0x1D_0106, TEMPORAL_DRAWS, |seed| {
+        let (data, query, _) = time_kink_rows(seed);
+        (data, at_selected_bandwidth(query))
+    });
+}
+
+/// A fuzzy step in time under AR(1) errors: the block Bayesian bootstrap redraws the uptake
+/// errors as well as the outcome's.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn bayesian_temporal_fuzzy_step_block_posterior_covers_the_local_ratio() {
+    let cell = BayesCell {
+        test: "bayesian_temporal_fuzzy_step_block_posterior_covers_the_local_ratio",
+        dgp: "time_fuzzy_rows",
+        estimator: "bayesian.local_ratio",
+    };
+    measure_posterior(cell, TREATMENT, 0x1D_0107, TEMPORAL_DRAWS, |seed| {
+        let (data, query, _) = time_fuzzy_rows(seed);
         (data, query)
     });
 }

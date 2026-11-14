@@ -13,7 +13,11 @@
 //!   average effect of those units and only the assignment is random. The route publishes the
 //!   contrast under additive unit effects (Neyman's variance bound); the unit effects here vary
 //!   by `0.2 * x1` only, under half a percent of the bound, so the bound is attained and the
-//!   interval is held to the nominal band on both sides.
+//!   interval is held to the nominal band on both sides. With Bernoulli arms the units are fixed
+//!   binary outcome pairs: under the sharp null (additive effects of zero, the bound attained)
+//!   the interval is held to the nominal band, and with effects that vary by unit (two in five
+//!   succeed either way, one in five only when treated) it is held to at least nominal, the
+//!   route's own statement.
 //! * `bayesian.randomized_superpopulation`: independent units with Gaussian covariates, so each
 //!   arm's outcome is exactly Gaussian, and independent Bernoulli arms; the truths are the
 //!   population contrasts (1.4 and 0.2).
@@ -29,7 +33,8 @@
 //!   reference doses, weighted by the observed group shares.
 //! * `interference.cluster_bayesian_bootstrap`: two-unit clusters, complete cluster
 //!   randomization, a constant total effect of 3, from nine clusters per arm upward; below
-//!   fifty clusters per arm the route publishes its Student-t reference law.
+//!   fifty clusters per arm the route publishes its Student-t reference law, measured on one
+//!   grid from nine to twenty-four clusters per arm and on another from twenty-five to forty-nine.
 //! * `bayesian.gcomp.model_based_arm_effect`: a probit-confounded binary treatment whose effect
 //!   `1 + 2 z` grows in the confounder; the truth is the mean of that effect over the treated
 //!   (or untreated) rows of the replicate, the model's own estimand.
@@ -67,8 +72,8 @@ use antecedent_estimate::switchback_posterior::{
 };
 use antecedent_graph::{Dag, DenseNodeId};
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, gaussian, grid_n,
-    grid_seed, map_replicates, n_sim, stream_seed, unit_uniform,
+    Construction, CoverageSide, CoverageTally, REPORTED_LEVEL, RecordKey, SampleGrid, ScopeFacts,
+    gaussian, grid_n, grid_seed, map_replicates, n_sim, stream_seed, unit_uniform,
 };
 use common::calibration_bind::{bind_reported, constructions};
 
@@ -126,6 +131,16 @@ fn measure(
     design_query: Option<&'static str>,
     runs: &[Option<Replicate>],
 ) {
+    tally_of(test, dgp, design_query, runs).assert();
+}
+
+/// The record tally of [`measure`], before its assertion.
+fn tally_of(
+    test: &'static str,
+    dgp: &'static str,
+    design_query: Option<&'static str>,
+    runs: &[Option<Replicate>],
+) -> CoverageTally {
     let mut tally =
         CoverageTally::for_record(RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL);
     for run in runs {
@@ -149,7 +164,7 @@ fn measure(
         }
         tally.record(Some(replicate.interval), replicate.truth);
     }
-    tally.assert();
+    tally
 }
 
 /// `treated` units chosen uniformly without replacement.
@@ -247,6 +262,68 @@ fn finite_population_gaussian_arms_credible_interval() {
         "complete_randomization_fixed_units_known_finite_population_effect",
         Some("RandomizedEffect"),
         &runs,
+    );
+}
+
+/// Fixed binary units: two in five succeed under either arm, and one in five more succeed only
+/// when treated if `responders`. The truth is the mean unit effect over those units: zero under
+/// the sharp null, otherwise the share of responders (one fifth when five divides `n`).
+fn fixed_binary_outcomes(n: usize, responders: bool) -> (Vec<f64>, Vec<f64>, f64) {
+    let control: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i % 5 < 2))).collect();
+    let treated: Vec<f64> =
+        (0..n).map(|i| f64::from(u8::from(i % 5 < 2 || (responders && i % 5 == 2)))).collect();
+    let truth = treated.iter().zip(&control).map(|(t, c)| t - c).sum::<f64>() / n as f64;
+    (control, treated, truth)
+}
+
+fn finite_population_bernoulli_runs(responders: bool, seed_base: u64) -> Vec<Option<Replicate>> {
+    let n = grid_n(300);
+    let (control, treated, truth) = fixed_binary_outcomes(n, responders);
+    map_replicates(n_sim(), |rep| {
+        let seed = grid_seed(seed_base + rep);
+        let assigned = complete_assignment(n, n / 2, seed);
+        let outcome: Vec<f64> =
+            (0..n).map(|i| if assigned[i] { treated[i] } else { control[i] }).collect();
+        arm_replicate(
+            &outcome,
+            assigned,
+            ArmOutcomeModel::Bernoulli(ArmBetaPrior { alpha: 1.0, beta: 1.0 }),
+            None,
+            truth,
+            seed,
+        )
+    })
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn finite_population_bernoulli_arms_sharp_null_credible_interval() {
+    // Every unit effect is zero, so effects are additive, Neyman's bound is the randomization
+    // variance and the truth is exactly zero.
+    let runs = finite_population_bernoulli_runs(false, 0xB1AC_0000);
+    measure(
+        "finite_population_bernoulli_arms_sharp_null_credible_interval",
+        "complete_randomization_fixed_binary_units_sharp_null",
+        Some("RandomizedEffect"),
+        &runs,
+    );
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn finite_population_bernoulli_arms_varying_effects_credible_interval() {
+    // Conservative by construction: unit effects are zero or one, so their variance (0.16) is
+    // subtracted from Neyman's bound (0.95 over n) in the randomization variance of the contrast.
+    let runs = finite_population_bernoulli_runs(true, 0xB1AD_0000);
+    tally_of(
+        "finite_population_bernoulli_arms_varying_effects_credible_interval",
+        "complete_randomization_fixed_binary_units_known_finite_population_risk_difference",
+        Some("RandomizedEffect"),
+        &runs,
+    )
+    .assert_one_sided(
+        CoverageSide::Upper,
+        "the finite-population risk difference covered at least nominally when unit effects vary",
     );
 }
 
@@ -702,6 +779,26 @@ fn cluster_bayesian_bootstrap_small_cluster_credible_interval() {
     );
 }
 
+/// Twenty-five, thirty-seven and forty-nine clusters per arm: the upper part of the range in
+/// which the route publishes its Student-t reference law.
+const LARGER_SMALL_ARMS: SampleGrid =
+    SampleGrid { name: "cluster_arms_25_to_49", factors: [(25, 49), (37, 49), (1, 1)] };
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn cluster_bayesian_bootstrap_larger_small_arm_credible_interval() {
+    // The truth is the constant total effect; both arms hold the same number of clusters.
+    let clusters = 2 * LARGER_SMALL_ARMS.n(49);
+    let runs =
+        map_replicates(n_sim(), |rep| cluster_replicate(clusters, grid_seed(0xB1AE_0000 + rep)));
+    measure(
+        "cluster_bayesian_bootstrap_larger_small_arm_credible_interval",
+        "paired_cluster_randomization_constant_total_effect_25_to_49_clusters_per_arm",
+        None,
+        &runs,
+    );
+}
+
 // --------------------------------------------------------------------- model-based arm effect
 
 /// Columns `t, y, z`: a probit-confounded binary treatment and a linear outcome model with a
@@ -807,4 +904,8 @@ fn the_stated_truths_are_the_ones_the_generators_imply() {
     let (control, treated, truth) = fixed_unit_outcomes(300);
     let mean_difference = treated.iter().zip(&control).map(|(t, c)| t - c).sum::<f64>() / 300.0;
     assert!((mean_difference - truth).abs() < 1e-12);
+    assert!(fixed_binary_outcomes(300, false).2.abs() < 1e-12);
+    assert!((fixed_binary_outcomes(300, true).2 - 0.2).abs() < 1e-12);
+    let arms: Vec<usize> = (0..3).map(|point| LARGER_SMALL_ARMS.n_at(point, 49)).collect();
+    assert_eq!(arms, [25, 37, 49]);
 }
