@@ -91,11 +91,43 @@ route = "discovery.temporal"
 statement = "class-collapsed DBN posterior"
 
 [[statement]]
-route = "temporal_design.excursion.two_arm"
+route = "temporal_design.excursion.multi_arm"
 statement = "simultaneous band"
 
 [[statement]]
-route = "temporal_design.excursion.two_arm"
+route = "temporal_design.excursion.categorical"
+statement = "simultaneous band"
+
+[[statement]]
+route = "temporal_design.excursion.factorial"
+statement = "simultaneous band"
+
+[[statement]]
+route = "temporal_design.excursion.interference"
+statement = "simultaneous band"
+
+[[statement]]
+route = "temporal_design.excursion.smoothed_dose"
+statement = "simultaneous band"
+
+[[statement]]
+route = "temporal_design.excursion.dose_grid"
+statement = "simultaneous band"
+
+[[statement]]
+route = "temporal_design.excursion.multi_arm"
+statement = "Holm p-values"
+
+[[statement]]
+route = "temporal_design.excursion.categorical"
+statement = "Holm p-values"
+
+[[statement]]
+route = "temporal_design.excursion.factorial"
+statement = "Holm p-values"
+
+[[statement]]
+route = "temporal_design.excursion.interference"
 statement = "Holm p-values"
 
 [[statement]]
