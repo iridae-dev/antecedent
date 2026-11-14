@@ -79,7 +79,7 @@ use antecedent_core::{
     QuantityUnits, ScientificTarget, ScientificWorldId, TargetForm, TargetPopulation, TimeFrame,
     Value, VariableId, WorldAction, WorldBinding, WorldCollection,
 };
-use antecedent_data::{PanelData, PanelUnit, TabularData, TimeSeriesData};
+use antecedent_data::{PanelData, PanelUnit, TableView, TabularData, TimeSeriesData};
 use antecedent_design::DesignError;
 use antecedent_design::decision::{DecisionProblem, Utility};
 use antecedent_estimate::joint_panel::time_varying::{
