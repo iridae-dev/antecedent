@@ -20,7 +20,9 @@ mod retained_graphless;
 
 use std::sync::Arc;
 
-use antecedent::{BayesianConfig, EstimatorId, InferenceMode, Study, StudyBuilder, StudyResult};
+use antecedent::{
+    BayesianConfig, CausalError, EstimatorId, InferenceMode, Study, StudyBuilder, StudyResult,
+};
 use antecedent_core::{
     CausalQuery, ExecutionContext, HistoryMatchQuery, LongitudinalRegimeMethod,
     LongitudinalRegimeQuery, PolicyValueQuery, SequentialContrastQuery, VariableId,
@@ -389,8 +391,7 @@ fn supported_sequential_regime_posterior_round_trips_and_refuses_forgery() {
     assert!((mean - REGIME_TRUTH).abs() < 0.8, "{mean}");
     assert!(lower < mean && mean < upper);
 
-    // Fewer draws, fewer subjects, and predictions owned by other folds than the subjects'
-    // each run and state no support.
+    // Fewer draws and fewer subjects each run and state no support.
     assert_no_posterior_row(
         "sequential_regime_few_draws",
         regime_study(&data, query.clone(), 1_000),
@@ -402,14 +403,20 @@ fn supported_sequential_regime_posterior_round_trips_and_refuses_forgery() {
         regime_study(&small, small_query, DRAWS),
         &small,
     );
+    // Predictions owned by other folds than the subjects' never reach the route: the query is
+    // refused when the study is compiled, so no result can state the row for them.
     let mut other_owner = query;
     other_owner.prediction_fold_ids =
         Some((0..400).map(|i| u32::from(i % 2 == 0)).collect::<Vec<u32>>().into());
-    assert_no_posterior_row(
-        "sequential_regime_other_owner",
-        regime_study(&data, other_owner, DRAWS),
-        &data,
-    );
+    let ctx = ExecutionContext::for_tests(0x7E57);
+    let error = regime_study(&data, other_owner, DRAWS)
+        .build()
+        .and_then(|study| study.prepare(&ctx).map(|_| ()))
+        .expect_err("predictions owned by other folds are refused");
+    let CausalError::Rejected(failure) = error.peeled() else {
+        panic!("expected a compile refusal, got {error}");
+    };
+    assert!(failure.message().contains("subject-owned folds"), "{}", failure.message());
 }
 
 // ---------------------------------------------------------------------- policy value

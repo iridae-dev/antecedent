@@ -372,10 +372,10 @@ fn every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_term
         let result = prepared.estimate(&table, &ctx(8)).unwrap();
         let bytes =
             prepared.encode_contracted_result(&result, "association-static", &ctx(8)).unwrap();
-        // This tight line lets the conjugate prior move the slope by more than a hundredth of
-        // its posterior standard deviation, which is outside the posterior's row.
+        // The conjugate prior moves this slope by about 0.005 posterior standard deviations,
+        // inside the hundredth its row allows, so both static counterparts meet a row.
         let terms = result.association().unwrap().estimate.terms.len();
-        artifacts.push(("static", !posterior, terms, bytes));
+        artifacts.push(("static", true, terms, bytes));
         let study = Study::series(rows.clone())
             .query(CausalQuery::Association(query.clone()))
             .inference(inference)
@@ -394,8 +394,9 @@ fn every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_term
         let wire =
             consumed.body.association.as_ref().expect("the artifact carries the association");
         assert_eq!(wire.terms.len(), terms, "{modality}");
-        // The standard error of a linear-regression slope on 120 rows or steps meets its
-        // graphless row; neither posterior of these fixtures does.
+        // The standard error of a linear-regression slope on 120 rows or steps and the
+        // conjugate posterior of the table meet their graphless rows; the block posterior of
+        // the series at 200 draws does not.
         assert_eq!(wire.supported, supported, "{modality}");
         assert_eq!(wire.calibration, "not_measured", "{modality}");
         assert!(consumed.contract.is_some(), "{modality}");

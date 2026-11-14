@@ -516,7 +516,7 @@ const BAYESIAN_ONLY_BY_THEORY: &[&str] = &["X05.temporal"];
 
 /// Quadrants whose two inference sides differ in support: the supported side has a measured
 /// or asserted interval, the other executes but is not supported.
-const SUPPORT_ASYMMETRIES: &[&str] = &["P04.static", "P09.interference.static"];
+const SUPPORT_ASYMMETRIES: &[&str] = &["P09.interference.static"];
 
 #[test]
 fn every_method_executes_on_both_inference_sides_or_records_why_not_on_both() {

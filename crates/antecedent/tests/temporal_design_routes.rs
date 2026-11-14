@@ -1764,15 +1764,18 @@ fn coordinate_of(fit: &TemporalDesignEstimate, name: &str) -> usize {
 
 /// The corrected two-arm means against the inverted misclassification algebra, by hand.
 ///
-/// Frequentist. Twelve units of two periods at assignment probability 0.5: eight units are
-/// treated at both periods (sixteen decisions, nine recorded positives) and four are control
-/// (eight decisions, three recorded positives), so the recorded arm means are 9/16 and 3/8.
+/// Frequentist. Sixteen units of two periods at assignment probability 0.5: eight units are
+/// treated at both periods (sixteen decisions, nine recorded positives) and eight are control
+/// (sixteen decisions, six recorded positives). An arm mean is the Horvitz-Thompson sum of
+/// `Y / 0.5` over the arm's decisions divided by all 32 decisions, `2 * 9 / 32 = 9/16` and
+/// `2 * 6 / 32 = 3/8`; it is the arm's sample mean only because the arms are balanced.
 /// With 90 of 100 true positives and 85 of 100 true negatives recorded correctly, sensitivity
 /// 0.9 and specificity 0.85 give the corrected control mean `(0.375 + 0.85 - 1) / 0.75 = 0.3`,
 /// the corrected treated mean `(0.5625 - 0.15) / 0.75 = 0.55` and the contrast 0.25.
 ///
-/// Bayesian. Twelve identical units (treated twice with outcomes 1, 0; control four times with
-/// outcomes 1, 0, 0, 0): every cluster weighting leaves the recorded arm means at 0.5 and 0.25,
+/// Bayesian. Twelve identical units (treated four times with outcomes 1, 1, 0, 0; control four
+/// times with outcomes 1, 0, 0, 0; balanced, so the Horvitz-Thompson means `2 * 2 / 8` and
+/// `2 * 1 / 8` are the arm sample means): every cluster weighting leaves them at 0.5 and 0.25,
 /// so the posterior varies only through the validation draws, and a validation sample of a
 /// million per margin at sensitivity and specificity 0.9 pins them. The corrected control mean
 /// is `(0.25 - 0.1) / 0.8 = 0.1875` and the contrast `0.25 / 0.8 = 0.3125`.
@@ -1781,12 +1784,12 @@ fn the_misclassification_corrected_two_arm_means_equal_the_inverted_error_algebr
     let ctx = ExecutionContext::for_tests(41);
     let (mut names, mut periods, mut assignment, mut recorded) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for unit in 0..12 {
+    for unit in 0..16 {
         for period in 0..2_i64 {
             let decision = unit * 2 + usize::try_from(period).unwrap();
             let treated = unit < 8;
-            // Decisions 0..16 are treated (positives at 0..9); 16..24 control (positives at 16..19).
-            let positive = if treated { decision < 9 } else { decision < 19 };
+            // Decisions 0..16 are treated (positives at 0..9); 16..32 control (positives at 16..22).
+            let positive = if treated { decision < 9 } else { decision < 22 };
             names.push(format!("u{unit}"));
             periods.push(period);
             assignment.push(treated);
@@ -1810,6 +1813,8 @@ fn the_misclassification_corrected_two_arm_means_equal_the_inverted_error_algebr
     for unit in 0..12 {
         for (period, (treated, positive)) in [
             (true, true),
+            (true, true),
+            (true, false),
             (true, false),
             (false, true),
             (false, false),

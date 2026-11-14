@@ -71,6 +71,9 @@ pub enum ManifestRouteStatus {
     Supported,
     /// Graphless design support.
     Graphless,
+    /// Executing route whose support unit is a capability record. The record, not this word,
+    /// states what is supported.
+    Capability,
     /// Route that refuses with a registered reason.
     NotSupported,
     /// Execution without an interval support.
@@ -81,9 +84,10 @@ pub enum ManifestRouteStatus {
 
 impl ManifestRouteStatus {
     /// Every status the route manifest records.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Supported,
         Self::Graphless,
+        Self::Capability,
         Self::NotSupported,
         Self::ExecutionOnly,
         Self::FittingGap,
@@ -213,6 +217,7 @@ impl ManifestRouteStatus {
         match word {
             "supported" => Some(Self::Supported),
             "graphless" => Some(Self::Graphless),
+            "capability" => Some(Self::Capability),
             "not_supported" => Some(Self::NotSupported),
             "execution_only" => Some(Self::ExecutionOnly),
             "fitting_gap" => Some(Self::FittingGap),
@@ -390,8 +395,14 @@ pub enum RouteRecordError {
 /// outcome and several are a split. A supported-or-other route with no method is retired unless it was
 /// supported, which is a break.
 ///
+/// Three statuses name a support unit: `supported` (a support-matrix cell), `graphless` (a
+/// graphless row) and `capability` (a capability record). Each is carried only by a method of
+/// the same status, so a record-backed route that a current method merely executes is a break,
+/// not a silent downgrade. What a capability route supports is read from its record.
+///
 /// # Errors
-/// The status is unknown, a supported route has no method, or no method keeps its support.
+/// The status is unknown, a route with a support unit has no method, or no method keeps its
+/// support kind.
 #[must_use = "a route record that is not carried onto the current methods is refused"]
 pub fn migrate_route_record(
     record: &ManifestRouteRecord<'_>,
@@ -406,7 +417,9 @@ pub fn migrate_route_record(
     if linked.is_empty() {
         return match status {
             ManifestRouteStatus::NotSupported => Ok(RouteRecordOutcome::RefusalKept),
-            ManifestRouteStatus::Supported | ManifestRouteStatus::Graphless => {
+            ManifestRouteStatus::Supported
+            | ManifestRouteStatus::Graphless
+            | ManifestRouteStatus::Capability => {
                 Err(RouteRecordError::RouteWithoutCurrentMethod { id })
             }
             _ => Ok(RouteRecordOutcome::Retired),
@@ -415,6 +428,7 @@ pub fn migrate_route_record(
     let support_kind = match status {
         ManifestRouteStatus::Supported => Some("supported"),
         ManifestRouteStatus::Graphless => Some("graphless"),
+        ManifestRouteStatus::Capability => Some("capability"),
         _ => None,
     };
     if support_kind.is_some_and(|kind| linked.iter().all(|m| m.status != kind)) {
@@ -1023,6 +1037,30 @@ mod tests {
             migrate_route_record(&record("not_supported"), &[]),
             Ok(RouteRecordOutcome::RefusalKept)
         ));
+        // A record-backed route is a third kind: it is carried only by a record-backed method.
+        let capability = [method("c", "r", "static", "frequentist", "capability")];
+        let executing = [method("e", "r", "static", "frequentist", "execution_only")];
+        assert!(matches!(migrate_route_record(&record("capability"), &capability),
+            Ok(RouteRecordOutcome::OneToOne { method, .. }) if !method.narrowed));
+        for other in [&supported, &graphless, &executing] {
+            assert!(matches!(
+                migrate_route_record(&record("capability"), other),
+                Err(RouteRecordError::SupportNotCarried { .. })
+            ));
+        }
+        for unit in ["supported", "graphless"] {
+            assert!(matches!(
+                migrate_route_record(&record(unit), &capability),
+                Err(RouteRecordError::SupportNotCarried { .. })
+            ));
+        }
+        assert!(matches!(
+            migrate_route_record(&record("capability"), &[]),
+            Err(RouteRecordError::RouteWithoutCurrentMethod { .. })
+        ));
+        // A route that only executed gains a record without a break or a narrowing.
+        assert!(matches!(migrate_route_record(&record("execution_only"), &capability),
+            Ok(RouteRecordOutcome::OneToOne { method, .. }) if !method.narrowed));
         let both = [
             method("g", "r", "static", "frequentist", "graphless"),
             method("l", "r", "static", "frequentist", "supported"),

@@ -259,6 +259,8 @@ struct SlopeRun {
     outcome: u32,
     /// Width of the table outcome's noise about the line.
     spread: f64,
+    /// Scale of the conjugate prior; 10 is the built-in scale.
+    prior_scale: f64,
     weighted: bool,
     conditioned: bool,
 }
@@ -270,6 +272,7 @@ const SLOPE: SlopeRun = SlopeRun {
     draws: 0,
     outcome: 1,
     spread: 8.0,
+    prior_scale: 10.0,
     weighted: false,
     conditioned: false,
 };
@@ -282,7 +285,7 @@ impl SlopeRun {
             let builder = builder.query(CausalQuery::Association(query)).refute(RefuteSuite::None);
             let builder = if self.draws > 0 {
                 builder.inference(InferenceMode::Bayesian(
-                    BayesianConfig::conjugate().n_draws(self.draws),
+                    BayesianConfig::conjugate().n_draws(self.draws).prior_scale(self.prior_scale),
                 ))
             } else if self.replicates > 0 {
                 builder.bootstrap_replicates(self.replicates)
@@ -456,14 +459,16 @@ fn supported_temporal_association_slope_round_trips_and_refuses_forgery() {
 #[test]
 fn supported_bayesian_static_association_slope_round_trips_and_refuses_forgery() {
     // The conjugate marginal of a real outcome; a 0/1 outcome or a weight column draws the
-    // Bayesian bootstrap, which has no row. A line so tight that the prior moves its slope by
-    // more than a hundredth of the posterior standard deviation is outside the row too.
+    // Bayesian bootstrap, which has no row. A prior of scale 1 moves this slope by about 0.19
+    // posterior standard deviations (the built-in scale 10 by about 0.002), far past the
+    // hundredth the row allows. A tighter line alone does not leave the row: the prior's
+    // variance scale floors the posterior spread, so the move stays near 0.005.
     let conjugate = SlopeRun { draws: 400, ..SLOPE };
     let outside = [
         SlopeRun { rows: 80, ..conjugate },
         SlopeRun { outcome: 2, ..conjugate },
         SlopeRun { weighted: true, ..conjugate },
-        SlopeRun { spread: 0.5, ..conjugate },
+        SlopeRun { prior_scale: 1.0, ..conjugate },
     ];
     let (names, body) = slope_row_round_trips(
         "supported_bayesian_static_association_posterior",
