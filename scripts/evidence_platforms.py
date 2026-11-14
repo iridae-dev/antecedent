@@ -8,22 +8,34 @@ is current: that reads the repository only. Re-running a record's replicate dige
 is possible only on the platform that earned it, since they are bit-exact and
 depend on its math library.
 
-    python3 scripts/evidence_platforms.py status          # this host's policy and what it lacks
-    python3 scripts/evidence_platforms.py draft-registry  # write this host's registry for review
+    python3 scripts/evidence_platforms.py status    # this host's policy and whether it can earn
+    python3 scripts/evidence_platforms.py prepare   # check the host and realise the build inputs
+    python3 scripts/evidence_platforms.py draft-registry [--platform TARGET | --all]
+                                                    # rebind a registry to Cargo.lock, from any host
 
 Each platform has its own policy id, Nix system, build recipes, sandbox rule and
 reviewed compile-time registry. The Apple-silicon policy is `nix_evidence_policy`,
 unchanged; the others are checked here against the same registry format.
+
+Evidence builds run offline and without substitutes, so a host first realises what
+they read besides the source (`prepare`: the pinned toolchain, the build tools and
+the crates of Cargo.lock, from `nix/evidence-inputs.nix`). On Linux the first earning
+run does this itself.
 """
 from __future__ import annotations
 
+import contextlib
 import functools
+import hashlib
 import json
 import os
 import platform as host_info
 import re
+import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,6 +72,9 @@ class Platform:
     # sandboxed (`sandbox = true`) with no unsandboxed fallback.
     sandbox_paths: frozenset[str]
     scope: str  # what the registry review assumes
+    # Earning realises the build inputs (`prepare`) and rebuilds a new recipe or lock
+    # once to check that it reproduces, without being asked.
+    prepares: bool = False
 
     @property
     def build_recipe(self) -> str:
@@ -104,7 +119,7 @@ def _linux(arch: str) -> Platform:
         registry=f"nix/compile-time-reviewed.{target}.json",
         recipes=_LINUX_RECIPES, release_recipes=_LINUX_RELEASE, toolchain_pins=LINUX_PINS,
         policy_sources=(*DARWIN.policy_sources, "scripts/evidence_platforms.py"),
-        sandbox_paths=frozenset({"/bin/sh"}), scope=_LINUX_SCOPE,
+        sandbox_paths=frozenset({"/bin/sh"}), scope=_LINUX_SCOPE, prepares=True,
     )
 
 
@@ -133,7 +148,9 @@ def host_platform() -> Platform:
 
 
 def bring_up_gaps(root: Path, platform: Platform) -> list[str]:
-    """What `platform` still lacks before a record can be earned on it; empty when ready."""
+    """What the repository lacks before a record can be earned on `platform`; empty when ready.
+
+    Reads the repository only, so it gives the same answer on every host."""
     gaps = [f"{rel} is missing" for rel in dict.fromkeys((*platform.recipes, *platform.release_recipes))
             if not (root / rel).is_file()]
     if platform.toolchain_pins and (root / platform.toolchain_pins).is_file():
@@ -154,14 +171,143 @@ def bring_up_gaps(root: Path, platform: Platform) -> list[str]:
     return gaps
 
 
-def earning_platform(root: Path) -> Platform:
-    """The policy records are earned under on this host; refuses until its bring-up is complete."""
+def earning_platform(root: Path, *, prepare: bool = False) -> Platform:
+    """The policy records are earned under on this host; refuses a host or tree that cannot earn.
+
+    With `prepare`, a platform that prepares itself (`Platform.prepares`) checks the
+    host and realises the build inputs first, once per recipe set and lock."""
     platform = host_platform()
     gaps = bring_up_gaps(root, platform)
     if gaps:
         raise UnreviewedPlatform(
-            f"evidence cannot yet be earned on {platform.target}; its bring-up is incomplete "
+            f"evidence cannot be earned on {platform.target}: the tree lacks part of its policy "
             "(docs/development.md, \"Earning platforms\"):\n  " + "\n  ".join(gaps))
+    if prepare and platform.prepares and not prepared(root, platform):
+        prepare_host(root)
+    return platform
+
+
+# --------------------------------------------------------------------------
+# Preparing a host: the sandbox rule, the build inputs and the registry's cover.
+# --------------------------------------------------------------------------
+
+# What an offline evidence build reads besides the committed source.
+INPUTS_RECIPE = "nix/evidence-inputs.nix"
+# Recipe sets and locks whose inputs this machine has realised. Local state, as the
+# reproducibility record is: a build that lacks an input fails; nothing trusts this file.
+PREPARED = "target/nix-evidence/prepared.json"
+PREPARE = "python3 scripts/evidence_platforms.py prepare"
+# The daemon's configuration is root-owned so that no unprivileged process, earning
+# included, can change the sandbox a build ran in; only root can make it comply.
+SANDBOX_REMEDY = ("printf 'sandbox = true\\nsandbox-fallback = false\\n' | sudo tee -a /etc/nix/nix.conf "
+                  "&& sudo systemctl restart nix-daemon")
+
+
+def _inputs_key(root: Path, platform: Platform) -> str:
+    digest = hashlib.sha256(platform.target.encode() + b"\0")
+    for rel in dict.fromkeys((*platform.recipes, *platform.release_recipes, INPUTS_RECIPE, platform.registry,
+                              "Cargo.lock")):
+        digest.update(rel.encode() + b"\0" + (root / rel).read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def prepared(root: Path, platform: Platform) -> bool:
+    """Whether this machine has prepared `platform`'s current recipes, registry and lock."""
+    try:
+        return _inputs_key(root, platform) in json.loads((root / PREPARED).read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def verify_sandbox(platform: Platform) -> None:
+    """Check the local daemon against `platform`'s sandbox rule."""
+    if platform is DARWIN:
+        darwin_policy._verify_sandbox()
+    else:
+        _verify_sandbox(platform)
+
+
+def sandbox_refusal(platform: Platform, error: ValueError) -> str:
+    """Why this host's daemon cannot earn, and what resolves it."""
+    cause = f" ({error.__cause__})" if error.__cause__ else ""
+    # Two missing settings are one appended line each; anything else is the host's to undo.
+    fix = f":\n  {SANDBOX_REMEDY}\nthen" if "must explicitly set" in str(error) else "; then"
+    return (f"evidence cannot be earned on this host: {error}{cause}. /etc/nix/nix.conf must be a root-owned "
+            "file with no include line that sets `sandbox = true` and `sandbox-fallback = false`, and the "
+            f"daemon may expose no host path but {', '.join(sorted(platform.sandbox_paths))}. Only root can "
+            f"change the daemon's configuration{fix} run `{PREPARE}`.")
+
+
+def uncovered_units(root: Path, platform: Platform, graphs: list[dict]) -> list[str]:
+    """The compile-time units of `graphs` the platform's registry does not license, sorted.
+
+    A unit with no row of its exact identity and package checksum, and a row still
+    `unresolved`, are both unlicensed: a build that selects either earns nothing."""
+    registry, lock = _registry(root, platform)
+    checksums = _checksums(lock)
+    rows = {_signature(row): row for row in registry["units"]}
+    found = set()
+    for graph in graphs:
+        for unit in _compile_time_units(graph, require_compile_time=False):
+            signature = _signature(unit)
+            row = rows.get(signature)
+            if row is None or row.get("checksum") != checksums.get(signature[:2]):
+                found.add(f"{signature[0]} {signature[1]} {signature[2]} (not in the registry)")
+            elif row.get("source_projection") not in PROJECTION_STATES - {"unresolved"}:
+                found.add(f"{signature[0]} {signature[1]} {signature[2]} (unresolved)")
+    return sorted(found)
+
+
+def prepare_host(root: Path, *, run=subprocess.run, graphs=None) -> Platform:
+    """Make this host ready to earn, or refuse naming the command that resolves it.
+
+    Checks the tree's policy for the host, the daemon's sandbox rule and that the
+    reviewed registry licenses every compile-time unit this host's Cargo resolves,
+    then realises the build inputs, online and with the daemon's trusted
+    substituters. Nothing here is an input of a record: an evidence build evaluates
+    its own derivations offline and validates its own emitted unit graph."""
+    platform = earning_platform(root)
+    try:
+        verify_sandbox(platform)
+    except ValueError as error:
+        raise UnreviewedPlatform(sandbox_refusal(platform, error)) from error
+    try:
+        if graphs is None:
+            graphs = _evidence_graphs(root, platform)
+    except subprocess.CalledProcessError as error:
+        tail = "\n".join((error.stderr or "").strip().splitlines()[-5:])
+        raise UnreviewedPlatform(
+            f"Cargo could not resolve this host's unit graphs offline:\n{tail}\n`cargo fetch --locked` downloads "
+            f"the locked crates; then run `{PREPARE}`.") from error
+    try:
+        uncovered = uncovered_units(root, platform, graphs)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise UnreviewedPlatform(
+            f"{platform.registry} is not bound to the current Cargo.lock ({error}); "
+            "`python3 scripts/evidence_platforms.py draft-registry --all` rebinds every platform's registry "
+            f"from any host. Commit it, then run `{PREPARE}`.") from error
+    if uncovered:
+        raise UnreviewedPlatform(
+            f"{len(uncovered)} compile-time unit(s) of this host's build are not reviewed in {platform.registry}:\n  "
+            + "\n  ".join(uncovered) + "\nWhat a build script or procedural macro reads is a reviewer's "
+            "finding, not something a build can measure. `python3 scripts/evidence_platforms.py draft-registry` "
+            "adds each as `unresolved`; set its `source_projection` once its source is read "
+            "(nix/linux/compile-time-audit.md), commit the registry, then run "
+            f"`{PREPARE}`.")
+    command = ["nix", "--extra-experimental-features", "nix-command flakes", "build", "--no-link",
+               "--file", str(root / INPUTS_RECIPE)]
+    print(f"{platform.target}: realising the evidence build inputs ({shlex.join(command[3:])})", flush=True)
+    if run(command, cwd=root).returncode != 0:
+        raise UnreviewedPlatform(
+            f"the evidence build inputs could not be realised on {platform.target} (the build's output is "
+            f"above); once `nix build --file {INPUTS_RECIPE}` succeeds, run `{PREPARE}`.")
+    path = root / PREPARED
+    try:
+        done = set(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError, TypeError):
+        done = set()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(sorted(done | {_inputs_key(root, platform)})) + "\n", encoding="utf-8")
     return platform
 
 
@@ -401,21 +547,24 @@ def recheck_selection(root: Path, receipt: dict) -> None:
 
 
 # --------------------------------------------------------------------------
-# Registry bring-up.
+# Keeping a registry bound to Cargo.lock.
 # --------------------------------------------------------------------------
 
 
 def draft_registry(platform: Platform, lock: bytes, graphs: list[dict], existing: dict | None = None) -> dict:
-    """A registry of every compile-time unit of `graphs`, for review.
+    """`existing` rebound to `lock`, with a row for every compile-time unit of `graphs`.
 
     A row of `existing` whose unit and package checksum are unchanged keeps its
-    review. Every other row is `unresolved`, which earning refuses until a reviewer
-    has read what the unit reads on this platform and set its state."""
+    review, and a reviewed row no graph selects is kept as it is: records that
+    selected it are rechecked against it. Every new unit is `unresolved`, which
+    earning refuses until a reviewer has read what the unit reads on this platform
+    and set its state."""
     checksums = _checksums(lock)
     kept = {}
     for row in (existing or {}).get("units", []):
         kept[_signature(row)] = row
-    rows: dict[tuple, dict] = {}
+    rows: dict[tuple, dict] = {signature: row for signature, row in kept.items()
+                               if row.get("source_projection") != "unresolved"}
     for graph in graphs:
         for unit in _compile_time_units(graph, require_compile_time=False):
             signature = _signature(unit)
@@ -432,8 +581,41 @@ def draft_registry(platform: Platform, lock: bytes, graphs: list[dict], existing
             "units": [rows[key] for key in sorted(rows, key=lambda s: json.dumps(s))]}
 
 
-def _evidence_graphs(root: Path) -> list[dict]:
-    """The host compiler graph of every scientific and calibration target and of the extension."""
+@contextlib.contextmanager
+def _resolving_as(target: str):
+    """Have Cargo resolve unit graphs as a `target` host would.
+
+    Cargo takes the host triple and its cfg from `rustc`, so a wrapper that reports
+    `target` as the host and answers every query for it yields the graph Cargo
+    builds natively there. Only metadata is asked for; nothing is compiled, so the
+    target's standard library need not be installed."""
+    if target == host_target():
+        yield
+        return
+    rustc = shutil.which("rustc")
+    if rustc is None:
+        raise ValueError("rustc is not on PATH")
+    with tempfile.TemporaryDirectory(prefix="antecedent-host-as-") as directory:
+        wrapper = Path(directory) / "rustc"
+        wrapper.write_text(
+            "#!/bin/sh\n"
+            f'for a; do [ "$a" = "-vV" ] && {{ {shlex.quote(rustc)} -vV | sed "s/^host: .*/host: {target}/"; exit; }}; done\n'
+            f'exec {shlex.quote(rustc)} "$@" --target {target}\n', encoding="utf-8")
+        wrapper.chmod(0o755)
+        previous = os.environ.get("RUSTC")
+        os.environ["RUSTC"] = str(wrapper)
+        try:
+            yield
+        finally:
+            if previous is None:
+                del os.environ["RUSTC"]
+            else:
+                os.environ["RUSTC"] = previous
+
+
+def _evidence_graphs(root: Path, platform: Platform | None = None) -> list[dict]:
+    """The compiler graph, as `platform`'s host resolves it (this host's by default), of
+    every scientific and calibration target and of the extension."""
     import calibration_runner
     import scientific_records
     targets = {(info["crate"], tuple(info["target"]))
@@ -442,8 +624,29 @@ def _evidence_graphs(root: Path) -> list[dict]:
     for group in calibration_runner.load_groups(root):
         crate, kind, name = group.build_target
         targets.add((crate, ("--lib",) if kind == "lib" else ("--test", name)))
-    graphs = [darwin_policy.host_compiler_graph(root, crate, list(target)) for crate, target in sorted(targets)]
-    return [*graphs, darwin_policy.host_compiler_graph(root, "", ["python"])]
+    with _resolving_as(platform.target if platform else host_target()):
+        graphs = [darwin_policy.host_compiler_graph(root, crate, list(target)) for crate, target in sorted(targets)]
+        return [*graphs, darwin_policy.host_compiler_graph(root, "", ["python"])]
+
+
+def _status(root: Path, platform: Platform) -> int:
+    gaps = bring_up_gaps(root, platform)
+    print(f"{platform.target}: policy {platform.policy}, Nix system {platform.nix_system}, "
+          f"registry {platform.registry}")
+    for gap in gaps:
+        print(f"  tree: {gap}")
+    try:
+        verify_sandbox(platform)
+    except ValueError as error:
+        gaps.append(str(error))
+        print("  " + sandbox_refusal(platform, error).replace("\n", "\n  "))
+    if gaps:
+        print("records cannot be earned here")
+    elif platform.prepares and not prepared(root, platform):
+        print(f"records can be earned here; the first earning run realises the build inputs (as `{PREPARE}` does)")
+    else:
+        print("records can be earned here")
+    return 1 if gaps else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -451,28 +654,40 @@ def main(argv: list[str] | None = None) -> int:
 
     from _repo import REPO_ROOT as root
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("command", choices=("status", "draft-registry"))
+    parser.add_argument("command", choices=("status", "prepare", "draft-registry"))
+    which = parser.add_mutually_exclusive_group()
+    which.add_argument("--platform", choices=sorted(PLATFORMS), help="draft-registry: the platform (default: this host's)")
+    which.add_argument("--all", action="store_true", help="draft-registry: every platform")
     args = parser.parse_args(argv)
+    if args.command == "draft-registry":
+        try:
+            chosen = (list(PLATFORMS.values()) if args.all
+                      else [PLATFORMS[args.platform] if args.platform else host_platform()])
+        except UnreviewedPlatform as error:
+            print(error)
+            return 1
+        lock = (root / "Cargo.lock").read_bytes()
+        unresolved = 0
+        for platform in chosen:
+            path = root / platform.registry
+            existing = json.loads(path.read_bytes()) if path.is_file() else None
+            draft = draft_registry(platform, lock, _evidence_graphs(root, platform), existing)
+            if draft != existing:
+                path.write_text(json.dumps(draft, indent=2) + "\n", encoding="utf-8")
+            pending = sum(1 for row in draft["units"] if row["source_projection"] == "unresolved")
+            unresolved += pending
+            print(f"{platform.registry}: {len(draft['units'])} unit(s), {pending} to review"
+                  + ("" if draft != existing else " (unchanged)"))
+        return 1 if unresolved else 0
     try:
-        platform = host_platform()
+        if args.command == "prepare":
+            platform = prepare_host(root)
+            print(f"{platform.target}: records can be earned here")
+            return 0
+        return _status(root, host_platform())
     except UnreviewedPlatform as error:
         print(error)
         return 1
-    if args.command == "draft-registry":
-        path = root / platform.registry
-        existing = json.loads(path.read_bytes()) if path.is_file() else None
-        draft = draft_registry(platform, (root / "Cargo.lock").read_bytes(), _evidence_graphs(root), existing)
-        path.write_text(json.dumps(draft, indent=2) + "\n", encoding="utf-8")
-        unresolved = sum(1 for row in draft["units"] if row["source_projection"] == "unresolved")
-        print(f"wrote {platform.registry}: {len(draft['units'])} unit(s), {unresolved} to review")
-        return 0
-    gaps = bring_up_gaps(root, platform)
-    print(f"{platform.target}: policy {platform.policy}, Nix system {platform.nix_system}, "
-          f"registry {platform.registry}")
-    for gap in gaps:
-        print(f"  bring-up: {gap}")
-    print("records can be earned here" if not gaps else "records cannot be earned here until bring-up is complete")
-    return 1 if gaps else 0
 
 
 if __name__ == "__main__":

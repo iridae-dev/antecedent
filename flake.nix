@@ -15,6 +15,8 @@
             then ./nix/evidence-toolchain.nix
             else ./nix/linux/evidence-toolchain.nix)
             { inherit pkgs; };
+          # What an offline evidence build needs in the store (nix/evidence-inputs.nix).
+          inputs = import ./nix/evidence-inputs.nix { inherit system pkgs; };
           # An ordinary engineering fixture: builds and runs only this tiny program.
           fixture = pkgs.runCommand "antecedent-evidence-boundary-fixture" {
             nativeBuildInputs = [ rust pkgs.stdenv.cc ];
@@ -30,6 +32,7 @@
         in {
           evidence-rust = rust;
           evidence-fixture = fixture;
+          evidence-inputs = inputs;
         };
     in {
       packages = nixpkgs.lib.genAttrs systems packagesFor;

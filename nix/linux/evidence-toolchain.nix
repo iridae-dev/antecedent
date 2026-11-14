@@ -2,9 +2,10 @@
 
 # Official Rust release archives for the Linux evidence platforms: the release
 # ../evidence-toolchain.nix pins, from the same dist directory. Their published
-# SHA-256s are held in evidence-toolchain.json. A null there is an archive whose
-# hash has not been verified on a Linux host: it fails evaluation here, so nothing
-# is ever built from an unchecked download (docs/development.md, "Earning platforms").
+# SHA-256s (the `.sha256` file beside each archive) are held in
+# evidence-toolchain.json, and Nix refuses a download that does not hash to its
+# pin. An archive with no pin fails evaluation here, so nothing is ever built from
+# an unchecked download.
 let
   pins = builtins.fromJSON (builtins.readFile ./evidence-toolchain.json);
   triples = {
@@ -19,7 +20,7 @@ let
       sha256 = pins.targets.${triple}.${component};
     in
     if sha256 == null then
-      throw "nix/linux/evidence-toolchain.json: the SHA-256 of ${name} is not verified yet"
+      throw "nix/linux/evidence-toolchain.json: no SHA-256 is pinned for ${name}"
     else
       pkgs.fetchurl {
         url = "https://static.rust-lang.org/dist/${pins.date}/${name}";

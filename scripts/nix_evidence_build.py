@@ -173,8 +173,10 @@ def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
     maps each target to its own build record: shared source and tools, its own
     artifact identity, executable and compile-time unit graph."""
     root = root.resolve()
-    # The policy of the host this runs on; a host without a complete one refuses here.
-    platform = earning_platform(root)
+    # The policy of the host this runs on; a host that cannot earn refuses here.
+    platform = earning_platform(root, prepare=True)
+    # Such a platform also checks, unasked, that a new recipe or lock reproduces.
+    check_reproducible = check_reproducible or platform.prepares
     wanted = sorted(set(targets))
     if not wanted:
         raise ValueError("no Rust targets to build")

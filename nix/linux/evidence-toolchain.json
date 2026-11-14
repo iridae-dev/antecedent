@@ -3,14 +3,14 @@
   "date": "2026-07-16",
   "targets": {
     "aarch64-unknown-linux-gnu": {
-      "rust": null,
-      "llvm-tools": null,
-      "rustc-dev": null
+      "rust": "9a7a2c336b4787f1b72f6bab7c35d5b7af2fd03cbd39b4fc721466a70d402a7d",
+      "llvm-tools": "1c471f218346d37bdccadb1a9d37383d448cdaf00bf2a7cb1072c0970eb48b40",
+      "rustc-dev": "ef235ac2f3803a138914d58243fc692040aff43f5760a253305b5eb168a31875"
     },
     "x86_64-unknown-linux-gnu": {
-      "rust": null,
-      "llvm-tools": null,
-      "rustc-dev": null
+      "rust": "88f28fa9af20594179f85d6df67078dfd6fa93e2f6da5e1e9b0ac4997988ca4f",
+      "llvm-tools": "3e7a1c596a42dea6bf625ec6f006ce2fbcf5d1ff892f082828eb182a5d483b95",
+      "rustc-dev": "0109304e1995cce9e3362208f5d4ec0944e52a2ddfbc0a85d4ce5bea5d3081ab"
     }
   }
 }

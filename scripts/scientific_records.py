@@ -379,8 +379,9 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     from nix_evidence_source import _clean_head
 
     root = root.resolve()
-    # Refuse before any work on a host with no complete evidence policy.
-    earning_platform(root)
+    # Refuse before any work on a host that cannot earn; a platform that prepares
+    # itself realises its build inputs here on first use.
+    earning_platform(root, prepare=True)
     require_compile_environment(root)
     allowed: dict[str, str] = {}
     _clean_head(root, allowed)  # Run outputs may be allowed only after starting clean.
