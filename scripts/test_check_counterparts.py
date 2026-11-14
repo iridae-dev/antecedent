@@ -350,7 +350,7 @@ class FamilyRows(unittest.TestCase):
         self.assertEqual(ids["graphless.fam.design.normal"], "graphless.fam.design.normal#static.frequentist")
         self.assertEqual(ids["fam.over_time"], "fam.over_time#temporal.frequentist>fam")
 
-    def test_an_axis_the_records_decline_is_closed_with_their_reason(self) -> None:
+    def test_an_axis_the_records_decline_is_unavailable_with_their_reason(self) -> None:
         temporal = {"disposition": "not_routed", "reason": "no time-indexed form is routed"}
         rows = self.rows(self.graphless(temporal))
         absent = [row for row in rows if row["design"] == "temporal"]
@@ -358,11 +358,11 @@ class FamilyRows(unittest.TestCase):
             sorted(row["id"] for row in absent), ["fam#temporal.bayesian", "fam#temporal.frequentist"]
         )
         for row in absent:
-            self.assertEqual(row["status"], "closed_with_next_attempt")
-            self.assertEqual(row["closure"], "narrowed_promise")
+            self.assertEqual(row["status"], "not_applicable_with_theory_reason")
+            self.assertEqual(row["closure"], "delivered")
             self.assertEqual(row["route"], "unlisted")
             self.assertEqual(row["reason"], "no time-indexed form is routed")
-            self.assertTrue(row["next_attempt"])
+            self.assertEqual(row["next_attempt"], "")
         self.assertEqual(check.problems(rows), [])
 
     def test_a_side_no_record_names_is_closed_and_never_inferred_from_a_route_name(self) -> None:
@@ -373,6 +373,8 @@ class FamilyRows(unittest.TestCase):
         self.assertNotIn("bayesian.fam.over_time", {row["route"] for row in rows})
         absent = next(row for row in rows if row["id"] == "fam#temporal.bayesian")
         self.assertEqual(absent["status"], "closed_with_next_attempt")
+        self.assertEqual(absent["closure"], "narrowed_promise")
+        self.assertTrue(absent["next_attempt"])
         self.assertEqual(
             absent["reason"],
             "parity/support_graphless.toml records no temporal bayesian route for the fam family",

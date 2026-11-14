@@ -495,9 +495,9 @@ def family_rows(
     routes, and any route whose target or ``counterpart_family`` is the family) and, per
     ``[[family_axis]]``, the routes that are its Bayesian and its temporal side. A member on the
     temporal axis is a temporal row; any other member keeps its own design. A quadrant on which
-    the records name no route is a closed row carrying the axis record's own reason when the
-    axis is ``not_routed``, and otherwise the plain statement that no route is recorded: nothing
-    is inferred from a route's name.
+    the axis record declines (``not_routed``) is unavailable with that record's reason; a side
+    the records are silent about is a closed row stating that no route is recorded. Nothing is
+    inferred from a route's name.
 
     A family is emitted only when it gives a row to a route that has none, so a family whose
     routes are all recorded by a method child or by their own target adds nothing.
@@ -545,7 +545,13 @@ def family_rows(
 
 
 def absent_row(family: str, design: str, inference: str, temporal: dict, bayesian: dict) -> dict:
-    """A family quadrant the records name no route on: closed, with the recorded reason."""
+    """A family quadrant the records name no route on.
+
+    When the axis record itself declines the axis (``not_routed``), no route is claimed there:
+    the quadrant is unavailable and rests on the record's own reason. When the records are
+    silent about the side, nothing states why it is absent, so it is a closed row that names
+    its next attempt.
+    """
     declined = next(
         (
             axis
@@ -561,7 +567,7 @@ def absent_row(family: str, design: str, inference: str, temporal: dict, bayesia
         "design": design,
         "inference": inference,
         "route": "unlisted",
-        "status": "closed_with_next_attempt",
+        "status": "not_applicable_with_theory_reason" if declined else "closed_with_next_attempt",
         "uncertainty": "none",
         "uncertainty_basis": "no_executing_route",
         "target": family,
@@ -570,15 +576,15 @@ def absent_row(family: str, design: str, inference: str, temporal: dict, bayesia
         "reuse_key": "unlisted",
         "decision_port": "unlisted",
         "artifact": "unlisted",
-        "closure": "narrowed_promise",
+        "closure": "delivered" if declined else "narrowed_promise",
         "scope_status": "mandatory",
-        "gap": "implementation",
+        "gap": "target" if declined else "implementation",
         "reason": (
             declined["reason"]
             if declined
             else f"parity/support_graphless.toml records no {design} {inference} route for the {family} family"
         ),
-        "next_attempt": ABSENT_QUADRANT_NEXT,
+        "next_attempt": "" if declined else ABSENT_QUADRANT_NEXT,
     }
 
 
