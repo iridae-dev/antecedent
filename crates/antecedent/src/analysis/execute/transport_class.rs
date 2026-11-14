@@ -240,7 +240,7 @@ impl super::Study {
             propensity: &propensity,
             weights: weights.as_deref(),
         };
-        let dependence = self.transport_dependence(outcomes.len())?;
+        let dependence = self.transport_dependence_of(&columns)?;
         self.refuse_unread_transport_validation(&columns, &dependence)?;
 
         // Each certified case runs the weighting's own certificate check; only a case whose

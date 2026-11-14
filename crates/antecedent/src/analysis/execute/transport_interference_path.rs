@@ -221,7 +221,7 @@ impl super::Study {
             propensity: &propensity,
             weights: weights.as_deref(),
         };
-        let dependence = self.transport_dependence(outcomes.len())?;
+        let dependence = self.transport_dependence_of(&columns)?;
         self.refuse_unread_transport_validation(&columns, &dependence)?;
         let mut transported = transport_point(transport_id, &columns)?;
         let mut assumptions = identification.required_assumptions.clone();
@@ -489,6 +489,10 @@ pub(super) enum TrialDependence {
     Independent,
     /// One series: the Newey-West lag of the error and the block length of the bootstrap.
     Series(usize),
+    /// One series whose length the route sized on the influence of the contrast because none
+    /// was declared: the error and the draws carry the fixed-b and Student-t references of a
+    /// bandwidth that is a fixed fraction of the series.
+    SizedSeries(usize),
     /// Whole clusters, one label per table row.
     Clusters(Arc<[u32]>),
 }
@@ -498,7 +502,7 @@ impl TrialDependence {
     pub(super) fn as_row(&self) -> RowDependence<'_> {
         match self {
             Self::Independent => RowDependence::Independent,
-            Self::Series(lag) => RowDependence::SeriesBlocks(*lag),
+            Self::Series(lag) | Self::SizedSeries(lag) => RowDependence::SeriesBlocks(*lag),
             Self::Clusters(labels) => RowDependence::Clusters(labels),
         }
     }
@@ -508,7 +512,7 @@ impl TrialDependence {
         use super::transport_refutation::Grouping;
         match self {
             Self::Independent => Grouping::Independent,
-            Self::Series(block) => Grouping::Blocks(*block),
+            Self::Series(block) | Self::SizedSeries(block) => Grouping::Blocks(*block),
             Self::Clusters(labels) => Grouping::Clusters(labels),
         }
     }
@@ -517,7 +521,9 @@ impl TrialDependence {
     fn describe(&self) -> String {
         match self {
             Self::Independent => "independent rows".to_owned(),
-            Self::Series(lag) => format!("one dependent series (lag {lag})"),
+            Self::Series(lag) | Self::SizedSeries(lag) => {
+                format!("one dependent series (lag {lag})")
+            }
             Self::Clusters(labels) => {
                 let distinct: std::collections::BTreeSet<u32> = labels.iter().copied().collect();
                 format!("{} whole clusters", distinct.len())
@@ -592,6 +598,18 @@ pub(super) fn frequentist_transport_estimate(
                 .map_err(CausalError::from)?,
             antecedent_estimate::AnalyticSeKind::default(),
         ),
+        (TrialDependence::SizedSeries(lag), None) => (
+            antecedent_estimate::trial_to_target_ipw_hac_se_fixed_b(
+                outcomes,
+                treatment,
+                trial,
+                selection,
+                propensity,
+                (ipw, *lag),
+            )
+            .map_err(CausalError::from)?,
+            antecedent_estimate::AnalyticSeKind::NeweyWest { lag: *lag },
+        ),
         (TrialDependence::Series(lag), None) => (
             antecedent_estimate::trial_to_target_ipw_hac_se(
                 outcomes,
@@ -608,7 +626,7 @@ pub(super) fn frequentist_transport_estimate(
             columns.rows().ipw_se(ipw, dependence.as_row()).map_err(CausalError::from)?,
             match dependence {
                 TrialDependence::Independent => antecedent_estimate::AnalyticSeKind::default(),
-                TrialDependence::Series(lag) => {
+                TrialDependence::Series(lag) | TrialDependence::SizedSeries(lag) => {
                     antecedent_estimate::AnalyticSeKind::NeweyWest { lag: *lag }
                 }
                 TrialDependence::Clusters(_) => antecedent_estimate::AnalyticSeKind::Cluster,
@@ -625,6 +643,12 @@ pub(super) fn frequentist_transport_estimate(
             "binary trial-to-target{weighted} IPW on the consecutive times of one series; the SE \
              is the Newey-West long-run variance of the per-row influence at lag {lag}, \
              unsupported and not_measured; inner ResponseCurve names treatment/outcome only"
+        ),
+        TrialDependence::SizedSeries(lag) => format!(
+            "binary trial-to-target IPW on the consecutive times of one series; the SE is the \
+             Newey-West long-run variance of the per-row influence at lag {lag} (sized on that \
+             influence), scaled by the fixed-b ratio of the bandwidth, unsupported and \
+             not_measured; inner ResponseCurve names treatment/outcome only"
         ),
         TrialDependence::Clusters(_) => format!(
             "binary trial-to-target{weighted} IPW on {}; the SE is the cluster sandwich of the \
@@ -659,6 +683,38 @@ pub(super) fn frequentist_transport_estimate(
 }
 
 impl super::Study {
+    /// [`Self::transport_dependence`] with the series length sized on the table.
+    ///
+    /// A series whose Newey-West lag was not declared takes the dependence-aware length of the
+    /// contrast's own influence (the fixed `n^(1/3)` rule stays when it cannot be sized, and
+    /// for weighted rows, whose influence this length is not read from). A declared lag is
+    /// kept as given.
+    pub(super) fn transport_dependence_of(
+        &self,
+        columns: &TrialColumns<'_>,
+    ) -> Result<TrialDependence, CausalError> {
+        let dependence = self.transport_dependence(columns.outcomes.len())?;
+        let declared_lag = matches!(
+            self.declared.score_dependence,
+            Some(antecedent_estimate::ScoreDependence::NeweyWest { .. })
+        );
+        match dependence {
+            TrialDependence::Series(rule) if !declared_lag && columns.weights.is_none() => {
+                Ok(TrialDependence::SizedSeries(
+                    antecedent_estimate::trial_to_target_series_block_length(
+                        columns.outcomes,
+                        columns.treatment,
+                        columns.trial,
+                        columns.selection,
+                        columns.propensity,
+                    )
+                    .unwrap_or(rule),
+                ))
+            }
+            other => Ok(other),
+        }
+    }
+
     /// How the trial-to-target rows depend on each other on this study.
     ///
     /// * No declaration: one series when the graph is a temporal projection, independent rows
@@ -845,7 +901,7 @@ pub(super) fn bayesian_transport_estimate(
     );
     let draws = if weights.is_none() && !matches!(dependence, TrialDependence::Clusters(_)) {
         let block = match dependence {
-            TrialDependence::Series(block) => Some(*block),
+            TrialDependence::Series(block) | TrialDependence::SizedSeries(block) => Some(*block),
             _ => None,
         };
         antecedent_estimate::trial_to_target_bayesian_bootstrap_blocks(
@@ -861,9 +917,25 @@ pub(super) fn bayesian_transport_estimate(
         columns.rows().bayesian_bootstrap(transport_id, dependence.as_row(), spec)
     }
     .map_err(CausalError::from)?;
+    let mut draws = draws;
+    if let (TrialDependence::SizedSeries(block), None) = (dependence, weights) {
+        // Draws that weight `B` consecutive blocks by Dirichlet(1, ..., 1) have `(B-1)/(B+1)`
+        // of the batch-means variance of the estimate, whose studentized error is Student-t
+        // on `B - 1` degrees of freedom: the deviations are scaled to that reference.
+        let block = (*block).clamp(1, outcomes.len().max(1));
+        let scale =
+            antecedent_estimate::block_weight_reference_scale(outcomes.len().div_ceil(block))
+                .map_err(CausalError::from)?;
+        let centre = draws.iter().sum::<f64>() / draws.len() as f64;
+        for draw in &mut draws {
+            *draw = centre + (*draw - centre) * scale;
+        }
+    }
     let unit = match dependence {
         TrialDependence::Independent => "observed trial rows",
-        TrialDependence::Series(_) => "contiguous blocks of the observed trial rows",
+        TrialDependence::Series(_) | TrialDependence::SizedSeries(_) => {
+            "contiguous blocks of the observed trial rows"
+        }
         TrialDependence::Clusters(_) => "whole clusters of the observed trial rows",
     };
     let weighted = if weights.is_some() {

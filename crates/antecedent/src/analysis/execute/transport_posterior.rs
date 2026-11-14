@@ -162,7 +162,7 @@ impl super::Study {
             identified.atoms[representative].identification.required_assumptions.clone();
         assumptions.push(known_probability_assumption());
         let status = identified.atoms[representative].identification.status;
-        let dependence = self.transport_dependence(columns.outcomes.len())?;
+        let dependence = self.transport_dependence_of(&columns)?;
         self.refuse_unread_transport_validation(&columns, &dependence)?;
         if columns.weights.is_some() {
             assumptions.push(sampling_weights_assumption());

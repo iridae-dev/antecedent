@@ -824,6 +824,13 @@ fn signed_weight_effective_sample_size(weights: &[f64]) -> f64 {
     if sum_sq > 0.0 { absolute_sum * absolute_sum / sum_sq } else { 0.0 }
 }
 
+#[path = "transport_series.rs"]
+mod series;
+pub use series::{
+    block_weight_reference_scale, trial_to_target_ipw_hac_se_fixed_b,
+    trial_to_target_series_block_length,
+};
+
 #[path = "transport_exact.rs"]
 mod exact;
 pub(crate) use exact::{compile_exact_z_transport, validate_exact_laws};
