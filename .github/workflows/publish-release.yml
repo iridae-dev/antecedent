@@ -394,8 +394,8 @@ jobs:
 
       # Release notes are maintainer-authored per version. `generate_release_notes` alone
       # yields a bare commit list, which is the wrong register for a release page: it
-      # cannot say what a change means or who should care. A curated file at
-      # `docs/release-notes/<tag>.md` becomes the Release body, and GitHub's generated
+      # cannot say what a change means or who should care. The highlights of the curated file
+      # at `docs/release-notes/<tag>.md` become the Release body, and GitHub's generated
       # "Full Changelog" section is appended after it (the API appends generated notes to a
       # supplied body rather than replacing it), so the commit-level detail is not lost.
       #
@@ -410,11 +410,12 @@ jobs:
           CURATED="docs/release-notes/${TAG}.md"
           if [[ -f "$CURATED" ]]; then
             echo "using curated release notes: $CURATED"
-            # The notes link to sibling pages relatively (`../guides/x.md`) for the docs site.
-            # A Release body resolves links against the releases page, so point them at the
-            # tagged sources instead.
-            sed -E "s#\]\(\.\./#](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/docs/#g" \
-              "$CURATED" > RELEASE_BODY.md
+            # The body is the readable highlights. The generated claim inventory that follows
+            # them in the file is longer than a Release body may be, so the body links to that
+            # inventory on the documentation site instead (the same split the site publishes),
+            # and the notes' site-relative links are pointed at the tagged sources.
+            python3 scripts/release_body.py "$CURATED" \
+              --tag "$TAG" --repository "$GITHUB_REPOSITORY" > RELEASE_BODY.md
           else
             echo "::warning title=No curated release notes::\
           Expected ${CURATED}. Falling back to a CHANGELOG pointer plus generated notes. \

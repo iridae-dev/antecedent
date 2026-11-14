@@ -19,7 +19,9 @@ def publication_exclusions():
 
 @lru_cache(maxsize=1)
 def bound_values():
-    records = tomllib.loads((ROOT / "parity/capability_records.toml").read_text(encoding="utf-8"))["record"]
+    records = tomllib.loads((ROOT / "parity/capability_records.toml").read_text(encoding="utf-8"))[
+        "record"
+    ]
     return {
         f"{record['id']}.{key}": value
         for record in records
@@ -73,15 +75,33 @@ def on_page_markdown(markdown, page, config, files):
     return render_bounds(render_examples(markdown))
 
 
-def split_release(markdown, source_uri):
-    if not source_uri.startswith("release-notes/") or "## Claims by cell" not in markdown:
+CLAIMS_HEADING = "## Claims by cell"
+
+
+def split_claims(markdown):
+    """Readable highlights, and the generated claim inventory when the notes carry one."""
+    if CLAIMS_HEADING not in markdown:
         return markdown, None
-    highlights, inventory = markdown.split("## Claims by cell", 1)
+    highlights, inventory = markdown.split(CLAIMS_HEADING, 1)
+    return highlights, CLAIMS_HEADING + inventory
+
+
+def claims_page_uri(name):
+    """Site source path of the inventory page split out of release notes `name`."""
+    return f"reference/release-claims-{name}.md"
+
+
+def split_release(markdown, source_uri):
+    if not source_uri.startswith("release-notes/"):
+        return markdown, None
+    highlights, inventory = split_claims(markdown)
+    if inventory is None:
+        return markdown, None
     name = Path(source_uri).stem
-    appendix_uri = f"reference/release-claims-{name}.md"
+    appendix_uri = claims_page_uri(name)
     # Inventory originally sits beside the release page; the virtual reference
     # page is at the same depth, preserving its ../ relative links.
-    appendix = f"# {name} claim and support inventory\n\n" + "## Claims by cell" + inventory
+    appendix = f"# {name} claim and support inventory\n\n" + inventory
     highlights += f"## Complete claim inventory\n\n[Per-cell claims, explicit refusals and support inventory](../{appendix_uri}) are generated from the release evidence. Read those exact scopes before using a new route.\n"
     return highlights, (appendix_uri, appendix)
 
