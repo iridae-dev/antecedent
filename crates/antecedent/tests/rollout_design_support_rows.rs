@@ -589,6 +589,11 @@ fn supported_two_period_posterior_round_trips_and_refuses_forgery() {
     assert!(!states_posterior_row(&fit_panel(&data, query, bayes(Some(100.0), 500), 7).1));
     let (small, query) = two_period(52, 12);
     assert!(!states_posterior_row(&fit_panel(&small, query, bayes(Some(100.0), 2_000), 7).1));
+    // The smallest measured design has 23 subjects per group: 23 state the row, 22 do not.
+    let (smallest, query) = two_period(53, 23);
+    assert!(states_posterior_row(&fit_panel(&smallest, query, bayes(Some(100.0), 2_000), 7).1));
+    let (below, query) = two_period(54, 22);
+    assert!(!states_posterior_row(&fit_panel(&below, query, bayes(Some(100.0), 2_000), 7).1));
 }
 
 // ------------------------------------------------------------------ synthetic control

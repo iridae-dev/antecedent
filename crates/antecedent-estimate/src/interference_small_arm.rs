@@ -16,8 +16,15 @@ use crate::EstimationError;
 use crate::interference::{InterferenceEstimate, estimate_cluster_interference_total};
 use crate::score_posterior::{ScorePosterior, ScorePosteriorOptions, summarize};
 
-/// Fewest clusters in each arm at which the Dirichlet-weight law is used. From fifty clusters
-/// its 95% interval is within about three percent of the Student-t reference.
+/// Fewest clusters in each arm at which the Dirichlet-weight law is used: the smallest arm its
+/// coverage was measured at (50, 100 and 200 clusters per arm in
+/// `interference_pag_graph_posterior_cluster_bayesian_bootstrap_coverage`). The Student-t
+/// reference below it was measured at 9, 12 and 24 clusters per arm.
+///
+/// With `m` clusters in each of two arms of equal variance the Dirichlet-weight 95% half-width
+/// is `z sqrt((m - 1) / (m + 1)) / t` of the Student-t reference, `z` the normal and `t` the
+/// Student-t 97.5% quantile at `2 (m - 1)` degrees of freedom: 0.827 at 9, 0.934 at 24 and
+/// 0.968 at 50, so at fifty clusters the two laws differ by 3.2 percent of the half-width.
 pub const CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS: usize = 50;
 
 /// The Student-t reference posterior of the cluster total-effect contrast when either arm has

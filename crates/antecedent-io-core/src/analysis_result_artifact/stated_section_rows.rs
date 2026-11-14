@@ -246,7 +246,7 @@ fn bounds_endpoint_row_admits(query: &crate::IvBoundsQueryWire, section: &IvBoun
 }
 
 /// Whether a sequential contrast query is the design its support rows were measured on: the
-/// always-treat against never-treat contrast over at least five folds, none above a fifth of
+/// always-treat against never-treat contrast over exactly five folds, none above a fifth of
 /// the rows (rounded up).
 fn sequential_contrast_row_design(query: &crate::query_wire::SequentialContrastQueryWire) -> bool {
     let rows = query.fold_of_row.len();
@@ -257,7 +257,7 @@ fn sequential_contrast_row_design(query: &crate::query_wire::SequentialContrastQ
     let largest = sizes.values().copied().max().unwrap_or(rows);
     query.active == [1, 1]
         && query.control == [0, 0]
-        && sizes.len() >= 5
+        && sizes.len() == 5
         && largest.saturating_mul(5) <= rows.saturating_add(4)
 }
 
@@ -359,7 +359,7 @@ fn history_match_row_admits(
 
 /// Fewest posterior draws a posterior row is stated for (`DESIGN_ROW_REFIT_DRAWS` for the dose
 /// grid and regime survival), fewest completed bootstrap replicates of a percentile row, and
-/// the longest regime-survival horizon: the measured settings.
+/// the regime-survival horizon: the measured settings.
 const DESIGN_ROW_DRAWS: u64 = 1000;
 const DESIGN_ROW_REFIT_DRAWS: u64 = 500;
 const DESIGN_ROW_REPLICATES: u64 = 99;
@@ -400,7 +400,7 @@ fn design_row_validated_correction(query: &TemporalDesignQueryWire, functional: 
 /// Design name of the graphless support key: the route manifest's, which splits the quantile
 /// functional and the dose targets. An observational design has no key, and neither has a
 /// setting outside the measured ones: a quantile level other than the median, a
-/// local-quadratic derivative or a positive curvature bound, or a longer survival horizon.
+/// local-quadratic derivative or a positive curvature bound, or another survival horizon.
 #[allow(
     clippy::float_cmp,
     reason = "the measured settings are the exact declared values 0.5 and 0.0"
@@ -425,7 +425,7 @@ fn design_row_name(query: &TemporalDesignQueryWire) -> Option<&'static str> {
             }
         },
         TemporalAssignmentWire::RegimeSurvival { horizon, .. } => {
-            (*horizon <= DESIGN_ROW_HORIZON).then_some("regime_survival")
+            (*horizon == DESIGN_ROW_HORIZON).then_some("regime_survival")
         }
         TemporalAssignmentWire::ObservationalExcursion { .. }
         | TemporalAssignmentWire::ObservationalRegime { .. } => None,
@@ -661,4 +661,66 @@ pub(super) fn validate_history_match_section(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod measured_range_tests {
+    use super::{design_row_name, sequential_contrast_row_design};
+    use crate::query_wire::SequentialContrastQueryWire;
+    use crate::temporal_design_query_wire::{TemporalAssignmentWire, TemporalDesignQueryWire};
+
+    fn contrast(rows: u32, folds: u32) -> SequentialContrastQueryWire {
+        SequentialContrastQueryWire {
+            outcome: 0,
+            first_treatment: 1,
+            second_treatment: 2,
+            baseline: vec![3],
+            intermediate: vec![4],
+            active: [1, 1],
+            control: [0, 0],
+            fold_of_row: (0..rows).map(|row| row % folds).collect(),
+            fold_count: folds,
+            min_probability: 0.05,
+        }
+    }
+
+    /// The rows were measured with five balanced folds; fewer or more folds have none.
+    #[test]
+    fn only_the_measured_five_folds_are_the_row_design() {
+        assert!(sequential_contrast_row_design(&contrast(200, 5)));
+        for folds in [2, 4, 6, 10] {
+            assert!(!sequential_contrast_row_design(&contrast(200, folds)), "{folds} folds");
+        }
+        // Five folds of which one holds more than a fifth of the rows.
+        let mut uneven = contrast(200, 5);
+        uneven.fold_of_row.iter_mut().take(60).for_each(|fold| *fold = 0);
+        assert!(!sequential_contrast_row_design(&uneven));
+    }
+
+    fn survival(horizon: u32) -> TemporalDesignQueryWire {
+        TemporalDesignQueryWire {
+            outcome: 0,
+            units: vec!["a".to_owned(), "b".to_owned()],
+            periods: vec![1, 1],
+            lag: 0,
+            assignment: TemporalAssignmentWire::RegimeSurvival {
+                treatment: 1,
+                censored: 2,
+                confounders: vec![3],
+                horizon,
+            },
+            quantile_level: None,
+            min_probability: 0.05,
+            outcome_misclassification: None,
+        }
+    }
+
+    /// Regime survival was measured at a horizon of three periods; no other horizon has a key.
+    #[test]
+    fn only_the_measured_survival_horizon_has_a_design_key() {
+        assert_eq!(design_row_name(&survival(3)), Some("regime_survival"));
+        for horizon in [1, 2, 4, 6] {
+            assert_eq!(design_row_name(&survival(horizon)), None, "horizon {horizon}");
+        }
+    }
 }
