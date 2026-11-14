@@ -3,9 +3,11 @@
 Earning starts from the items coverage shows executed and follows the compiler
 inventory (`tools/evidence-analyzer/driver.rs`): an executed function's whole text,
 the signature of every function it names (its whole text, transitively, when the
-coverage is a sample of the runs: `callee_bodies`), the whole text of every type, constant,
+coverage is a sample of the runs: `callee_bodies`, less what `evidence_reach` shows the
+measurement cannot enter), the whole text of every type, constant,
 static, trait, alias and macro it uses (and theirs, transitively), the header of
-each impl it runs in, and the `mod` declarations that put each file in its crate.
+each impl it runs in, and the `mod` declarations that put each file in its crate
+(for a file compiled in place, the `include!` that names it).
 Name resolution and method selection are guarded rather than recorded:
 
 * a *scope* guard keeps what decides how a used name resolves in a module: items
@@ -182,13 +184,25 @@ def crate_dir(root: Path, rel: str) -> str:
 class Selection:
     """The items one record depends on, grown from its executed positions."""
 
-    def __init__(self, root: Path, inventory: Inventory, *, callee_bodies: bool = False):
+    def __init__(self, root: Path, inventory: Inventory, *, callee_bodies: bool = False,
+                 narrow: bool = False, within=None):
         self.root = root
         self.inventory = inventory
         # Coverage from a sample of the runs (a calibration slice): a function that
         # executed code names may run in a replicate the sample did not, so it is kept
         # whole, transitively, rather than by its signature.
         self.callee_bodies = callee_bodies
+        # With `narrow`, a named function the measurement cannot enter is kept by its
+        # signature, and what a function names only where it cannot run is not followed
+        # (`evidence_reach`). Executed positions are then held until `settle`.
+        self.narrow = narrow and callee_bodies
+        self.reach = None
+        self._executed: list[tuple[str, int]] = []
+        # `within(file, locator, part)`: the largest part of an item this selection may
+        # take (a record's existing binding, when it is being narrowed), or `None`.
+        self.within = within
+        self._includes: dict[str, str] = {}
+        self._files: dict[str, File] = {}
         self.parts: dict[str, dict[str, set[str]]] = {}
         self.whole: dict[str, str] = {}
         self.names: set[str] = set()
@@ -205,11 +219,14 @@ class Selection:
     def file(self, rel: str) -> File | None:
         if rel in self.whole:
             return None
-        try:
-            return parse(self.root / rel)
-        except (ParseError, OSError) as error:
-            self.keep_whole(rel, f"unparsed: {error}")
-            return None
+        if rel not in self._files:
+            # One state of the tree per selection: each file is read once.
+            try:
+                self._files[rel] = parse(self.root / rel)
+            except (ParseError, OSError) as error:
+                self.keep_whole(rel, f"unparsed: {error}")
+                return None
+        return self._files[rel]
 
     def keep_whole(self, rel: str, reason: str) -> None:
         if rel not in self.whole:
@@ -245,7 +262,53 @@ class Selection:
         if node is file.root:
             self.keep_whole(rel, "executed code outside any item")
             return
+        if self.narrow:
+            self._executed.append((rel, offset))
+            return
         self.need(rel, node, "full")
+
+    def graph(self):
+        """The build's items as `evidence_reach` reads them, parsed as this selection does."""
+        from evidence_reach import Graph
+
+        def files(rel: str):
+            try:
+                return parse(self.root / rel)
+            except (ParseError, OSError):
+                return None
+        return Graph(files, self.inventory)
+
+    def settle(self) -> None:
+        """Grow the selection from the executed positions held back for narrowing.
+
+        The analysis is withdrawn, and the whole closure kept, when an executed position
+        lies in a function it did not enter or in a region it closed."""
+        if not self.narrow or self.reach is not None or not self._executed:
+            return
+        from evidence_reach import reach, unseen_macros, unseen_roots
+        graph = self.graph()
+        executed = {}
+        for rel, offset in self._executed:
+            file = self.file(rel)
+            if file is not None:
+                executed.setdefault((rel, file.innermost(offset).locator), []).append(offset)
+        files = {rel for rel, _ in executed}
+        found = reach(graph, set(executed) | unseen_roots(graph, files), executed=set(executed),
+                      unseen=unseen_macros(graph, files))
+        contradicted = [key for key, offsets in executed.items()
+                        if graph.node(key) is not None and graph.node(key).kind == "fn" and (
+                            key not in found.entered or any(
+                                graph.body(key).region_at(o) in found.closed.get(key, ()) for o in offsets))]
+        if contradicted:
+            self.reasons.append("narrowing withdrawn: executed code where the analysis found none: "
+                                + ", ".join(f"{rel}:{locator}" for rel, locator in sorted(contradicted)[:5]))
+        else:
+            self.reach = found
+        held, self._executed = self._executed, []
+        for rel, offset in held:
+            file = self.file(rel)
+            if file is not None:
+                self.need(rel, file.innermost(offset), "full")
 
     def need(self, rel: str, node, part: str) -> None:
         file = self.file(rel)
@@ -280,6 +343,7 @@ class Selection:
             if node.kind == "macro_rules":
                 self.macros.add(node.name)
             self.chain(rel)
+            source = (rel, node.locator)
             for item in self.node_items(rel, file).get(node.locator, []):
                 deps = item["deps"] | item["bdeps"] if part == "full" else item["deps"]
                 for module, name in item["lookups"]:
@@ -297,7 +361,11 @@ class Selection:
                     if target is None:
                         continue
                     target_rel, target_node = target
-                    if relation == "fn" and self.callee_bodies:
+                    reached = (target_rel, target_node.locator)
+                    if self.reach is not None and part == "full" and not self.reach.follows(source, reached):
+                        continue
+                    if relation == "fn" and self.callee_bodies and (
+                            self.reach is None or target_node.kind != "fn" or self.reach.enters(reached)):
                         wanted = "full"
                     elif relation == "fn":
                         target_file = self.file(target_rel)
@@ -308,6 +376,10 @@ class Selection:
                         wanted = "head" if target_node.kind == "impl" else "full"
                     else:
                         wanted = "full"
+                    if self.within is not None:
+                        wanted = self.within(target_rel, target_node.locator, wanted)
+                        if wanted is None:
+                            continue
                     if target_rel == rel:
                         work.append((target_node, wanted))
                     else:
@@ -321,27 +393,59 @@ class Selection:
             return
         self._chained.add(rel)
         module = self.inventory.file_modules.get(rel)
-        if module is None:
+        parent_key = self.inventory.modules[module]["parent"] if module is not None else None
+        if module is not None and parent_key is None:
+            return
+        parent = self.inventory.modules.get(parent_key) if parent_key is not None else None
+        if parent is not None:
+            name = self.inventory.modules[module]["name"]
+            parent_file = self.file(parent["file"])
+            container = parent_file.module(parent["chain"]) if parent_file else None
+            found = [c for c in (container.children if container else []) if c.kind == "mod" and c.name == name]
+            if len(found) == 1:
+                self.need(parent["file"], found[0], "full")
+                return
+        # No `mod` declares it: a file another file's `include!` compiles in place.
+        included = self._included(rel)
+        if included is not None:
+            owner, node = included
+            self._includes[rel] = owner
+            self.need(self.inventory.modules[owner]["file"], node, "full")
+        elif module is None:
             self.keep_whole(rel, "no compiler module for this file")
-            return
-        parent_key = self.inventory.modules[module]["parent"]
-        if parent_key is None:
-            return
-        parent = self.inventory.modules.get(parent_key)
-        name = self.inventory.modules[module]["name"]
-        parent_file = self.file(parent["file"]) if parent else None
-        container = parent_file.module(parent["chain"]) if parent_file else None
-        found = [c for c in (container.children if container else []) if c.kind == "mod" and c.name == name]
-        if len(found) != 1:
-            if parent:
-                self.keep_whole(parent["file"], f"module declaration of {rel} not found")
-            return
-        self.need(parent["file"], found[0], "full")
+        elif parent:
+            self.keep_whole(parent["file"], f"module declaration of {rel} not found")
+
+    def _included(self, rel: str):
+        """(module, `include!` item) when exactly one module's file includes `rel` by a
+        literal path, among the modules the compiler places its items in."""
+        import posixpath
+        owners = set()
+        for key in self.inventory.by_file.get(rel, []):
+            module = self.inventory.modules.get(self.inventory.items[key]["mod"])
+            while module is not None and module["file"] == rel:
+                module = self.inventory.modules.get(module["parent"]) if module["parent"] else None
+            if module is not None:
+                owners.add(module["key"])
+        found = []
+        for owner in sorted(owners):
+            record = self.inventory.modules[owner]
+            file = self.file(record["file"])
+            container = file.module(record["chain"]) if file else None
+            for child in (container.children if container else []):
+                if child.kind != "macro" or child.name != "include":
+                    continue
+                literal = re.search(r'include\s*!\s*\(\s*"([^"\\]+)"\s*\)', file.kept[child.start:child.end])
+                if literal and posixpath.normpath(
+                        posixpath.join(posixpath.dirname(record["file"]), literal.group(1))) == rel:
+                    found.append((owner, child))
+        return found[0] if len(found) == 1 else None
 
     # --- output
 
     def entries(self, checker, crate_dirs: list[str], scope_dir: str) -> tuple[list[dict], dict[str, bytes]]:
         """Manifest inputs and the item tables they name (by address)."""
+        self.settle()
         tables: dict[str, bytes] = {}
         inputs: list[dict] = []
         if self.observes:
@@ -354,6 +458,11 @@ class Selection:
             if module is None:
                 continue
             scope_files.setdefault(module["file"], []).append([module["chain"], traits])
+            if not module["chain"]:
+                # A file the module includes is part of the same scope.
+                for rel, owner in sorted(self._includes.items()):
+                    if owner == module_key and [[], traits] not in scope_files.setdefault(rel, []):
+                        scope_files[rel].append([[], traits])
         for rel in sorted(set(self.parts) | set(scope_files)):
             if rel in self.whole:
                 continue
@@ -529,7 +638,7 @@ def _facts(root: Path, checker, rel: str) -> dict:
             facts = {"aliases": set(stored["aliases"]), "unreadable": stored["unreadable"],
                      **{k: [tuple(x) for x in stored[k]] for k in ("inherent", "impls", "macros")}}
         else:
-            facts = _parse_facts(root, rel, digest)
+            facts = _parse_facts(checker.path(rel), digest)  # the file the digest was read from
             if isinstance(digest, str):
                 _disk_facts(root)[digest] = {**facts, "aliases": sorted(facts["aliases"])}
                 _DISK_DIRTY[0] = True
@@ -537,12 +646,12 @@ def _facts(root: Path, checker, rel: str) -> dict:
     return _FACTS[key]
 
 
-def _parse_facts(root: Path, rel: str, digest) -> dict:
-    text = (root / rel).read_text(encoding="utf-8", errors="replace")
+def _parse_facts(path: Path, digest) -> dict:
+    text = path.read_text(encoding="utf-8", errors="replace")
     facts = {"aliases": set(re.findall(r"\btype\s+([A-Za-z_][A-Za-z0-9_]*)", text)),
              "inherent": [], "impls": [], "macros": [], "unreadable": None}
     try:
-        file = parse(root / rel)
+        file = parse(path)
     except ParseError:
         facts["unreadable"] = digest
     else:
