@@ -22,7 +22,7 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P02.penalized_propensity` | not supported | not supported | not supported | not supported |
 | `P03.aipw` | supported | supported | not supported | not supported |
 | `P03.policy` | not supported | not supported | not supported | not supported |
-| `P04` | supported | not supported | not supported | not supported |
+| `P04` | supported | supported | not supported | not supported |
 | `P05` | not supported | not supported | not supported | not supported |
 | `P06` | supported | supported | supported | supported |
 | `P07.continuous_dose` | not supported | not supported | not supported | not supported |
@@ -102,7 +102,7 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `TemporalDesign` | n/a (theory) | n/a (theory) | not supported | not supported |
 | `TemporalMediationEffect` | n/a (theory) | n/a (theory) | supported | supported |
 | `TransportQuery` | supported | supported | supported | supported |
-| `temporal_effect` | n/a (theory) | n/a (theory) | not supported | not supported |
+| `temporal_effect` | n/a (theory) | n/a (theory) | supported | supported |
 
 ## Narrowed promises
 

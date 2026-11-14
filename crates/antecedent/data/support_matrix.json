@@ -9097,8 +9097,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "ConditionalEffect",
@@ -27500,8 +27502,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27516,8 +27520,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27532,8 +27538,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27590,8 +27598,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27606,8 +27616,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27622,8 +27634,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27680,8 +27694,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27696,8 +27712,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27712,8 +27730,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27770,8 +27790,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27786,8 +27808,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27802,8 +27826,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27860,8 +27886,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27876,8 +27904,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27892,8 +27922,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27950,8 +27982,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27966,8 +28000,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -27982,8 +28018,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28040,8 +28078,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28056,8 +28096,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28072,8 +28114,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28130,8 +28174,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28146,8 +28192,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28162,8 +28210,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28220,8 +28270,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28236,8 +28288,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28252,8 +28306,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28310,8 +28366,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28326,8 +28384,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28370,8 +28430,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28386,8 +28448,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28402,8 +28466,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28460,8 +28526,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28476,8 +28544,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28492,8 +28562,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28550,8 +28622,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28566,8 +28640,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28582,8 +28658,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28640,8 +28718,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28656,8 +28736,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28672,8 +28754,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28730,8 +28814,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28746,8 +28832,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",
@@ -28762,8 +28850,10 @@
         "interference.saturation_exact",
         "interference.observational_ipw"
       ],
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: reference_review stale artifact: crates/antecedent-estimate/src/interference.rs"
+      ]
     },
     {
       "query": "InterferenceQuery",

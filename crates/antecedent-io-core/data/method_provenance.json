@@ -51,6 +51,12 @@
   "adaptive_inference.unsupported_guarantees": [
    "adaptive_inference.unsupported_guarantees"
   ],
+  "attribution.mechanism_change_detection": [
+   "attribution.mechanism_change_detection"
+  ],
+  "attribution.unit_change": [
+   "attribution.unit_change"
+  ],
   "bayesian.binary_policy_value": [
    "estimate.policy_value.bayesian_bootstrap"
   ],
@@ -1009,6 +1015,7 @@
    "provider_callback.unsupported_claims"
   ],
   "quasi.synthetic_control": [
+   "quasi.synthetic_control",
    "estimate.bayesian_synthetic_control"
   ],
   "quasi.temporal_local_ratio": [
@@ -1441,6 +1448,9 @@
   ],
   "iv.wald": [
    "estimate.iv_2sls"
+  ],
+  "iv_bounds.balke_pearl": [
+   "estimate.iv_bounds_sharp"
   ],
   "linear.adjustment.ate": [
    "estimate.linear_adjustment"
@@ -2228,6 +2238,66 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
+  },
+  {
+   "deviations": [
+    "The cited MMD and Benjamini-Hochberg contracts cover only the kernel two-sample branch and multiplicity correction; likelihood-ratio, mean-difference, classifier-proxy, and change-point branches are separate native procedures."
+   ],
+   "digest": "1c484f81df753b313af6b877137a9168da928a8f0df087e9263f1d61bbc36b4a",
+   "id": "attribution.mechanism_change_detection",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the block-permutation variant, the posterior (mechanism_change_posterior and its conjugate Bayes factor), the classifier proxy, the parent-covariate-shift guard threshold, non-Gaussian or non-linear mechanisms, or discrete targets"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Yoav Benjamini",
+      "Yosef Hochberg"
+     ],
+     "doi": "10.1111/j.2517-6161.1995.tb02031.x",
+     "doi_verified": true,
+     "sections": [
+      "linear step-up procedure and Theorem 1 FDR control under independence"
+     ],
+     "title": "Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing",
+     "year": 1995
+    },
+    {
+     "sections": [
+      "biased empirical MMD^2 V-statistic",
+      "Gaussian RBF kernel with median-distance bandwidth in numerical experiments"
+     ],
+     "title": "A Kernel Two-Sample Test"
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Uses each outcome parent as a separate player, one fitted mechanism, and global parent means as the background point; cited Section 4.1 uses two players—the whole input vector and the mechanism—with explicit background and foreground units and mechanisms."
+   ],
+   "digest": "c534e7a31eed31cde6cd9bcca57b27cab9671604d55d3b619152298f76a95719",
+   "id": "attribution.unit_change",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: a review of abduction for non-additive noise, of the generic Shapley estimator (see attribution"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Kailash Budhathoki",
+      "George Michailidis",
+      "Dominik Janzing"
+     ],
+     "doi": "10.48550/arXiv.2206.12986",
+     "doi_verified": true,
+     "sections": [
+      "Section 4.1 (coarse-grained counterfactual Shapley attribution for any mechanism type)"
+     ],
+     "title": "Explaining the root causes of unit-level changes",
+     "year": 2022
+    }
+   ]
   },
   {
    "deviations": [
@@ -6362,6 +6432,71 @@
   },
   {
    "deviations": [
+    "The two completions of the cited interval are the lower and the upper Balke-Pearl bound of one observed law, refit on every row resample; the endpoint deviations and the deviation of the width come from those shared resamples with no fixed-b scaling.",
+    "The estimated width replaces the population width only when it exceeds sqrt(ln n) times its bootstrap deviation; otherwise the critical value is the two-sided one. This threshold is the repository's rule, not a procedure of the cited papers.",
+    "A resample or a posterior draw whose law violates the instrumental inequality has no bounds: it is counted and left out, never replaced. A fit that left any out states no support.",
+    "The posterior interval reads exchangeable-rank quantiles of the endpoint draws at the tail probability 1 - Phi(c), with c from the posterior means and deviations of the endpoints. It is a Bayesian-bootstrap construction and inherits no coverage theorem; its repeated-sampling coverage is measured, not derived.",
+    "The claim is one-sided coverage of each sharp endpoint of the identified set. No statement is made about a point effect, and instrument independence and exclusion are declared, not tested."
+   ],
+   "digest": "3ab5a004d1d4ed1fbf5556562a7304410edac8e08e48e8c8224a33bc71f81cf9",
+   "id": "estimate.iv_bounds_sharp",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Alexander Balke",
+      "Judea Pearl"
+     ],
+     "doi": "10.1080/01621459.1997.10474074",
+     "doi_verified": true,
+     "sections": [
+      "sharp bounds on the average effect of a binary treatment under a binary instrument, as the optima of a linear program over the response types"
+     ],
+     "title": "Bounds on Treatment Effects from Studies with Imperfect Compliance",
+     "year": 1997
+    },
+    {
+     "authors": [
+      "Guido W. Imbens",
+      "Charles F. Manski"
+     ],
+     "doi": "10.1111/j.1468-0262.2004.00555.x",
+     "doi_verified": true,
+     "sections": [
+      "interval that covers the true parameter rather than the whole identified set, with the critical value solving Phi(c + width / sd) - Phi(-c) = level"
+     ],
+     "title": "Confidence Intervals for Partially Identified Parameters",
+     "year": 2004
+    },
+    {
+     "authors": [
+      "B. Efron"
+     ],
+     "doi": "10.1214/aos/1176344552",
+     "doi_verified": true,
+     "sections": [
+      "resampling rows with replacement to estimate the sampling deviation of a statistic"
+     ],
+     "title": "Bootstrap Methods: Another Look at the Jackknife",
+     "year": 1979
+    },
+    {
+     "authors": [
+      "Donald B. Rubin"
+     ],
+     "doi": "10.1214/aos/1176345338",
+     "doi_verified": true,
+     "sections": [
+      "Dirichlet posterior weights on the observed rows, drawn here as exponential weights normalized within each instrument arm"
+     ],
+     "title": "The Bayesian Bootstrap",
+     "year": 1981
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Independent native owners for full-program randomization, finite-carryover schedule randomization, full-history finite and continuous longitudinal g-computation, joint endogenous structural-feature 2SLS, joint regime/cohort/time differences in differences, and supported donor-world synthetic rollout effects. A compiler alias never substitutes one estimator for another design.",
     "Randomized means use known whole-program probabilities and fixed preassignment population weights with independent-unit/cluster sandwich covariance. Gaussian common-arm-mean likelihood and proper priors are a distinct statistical model. A separate finite-population Gaussian latent potential-response model retains unequal population weights and uncertainty about unobserved unit-by-arm responses.",
     "Continuous longitudinal g-computation fits all full-history initial, state and outcome conditional Gaussian mechanisms and transformed joint treatment densities. Treatment-affected covariates are integrated under exact schedules, not frozen. Frequentist episode bootstrap refits the complete procedure with failed slots retained; Bayesian inference uses proper Gaussian/inverse-gamma priors and aligned full-mechanism draws. Finite policy covariance must have full joint rank. No release coverage support is inferred.",
@@ -6372,9 +6507,9 @@
     "Synthetic rollout targets preserve explicitly unaffected donor sets, weights, preperiod fit and the declared persistent counterfactual model. Joint frequentist regions use Bonferroni native conformal inversions at the required marginal levels and an explicit residual-exchangeability premise. Bayesian laws reuse the convergence-gated native simplex/AR1 likelihood with proper priors; distinct treated factors are conditionally independent given shared observed donors, whose data are not multiplied as independent outcome evidence.",
     "Prepared native target execution preserves structural, cohort, history and donor target meanings. Versioned artifacts rerun original data through the actual native owner and compare the retained law. Current consumption independently matches the caller's current full source/design recipe. Historical replay alone grants no caller-current scientific authority.",
     "The ScientificTarget world-source port additionally checks complete source-codebook world semantics, source population, unit, outcome and terminal aggregation. Longitudinal physical arm dictionaries must generate the exact target schedule. This port admits randomized, finite-state and full-history continuous longitudinal world means; other native targets retain their own target kind instead of receiving an invalid world-mean cast.",
-    "All current sandwich, jackknife, posterior and conformal implementations remain release-uncalibrated. Implementation-stage known-truth and posterior reference checks do not grant Q08/E14 release supports. The capability inventory includes every promised X07 design and records unfinished implementation obligations explicitly."
+    "A contrast of a compiled native design is read as an interval through NativeJointDesignResult::contrast_interval_reading (capability `joint_response.interval_readings`): Student-t with a leverage-corrected variance and Satterthwaite degrees of freedom for whole-program randomization (the bias-reduced linearization of Bell and McCaffrey under a working variance proportional to the squared population weight, reducing to the n/(n-1) sandwich on n-1 degrees of freedom with equal weights), the normal interval of the joint covariance for the other frequentist moment laws, the projection of the joint conformal rectangle, the retained Wald interval of the complier ratio, and the equal-tailed interval of aligned posterior draws. The reading derives its calibration key from the result and is labelled calibrated only inside the conditions measured by crates/antecedent/tests/joint_response_calibration.rs; the designs that harness does not measure (adaptive and static regimes, excursions, cluster and matched-pair decision experiments, the exact switchback randomization test) keep no coverage record. Known-truth and posterior reference checks are not coverage. The capability inventory includes every promised design and records unfinished implementation obligations explicitly."
    ],
-   "digest": "cc26091884d1f0625afb580b576303b26ebcce4e4e8547bca7366c693c9d9036",
+   "digest": "ddd305c9c9122417adba1ec43f183e0477c501a9b94f749d230362a39729e937",
    "id": "estimate.joint_design",
    "review": "method_review",
    "scope_limits": [
@@ -10669,6 +10804,50 @@
   },
   {
    "deviations": [
+    "Donor weights are simplex-constrained least squares on the pre-period outcomes only, with no covariates and no predictor weighting matrix.",
+    "The route publishes a point estimate, the leave-one-donor-out placebo effects with a descriptive rank, and, only under a declared uniform choice of the treated unit, the exact randomization tail fraction of a sharp null. It publishes no interval and no standard error; the placebo rank is not a p-value.",
+    "The synthetic difference-in-differences and ridge-augmented variants follow the cited constructions in form; their published guarantees are not claimed.",
+    "The convex-donor counterfactual, donors unaffected by the intervention and a persisting pre-period relation are declared assumptions."
+   ],
+   "digest": "3a671c391b560838c210fd9441bb5c178a72073b182b7f82d3f96418d7a1f4be",
+   "id": "quasi.synthetic_control",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Alberto Abadie",
+      "Alexis Diamond",
+      "Jens Hainmueller"
+     ],
+     "doi": "10.1198/jasa.2009.ap08746",
+     "doi_verified": true,
+     "sections": [
+      "simplex donor weights fitted on the pre-intervention periods; placebo runs over the donor pool"
+     ],
+     "title": "Synthetic Control Methods for Comparative Case Studies: Estimating the Effect of California's Tobacco Control Program",
+     "year": 2010
+    },
+    {
+     "doi": "10.1257/aer.20190159",
+     "doi_verified": false,
+     "sections": [
+      "unit and time weights with an additive unit and time effect"
+     ],
+     "title": "Synthetic Difference-in-Differences"
+    },
+    {
+     "doi": "10.1080/01621459.2021.1929245",
+     "doi_verified": false,
+     "sections": [
+      "ridge outcome-model correction of the synthetic-control estimate"
+     ],
+     "title": "The Augmented Synthetic Control Method"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Uses the shared RecalcPlan and RecalcReceipt, not a parallel stage planner. Causal role and graph changes recheck the existing identification crate's sufficient joint backdoor certificate before a retained regression may be used; its derivation is owned by identify.backdoor.",
     "Model-fit counts come from the executing regression component. They are distinct from nuisance-fold fits and frozen-score computations. Zero-model historical receipts retain their five-count wire and digest; nonzero model counts participate in receipt identity and semantic verification.",
     "Retained coefficients and joint covariance support only declared compatible contrasts and point predictions. New rows or outcomes, feature/coding/link/fit changes invalidate the fit; unsupported target laws and provider/prior operations remain typed refusals.",
@@ -12439,7 +12618,6 @@
    "bayesian.period_history_outcome_model",
    "bayesian.randomized_finite_population",
    "bayesian.randomized_superpopulation",
-   "iv_bounds.balke_pearl",
    "local_ratio",
    "panel_did",
    "synthetic_control"

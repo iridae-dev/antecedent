@@ -3237,7 +3237,7 @@ refusals = [
   { code = "invalid_argument", detail = "dose_grid.undecodable" },
 ]
 routes = [
-  { route = "antecedent.dose_grid.quadratic_dose_functional", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.dose_grid.quadratic_dose_functional", stage = "evaluate", status = "supported", claim = "interval" },
 ]
 
 [[record]]
@@ -3873,6 +3873,21 @@ refusals = [
 ]
 routes = [
   { route = "antecedent.dose.grid.posterior_mean", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "estimate.dose_grid_posterior"
+status = "supported"
+refusals = [
+  { code = "transport_budget_cancel", detail = "dose_grid.cancelled" },
+  { code = "transport_budget_cancel", detail = "dose_grid.resource_refused" },
+  { code = "effect_not_identified", detail = "dose_grid.graph_not_certified" },
+  { code = "invalid_argument", detail = "dose_grid.invalid_request" },
+  { code = "positivity_violated", detail = "dose_grid.unsupported_dose" },
+]
+routes = [
+  { route = "antecedent.dose_grid.dose_grid_posterior", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.dose_grid.consume_dose_grid_posterior_artifact", stage = "consume", status = "supported", claim = "interval" },
 ]
 
 [[record]]
@@ -6901,6 +6916,7 @@ routes = [
   { route = "antecedent_io_core.joint_law_propagation_artifact.AlignedFunctionalSpread", stage = "consume", status = "supported", claim = "none" },
   { route = "antecedent.joint_law_propagation.propagate_spread", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent.python.joint_law_propagation.spread", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.horizon_composition.horizon_composition_interval", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
 
 [[record]]
@@ -7518,6 +7534,8 @@ refusals = [
 ]
 routes = [
   { route = "antecedent.gcm.attribute_intrinsic_influence", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.gcm.attribute_intrinsic_influence.whole_procedure_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.gcm.attribute_intrinsic_influence.mechanism_posterior", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
 
 [[record]]
@@ -7703,4 +7721,93 @@ routes = [
   { route = "antecedent.CompiledRobustDecision.consume", stage = "consume", status = "supported", claim = "none" },
   { route = "antecedent.python.decision_robust.compile_robust_decision", stage = "representation", status = "supported", claim = "none" },
   { route = "antecedent.python.decision_robust.consume_compiled_robust_decision", stage = "consume", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "gcm.attribute.mechanism_refit"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent.gcm.attribute.fitted_model_point", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.gcm.attribute.row_bootstrap_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.gcm.attribute.row_weight_posterior", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.gcm.attribute.temporal.block_bootstrap_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.gcm.attribute.temporal.block_weight_posterior", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "gcm.simulate.mechanism_refit"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent.gcm.simulate.fitted_model_draws", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.gcm.simulate.policy_value.row_bootstrap_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.gcm.simulate.policy_value.row_weight_posterior", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.gcm.simulate.temporal_rollout.block_weight_posterior", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "attribution.mechanism_change_detection"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent.attribution.mechanism_change.detection", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.attribution.mechanism_change.posterior_probability", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "discovery.structure_posterior"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent.discovery.search.decision_rule", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.discovery.bootstrap_stability.frequencies", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.discovery.static.class_posterior_credible_set", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.discovery.temporal.dbn_posterior_credible_set", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "gcm.model.mechanism_selection"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent.gcm.mechanism_selection.selection_record", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "attribution.unit_change"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent.attribution.unit_change.contributions", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "joint_response.interval_readings"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "joint_response.reading_level_invalid" },
+  { code = "uncertainty_representation_insufficient", detail = "joint_response.reading_law_unavailable" },
+]
+routes = [
+  { route = "antecedent.joint_panel.NativeJointDesignResult.contrast_interval_reading", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.joint_panel.RandomizedSelectionResult.selected_value_reading", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.joint_panel.InstrumentedSelectionResult.selected_value_reading", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.joint_panel.JointDesignResult.population_reference_region", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.joint_panel.JointDesignResult.updated_contrast_reading", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "quasi.synthetic_control"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent.Study.synthetic_control", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
