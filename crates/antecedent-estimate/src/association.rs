@@ -1270,6 +1270,52 @@ fn series_standard_error(influence: &[f64], lag: usize) -> f64 {
         * student_ratio(df)
 }
 
+/// Standard error of the mean of one stratum of a series from its influence series.
+///
+/// The influence series is zero off the stratum, so the Bartlett long-run variance is estimated
+/// from the `support` rows of the stratum, and its sampling noise scales with the bandwidth
+/// relative to that support, not to the length of the whole series. The Bartlett error at `lag`
+/// takes the kernel-bias factor of the series at the bandwidth `lag + 1` and the Kiefer-Vogelsang
+/// fixed-b critical-value ratio at `b = (lag + 1) / support`: a Student-t ratio at the
+/// Satterthwaite degrees of freedom `1.5 support / (lag + 1)` understates that fixed-b tail
+/// (2.04 against 2.10 at `b = 0.05`).
+fn stratum_series_standard_error(influence: &[f64], lag: usize, support: usize) -> f64 {
+    let bandwidth = lag + 1;
+    newey_west_variance(influence, lag).sqrt()
+        * crate::temporal_block::kernel_bias_scale(&[influence], bandwidth)
+        * crate::temporal_block::fixed_b_scale(bandwidth, support)
+}
+
+/// Percentile interval of the bootstrap `values` at [`SPREAD_LEVEL`] with the bias correction of
+/// Efron (1987): the bootstrap distribution of a statistic that is biased in finite samples is
+/// centred on `estimate + bias`, so its raw percentiles sit `bias` too high (or low) around the
+/// truth. With `z0` the normal score of the share of draws below `estimate`, the interval takes
+/// the percentiles at `Phi(2 z0 + z_q)` for the two tail scores `z_q`; at `z0 = 0` it is the
+/// plain percentile interval.
+#[allow(
+    clippy::float_cmp,
+    reason = "a draw equal to the estimate is a tie of exactly equal values, counted half"
+)]
+fn bias_corrected_percentile_spread(values: Vec<f64>, estimate: f64) -> Option<(f64, f64)> {
+    if values.len() < MIN_REPLICATES || !estimate.is_finite() {
+        return None;
+    }
+    let mut sorted = values;
+    sorted.sort_by(f64::total_cmp);
+    let count = sorted.len() as f64;
+    let below = sorted.iter().filter(|v| **v < estimate).count() as f64;
+    let ties = sorted.iter().filter(|v| **v == estimate).count() as f64;
+    let share = ((below + 0.5 * ties) / count).clamp(1.0 / (count + 1.0), count / (count + 1.0));
+    let z0 = antecedent_kernels::norm_inv(share);
+    let tail = antecedent_kernels::norm_inv(f64::midpoint(1.0, SPREAD_LEVEL));
+    let lower = antecedent_kernels::norm_cdf(2.0 * z0 - tail);
+    let upper = antecedent_kernels::norm_cdf(2.0 * z0 + tail);
+    Some((
+        antecedent_stats::quantile_sorted(&sorted, lower, QuantileRule::ExchangeableRank),
+        antecedent_stats::quantile_sorted(&sorted, upper, QuantileRule::ExchangeableRank),
+    ))
+}
+
 /// Standard error of a coefficient of a model fitted to independent rows from its
 /// leverage-adjusted influence values: their root sum of squares times the Student-t ratio at
 /// their effective number.
@@ -1618,7 +1664,11 @@ impl AssociationEstimator {
                     })
                     .collect();
                 if series {
-                    errors.push(Some(series_standard_error(&psi, newey_west_lag(prepared.rows))));
+                    errors.push(Some(stratum_series_standard_error(
+                        &psi,
+                        newey_west_lag(prepared.rows),
+                        count,
+                    )));
                     influence.push(Some(psi));
                 } else {
                     let raw: f64 = psi.iter().map(|v| v * v).sum();
@@ -2195,6 +2245,12 @@ impl AssociationEstimator {
                     Some(if series { "bootstrap_circular_block" } else { "bootstrap_row" });
             }
             let estimate = term.estimate;
+            if prepared.selection.analysis == AssociationAnalysis::DistanceCorrelation {
+                // The distance correlation is a non-negative V-statistic biased upward in
+                // finite samples, and so is its bootstrap law: correct the percentiles for it.
+                term.spread = bias_corrected_percentile_spread(values, term.estimate);
+                continue;
+            }
             term.spread = studentized.or_else(|| {
                 percentile_spread(values).map(|(lower, upper)| {
                     (estimate + scale * (lower - estimate), estimate + scale * (upper - estimate))
@@ -2530,6 +2586,34 @@ mod tests {
         let with_weight = distance.clone().with_weight(v(2));
         let refusal = estimator.prepare(weighted.storage(), &with_weight).unwrap_err();
         assert!(refusal.to_string().contains("Next attempt"), "{refusal}");
+    }
+
+    #[test]
+    fn the_bias_corrected_spread_is_the_percentile_spread_when_draws_centre_on_the_estimate() {
+        let draws: Vec<f64> = (0..399).map(|i| f64::from(i) / 398.0).collect();
+        let plain = percentile_spread(draws.clone()).unwrap();
+        let corrected = bias_corrected_percentile_spread(draws.clone(), 0.5).unwrap();
+        assert!((plain.0 - corrected.0).abs() < 1e-6 && (plain.1 - corrected.1).abs() < 1e-6);
+        // Draws that sit above the estimate (an upward-biased statistic) move the interval down.
+        let shifted = bias_corrected_percentile_spread(draws, 0.4).unwrap();
+        assert!(shifted.0 < plain.0 && shifted.1 < plain.1, "{shifted:?} vs {plain:?}");
+        assert!(bias_corrected_percentile_spread(vec![0.0; 5], 0.0).is_none());
+    }
+
+    #[test]
+    fn a_stratum_series_error_reads_the_fixed_b_ratio_at_the_stratum_support() {
+        let psi: Vec<f64> =
+            (0..60).map(|t| if t % 3 == 0 { 0.0 } else { noise(t) / 10.0 }).collect();
+        let (lag, support) = (3, 40);
+        let expected = newey_west_variance(&psi, lag).sqrt()
+            * crate::temporal_block::kernel_bias_scale(&[&psi], lag + 1)
+            * crate::temporal_block::fixed_b_scale(lag + 1, support);
+        let error = stratum_series_standard_error(&psi, lag, support);
+        assert!((error - expected).abs() < 1e-12, "{error} vs {expected}");
+        assert!(
+            stratum_series_standard_error(&psi, lag, 20) > error,
+            "a smaller support widens the interval"
+        );
     }
 
     #[test]
