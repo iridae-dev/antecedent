@@ -73,11 +73,16 @@ impl StudyResult {
     /// and named by its posterior key, not by this dimension.
     fn se_dependence(&self, se_kind: Option<antecedent_estimate::AnalyticSeKind>) -> &'static str {
         use antecedent_contract::DataClassification as C;
+        use antecedent_estimate::AnalyticSeKind;
         match self.logical_plan.data_classification {
             C::Temporal | C::Event => match se_kind {
-                Some(antecedent_estimate::AnalyticSeKind::NeweyWest { .. }) => "serial_hac",
+                Some(AnalyticSeKind::NeweyWest { .. }) => "serial_hac",
                 _ => "serial_unmodelled",
             },
+            // A table routed as `Tabular` can still be one serial table (a trial-to-target series):
+            // a Newey-West SE there is serial-dependence handling and is labelled so. Every
+            // other tabular SE keeps the base label, so `iid` records keep their keys.
+            C::Tabular if matches!(se_kind, Some(AnalyticSeKind::NeweyWest { .. })) => "serial_hac",
             _ => self.base_dependence(),
         }
     }
