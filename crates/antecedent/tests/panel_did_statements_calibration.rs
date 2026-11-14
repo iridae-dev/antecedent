@@ -595,7 +595,12 @@ fn augmented_estimated_interval(rep: u64) -> Option<Scored> {
     let study = Study::tabular(data).query(query).build().ok()?;
     let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
     let interval = result.panel_did()?.interval_95?;
-    resampled(&study, &result, interval, AUGMENTED_TRUTH, None)
+    // The support-row diagnostic is emitted only when every refit completed.
+    let all_refits = result
+        .diagnostics
+        .iter()
+        .any(|d| &*d.code == antecedent_io::graphless_support::AUGMENTED_DID_ROW_CODE);
+    resampled(&study, &result, interval, AUGMENTED_TRUTH, all_refits.then_some(RESAMPLES))
 }
 
 #[test]

@@ -192,13 +192,50 @@ pub fn resample_augmented_panel(
     Ok((fit, summary))
 }
 
+/// Central 95% interval `point ± t·se` from a whole-cluster resample standard error that
+/// came from `replicates_ok` completed refits; `None` below two refits or without a finite
+/// positive standard error.
+///
+/// The resample standard error is itself estimated from finitely many refits. Given the data
+/// the refits are independent of the point's own sampling error, and for an approximately
+/// normal sampling law `se² / σ²` is a scaled chi-square on `replicates_ok - 1` degrees of
+/// freedom, so `(point - truth) / se` follows a Student-t law on those degrees of freedom and
+/// the normal quantile is slightly too small. The multiplier is that exact quantile; it tends
+/// to the normal one as the refit count grows and involves no tuning.
+#[must_use]
+pub fn resample_interval_95(
+    point: f64,
+    standard_error: f64,
+    replicates_ok: u32,
+) -> Option<[f64; 2]> {
+    if replicates_ok < 2 || !standard_error.is_finite() || standard_error <= 0.0 {
+        return None;
+    }
+    let critical = antecedent_stats::special::student_t_ppf(0.975, f64::from(replicates_ok - 1));
+    let half = critical * standard_error;
+    half.is_finite().then(|| [point - half, point + half])
+}
+
 #[cfg(test)]
 mod resample_tests {
     use std::sync::Arc;
 
-    use super::{estimate, resample_augmented_panel, weighted_effect};
+    use super::{estimate, resample_augmented_panel, resample_interval_95, weighted_effect};
     use crate::rollout_resampling::UnitWeighting;
     use crate::splitmix::FixtureRng;
+
+    #[test]
+    fn the_resample_interval_uses_the_student_quantile_on_the_refit_count() {
+        let interval = resample_interval_95(1.0, 0.5, 199).unwrap();
+        // The 0.975 quantile of Student-t on 198 degrees of freedom is 1.9720.
+        assert!((interval[1] - 1.0 - 0.5 * 1.972).abs() < 1e-3, "{interval:?}");
+        assert!(((interval[1] - 1.0) - (1.0 - interval[0])).abs() < 1e-12);
+        let large = resample_interval_95(0.0, 1.0, 1_000_000).unwrap();
+        assert!((large[1] - 1.959_964).abs() < 1e-3);
+        assert!(resample_interval_95(0.0, 1.0, 1).is_none());
+        assert!(resample_interval_95(0.0, 0.0, 199).is_none());
+        assert!(resample_interval_95(0.0, f64::NAN, 199).is_none());
+    }
 
     #[test]
     fn the_augmented_resample_reproduces_the_point_and_is_thread_invariant() {
