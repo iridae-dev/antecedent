@@ -62,7 +62,12 @@ mod common;
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext};
+use antecedent::{RefuteSuite, Study};
+use antecedent_core::{
+    CausalQuery, CausalRng, ExecutionContext, Lag, TemporalEffectQuery, TemporalPolicy, VariableId,
+};
+use antecedent_data::TimeSeriesData;
+use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_kernels::{shuffle, standard_normal, unbiased_index};
 use antecedent_validate::ValidationError;
 use antecedent_validate::target_native::{
@@ -1009,6 +1014,76 @@ fn temporal_frequentist_refuters_false_rejection_under_a_sound_procedure() {
         SERIES_ALL_KINDS,
     );
     let (n, runs) = measure_series(&scenario, 0x7F20_0000, SOUND);
+    scenario.false_rejection(n, &runs);
+}
+
+// The same null design through the real facade: a `Study` on series data with a temporal
+// pulse effect (`y_t = 0.5 x_{t-1} + AR(1) noise`, `x` serially independent), whose full suite
+// refits the compiled program itself. Subset stability and pre-trend are scored as above, from
+// the verdicts the study publishes; nothing here is a mock of the refit. The study's own
+// default replicate count, block length and pre-trend lead apply. A refuter the route records
+// as not run publishes no verdict and counts as a miss.
+
+fn facade_series(n: usize, seed: u64) -> TimeSeriesData {
+    let mut rng = CausalRng::from_seed(seed);
+    let x = normals(n, &mut rng);
+    let noise = ar1(n, NOISE_RHO, &mut rng);
+    let y: Vec<f64> =
+        (0..n).map(|t| noise[t] + if t > 0 { LAG0 * x[t - 1] } else { 0.0 }).collect();
+    TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
+        .expect("two float columns")
+}
+
+fn facade_verdicts(n: usize, seed: u64, kinds: &[TargetRefuterKind]) -> Verdicts {
+    let mut graph = TemporalDag::empty();
+    let x1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).ok()?;
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).ok()?;
+    graph.insert_directed(x1, y0).ok()?;
+    let query = CausalQuery::TemporalEffect(
+        TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1))
+            .with_policy(TemporalPolicy::pulse(-1)),
+    );
+    let result = Study::series(facade_series(n, seed))
+        .graph(graph)
+        .query(query)
+        .refute(RefuteSuite::Full)
+        .bootstrap_replicates(0)
+        .build()
+        .ok()?
+        .run(&ExecutionContext::for_tests(seed ^ 0x5EED_0003))
+        .ok()?;
+    Some(
+        kinds
+            .iter()
+            .map(|kind| {
+                result
+                    .refutations
+                    .iter()
+                    .find(|report| report.refuter.as_ref() == kind.as_str())
+                    .map(|report| report.passed)
+            })
+            .collect(),
+    )
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn temporal_facade_refuters_false_rejection_under_a_sound_procedure() {
+    let scenario = Scenario {
+        test: "temporal_facade_refuters_false_rejection_under_a_sound_procedure",
+        dgp: "series_study_facade",
+        bayesian: false,
+        temporal: true,
+        kinds: &[K::SubsetStability, K::PreTrend],
+        refits: None,
+        draws: None,
+    };
+    let n = grid_n(SERIES_ROWS);
+    let kinds = scenario.kinds;
+    let runs =
+        map_replicates(n_sim(), |rep| facade_verdicts(n, grid_seed(0x7F2A_0000 + rep), kinds));
     scenario.false_rejection(n, &runs);
 }
 
