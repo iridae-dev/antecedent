@@ -607,8 +607,8 @@ fn an_explicit_polynomial_extrapolant_on_a_linear_model_returns_the_point_withou
         assert_eq!(
             antecedent_estimate::measurement::corrected_functional_interval(&effect.record, 0.95)
                 .unwrap_err()
-                .reason_code(),
-            antecedent_core::reason_code!("route_not_supported")
+                .code,
+            "route_not_supported"
         );
     }
 }
