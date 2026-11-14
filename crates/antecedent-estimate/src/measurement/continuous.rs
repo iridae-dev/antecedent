@@ -203,6 +203,18 @@ impl CorrectionMethod {
         }
     }
 
+    /// SIMEX on the default grid with the rational extrapolant, which is exact for a linear
+    /// outcome model under classical error (the quadratic default is biased there).
+    #[must_use]
+    pub fn rational_simex() -> Self {
+        let config = SimexConfig::default();
+        Self::Simex {
+            lambdas: config.lambdas,
+            replicates: config.replicates,
+            extrapolant: SimexExtrapolant::Rational,
+        }
+    }
+
     fn simex_config(&self) -> Option<SimexConfig> {
         match self {
             Self::RegressionCalibration => None,

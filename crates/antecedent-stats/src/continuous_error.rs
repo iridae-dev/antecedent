@@ -27,11 +27,12 @@
 //! [`simex`] (Cook and Stefanski 1994, doi:10.1080/01621459.1994.10476871)
 //! adds further error of variance `lambda sigma_u^2 / k_i` to each row, refits
 //! the outcome model `B` times per `lambda`, averages the coefficients, fits
-//! the averages as a function of `lambda` (quadratic by default, or linear) by
+//! the averages as a function of `lambda` (quadratic by default, linear, or rational) by
 //! least squares over the grid including `lambda = 0`, and evaluates the fit
 //! at `lambda = -1`, the error-free point. The extrapolant is an
 //! approximation: for a linear model the exact curve is rational in `lambda`,
-//! so a quadratic extrapolant under-corrects slightly. The per-`lambda` means
+//! so a quadratic extrapolant under-corrects (by about 3% at reliability 0.8); the
+//! rational extrapolant is exact for that model. The per-`lambda` means
 //! are returned so the path can be inspected.
 //!
 //! # Uncertainty
@@ -90,6 +91,9 @@ pub enum SimexExtrapolant {
     Linear,
     /// `a + b lambda + c lambda^2` (the default).
     Quadratic,
+    /// `b + k / (c + lambda)` with `c > 1`: the exact path of a linear outcome model under
+    /// classical error, fitted by least squares over the grid.
+    Rational,
 }
 
 impl SimexExtrapolant {
@@ -99,13 +103,14 @@ impl SimexExtrapolant {
         match self {
             Self::Linear => "linear",
             Self::Quadratic => "quadratic",
+            Self::Rational => "rational",
         }
     }
 
     const fn width(self) -> usize {
         match self {
             Self::Linear => 2,
-            Self::Quadratic => 3,
+            Self::Quadratic | Self::Rational => 3,
         }
     }
 }
@@ -509,6 +514,99 @@ fn extrapolate(
     Ok(out)
 }
 
+/// Least-squares fit of `b + k / (c + lambda)` to every coefficient's path, evaluated at
+/// `lambda = -1`.
+///
+/// For a linear outcome model with classical error `u` of variance `s`, the coefficient of the
+/// error-prone regressor after adding `lambda` more error is `beta Sxx / (Sxx + s (1 + lambda))`
+/// with `Sxx` the error-free variance (partialled on the covariates), which is `k / (c + lambda)`
+/// with `c = (Sxx + s) / s`; coefficients of correlated covariates are that curve plus a
+/// constant. Unlike a polynomial it is exact for this model, so its value at `lambda = -1`
+/// carries no extrapolation bias (a quadratic is biased by several percent at reliability 0.8).
+/// Given `c` the model is linear in `(b, k)`, so the fit profiles the sum of squares over
+/// `t = ln(c - 1)`: a coarse scan locates the basin and a golden-section search refines it. The
+/// range of `c - 1 = Sxx / s` excludes a path that is flat or noise-dominated (no pole in the
+/// admitted range) rather than extrapolating through a near-singular pole.
+fn extrapolate_rational(
+    lambdas: &[f64],
+    means: &[Vec<f64>],
+    d: usize,
+) -> Result<Vec<f64>, MeasurementErrorError> {
+    const T_MIN: f64 = -4.605_170_185_988_091; // ln 0.01
+    const T_MAX: f64 = 13.815_510_557_964_274; // ln 1e6
+    const SCAN: u32 = 160;
+    let mut out = Vec::with_capacity(d);
+    for coefficient in 0..d {
+        let path: Vec<f64> = means.iter().map(|mean| mean[coefficient]).collect();
+        let profile = |t: f64| rational_profile(lambdas, &path, 1.0 + t.exp());
+        let step = (T_MAX - T_MIN) / (f64::from(SCAN) - 1.0);
+        let mut best = (f64::INFINITY, 0_u32);
+        for i in 0..SCAN {
+            if let Some((sse, ..)) = profile(T_MIN + step * f64::from(i))
+                && sse < best.0
+            {
+                best = (sse, i);
+            }
+        }
+        if !best.0.is_finite() {
+            return Err(MeasurementErrorError::SingularDesign);
+        }
+        let mut lo = T_MIN + step * f64::from(best.1.saturating_sub(1));
+        let mut hi = (T_MIN + step * f64::from(best.1 + 1)).min(T_MAX);
+        let golden = 0.618_033_988_749_894_9;
+        for _ in 0..80 {
+            let a = hi - golden * (hi - lo);
+            let b = lo + golden * (hi - lo);
+            let fa = profile(a).map_or(f64::INFINITY, |p| p.0);
+            let fb = profile(b).map_or(f64::INFINITY, |p| p.0);
+            if fa <= fb {
+                hi = b;
+            } else {
+                lo = a;
+            }
+        }
+        let t = 0.5 * (lo + hi);
+        let (_, intercept, slope) = profile(t).ok_or(MeasurementErrorError::SingularDesign)?;
+        let c = 1.0 + t.exp();
+        let value = intercept + slope / (c - 1.0);
+        if !value.is_finite() {
+            return Err(MeasurementErrorError::SingularDesign);
+        }
+        out.push(value);
+    }
+    Ok(out)
+}
+
+/// Sum of squares and `(b, k)` of the least-squares fit of `b + k / (c + lambda)` for a fixed
+/// `c`; `None` when the two-column design is singular.
+fn rational_profile(lambdas: &[f64], path: &[f64], c: f64) -> Option<(f64, f64, f64)> {
+    #[allow(clippy::cast_precision_loss, reason = "grid sizes are at most 33")]
+    let n = lambdas.len() as f64;
+    let (mut sx, mut sxx, mut sy, mut sxy) = (0.0, 0.0, 0.0, 0.0);
+    for (l, y) in lambdas.iter().zip(path) {
+        let x = 1.0 / (c + l);
+        sx += x;
+        sxx += x * x;
+        sy += y;
+        sxy += x * y;
+    }
+    let det = n * sxx - sx * sx;
+    if !det.is_finite() || det <= 1e-300 * (n * sxx).abs() {
+        return None;
+    }
+    let k = (n * sxy - sx * sy) / det;
+    let b = (sy - k * sx) / n;
+    let sse: f64 = lambdas
+        .iter()
+        .zip(path)
+        .map(|(l, y)| {
+            let r = b + k / (c + l) - y;
+            r * r
+        })
+        .sum();
+    sse.is_finite().then_some((sse, b, k))
+}
+
 /// SIMEX for a linear or logistic outcome model.
 ///
 /// For each `lambda` in the grid, `config.replicates` remeasured columns
@@ -561,7 +659,10 @@ pub fn simex(
         lambdas.push(lambda);
         lambda_means.push(sum.into_iter().map(|s| s / replicates).collect());
     }
-    let coefficients = extrapolate(&lambdas, &lambda_means, config.extrapolant, d)?;
+    let coefficients = match config.extrapolant {
+        SimexExtrapolant::Rational => extrapolate_rational(&lambdas, &lambda_means, d)?,
+        polynomial => extrapolate(&lambdas, &lambda_means, polynomial, d)?,
+    };
     Ok(SimexFit {
         family,
         coefficients,
@@ -799,6 +900,32 @@ mod tests {
         assert!(linear.validate().is_ok());
         let negative = SimexConfig { lambdas: vec![-0.5, 1.0], ..SimexConfig::default() };
         assert!(negative.validate().is_err());
+    }
+
+    #[test]
+    fn rational_extrapolation_is_exact_for_the_attenuation_path() {
+        // beta(lambda) = 2 / (1.25 + 0.25 lambda): the linear model at reliability 0.8.
+        let lambdas = [0.0, 0.5, 1.0, 1.5, 2.0];
+        let means: Vec<Vec<f64>> = lambdas
+            .iter()
+            .map(|l| vec![2.0 / (1.25 + 0.25 * l), 1.0 + 0.5 / (1.25 + 0.25 * l)])
+            .collect();
+        let at = extrapolate_rational(&lambdas, &means, 2).unwrap();
+        assert!((at[0] - 2.0).abs() < 1e-6, "{at:?}");
+        assert!((at[1] - 1.5).abs() < 1e-6, "{at:?}");
+        let quadratic = extrapolate(&lambdas, &means, SimexExtrapolant::Quadratic, 2).unwrap();
+        assert!((quadratic[0] - 2.0).abs() > 0.04, "the polynomial keeps its bias: {quadratic:?}");
+    }
+
+    #[test]
+    fn rational_simex_removes_linear_attenuation_without_extrapolation_bias() {
+        let sim = linear_sim(4000, 5, 2.0, 0.25);
+        let d = data(&sim, false);
+        let mut rng = CausalRng::from_seed(99);
+        let config =
+            SimexConfig { extrapolant: SimexExtrapolant::Rational, ..SimexConfig::default() };
+        let fit = simex(&d, OutcomeFamily::Linear, 0.25, 0.1, &config, &mut rng).unwrap();
+        assert!((fit.coefficients[1] - 2.0).abs() < 0.08, "{:?}", fit.coefficients);
     }
 
     #[test]

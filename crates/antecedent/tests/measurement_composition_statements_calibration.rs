@@ -384,7 +384,12 @@ fn continuous_replicate(seed: u64, world: ContinuousWorld, simex: bool) -> Optio
             _ => OutcomeLink::Identity,
         },
         method: if simex {
-            CorrectionMethod::default_simex()
+            match world {
+                // The exact extrapolant of the linear attenuation path; the quadratic default
+                // is biased for it, the logistic path has no exact form.
+                ContinuousWorld::Logistic => CorrectionMethod::default_simex(),
+                _ => CorrectionMethod::rational_simex(),
+            }
         } else {
             CorrectionMethod::RegressionCalibration
         },
@@ -529,10 +534,10 @@ fn measurement_regression_calibration_logistic_wald_l95() {
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn measurement_simex_linear_wald_l95() {
-    // Scored against the generating coefficient; the quadratic extrapolant keeps its bias.
+    // Scored against the generating coefficient; the rational extrapolant is exact for this model.
     measure(
         "measurement_simex_linear_wald_l95",
-        "linear_outcome_classical_error_variance_0_25_declared_exactly_default_simex_coefficient_2",
+        "linear_outcome_classical_error_variance_0_25_declared_exactly_rational_simex_coefficient_2",
         WALD,
         ContinuousWorld::LinearTreatment.truth(),
         0x4D26_0000,
