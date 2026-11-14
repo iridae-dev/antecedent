@@ -6,8 +6,8 @@
 //! loader recomputes the Balke-Pearl bounds from the retained observed law and checks that they
 //! are the reported ones, that the law is a law (each instrument arm sums to one), that the
 //! sampling interval, when present, is ordered and covers the identified set when it is a
-//! frequentist Imbens-Manski interval, that a claimed support is the one its graphless support
-//! row grants, and that the calibration label is `not_measured`.
+//! frequentist Imbens-Manski interval, and that the result claims no support and a `not_measured`
+//! calibration.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -73,7 +73,7 @@ pub struct IvBoundsPosteriorWire {
     pub upper_sd: f64,
 }
 
-/// Sharp bounds on the average effect under a binary instrument (calibration `not_measured`).
+/// Sharp bounds on the average effect under a binary instrument (unsupported, `not_measured`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct IvBoundsWire {
@@ -99,51 +99,8 @@ pub struct IvBoundsWire {
     pub uncertainty: String,
     /// Always `not_measured`.
     pub calibration: String,
-    /// Whether the fit matched a row of the graphless support table.
+    /// Always `false`.
     pub supported: bool,
-}
-
-/// Whether the section's interval, rows and resamples match a supported row of the graphless
-/// table. Recomputed from the stored query and section, never taken from the producer. Rows
-/// and resamples are thresholds of the row; unweighted rows, no dropped row, the 95% level,
-/// no resample left out for an infeasible law and a retained width are checked here.
-fn bounds_endpoint_row_admits(query: &crate::IvBoundsQueryWire, section: &IvBoundsWire) -> bool {
-    let Some(interval) = &section.interval else {
-        return false;
-    };
-    if query.weight.is_some()
-        || section.rows_dropped != 0
-        || interval.infeasible != 0
-        || !interval.width_retained
-        || (interval.level - 0.95).abs() > 1e-12
-        || section.uncertainty != interval.method
-    {
-        return false;
-    }
-    let inference_claim = match interval.method.as_str() {
-        IV_BOUNDS_FREQUENTIST_METHOD => "identified_set_endpoints_95_imbens_manski_interval",
-        IV_BOUNDS_BAYESIAN_METHOD => "identified_set_endpoints_95_posterior_quantiles",
-        _ => return false,
-    };
-    crate::graphless_support::graphless_admits(
-        crate::graphless_support::GraphlessSupportKey {
-            family: "iv_bounds",
-            design: "binary_instrument",
-            method: interval.method.as_str(),
-            inference_claim,
-        },
-        crate::graphless_support::GraphlessAssignmentSupport {
-            assignment_unit: "unit",
-            rows: usize::try_from(section.rows).unwrap_or(usize::MAX),
-            interval_95_published: interval.lower.is_finite()
-                && interval.upper.is_finite()
-                && interval.lower < interval.upper,
-            reported_intervals: 1,
-            all_reported_intervals: true,
-            interval_resamples: usize::try_from(interval.replicates).unwrap_or(usize::MAX),
-            ..Default::default()
-        },
-    )
 }
 
 /// Check a bounds section against its query.
@@ -151,17 +108,14 @@ pub(in crate::analysis_result_artifact) fn validate_iv_bounds(
     result: &AnalysisResultWire,
 ) -> Result<(), IoError> {
     let fail = |message: &str| Err(IoError::Convert(format!("iv bounds section: {message}")));
-    let (query, section) = match (&result.query, &result.iv_bounds) {
-        (CausalQueryWire::IvBounds(query), Some(section)) => (query, section),
-        (CausalQueryWire::IvBounds(_), None) => {
-            return fail("a bounds artifact is missing its section");
-        }
-        (_, None) => return Ok(()),
-        (_, Some(_)) => return fail("the section is attached to another query"),
+    let is_query = matches!(result.query, CausalQueryWire::IvBounds(_));
+    let section = match (is_query, &result.iv_bounds) {
+        (false, None) => return Ok(()),
+        (true, None) => return fail("a bounds artifact is missing its section"),
+        (false, Some(_)) => return fail("the section is attached to another query"),
+        (true, Some(section)) => section,
     };
-    // A stored support is recomputed from the query and the section; a section that states
-    // none is accepted as written.
-    if (section.supported && !bounds_endpoint_row_admits(query, section))
+    if section.supported
         || section.calibration != "not_measured"
         || result.estimate.is_some()
         || result.standard_error.is_some()
@@ -169,8 +123,8 @@ pub(in crate::analysis_result_artifact) fn validate_iv_bounds(
         || result.interval_upper.is_some()
     {
         return fail(
-            "a bounds result is an identified set: it claims no support its graphless row does \
-             not grant, no calibration, and no scalar estimate or interval",
+            "a bounds result is an identified set: it claims no support, no calibration, and no \
+             scalar estimate or interval",
         );
     }
     if section.cells.len() != 8 || section.arm_weights.len() != 2 {

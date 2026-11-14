@@ -330,6 +330,34 @@ def canonical_from_live(slot: str, section: Any) -> dict[str, Any]:
     return STRUCTURED_FAMILIES[slot].from_live(section)
 
 
+# Diagnostic code by which a result states the graphless support row its design section
+# meets. The wire section's own ``supported`` stays false; the statement is the diagnostic.
+SECTION_ROW_CODES: dict[str, str] = {
+    "association": "estimate.association.graphless_support",
+    "iv_bounds": "estimate.iv_bounds.graphless_support",
+    "sequential_contrast": "estimate.sequential_contrast.graphless_support",
+    "history_match": "estimate.history_match.graphless_support",
+    "temporal_design": "estimate.temporal_design.graphless_support",
+}
+
+
+def wire_section_with_stated_row(payload: Mapping[str, Any], slot: str) -> Any:
+    """The wire section of ``slot`` with ``supported`` read from the result's diagnostics.
+
+    The live section reports the stated row as ``supported``; this gives the exported body
+    the same reading.
+    """
+    section = payload.get(slot)
+    if not isinstance(section, Mapping):
+        return section
+    code = SECTION_ROW_CODES[slot]
+    diagnostics = payload.get("diagnostics")
+    stated = isinstance(diagnostics, (list, tuple)) and any(
+        isinstance(entry, Mapping) and entry.get("code") == code for entry in diagnostics
+    )
+    return {**section, "supported": True} if stated else section
+
+
 def canonical_from_wire(slot: str, wire: Mapping[str, Any]) -> dict[str, Any]:
     """Portable claim dict from an exported artifact's wire body."""
     return STRUCTURED_FAMILIES[slot].from_wire(wire)

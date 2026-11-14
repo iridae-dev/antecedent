@@ -227,7 +227,7 @@ fn iv_interval(n: usize, seed: u64, bayesian: bool) -> Option<([f64; 2], Reporte
     let ctx = ExecutionContext::for_tests(seed);
     let prepared = study.prepare(&ctx).expect("the bounds study prepares");
     let result = prepared.estimate(&data, &ctx).ok()?;
-    let interval = result.iv_bounds().filter(|fit| fit.supported)?.interval?;
+    let interval = result.iv_bounds().filter(|_| result.states_section_row())?.interval?;
     let wanted = if bayesian { IV_BAYESIAN_INTERVAL } else { IV_FREQUENTIST_INTERVAL };
     assert_eq!(interval.method.as_str(), wanted, "the route formed another interval");
     assert!((interval.level - REPORTED_LEVEL).abs() < 1e-12, "the route reports another level");
@@ -446,7 +446,7 @@ fn association_interval(n: usize, seed: u64, design: Design) -> Option<([f64; 2]
         let result = prepared.estimate(&data, &ctx).expect("the association runs");
         (prepared, result)
     };
-    let payload = result.association().filter(|payload| payload.supported)?;
+    let payload = result.association().filter(|_| result.states_section_row())?;
     assert_eq!(payload.estimate.terms.len(), 2, "an intercept and one slope");
     let term = &payload.estimate.terms[1];
     // The facade reports 0.95 for a standard-error interval and the estimator forms its spread

@@ -175,8 +175,8 @@ impl super::CheckedPanelDidOperation {
     fn rollout_did_row_spec<'a>(
         &self,
         robust: &'a antecedent_core::HeterogeneityRobustDid,
-    ) -> antecedent_io::analysis_result_artifact::DidRolloutRowSpec<'a> {
-        antecedent_io::analysis_result_artifact::DidRolloutRowSpec {
+    ) -> antecedent_io::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> {
+        antecedent_io::analysis_result_artifact::rollout_support::DidRolloutRowSpec {
             two_period: self.query.design == DidSamplingDesign::CovariateAdjustedTwoPeriod,
             estimator: robust.estimator.as_str(),
             comparison: robust.comparison.as_str(),
@@ -205,7 +205,7 @@ impl super::CheckedPanelDidOperation {
             return;
         };
         let section = antecedent_io::analysis_result_artifact::QuasiRolloutWire::from(&**rollout);
-        if !antecedent_io::analysis_result_artifact::did_rollout_row_admits(
+        if !antecedent_io::analysis_result_artifact::rollout_support::did_rollout_row_admits(
             self.rollout_did_row_spec(robust),
             &section,
         ) {
@@ -326,7 +326,7 @@ impl super::CheckedPanelDidOperation {
         let smallest_cohort =
             fit.cohort_support.iter().map(|cohort| cohort.units).min().unwrap_or(0);
         let method = format!("bayesian_bootstrap_{}_{}", spec.estimator, spec.comparison);
-        super::super::bayesian_quasi_common::state_design_posterior_row(
+        super::super::bayesian_quasi_common::state_row_with_resamples(
             result,
             crate::support::GraphlessSupportKey {
                 family: "difference_in_differences",
@@ -342,6 +342,9 @@ impl super::CheckedPanelDidOperation {
                 blocks: fit.clusters,
                 interval_95_published: true,
                 reported_intervals: 1,
+                ..Default::default()
+            },
+            antecedent_io::graphless_support::GraphlessResampleSupport {
                 interval_resamples: draws_ok as usize,
                 ..Default::default()
             },

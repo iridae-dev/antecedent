@@ -243,7 +243,9 @@ class LoadedResult(ResultAPI):
         payload = self.decoded_artifact.payload
         if not isinstance(payload, Mapping):
             return None
-        return temporal_design_from_wire(payload.get("temporal_design"))
+        from .results._families import wire_section_with_stated_row
+
+        return temporal_design_from_wire(wire_section_with_stated_row(payload, "temporal_design"))
 
     def _build_inspection(self) -> InspectionReport:
         overrides: dict[str, Any] = {

@@ -36,7 +36,8 @@
 //!   number of rows of those values;
 //! * a series quantity is the Bartlett Newey-West error of its influence series, with the
 //!   residuals of a model divided by `1 - leverage` (the fit shrinks them), times the Bartlett
-//!   kernel-bias factor of that series at the bandwidth ([`kernel_bias_scale`]), times the ratio
+//!   kernel-bias factor of that series at the bandwidth
+//!   ([`crate::temporal_block::kernel_bias_scale`]), times the ratio
 //!   of the Student-t to the normal quantile at the Bartlett equivalent degrees of freedom
 //!   `1.5 n / bandwidth` (Lazarus, Lewis, Stock and Watson 2018), with `n` the
 //!   Satterthwaite-effective number of rows `3 (sum psi^2)^2 / sum psi^4` of the influence
@@ -73,16 +74,15 @@ use antecedent_data::{
 use antecedent_kernels::{
     bayesian_bootstrap_weights, sample_std, shuffled_fold_assignment, sigmoid, unbiased_index,
 };
-use antecedent_stats::special::{normal_ppf, student_t_ppf};
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
-    QuantileRule, SandwichKind, distance_correlation, equal_tail_interval_sorted, fit_glm_weighted,
+    FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace, QuantileRule,
+    SandwichKind, distance_correlation, equal_tail_interval_sorted, fit_glm_weighted,
     score_coefficient_covariance,
 };
 
 use crate::error::EstimationError;
 use crate::gaussian_linear_posterior::{GaussianLinearPrior, conjugate_posterior_from_residuals};
-use crate::temporal_block::{circular_fixed_b_scale, dependence_block_length, kernel_bias_scale};
+use crate::temporal_block::{circular_fixed_b_scale, dependence_block_length};
 use crate::util::SamplingDeclaration;
 
 /// Identifier of the declared selection rule, recorded on every result.
@@ -1236,7 +1236,8 @@ fn student_ratio(df: f64) -> f64 {
         return 1.0;
     }
     let tail = f64::midpoint(1.0, SPREAD_LEVEL);
-    let ratio = student_t_ppf(tail, df) / normal_ppf(tail);
+    let ratio = antecedent_stats::special::student_t_ppf(tail, df)
+        / antecedent_stats::special::normal_ppf(tail);
     if ratio.is_finite() { ratio.max(1.0) } else { 1.0 }
 }
 
@@ -1265,7 +1266,7 @@ fn series_standard_error(influence: &[f64], lag: usize) -> f64 {
     let bandwidth = lag + 1;
     let df = 1.5 * effective_count(influence) / bandwidth as f64;
     newey_west_variance(influence, lag).sqrt()
-        * kernel_bias_scale(&[influence], bandwidth)
+        * crate::temporal_block::kernel_bias_scale(&[influence], bandwidth)
         * student_ratio(df)
 }
 
@@ -1300,7 +1301,7 @@ fn block_posterior_scale(rows: usize, length: usize, influence: Option<&[f64]>) 
         if effective.is_finite() {
             df = df.min(effective.max(1.0));
         }
-        bias = kernel_bias_scale(&[series], length);
+        bias = crate::temporal_block::kernel_bias_scale(&[series], length);
     }
     ((blocks + 1.0) / (blocks - 1.0)).sqrt() * student_ratio(df) * bias
 }
@@ -1523,6 +1524,7 @@ impl AssociationEstimator {
         ncols: usize,
         report: &[usize],
     ) -> Result<Vec<Vec<f64>>, EstimationError> {
+        use antecedent_stats::DenseLinearAlgebra as _;
         let n = fit.kept.len();
         let (score, information) = Self::score_and_information(fit, ncols);
         let root: Vec<f64> = information.iter().map(|w| w.max(0.0).sqrt()).collect();
@@ -2171,7 +2173,9 @@ impl AssociationEstimator {
             // factor of the quantity's influence series at that length.
             let scale = drawn.block_length.map_or(1.0, |length| {
                 circular_fixed_b_scale(length, rows)
-                    * analytic.influence_of(k).map_or(1.0, |psi| kernel_bias_scale(&[psi], length))
+                    * analytic
+                        .influence_of(k)
+                        .map_or(1.0, |psi| crate::temporal_block::kernel_bias_scale(&[psi], length))
             });
             // A row resample of a model: the pivots are scaled back by the HC1 error of the
             // rows.
@@ -2361,7 +2365,8 @@ mod tests {
         let squares: f64 = psi.iter().map(|v| v * v).sum();
         let fourths: f64 = psi.iter().map(|v| v.powi(4)).sum();
         let df = (3.0 * squares * squares / fourths).min(n);
-        let expected = squares.sqrt() * student_t_ppf(0.975, df) / normal_ppf(0.975);
+        let expected = squares.sqrt() * antecedent_stats::special::student_t_ppf(0.975, df)
+            / antecedent_stats::special::normal_ppf(0.975);
         let published = estimate.terms[1].standard_error.unwrap();
         assert!((published - expected).abs() < 1e-8, "{published} vs {expected}");
         assert_eq!(estimate.terms[1].standard_error_method, Some("sandwich_leverage_student"));

@@ -33,7 +33,7 @@ const Z: f64 = 1.959_963_984_540_054;
 /// Code of the diagnostic by which a design posterior states its support row.
 const POSTERIOR_ROW: &str = antecedent_io::graphless_support::DESIGN_POSTERIOR_ROW_CODE;
 /// What the loader says of a rollout section whose support claim no row admits.
-const NO_ROW: &str = "claims support no row admits";
+const NO_ROW: &str = "claims no support";
 
 struct Rng(u64);
 

@@ -358,8 +358,8 @@ pub struct TemporalDesignEstimate {
     pub uncertainty: Arc<str>,
     /// Calibration status of every interval: always `not_measured`.
     pub calibration: Arc<str>,
-    /// Whether the fit matched a row of the graphless support table: its exact design, method
-    /// and inference claim, with the observed support the row requires.
+    /// Always `false`: a fit that meets a graphless support row states it in the result's
+    /// `estimate.temporal_design.graphless_support` diagnostic.
     pub supported: bool,
 }
 
@@ -419,8 +419,9 @@ impl QuasiRolloutEstimate {
     }
 }
 
-/// Within-period history-matched contrast; `supported` says whether the period interval meets
-/// its support row.
+/// Within-period history-matched contrast (calibration `not_measured`). A fit whose period
+/// interval meets its support row states it in the result's
+/// `estimate.history_match.graphless_support` diagnostic.
 ///
 /// The matched pairs are retained so a loader recomputes every summary.
 #[derive(Clone, Debug, PartialEq)]
@@ -468,13 +469,12 @@ pub struct HistoryMatchEstimate {
     pub caliper: Option<f64>,
     /// Uncertainty semantics.
     pub uncertainty: Arc<str>,
-    /// The period interval meets the history-match support row: enough matched periods and
-    /// pairs in each, every treated unit matched, no caliper and no sampling weights.
-    pub supported: bool,
 }
 
-/// Observational two-decision contrast of two static regimes; `supported` says whether the
-/// normal interval meets its support row.
+/// Observational two-decision contrast of two static regimes (calibration `not_measured`). A
+/// fit whose normal interval meets its support row states it in the result's
+/// `estimate.sequential_contrast.graphless_support` diagnostic; a posterior states its row in
+/// the design-posterior diagnostic.
 ///
 /// The cross-fit scores are retained so a loader recomputes every summary.
 #[derive(Clone, Debug, PartialEq)]
@@ -509,10 +509,6 @@ pub struct SequentialContrastEstimate {
     pub contrast_scores: Arc<[f64]>,
     /// Uncertainty semantics.
     pub uncertainty: Arc<str>,
-    /// The normal interval meets the sequential-contrast support row: the measured regimes
-    /// and folds, enough subjects and fitted probabilities inside the measured floor. A
-    /// posterior states its row in a diagnostic instead.
-    pub supported: bool,
     /// Nuisance fits computed.
     pub fits_computed: u64,
     /// Nuisance fits reused.

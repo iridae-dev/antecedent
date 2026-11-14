@@ -96,7 +96,9 @@ fn synthetic_rollout_state_support(result: &mut StudyResult) {
         return;
     };
     let section = antecedent_io::analysis_result_artifact::QuasiRolloutWire::from(&**rollout);
-    if !antecedent_io::analysis_result_artifact::synthetic_rollout_row_admits(&section) {
+    if !antecedent_io::analysis_result_artifact::rollout_support::synthetic_rollout_row_admits(
+        &section,
+    ) {
         return;
     }
     rollout.supported = true;

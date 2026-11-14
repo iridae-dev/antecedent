@@ -675,11 +675,31 @@ pub(crate) fn ate_result_from_analysis(
         survival: result.survival().map(Into::into),
         posterior_row: result.posterior_row().map(Into::into),
         longitudinal_regime: result.longitudinal_regime().map(Into::into),
-        sequential_contrast: result.sequential_contrast().map(Into::into),
-        history_match: result.history_match().map(Into::into),
-        temporal_design: result.temporal_design().map(Into::into),
-        iv_bounds: result.iv_bounds().map(Into::into),
-        association: result.association().map(Into::into),
+        sequential_contrast: result.sequential_contrast().map(|value| {
+            let mut section = crate::unsupported_design_api::SequentialContrastSection::from(value);
+            section.supported = result.states_section_row();
+            section
+        }),
+        history_match: result.history_match().map(|value| {
+            let mut section = crate::unsupported_design_api::HistoryMatchSection::from(value);
+            section.supported = result.states_section_row();
+            section
+        }),
+        temporal_design: result.temporal_design().map(|value| {
+            let mut section = crate::temporal_design_api::TemporalDesignSection::from(value);
+            section.supported = result.states_section_row();
+            section
+        }),
+        iv_bounds: result.iv_bounds().map(|value| {
+            let mut section = crate::bounds_api::IvBoundsSection::from(value);
+            section.supported = result.states_section_row();
+            section
+        }),
+        association: result.association().map(|value| {
+            let mut section = crate::association_api::AssociationSection::from(value);
+            section.supported = result.states_section_row();
+            section
+        }),
         quasi_rollout: result.quasi_rollout().map(Into::into),
         anomaly: result
             .anomaly()

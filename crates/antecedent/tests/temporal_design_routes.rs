@@ -5,7 +5,7 @@
 //! quantile shift and the regime survival contrast are known, and the routes must recover them
 //! within their own reported uncertainty. The routes carry no matrix support status, a
 //! `calibration = "not_measured"` section, and a refusal for every option they do not read; a
-//! fit that matches a row of the graphless support table states `supported` on its section.
+//! fit that matches a row of the graphless support table states the row in a coded diagnostic.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -124,6 +124,11 @@ fn section(result: &antecedent::StudyResult) -> &TemporalDesignEstimate {
     result.temporal_design().expect("a temporal design section")
 }
 
+/// Code of the diagnostic that states a temporal design's support row.
+const DESIGN_ROW: &str = antecedent_io::graphless_support::TEMPORAL_DESIGN_ROW_CODE;
+/// The artifact check's refusal of a stated row the stored section does not meet.
+const ROW_NOT_MET: &str = "states a graphless support row";
+
 fn within(section: &TemporalDesignEstimate, index: usize, truth: f64, multiple: f64) {
     let estimate = section.estimate[index];
     let scale = section.standard_error[index];
@@ -152,7 +157,8 @@ fn the_two_arm_excursion_recovers_the_effect_under_carryover_in_both_modes() {
     let fit = section(&frequentist);
     assert_eq!(&*fit.design, "two_arm");
     // 300 units, 2,700 pairs and probabilities of 0.35 and 0.65 meet the two-arm support row.
-    assert!(fit.supported && &*fit.calibration == "not_measured");
+    assert!(frequentist.states_section_row());
+    assert!(!fit.supported && &*fit.calibration == "not_measured");
     assert_eq!(&*fit.coordinates[0], "excursion_effect");
     within(fit, 0, 1.25, 4.0);
     assert!(fit.lower[0] < fit.estimate[0] && fit.estimate[0] < fit.upper[0]);
@@ -761,7 +767,7 @@ fn supported_two_arm_excursion_interval_round_trips_and_refuses_forgery() {
         &ctx,
     );
     let fit = section(&result).clone();
-    assert!(fit.supported);
+    assert!(result.states_section_row());
     assert_eq!(&*fit.uncertainty, "cluster_robust_ratio_normal");
     assert_eq!((fit.clusters, fit.pairs, fit.unpaired), (300, 2700, 300));
     assert!(fit.minimum_probability >= 0.35 - 1e-12, "{}", fit.minimum_probability);
@@ -777,7 +783,9 @@ fn supported_two_arm_excursion_interval_round_trips_and_refuses_forgery() {
         prepared.encode_contracted_result(&result, "temporal-design-supported", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let wire = body.temporal_design.as_ref().expect("the section is exported");
-    assert!(wire.supported && wire.calibration == "not_measured");
+    // The row is stated in a coded diagnostic; the section's own flag stays false.
+    assert!(body.diagnostics.iter().any(|diagnostic| diagnostic.code == DESIGN_ROW));
+    assert!(!wire.supported && wire.calibration == "not_measured");
     assert_eq!(wire.lower, fit.lower.to_vec());
     assert_eq!(wire.upper, fit.upper.to_vec());
     let refused = |forged: &antecedent_io::analysis_result_artifact::AnalysisResultWire| {
@@ -791,16 +799,20 @@ fn supported_two_arm_excursion_interval_round_trips_and_refuses_forgery() {
     };
     let mut thin = body.clone();
     thin.temporal_design.as_mut().unwrap().clusters = 149;
-    assert!(refused(&thin).contains("claims no support"));
+    assert!(refused(&thin).contains(ROW_NOT_MET));
     let mut weak = body.clone();
     weak.temporal_design.as_mut().unwrap().minimum_probability = Some(0.3);
-    assert!(refused(&weak).contains("claims no support"));
+    assert!(refused(&weak).contains(ROW_NOT_MET));
     let mut other = body.clone();
     other.temporal_design.as_mut().unwrap().uncertainty = "another_method".to_owned();
-    assert!(refused(&other).contains("claims no support"));
-    // A section may state less than its row grants; it then loads as an unsupported result.
+    assert!(refused(&other).contains(ROW_NOT_MET));
+    // The section's own flag is never a statement: a body that sets it is refused.
+    let mut flagged = body.clone();
+    flagged.temporal_design.as_mut().unwrap().supported = true;
+    assert!(refused(&flagged).contains("claims no support"));
+    // A result may state less than its row grants; it then loads as an unsupported result.
     let mut unclaimed = body;
-    unclaimed.temporal_design.as_mut().unwrap().supported = false;
+    unclaimed.diagnostics.retain(|diagnostic| diagnostic.code != DESIGN_ROW);
     antecedent_io::encode_analysis_result_artifact(
         &unclaimed,
         header.variable_names.clone(),
@@ -818,7 +830,7 @@ fn supported_two_arm_excursion_interval_round_trips_and_refuses_forgery() {
         0,
         &ctx,
     );
-    assert!(!section(&unsupported).supported);
+    assert!(!unsupported.states_section_row());
 }
 
 /// A decision-time covariate drives both the treatment and the outcome, and no assignment
@@ -877,7 +889,7 @@ fn the_observational_excursion_fits_its_assignment_law_and_removes_confounding()
     let fit = section(&frequentist);
     assert_eq!(&*fit.design, "observational_excursion");
     assert_eq!(&*fit.calibration, "not_measured");
-    assert!(!fit.supported);
+    assert!(!fit.supported && !frequentist.states_section_row());
     assert!(fit.replicates.is_some_and(|(done, failed)| done + failed == 99));
     assert!(
         (fit.estimate[0] - 1.0).abs() < 4.0 * fit.standard_error[0] + 0.05,
@@ -1005,7 +1017,7 @@ fn the_observational_regime_removes_time_varying_confounding_under_feedback() {
         let fit = section(&frequentist);
         assert_eq!(&*fit.design, "observational_regime");
         assert_eq!(&*fit.calibration, "not_measured");
-        assert!(!fit.supported);
+        assert!(!fit.supported && !frequentist.states_section_row());
         assert!(fit.replicates.is_some_and(|(done, failed)| done + failed == 99));
         assert!(
             (fit.estimate[0] - 4.2).abs() < 4.0 * fit.standard_error[0] + 0.1,
@@ -1388,7 +1400,7 @@ fn assert_support_row_round_trips_and_refuses_forgery(label: &'static str, case:
     let result = prepared.estimate(&data, &ctx).unwrap();
     retained_graphless::assert_retained_graphless_program(label, &prepared, &result, &ctx);
     let fit = section(&result).clone();
-    assert!(fit.supported, "{label}");
+    assert!(result.states_section_row(), "{label}");
     assert_eq!(&*fit.uncertainty, case.method, "{label}");
     assert_eq!(fit.clusters, case.units.0 as u64, "{label}");
     assert_eq!(fit.draws, case.posterior.then(|| case.draws() as u64), "{label}");
@@ -1411,7 +1423,8 @@ fn assert_support_row_round_trips_and_refuses_forgery(label: &'static str, case:
     let bytes = prepared.encode_contracted_result(&result, label, &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let wire = body.temporal_design.as_ref().expect("the section is exported");
-    assert!(wire.supported && wire.calibration == "not_measured", "{label}");
+    assert!(body.diagnostics.iter().any(|diagnostic| diagnostic.code == DESIGN_ROW), "{label}");
+    assert!(!wire.supported && wire.calibration == "not_measured", "{label}");
     assert_eq!(wire.lower, fit.lower.to_vec(), "{label}");
     type Forgery =
         fn(&mut antecedent_io::analysis_result_artifact::TemporalDesignWire, &SupportRowCase);
@@ -1444,11 +1457,11 @@ fn assert_support_row_round_trips_and_refuses_forgery(label: &'static str, case:
         )
         .unwrap_err()
         .to_string();
-        assert!(error.contains("claims no support"), "{label} ({what}): {error}");
+        assert!(error.contains(ROW_NOT_MET), "{label} ({what}): {error}");
     }
-    // A section may state less than its row grants; it then loads as an unsupported result.
+    // A result may state less than its row grants; it then loads as an unsupported result.
     let mut unclaimed = body;
-    unclaimed.temporal_design.as_mut().unwrap().supported = false;
+    unclaimed.diagnostics.retain(|diagnostic| diagnostic.code != DESIGN_ROW);
     antecedent_io::encode_analysis_result_artifact(
         &unclaimed,
         header.variable_names.clone(),
@@ -1459,11 +1472,11 @@ fn assert_support_row_round_trips_and_refuses_forgery(label: &'static str, case:
     // Fewer sequences than the row: the same route runs and states no support.
     let (small, small_query) = support_row_panel(case.design, case.units.1);
     let thin = run(&small, small_query, case.inference(case.draws()), case.replicates(), &ctx);
-    assert!(!section(&thin).supported, "{label}: below the row");
+    assert!(!thin.states_section_row(), "{label}: below the row");
     if case.posterior {
         // Fewer posterior draws than the measured posterior: no support either.
         let few = run(&data, query, case.inference(case.draws() / 2), 0, &ctx);
-        assert!(!section(&few).supported, "{label}: fewer draws");
+        assert!(!few.states_section_row(), "{label}: fewer draws");
     }
 }
 
@@ -1653,14 +1666,14 @@ fn supported_dose_grid_level_interval_round_trips_and_refuses_forgery() {
         300,
         TemporalDoseTarget::LocalQuadratic { grid, derivative: false, curvature_bound: Some(0.5) },
     );
-    assert!(!section(&run(&data, query, InferenceMode::Frequentist, 0, &ctx)).supported);
+    assert!(!run(&data, query, InferenceMode::Frequentist, 0, &ctx).states_section_row());
     let (data, mut narrow) = support_row_panel("dose_grid", 300);
     if let TemporalAssignment::Dose { bandwidth, .. } = &mut narrow.assignment {
         *bandwidth = 0.1;
     }
     let fit = run(&data, narrow, InferenceMode::Frequentist, 0, &ctx);
     assert!((section(&fit).estimate[1] - 2.5).abs() < 0.5);
-    assert!(!section(&fit).supported);
+    assert!(!fit.states_section_row());
 }
 
 #[test]
@@ -1682,7 +1695,7 @@ fn supported_quantile_effect_bootstrap_interval_round_trips_and_refuses_forgery(
     let (data, query) = quantile_panel_of(200, 0.25);
     let fit = run(&data, query, InferenceMode::Frequentist, 99, &ctx);
     assert!((section(&fit).estimate[0] - 2.0).abs() < 0.2);
-    assert!(!section(&fit).supported);
+    assert!(!fit.states_section_row());
 }
 
 #[test]
@@ -1865,7 +1878,7 @@ fn assert_validation_conditions_gate_the_corrected_row(inference: InferenceMode)
     for validation in [[89, 10, 85, 15], [90, 10, 84, 15], [70, 30, 70, 30]] {
         let (data, query) = misclassified_panel(200, validation);
         let fit = run(&data, query, inference.clone(), 0, &ctx);
-        assert!(!section(&fit).supported, "{validation:?}");
+        assert!(!fit.states_section_row(), "{validation:?}");
         let width = section(&fit).upper[0] - section(&fit).lower[0];
         assert!(width > 0.0 && width < 1.0, "{validation:?}: the route still runs");
     }

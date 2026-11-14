@@ -902,8 +902,13 @@ impl CheckedPanelDidOperation {
                 && resampled_quantity.is_some()
                 && summary.replicates_ok == summary.requested
         }) && pick(&self.query.clusters, &keep).iter().collect::<BTreeSet<_>>().len() == subjects
-            && crate::support::support_if_graphless(
-                panel_did_graphless_key(antecedent_core::DidSamplingDesign::AugmentedPanel),
+            && antecedent_io::graphless_support::graphless_admits_resampled(
+                crate::support::GraphlessSupportKey {
+                    family: "difference_in_differences",
+                    design: "augmented_panel",
+                    method: "whole_cluster_bootstrap_supplied_nuisance_held_fixed",
+                    inference_claim: "pointwise_95_normal_interval",
+                },
                 crate::support::GraphlessAssignmentSupport {
                     assignment_unit: "cluster",
                     treated: fit.treated_subjects,
@@ -913,13 +918,25 @@ impl CheckedPanelDidOperation {
                     blocks: subjects,
                     min_probability: fit.propensity_min.min(1.0 - fit.propensity_max),
                     reported_intervals: 1,
+                    ..Default::default()
+                },
+                antecedent_io::graphless_support::GraphlessResampleSupport {
                     interval_resamples: summary.requested as usize,
                     ..Default::default()
                 },
             )
-            .is_some()
         {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+            // The row is stated in a coded diagnostic the artifact check recomputes; the
+            // section's own support status stays absent, as on every augmented panel.
+            result.diagnostics.push(Diagnostic::new(
+                antecedent_io::graphless_support::AUGMENTED_DID_ROW_CODE,
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "supported graphless row difference_in_differences/augmented_panel/\
+                 whole_cluster_bootstrap_supplied_nuisance_held_fixed: the whole-cluster \
+                 bootstrap interval, for supplied predictions that are known functions, not \
+                 estimates",
+            ));
         }
         if incomplete {
             result.extras.missing_data = Some(self.missing_report(data, &post_ok, &keep)?);
@@ -1235,9 +1252,8 @@ pub(super) fn panel_did_plan_ids(
 /// Graphless support key for a `DiD` sampling design.
 ///
 /// Execution supports against this key and the contract publishes it as the
-/// matrix coordinate, so the two cannot drift. Staggered group-time panels have no supported
-/// method and the rollout designs state support on their own payload; their key here matches
-/// no support row.
+/// matrix coordinate, so the two cannot drift. Staggered group-time and
+/// augmented panels have no supported method; their key matches no support row.
 pub(crate) fn panel_did_graphless_key(
     design: antecedent_core::DidSamplingDesign,
 ) -> crate::support::GraphlessSupportKey<'static> {
@@ -1257,12 +1273,7 @@ pub(crate) fn panel_did_graphless_key(
             "post_adoption_event_time_pointwise_95_normal_intervals",
         ),
         DidSamplingDesign::StaggeredGroupTime => ("staggered_group_time", "unsupported", "none"),
-        // Stated only for the whole-cluster bootstrap interval of a declared resample.
-        DidSamplingDesign::AugmentedPanel => (
-            "augmented_panel",
-            "whole_cluster_bootstrap_supplied_nuisance_held_fixed",
-            "pointwise_95_normal_interval",
-        ),
+        DidSamplingDesign::AugmentedPanel => ("augmented_panel", "unsupported", "none"),
         DidSamplingDesign::StaggeredHeterogeneityRobust => {
             ("staggered_heterogeneity_robust", "unsupported", "none")
         }

@@ -7,7 +7,9 @@ the support matrix. The sequentially randomized designs (two-arm, multi-arm, cat
 factorial, interference, the three dose targets and the median) and regime survival each have a
 frequentist and a Bayesian row in the
 [graphless support matrix](../graphless-support-matrix.md): a fit that meets its row's
-thresholds states `TemporalDesignEstimate.supported`. A row names the fewest independent
+thresholds states the row (Python: `TemporalDesignEstimate.supported`; Rust:
+`StudyResult::states_section_row()`, the `estimate.temporal_design.graphless_support`
+diagnostic). A row names the fewest independent
 sequences and decisions and the smallest assignment probability it was measured at, and a
 posterior or bootstrap row also needs the measured number of draws or replicates. A row is
 stated for the settings that were measured: the median (not another quantile level), the

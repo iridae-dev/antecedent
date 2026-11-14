@@ -133,6 +133,9 @@ pub struct TemporalBlockRecord {
     pub replicates_failed: u32,
     /// The bootstrap summary of the ratio.
     pub ratio: ReplicateQuantity,
+    /// Satterthwaite degrees of freedom of the Student-t interval; `None` when the interval is
+    /// the normal interval of the standard error.
+    pub reference_degrees_of_freedom: Option<f64>,
 }
 
 /// The local ratio with its design layer.
@@ -889,7 +892,8 @@ fn temporal_block_bootstrap(
              error; next attempt: a wider bandwidth or more replicates",
         ));
     };
-    if let Some(degrees) = errors.reference_degrees_of_freedom(summary.replicates_ok) {
+    let reference_degrees_of_freedom = errors.reference_degrees_of_freedom(summary.replicates_ok);
+    if let Some(degrees) = reference_degrees_of_freedom {
         let critical = antecedent_stats::special::student_t_ppf(0.5 + ROLLOUT_LEVEL / 2.0, degrees);
         let interval =
             [fit.estimate - critical * standard_error, fit.estimate + critical * standard_error];
@@ -902,6 +906,7 @@ fn temporal_block_bootstrap(
         replicates_ok: summary.replicates_ok,
         replicates_failed: summary.replicates_failed,
         ratio,
+        reference_degrees_of_freedom,
     })
 }
 

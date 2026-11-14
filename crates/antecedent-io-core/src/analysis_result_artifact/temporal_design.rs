@@ -2,9 +2,8 @@
 //!
 //! The section is optional on the result body and absent on every other result, so their bodies
 //! and digests are unchanged. A `TemporalDesign` query requires it. A loader checks that the
-//! section's design is the query's, that a claimed support is the one its graphless support row
-//! grants, that it claims no calibration and publishes no scalar interval beside it, that every
-//! coordinate array is aligned and finite, that each
+//! section's design is the query's, that it claims no support or calibration and publishes no
+//! scalar interval beside it, that every coordinate array is aligned and finite, that each
 //! pointwise interval is ordered, that a band names coordinates in range and contains their
 //! pointwise intervals, and that Holm-adjusted p-values are probabilities.
 //!
@@ -19,7 +18,7 @@ use crate::{CausalQueryWire, IoError};
 /// Relative slack of the covariance's symmetry and Cauchy-Schwarz checks.
 const COVARIANCE_SLACK: f64 = 1e-9;
 
-/// A temporal-design result with its uncertainty (calibration `not_measured`).
+/// A temporal-design result with its uncertainty (unsupported, calibration `not_measured`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct TemporalDesignWire {
@@ -77,7 +76,7 @@ pub struct TemporalDesignWire {
     pub uncertainty: String,
     /// Always `not_measured`.
     pub calibration: String,
-    /// Whether the fit matched a row of the graphless support table.
+    /// Always `false`.
     pub supported: bool,
 }
 
@@ -99,9 +98,7 @@ pub(in crate::analysis_result_artifact) fn validate_temporal_design(
     if section.design != query.design_name() {
         return fail("the design does not belong to the query");
     }
-    // A stored support is recomputed from the query and the section; a section that states
-    // none is accepted as written.
-    if (section.supported && !design_row_admits(query, section))
+    if section.supported
         || section.calibration != "not_measured"
         || result.standard_error.is_some()
         || result.interval_lower.is_some()
@@ -175,181 +172,6 @@ pub(in crate::analysis_result_artifact) fn validate_temporal_design(
         return fail("a result is either a bootstrap or a posterior, not both");
     }
     Ok(())
-}
-
-/// Fewest posterior draws a posterior row is stated for (`DESIGN_ROW_REFIT_DRAWS` for the dose
-/// grid and regime survival), fewest completed bootstrap replicates of a percentile row, and
-/// the longest regime-survival horizon: the measured settings.
-const DESIGN_ROW_DRAWS: u64 = 1000;
-const DESIGN_ROW_REFIT_DRAWS: u64 = 500;
-const DESIGN_ROW_REPLICATES: u64 = 99;
-const DESIGN_ROW_HORIZON: u32 = 3;
-/// Fewest validation units per true-outcome margin, and the smallest validated Youden index,
-/// a misclassification-corrected row is stated for: the measured validation conditions.
-const DESIGN_ROW_VALIDATION: u64 = 100;
-const DESIGN_ROW_YOUDEN: f64 = 0.6;
-
-/// Whether the section is the misclassification-corrected two-arm mean inside the measured
-/// validation conditions; the stored counts are true positive, false negative, true negative,
-/// false positive.
-#[allow(clippy::cast_precision_loss, reason = "validation counts are far below 2^53")]
-fn design_row_validated_correction(query: &TemporalDesignQueryWire, functional: &str) -> bool {
-    let Some([true_positive, false_negative, true_negative, false_positive]) =
-        query.outcome_misclassification
-    else {
-        return false;
-    };
-    let positives = true_positive.saturating_add(false_negative);
-    let negatives = true_negative.saturating_add(false_positive);
-    if !matches!(query.assignment, TemporalAssignmentWire::TwoArm { .. })
-        || query.quantile_level.is_some()
-        || positives < DESIGN_ROW_VALIDATION
-        || negatives < DESIGN_ROW_VALIDATION
-    {
-        return false;
-    }
-    let youden =
-        true_positive as f64 / positives as f64 + true_negative as f64 / negatives as f64 - 1.0;
-    let corrected = "mean; outcome misclassification corrected";
-    youden >= DESIGN_ROW_YOUDEN
-        && functional.strip_prefix(corrected).is_some_and(|rest| {
-            rest.is_empty() || (rest.starts_with(" (Youden index ") && rest.ends_with(')'))
-        })
-}
-
-/// Design name of the graphless support key: the route manifest's, which splits the quantile
-/// functional and the dose targets. An observational design has no key, and neither has a
-/// setting outside the measured ones: a quantile level other than the median, a
-/// local-quadratic derivative or a positive curvature bound, or a longer survival horizon.
-#[allow(
-    clippy::float_cmp,
-    reason = "the measured settings are the exact declared values 0.5 and 0.0"
-)]
-fn design_row_name(query: &TemporalDesignQueryWire) -> Option<&'static str> {
-    use crate::temporal_design_query_wire::TemporalDoseTargetWire;
-    if let Some(level) = query.quantile_level {
-        let two_arm = matches!(query.assignment, TemporalAssignmentWire::TwoArm { .. });
-        return (two_arm && level == 0.5).then_some("quantile");
-    }
-    match &query.assignment {
-        TemporalAssignmentWire::TwoArm { .. } => Some("two_arm"),
-        TemporalAssignmentWire::MultiArm { categorical: true, .. } => Some("categorical"),
-        TemporalAssignmentWire::MultiArm { .. } => Some("multi_arm"),
-        TemporalAssignmentWire::Factorial { .. } => Some("factorial"),
-        TemporalAssignmentWire::Interference { .. } => Some("interference"),
-        TemporalAssignmentWire::Dose { target, .. } => match target {
-            TemporalDoseTargetWire::SmoothedContrast { .. } => Some("continuous_dose"),
-            TemporalDoseTargetWire::SmoothedCurve { .. } => Some("smoothed_dose"),
-            TemporalDoseTargetWire::LocalQuadratic { derivative, curvature_bound, .. } => {
-                (!*derivative && *curvature_bound == Some(0.0)).then_some("dose_grid")
-            }
-        },
-        TemporalAssignmentWire::RegimeSurvival { horizon, .. } => {
-            (*horizon <= DESIGN_ROW_HORIZON).then_some("regime_survival")
-        }
-        TemporalAssignmentWire::ObservationalExcursion { .. }
-        | TemporalAssignmentWire::ObservationalRegime { .. } => None,
-    }
-}
-
-/// Positivity the section does not carry, read from the query: the smallest realized arm
-/// probability of a two-arm design, and for a dose design the expected number of analysed
-/// decisions within one bandwidth of dose at the smallest recorded density.
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_precision_loss,
-    reason = "a saturating count of expected decisions"
-)]
-fn design_row_positivity(query: &TemporalDesignQueryWire, pairs: u64) -> (f64, usize) {
-    match &query.assignment {
-        TemporalAssignmentWire::TwoArm { assignment, probability } => {
-            let realized = assignment
-                .iter()
-                .zip(probability)
-                .map(|(treated, p)| if *treated { *p } else { 1.0 - *p })
-                .fold(1.0_f64, f64::min);
-            (realized, 0)
-        }
-        TemporalAssignmentWire::Dose { density, bandwidth, .. } => {
-            let thinnest = density.iter().copied().fold(f64::INFINITY, f64::min);
-            (0.0, (pairs as f64 * thinnest * *bandwidth).floor() as usize)
-        }
-        _ => (0.0, 0),
-    }
-}
-
-/// Whether the section's design, method and observed support match a supported row of the
-/// graphless table. Recomputed here from the stored query and section, never taken from the
-/// producer.
-fn design_row_admits(query: &TemporalDesignQueryWire, section: &TemporalDesignWire) -> bool {
-    let Some(design) = design_row_name(query) else {
-        return false;
-    };
-    // The claim names the kind of pointwise 95% interval the section publishes; a posterior
-    // or a bootstrap smaller than the measured ones has no row.
-    let inference_claim = if let Some(draws) = section.draws {
-        let floor = if matches!(design, "dose_grid" | "regime_survival") {
-            DESIGN_ROW_REFIT_DRAWS
-        } else {
-            DESIGN_ROW_DRAWS
-        };
-        if draws < floor {
-            return false;
-        }
-        "pointwise_95_posterior_quantiles"
-    } else if let Some([completed, _]) = section.replicates {
-        if completed < DESIGN_ROW_REPLICATES {
-            return false;
-        }
-        "pointwise_95_percentile_interval"
-    } else {
-        "pointwise_95_normal_interval"
-    };
-    // A weighted or misclassification-corrected arm functional is no longer the plain mean,
-    // and a dropped pair leaves the counts short of the rows.
-    let arm_mean = query.quantile_level.is_none()
-        && matches!(
-            query.assignment,
-            TemporalAssignmentWire::TwoArm { .. }
-                | TemporalAssignmentWire::MultiArm { .. }
-                | TemporalAssignmentWire::Factorial { .. }
-                | TemporalAssignmentWire::Interference { .. }
-        );
-    if (arm_mean
-        && section.functional != "mean"
-        && !design_row_validated_correction(query, &section.functional))
-        || section.pairs.checked_add(section.unpaired) != u64::try_from(query.units.len()).ok()
-    {
-        return false;
-    }
-    let published = section
-        .lower
-        .iter()
-        .zip(&section.upper)
-        .filter(|(lower, upper)| lower.is_finite() && upper.is_finite() && lower < upper)
-        .count();
-    let all_published = published > 0 && published == section.coordinates.len();
-    let (declared_probability, local_rows) = design_row_positivity(query, section.pairs);
-    crate::graphless_support::graphless_admits(
-        crate::graphless_support::GraphlessSupportKey {
-            family: "temporal_design",
-            design,
-            method: section.uncertainty.as_str(),
-            inference_claim,
-        },
-        crate::graphless_support::GraphlessAssignmentSupport {
-            assignment_unit: "sequence",
-            rows: usize::try_from(section.pairs).unwrap_or(usize::MAX),
-            blocks: usize::try_from(section.clusters).unwrap_or(usize::MAX),
-            min_probability: section.minimum_probability.unwrap_or(declared_probability),
-            min_local_rows: local_rows,
-            interval_95_published: all_published,
-            reported_intervals: published,
-            all_reported_intervals: all_published,
-            ..Default::default()
-        },
-    )
 }
 
 /// Check the section's fields against the query that produced it and against each other: the

@@ -11,8 +11,8 @@
 //!
 //! A fit of the design the support rows were measured on (the always-treat against never-treat
 //! contrast, at least five folds with none above a fifth of the rows, enough rows, every fitted
-//! regime-action probability at or above 0.05) states its row: the Wald interval on the
-//! section's `supported` field, the posterior in the design-posterior diagnostic. Every other
+//! regime-action probability at or above 0.05) states its row in a coded diagnostic: the Wald
+//! interval's own, the posterior's the design-posterior diagnostic. Every other
 //! fit runs and states no support. The runtime calibration slot stays `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -57,43 +57,6 @@ const POSTERIOR_UNCERTAINTY: &str = "modular_bayesian_bootstrap_posterior_no_int
 
 /// Central coverage of the interval and of the posterior's equal-tailed interval.
 const COVERAGE: f64 = 0.95;
-
-/// Code of the standing note of a fit that states no support row.
-const NO_ROW_CODE: &str = "estimate.sequential_contrast.unsupported";
-
-/// Whether the query is the design the support rows were measured on: the always-treat
-/// against never-treat contrast, cross-fit over at least five folds none of which holds more
-/// than a fifth of the rows (rounded up), so every nuisance model trains on four fifths.
-fn crossfit_contrast_row_design(query: &antecedent_core::SequentialContrastQuery) -> bool {
-    let rows = query.fold_of_row.len();
-    let mut sizes = std::collections::BTreeMap::<u32, usize>::new();
-    for fold in &*query.fold_of_row {
-        *sizes.entry(*fold).or_default() += 1;
-    }
-    let largest = sizes.values().copied().max().unwrap_or(rows);
-    query.active == [1, 1]
-        && query.control == [0, 0]
-        && sizes.len() >= 5
-        && largest.saturating_mul(5) <= rows.saturating_add(4)
-}
-
-/// Support row key of the contrast under the inference that ran.
-fn crossfit_contrast_row_key(posterior: bool) -> crate::support::GraphlessSupportKey<'static> {
-    crate::support::GraphlessSupportKey {
-        family: "sequential_contrast",
-        design: "two_decision_always_versus_never",
-        method: if posterior {
-            "crossfit_augmented_scores_bayesian_bootstrap"
-        } else {
-            "crossfit_augmented_scores_wald"
-        },
-        inference_claim: if posterior {
-            "pointwise_95_posterior_quantiles"
-        } else {
-            "pointwise_95_normal_interval"
-        },
-    }
-}
 
 /// Frozen sequential contrast; the extra is the Bayesian configuration of a posterior study.
 pub(crate) type CheckedSequentialContrastOperation = RandomizedTrialOperation<
@@ -237,7 +200,7 @@ impl CheckedSequentialContrastOperation {
             )
             .identify_cached(true)
             .extra_diagnostics(vec![Diagnostic::new(
-                NO_ROW_CODE,
+                "estimate.sequential_contrast.unsupported",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
                 "route with calibration status `not_measured`: sequential exchangeability given the \
@@ -254,8 +217,7 @@ impl CheckedSequentialContrastOperation {
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
         result.support_status = None;
-        let supported =
-            self.state_crossfit_contrast_row(&mut result, &contrast, interval.is_some());
+        self.state_crossfit_contrast_row(&mut result, &contrast, interval.is_some());
         result.payload =
             crate::result::ResultPayload::SequentialContrast(crate::SequentialContrastEstimate {
                 active_regime: self.query.active,
@@ -273,22 +235,21 @@ impl CheckedSequentialContrastOperation {
                 control_scores: Arc::from(contrast.control_scores.as_slice()),
                 contrast_scores: Arc::from(contrast.contrast_scores.as_slice()),
                 uncertainty: Arc::from(uncertainty),
-                supported,
                 fits_computed: contrast.fits_computed,
                 fits_reused: contrast.fits_reused,
             });
         Ok(result)
     }
 
-    /// State the support row the fit ran under: the Wald interval's on the returned flag (the
-    /// section's `supported`), the posterior's in the design-posterior diagnostic. A fit
-    /// outside the measured design, or below a row's thresholds, states nothing.
+    /// State the support row the fit ran under, each in its coded diagnostic: the Wald
+    /// interval's row and the posterior's design-posterior row. A fit outside the measured
+    /// design, or below a row's thresholds, states nothing.
     fn state_crossfit_contrast_row(
         &self,
         result: &mut StudyResult,
         contrast: &SequentialContrast,
         interval_published: bool,
-    ) -> bool {
+    ) {
         // Observed support: subjects scored, the smallest fitted regime-action probability,
         // and the draws behind a posterior interval.
         let draws = result.posterior.as_ref().map_or(0, |posterior| posterior.draws.n_draws);
@@ -299,39 +260,47 @@ impl CheckedSequentialContrastOperation {
             interval_95_published: true,
             reported_intervals: 1,
             all_reported_intervals: true,
-            interval_resamples: draws,
             ..Default::default()
         };
-        let row_design = crossfit_contrast_row_design(&self.query);
+        let row_design =
+            crate::analysis::design_section_rows::crossfit_contrast_row_design(&self.query);
         let supported = row_design
             && interval_published
-            && crate::support::support_if_graphless(crossfit_contrast_row_key(false), row_observed)
-                .is_some();
-        if row_design && result.posterior.is_some() {
-            super::bayesian_quasi_common::state_design_posterior_row(
-                result,
-                crossfit_contrast_row_key(true),
+            && crate::support::support_if_graphless(
+                crate::analysis::design_section_rows::crossfit_contrast_row_key(false),
                 row_observed,
+            )
+            .is_some();
+        if row_design && result.posterior.is_some() {
+            super::bayesian_quasi_common::state_row_with_resamples(
+                result,
+                crate::analysis::design_section_rows::crossfit_contrast_row_key(true),
+                row_observed,
+                antecedent_io::graphless_support::GraphlessResampleSupport {
+                    interval_resamples: draws,
+                    ..Default::default()
+                },
             );
         }
         let posterior_row = result.diagnostics.iter().any(|diagnostic| {
             diagnostic.code.as_ref() == antecedent_io::graphless_support::DESIGN_POSTERIOR_ROW_CODE
         });
         if supported || posterior_row {
-            result.diagnostics.retain(|diagnostic| diagnostic.code.as_ref() != NO_ROW_CODE);
+            result.diagnostics.retain(|diagnostic| {
+                diagnostic.code.as_ref()
+                    != crate::analysis::design_section_rows::CONTRAST_NO_ROW_CODE
+            });
         }
         if supported {
-            result.diagnostics.push(Diagnostic::new(
-                "estimate.sequential_contrast.graphless_support",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
+            result.diagnostics.push(crate::analysis::design_section_rows::section_row_note(
+                antecedent_io::graphless_support::CROSSFIT_CONTRAST_ROW_CODE,
                 "supported graphless row sequential_contrast/two_decision_always_versus_never/\
                  crossfit_augmented_scores_wald: the folds, the rows and the fitted \
                  probabilities match the row; sequential exchangeability given the measured \
-                 history and correctly specified nuisance models stay declared",
+                 history and correctly specified nuisance models stay declared"
+                    .to_owned(),
             ));
         }
-        supported
     }
 
     /// The cross-fit scores of both regimes.

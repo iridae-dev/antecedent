@@ -154,7 +154,7 @@ impl CheckedPolicyValueOperation {
         }
         let (treated, control, _, min_probability) = self.policy_assignment_support(rows);
         let draws = result.posterior.as_ref().map_or(0, |posterior| posterior.draws.n_draws);
-        super::super::bayesian_quasi_common::state_design_posterior_row(
+        super::super::bayesian_quasi_common::state_row_with_resamples(
             result,
             crate::support::GraphlessSupportKey {
                 family: "policy_value",
@@ -173,6 +173,9 @@ impl CheckedPolicyValueOperation {
                 all_reported_intervals: true,
                 policy_matches,
                 reference_matches,
+                ..Default::default()
+            },
+            antecedent_io::graphless_support::GraphlessResampleSupport {
                 interval_resamples: draws,
                 ..Default::default()
             },

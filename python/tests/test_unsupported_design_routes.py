@@ -341,7 +341,8 @@ def test_period_history_match_matches_the_brute_force_reference(caliper: float |
     assert fit.standard_error == pytest.approx(se, abs=1e-12)
     assert fit.supported is False
     assert (
-        fit.uncertainty == "abadie_imbens_and_newey_west_period_interval_calibration_not_measured"
+        fit.uncertainty
+        == "abadie_imbens_and_newey_west_fixed_b_period_interval_calibration_not_measured"
     )
     # Eight periods of 100 units with no caliper and no weights meet the support row: the
     # fixed-b period interval is published and the fit states supported.

@@ -596,7 +596,7 @@
     },
     {
       "path": "crates/antecedent/tests/bounds_association_calibration.rs",
-      "sha256": "fdcc76aea11c3134b4d83bf1fcdf966fca13eb96012451d1fe1a2021f5c359a5",
+      "sha256": "f0da201880bff55abddaca1755f0d8dc7f46c45183d088d88d986880074a6d12",
       "labelled_calls": [],
       "constructor_calls": [
         {

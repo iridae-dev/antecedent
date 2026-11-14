@@ -14,8 +14,7 @@
 //! weights and the same Imbens-Manski tail rule is read off the posterior draws of the endpoints.
 //! A resample or a draw whose law violates the instrumental inequality has no bounds; it is
 //! counted and left out, never replaced. Either interval is built so that it covers each sharp
-//! endpoint of the identified set at its level; the estimate states `supported` only when the
-//! executor finds the graphless support row whose measured conditions the fit meets.
+//! endpoint of the identified set at its level.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -123,9 +122,6 @@ pub struct IvBoundsEstimate {
     pub interval: Option<IvBoundsInterval>,
     /// Posterior summary, under Bayesian inference.
     pub posterior: Option<IvBoundsPosterior>,
-    /// Whether the fit matched a row of the graphless support table. The estimator writes
-    /// `false`; the checked executor states the row.
-    pub supported: bool,
 }
 
 /// The three 0/1 columns and the weights of the complete rows.
@@ -453,7 +449,6 @@ fn estimate_of(
         rows_dropped: prepared.rows_dropped(),
         interval,
         posterior,
-        supported: false,
     }
 }
 

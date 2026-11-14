@@ -10755,7 +10755,7 @@ required_dimensions = ["success", "inspection"]
 test = "python/tests/test_unsupported_design_routes.py::test_period_history_match_matches_the_brute_force_reference"
 assertion_scopes = ["test_period_history_match_matches_the_brute_force_reference"]
 dimensions = ["success", "controls", "inspection"]
-assertion_contract = "With and without a caliper the matched query and donor indices equal a brute-force nearest-score reference, the contrast and standard error agree within 1e-12, and the fit is unsupported with the abadie_imbens_and_newey_west_period_interval_calibration_not_measured uncertainty label; eight periods of 100 units with no caliper and no weights publish an interval that contains the contrast and state supported."
+assertion_contract = "With and without a caliper the matched query and donor indices equal a brute-force nearest-score reference, the contrast and standard error agree within 1e-12, and the fit is unsupported with the abadie_imbens_and_newey_west_fixed_b_period_interval_calibration_not_measured uncertainty label; eight periods of 100 units with no caliper and no weights publish an interval that contains the contrast and state supported."
 
 [[capability]]
 id = "analysis.batch.retarget"

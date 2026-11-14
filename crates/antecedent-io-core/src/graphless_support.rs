@@ -93,11 +93,6 @@ pub struct GraphlessAssignmentSupport {
     pub rank_ownership: bool,
     /// Every independent sequence has the same observed number of periods.
     pub balanced_sequences: bool,
-    /// Absolute first-stage estimate over its standard error (infinite for a first stage
-    /// without error); zero when the design has no first stage.
-    pub first_stage_t: f64,
-    /// Bootstrap replicates or posterior draws that produced the published interval.
-    pub interval_resamples: usize,
 }
 
 /// Runtime status for one exact graphless support key.
@@ -198,11 +193,36 @@ pub fn classify_graphless(
 /// support ride in the diagnostic's fields.
 pub const DESIGN_POSTERIOR_ROW_CODE: &str = "estimate.design_posterior.graphless_support";
 
+/// Codes of the diagnostics by which a result with a design section states the support row
+/// the section meets. The section's own `supported` field stays `false`; the artifact check
+/// recomputes the row from the stored query and section for every such diagnostic.
+pub const ASSOCIATION_SLOPE_ROW_CODE: &str = "estimate.association.graphless_support";
+/// Sharp instrument bounds: the interval for the endpoints of the identified set.
+pub const IV_BOUNDS_ROW_CODE: &str = "estimate.iv_bounds.graphless_support";
+/// Sequential contrast: the normal interval of the cross-fit scores.
+pub const CROSSFIT_CONTRAST_ROW_CODE: &str = "estimate.sequential_contrast.graphless_support";
+/// History match: the fixed-b period interval.
+pub const PERIOD_HISTORY_ROW_CODE: &str = "estimate.history_match.graphless_support";
+/// Temporal design: the pointwise intervals of the design's coordinates.
+pub const TEMPORAL_DESIGN_ROW_CODE: &str = "estimate.temporal_design.graphless_support";
+/// Augmented panel difference in differences: the whole-cluster bootstrap interval.
+pub const AUGMENTED_DID_ROW_CODE: &str = "estimate.panel_did.augmented.graphless_support";
+/// Every code by which a design section's support row is stated.
+pub const SECTION_ROW_CODES: [&str; 6] = [
+    ASSOCIATION_SLOPE_ROW_CODE,
+    IV_BOUNDS_ROW_CODE,
+    CROSSFIT_CONTRAST_ROW_CODE,
+    PERIOD_HISTORY_ROW_CODE,
+    TEMPORAL_DESIGN_ROW_CODE,
+    AUGMENTED_DID_ROW_CODE,
+];
+
 /// The fields of the [`DESIGN_POSTERIOR_ROW_CODE`] diagnostic for `key` under `observed`.
 #[must_use]
-pub fn design_posterior_row_fields(
+pub fn design_posterior_row_statement(
     key: GraphlessSupportKey<'_>,
     observed: GraphlessAssignmentSupport,
+    resampled: GraphlessResampleSupport,
 ) -> Vec<(String, String)> {
     let text = |name: &str, value: &str| (name.to_owned(), value.to_owned());
     let count = |name: &str, value: usize| (name.to_owned(), value.to_string());
@@ -227,8 +247,8 @@ pub fn design_posterior_row_fields(
         flag("all_reported_intervals", observed.all_reported_intervals),
         flag("known_density", observed.known_density),
         flag("balanced_sequences", observed.balanced_sequences),
-        real("first_stage_t", observed.first_stage_t),
-        count("interval_resamples", observed.interval_resamples),
+        real("first_stage_t", resampled.first_stage_t),
+        count("interval_resamples", resampled.interval_resamples),
     ];
     // Policy and reference matches are stated only by a design that counts them.
     if observed.policy_matches > 0 || observed.reference_matches > 0 {
@@ -277,17 +297,23 @@ pub fn design_posterior_row_stated(fields: &[(String, String)]) -> bool {
             all_reported_intervals: flag("all_reported_intervals")?,
             known_density: flag("known_density")?,
             balanced_sequences: flag("balanced_sequences")?,
-            // Absent on a statement of a row without these thresholds.
-            first_stage_t: real("first_stage_t").unwrap_or(0.0),
-            interval_resamples: count("interval_resamples").unwrap_or(0),
             policy_matches: count("policy_matches").unwrap_or(0),
             reference_matches: count("reference_matches").unwrap_or(0),
             interval_95_published: true,
             ..Default::default()
         })
     })();
+    // Absent on a statement of a row without these thresholds.
+    let resampled = GraphlessResampleSupport {
+        first_stage_t: real("first_stage_t").unwrap_or(0.0),
+        interval_resamples: count("interval_resamples").unwrap_or(0),
+    };
     observed.is_some_and(|observed| {
-        graphless_admits(GraphlessSupportKey { family, design, method, inference_claim }, observed)
+        graphless_admits_resampled(
+            GraphlessSupportKey { family, design, method, inference_claim },
+            observed,
+            resampled,
+        )
     })
 }
 
@@ -329,9 +355,37 @@ impl GraphlessSupportRow {
             && (!row.requires_rank_ownership || observed.rank_ownership)
             && (!row.requires_balanced_sequences || observed.balanced_sequences)
             && (!row.requires_known_density || observed.known_density)
-            && observed.first_stage_t >= row.min_first_stage_t
-            && observed.interval_resamples >= row.min_interval_resamples
     }
+}
+
+/// Observed resampling support of the rows that carry a resampling threshold: a first-stage
+/// strength or a count of interval resamples. It travels beside
+/// [`GraphlessAssignmentSupport`]; such rows are looked up through
+/// [`graphless_admits_resampled`] only.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GraphlessResampleSupport {
+    /// Absolute first-stage estimate over its standard error (infinite for a first stage
+    /// without error); zero when the design has no first stage.
+    pub first_stage_t: f64,
+    /// Bootstrap replicates or posterior draws that produced the published interval.
+    pub interval_resamples: usize,
+}
+
+/// Whether the resampling thresholds of `row` are met by `resampled`.
+fn row_meets_resampling(row: &GraphlessSupportRow, resampled: GraphlessResampleSupport) -> bool {
+    resampled.first_stage_t >= row.min_first_stage_t
+        && resampled.interval_resamples >= row.min_interval_resamples
+}
+
+/// Whether some supported row matches `key`, is satisfied by `observed`, and has its
+/// resampling thresholds met by `resampled`.
+#[must_use]
+pub fn graphless_admits_resampled(
+    key: GraphlessSupportKey<'_>,
+    observed: GraphlessAssignmentSupport,
+    resampled: GraphlessResampleSupport,
+) -> bool {
+    find_support(key, observed).is_some_and(|row| row_meets_resampling(row, resampled))
 }
 
 #[cfg(test)]

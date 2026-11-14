@@ -1,13 +1,14 @@
 //! Support rows of the binary-instrument bounds and of the descriptive association.
 //!
-//! Each route states `supported` only inside the measured range of its graphless row: the
+//! Each route states its support row only inside the measured range of that graphless row: the
 //! interval for the endpoints of the identified set (500 unweighted rows, 399 row-bootstrap
 //! replicates or 400 posterior draws, none left out), and the uncertainty of the slope of a
 //! linear regression of a real outcome on one numeric predictor (100 rows or steps, 399
 //! replicates of a resampling spread, 400 draws of a block posterior). A fit inside the range
-//! states the row on its section and in the exported artifact; an artifact that claims the row
-//! below a threshold or under another method is refused; a fit outside the range runs and
-//! states no support.
+//! states the row in a coded diagnostic of the result and of the exported artifact (the
+//! section's own `supported` field stays false); an artifact that states the row below a
+//! threshold or under another method is refused; a fit outside the range runs and states no
+//! support.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -43,11 +44,33 @@ fn exported(
     (header.variable_names, body)
 }
 
-/// Whether the artifact check refuses `forged` for a support its row does not grant.
+/// Whether the artifact check refuses `forged` for a support row its section does not meet.
 fn refused(names: &[String], forged: &AnalysisResultWire) -> bool {
     antecedent_io::encode_analysis_result_artifact(forged, names.to_vec(), "forged-support")
+        .is_err_and(|error| error.to_string().contains("states a graphless support row"))
+}
+
+/// Whether the artifact check refuses `forged` for the section's own `supported` flag, which
+/// no producer sets.
+fn refused_flag(names: &[String], forged: &AnalysisResultWire) -> bool {
+    antecedent_io::encode_analysis_result_artifact(forged, names.to_vec(), "forged-flag")
         .is_err_and(|error| error.to_string().contains("claims no support"))
 }
+
+/// Whether the exported body states the support row `code` names.
+fn stated(body: &AnalysisResultWire, code: &str) -> bool {
+    body.diagnostics.iter().any(|diagnostic| diagnostic.code == code)
+}
+
+/// `body` without the statement of the row `code` names.
+fn without_statement(body: &AnalysisResultWire, code: &str) -> AnalysisResultWire {
+    let mut unclaimed = body.clone();
+    unclaimed.diagnostics.retain(|diagnostic| diagnostic.code != code);
+    unclaimed
+}
+
+const BOUNDS_ROW: &str = antecedent_io::graphless_support::IV_BOUNDS_ROW_CODE;
+const SLOPE_ROW: &str = antecedent_io::graphless_support::ASSOCIATION_SLOPE_ROW_CODE;
 
 // ------------------------------------------------------------------ bounds
 
@@ -117,7 +140,7 @@ fn bounds_row_round_trips(label: &str, bayesian: bool, resamples: u32, method: &
     let (prepared, result) = inside.run(&ctx);
     retained_graphless::assert_retained_graphless_program(label, &prepared, &result, &ctx);
     let fit = result.iv_bounds().expect("a bounds payload").clone();
-    assert!(fit.supported, "{label}");
+    assert!(result.states_section_row(), "{label}");
     assert_eq!((fit.rows, fit.rows_dropped), (600, 0), "{label}");
     assert!((fit.lower - MIXTURE_LOWER).abs() < 1e-9, "{label}: {}", fit.lower);
     assert!((fit.upper - MIXTURE_UPPER).abs() < 1e-9, "{label}: {}", fit.upper);
@@ -130,7 +153,8 @@ fn bounds_row_round_trips(label: &str, bayesian: bool, resamples: u32, method: &
 
     let (names, body) = exported(label, &prepared, &result, &ctx);
     let wire = body.iv_bounds.as_ref().expect("the section is exported");
-    assert!(wire.supported && wire.calibration == "not_measured", "{label}");
+    assert!(stated(&body, BOUNDS_ROW), "{label}");
+    assert!(!wire.supported && wire.calibration == "not_measured", "{label}");
     assert!((wire.interval.as_ref().unwrap().lower - interval.lower).abs() < 1e-12, "{label}");
     let forge = |change: &dyn Fn(&mut antecedent_io::analysis_result_artifact::IvBoundsWire)| {
         let mut forged = body.clone();
@@ -162,8 +186,10 @@ fn bounds_row_round_trips(label: &str, bayesian: bool, resamples: u32, method: &
         ),
         "{label}: a set within its sampling noise"
     );
-    // A section may state less than its row grants; it then loads as an unsupported result.
-    let unclaimed = forge(&|section| section.supported = false);
+    // The section's own flag is never a statement: a body that sets it is refused.
+    assert!(refused_flag(&names, &forge(&|section| section.supported = true)), "{label}: flag");
+    // A result may state less than its row grants; it then loads as an unsupported result.
+    let unclaimed = without_statement(&body, BOUNDS_ROW);
     antecedent_io::encode_analysis_result_artifact(&unclaimed, names, "unclaimed-support").unwrap();
 
     // Outside the row the same route runs and states no support.
@@ -172,10 +198,22 @@ fn bounds_row_round_trips(label: &str, bayesian: bool, resamples: u32, method: &
         BoundsRun { resamples: resamples - 1, ..inside },
         BoundsRun { weighted: true, ..inside },
     ] {
-        let (_, result) = outside.run(&ctx);
+        let (outside_prepared, result) = outside.run(&ctx);
         let fit = result.iv_bounds().unwrap();
-        assert!(!fit.supported, "{label}: {} rows, weighted {}", fit.rows, outside.weighted);
+        assert!(
+            !result.states_section_row(),
+            "{label}: {} rows, weighted {}",
+            fit.rows,
+            outside.weighted
+        );
         assert!((fit.lower - MIXTURE_LOWER).abs() < 1e-9, "{label}");
+        // The statement of the supported fit, carried onto a fit outside the row, is refused.
+        let (outside_names, mut claimed) = exported(label, &outside_prepared, &result, &ctx);
+        assert!(!stated(&claimed, BOUNDS_ROW), "{label}");
+        claimed.diagnostics.extend(
+            body.diagnostics.iter().filter(|diagnostic| diagnostic.code == BOUNDS_ROW).cloned(),
+        );
+        assert!(refused(&outside_names, &claimed), "{label}: a statement outside the row");
     }
 }
 
@@ -192,7 +230,7 @@ fn supported_iv_bounds_endpoint_interval_round_trips_and_refuses_forgery() {
     let point = BoundsRun { copies: 3, resamples: 0, bayesian: false, weighted: false };
     let (_, result) = point.run(&ctx);
     let fit = result.iv_bounds().unwrap();
-    assert!(!fit.supported && fit.interval.is_none());
+    assert!(!result.states_section_row() && fit.interval.is_none());
     assert!((fit.upper - fit.lower - 0.5).abs() < 1e-9, "{} {}", fit.lower, fit.upper);
 }
 
@@ -353,7 +391,7 @@ fn slope_row_round_trips(
     let (prepared, result, slope) = inside.run(&ctx);
     retained_graphless::assert_retained_graphless_program(label, &prepared, &result, &ctx);
     let payload = result.association().expect("an association payload");
-    assert!(payload.supported, "{label}");
+    assert!(result.states_section_row(), "{label}");
     assert_eq!(payload.estimate.selection.analysis.as_str(), "linear_regression", "{label}");
     assert_eq!((payload.estimate.rows, payload.estimate.rows_dropped), (inside.rows, 0));
     let term = &payload.estimate.terms[1];
@@ -366,7 +404,8 @@ fn slope_row_round_trips(
 
     let (names, body) = exported(label, &prepared, &result, &ctx);
     let wire = body.association.as_ref().expect("the section is exported");
-    assert!(wire.supported && wire.calibration == "not_measured", "{label}");
+    assert!(stated(&body, SLOPE_ROW), "{label}");
+    assert!(!wire.supported && wire.calibration == "not_measured", "{label}");
     assert!(!wire.ranks_actions && !wire.is_intervention_effect, "{label}");
     assert!((wire.terms[1].estimate - term.estimate).abs() < 1e-12, "{label}");
     let mut thin = body.clone();
@@ -375,16 +414,19 @@ fn slope_row_round_trips(
     let mut dropped = body.clone();
     dropped.association.as_mut().unwrap().rows_dropped = 1;
     assert!(refused(&names, &dropped), "{label}: dropped");
-    // A section may state less than its row grants; it then loads as an unsupported result.
-    let mut unclaimed = body.clone();
-    unclaimed.association.as_mut().unwrap().supported = false;
+    // The section's own flag is never a statement: a body that sets it is refused.
+    let mut flagged = body.clone();
+    flagged.association.as_mut().unwrap().supported = true;
+    assert!(refused_flag(&names, &flagged), "{label}: flag");
+    // A result may state less than its row grants; it then loads as an unsupported result.
+    let unclaimed = without_statement(&body, SLOPE_ROW);
     antecedent_io::encode_analysis_result_artifact(&unclaimed, names.clone(), "unclaimed-support")
         .unwrap();
 
     for run in outside {
         let (_, result, _) = run.run(&ctx);
         let payload = result.association().unwrap();
-        assert!(!payload.supported, "{label}: {} rows", payload.estimate.rows);
+        assert!(!result.states_section_row(), "{label}: {} rows", payload.estimate.rows);
         assert!(payload.estimate.terms.iter().all(|term| term.estimate.is_finite()), "{label}");
     }
     (names, body)

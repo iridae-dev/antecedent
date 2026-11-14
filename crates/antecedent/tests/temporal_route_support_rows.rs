@@ -1,9 +1,11 @@
 //! The graphless support rows of the sequential contrast, the Bayesian regime and policy
 //! values and the within-period history routes, through the study facade.
 //!
-//! A frequentist section states its row on its own `supported` field; a posterior states it
-//! in the diagnostic `estimate.design_posterior.graphless_support`, whose fields carry the row
-//! key and the observed support. Each test runs one route on a design that meets its row,
+//! A frequentist section states its row in its own coded diagnostic, recomputed by the
+//! artifact check from the stored query and section (the section's `supported` field stays
+//! false); a posterior states it in the diagnostic
+//! `estimate.design_posterior.graphless_support`, whose fields carry the row key and the
+//! observed support. Each test runs one route on a design that meets its row,
 //! checks the retained program, the statement and a known value, exports the result, forges the
 //! claim (refused by the artifact check), and runs the same route outside the row, where it
 //! states no support.
@@ -71,6 +73,21 @@ fn bayesian(draws: usize) -> InferenceMode {
 fn has(result: &StudyResult, code: &str) -> bool {
     result.diagnostics.iter().any(|diagnostic| diagnostic.code.as_ref() == code)
 }
+
+/// The statement of the support row `code` names in an exported body, when it is stated.
+fn statement(body: &AnalysisResultWire, code: &str) -> Option<antecedent_io::DiagnosticWire> {
+    body.diagnostics.iter().find(|diagnostic| diagnostic.code == code).cloned()
+}
+
+/// `body` without the statement of the row `code` names.
+fn without_statement(body: &AnalysisResultWire, code: &str) -> AnalysisResultWire {
+    let mut unclaimed = body.clone();
+    unclaimed.diagnostics.retain(|diagnostic| diagnostic.code != code);
+    unclaimed
+}
+
+const CONTRAST_ROW: &str = antecedent_io::graphless_support::CROSSFIT_CONTRAST_ROW_CODE;
+const HISTORY_ROW: &str = antecedent_io::graphless_support::PERIOD_HISTORY_ROW_CODE;
 
 /// Mean and equal-tailed 95% interval of the posterior's effect column.
 fn effect(result: &StudyResult) -> (f64, f64, f64) {
@@ -227,19 +244,22 @@ fn supported_sequential_contrast_wald_interval_round_trips_and_refuses_forgery()
     let (result, body, names) =
         run_and_export("sequential_contrast_wald", contrast_study(&data, 400, 5, None), &data);
     let fit = result.sequential_contrast().unwrap();
-    assert!(fit.supported, "five folds, 400 subjects and probabilities inside the floor");
-    assert!(has(&result, "estimate.sequential_contrast.graphless_support"));
+    assert!(
+        result.states_section_row(),
+        "five folds, 400 subjects and probabilities inside the floor"
+    );
+    assert!(has(&result, CONTRAST_ROW));
     assert!(!has(&result, "estimate.sequential_contrast.unsupported"));
     assert!((fit.contrast - CONTRAST_TRUTH).abs() < 0.8, "{}", fit.contrast);
     let [lower, upper] = fit.interval.unwrap();
     assert!(lower < fit.contrast && fit.contrast < upper);
 
     // The exported claim is recomputed from the query's folds and the retained scores.
-    assert!(body.sequential_contrast.as_ref().unwrap().supported);
+    let claim = statement(&body, CONTRAST_ROW).expect("the exported body states the row");
+    assert!(!body.sequential_contrast.as_ref().unwrap().supported, "the flag is not the claim");
     assert_eq!(refusal(&body, &names), None);
-    let mut unclaimed = body.clone();
-    unclaimed.sequential_contrast.as_mut().unwrap().supported = false;
-    assert_eq!(refusal(&unclaimed, &names), None, "a section that claims no row is accepted");
+    let unclaimed = without_statement(&body, CONTRAST_ROW);
+    assert_eq!(refusal(&unclaimed, &names), None, "a result that states no row is accepted");
     let mut low_probability = body.clone();
     low_probability.sequential_contrast.as_mut().unwrap().minimum_action_probability = 0.04;
     assert!(refusal(&low_probability, &names).is_some(), "a probability below the row");
@@ -264,12 +284,18 @@ fn supported_sequential_contrast_wald_interval_round_trips_and_refuses_forgery()
     ];
     for (label, builder, table) in outside {
         let (result, body, names) = run_and_export(label, builder, table);
-        assert!(!result.sequential_contrast().unwrap().supported, "{label}");
+        assert!(!result.states_section_row(), "{label}");
         assert!(has(&result, "estimate.sequential_contrast.unsupported"), "{label}");
         assert_eq!(refusal(&body, &names), None, "{label}: the unsupported result round trips");
+        let mut stated = body.clone();
+        stated.diagnostics.push(claim.clone());
+        assert!(
+            refusal(&stated, &names).is_some_and(|error| error.contains("states a graphless")),
+            "{label}: a forged statement is refused"
+        );
         let mut forged = body;
         forged.sequential_contrast.as_mut().unwrap().supported = true;
-        assert!(refusal(&forged, &names).is_some(), "{label}: a forged claim is refused");
+        assert!(refusal(&forged, &names).is_some(), "{label}: a forged flag is refused");
     }
 }
 
@@ -291,7 +317,7 @@ fn supported_sequential_contrast_posterior_round_trips_and_refuses_forgery() {
         ],
     );
     assert!(!has(&result, "estimate.sequential_contrast.unsupported"));
-    assert!(!result.sequential_contrast().unwrap().supported, "the flag is the Wald row's");
+    assert!(!result.states_section_row(), "the Wald row is not the posterior's");
     let (mean, lower, upper) = effect(&result);
     assert!((mean - CONTRAST_TRUTH).abs() < 0.8, "{mean}");
     assert!(lower < mean && mean < upper);
@@ -565,19 +591,19 @@ fn supported_period_history_interval_round_trips_and_refuses_forgery() {
     let (result, body, names) =
         run_and_export("period_history_match", match_study(&data, None), &data);
     let fit = result.history_match().unwrap();
-    assert!(fit.supported, "eight matched periods of about fifty pairs each");
-    assert!(has(&result, "estimate.history_match.graphless_support"));
+    assert!(result.states_section_row(), "eight matched periods of about fifty pairs each");
+    assert!(has(&result, HISTORY_ROW));
     assert!(!has(&result, "estimate.history_match.unsupported"));
     assert!((fit.contrast - MATCH_TRUTH).abs() < 0.8, "{}", fit.contrast);
     let (lower, upper) = (fit.interval_lower.unwrap(), fit.interval_upper.unwrap());
     assert!(lower < fit.contrast && fit.contrast < upper);
 
     // The exported claim is recomputed from the query and the retained pairs and periods.
-    assert!(body.history_match.as_ref().unwrap().supported);
+    let claim = statement(&body, HISTORY_ROW).expect("the exported body states the row");
+    assert!(!body.history_match.as_ref().unwrap().supported, "the flag is not the claim");
     assert_eq!(refusal(&body, &names), None);
-    let mut unclaimed = body.clone();
-    unclaimed.history_match.as_mut().unwrap().supported = false;
-    assert_eq!(refusal(&unclaimed, &names), None, "a section that claims no row is accepted");
+    let unclaimed = without_statement(&body, HISTORY_ROW);
+    assert_eq!(refusal(&unclaimed, &names), None, "a result that states no row is accepted");
     let mut other_method = body;
     other_method.history_match.as_mut().unwrap().uncertainty = "another_method".to_owned();
     assert!(refusal(&other_method, &names).is_some(), "another method's label");
@@ -593,12 +619,18 @@ fn supported_period_history_interval_round_trips_and_refuses_forgery() {
     ];
     for (label, builder, table) in outside {
         let (result, body, names) = run_and_export(label, builder, table);
-        assert!(!result.history_match().unwrap().supported, "{label}");
+        assert!(!result.states_section_row(), "{label}");
         assert!(has(&result, "estimate.history_match.unsupported"), "{label}");
         assert_eq!(refusal(&body, &names), None, "{label}: the unsupported result round trips");
+        let mut stated = body.clone();
+        stated.diagnostics.push(claim.clone());
+        assert!(
+            refusal(&stated, &names).is_some_and(|error| error.contains("states a graphless")),
+            "{label}: a forged statement is refused"
+        );
         let mut forged = body;
         forged.history_match.as_mut().unwrap().supported = true;
-        assert!(refusal(&forged, &names).is_some(), "{label}: a forged claim is refused");
+        assert!(refusal(&forged, &names).is_some(), "{label}: a forged flag is refused");
     }
 }
 

@@ -71,6 +71,7 @@ fn local_ratio_posterior_row(
 ) -> Option<(
     crate::support::GraphlessSupportKey<'static>,
     crate::support::GraphlessAssignmentSupport,
+    antecedent_io::graphless_support::GraphlessResampleSupport,
 )> {
     let selected = query.options.as_ref().is_some_and(|options| {
         options.bandwidth_rule == antecedent_core::LocalBandwidthRule::MseOptimal
@@ -92,9 +93,11 @@ fn local_ratio_posterior_row(
             interval_95_published: facts.published,
             rows: facts.sides[0] + facts.sides[1],
             reported_intervals: usize::from(facts.published),
+            ..Default::default()
+        },
+        antecedent_io::graphless_support::GraphlessResampleSupport {
             first_stage_t: facts.first_stage_t,
             interval_resamples: facts.draws,
-            ..Default::default()
         },
     ))
 }
@@ -293,11 +296,12 @@ impl super::CheckedLocalPolynomialRatioOperation {
         )?;
         // The shared design-posterior statement: the row and the observed support ride in a
         // coded diagnostic the artifact loader rechecks.
-        if let Some((key, observed)) = local_ratio_posterior_row(query, config, &facts) {
-            super::super::bayesian_quasi_common::state_design_posterior_row(
+        if let Some((key, observed, resampled)) = local_ratio_posterior_row(query, config, &facts) {
+            super::super::bayesian_quasi_common::state_row_with_resamples(
                 &mut result,
                 key,
                 observed,
+                resampled,
             );
         }
         Ok(result)

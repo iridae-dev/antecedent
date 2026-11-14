@@ -186,7 +186,7 @@ impl CheckedLongitudinalRegimeOperation {
             .map(|probability| probability.min(1.0 - probability))
             .fold(f64::INFINITY, f64::min);
         let draws = result.posterior.as_ref().map_or(0, |posterior| posterior.draws.n_draws);
-        super::super::bayesian_quasi_common::state_design_posterior_row(
+        super::super::bayesian_quasi_common::state_row_with_resamples(
             result,
             crate::support::GraphlessSupportKey {
                 family: "longitudinal_regime",
@@ -201,6 +201,9 @@ impl CheckedLongitudinalRegimeOperation {
                 interval_95_published: true,
                 reported_intervals: 1,
                 all_reported_intervals: true,
+                ..Default::default()
+            },
+            antecedent_io::graphless_support::GraphlessResampleSupport {
                 interval_resamples: draws,
                 ..Default::default()
             },

@@ -50,7 +50,8 @@ impl From<&antecedent::SequentialContrastEstimate> for SequentialContrastSection
             control_scores: value.control_scores.to_vec(),
             contrast_scores: value.contrast_scores.to_vec(),
             uncertainty: value.uncertainty.to_string(),
-            supported: value.supported,
+            // Set by the caller from the result's support-row diagnostic.
+            supported: false,
             fits_computed: value.fits_computed,
             fits_reused: value.fits_reused,
         }
@@ -95,7 +96,8 @@ impl From<&antecedent::HistoryMatchEstimate> for HistoryMatchSection {
             interval_upper: value.interval_upper,
             caliper: value.caliper,
             uncertainty: value.uncertainty.to_string(),
-            supported: value.supported,
+            // Set by the caller from the result's support-row diagnostic.
+            supported: false,
         }
     }
 }

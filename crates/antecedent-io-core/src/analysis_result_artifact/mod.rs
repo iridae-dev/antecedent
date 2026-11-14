@@ -969,8 +969,7 @@ impl PosteriorRowWire {
 /// Retained observational two-decision regime contrast and its uncertainty.
 ///
 /// The cross-fit scores are kept so a loader recomputes the means, the standard error and the
-/// interval, and the support row the section claims. The runtime calibration slot is
-/// `not_measured`.
+/// interval. The result is unsupported and its repeated-sampling calibration is `not_measured`.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SequentialContrastWire {
@@ -1008,8 +1007,7 @@ pub struct SequentialContrastWire {
     pub uncertainty: String,
     /// Always `not_measured`.
     pub calibration: String,
-    /// The normal interval meets the sequential-contrast support row; a loader recomputes it
-    /// from the query's regimes and folds and the retained scores.
+    /// Always `false`.
     pub supported: bool,
 }
 
@@ -1026,7 +1024,7 @@ const fn is_zero_lag(lag: &usize) -> bool {
 /// The pairs and the within-arm variance estimates of their units are kept so a loader recomputes
 /// the contrast, the weight total and the Abadie-Imbens standard error. The periods of the pairs
 /// are kept so a loader recomputes the Newey-West standard error and interval over the matched
-/// periods too, and the support row the section claims.
+/// periods too. The result is unsupported.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryMatchWire {
@@ -1065,7 +1063,8 @@ pub struct HistoryMatchWire {
     /// hold a match.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub serial_standard_error: Option<f64>,
-    /// Lower endpoint of the 95% fixed-b interval around the contrast.
+    /// Lower endpoint of the 95% interval around the contrast: the fixed-b interval under the
+    /// fixed-b uncertainty label, the normal interval under the earlier label.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval_lower: Option<f64>,
     /// Upper endpoint of that interval.
@@ -1077,12 +1076,13 @@ pub struct HistoryMatchWire {
     /// The caliper, when one was declared.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub caliper: Option<f64>,
-    /// Always `abadie_imbens_and_newey_west_period_interval_calibration_not_measured`.
+    /// `abadie_imbens_and_newey_west_fixed_b_period_interval_calibration_not_measured`, or
+    /// `abadie_imbens_and_newey_west_period_interval_calibration_not_measured` on an artifact
+    /// written with the normal period interval. The label names the interval's construction.
     pub uncertainty: String,
     /// Always `not_measured`.
     pub calibration: String,
-    /// The period interval meets the history-match support row; a loader recomputes it from
-    /// the query and the retained pairs and periods.
+    /// Always `false`.
     pub supported: bool,
 }
 
@@ -1306,13 +1306,12 @@ pub struct AnalysisResultWire {
     /// Within-period history-matched contrast, unsupported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub history_match: Option<HistoryMatchWire>,
-    /// Sharp bounds on the average effect under a binary instrument; supported only when the
-    /// section meets its graphless row. Absent on every other result, so their bodies and
-    /// digests are unchanged.
+    /// Sharp bounds on the average effect under a binary instrument, unsupported. Absent on
+    /// every other result, so their bodies and digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iv_bounds: Option<IvBoundsWire>,
-    /// Noncausal association of the observed data; supported only when the section meets its
-    /// graphless row. Absent on every other result, so their bodies and digests are unchanged.
+    /// Noncausal association of the observed data, unsupported. Absent on every other result,
+    /// so their bodies and digests are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub association: Option<AssociationWire>,
     /// Rollout design effects with whole-procedure uncertainty, unsupported. Absent on every
@@ -1738,6 +1737,8 @@ mod counterfactual_contrasts;
 mod graphless;
 mod iv_bounds;
 mod quasi_rollout;
+pub mod rollout_support;
+pub mod stated_section_rows;
 mod temporal_design;
 mod validate;
 
@@ -1753,10 +1754,7 @@ pub use iv_bounds::{
     IV_BOUNDS_BAYESIAN_METHOD, IV_BOUNDS_FREQUENTIST_METHOD, IV_BOUNDS_POINT_UNCERTAINTY,
     IvBoundsIntervalWire, IvBoundsPosteriorWire, IvBoundsWire,
 };
-pub use quasi_rollout::{
-    DesignEffectWire, DidRolloutRowSpec, QuasiRolloutWire, did_rollout_row_admits,
-    local_design_row_admits, rederive_rollout_summary, synthetic_rollout_row_admits,
-};
+pub use quasi_rollout::{DesignEffectWire, QuasiRolloutWire, rederive_rollout_summary};
 pub use temporal_design::TemporalDesignWire;
 
 pub(crate) use validate::validate_interventional_distribution;

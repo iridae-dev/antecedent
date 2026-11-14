@@ -13,8 +13,8 @@
 //! the endpoints and the same tail rule. Rows are independent subjects, so a declared dependent
 //! series, independent-trajectory or clustered design refuses the row-level draw. A fit whose
 //! interval, rows and resamples meet a row of the graphless support table (family `iv_bounds`)
-//! states `supported`; every other fit is unsupported. The section's calibration is
-//! `not_measured`.
+//! states the row in its disclosure diagnostic; every other fit is unsupported. The section's
+//! calibration is `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::bayesian_quasi_common::require_built_in_model;
@@ -35,8 +35,6 @@ use antecedent_estimate::IvBoundsEstimator;
 
 /// Stable code of the disclosure a bounds result outside every support row carries.
 const UNSUPPORTED_DISCLOSURE: &str = "estimate.iv_bounds.unsupported";
-/// Stable code of the disclosure a bounds result that meets a support row carries.
-const BOUNDS_ROW_DISCLOSURE: &str = "estimate.iv_bounds.graphless_support";
 
 /// What a prepared bounds study keeps beside its query: the Bayesian configuration of a
 /// posterior study and the row-bootstrap replicates of a frequentist one.
@@ -143,13 +141,14 @@ impl CheckedIvBoundsOperation {
             .with_bootstrap_replicates(self.extra.replicates)
             .with_sampling_design(self.extra.sampling_design);
         let prepared = estimator.prepare(data, &self.query).map_err(CausalError::from)?;
-        let mut estimate = match &self.extra.bayesian {
+        let estimate = match &self.extra.bayesian {
             Some(config) => estimator
                 .estimate_bayesian(&prepared, config.n_draws, ctx)
                 .map_err(CausalError::from)?,
             None => estimator.estimate(&prepared, ctx).map_err(CausalError::from)?,
         };
-        estimate.supported = bounds_endpoint_row(&self.query, &estimate);
+        let supported =
+            crate::analysis::design_section_rows::bounds_endpoint_row(&self.query, &estimate);
         let estimator_id = estimator_for(self.extra.bayesian.is_some());
         let n_draws = estimate
             .posterior
@@ -174,7 +173,7 @@ impl CheckedIvBoundsOperation {
             )
             .identify_cached(true)
             .wall_time_ns(super::elapsed_ns(started))
-            .extra_diagnostics(vec![disclosure(&estimate)])
+            .extra_diagnostics(vec![disclosure(&estimate, supported)])
             .extras(IdentifiedExecuteExtras { n_draws, ..Default::default() }),
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
@@ -210,56 +209,7 @@ fn estimator_for(bayesian: bool) -> EstimatorId {
     if bayesian { EstimatorId::BayesianIvBounds } else { EstimatorId::IvBoundsSharp }
 }
 
-/// Whether the fit runs under a row of the graphless support table. The key and the observed
-/// support are read from the query and the published estimate alone, so the artifact check
-/// recomputes the same answer. Rows and resamples are thresholds of the row; the measured
-/// conditions the table has no field for are checked here: unweighted rows, no row dropped,
-/// the 95% level, no resample or draw left out for an infeasible law, and a set whose width
-/// passed the moment-selection threshold (wider than its sampling noise).
-fn bounds_endpoint_row(
-    query: &antecedent_core::IvBoundsQuery,
-    fit: &antecedent_estimate::IvBoundsEstimate,
-) -> bool {
-    let Some(interval) = fit.interval else {
-        return false;
-    };
-    if query.weight.is_some()
-        || fit.rows_dropped != 0
-        || interval.infeasible != 0
-        || !interval.width_retained
-        || (interval.level - 0.95).abs() > 1e-12
-    {
-        return false;
-    }
-    // The claim is an interval for the endpoints of the identified set, not for a point effect.
-    let inference_claim = match interval.method.as_str() {
-        "imbens_manski_row_bootstrap" => "identified_set_endpoints_95_imbens_manski_interval",
-        "posterior_endpoint_quantiles" => "identified_set_endpoints_95_posterior_quantiles",
-        _ => return false,
-    };
-    crate::support::support_if_graphless(
-        crate::support::GraphlessSupportKey {
-            family: "iv_bounds",
-            design: "binary_instrument",
-            method: interval.method.as_str(),
-            inference_claim,
-        },
-        crate::support::GraphlessAssignmentSupport {
-            assignment_unit: "unit",
-            rows: fit.rows,
-            interval_95_published: interval.lower.is_finite()
-                && interval.upper.is_finite()
-                && interval.lower < interval.upper,
-            reported_intervals: 1,
-            all_reported_intervals: true,
-            interval_resamples: interval.replicates,
-            ..Default::default()
-        },
-    )
-    .is_some()
-}
-
-fn disclosure(estimate: &antecedent_estimate::IvBoundsEstimate) -> Diagnostic {
+fn disclosure(estimate: &antecedent_estimate::IvBoundsEstimate, supported: bool) -> Diagnostic {
     let interval = match &estimate.interval {
         Some(interval) => format!(
             "a {:.0}% Imbens-Manski style interval about the identified set ({})",
@@ -268,9 +218,9 @@ fn disclosure(estimate: &antecedent_estimate::IvBoundsEstimate) -> Diagnostic {
         ),
         None => "the identified set without a sampling interval".to_owned(),
     };
-    let (code, opening, closing) = if estimate.supported {
+    let (code, opening, closing) = if supported {
         (
-            BOUNDS_ROW_DISCLOSURE,
+            antecedent_io::graphless_support::IV_BOUNDS_ROW_CODE,
             "supported graphless row of family `iv_bounds`",
             "the interval is stated for the endpoints of the set, not for a point effect",
         )

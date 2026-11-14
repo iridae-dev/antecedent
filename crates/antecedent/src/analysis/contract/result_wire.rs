@@ -405,7 +405,7 @@ impl From<&HistoryMatchEstimate> for HistoryMatchWire {
             caliper: fit.caliper,
             uncertainty: fit.uncertainty.to_string(),
             calibration: "not_measured".to_owned(),
-            supported: fit.supported,
+            supported: false,
         }
     }
 }
@@ -429,7 +429,7 @@ impl From<&SequentialContrastEstimate> for SequentialContrastWire {
             contrast_scores: fit.contrast_scores.to_vec(),
             uncertainty: fit.uncertainty.to_string(),
             calibration: "not_measured".to_owned(),
-            supported: fit.supported,
+            supported: false,
         }
     }
 }
@@ -601,7 +601,7 @@ pub(crate) fn iv_bounds_wire(
             }),
             uncertainty,
             calibration: "not_measured".to_owned(),
-            supported: fit.supported,
+            supported: false,
         }
     }
 }
@@ -672,7 +672,7 @@ pub(crate) fn association_wire(
         refused_after: payload.refused_after.as_deref().map(str::to_owned),
         uncertainty: uncertainty.to_owned(),
         calibration: crate::analysis::association::ASSOCIATION_CALIBRATION.to_owned(),
-        supported: payload.supported,
+        supported: false,
         ranks_actions: false,
         is_intervention_effect: false,
     }

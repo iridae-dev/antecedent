@@ -57,7 +57,7 @@ fn local_design_state_support(result: &mut StudyResult, selected_bandwidth: bool
         return;
     };
     let section = antecedent_io::analysis_result_artifact::QuasiRolloutWire::from(&**rollout);
-    if !antecedent_io::analysis_result_artifact::local_design_row_admits(
+    if !antecedent_io::analysis_result_artifact::rollout_support::local_design_row_admits(
         selected_bandwidth,
         &section,
     ) {
@@ -386,6 +386,14 @@ impl super::CheckedLocalPolynomialRatioOperation {
         }
         if let Some(record) = temporal {
             diagnostics.push(("block_length".to_string(), record.block_length as f64));
+            // The artifact check recomputes the Student-t interval from these degrees.
+            if let Some(degrees) = record.reference_degrees_of_freedom {
+                diagnostics.push((
+                    antecedent_io::analysis_result_artifact::rollout_support::STUDENT_REFERENCE_DIAGNOSTIC
+                        .to_string(),
+                    degrees,
+                ));
+            }
         }
         let label = if self.query.kink { "regression_kink" } else { "fuzzy_rd" };
         let design = match (temporal.is_some(), self.query.kink) {

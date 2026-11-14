@@ -144,6 +144,7 @@ pub mod decision_reliability;
 mod derived_treatment;
 mod design_exports;
 pub mod design_ranking;
+mod design_section_rows;
 pub mod discovered_transport;
 pub mod discovered_transport_estimate;
 pub mod discovered_transport_temporal;

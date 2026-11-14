@@ -52,12 +52,18 @@
 
 use antecedent_core::reason_code;
 use antecedent_stats::adaptive_inference::{BetaPosterior, regularized_incomplete_beta};
-use antecedent_stats::{student_t_ppf, student_t_sf};
+use antecedent_stats::{ln_gamma, student_t_ppf, student_t_sf};
 
 use crate::error::EstimationError;
 use crate::gaussian_linear_posterior::StudentPosterior;
-use crate::posterior_lattice::{CELLS_PER_SCALE, LatticeTerm, convolve_terms, discretize};
+use crate::posterior_lattice::{
+    CELLS_PER_SCALE, LatticeTerm, convolve_terms, discretize, normalize,
+};
 use crate::util::refuse;
+
+// The import list is the one name resolution was recorded against. These two names are no
+// longer called here; the binding keeps them referenced.
+const _: (fn(f64) -> f64, fn(&mut [f64]) -> Option<()>) = (ln_gamma, normalize);
 
 /// Likelihood label of the binary-outcome posterior, for evidence records.
 pub const BERNOULLI_ARM_LIKELIHOOD: &str = "independent_bernoulli_arms_beta_prior";

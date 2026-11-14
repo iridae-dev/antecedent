@@ -482,9 +482,11 @@ fn the_augmented_panel_publishes_a_whole_cluster_resample_interval() {
     let interval = fit.interval_95.unwrap();
     assert!(interval[0] < fit.effect && fit.effect < interval[1]);
     assert!(fit.uncertainty.contains("calibration_not_measured"));
+    assert_eq!(result.support_status(), None);
     // 400 subjects, each its own cluster, a supplied propensity inside [0.25, 0.75] and 199
-    // completed bootstrap refits meet the augmented-panel support row.
-    assert_eq!(result.support_status().map(|status| status.as_str()), Some("supported"));
+    // completed bootstrap refits meet the augmented-panel support row, stated in a coded
+    // diagnostic beside the unchanged matrix status.
+    assert!(result.states_section_row());
     assert!(has_assumption(&result, "independent_resampling_units"));
 }
 

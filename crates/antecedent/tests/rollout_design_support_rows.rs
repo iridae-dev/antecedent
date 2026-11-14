@@ -34,7 +34,7 @@ mod retained_graphless;
 /// Code of the diagnostic by which a design posterior states its support row.
 const POSTERIOR_ROW: &str = antecedent_io::graphless_support::DESIGN_POSTERIOR_ROW_CODE;
 /// What the loader says of a rollout section whose support claim no row admits.
-const NO_ROW: &str = "claims support no row admits";
+const NO_ROW: &str = "claims no support";
 /// What the loader says of a design posterior whose stated row does not admit it.
 const NO_POSTERIOR_ROW: &str = "states a graphless support row that does not admit it";
 const OUTCOME: VariableId = VariableId::from_raw(0);
@@ -524,7 +524,8 @@ fn supported_augmented_panel_interval_round_trips_and_refuses_forgery() {
     let (data, query) = augmented(41, 260);
     let bootstrap = query.clone().with_resampling(DidResamplingScheme::ClusterBootstrap, 199);
     let (prepared, result, ctx) = fit_panel(&data, bootstrap, None, 6);
-    assert_eq!(result.support_status().map(|status| status.as_str()), Some("supported"), "{label}");
+    // The row is stated in a coded diagnostic; the matrix support status stays absent.
+    assert!(result.states_section_row() && result.support_status().is_none(), "{label}");
     let fit = result.panel_did().unwrap();
     assert!((fit.effect - 1.5).abs() < 0.2, "{label}: {}", fit.effect);
     assert!(fit.interval_95.is_some(), "{label}");
@@ -532,20 +533,38 @@ fn supported_augmented_panel_interval_round_trips_and_refuses_forgery() {
 
     let (names, body) = artifact(&prepared, &result, &ctx, label);
     let stored = body.panel_did.as_ref().unwrap();
-    assert_eq!(stored.graphless_support_status.as_deref(), Some("supported"), "{label}");
+    assert_eq!(stored.graphless_support_status, None, "{label}");
+    let augmented_row = antecedent_io::graphless_support::AUGMENTED_DID_ROW_CODE;
+    let claim = body
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == augmented_row)
+        .cloned()
+        .expect("the exported body states the row");
     // A supplied propensity outside the row's range cannot carry the statement.
     let mut forged = body.clone();
     let recorded = forged.panel_did.as_mut().unwrap().augmented.as_mut().unwrap();
     recorded.0 = 0.1;
-    assert!(refusal(&names, &forged).contains("invalid panel DiD payload"), "{label}");
+    assert!(refusal(&names, &forged).contains("states a graphless support row"), "{label}");
+    // The section's own status is never a statement on an augmented panel.
+    let mut flagged = body.clone();
+    flagged.panel_did.as_mut().unwrap().graphless_support_status = Some("supported".to_owned());
+    assert!(refusal(&names, &flagged).contains("invalid panel DiD payload"), "{label}");
 
     // The multiplier scheme, no resample, and a smaller panel run and state no support.
     let multiplier = query.clone().with_resampling(DidResamplingScheme::ClusterMultiplier, 199);
-    assert!(fit_panel(&data, multiplier, None, 6).1.support_status().is_none());
-    assert!(fit_panel(&data, query, None, 6).1.support_status().is_none());
+    assert!(!fit_panel(&data, multiplier, None, 6).1.states_section_row());
+    assert!(!fit_panel(&data, query, None, 6).1.states_section_row());
     let (small, query) = augmented(42, 120);
     let query = query.with_resampling(DidResamplingScheme::ClusterBootstrap, 199);
-    assert!(fit_panel(&small, query, None, 6).1.support_status().is_none());
+    let (prepared, result, ctx) = fit_panel(&small, query, None, 6);
+    assert!(!result.states_section_row() && result.support_status().is_none(), "{label}");
+    // The supported fit's statement carried onto the smaller panel is refused.
+    let (names, mut stated) = artifact(&prepared, &result, &ctx, label);
+    antecedent_io::encode_analysis_result_artifact(&stated, names.clone(), "no-statement")
+        .expect("the unsupported result round trips");
+    stated.diagnostics.push(claim);
+    assert!(refusal(&names, &stated).contains("states a graphless support row"), "{label}");
 }
 
 #[test]

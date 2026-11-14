@@ -3,8 +3,9 @@
 //! The description is computed by the compiled `Association` study (`Study.compile` and
 //! `prepare_association`); this module only carries the quantities and the evidence behind them
 //! to Python. An association is never the effect of an intervention and ranks no action. The
-//! section states `supported` when the fit met a row of the graphless support table; its
-//! calibration label is `not_measured`.
+//! section's `supported` says whether the result states a row of the graphless support table
+//! (the `estimate.association.graphless_support` diagnostic); its calibration label is
+//! `not_measured`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -147,7 +148,9 @@ impl From<&AssociationPayload> for AssociationSection {
             refused_after: payload.refused_after.as_deref().map(str::to_owned),
             uncertainty: payload.uncertainty_label().to_owned(),
             calibration,
-            supported: payload.supported,
+            // The compiled result states a support row in a coded diagnostic; the caller that
+            // holds the result sets this from it.
+            supported: false,
             ranks_actions: false,
             is_intervention_effect: false,
         }

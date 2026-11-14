@@ -199,6 +199,9 @@ pub(super) fn validate_result(
             "a design posterior states a graphless support row that does not admit it".into(),
         ));
     }
+    // A design section states its support row in a coded diagnostic too; the row is
+    // recomputed from the stored query and section.
+    super::stated_section_rows::validate_stated_section_rows(result)?;
     // A Bayesian design result carries its posterior in place of the design-specific frequentist
     // section; exactly one of the two must be present.
     let design_posterior = result.posterior_artifact.is_some();
@@ -312,7 +315,10 @@ pub(super) fn validate_result(
     }
     validate_longitudinal_graphless(result, allow_legacy_graphless_missing)?;
     validate_sequential_contrast_graphless(result)?;
-    validate_history_match_graphless(result)?;
+    super::stated_section_rows::validate_history_match_section(
+        result,
+        validate_history_match_graphless,
+    )?;
     super::quasi_rollout::validate_quasi_rollout(result)?;
     super::temporal_design::validate_temporal_design(result)?;
     super::iv_bounds::validate_iv_bounds(result)?;

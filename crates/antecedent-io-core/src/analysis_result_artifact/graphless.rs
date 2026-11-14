@@ -146,81 +146,10 @@ const SEQUENTIAL_CONTRAST_INTERVAL: &str = "normal_interval_calibration_not_meas
 /// Uncertainty label of the modular posterior of a sequential contrast.
 const SEQUENTIAL_CONTRAST_POSTERIOR: &str = "modular_bayesian_bootstrap_posterior_no_interval";
 
-/// Whether a sequential contrast query is the design its support rows were measured on: the
-/// always-treat against never-treat contrast over at least five folds, none above a fifth of
-/// the rows (rounded up).
-fn sequential_contrast_row_design(query: &crate::query_wire::SequentialContrastQueryWire) -> bool {
-    let rows = query.fold_of_row.len();
-    let mut sizes = std::collections::BTreeMap::<u32, usize>::new();
-    for fold in &query.fold_of_row {
-        *sizes.entry(*fold).or_default() += 1;
-    }
-    let largest = sizes.values().copied().max().unwrap_or(rows);
-    query.active == [1, 1]
-        && query.control == [0, 0]
-        && sizes.len() >= 5
-        && largest.saturating_mul(5) <= rows.saturating_add(4)
-}
-
-/// Whether the support a sequential contrast claims is the support its query and scores have.
-/// A section's `supported` flag is the Wald row: the measured design, a published interval and
-/// the row's thresholds. A posterior states its row in the design-posterior diagnostic, whose
-/// stated row the generic check admits; here the design, the rows and the smallest fitted
-/// probability it states must be the section's own.
-fn sequential_contrast_row_claim_ok(
-    result: &AnalysisResultWire,
-    query: &crate::query_wire::SequentialContrastQueryWire,
-    fit: &super::SequentialContrastWire,
-) -> bool {
-    let design = sequential_contrast_row_design(query);
-    let rows = fit.contrast_scores.len();
-    let wald = !fit.supported
-        || (design
-            && result.posterior_artifact.is_none()
-            && fit.interval.is_some()
-            && crate::graphless_support::graphless_admits(
-                crate::graphless_support::GraphlessSupportKey {
-                    family: "sequential_contrast",
-                    design: "two_decision_always_versus_never",
-                    method: "crossfit_augmented_scores_wald",
-                    inference_claim: "pointwise_95_normal_interval",
-                },
-                crate::graphless_support::GraphlessAssignmentSupport {
-                    assignment_unit: "unit",
-                    rows,
-                    min_probability: fit.minimum_action_probability,
-                    interval_95_published: true,
-                    reported_intervals: 1,
-                    all_reported_intervals: true,
-                    ..Default::default()
-                },
-            ));
-    let posterior = result
-        .diagnostics
-        .iter()
-        .filter(|diagnostic| diagnostic.code == crate::graphless_support::DESIGN_POSTERIOR_ROW_CODE)
-        .all(|diagnostic| {
-            let stated = |name: &str| {
-                diagnostic
-                    .fields
-                    .iter()
-                    .find(|(field, _)| field == name)
-                    .map(|(_, value)| value.as_str())
-            };
-            design
-                && stated("family") == Some("sequential_contrast")
-                && stated("rows").and_then(|value| value.parse::<usize>().ok()) == Some(rows)
-                && stated("min_probability")
-                    .and_then(|value| value.parse::<f64>().ok())
-                    .is_some_and(|value| value <= fit.minimum_action_probability)
-        });
-    wald && posterior
-}
-
 /// Recompute an observational sequential contrast from its retained scores.
 ///
-/// Every reported summary must be the summary of the retained scores, and a support row the
-/// result claims must be the one its query and scores meet.
+/// The result is unsupported: there is no support coordinate to compare, so the check is that it
+/// claims none and that every reported summary is the summary of the retained scores.
 #[allow(
     clippy::float_cmp,
     reason = "the declared floor is carried through the artifact unchanged, so equality is the check"
@@ -270,7 +199,7 @@ pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphles
         || !near(fit.control_mean, mean(&fit.control_scores))
         || !fit.minimum_action_probability.is_finite()
         || fit.minimum_action_probability < fit.min_probability
-        || !sequential_contrast_row_claim_ok(result, query, fit)
+        || fit.supported
         || fit.calibration != "not_measured"
         || result.estimate.is_some()
         || result.standard_error.is_some()
@@ -315,61 +244,19 @@ pub(in crate::analysis_result_artifact) fn validate_sequential_contrast_graphles
 const HISTORY_MATCH_UNCERTAINTY: &str =
     "abadie_imbens_and_newey_west_period_interval_calibration_not_measured";
 
-/// Whether a history match that claims its support row meets it: calendar periods declared, no
-/// caliper, no sampling weights, every treated unit matched, a published period interval, and
-/// the row's matched periods and pairs in each.
-fn history_match_row_admits(
-    query: &crate::query_wire::HistoryMatchQueryWire,
-    fit: &HistoryMatchWire,
-) -> bool {
-    let mut pairs_in_period = std::collections::BTreeMap::<i64, usize>::new();
-    for period in &fit.pair_periods {
-        *pairs_in_period.entry(*period).or_default() += 1;
-    }
-    let published = fit.interval_lower.is_some() && fit.interval_upper.is_some();
-    query.period.is_some()
-        && query.caliper.is_none()
-        && query.weight.is_none()
-        && fit.caliper.is_none()
-        && fit.unmatched_treated.is_empty()
-        && crate::graphless_support::graphless_admits(
-            crate::graphless_support::GraphlessSupportKey {
-                family: "history_match",
-                design: "within_period_nearest_history",
-                method: "period_newey_west_fixed_b",
-                inference_claim: "pointwise_95_fixed_b_interval",
-            },
-            crate::graphless_support::GraphlessAssignmentSupport {
-                assignment_unit: "cluster",
-                rows: fit.matched_queries.len(),
-                blocks: pairs_in_period.len(),
-                min_block_arm: pairs_in_period.values().copied().min().unwrap_or(0),
-                interval_95_published: published,
-                reported_intervals: usize::from(published),
-                all_reported_intervals: published,
-                ..Default::default()
-            },
-        )
-}
-
 /// Recompute a within-period history-matched contrast from its retained pairs.
 ///
-/// The result carries no top-level summary, so the check is that it claims none, that the
-/// contrast, the weight total, the Abadie-Imbens standard error and the Newey-West standard
-/// error and interval over the matched periods are those of the retained pairs, their periods
-/// and their within-arm variance estimates, and that a support row it claims is one it meets.
+/// The result is unsupported and carries no top-level summary, so the check is that it claims none
+/// and that the contrast, the weight total, the Abadie-Imbens standard error and the Newey-West
+/// standard error and interval over the matched periods are those of the retained pairs, their
+/// periods and their within-arm variance estimates.
 #[allow(clippy::float_cmp, reason = "the check requires exact equality of the retained values")]
 pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
     result: &AnalysisResultWire,
 ) -> Result<(), IoError> {
-    let query = match &result.query {
-        crate::CausalQueryWire::HistoryMatch(query) => Some(query),
-        _ => None,
-    };
-    let is_query = query.is_some();
+    let is_query = matches!(result.query, crate::CausalQueryWire::HistoryMatch(_));
     let Some(fit) = &result.history_match else {
-        // The outcome-model posterior of the same query carries no matched section.
-        return if is_query && result.posterior_artifact.is_none() {
+        return if is_query {
             Err(IoError::Convert("history match artifact is missing its result section".into()))
         } else {
             Ok(())
@@ -393,6 +280,7 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
         && near(fit.weight_total, total)
         && near(fit.contrast, weighted / total);
     if !structure_ok
+        || fit.supported
         || fit.calibration != "not_measured"
         || fit.uncertainty != HISTORY_MATCH_UNCERTAINTY
         || result.estimate.is_some()
@@ -443,19 +331,13 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
     if !consistent {
         return fail("history match standard error is not the Abadie-Imbens form of its pairs");
     }
-    validate_history_match_serial(fit, total, near)?;
-    if fit.supported && !query.is_some_and(|query| history_match_row_admits(query, fit)) {
-        return fail("history match claims a support row its query and pairs do not meet");
-    }
-    Ok(())
+    validate_history_match_serial(fit, total, near)
 }
 
 /// Newey-West standard error and interval of the weighted mean of the pair differences, with the
 /// pairs aggregated by calendar period (periods enter by label, so a missing period invents no
 /// adjacency). Bartlett truncation lag `floor(4 (T / 100)^(2/9))` clamped to `[1, T - 1]`, scale
-/// `T / (T - 1) / total^2`. The interval is the Kiefer-Vogelsang fixed-b interval: the normal
-/// 97.5% point times `cv(b) / 1.96`, `cv(b) = 1.96 + 2.9694 b + 0.4160 b^2 - 0.5324 b^3`, at the
-/// bandwidth share `b = (lag + 1) / T`.
+/// `T / (T - 1) / total^2`, normal interval at the 97.5% point.
 #[allow(
     clippy::cast_sign_loss,
     reason = "the value is bounded by its validated numerical or fixture domain"
@@ -516,15 +398,12 @@ fn validate_history_match_serial(
     }
     let variance = meat * t as f64 / (t as f64 - 1.0) / (total * total);
     let expected_se = variance.max(0.0).sqrt();
-    let share = ((bandwidth + 1) as f64 / t as f64).clamp(0.0, 1.0);
-    let fixed_b =
-        (1.96 + 2.9694 * share + 0.4160 * share * share - 0.5324 * share * share * share) / 1.96;
-    let critical = antecedent_stats::NORMAL_Q975 * fixed_b;
+    let z = antecedent_stats::NORMAL_Q975;
     let ok = matches!(reported, (Some(se), Some(lo), Some(hi))
             if expected_se.is_finite()
                 && near(se, expected_se)
-                && near(lo, fit.contrast - critical * expected_se)
-                && near(hi, fit.contrast + critical * expected_se))
+                && near(lo, fit.contrast - z * expected_se)
+                && near(hi, fit.contrast + z * expected_se))
         && fit.serial_bandwidth == bandwidth;
     if ok {
         Ok(())

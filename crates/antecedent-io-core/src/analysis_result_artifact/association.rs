@@ -4,10 +4,9 @@
 //! and digests are unchanged. An `Association` query requires it. The result describes the
 //! observed law of the columns: the body carries no scalar effect estimate, standard error or
 //! interval beside it, the section states that it is not an intervention effect and ranks no
-//! action, and its calibration label is `not_measured`. A loader checks that every reported
-//! number is finite, that the selected analysis is one the declared selection rule can name,
-//! that the uncertainty label names only what the section holds, and that a claimed support is
-//! the one its graphless support row grants.
+//! action, and it claims no support and a `not_measured` calibration. A loader checks that every
+//! reported number is finite, that the selected analysis is one the declared selection rule can
+//! name, and that the uncertainty label names only what the section holds.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -20,8 +19,8 @@ use crate::{CausalQueryWire, IoError};
 pub const ASSOCIATION_NO_UNCERTAINTY: &str = "none";
 /// Uncertainty label of a result that reports analytic standard errors.
 pub const ASSOCIATION_ANALYTIC_UNCERTAINTY: &str = "analytic_standard_error";
-/// Uncertainty label of a result that reports resampling standard errors and a resampling
-/// spread.
+/// Uncertainty label of a result that reports resampling standard errors and an uncalibrated
+/// percentile spread.
 pub const ASSOCIATION_RESAMPLING_UNCERTAINTY: &str = "resampling_standard_error";
 /// Uncertainty label of a result that reports a posterior.
 pub const ASSOCIATION_POSTERIOR_UNCERTAINTY: &str = "posterior";
@@ -57,12 +56,11 @@ pub struct AssociationTermWire {
     /// Name of the standard-error construction.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standard_error_method: Option<String>,
-    /// Lower end of the resampling spread: the studentized interval of a regression coefficient
-    /// under a row bootstrap, the percentile range of the replicates otherwise (widened by the
-    /// fixed-b and kernel-bias factors of the block length for a series).
+    /// Lower end of the percentile spread of the resampling replicates; no coverage record
+    /// calibrates it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spread_lower: Option<f64>,
-    /// Upper end of the resampling spread.
+    /// Upper end of the percentile spread of the resampling replicates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spread_upper: Option<f64>,
     /// Posterior mean.
@@ -96,7 +94,7 @@ pub struct AssociationResamplingWire {
     /// Block length of a circular-block resample.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub block_length: Option<u64>,
-    /// Level of the resampling spread.
+    /// Level of the percentile spread.
     pub spread_level: f64,
 }
 
@@ -135,7 +133,7 @@ pub struct AssociationPredictionWire {
     pub calibration: String,
 }
 
-/// Noncausal association of the observed data (calibration `not_measured`).
+/// Noncausal association of the observed data (unsupported, `not_measured`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AssociationWire {
@@ -173,8 +171,7 @@ pub struct AssociationWire {
     pub uncertainty: String,
     /// Always `not_measured`.
     pub calibration: String,
-    /// Whether the fit matched a row of the graphless support table; the claim is the
-    /// uncertainty of the slope term.
+    /// Always `false`.
     pub supported: bool,
     /// Always `false`: an association ranks no action.
     pub ranks_actions: bool,
@@ -187,17 +184,14 @@ pub(in crate::analysis_result_artifact) fn validate_association(
     result: &AnalysisResultWire,
 ) -> Result<(), IoError> {
     let fail = |message: &str| Err(IoError::Convert(format!("association section: {message}")));
-    let (query, section) = match (&result.query, &result.association) {
-        (CausalQueryWire::Association(query), Some(section)) => (query, section),
-        (CausalQueryWire::Association(_), None) => {
-            return fail("an association artifact is missing its section");
-        }
-        (_, None) => return Ok(()),
-        (_, Some(_)) => return fail("the section is attached to another query"),
+    let is_query = matches!(result.query, CausalQueryWire::Association(_));
+    let section = match (is_query, &result.association) {
+        (false, None) => return Ok(()),
+        (true, None) => return fail("an association artifact is missing its section"),
+        (false, Some(_)) => return fail("the section is attached to another query"),
+        (true, Some(section)) => section,
     };
-    // A stored support is recomputed from the query and the section; a section that states
-    // none is accepted as written.
-    if (section.supported && !association_slope_row_admits(query, section))
+    if section.supported
         || section.calibration != "not_measured"
         || section.ranks_actions
         || section.is_intervention_effect
@@ -207,9 +201,8 @@ pub(in crate::analysis_result_artifact) fn validate_association(
         || result.interval_upper.is_some()
     {
         return fail(
-            "an association describes the observed law: it claims no support its graphless row \
-             does not grant, no calibration, no intervention effect, no ranking of actions, and \
-             no scalar estimate or interval",
+            "an association describes the observed law: it claims no support, no calibration, \
+             no intervention effect, no ranking of actions, and no scalar estimate or interval",
         );
     }
     if !ASSOCIATION_ANALYSES.contains(&section.analysis.as_str()) {
@@ -264,103 +257,6 @@ pub(in crate::analysis_result_artifact) fn validate_association(
         return fail("the uncertainty label names an uncertainty the section does not hold");
     }
     Ok(())
-}
-
-/// Whether the section's slope interval, rows and resamples match a supported row of the
-/// graphless table. Recomputed from the stored query and section, never taken from the
-/// producer. Rows and resamples are thresholds of the row; a linear regression of a real
-/// outcome on one numeric predictor, nothing held fixed, unweighted, no dropped row, the 95%
-/// level, every requested replicate fitted and a conjugate prior that moves the slope by at
-/// most a hundredth of its posterior standard deviation are checked here.
-fn association_slope_row_admits(
-    query: &crate::AssociationQueryWire,
-    section: &AssociationWire,
-) -> bool {
-    if section.analysis != "linear_regression"
-        || section.outcome_kind != "continuous"
-        || query.predictors.len() != 1
-        || !query.conditioning.is_empty()
-        || query.weight.is_some()
-        || section.rows_dropped != 0
-        || section.terms.len() != 2
-        || section.terms[0].label != "intercept"
-        || section.terms[1].label.contains('=')
-        || section.terms[1].scale != "outcome_units"
-    {
-        return false;
-    }
-    let slope = &section.terms[1];
-    // One series is one dependent sequence; table rows are independent units.
-    let (design, assignment_unit, blocks) = match section.modality.as_str() {
-        "cross_section" => ("cross_section_linear_slope", "unit", 0),
-        "series" => ("series_linear_slope", "sequence", 1),
-        _ => return false,
-    };
-    let at_95 = |level: f64| (level - 0.95).abs() <= 1e-12;
-    let (method, inference_claim, band, resamples) = if let Some(record) = &section.posterior {
-        let (Some(lower), Some(upper)) = (slope.posterior_lower, slope.posterior_upper) else {
-            return false;
-        };
-        let moved = slope
-            .posterior_mean
-            .zip(slope.posterior_sd)
-            .is_none_or(|(mean, sd)| (mean - slope.estimate).abs() > 0.01 * sd);
-        if !at_95(record.level) || (record.method == "conjugate_normal_inverse_gamma" && moved) {
-            return false;
-        }
-        (
-            record.method.as_str(),
-            "slope_95_posterior_equal_tailed_interval",
-            (lower, upper),
-            record.draws,
-        )
-    } else if let Some(record) = &section.resampling {
-        let (Some(lower), Some(upper)) = (slope.spread_lower, slope.spread_upper) else {
-            return false;
-        };
-        let (method, inference_claim) = match record.unit.as_str() {
-            "row" => ("bootstrap_row", "slope_95_studentized_spread"),
-            "calendar_block" => ("bootstrap_circular_block", "slope_95_fixed_b_percentile_spread"),
-            _ => return false,
-        };
-        if !at_95(record.spread_level)
-            || record.replicates_ok != record.replicates_requested
-            || slope.standard_error_method.as_deref() != Some(method)
-        {
-            return false;
-        }
-        (method, inference_claim, (lower, upper), record.replicates_ok)
-    } else {
-        let (Some(error), Some(method)) =
-            (slope.standard_error, slope.standard_error_method.as_deref())
-        else {
-            return false;
-        };
-        (
-            method,
-            "slope_standard_error_95_normal_reference_interval",
-            (slope.estimate - error, slope.estimate + error),
-            0,
-        )
-    };
-    crate::graphless_support::graphless_admits(
-        crate::graphless_support::GraphlessSupportKey {
-            family: "association",
-            design,
-            method,
-            inference_claim,
-        },
-        crate::graphless_support::GraphlessAssignmentSupport {
-            assignment_unit,
-            rows: usize::try_from(section.rows).unwrap_or(usize::MAX),
-            blocks,
-            interval_95_published: band.0.is_finite() && band.1.is_finite() && band.0 < band.1,
-            reported_intervals: 1,
-            all_reported_intervals: true,
-            interval_resamples: usize::try_from(resamples).unwrap_or(usize::MAX),
-            ..Default::default()
-        },
-    )
 }
 
 /// Check numerical term summaries and their links to section-level uncertainty.

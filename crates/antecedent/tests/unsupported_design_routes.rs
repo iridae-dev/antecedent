@@ -290,7 +290,7 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
     close(fit.interval_upper.unwrap(), fit.contrast + half_width, 1.0e-12);
     assert_eq!(
         &*fit.uncertainty,
-        "abadie_imbens_and_newey_west_period_interval_calibration_not_measured"
+        "abadie_imbens_and_newey_west_fixed_b_period_interval_calibration_not_measured"
     );
     let bytes = prepared.encode_contracted_result(&result, "history-match", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
@@ -323,7 +323,8 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
         .err()
         .unwrap()
         .to_string(),
-        "convert error: history match period interval is not the Newey-West interval of its pairs"
+        "convert error: history match period interval is not the fixed-b Newey-West interval of \
+         its pairs"
     );
     let mut forged_periods = body.clone();
     forged_periods.history_match.as_mut().unwrap().pair_periods = vec![1, 2, 3];
@@ -343,13 +344,58 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
     assert_eq!(
         antecedent_io::encode_analysis_result_artifact(
             &forged_contrast,
-            header.variable_names,
+            header.variable_names.clone(),
             "forged-contrast"
         )
         .err()
         .unwrap()
         .to_string(),
         "convert error: invalid history match payload or fabricated summary"
+    );
+    // The uncertainty label names the interval's construction. An artifact written with the
+    // normal period interval carries the earlier label and still loads; either label with the
+    // other construction's interval is refused.
+    let earlier_label = "abadie_imbens_and_newey_west_period_interval_calibration_not_measured";
+    let normal = 1.959_963_984_540_054 * serial_se;
+    let mut earlier = body.clone();
+    {
+        let section = earlier.history_match.as_mut().unwrap();
+        section.uncertainty = earlier_label.to_owned();
+        section.interval_lower = Some(section.contrast - normal);
+        section.interval_upper = Some(section.contrast + normal);
+    }
+    antecedent_io::encode_analysis_result_artifact(
+        &earlier,
+        header.variable_names.clone(),
+        "normal-period-interval",
+    )
+    .expect("the earlier construction is accepted under its own label");
+    let mut relabelled = body.clone();
+    relabelled.history_match.as_mut().unwrap().uncertainty = earlier_label.to_owned();
+    assert_eq!(
+        antecedent_io::encode_analysis_result_artifact(
+            &relabelled,
+            header.variable_names.clone(),
+            "fixed-b-under-the-earlier-label"
+        )
+        .err()
+        .unwrap()
+        .to_string(),
+        "convert error: history match period interval is not the Newey-West interval of its pairs"
+    );
+    let mut narrowed = earlier.clone();
+    narrowed.history_match.as_mut().unwrap().uncertainty = wire.uncertainty.clone();
+    assert_eq!(
+        antecedent_io::encode_analysis_result_artifact(
+            &narrowed,
+            header.variable_names.clone(),
+            "normal-under-the-fixed-b-label"
+        )
+        .err()
+        .unwrap()
+        .to_string(),
+        "convert error: history match period interval is not the fixed-b Newey-West interval of \
+         its pairs"
     );
 
     // Without a caliper a donor is reused.

@@ -244,9 +244,25 @@ pub(super) fn state_design_posterior_row(
     key: crate::support::GraphlessSupportKey<'_>,
     observed: crate::support::GraphlessAssignmentSupport,
 ) {
+    state_row_with_resamples(
+        result,
+        key,
+        observed,
+        antecedent_io::graphless_support::GraphlessResampleSupport::default(),
+    );
+}
+
+/// [`state_design_posterior_row`] for a row that carries a resampling threshold: `resampled`
+/// is the observed first-stage strength and the draws behind the interval.
+pub(super) fn state_row_with_resamples(
+    result: &mut StudyResult,
+    key: crate::support::GraphlessSupportKey<'_>,
+    observed: crate::support::GraphlessAssignmentSupport,
+    resampled: antecedent_io::graphless_support::GraphlessResampleSupport,
+) {
     let draws = result.posterior.as_ref().map_or(0, |posterior| posterior.draws.n_draws);
     if draws < DESIGN_ROW_MEASURED_DRAWS
-        || crate::support::support_if_graphless(key, observed).is_none()
+        || !antecedent_io::graphless_support::graphless_admits_resampled(key, observed, resampled)
     {
         return;
     }
@@ -265,7 +281,9 @@ pub(super) fn state_design_posterior_row(
                 key.family, key.design, key.method, key.inference_claim
             ),
         )
-        .with_fields(antecedent_io::graphless_support::design_posterior_row_fields(key, observed)),
+        .with_fields(antecedent_io::graphless_support::design_posterior_row_statement(
+            key, observed, resampled,
+        )),
     );
 }
 

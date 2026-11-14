@@ -50,7 +50,7 @@ pub struct IvBoundsSection {
     pub rows_dropped: usize,
     pub interval: Option<IvBoundsIntervalSection>,
     pub posterior: Option<IvBoundsPosteriorSection>,
-    /// Whether the fit matched a row of the graphless support table.
+    /// Whether the result states a row of the graphless support table for the fit.
     pub supported: bool,
 }
 
@@ -83,7 +83,8 @@ impl From<&antecedent::IvBoundsEstimate> for IvBoundsSection {
                 lower_sd: posterior.lower_sd,
                 upper_sd: posterior.upper_sd,
             }),
-            supported: value.supported,
+            // Set by the caller from the result's support-row diagnostic.
+            supported: false,
         }
     }
 }

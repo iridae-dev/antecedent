@@ -396,8 +396,13 @@ fn every_association_counterpart_publishes_an_artifact_a_consumer_reads_the_term
         assert_eq!(wire.terms.len(), terms, "{modality}");
         // The standard error of a linear-regression slope on 120 rows or steps and the
         // conjugate posterior of the table meet their graphless rows; the block posterior of
-        // the series at 200 draws does not.
-        assert_eq!(wire.supported, supported, "{modality}");
+        // the series at 200 draws does not. The row is stated in a coded diagnostic and the
+        // section's own flag stays false.
+        let stated = consumed.body.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == antecedent_io::graphless_support::ASSOCIATION_SLOPE_ROW_CODE
+        });
+        assert_eq!(stated, supported, "{modality}");
+        assert!(!wire.supported, "{modality}");
         assert_eq!(wire.calibration, "not_measured", "{modality}");
         assert!(consumed.contract.is_some(), "{modality}");
     }

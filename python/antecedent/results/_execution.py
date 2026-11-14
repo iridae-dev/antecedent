@@ -23,7 +23,7 @@ from .._api import describe_refusal
 from ..errors import CausalUnsupportedError
 from ..outcomes import ANSWER_KINDS as ANSWER_KINDS
 from ..outcomes import Answer, AnswerKind, Refused
-from ._families import canonical_from_live, canonical_from_wire
+from ._families import canonical_from_live, canonical_from_wire, wire_section_with_stated_row
 from ._report import InspectionReport, as_inspection, cached_inspection
 from ._slots import ReasoningSlots, SlotView
 
@@ -216,7 +216,7 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
     if kind is None:
         return Answer("unavailable", detail=f"unrecognized_claim_kind:{claim_kind}")
     if kind == "associational":
-        section = payload.get("association")
+        section = wire_section_with_stated_row(payload, "association")
         return Answer(
             "associational",
             detail="noncausal_association",
@@ -265,7 +265,7 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
             detail=_posterior_row_detail(posterior_row.get("estimator")),
             structured=canonical_from_wire("posterior_row", posterior_row),
         )
-    contrast = payload.get("sequential_contrast")
+    contrast = wire_section_with_stated_row(payload, "sequential_contrast")
     if kind == "point" and isinstance(contrast, Mapping):
         return Answer(
             "structured",
@@ -274,7 +274,7 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
             + str(contrast.get("uncertainty")),
             structured=canonical_from_wire("sequential_contrast", contrast),
         )
-    bounds_section = payload.get("iv_bounds")
+    bounds_section = wire_section_with_stated_row(payload, "iv_bounds")
     if kind == "bounds" and isinstance(bounds_section, Mapping):
         return Answer(
             "bounds",
@@ -284,7 +284,7 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
             + str(bounds_section.get("uncertainty")),
             structured=canonical_from_wire("iv_bounds", bounds_section),
         )
-    design = payload.get("temporal_design")
+    design = wire_section_with_stated_row(payload, "temporal_design")
     if kind != "unavailable" and isinstance(design, Mapping):
         return Answer(
             "structured",
@@ -293,7 +293,7 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
             + str(design.get("uncertainty")),
             structured=canonical_from_wire("temporal_design", design),
         )
-    matched = payload.get("history_match")
+    matched = wire_section_with_stated_row(payload, "history_match")
     if kind == "point" and isinstance(matched, Mapping):
         return Answer(
             "structured",
