@@ -9,6 +9,10 @@
 # only after PyPI succeeded, so one verified commit and one reviewer approval ship
 # both registries or neither publishes a half-checked release.
 #
+# Both registry jobs also need a successful `docs` job: the documentation is built,
+# its examples run and its site checked before either registry is touched, so a
+# documentation failure cannot leave packages published without their docs.
+#
 # Nothing publishes until `prepare` has verified (scripts/verify_release.sh) that
 # the tag commit is on main, that the committed tree carries the tag's version,
 # and that a main-push `ci` run is green on that exact commit. Both publishers
@@ -199,13 +203,15 @@ jobs:
           retention-days: 30
 
   # PyPI must not wait on GitHub Release asset uploads. A unicorn on
-  # uploads.github.com used to skip trusted publishing entirely.
+  # uploads.github.com used to skip trusted publishing entirely. It does wait on
+  # the `docs` job, whose bundle is built and checked without any upload.
   publish-pypi:
     name: Publish wheels to PyPI
-    needs: [prepare, crates-dry-run]
+    needs: [prepare, docs, crates-dry-run]
     if: >-
       always() && !cancelled() &&
       needs.prepare.result == 'success' &&
+      needs.docs.result == 'success' &&
       needs.crates-dry-run.result == 'success'
     runs-on: ubuntu-latest
     # Required reviewer + tag-only deployment rule live on this environment.
@@ -296,10 +302,11 @@ jobs:
   # required reviewer and tag-only deployment rule, as for PyPI.
   publish-crates:
     name: Publish crates.io
-    needs: [prepare, crates-dry-run, publish-pypi]
+    needs: [prepare, docs, crates-dry-run, publish-pypi]
     if: >-
       always() && !cancelled() &&
       needs.prepare.result == 'success' &&
+      needs.docs.result == 'success' &&
       needs.crates-dry-run.result == 'success' &&
       needs.publish-pypi.result == 'success'
     runs-on: ubuntu-latest

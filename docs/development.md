@@ -716,7 +716,8 @@ Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev
 reuses the 16 wheels built and fully tested by the green `main` CI run on the
 exact tag commit, then publishes to public PyPI and the GitHub Release as
 **independent jobs**. It builds the docs bundle from that run's Python 3.12
-Linux wheel. Trusted publishing (`id-token: write`) must not
+Linux wheel, and neither PyPI nor crates.io is touched until that documentation
+job has succeeded. Trusted publishing (`id-token: write`) must not
 wait on GitHub asset uploads, so an outage of `uploads.github.com` cannot block
 PyPI. Release assets are
 uploaded one file at a time with retries. A manual retry may supply
