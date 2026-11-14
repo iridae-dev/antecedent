@@ -6,7 +6,7 @@
 schema = 1
 missing_attempts = 0
 missing_consumers = 0
-adjusted_claims = 73
+adjusted_claims = 64
 unresolved_mandatorys = 0
 families = 28
 
@@ -50,7 +50,7 @@ gaps = "none = 4"
 id = "P07"
 children = 24
 unresolved_evidence = 0
-gaps = "none = 21, validation = 3"
+gaps = "none = 23, validation = 1"
 
 [[family]]
 id = "P08"
@@ -68,13 +68,13 @@ gaps = "none = 26, target = 2"
 id = "P10"
 children = 4
 unresolved_evidence = 0
-gaps = "none = 3, validation = 1"
+gaps = "none = 4"
 
 [[family]]
 id = "P11"
 children = 24
 unresolved_evidence = 0
-gaps = "none = 16, target = 6, validation = 2"
+gaps = "none = 17, target = 6, validation = 1"
 
 [[family]]
 id = "P12"
@@ -86,7 +86,7 @@ gaps = "none = 8"
 id = "P13"
 children = 8
 unresolved_evidence = 0
-gaps = "validation = 8"
+gaps = "none = 1, validation = 7"
 
 [[family]]
 id = "P14"
@@ -104,7 +104,7 @@ gaps = "none = 12, target = 4"
 id = "P16"
 children = 4
 unresolved_evidence = 0
-gaps = "validation = 4"
+gaps = "none = 4"
 
 [[family]]
 id = "P17"
@@ -179,43 +179,11 @@ unresolved_evidence = 0
 gaps = "target = 2, validation = 2"
 
 [[adjusted_claim]]
-id = "P07.derivative.temporal.frequentist"
-method = "P07.derivative"
-side = "temporal.frequentist"
-status = "supported"
-reason = "the slope reports the shared circular-block band, withheld when the block replicates carry no spread; the ATE refuters do not denote for a slope, so the slope is refuted as a response derivative through refute_prepared_target (placebo timing, contiguous-window subset stability and block stability refit the prepared derivative program on the whole target vector, as multiplicities where the route reads row weights and as gathered windows otherwise); the finite-difference and local-linearity checks refit a mean curve on the check grid under the derivative's own temporal specification, for a point derivative and for an average derivative under the observed law, with one coordinate per horizon merged on the horizon-indexed target (the merge is tested on known slopes per horizon; the route itself publishes the local slope at one horizon); the coverage of the band is not measured; next attempt: measure the whole-procedure coverage of this interval and record its boundary"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P07.derivative.temporal.bayesian"
-method = "P07.derivative"
-side = "temporal.bayesian"
-status = "supported"
-reason = "no derivative-native Bayesian calibration; no_interval_reported; prior sensitivity refits the temporal study under alternative prior scales, while the posterior-predictive check replicates independent rows and refuses series and panels; next attempt: replicate the lag-aligned outcome model with an autoregressive reference and compare through blocks of lag windows"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
 id = "P07.dose_grid.static.frequentist"
 method = "P07.dose_grid"
 side = "static.frequentist"
 status = "not_supported"
 reason = "the bias-aware intervals and simultaneous band (estimate_dose_grid_bias_aware) are carried by the sealed artifact under dose_grid_bias_aware_band_v1 and by antecedent.dose_grid.dose_functional(curvature_bound=...); their calibration is not_measured"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P10.temporal.frequentist"
-method = "P10"
-side = "temporal.frequentist"
-status = "not_supported"
-reason = "coverage of the whole-procedure interval is not measured here"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P11.augmented_panel_did.temporal.frequentist"
-method = "P11.augmented_panel_did"
-side = "temporal.frequentist"
-status = "not_supported"
-reason = "whole-cluster resample interval (supplied predictions held fixed) is unsupported with calibration not_measured; 2x2 graphless row does not cover it"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -240,14 +208,6 @@ method = "P13.attribution"
 side = "static.bayesian"
 status = "supported"
 reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured; Bayesian side: stability refits of the posterior-mean vector; prior sensitivity and posterior-predictive checks of the attribution vector are absent because the prior grid has not been compiled on the attribution program (next attempt: compile the prior grid on the attribution program and replay the contribution vector under each prior)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P13.attribution.temporal.frequentist"
-method = "P13.attribution"
-side = "temporal.frequentist"
-status = "supported"
-reason = "executing and unsupported: the interval is the whole-procedure resampling or posterior interval (calibration not_measured), and the contribution vector has a native refuter, the subset and bootstrap stability refits of the prepared attribution program on the whole vector (treatment-keyed refuters do not denote for an attribution); error rates and thresholds are not_measured"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -304,38 +264,6 @@ method = "P14"
 side = "temporal.bayesian"
 status = "supported"
 reason = "the circular-block Dirichlet interval is reported and asserted wider than the independent-row posterior by temporal_admg_transport_reports_a_serial_dependence_aware_interval; its coverage is not measured"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P16.static.frequentist"
-method = "P16"
-side = "static.frequentist"
-status = "not_supported"
-reason = "no coverage record; composition rows are composition.static.frequentist"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P16.static.bayesian"
-method = "P16"
-side = "static.bayesian"
-status = "not_supported"
-reason = "posterior composition is not validated as a route; rows measurement.static.bayesian and composition.static.bayesian"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P16.temporal.frequentist"
-method = "P16"
-side = "temporal.frequentist"
-status = "not_supported"
-reason = "temporal composition executes over the joint block-bootstrap replicates the compiled temporal response retains under StudyBuilder::retain_joint_horizons (composition.temporal.frequentist, a horizon-indexed composed coordinate, linear and nonlinear); the composed interval is closed until a coverage record is measured at the coordinate"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "P16.temporal.bayesian"
-method = "P16"
-side = "temporal.bayesian"
-status = "not_supported"
-reason = "temporal Bayesian composition executes over the joint block-weight draws the compiled temporal response retains under StudyBuilder::retain_joint_horizons (composition.temporal.bayesian); the composed posterior statement is closed until calibrated at the coordinate"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]

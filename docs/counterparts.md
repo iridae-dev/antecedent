@@ -108,15 +108,10 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 
 | Row | Status | Next attempt |
 | --- | --- | --- |
-| `P07.derivative.temporal.frequentist` | supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P07.derivative.temporal.bayesian` | supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P07.dose_grid.static.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P10.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P11.augmented_panel_did.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P11.synthetic_control.temporal.frequentist` | not supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
 | `P13.attribution.static.frequentist` | supported | derive the dependence-aware interval or posterior for this counterpart and publish it through the same route with the uncertainty port of its static twin |
 | `P13.attribution.static.bayesian` | supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P13.attribution.temporal.frequentist` | supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P13.attribution.temporal.bayesian` | supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P13.refuter.static.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P13.refuter.static.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
@@ -124,10 +119,6 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `P13.refuter.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P14.temporal.frequentist` | supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `P14.temporal.bayesian` | supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P16.static.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P16.static.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P16.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
-| `P16.temporal.bayesian` | not supported | measure the whole-procedure coverage of this interval and record its boundary |
 | `X02.static.frequentist` | not supported | build the missing route through the compiler with the same uncertainty ports |
 | `X02.static.bayesian` | not supported | build the missing route through the compiler with the same uncertainty ports |
 | `X02.temporal.frequentist` | not supported | measure the whole-procedure coverage of this interval and record its boundary |

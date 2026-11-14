@@ -13,33 +13,9 @@
 schema = 1
 
 [[pending]]
-row = "P07.derivative.temporal.bayesian"
-facet = "suite.derivative_calibration"
-owed = "posterior_calibration"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P07.derivative.temporal.frequentist"
-facet = "suite.derivative_calibration"
-owed = "interval_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
 row = "P07.dose_grid.static.frequentist"
 facet = "suite.smoothed_dose_calibration"
 owed = "band_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P10.temporal.frequentist"
-facet = "suite.temporal_frequentist"
-owed = "interval_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P11.augmented_panel_did.temporal.frequentist"
-facet = "suite.panel_calibration"
-owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
@@ -70,12 +46,6 @@ axes = ["design_inference", "uncertainty"]
 row = "P13.attribution.temporal.bayesian"
 facet = "suite.calibration_attribution_bayesian"
 owed = "posterior_calibration"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P13.attribution.temporal.frequentist"
-facet = "suite.calibration_temporal"
-owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
@@ -111,30 +81,6 @@ axes = ["design_inference", "uncertainty"]
 [[pending]]
 row = "P14.temporal.frequentist"
 facet = "suite.transport_statistical_calibration"
-owed = "interval_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P16.static.bayesian"
-facet = "suite.joint_law_composed_interval_calibration"
-owed = "posterior_calibration"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P16.static.frequentist"
-facet = "suite.joint_law_composed_interval_calibration"
-owed = "interval_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P16.temporal.bayesian"
-facet = "suite.joint_law_composed_interval_calibration"
-owed = "posterior_calibration"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
-row = "P16.temporal.frequentist"
-facet = "suite.joint_law_composed_interval_calibration"
 owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
 
