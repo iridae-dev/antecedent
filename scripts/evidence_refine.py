@@ -27,12 +27,16 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from evidence_platforms import PLATFORMS
+
 DECLARATIONS = "parity/fingerprint_inputs.toml"
 # Bound whatever the assertion runs (Snapshot's fixed inputs).
 FIXED = {".cargo/config.toml", ".cargo/config", "scripts/compile_time_environment.py", "flake.lock",
          "nix/evidence-target.nix", "nix/evidence-deps.nix", "nix/evidence-common.nix",
          "nix/evidence-driver.nix", "nix/evidence-toolchain.nix", "scripts/nix_evidence_policy.py",
          "scripts/nix_evidence_deps.py", "nix/compile-time-reviewed.json", "Cargo.lock"}
+# The same inputs on every other earning platform.
+FIXED |= {rel for p in PLATFORMS.values() for rel in (*p.recipes, *p.policy_sources, p.registry)}
 
 
 def _selected_spans(tree: Path, inputs: list[dict], tables) -> tuple[dict[str, list[tuple[int, int]]], set[str]]:

@@ -33,6 +33,7 @@ from evidence_manifests import (
     manifest_id,
     noncanonical_environment,
 )
+from evidence_platforms import DARWIN, PLATFORMS
 
 
 def binding(kind: str, key: str, fingerprint: str, measurement=None) -> dict:
@@ -112,9 +113,16 @@ def compile_time_code(root: Path) -> dict[str, set[str]] | None:
 _HOST_UNITS: dict[tuple, bool] = {}
 
 
+def _host_registry() -> str:
+    """The compile-time registry a host build is assessed against."""
+    import evidence_platforms
+    return PLATFORMS.get(evidence_platforms.host_target(), DARWIN).registry
+
+
 def _registry_assessed(root: Path, info: dict, required: set[str]) -> set[str]:
     """`required` when every compile-time unit of the host build is reviewed, else nothing."""
-    from nix_evidence_policy import host_compiler_graph, validate_units
+    from evidence_platforms import validate_units
+    from nix_evidence_policy import host_compiler_graph
     target = list(info['target']) if info['lang'] == 'rust' else ['python']
     key = (root, info.get('crate', ''), tuple(target))
     if key not in _HOST_UNITS:
@@ -210,7 +218,8 @@ class Snapshot:
             tools = nix_build['tools']
             if (record.get('kind') not in ('scientific', 'calibration', 'probe')
                     or tools['rustc'] != checker.pin['release']
-                    or tools['rustc_commit'] != checker.pin['commit']):
+                    or tools['rustc_commit'] != checker.pin['commit']
+                    or tools.get('host') not in PLATFORMS):
                 raise RuntimeError('Nix build compiler or evidence kind is invalid')
             from nix_artifact_identity import recheck_artifact
             from nix_evidence_source import _clean_head
@@ -222,9 +231,9 @@ class Snapshot:
         files = {root / rel for rel in ('.cargo/config.toml', '.cargo/config',
                                          'scripts/compile_time_environment.py')}
         if nix_build is not None:
-            files.update(root / rel for rel in ('flake.lock', 'nix/evidence-target.nix', 'nix/evidence-deps.nix',
-                         'nix/evidence-common.nix', 'nix/evidence-driver.nix', 'nix/evidence-toolchain.nix',
-                         'scripts/nix_evidence_policy.py', 'scripts/nix_evidence_deps.py'))
+            # The recipes and policy code of the platform the build was made on.
+            platform = PLATFORMS[nix_build['tools']['host']]
+            files.update(root / rel for rel in (*platform.recipes, *platform.policy_sources))
             if 'release' in nix_build:
                 files.update(root / rel for rel in nix_build['release']['recipe_sha256'])
         self.fixed_files = {path.resolve() for path in files}
@@ -310,7 +319,7 @@ class Snapshot:
             # unit Cargo actually builds for this target. The metadata set above
             # over-approximates it (other platforms and features).
             assessed.update(_registry_assessed(root, info, required))
-            files.update({root / 'nix/compile-time-reviewed.json', root / 'Cargo.lock'})
+            files.update({root / _host_registry(), root / 'Cargo.lock'})
             if not required <= assessed:
                 raise RuntimeError(f'undeclared compile-time input boundary for {source}: '
                                    f'{", ".join(sorted(required - assessed))}; add an assessed '
@@ -510,9 +519,10 @@ _POLICIES: dict[tuple, dict] = {}
 def _validated_build(root: Path, nix_build: dict) -> dict:
     """`validate_build`, once per unchanged daemon configuration, audit and unit graph."""
     from evidence_manifests import _stat_signature
-    from nix_evidence_policy import NIX_OVERRIDES, SYSTEM_CONFIG, validate_build
+    from evidence_platforms import host_platform, validate_build
+    from nix_evidence_policy import NIX_OVERRIDES, SYSTEM_CONFIG
     key = (str(root), _stat_signature(SYSTEM_CONFIG), tuple(sorted(NIX_OVERRIDES.intersection(os.environ))),
-           _stat_signature(root / 'nix/compile-time-reviewed.json'), _stat_signature(root / 'Cargo.lock'),
+           _stat_signature(root / host_platform().registry), _stat_signature(root / 'Cargo.lock'),
            digest(canonical(nix_build['compiler_graph'])))
     if key not in _POLICIES:
         _POLICIES[key] = validate_build(root, nix_build)

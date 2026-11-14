@@ -14,6 +14,7 @@ import tempfile
 import tomllib
 from pathlib import Path
 
+from evidence_platforms import host_platform
 from nix_artifact_identity import inspect_artifact, target_dir, targets_json
 from nix_evidence_build import _compiler_graph
 from nix_evidence_source import (
@@ -105,7 +106,7 @@ TARGETS = targets_json([{"crate": CRATE, "kind": "lib", "name": "", "features": 
 
 
 def _build(source: str) -> str:
-    recipe = ROOT / "nix/evidence-target.nix"
+    recipe = ROOT / host_platform().build_recipe
     command = [
         "nix", "--extra-experimental-features", "nix-command flakes", "--offline",
         "--option", "substitute", "false", "--option", "builders", "",
@@ -192,7 +193,7 @@ def run_fixture() -> dict:
         verify_committed_snapshot(checkout, snapshot, commit)
         output = _build(source["store_path"])
         artifact = inspect_artifact(ROOT, output, source["store_path"], CRATE, "lib", "", FEATURES,
-                                    deps_source=source["store_path"])
+                                    deps_source=source["store_path"], recipes=host_platform().recipes)
         if artifact["source_nar_hash"] != source["nar_hash"] or artifact["output"] != output:
             raise ValueError("artifact source differs from the committed fixture")
         if artifact["sandbox_verified"] is not False:

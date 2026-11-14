@@ -30,6 +30,7 @@ class EngineeringFixtureTest(unittest.TestCase):
              patch.object(fixture, "import_committed_snapshot", return_value=source), \
              patch.object(fixture, "verify_committed_snapshot") as verify, \
              patch.object(fixture, "_build", return_value="/nix/store/output") as build, \
+             patch.object(fixture, "host_platform"), \
              patch.object(fixture, "inspect_artifact", return_value=artifact), \
              patch.object(fixture, "_tool_versions", return_value={"rustc": "1.85.1", "rustc_commit": "hash", "cargo": "cargo 1.97.0"}), \
              patch.object(fixture, "_compiler_graph", return_value={"units": [{}], "roots": [0]}), \
@@ -61,6 +62,7 @@ class EngineeringFixtureTest(unittest.TestCase):
                  patch.object(fixture, "import_committed_snapshot", return_value=source), \
                  patch.object(fixture, "verify_committed_snapshot"), \
                  patch.object(fixture, "_build", return_value="/nix/store/output"), \
+                 patch.object(fixture, "host_platform"), \
                  patch.object(fixture, "inspect_artifact", return_value=artifact), \
                  patch.object(fixture, "_execute_and_measure") as execute:
                 with self.assertRaises(ValueError):

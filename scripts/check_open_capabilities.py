@@ -11,6 +11,7 @@ ledger records it:
                 capability route's interval allocates that is not measured
   attempt       a mandatory scope row whose attempt has no recorded outcome
   capability    a capability record that is not supported and names no closed question
+  statement     a published uncertainty statement no measurement covers
 
     python3 scripts/check_open_capabilities.py                 # print the open list
     python3 scripts/check_open_capabilities.py --require-zero  # release: fail while any is open
@@ -76,6 +77,10 @@ def open_items(root: Path = ROOT) -> list[tuple[str, str, str]]:
     for record in records:
         if record.get("status") != "supported" and not record.get("closed_question"):
             items.append(("capability", record["id"], str(record.get("guarantee", ""))))
+    statements = parity / "unmeasured_statements.toml"
+    if statements.is_file():
+        for row in load_toml(statements).get("statement", []):
+            items.append(("statement", row["route"], row["statement"]))
     return items
 
 

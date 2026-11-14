@@ -22930,6 +22930,13 @@ path = "scripts/test_evidence_pipeline.py"
 gates = ["inventory"]
 
 [[test]]
+id = "scripts-test-evidence-platforms"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_evidence_platforms.py"
+gates = ["inventory"]
+
+[[test]]
 id = "scripts-test-evidence-items"
 crate = "scripts"
 cargo_target = "script"

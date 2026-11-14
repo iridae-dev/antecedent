@@ -313,14 +313,15 @@ def validate_nix_receipt(receipt: object, binding: dict, inputs: list[dict]) -> 
             raise ValueError("invalid content identity")
         if not all(isinstance(tools[k], str) and tools[k] for k in ("rustc", "rustc_commit", "cargo")):
             raise ValueError("missing tools")
-        if (policy["id"] != "nix-darwin-private-tmp-audit-v1"
-                or policy.get("source_projection_allowed") is not True
+        # The receipt names the platform that earned it; its recipes are that platform's.
+        from evidence_platforms import receipt_platform
+        platform = receipt_platform(receipt)
+        if (policy.get("source_projection_allowed") is not True
                 or not HEX.fullmatch(policy["audit_selection_sha256"])):
             raise ValueError("invalid policy")
         tracked = {i.get("path"): i.get("digest") for i in inputs if i.get("kind") == "evidence_file"}
         required = dict(artifact["recipe_sha256"])
-        if set(required) != {"nix/evidence-target.nix", "nix/evidence-deps.nix", "nix/evidence-common.nix",
-                             "nix/evidence-driver.nix", "nix/evidence-toolchain.nix", "flake.lock"}:
+        if set(required) != set(platform.recipes):
             raise ValueError("incomplete recipe identity")
         if not required or any(tracked.get(path) != value for path, value in required.items()):
             raise ValueError("unbound recipe or audit registry")
@@ -332,8 +333,7 @@ def validate_nix_receipt(receipt: object, binding: dict, inputs: list[dict]) -> 
                 raise ValueError("release binary outside a calibration measurement")
             if release["binary"] != artifact["binary"] or not HEX.fullmatch(release["binary_sha256"]):
                 raise ValueError("invalid release binary")
-            if set(release["recipe_sha256"]) != {"nix/calibration-release.nix", "nix/evidence-common.nix",
-                                                 "nix/evidence-toolchain.nix", "flake.lock"}:
+            if set(release["recipe_sha256"]) != set(platform.release_recipes):
                 raise ValueError("incomplete release recipe identity")
             if any(tracked.get(path) != value for path, value in release["recipe_sha256"].items()):
                 raise ValueError("unbound release recipe")
@@ -615,7 +615,7 @@ class Checker:
             if manifest["analyzer"] != ANALYZER:
                 reasons.append("analyzer_policy_changed")
             if "nix_build" in manifest:
-                from nix_evidence_policy import recheck_selection
+                from evidence_platforms import recheck_selection
                 recheck_selection(self.root, manifest["nix_build"]["policy"])
             names = next((e for e in manifest["inputs"] if e["kind"] == "rust_names"), None)
             for entry in manifest["inputs"]:

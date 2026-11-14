@@ -1,0 +1,16 @@
+{
+  "release": "1.97.1",
+  "date": "2026-07-16",
+  "targets": {
+    "aarch64-unknown-linux-gnu": {
+      "rust": null,
+      "llvm-tools": null,
+      "rustc-dev": null
+    },
+    "x86_64-unknown-linux-gnu": {
+      "rust": null,
+      "llvm-tools": null,
+      "rustc-dev": null
+    }
+  }
+}

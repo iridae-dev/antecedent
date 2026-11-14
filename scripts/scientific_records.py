@@ -373,12 +373,14 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     from evidence_earning import Snapshot, binding, publish_executed, require_compile_environment
+    from evidence_platforms import earning_platform, validate_build
     from nix_evidence_build import build_committed_targets
     from nix_evidence_capture import CHECKOUT_LOCK, capture_built_target
-    from nix_evidence_policy import validate_build
     from nix_evidence_source import _clean_head
 
     root = root.resolve()
+    # Refuse before any work on a host with no complete evidence policy.
+    earning_platform(root)
     require_compile_environment(root)
     allowed: dict[str, str] = {}
     _clean_head(root, allowed)  # Run outputs may be allowed only after starting clean.

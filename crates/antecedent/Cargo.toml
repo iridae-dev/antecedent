@@ -1601,3 +1601,21 @@ name = "fitted_model_support_routes"
 
 [[test]]
 name = "joint_response_calibration"
+
+[[test]]
+name = "temporal_design_statements_calibration"
+
+[[test]]
+name = "panel_did_statements_calibration"
+
+[[test]]
+name = "local_designs_statements_calibration"
+
+[[test]]
+name = "measurement_composition_statements_calibration"
+
+[[test]]
+name = "bayesian_randomized_statements_calibration"
+
+[[test]]
+name = "bounds_association_statements_calibration"

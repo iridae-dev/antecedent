@@ -1,0 +1,275 @@
+# Published uncertainty statements with no coverage record at any setting.
+#
+# Each row is a construction a route publishes (an interval, band, posterior or error)
+# that no measurement covers. The route states no support for it at run time. A row is
+# removed when its record lands or the statement is no longer published.
+
+schema = 1
+
+[[statement]]
+route = "gcm.attribute"
+statement = "frequentist bootstrap error for paths"
+
+[[statement]]
+route = "gcm.attribute"
+statement = "frequentist bootstrap error for feature relevance"
+
+[[statement]]
+route = "gcm.attribute"
+statement = "frequentist bootstrap error for anomaly"
+
+[[statement]]
+route = "gcm.attribute"
+statement = "frequentist bootstrap error for unit change"
+
+[[statement]]
+route = "gcm.attribute"
+statement = "structure change"
+
+[[statement]]
+route = "gcm.attribute"
+statement = "robust estimator"
+
+[[statement]]
+route = "gcm.attribute.bayesian"
+statement = "unit-change posterior"
+
+[[statement]]
+route = "gcm.attribute.bayesian"
+statement = "structure-change posterior"
+
+[[statement]]
+route = "gcm.attribute.bayesian"
+statement = "anomaly posterior with an empirical reference"
+
+[[statement]]
+route = "gcm.attribute.temporal.bayesian"
+statement = "temporal mechanism components"
+
+[[statement]]
+route = "gcm.attribute.temporal.bayesian"
+statement = "temporal intrinsic influence"
+
+[[statement]]
+route = "gcm.simulate"
+statement = "interventional sample with replicates or a posterior"
+
+[[statement]]
+route = "gcm.simulate"
+statement = "unit effects with replicates or a posterior"
+
+[[statement]]
+route = "gcm.simulate"
+statement = "counterfactual with replicates or a posterior"
+
+[[statement]]
+route = "gcm.simulate"
+statement = "temporal counterfactual with replicates or a posterior"
+
+[[statement]]
+route = "discovery.static"
+statement = "order MCMC posterior"
+
+[[statement]]
+route = "discovery.static"
+statement = "structure MCMC posterior"
+
+[[statement]]
+route = "discovery.static"
+statement = "CI-screened posterior"
+
+[[statement]]
+route = "discovery.static"
+statement = "PAG posterior"
+
+[[statement]]
+route = "discovery.static"
+statement = "exact edge marginals"
+
+[[statement]]
+route = "discovery.temporal"
+statement = "class-collapsed DBN posterior"
+
+[[statement]]
+route = "temporal_design.excursion.multi_arm"
+statement = "simultaneous band"
+
+[[statement]]
+route = "temporal_design.excursion.categorical"
+statement = "simultaneous band"
+
+[[statement]]
+route = "temporal_design.excursion.factorial"
+statement = "simultaneous band"
+
+[[statement]]
+route = "temporal_design.excursion.interference"
+statement = "simultaneous band"
+
+[[statement]]
+route = "temporal_design.excursion.smoothed_dose"
+statement = "simultaneous band"
+
+[[statement]]
+route = "temporal_design.excursion.dose_grid"
+statement = "simultaneous band"
+
+[[statement]]
+route = "temporal_design.excursion.multi_arm"
+statement = "Holm p-values"
+
+[[statement]]
+route = "temporal_design.excursion.categorical"
+statement = "Holm p-values"
+
+[[statement]]
+route = "temporal_design.excursion.factorial"
+statement = "Holm p-values"
+
+[[statement]]
+route = "temporal_design.excursion.interference"
+statement = "Holm p-values"
+
+[[statement]]
+route = "temporal_design.excursion.two_arm"
+statement = "coordinates other than the scored one in each excursion design"
+
+[[statement]]
+route = "temporal_design.excursion.quantile"
+statement = "quantile levels other than the median"
+
+[[statement]]
+route = "temporal_design.excursion.dose_grid"
+statement = "non-zero curvature bound (bias-aware interval)"
+
+[[statement]]
+route = "temporal_design.excursion.dose_grid"
+statement = "derivative"
+
+[[statement]]
+route = "temporal_design.regime_survival"
+statement = "horizons above three"
+
+[[statement]]
+route = "quasi.staggered_heterogeneity_robust"
+statement = "dynamic aggregation"
+
+[[statement]]
+route = "quasi.staggered_heterogeneity_robust"
+statement = "group aggregation"
+
+[[statement]]
+route = "quasi.staggered_heterogeneity_robust"
+statement = "calendar aggregation"
+
+[[statement]]
+route = "quasi.staggered_heterogeneity_robust"
+statement = "simultaneous band"
+
+[[statement]]
+route = "quasi.staggered_heterogeneity_robust"
+statement = "unbalanced panel"
+
+[[statement]]
+route = "quasi.augmented_panel_supplied_nuisance"
+statement = "estimated supplied nuisances"
+
+[[statement]]
+route = "quasi.local_ratio.design_layer"
+statement = "kink at a declared bandwidth with diagnostics"
+
+[[statement]]
+route = "quasi.temporal_local_ratio"
+statement = "fit at the selected bandwidth"
+
+[[statement]]
+route = "quasi.temporal_local_ratio"
+statement = "fuzzy step in time"
+
+[[statement]]
+route = "quasi.temporal_local_ratio"
+statement = "dependence beyond first-order autoregression"
+
+[[statement]]
+route = "bayesian.temporal_local_ratio"
+statement = "fit at the selected bandwidth"
+
+[[statement]]
+route = "bayesian.temporal_local_ratio"
+statement = "fuzzy step in time"
+
+[[statement]]
+route = "measurement.static.frequentist"
+statement = "categorical misclassification"
+
+[[statement]]
+route = "measurement.static.frequentist"
+statement = "regression calibration"
+
+[[statement]]
+route = "measurement.static.frequentist"
+statement = "SIMEX"
+
+[[statement]]
+route = "measurement.static.frequentist"
+statement = "probabilistic categorical"
+
+[[statement]]
+route = "measurement.temporal.frequentist"
+statement = "designs other than the two-arm mean"
+
+[[statement]]
+route = "composition.static.frequentist"
+statement = "sum"
+
+[[statement]]
+route = "composition.static.frequentist"
+statement = "weighted sum"
+
+[[statement]]
+route = "composition.static.frequentist"
+statement = "nonlinear operation"
+
+[[statement]]
+route = "bayesian.randomized_finite_population"
+statement = "Bernoulli arms"
+
+[[statement]]
+route = "interference.cluster_bayesian_bootstrap"
+statement = "twenty-five to forty-nine clusters per arm"
+
+[[statement]]
+route = "graphless.dose_grid.randomized_dose.local_quadratic"
+statement = "bias-aware interval"
+
+[[statement]]
+route = "graphless.dose_grid.randomized_dose.local_quadratic"
+statement = "simultaneous band"
+
+[[statement]]
+route = "association.descriptive.static"
+statement = "stratum errors"
+
+[[statement]]
+route = "association.descriptive.static"
+statement = "logistic model"
+
+[[statement]]
+route = "association.descriptive.static"
+statement = "Poisson model"
+
+[[statement]]
+route = "association.descriptive.static"
+statement = "correlations"
+
+[[statement]]
+route = "association.descriptive.static"
+statement = "tabular Bayesian bootstrap"
+
+[[statement]]
+route = "association.descriptive.temporal"
+statement = "series stratum errors"
+
+[[statement]]
+route = "bayesian.sequential_regime_value"
+statement = "fitted cross-fit predictions"

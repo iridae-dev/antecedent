@@ -16,6 +16,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import scientific_target_feature_args
+from evidence_platforms import PLATFORMS, earning_platform
 from nix_artifact_identity import (
     RECIPE_FILES,
     _file_hash,
@@ -57,9 +58,9 @@ def _target_features(root: Path, crate: str, target_kind: str, target_name: str)
 REPRODUCED = "target/nix-evidence/reproduced.json"
 
 
-def _reproducibility_key(root: Path) -> str:
+def _reproducibility_key(root: Path, recipes: tuple[str, ...] = RECIPE_FILES) -> str:
     digest = hashlib.sha256()
-    for rel in (*RECIPE_FILES, "Cargo.lock"):
+    for rel in (*recipes, "Cargo.lock"):
         digest.update(rel.encode() + b"\0" + (root / rel).read_bytes() + b"\0")
     return digest.hexdigest()
 
@@ -79,14 +80,15 @@ def _record_reproduced(root: Path, key: str) -> None:
 
 
 def _build(root: Path, source: str, build_targets: list[dict], deps_source: str | None = None,
-           deps_targets: list[dict] | None = None, *, check_reproducible: bool = False) -> str:
+           deps_targets: list[dict] | None = None, *, check_reproducible: bool = False,
+           recipes: tuple[str, ...] = RECIPE_FILES) -> str:
     deps_source = deps_source or source
     deps_arguments = ["--arg", "depsSrc", "builtins.storePath " + json.dumps(deps_source),
                       "--argstr", "depsTargetsJson", targets_json(deps_targets or build_targets)]
     base = ["nix", "--extra-experimental-features", "nix-command flakes", "--offline",
             "--option", "substitute", "false", "--option", "builders", "", "build"]
     command = [
-        *base, "--file", str(root / "nix/evidence-target.nix"),
+        *base, "--file", str(root / recipes[0]),
         "--no-link", "--print-out-paths", "--arg", "src", "builtins.storePath " + json.dumps(source),
         "--argstr", "targetsJson", targets_json(build_targets), *deps_arguments,
     ]
@@ -104,7 +106,7 @@ def _build(root: Path, source: str, build_targets: list[dict], deps_source: str 
         return result.stdout.strip()
 
     output = build(command)
-    key = _reproducibility_key(root) if check_reproducible else None
+    key = _reproducibility_key(root, recipes) if check_reproducible else None
     if key is not None and key not in _reproduced(root):
         # A new recipe or lock: check that the evidence build reproduces bit for bit.
         # The dependency output is a Cargo target directory, whose timestamps and
@@ -123,7 +125,7 @@ def _versions(root: Path, output: Path) -> dict[str, str]:
     text = (output / "rustc-version").read_text(encoding="utf-8")
     fields = dict(line.split(": ", 1) for line in text.splitlines() if ": " in line)
     if (fields.get("release") != pin["release"] or fields.get("commit-hash") != pin["commit"]
-            or fields.get("host") != "aarch64-apple-darwin"):
+            or fields.get("host") not in PLATFORMS):
         raise ValueError("Nix build compiler does not match the evidence compiler pin")
     cargo = (output / "cargo-version").read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"cargo \d+\.\d+\.\d+(?: \([^\n]*\))?", cargo):
@@ -171,6 +173,8 @@ def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
     maps each target to its own build record: shared source and tools, its own
     artifact identity, executable and compile-time unit graph."""
     root = root.resolve()
+    # The policy of the host this runs on; a host without a complete one refuses here.
+    platform = earning_platform(root)
     wanted = sorted(set(targets))
     if not wanted:
         raise ValueError("no Rust targets to build")
@@ -196,14 +200,14 @@ def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
         write_deps_source(snapshot, Path(tmp) / "deps")
         deps_source = import_deps_source(Path(tmp) / "deps")
         output = _build(root, source["store_path"], build_targets, deps_source, all_targets,
-                        check_reproducible=check_reproducible)
+                        check_reproducible=check_reproducible, recipes=platform.recipes)
         tools = _versions(root, Path(output))
         built = {}
         for target in build_targets:
             crate, kind, name, features = target["crate"], target["kind"], target["name"], target["features"]
             artifact = inspect_artifact(root, output, source["store_path"], crate, kind, name, features,
                                         build_targets=build_targets, deps_source=deps_source,
-                                        deps_targets=all_targets)
+                                        deps_targets=all_targets, recipes=platform.recipes)
             if artifact["source_nar_hash"] != source["nar_hash"] or artifact["sandbox_verified"] is not False:
                 raise ValueError("Nix artifact source or sandbox status is inconsistent")
             graph = _compiler_graph(Path(output), crate, kind, name, features)
@@ -214,11 +218,6 @@ def build_committed_targets(root: Path, targets: list[tuple[str, str, str]], *,
                                           "evidence_authorized": False}
         verify_committed_snapshot(root, snapshot, commit, allowed_outputs=allowed_outputs)
     return built
-
-
-# The recipe of the uninstrumented calibration binaries and what it imports.
-RELEASE_RECIPE_FILES = ("nix/calibration-release.nix", "nix/evidence-common.nix",
-                        "nix/evidence-toolchain.nix", "flake.lock")
 
 
 def attach_release_builds(root: Path, built: dict[tuple[str, str, str], dict]) -> None:
@@ -232,6 +231,8 @@ def attach_release_builds(root: Path, built: dict[tuple[str, str, str], dict]) -
     if not built:
         return
     artifacts = [record["artifact"] for record in built.values()]
+    # The recipe of the uninstrumented binaries and what it imports, on the build's platform.
+    recipes = PLATFORMS[next(iter(built.values()))["tools"]["host"]].release_recipes
     first = artifacts[0]
     if any(a["source"] != first["source"] or a["deps_source"] != first["deps_source"]
            or a["build_targets"] != first["build_targets"] for a in artifacts):
@@ -239,7 +240,7 @@ def attach_release_builds(root: Path, built: dict[tuple[str, str, str], dict]) -
     command = [
         "nix", "--extra-experimental-features", "nix-command flakes", "--offline",
         "--option", "substitute", "false", "--option", "builders", "", "build",
-        "--file", str(root / "nix/calibration-release.nix"), "--no-link", "--print-out-paths",
+        "--file", str(root / recipes[0]), "--no-link", "--print-out-paths",
         "--arg", "src", "builtins.storePath " + json.dumps(first["source"]),
         "--argstr", "targetsJson", targets_json(first["build_targets"]),
         "--arg", "depsSrc", "builtins.storePath " + json.dumps(first["deps_source"]),
@@ -253,7 +254,7 @@ def attach_release_builds(root: Path, built: dict[tuple[str, str, str], dict]) -
     if "ignoring untrusted" in warnings or "not a trusted user" in warnings:
         raise ValueError("Nix ignored an untrusted build setting")
     output = Path(result.stdout.strip())
-    recipe = {rel: hashlib.sha256((root / rel).read_bytes()).hexdigest() for rel in RELEASE_RECIPE_FILES}
+    recipe = {rel: hashlib.sha256((root / rel).read_bytes()).hexdigest() for rel in recipes}
     for (crate, kind, name), record in built.items():
         binary = f"{target_dir(crate, kind, name)}/bin/test"
         record["release"] = {"output": str(output), "binary": binary,

@@ -127,8 +127,9 @@ class ManifestTests(unittest.TestCase):
                     "source": source["store_path"], "source_nar_hash": nar, "output_nar_hash": nar,
                     "recipe_sha256": recipe}
         receipt = {"schema": "nix-build-v1", "execution": "exact-binary", "artifact": artifact,
-                   "source": source, "tools": {"rustc": "1", "rustc_commit": "x", "cargo": "c"},
+                   "source": source, "tools": {"rustc": "1", "rustc_commit": "x", "cargo": "c", "host": "aarch64-apple-darwin"},
                    "policy": {"id": "nix-darwin-private-tmp-audit-v1", "source_projection_allowed": True,
+                              "target": "aarch64-apple-darwin",
                               "audit_selection_sha256": "d" * 64},
                    "compiler_graph_sha256": "e" * 64,
                    "release": {"binary": artifact["binary"], "binary_sha256": "f" * 64,
