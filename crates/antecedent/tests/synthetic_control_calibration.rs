@@ -308,6 +308,9 @@ fn published(
     Some(Published { interval: (interval[0], interval[1]), construction, scope })
 }
 
+/// The interval scored when a run publishes no set: it covers nothing, so it is a miss.
+const NO_SET: [f64; 2] = [f64::NAN; 2];
+
 /// Which conformal set a design scores.
 #[derive(Clone, Copy)]
 enum ConformalSet {
@@ -336,7 +339,7 @@ impl ConformalSet {
 }
 
 /// Run the conformal synthetic control on one panel and read the scored set; `None` when the
-/// route refuses or reports the set unbounded.
+/// route refuses. A run that publishes no set for the scored quantity is scored as a miss.
 fn conformal_replicate(set: ConformalSet, seed: u64) -> Option<Published> {
     let pre = set.pre_periods();
     let (data, units, periods) = simulate(pre, seed, matches!(set, ConformalSet::Constant));
@@ -353,7 +356,7 @@ fn conformal_replicate(set: ConformalSet, seed: u64) -> Option<Published> {
     let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
     let rollout = result.quasi_rollout()?;
     let interval = match set {
-        ConformalSet::Constant => rollout.overall()?.interval?,
+        ConformalSet::Constant => rollout.overall()?.interval.unwrap_or(NO_SET),
         ConformalSet::Period(k) => {
             let period = intervention + k as i64;
             rollout
@@ -362,7 +365,8 @@ fn conformal_replicate(set: ConformalSet, seed: u64) -> Option<Published> {
                 .find(|effect| {
                     effect.kind == DesignEffectKind::Period && effect.period == Some(period)
                 })?
-                .interval?
+                .interval
+                .unwrap_or(NO_SET)
         }
     };
     published(&study, &result, interval, CONFORMAL, "iid", None)

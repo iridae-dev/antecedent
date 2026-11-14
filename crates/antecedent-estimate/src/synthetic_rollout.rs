@@ -51,6 +51,8 @@ const SIMPLEX_TOLERANCE: f64 = 1e-10;
 /// Grid points and bisection steps of the conformal test inversion.
 const GRID_POINTS: usize = 41;
 const BISECTION_STEPS: usize = 30;
+/// Refinement of the grid spacing tried once when the first grid accepts nothing.
+const FINE_GRID_FACTOR: usize = 8;
 /// Range expansions before a conformal set is reported unbounded.
 const RANGE_EXPANSIONS: usize = 4;
 
@@ -448,27 +450,34 @@ fn conformal_p(
 
 /// The hull of `{θ : accept(θ)}` around `center`, searched on a grid scaled by `scale` and
 /// refined by bisection; `None` when the accepted set reaches the widest range searched or
-/// is empty.
+/// is empty. A grid that accepts nothing is searched once more at a finer spacing before the
+/// set is called empty, so a set narrower than the first spacing is found.
 fn invert(
     center: f64,
     scale: f64,
     accept: impl Fn(f64) -> Result<bool, EstimationError>,
 ) -> Result<Option<[f64; 2]>, EstimationError> {
     let mut radius = 10.0 * scale;
-    for _ in 0..=RANGE_EXPANSIONS {
-        let grid: Vec<f64> = (0..GRID_POINTS)
-            .map(|i| center - radius + 2.0 * radius * i as f64 / (GRID_POINTS - 1) as f64)
+    let mut points = GRID_POINTS;
+    let mut expansions = 0;
+    while expansions <= RANGE_EXPANSIONS {
+        let grid: Vec<f64> = (0..points)
+            .map(|i| center - radius + 2.0 * radius * i as f64 / (points - 1) as f64)
             .collect();
         let accepted: Vec<bool> =
             grid.iter().map(|theta| accept(*theta)).collect::<Result<_, _>>()?;
-        let Some(first) = accepted.iter().position(|ok| *ok) else {
-            return Ok(None);
+        let (Some(first), Some(last)) =
+            (accepted.iter().position(|ok| *ok), accepted.iter().rposition(|ok| *ok))
+        else {
+            if points > GRID_POINTS {
+                return Ok(None);
+            }
+            points = FINE_GRID_FACTOR * (GRID_POINTS - 1) + 1;
+            continue;
         };
-        let Some(last) = accepted.iter().rposition(|ok| *ok) else {
-            return Ok(None);
-        };
-        if first == 0 || last == GRID_POINTS - 1 {
+        if first == 0 || last == points - 1 {
             radius *= 4.0;
+            expansions += 1;
             continue;
         }
         let refine = |mut inside: f64, mut outside: f64| -> Result<f64, EstimationError> {

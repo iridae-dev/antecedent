@@ -389,3 +389,15 @@ fn placebo_interval_is_the_normal_interval_of_the_enumerated_placebo_spread() {
     assert!((lower - (fit.overall.estimate - z * se)).abs() < 1e-12);
     assert!((upper - (fit.overall.estimate + z * se)).abs() < 1e-12);
 }
+
+/// A set narrower than the first grid spacing is found by the finer search, and a test that
+/// accepts nothing leaves the set empty.
+#[test]
+fn a_set_narrower_than_the_first_grid_spacing_is_found() {
+    let narrow = super::invert(0.0, 1.0, |theta| Ok((0.26..=0.36).contains(&theta)))
+        .unwrap()
+        .expect("the narrow set is found");
+    assert!((narrow[0] - 0.26).abs() < 1e-6 && (narrow[1] - 0.36).abs() < 1e-6, "{narrow:?}");
+    assert_eq!(super::invert(0.0, 1.0, |_| Ok(false)).unwrap(), None);
+    assert_eq!(super::invert(0.0, 1.0, |_| Ok(true)).unwrap(), None);
+}
