@@ -2233,7 +2233,7 @@
     },
     {
       "path": "crates/antecedent/tests/synthetic_control_calibration.rs",
-      "sha256": "b674f4c6cf39de56ed61c5b4f79688f7e0e2375f4a9e7e591588117ac29bb400",
+      "sha256": "3729943dfec35f8ad54fe1aeaf3c872e5269fc99a9800090a4a3592cf3d90a92",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -2242,7 +2242,7 @@
           "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL"
         },
         {
-          "line": 378,
+          "line": 382,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
         }
