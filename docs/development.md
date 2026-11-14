@@ -11,13 +11,18 @@ python -m pip install -r requirements-docs.txt
 python scripts/generate_example_catalog.py --check
 python scripts/generate_doc_release_links.py --check
 python scripts/check_docs_experience.py
+python scripts/example_coverage.py --check
 python scripts/render_notebooks.py
 mkdocs build --strict
 python scripts/build_python_api_docs.py site/python
 mkdocs serve
 ```
 
-Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest (`scripts/docs_publication.toml`) keeps evidence-linked sources at their paths and out of the published site. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/main/docs/README.md) for editorial conventions.
+Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest (`scripts/docs_publication.toml`) keeps evidence-linked sources at their paths and out of the published site. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/v3.0.0/docs/README.md) for editorial conventions.
+
+`scripts/example_coverage.py` prints, for every example-catalog entry, whether each of its Python, Rust and notebook sources is executed, compiled only, or skipped and why. It reads what the runners select (the Python suite, the documentation build and the Rust example suite) and runs nothing; `--check` fails on a source no runner selects unless its catalog entry states the reason in an `unexecuted` table.
+
+Published pages link repository sources (provenance and parity records, tests, examples, ADRs) at the tag of the release they document, so a released page keeps naming the evidence it shipped with. Write such a link against any ref and run `python scripts/generate_doc_release_links.py`, which pins it; the link check fails a published page that names `main` or another release tag. The tag is created from the release commit, so before then a pinned link names nothing on GitHub and is checked against the working tree instead.
 
 
 Product name: **Antecedent**. Python distribution/import: `antecedent`. Rust
@@ -771,11 +776,12 @@ CI_RUN_ID=<ci run on HEAD> bash scripts/tag_release.sh   # runs gate_release_can
 git push origin vX.Y.Z
 ```
 
-Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
+Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/.github/workflows/publish-release.yml)
 reuses the 16 wheels built and fully tested by the green `main` CI run on the
 exact tag commit, then publishes to public PyPI and the GitHub Release as
 **independent jobs**. It builds the docs bundle from that run's Python 3.12
-Linux wheel. Trusted publishing (`id-token: write`) must not
+Linux wheel, and neither PyPI nor crates.io is touched until that documentation
+job has succeeded. Trusted publishing (`id-token: write`) must not
 wait on GitHub asset uploads, so an outage of `uploads.github.com` cannot block
 PyPI. Release assets are
 uploaded one file at a time with retries. A manual retry may supply
@@ -807,7 +813,7 @@ bash scripts/publish_crates.sh --execute
 ```
 
 The `crates-dry-run` and `publish-crates` jobs of
-[`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
+[`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/.github/workflows/publish-release.yml)
 publish the crates as part of the same tagged release as the wheels: every crate is
 dry-run before PyPI is touched, and the upload runs after PyPI succeeded, in the
 `release` environment. Set repository secret `CRATES_IO_TOKEN`.

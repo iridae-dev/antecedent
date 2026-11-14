@@ -16,6 +16,11 @@ from urllib.parse import unquote
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def notebooks():
+    """The notebooks a run executes: every shipped one."""
+    return sorted((ROOT / "examples/notebooks").glob("*.ipynb"))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "target/doc-notebook-previews")
@@ -72,7 +77,7 @@ def main():
             ),
             encoding="utf-8",
         )
-        for path in sorted((ROOT / "examples/notebooks").glob("*.ipynb")):
+        for path in notebooks():
             start = time.monotonic()
             notebook = nbformat.read(path, as_version=4)
             manager = KernelManager(

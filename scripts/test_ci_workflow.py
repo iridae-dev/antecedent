@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from _repo import ensure_scripts_on_path
+from _repo import REPO_ROOT, ensure_scripts_on_path
 
 ensure_scripts_on_path()
 import ci_workflow as ci  # noqa: E402
@@ -65,6 +65,26 @@ class CiAttestationTest(unittest.TestCase):
             [],
             "a payload without a pinned SHA checks jobs only",
         )
+
+
+class PublicationOrderTest(unittest.TestCase):
+    """A registry upload cannot be undone, so nothing is uploaded before the docs are proven."""
+
+    def test_every_registry_publication_requires_a_successful_documentation_job(self) -> None:
+        jobs = ci.load_jobs(REPO_ROOT / ".github" / "workflows" / "publish-release.yml")
+        self.assertIn("docs", jobs)
+        # The registry jobs are the ones gated by the reviewed `release` environment.
+        publishers = sorted(job_id for job_id, job in jobs.items() if job.get("environment"))
+        self.assertEqual(publishers, ["publish-crates", "publish-pypi"])
+        for job_id in publishers:
+            with self.subTest(job=job_id):
+                needs = jobs[job_id].get("needs") or []
+                self.assertIn("docs", [needs] if isinstance(needs, str) else needs)
+                # `always()` runs a job whatever its needs concluded, so the
+                # condition must name the documentation result itself.
+                condition = " ".join(str(jobs[job_id].get("if", "")).split())
+                if "always()" in condition:
+                    self.assertIn("needs.docs.result == 'success'", condition)
 
 
 if __name__ == "__main__":

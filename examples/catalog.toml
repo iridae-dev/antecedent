@@ -1,6 +1,7 @@
 # One catalog for repository and published documentation. Runtime is a planning
 # estimate after installation, not a performance claim. Datasets are simulated with
-# declared mechanisms unless an entry says otherwise.
+# declared mechanisms unless an entry says otherwise. A source that no runner executes
+# or compiles must say why: `unexecuted = { rust = "reason" }` (scripts/example_coverage.py).
 
 [[example]]
 id = "feedback_three_questions"

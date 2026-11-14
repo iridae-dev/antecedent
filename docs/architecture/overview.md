@@ -155,8 +155,8 @@ ordinary observer exceptions retain their print-and-continue contract.
 |-------|----------|
 | Artifact wire format | [artifacts.md](../artifacts.md) |
 | Hot-path benches / budgets | [hot_paths.md](../hot_paths.md) |
-| Capability inventories | [parity/](https://github.com/iridae-dev/antecedent/blob/main/parity/README.md) |
-| ADRs | [adr/](https://github.com/iridae-dev/antecedent/blob/main/adr/README.md) |
+| Capability inventories | [parity/](https://github.com/iridae-dev/antecedent/blob/v3.0.0/parity/README.md) |
+| ADRs | [adr/](https://github.com/iridae-dev/antecedent/blob/v3.0.0/adr/README.md) |
 | Conformance fixtures | [conformance/](../conformance/README.md) |
 | Identity and coupling rules for claims and artifacts | [identity-contract.md](identity-contract.md) |
 | Counterfactual query scope | [counterfactual-coverage.md](counterfactual-coverage.md) |

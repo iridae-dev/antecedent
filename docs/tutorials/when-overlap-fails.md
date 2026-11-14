@@ -17,7 +17,7 @@ NSW also assigned people at random, so a randomised estimate of the same effect 
 
 ## Where the data come from
 
-The manifest [`examples/data/nsw_psid.toml`](https://github.com/iridae-dev/antecedent/blob/main/examples/data/nsw_psid.toml) records the origin, citations, per-file SHA-256, retrieval date, preprocessing and columns. The publisher states no support, so Antecedent ships no copy. `examples/data/fetch.py` downloads the files when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/main/examples/data/README.md) describes the cache and the offline path.
+The manifest [`examples/data/nsw_psid.toml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/data/nsw_psid.toml) records the origin, citations, per-file SHA-256, retrieval date, preprocessing and columns. The publisher states no support, so Antecedent ships no copy. `examples/data/fetch.py` downloads the files when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/data/README.md) describes the cache and the offline path.
 
 Without verified files the example runs on a synthetic stand-in with the same columns, sizes and overlap problem. Its effect on the treated is a fixture truth of the generator and says nothing about the real programme. The numbers quoted below are from the verified real files.
 

@@ -15,11 +15,11 @@ from pathlib import Path
 
 import pytest
 
-from _repo_text import REPO_ROOT, load_json, read_text
+from _example_selection import EXAMPLE_REQUIRES, EXAMPLES, NOTEBOOK_REQUIRES, NOTEBOOKS
+from _repo_text import load_json, read_text
 
-_ROOT = REPO_ROOT
-_EXAMPLES = sorted((_ROOT / "examples" / "python").glob("*.py"))
-_NOTEBOOKS = sorted((_ROOT / "examples" / "notebooks").glob("*.ipynb"))
+_EXAMPLES = EXAMPLES
+_NOTEBOOKS = NOTEBOOKS
 
 
 def _asserts(source: str) -> int:
@@ -61,7 +61,6 @@ def test_example_runs(path, monkeypatch, tmp_path):
     # A protocol script reads its lane and output directory from the command line; one
     # reduced trial of the linear lane exercises fit, export and fresh-process replay.
     if path.name == "cyclic_paper_experiments.py":
-        pytest.importorskip("scipy")
         argv += [
             "--lane",
             "nodags-linear",
@@ -72,18 +71,10 @@ def test_example_runs(path, monkeypatch, tmp_path):
             "--max-iterations",
             "50",
         ]
-    # The Parquet example writes its input with PyArrow; without it the example only
-    # prints its skip, so the run is reported as skipped rather than as checked.
-    if path.name == "parquet_e2e.py":
-        pytest.importorskip("pyarrow")
-    # These examples render figures as part of their walkthrough; without the optional
-    # plotting dependency they cannot run, just like notebooks below.
-    if path.name in {
-        "marketing_channel_structural_uncertainty.py",
-        "marketing_experiment_design.py",
-        "sales_campaign_prior_transfer.py",
-    }:
-        pytest.importorskip("matplotlib")
+    # An example that needs an optional module is reported as skipped without it rather
+    # than as checked (`_example_selection.EXAMPLE_REQUIRES` says why each needs its own).
+    if path.name in EXAMPLE_REQUIRES:
+        pytest.importorskip(EXAMPLE_REQUIRES[path.name])
     monkeypatch.setattr("sys.argv", argv)
     runpy.run_path(str(path), run_name="__main__")
 
@@ -113,8 +104,10 @@ def test_notebook_asserts_its_own_result(path):
 
 @pytest.mark.parametrize("path", _NOTEBOOKS, ids=lambda p: p.name)
 def test_notebook_runs(path, monkeypatch):
-    pytest.importorskip("pandas")
-    matplotlib = pytest.importorskip("matplotlib")
+    for module in NOTEBOOK_REQUIRES:
+        pytest.importorskip(module)
+    import matplotlib
+
     matplotlib.use("Agg")
     monkeypatch.setenv("MPLBACKEND", "Agg")
     monkeypatch.chdir(os.fspath(path.parent))
