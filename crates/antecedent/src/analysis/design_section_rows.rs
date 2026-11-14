@@ -131,6 +131,26 @@ pub(crate) fn association_slope_row(query: &AssociationQuery, fit: &AssociationE
     )
 }
 
+/// Prior scale the conjugate slope row was measured with: the built-in scale.
+pub(crate) const CONJUGATE_SLOPE_ROW_PRIOR_SCALE: f64 = 10.0;
+
+/// Whether a fit's prior is the one its association row was measured with. Only the conjugate
+/// Normal-Inverse-Gamma posterior reads the prior scale: its row was measured at the built-in
+/// scale [`CONJUGATE_SLOPE_ROW_PRIOR_SCALE`], and a fit at any other scale states no row, however
+/// little that prior moves the slope. `prior_scale` is the scale of the study's Bayesian
+/// inference, absent under frequentist inference. The stored result does not carry the scale,
+/// so this condition is the executor's alone; the artifact check keeps the bound on the
+/// prior's pull that [`association_slope_row`] also applies.
+pub(crate) fn conjugate_slope_row_prior(
+    prior_scale: Option<f64>,
+    fit: &AssociationEstimate,
+) -> bool {
+    let conjugate =
+        fit.posterior.is_some_and(|record| record.method == "conjugate_normal_inverse_gamma");
+    !conjugate
+        || prior_scale.is_some_and(|scale| (scale - CONJUGATE_SLOPE_ROW_PRIOR_SCALE).abs() <= 1e-9)
+}
+
 /// Whether the fit runs under a row of the graphless support table. The key and the observed
 /// support are read from the query and the published estimate alone, so the artifact check
 /// recomputes the same answer. Rows and resamples are thresholds of the row; the measured
@@ -245,8 +265,9 @@ pub(crate) fn note_period_history_row(result: &mut StudyResult) {
 pub(crate) const CONTRAST_NO_ROW_CODE: &str = "estimate.sequential_contrast.unsupported";
 
 /// Whether the query is the design the support rows were measured on: the always-treat
-/// against never-treat contrast, cross-fit over at least five folds none of which holds more
-/// than a fifth of the rows (rounded up), so every nuisance model trains on four fifths.
+/// against never-treat contrast, cross-fit over exactly five folds (the measured count) none
+/// of which holds more than a fifth of the rows (rounded up), so every nuisance model trains on
+/// four fifths.
 pub(crate) fn crossfit_contrast_row_design(
     query: &antecedent_core::SequentialContrastQuery,
 ) -> bool {
@@ -258,7 +279,7 @@ pub(crate) fn crossfit_contrast_row_design(
     let largest = sizes.values().copied().max().unwrap_or(rows);
     query.active == [1, 1]
         && query.control == [0, 0]
-        && sizes.len() >= 5
+        && sizes.len() == 5
         && largest.saturating_mul(5) <= rows.saturating_add(4)
 }
 
@@ -289,7 +310,7 @@ const EXCURSION_ROW_DRAWS: u64 = 1000;
 const EXCURSION_ROW_REFIT_DRAWS: u64 = 500;
 /// Completed bootstrap replicates behind the measured percentile intervals.
 const EXCURSION_ROW_REPLICATES: u64 = 99;
-/// Longest regime-survival horizon the measured rows are stated for.
+/// The regime-survival horizon the rows were measured at; no other horizon has a row.
 const EXCURSION_ROW_HORIZON: u32 = 3;
 /// Fewest validation units per true-outcome margin a misclassification-corrected row is stated
 /// for: the smallest validation sample its measured intervals were formed from.
@@ -330,7 +351,7 @@ fn validated_correction_row(query: &TemporalDesignQuery, functional: &str) -> bo
 /// the quantile functional and the dose targets that [`TemporalDesignQuery::design_name`]
 /// groups. An observational design has no key, and neither has a setting outside the measured
 /// ones: a quantile level other than the median, a local-quadratic derivative or a positive
-/// curvature bound, or a survival horizon past [`EXCURSION_ROW_HORIZON`].
+/// curvature bound, or a survival horizon other than [`EXCURSION_ROW_HORIZON`].
 #[allow(
     clippy::float_cmp,
     reason = "the measured settings are the exact declared values 0.5 and 0.0"
@@ -354,7 +375,7 @@ fn excursion_row_design(query: &TemporalDesignQuery) -> Option<&'static str> {
             }
         },
         TemporalAssignment::RegimeSurvival { horizon, .. } => {
-            (*horizon <= EXCURSION_ROW_HORIZON).then_some("regime_survival")
+            (*horizon == EXCURSION_ROW_HORIZON).then_some("regime_survival")
         }
         TemporalAssignment::ObservationalExcursion { .. }
         | TemporalAssignment::ObservationalRegime { .. } => None,

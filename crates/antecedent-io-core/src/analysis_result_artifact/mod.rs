@@ -1737,6 +1737,7 @@ mod counterfactual_contrasts;
 mod graphless;
 mod iv_bounds;
 mod quasi_rollout;
+mod recomputed_support;
 pub mod rollout_support;
 pub mod stated_section_rows;
 mod temporal_design;

@@ -321,6 +321,8 @@ pub(super) fn validate_result(
     )?;
     super::quasi_rollout::validate_quasi_rollout(result)?;
     super::temporal_design::validate_temporal_design(result)?;
+    // A stated support row rests on counts; those the query and payload carry are recounted.
+    super::recomputed_support::validate_recomputed_support(result)?;
     super::iv_bounds::validate_iv_bounds(result)?;
     super::association::validate_association(result)?;
     crate::causal_query_from_wire(&result.query)?;
