@@ -246,3 +246,33 @@ fn pooled_single_draws_recover_the_coverage_of_a_pivotal_resampling_law() {
     let rate = covered as f64 / count as f64;
     assert!((rate - 0.95).abs() < 0.02, "pooled percentile coverage {rate}");
 }
+
+#[test]
+fn composed_draw_sets_reproduce_the_pooled_percentile_interval() {
+    let roots: Vec<f64> = (0..40).map(|k| f64::from(k) - 19.5).collect();
+    let mut replicates = rooted(10.0, &roots);
+    replicates[3] = Some(Replicate::single(2.0, 2.0 + roots[3]).scaled(2.0));
+    replicates[7] = None;
+    let pooling = Pooling::whole_pool(0.9);
+    let sets = pooled_draw_sets(&replicates, TYPE7, pooling);
+    let intervals =
+        pooled_intervals(&replicates, Construction::Percentile { rule: TYPE7 }, pooling);
+    assert_eq!(sets.len(), replicates.len());
+    assert!(sets[7].is_none());
+    for (set, interval) in sets.iter().zip(&intervals) {
+        let (Some(set), Some((low, high))) = (set, interval) else { continue };
+        near(quantile_sorted(set, 0.05, TYPE7), *low);
+        near(quantile_sorted(set, 0.95, TYPE7), *high);
+    }
+}
+
+#[test]
+fn composed_draw_sets_take_the_inner_count_from_a_larger_pool() {
+    let roots: Vec<f64> = (0..50).map(|k| f64::from(k) * 0.1).collect();
+    let replicates = rooted(1.0, &roots);
+    let pooling = Pooling { level: 0.95, min_pool: 2, inner: Some(20), seed: 9 };
+    let sets = pooled_draw_sets(&replicates, TYPE7, pooling);
+    assert!(sets.iter().all(|set| set.as_ref().is_some_and(|set| set.len() == 20)));
+    let again = pooled_draw_sets(&replicates, TYPE7, pooling);
+    assert_eq!(sets, again);
+}

@@ -297,3 +297,44 @@ pub fn pooled_intervals(
         })
         .collect()
 }
+
+/// The draw set each replicate's own product would hold, composed from the pooled law.
+///
+/// For a route whose product forms its interval from a function of the draws themselves, the
+/// harness can hand the composed set to that function instead of re-implementing the
+/// construction. Each usable replicate receives `estimate + factor * scale * root` for the
+/// pooled roots of the percentile construction: a random subset of [`Pooling::inner`] roots
+/// when the pool is larger than that, else the whole pool. Its entries are ascending in the
+/// root. A `None` replicate, an unusable one, or a pool smaller than [`Pooling::min_pool`]
+/// gives `None`. The result is aligned with `replicates`.
+#[must_use]
+pub fn pooled_draw_sets(
+    replicates: &[Option<Replicate>],
+    rule: QuantileRule,
+    pooling: Pooling,
+) -> Vec<Option<Vec<f64>>> {
+    let construction = Construction::Percentile { rule };
+    let mut whole = pooled_roots(replicates, construction);
+    whole.sort_by(f64::total_cmp);
+    let enough = whole.len() >= pooling.min_pool.max(2);
+    let subset_size = pooling.inner.filter(|&b| b >= 2 && b < whole.len());
+    replicates
+        .iter()
+        .enumerate()
+        .map(|(index, slot)| {
+            let replicate = slot.as_ref().filter(|r| usable(r, construction))?;
+            if !enough {
+                return None;
+            }
+            let roots = match subset_size {
+                Some(count) => {
+                    let stream = pooling.seed ^ (index as u64).wrapping_mul(0xD6E8_FEB8_6659_FD93);
+                    subset_sorted(&whole, count, stream)
+                }
+                None => whole.clone(),
+            };
+            let reach = replicate.factor * replicate.scale;
+            Some(roots.into_iter().map(|root| replicate.estimate + reach * root).collect())
+        })
+        .collect()
+}
