@@ -1487,23 +1487,40 @@ fn analytic_score_matches_central_differences_through_interactions_and_seasons()
     let one_plus = arith(ArithOp::Add, ValueExpr::constant(1.0), variable(1));
     let extra = [
         ("quotient", arith(ArithOp::Div, arith(ArithOp::Mul, variable(0), variable(1)), one_plus)),
+        // Min, Max and Clip are piecewise: every branch is exercised away from its kink,
+        // since a central difference straddling a kink is not the derivative.
         (
-            "clipped",
+            "clipped_inside",
             ValueExpr::Clip {
-                value: Box::new(arith(ArithOp::Sub, variable(0), variable(1))),
-                lower: Box::new(ValueExpr::constant(-0.2)),
-                upper: Box::new(ValueExpr::constant(0.15)),
+                value: Box::new(arith(ArithOp::Add, variable(1), ValueExpr::constant(0.5))),
+                lower: Box::new(ValueExpr::constant(-1.0)),
+                upper: Box::new(ValueExpr::constant(5.0)),
+            },
+        ),
+        (
+            "clipped_at_bound",
+            ValueExpr::Clip {
+                value: Box::new(variable(0)),
+                lower: Box::new(ValueExpr::constant(2.0)),
+                upper: Box::new(ValueExpr::constant(3.0)),
             },
         ),
         (
             "smaller",
             arith(
                 ArithOp::Min,
-                variable(0),
-                arith(ArithOp::Mul, variable(1), ValueExpr::constant(1.5)),
+                arith(ArithOp::Mul, variable(0), variable(1)),
+                ValueExpr::constant(10.0),
             ),
         ),
-        ("negated", ValueExpr::Neg(Box::new(arith(ArithOp::Max, variable(0), variable(1))))),
+        (
+            "negated",
+            ValueExpr::Neg(Box::new(arith(
+                ArithOp::Max,
+                arith(ArithOp::Mul, variable(1), ValueExpr::constant(0.5)),
+                ValueExpr::constant(-1.0),
+            ))),
+        ),
     ];
     for (id, expression) in extra {
         data.interactions
