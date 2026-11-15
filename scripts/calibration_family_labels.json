@@ -546,6 +546,19 @@
       "review": "Twelve source-fixed designs of the Bayesian design posteriors (finite-population and superpopulation arm contrasts, switchback, complier effect, piecewise survival, dose policy, the few-cluster reference posterior and the model-based arm effect), each scoring one named coordinate's equal-tailed 0.95 posterior interval against its analytic truth with static record keys; no label, level or coordinate is chosen from outcomes."
     },
     {
+      "path": "crates/antecedent/tests/bayesian_randomized_statements_calibration.rs",
+      "sha256": "40e601b893d0804928df40ca621d4fe20449569c7b12870e9a5c8eecc6ea012e",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 106,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Three source-fixed Bayesian randomized designs (finite-population Bernoulli arms under the sharp null and varying unit effects, and the cluster Bayesian bootstrap at twenty-five to forty-nine clusters per arm) with closed-form truths and the one declared 0.95 level; the design axes and test names are literal."
+    },
+    {
       "path": "crates/antecedent/tests/bayesian_temporal.rs",
       "sha256": "9b88fa04613d2f5c452b4e8c63125a73d89962766036d3b348175778a8ed5432",
       "labelled_calls": [
@@ -611,6 +624,32 @@
         }
       ],
       "review": "Ten source-fixed designs of the binary-instrument bounds and of the descriptive association: the Imbens-Manski row-bootstrap interval and the endpoint posterior quantiles of the bounds, each held one-sided against the true sharp lower and the true sharp upper bound of a known response-type mixture (an interval built for the whole identified set over-covers by construction), and the slope of a linear regression in six forms (standard error at the normal quantile and resampling spread for rows and for one autoregressive series, the conjugate marginal and the block Bayesian bootstrap), each scoring the one interval the route states at one 0.95 level against the population slope with static record keys on the design axes; no label, level or endpoint is chosen from outcomes."
+    },
+    {
+      "path": "crates/antecedent/tests/bounds_association_range_calibration.rs",
+      "sha256": "83a17935343004dc1b9f809f9751e5d8df4801ef61b732763aceb060e67abc5c",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 125,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Two source-fixed conjugate association designs at the literal prior scales 6 and 1000 on the base linear design with the population slope 2 and one declared 0.95 level; the scales are fixed before any run and no outcome selects a design or level."
+    },
+    {
+      "path": "crates/antecedent/tests/bounds_association_statements_calibration.rs",
+      "sha256": "bf998fc4d2ba928e1685121aeec94838d26ce1bef58d5cb048d18e19398ed481",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 329,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: design.interval },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Fifteen source-fixed association designs (stratum mean and probability, logistic and Poisson slopes, Pearson and distance correlation, row and block bootstrap spread, Bayesian bootstrap, temporal stratum mean) with closed-form truths and one declared 0.95 level; the design axes and test names are literal."
     },
     {
       "path": "crates/antecedent/tests/calibration_admg.rs",
@@ -1185,6 +1224,53 @@
       "review": "Literal protocol versions; fixed requested discovery/transport construction, never measured coverage."
     },
     {
+      "path": "crates/antecedent/tests/discovery_statements_calibration.rs",
+      "sha256": "398a39037a5ad1d66dd53ce79f94940a176c0550842d5feb64c0f2ea7a561c10",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 205,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, REPORTED_LEVEL"
+        },
+        {
+          "line": 205,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, GATE_LEVEL"
+        }
+      ],
+      "review": "Ten source-fixed structure-search designs (order-MCMC, structure-MCMC, CI-screened, ancestral-graph class, exact edge-marginal and bounded-lag template posteriors) on fixed linear laws with a known true structure class or a prior-drawn indicator, one literal test-named credible-set tally at the declared level each; no outcome selects a search, structure or level."
+    },
+    {
+      "path": "crates/antecedent/tests/dose_grid_statements_calibration.rs",
+      "sha256": "04cd60fe1229963b7f97a382ee4c7d6bff7afbb58e6be1adf0951d76f15ec5aa",
+      "labelled_calls": [
+        {
+          "line": 219,
+          "call": ".labelled(",
+          "argument": "name.clone()"
+        },
+        {
+          "line": 242,
+          "call": ".labelled(",
+          "argument": "\"band\""
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 219,
+          "call": "CoverageTally::for_record(",
+          "argument": "pointwise_key, REPORTED_LEVEL"
+        },
+        {
+          "line": 242,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Five source-fixed bias-aware dose-grid designs (exact quadratic and cubic means with declared third-derivative bounds of zero and M) at the fixed bandwidth: each pointwise label is a literal quantity name (level, derivative) joined to a dose of the constant grid 1, 1.5, 2, 2.5, 3, and the one joint label is the literal band, each scored at the reported 0.95 level against a closed-form truth; no label, level or coordinate is chosen from outcomes."
+    },
+    {
       "path": "crates/antecedent/tests/evidence_synthesis_calibration.rs",
       "sha256": "8657f459261b9367e67c7db6d092636bef89ab3a28ebca7a52a4db18f46b4b22",
       "labelled_calls": [],
@@ -1257,6 +1343,25 @@
       "review": "Nineteen source-fixed designs of the fitted-model routes (change, root-cause, path, feature-relevance, anomaly and intrinsic-influence attributions, policy values, a temporal change and rollout, the posterior probability of a mechanism change and two structure posteriors) on linear-Gaussian laws with closed-form truths; labels are literal names of the published quantities fixed in source (total_change, mechanism_x, mechanism_y, the path, feature, anomaly and noise-source names, the policy quantities, the rollout steps), each scored at the reported 0.95 level and at 0.90 re-formed from the same draws; no label, level or coordinate is chosen from outcomes."
     },
     {
+      "path": "crates/antecedent/tests/fitted_model_statements_calibration.rs",
+      "sha256": "76b725270ecb1f58e288b9f688110ec8da7157c8151f6ce527c8dcd6e23f8f5d",
+      "labelled_calls": [
+        {
+          "line": 153,
+          "call": ".labelled(",
+          "argument": "*label"
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 151,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, level"
+        }
+      ],
+      "review": "Twenty source-fixed designs of the fitted-model attribution and simulation routes (mechanism-refit bootstrap and Dirichlet or block-weight posteriors of path, feature, anomaly, unit-change, structure-change, robust-change, temporal component and influence targets, and of interventional samples, unit effects and counterfactuals) on linear-Gaussian laws with closed-form truths; labels are literal names of the published quantities in each test's fixed label list, each scored at the reported 0.95 level and at 0.90 re-formed from the same draws; no label, level or coordinate is chosen from outcomes."
+    },
+    {
       "path": "crates/antecedent/tests/graph_imputation_interval_calibration.rs",
       "sha256": "6e0e759578d06d8dc4c22619f6a40a0701df6adf73957563b53d789789edbfa9",
       "labelled_calls": [],
@@ -1273,6 +1378,39 @@
         }
       ],
       "review": "Fixed graph-imputation prior-predictive cells with declared priors and effects; candidate measurements, no label chosen from outcomes."
+    },
+    {
+      "path": "crates/antecedent/tests/graphless_wider_range_calibration.rs",
+      "sha256": "e727ebceba796d73beeeea764d7b48d25cc41820b6181c68fe372d40831e8bba",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 126,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: POSTERIOR_QUANTILE },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 328,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: SC_DGP, interval }, REPORTED_LEVEL"
+        },
+        {
+          "line": 948,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
+        },
+        {
+          "line": 1456,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: \"response_type_mixture_population_law\", interval },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 1668,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: design.interval },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Source-fixed designs that repeat base designs of the cluster Bayesian bootstrap, synthetic control, panel difference-in-differences, binary-instrument bounds and association routes at support ranges the base grids do not reach (more clusters per arm, more donors, other post-period counts, pre-period counts that are not multiples of twenty, and sizes four times the base grid's largest); each scores the route's published 0.95 interval against the generated truth with static record keys, and no label, size or level is chosen from outcomes."
     },
     {
       "path": "crates/antecedent/tests/grid_functional_effect_calibration.rs",
@@ -1304,6 +1442,44 @@
         }
       ],
       "review": "Finite prespecified joint-law composed query constructions and confidence."
+    },
+    {
+      "path": "crates/antecedent/tests/joint_panel_calibration.rs",
+      "sha256": "a21569fc1e7166f3601cc8be7a9c0addef95b03dc894218dc0f5b7a358737846",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 711,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: interval_label(mode, path) },\n        LEVEL,"
+        },
+        {
+          "line": 907,
+          "call": "CoverageTally::new(",
+          "argument": "format!(\"{test} specification set\"), LEVEL"
+        },
+        {
+          "line": 1098,
+          "call": "CoverageTally::new(",
+          "argument": "test, LEVEL"
+        },
+        {
+          "line": 1397,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"weighted_posterior_quantile\" },\n        LEVEL,"
+        },
+        {
+          "line": 1587,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"monte_carlo_standard_error\" },\n        LEVEL,"
+        },
+        {
+          "line": 1758,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: \"response_data\", interval }, LEVEL"
+        }
+      ],
+      "review": "Source-fixed joint-panel designs (reviewed and broader Michaelis-Menten and Hill families, finite-lag and time-varying specifications, prepared joint response) whose record names are the literal test names fixed by the two test macros, each scored at the one declared 0.95 level against a closed-form or prior-drawn truth; no outcome selects a design, test or level."
     },
     {
       "path": "crates/antecedent/tests/joint_response_calibration.rs",
@@ -1386,6 +1562,24 @@
       "review": "Nine source-fixed local-ratio designs (fuzzy jump and kink at the MSE-optimal bandwidth, fuzzy jump at a declared bandwidth with the density test, sharp jump and kink in calendar time under AR(1) errors in bootstrap and block-posterior form, fixed-bandwidth Bayesian jump and kink on the model's own local-linear likelihood), each scoring the route's published 0.95 interval (and the 0.90 quantiles of the same posterior draws) against the generated ratio with static record keys; no label, bandwidth or level is chosen from outcomes."
     },
     {
+      "path": "crates/antecedent/tests/local_designs_statements_calibration.rs",
+      "sha256": "4c76034296165460bbe92b2de9dd132b701a85b0f2eec28ac13a7d6eeb4910ca",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 317,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test: cell.test, dgp: cell.dgp, interval: cell.interval },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 471,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test: cell.test, dgp: cell.dgp, interval: POSTERIOR_QUANTILE },\n        level,"
+        }
+      ],
+      "review": "Seven source-fixed local-ratio designs (declared-bandwidth kink with diagnostics, temporal fuzzy jump, kink and step at the selected bandwidth, and their Bayesian counterparts) with a closed-form ratio truth and one declared 0.95 level; the design axes and test names are literal."
+    },
+    {
       "path": "crates/antecedent/tests/measurement_composition_calibration.rs",
       "sha256": "cfd7fab6135659bb4ad92976bbc588fd489055ee73b53d7caa330939f62246a0",
       "labelled_calls": [],
@@ -1415,6 +1609,24 @@
         }
       ],
       "review": "Four source-fixed designs of the horizon composition interval on one two-lag linear law (cumulative effect and horizon contrast, joint block bootstrap and block-weight draws), each at the 0.95 level against the closed-form composed truth with static record keys."
+    },
+    {
+      "path": "crates/antecedent/tests/measurement_composition_statements_calibration.rs",
+      "sha256": "3f170e36bf234798f869216609d7f6ad4a5cc520b15990d66b89a5113098a40a",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 89,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
+        },
+        {
+          "line": 1180,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: NORMAL_APPROXIMATION_CONSTRUCTION },\n        COMPOSED_LEVEL,"
+        }
+      ],
+      "review": "Twenty-five source-fixed measurement-correction and composition designs (categorical correction, regression calibration, SIMEX, temporal misclassification beyond two arms, composed sums, weighted sums, products and ratios) with closed-form truths and one declared 0.95 level; the design axes and test names are literal."
     },
     {
       "path": "crates/antecedent/tests/mechanism_composition_interval_calibration.rs",
@@ -1724,6 +1936,43 @@
       "review": "Ten source-fixed difference-in-differences designs (the staggered rollout's simple aggregate under three estimators, both comparisons and both resampling schemes; the covariate-adjusted two-period effect under three nuisance methods; the augmented panel with the true predictions supplied; the rollout's Bayesian bootstrap and the two-period Normal-Inverse-Gamma posterior), each scoring the route's published 0.95 interval against the generated effect with static record keys; no label, estimator or level is chosen from outcomes."
     },
     {
+      "path": "crates/antecedent/tests/panel_did_range_calibration.rs",
+      "sha256": "5e479d7e763eb0c5725f2e2bf2914ae09ee723a16257b158d3d550ecc9db4972",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 116,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Two source-fixed difference-in-differences range designs (the two-period posterior at its row floor and the augmented panel with in-sample nuisance fits) with a closed-form truth and one declared 0.95 level; the design axes and test names are literal."
+    },
+    {
+      "path": "crates/antecedent/tests/panel_did_statements_calibration.rs",
+      "sha256": "9b542173bd1233126a73390ae852ee61311621ce7574459fd1bc3ed38995e7da",
+      "labelled_calls": [
+        {
+          "line": 303,
+          "call": ".labelled(",
+          "argument": "target.label()"
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 99,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
+        },
+        {
+          "line": 303,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Eight source-fixed difference-in-differences designs (dynamic, group and calendar rollout aggregations, group-time and pre-trend bands, three unbalanced-panel estimators, an augmented panel): each label is the literal name carried by a declared target of the design's fixed target list (summary, each component, band) scored at the reported 0.95 level against a closed-form cell effect; no target, label or level is chosen from outcomes."
+    },
+    {
       "path": "crates/antecedent/tests/practitioner_scale_calibration.rs",
       "sha256": "8e53bbc405567f73cf76d66bd68accd2a38aa576d1da0e656103ff5476ffd856",
       "labelled_calls": [
@@ -1878,6 +2127,30 @@
         }
       ],
       "review": "Fixed randomized-quantile median-effect design with a known truth and static record key; the quantile and arms are source-declared."
+    },
+    {
+      "path": "crates/antecedent/tests/refuter_error_rates_calibration.rs",
+      "sha256": "28e732edd3ecb423b0cbd1dcb4188d6a494bbf0b8ef6c5da9bacd26e354113ef",
+      "labelled_calls": [
+        {
+          "line": 741,
+          "call": ".labelled(",
+          "argument": "kind.as_str()"
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 737,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test: self.test, dgp: self.dgp, interval: kind.as_str() },\n                    REPORTED_LEVEL,"
+        },
+        {
+          "line": 785,
+          "call": "CoverageTally::new(",
+          "argument": "format!(\"{} [{}]\", self.test, kind.as_str()), REPORTED_LEVEL"
+        }
+      ],
+      "review": "Eleven source-fixed refuter error-rate designs (static and series, frequentist and Bayesian predictive check; sound procedure, spurious effect, misreported target): each label is the string id of a refuter kind taken from the design's literal kind list, and every record is a non-rejection rate at the source-fixed 1 - 0.05 level against a known null; the detection rates are printed, not asserted, and no kind, violation or level is chosen from outcomes."
     },
     {
       "path": "crates/antecedent/tests/sample_split_effect_calibration.rs",
@@ -2250,6 +2523,19 @@
       "review": "Eight source-fixed synthetic-control designs (the donor-weight posterior's average effect; the predictive path's average, first and last post period; the conformal set of the first and last post period and of a constant effect at permutation counts that are multiples of twenty; the placebo-variance interval of three staggered adoptions among exchangeable units), each scoring the route's published 0.95 interval against the generated effect with static record keys; no label, period or level is chosen from outcomes."
     },
     {
+      "path": "crates/antecedent/tests/synthetic_control_range_calibration.rs",
+      "sha256": "40f1e38abd189098ea232d2686d27091fb9eb4878dcfc22d107b91d3332a1085",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 125,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: DGP, interval }, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Ten source-fixed synthetic-control range designs (predictive-path intervals and conformal sets at one and three post periods) on the base design's panel with closed-form effects and literal pre-period counts chosen so the permutation size is exact; the design axes and test names are literal."
+    },
+    {
       "path": "crates/antecedent/tests/temporal_class_calibration.rs",
       "sha256": "7bbebe9d7478141f60b3137f548ea0d30565a18c95a54a957220e7c02904f6bb",
       "labelled_calls": [],
@@ -2309,6 +2595,53 @@
         }
       ],
       "review": "Ten source-fixed temporal-design panels (two-arm, multi-arm, categorical, factorial, interference, three dose targets, quantile, regime survival), each scored on one named coordinate against its known truth in frequentist and Bayesian form at one 0.95 level with static record keys; no label and no coordinate is chosen from outcomes."
+    },
+    {
+      "path": "crates/antecedent/tests/temporal_design_range_calibration.rs",
+      "sha256": "27822318862de0351097ff41b9dcfe298f4e536a357b177b2b25c6dc38c52896",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 201,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: DGP, interval }, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Four source-fixed regime-survival designs (horizons one and two, bootstrap and posterior intervals) on the base survival law with a truth simulated from that law and one declared 0.95 level; the horizons and test names are literal."
+    },
+    {
+      "path": "crates/antecedent/tests/temporal_design_statements_calibration.rs",
+      "sha256": "6900ff045f16e26dfe6cefee0245b054a1daa88df00040ee31d18641e66c4469",
+      "labelled_calls": [
+        {
+          "line": 687,
+          "call": ".labelled(",
+          "argument": "name"
+        },
+        {
+          "line": 714,
+          "call": ".labelled(",
+          "argument": "\"band\""
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 687,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, REPORTED_LEVEL"
+        },
+        {
+          "line": 714,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, REPORTED_LEVEL"
+        },
+        {
+          "line": 738,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Twenty-five source-fixed temporal-design panels (pointwise coordinates, sup-t bands, Holm family errors, quartile effects, dose-grid derivative and bias-aware intervals, longer-horizon survival): each label is a literal coordinate name paired with its closed-form truth in the test's declared target list, or the literal band, scored at the reported 0.95 level; no coordinate, label or level is chosen from outcomes."
     },
     {
       "path": "crates/antecedent/tests/temporal_frequentist.rs",
@@ -2418,6 +2751,45 @@
         }
       ],
       "review": "Six source-fixed designs of the sequential contrast, the sequential regime and binary policy posteriors and the within-period history routes (the cross-fit Wald interval and the modular posterior of the always-treat against never-treat contrast at five folds, the Bayesian-bootstrap regime value with frozen Q predictions under a fair coin, the Bayesian-bootstrap incremental policy value, the fixed-b period interval of the history match against the population effect on the treated, and the history outcome model's posterior against its design-conditional effect), each scoring the one interval the route publishes at one 0.95 level against a closed-form truth with static record keys; no label, level, fold count or coordinate is chosen from outcomes."
+    },
+    {
+      "path": "crates/antecedent/tests/temporal_routes_range_calibration.rs",
+      "sha256": "34171969629f1e7d09174ac57a1be0b97c2d53dc979f431f27d7fad4511ebe57",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 207,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: \"sequential_panel\", interval },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Four source-fixed sequential-contrast designs (ten balanced and eight unbalanced cross-fit folds, Wald and posterior intervals) on the base panel with the closed-form contrast 2.82 and one declared 0.95 level; the fold splits are literal cycles and the test names are literal."
+    },
+    {
+      "path": "crates/antecedent/tests/temporal_routes_statements_calibration.rs",
+      "sha256": "e57830217cfd2e16b5807b988cbe86a8ece08c1fb43a3f216962d29de6a6006e",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 219,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"bayesian_sequential_regime_value_fitted_crossfit_posterior_coverage\",\n            dgp: \"crossfit_regime_trial\",\n            interval: POSTERIOR_INTERVAL,\n        },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "One source-fixed sequential-regime design (the Bayesian-bootstrap posterior with cross-fitted Q predictions) on the base two-decision trial with the closed-form value 3.82 and one declared 0.95 level; the design axes and test name are literal."
+    },
+    {
+      "path": "crates/antecedent/tests/temporal_wider_range_calibration.rs",
+      "sha256": "45e16b35a966345c2a0f8006ec3d5f669a06ec498c9252ce4db5a7d354738d8e",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 653,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Fifty-four source-fixed designs repeating base temporal-design, sequential-contrast and regime-survival panels with one axis moved (decision lags two and three of every lag-taking design, assignment probabilities on each row's floor, a sequential panel whose true action probabilities reach 0.07 and 0.93, regime survival with thin treatment overlap and with heavy censoring), each scoring the one interval the route publishes at one 0.95 level against the base design's closed-form or simulated truth with static record keys; no lag, probability, censoring rate or coordinate is chosen from outcomes."
     },
     {
       "path": "crates/antecedent/tests/transport_statistical_calibration.rs",

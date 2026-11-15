@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "1d3d2751b0eb15a0ab51f3137e0ff24cdbf31fa031bf3e4e2b3b22dd1a0caa79",
+  "gate_sha256": "620c543f90784b5a184ac811290c8b021d4ccd83c4e54ac9179d6d71c8be8708",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "17eadcb4e7b60981158177e1bea43aedaee8cd239c5ed263508178bc22226d78",
+  "label_audit_sha256": "2a4ad30ca55fe6bc5ab247b02c985e83fe69135bb70e7fd05052370e1485022b",
   "groups": [
     {
       "index": 1,
@@ -7201,6 +7201,1396 @@
     {
       "index": 1436,
       "label": "synthetic_control_calibration: multi_unit_synthetic_placebo_variance_interval",
+      "grid": true
+    },
+    {
+      "index": 1437,
+      "label": "discovery_statements_calibration: discovery_static_order_mcmc_class_posterior_credible_set_coverage",
+      "grid": true
+    },
+    {
+      "index": 1438,
+      "label": "discovery_statements_calibration: discovery_static_order_mcmc_laplace_dag_posterior_credible_set_coverage",
+      "grid": true
+    },
+    {
+      "index": 1439,
+      "label": "discovery_statements_calibration: discovery_static_structure_mcmc_class_posterior_credible_set_coverage",
+      "grid": true
+    },
+    {
+      "index": 1440,
+      "label": "discovery_statements_calibration: discovery_static_ci_screened_class_posterior_credible_set_coverage",
+      "grid": true
+    },
+    {
+      "index": 1441,
+      "label": "discovery_statements_calibration: discovery_static_exact_pag_posterior_collider_credible_set_coverage",
+      "grid": true
+    },
+    {
+      "index": 1442,
+      "label": "discovery_statements_calibration: discovery_static_exact_pag_posterior_chain_credible_set_coverage",
+      "grid": true
+    },
+    {
+      "index": 1443,
+      "label": "discovery_statements_calibration: discovery_static_pag_mcmc_posterior_collider_credible_set_coverage",
+      "grid": true
+    },
+    {
+      "index": 1444,
+      "label": "discovery_statements_calibration: discovery_static_exact_edge_marginals_indicator_credible_set_coverage",
+      "grid": true
+    },
+    {
+      "index": 1445,
+      "label": "discovery_statements_calibration: discovery_temporal_dbn_class_posterior_lagged_edge_credible_set_coverage",
+      "grid": true
+    },
+    {
+      "index": 1446,
+      "label": "discovery_statements_calibration: discovery_temporal_dbn_class_posterior_contemporaneous_edge_credible_set_coverage",
+      "grid": true
+    },
+    {
+      "index": 1447,
+      "label": "dose_grid_statements_calibration: dose_grid_zero_bound_level_intervals_and_band",
+      "grid": true
+    },
+    {
+      "index": 1448,
+      "label": "dose_grid_statements_calibration: dose_grid_zero_bound_derivative_intervals_and_band",
+      "grid": true
+    },
+    {
+      "index": 1449,
+      "label": "dose_grid_statements_calibration: dose_grid_bias_aware_level_intervals_and_band",
+      "grid": true
+    },
+    {
+      "index": 1450,
+      "label": "dose_grid_statements_calibration: dose_grid_bias_aware_derivative_intervals_and_band",
+      "grid": true
+    },
+    {
+      "index": 1451,
+      "label": "dose_grid_statements_calibration: dose_grid_bias_aware_contrast_interval",
+      "grid": true
+    },
+    {
+      "index": 1452,
+      "label": "fitted_model_statements_calibration: attribute_paths_dag_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1453,
+      "label": "fitted_model_statements_calibration: attribute_feature_relevance_dag_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1454,
+      "label": "fitted_model_statements_calibration: attribute_anomaly_dag_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1455,
+      "label": "fitted_model_statements_calibration: attribute_anomaly_empirical_reference_dag_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1456,
+      "label": "fitted_model_statements_calibration: attribute_unit_change_dag_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1457,
+      "label": "fitted_model_statements_calibration: attribute_unit_change_dag_bayesian_dirichlet_coverage",
+      "grid": true
+    },
+    {
+      "index": 1458,
+      "label": "fitted_model_statements_calibration: attribute_anomaly_empirical_reference_dag_bayesian_dirichlet_coverage",
+      "grid": true
+    },
+    {
+      "index": 1459,
+      "label": "fitted_model_statements_calibration: attribute_distribution_change_robust_dag_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1460,
+      "label": "fitted_model_statements_calibration: attribute_structure_change_dag_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1461,
+      "label": "fitted_model_statements_calibration: attribute_structure_change_dag_bayesian_dirichlet_coverage",
+      "grid": true
+    },
+    {
+      "index": 1462,
+      "label": "fitted_model_statements_calibration: attribute_temporal_dag_bayesian_block_weights_component_coverage",
+      "grid": true
+    },
+    {
+      "index": 1463,
+      "label": "fitted_model_statements_calibration: attribute_temporal_intrinsic_influence_bayesian_block_weights_coverage",
+      "grid": true
+    },
+    {
+      "index": 1464,
+      "label": "fitted_model_statements_calibration: simulate_interventional_sample_dag_bayesian_dirichlet_coverage",
+      "grid": true
+    },
+    {
+      "index": 1465,
+      "label": "fitted_model_statements_calibration: simulate_interventional_sample_dag_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1466,
+      "label": "fitted_model_statements_calibration: simulate_unit_effects_dag_bayesian_dirichlet_coverage",
+      "grid": true
+    },
+    {
+      "index": 1467,
+      "label": "fitted_model_statements_calibration: simulate_unit_effects_dag_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1468,
+      "label": "fitted_model_statements_calibration: simulate_counterfactual_dag_bayesian_dirichlet_coverage",
+      "grid": true
+    },
+    {
+      "index": 1469,
+      "label": "fitted_model_statements_calibration: simulate_counterfactual_dag_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1470,
+      "label": "fitted_model_statements_calibration: simulate_temporal_counterfactual_dag_bayesian_dirichlet_coverage",
+      "grid": true
+    },
+    {
+      "index": 1471,
+      "label": "fitted_model_statements_calibration: simulate_temporal_counterfactual_dag_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1472,
+      "label": "joint_panel_calibration: joint_panel_selection_false_change_frequentist",
+      "grid": true
+    },
+    {
+      "index": 1473,
+      "label": "joint_panel_calibration: joint_panel_experiment_update_weights_finite_lag_bayesian_l95",
+      "grid": true
+    },
+    {
+      "index": 1474,
+      "label": "joint_panel_calibration: joint_panel_experiment_update_weights_time_varying_bayesian_l95",
+      "grid": true
+    },
+    {
+      "index": 1475,
+      "label": "joint_panel_calibration: joint_panel_future_sample_value_standard_error_finite_lag_bayesian_l95",
+      "grid": true
+    },
+    {
+      "index": 1476,
+      "label": "joint_panel_calibration: joint_panel_future_sample_value_standard_error_time_varying_bayesian_l95",
+      "grid": true
+    },
+    {
+      "index": 1477,
+      "label": "joint_panel_calibration: prepared_joint_response_contrast_frequentist_l95",
+      "grid": true
+    },
+    {
+      "index": 1478,
+      "label": "joint_panel_calibration: prepared_joint_response_contrast_bayesian_l95",
+      "grid": true
+    },
+    {
+      "index": 1479,
+      "label": "joint_panel_calibration: joint_panel_posterior_calibration_static_l95",
+      "grid": false
+    },
+    {
+      "index": 1480,
+      "label": "joint_panel_calibration: joint_panel_posterior_calibration_lagged_l95",
+      "grid": false
+    },
+    {
+      "index": 1481,
+      "label": "joint_panel_calibration: joint_panel_posterior_calibration_broader_static_l95",
+      "grid": false
+    },
+    {
+      "index": 1482,
+      "label": "joint_panel_calibration: joint_panel_posterior_calibration_broader_lagged_l95",
+      "grid": false
+    },
+    {
+      "index": 1483,
+      "label": "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_l95",
+      "grid": false
+    },
+    {
+      "index": 1484,
+      "label": "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_broader_l95",
+      "grid": false
+    },
+    {
+      "index": 1485,
+      "label": "joint_panel_calibration: joint_panel_contrast_static_frequentist_l95",
+      "grid": true
+    },
+    {
+      "index": 1486,
+      "label": "joint_panel_calibration: joint_panel_contrast_lagged_frequentist_l95",
+      "grid": true
+    },
+    {
+      "index": 1487,
+      "label": "joint_panel_calibration: joint_panel_contrast_broader_static_frequentist_l95",
+      "grid": true
+    },
+    {
+      "index": 1488,
+      "label": "joint_panel_calibration: joint_panel_contrast_broader_lagged_frequentist_l95",
+      "grid": true
+    },
+    {
+      "index": 1489,
+      "label": "joint_panel_calibration: joint_panel_time_varying_contrast_frequentist_l95",
+      "grid": true
+    },
+    {
+      "index": 1490,
+      "label": "joint_panel_calibration: joint_panel_time_varying_contrast_broader_frequentist_l95",
+      "grid": true
+    },
+    {
+      "index": 1491,
+      "label": "refuter_error_rates_calibration: static_frequentist_refuters_false_rejection_under_a_sound_procedure",
+      "grid": true
+    },
+    {
+      "index": 1492,
+      "label": "refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_spurious_effect",
+      "grid": true
+    },
+    {
+      "index": 1493,
+      "label": "refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_misreported_target",
+      "grid": true
+    },
+    {
+      "index": 1494,
+      "label": "refuter_error_rates_calibration: temporal_frequentist_refuters_false_rejection_under_a_sound_procedure",
+      "grid": true
+    },
+    {
+      "index": 1495,
+      "label": "refuter_error_rates_calibration: temporal_facade_refuters_false_rejection_under_a_sound_procedure",
+      "grid": true
+    },
+    {
+      "index": 1496,
+      "label": "refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_spurious_effect",
+      "grid": true
+    },
+    {
+      "index": 1497,
+      "label": "refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_misreported_target",
+      "grid": true
+    },
+    {
+      "index": 1498,
+      "label": "refuter_error_rates_calibration: static_bayesian_predictive_check_false_rejection_under_a_correct_model",
+      "grid": true
+    },
+    {
+      "index": 1499,
+      "label": "refuter_error_rates_calibration: static_bayesian_predictive_check_power_against_a_misreported_target",
+      "grid": true
+    },
+    {
+      "index": 1500,
+      "label": "refuter_error_rates_calibration: temporal_bayesian_predictive_check_false_rejection_under_a_correct_model",
+      "grid": true
+    },
+    {
+      "index": 1501,
+      "label": "refuter_error_rates_calibration: temporal_bayesian_predictive_check_power_against_a_misreported_target",
+      "grid": true
+    },
+    {
+      "index": 1502,
+      "label": "static_mechanism_bootstrap_calibration: counterfactual_dag_explicit_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1503,
+      "label": "static_mechanism_bootstrap_calibration: anomaly_attribution_dag_explicit_frequentist_bootstrap_coverage",
+      "grid": true
+    },
+    {
+      "index": 1504,
+      "label": "temporal_routes_statements_calibration: bayesian_sequential_regime_value_fitted_crossfit_posterior_coverage",
+      "grid": true
+    },
+    {
+      "index": 1505,
+      "label": "temporal_transport_calibration: transport_series_newey_west_interval_coverage",
+      "grid": true
+    },
+    {
+      "index": 1506,
+      "label": "temporal_transport_calibration: transport_series_block_posterior_coverage",
+      "grid": true
+    },
+    {
+      "index": 1507,
+      "label": "panel_did_range_calibration: bayesian_two_period_posterior_interval_from_the_row_floor",
+      "grid": true
+    },
+    {
+      "index": 1508,
+      "label": "panel_did_range_calibration: augmented_panel_in_sample_nuisance_bootstrap_interval",
+      "grid": true
+    },
+    {
+      "index": 1509,
+      "label": "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_one_post_period_average_interval",
+      "grid": true
+    },
+    {
+      "index": 1510,
+      "label": "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_one_post_period_period_interval",
+      "grid": true
+    },
+    {
+      "index": 1511,
+      "label": "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_three_post_periods_average_interval",
+      "grid": true
+    },
+    {
+      "index": 1512,
+      "label": "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_three_post_periods_first_period_interval",
+      "grid": true
+    },
+    {
+      "index": 1513,
+      "label": "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_three_post_periods_last_period_interval",
+      "grid": true
+    },
+    {
+      "index": 1514,
+      "label": "synthetic_control_range_calibration: conformal_synthetic_control_one_post_period_period_set",
+      "grid": true
+    },
+    {
+      "index": 1515,
+      "label": "synthetic_control_range_calibration: conformal_synthetic_control_one_post_period_constant_effect_set",
+      "grid": true
+    },
+    {
+      "index": 1516,
+      "label": "synthetic_control_range_calibration: conformal_synthetic_control_three_post_periods_first_period_set",
+      "grid": true
+    },
+    {
+      "index": 1517,
+      "label": "synthetic_control_range_calibration: conformal_synthetic_control_three_post_periods_last_period_set",
+      "grid": true
+    },
+    {
+      "index": 1518,
+      "label": "synthetic_control_range_calibration: conformal_synthetic_control_three_post_periods_constant_effect_set",
+      "grid": true
+    },
+    {
+      "index": 1519,
+      "label": "temporal_design_range_calibration: temporal_design_regime_survival_horizon_one_bootstrap_interval",
+      "grid": true
+    },
+    {
+      "index": 1520,
+      "label": "temporal_design_range_calibration: temporal_design_regime_survival_horizon_two_bootstrap_interval",
+      "grid": true
+    },
+    {
+      "index": 1521,
+      "label": "temporal_design_range_calibration: bayesian_temporal_design_regime_survival_horizon_one_interval",
+      "grid": true
+    },
+    {
+      "index": 1522,
+      "label": "temporal_design_range_calibration: bayesian_temporal_design_regime_survival_horizon_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1523,
+      "label": "temporal_routes_range_calibration: sequential_crossfit_contrast_wald_interval_ten_folds_coverage",
+      "grid": true
+    },
+    {
+      "index": 1524,
+      "label": "temporal_routes_range_calibration: sequential_crossfit_contrast_wald_interval_unbalanced_folds_coverage",
+      "grid": true
+    },
+    {
+      "index": 1525,
+      "label": "temporal_routes_range_calibration: bayesian_sequential_crossfit_contrast_posterior_ten_folds_coverage",
+      "grid": true
+    },
+    {
+      "index": 1526,
+      "label": "temporal_routes_range_calibration: bayesian_sequential_crossfit_contrast_posterior_unbalanced_folds_coverage",
+      "grid": true
+    },
+    {
+      "index": 1527,
+      "label": "bounds_association_range_calibration: bayesian_association_static_slope_credible_interval_prior_scale_six",
+      "grid": true
+    },
+    {
+      "index": 1528,
+      "label": "bounds_association_range_calibration: bayesian_association_static_slope_credible_interval_prior_scale_one_thousand",
+      "grid": true
+    },
+    {
+      "index": 1529,
+      "label": "bayesian_randomized_statements_calibration: finite_population_bernoulli_arms_sharp_null_credible_interval",
+      "grid": true
+    },
+    {
+      "index": 1530,
+      "label": "bayesian_randomized_statements_calibration: finite_population_bernoulli_arms_varying_effects_credible_interval",
+      "grid": true
+    },
+    {
+      "index": 1531,
+      "label": "bayesian_randomized_statements_calibration: cluster_bayesian_bootstrap_larger_small_arm_credible_interval",
+      "grid": true
+    },
+    {
+      "index": 1532,
+      "label": "bounds_association_statements_calibration: association_static_stratum_mean_interval",
+      "grid": true
+    },
+    {
+      "index": 1533,
+      "label": "bounds_association_statements_calibration: association_static_stratum_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1534,
+      "label": "bounds_association_statements_calibration: association_static_stratum_mean_bootstrap_spread_interval",
+      "grid": true
+    },
+    {
+      "index": 1535,
+      "label": "bounds_association_statements_calibration: association_static_logistic_slope_interval",
+      "grid": true
+    },
+    {
+      "index": 1536,
+      "label": "bounds_association_statements_calibration: association_static_logistic_bootstrap_spread_slope_interval",
+      "grid": true
+    },
+    {
+      "index": 1537,
+      "label": "bounds_association_statements_calibration: association_static_poisson_slope_interval",
+      "grid": true
+    },
+    {
+      "index": 1538,
+      "label": "bounds_association_statements_calibration: association_static_poisson_bootstrap_spread_slope_interval",
+      "grid": true
+    },
+    {
+      "index": 1539,
+      "label": "bounds_association_statements_calibration: association_static_pearson_correlation_interval",
+      "grid": true
+    },
+    {
+      "index": 1540,
+      "label": "bounds_association_statements_calibration: association_static_pearson_correlation_bootstrap_spread_interval",
+      "grid": true
+    },
+    {
+      "index": 1541,
+      "label": "bounds_association_statements_calibration: association_static_distance_correlation_bootstrap_spread_interval",
+      "grid": true
+    },
+    {
+      "index": 1542,
+      "label": "bounds_association_statements_calibration: bayesian_association_static_bootstrap_logistic_slope_credible_interval",
+      "grid": true
+    },
+    {
+      "index": 1543,
+      "label": "bounds_association_statements_calibration: bayesian_association_static_bootstrap_stratum_probability_credible_interval",
+      "grid": true
+    },
+    {
+      "index": 1544,
+      "label": "bounds_association_statements_calibration: bayesian_association_static_bootstrap_pearson_correlation_credible_interval",
+      "grid": true
+    },
+    {
+      "index": 1545,
+      "label": "bounds_association_statements_calibration: association_temporal_stratum_mean_newey_west_interval",
+      "grid": true
+    },
+    {
+      "index": 1546,
+      "label": "bounds_association_statements_calibration: association_temporal_stratum_mean_block_bootstrap_spread_interval",
+      "grid": true
+    },
+    {
+      "index": 1547,
+      "label": "local_designs_statements_calibration: regression_kink_declared_bandwidth_rbc_with_diagnostics_interval_covers_the_slope_ratio",
+      "grid": true
+    },
+    {
+      "index": 1548,
+      "label": "local_designs_statements_calibration: temporal_fuzzy_rd_selected_bandwidth_block_bootstrap_interval_covers_the_jump",
+      "grid": true
+    },
+    {
+      "index": 1549,
+      "label": "local_designs_statements_calibration: temporal_regression_kink_selected_bandwidth_block_bootstrap_interval_covers_the_slope_ratio",
+      "grid": true
+    },
+    {
+      "index": 1550,
+      "label": "local_designs_statements_calibration: temporal_fuzzy_step_block_bootstrap_interval_covers_the_local_ratio",
+      "grid": true
+    },
+    {
+      "index": 1551,
+      "label": "local_designs_statements_calibration: bayesian_temporal_fuzzy_rd_selected_bandwidth_block_posterior_covers_the_jump",
+      "grid": true
+    },
+    {
+      "index": 1552,
+      "label": "local_designs_statements_calibration: bayesian_temporal_regression_kink_selected_bandwidth_block_posterior_covers_the_slope_ratio",
+      "grid": true
+    },
+    {
+      "index": 1553,
+      "label": "local_designs_statements_calibration: bayesian_temporal_fuzzy_step_block_posterior_covers_the_local_ratio",
+      "grid": true
+    },
+    {
+      "index": 1554,
+      "label": "measurement_composition_statements_calibration: measurement_categorical_proportion_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1555,
+      "label": "measurement_composition_statements_calibration: measurement_categorical_outcome_mean_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1556,
+      "label": "measurement_composition_statements_calibration: measurement_categorical_outcome_contrast_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1557,
+      "label": "measurement_composition_statements_calibration: measurement_regression_calibration_linear_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1558,
+      "label": "measurement_composition_statements_calibration: measurement_regression_calibration_covariate_error_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1559,
+      "label": "measurement_composition_statements_calibration: measurement_regression_calibration_logistic_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1560,
+      "label": "measurement_composition_statements_calibration: measurement_simex_linear_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1561,
+      "label": "measurement_composition_statements_calibration: measurement_simex_linear_quadratic_extrapolation_limit_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1562,
+      "label": "measurement_composition_statements_calibration: measurement_simex_linear_linear_extrapolation_limit_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1563,
+      "label": "measurement_composition_statements_calibration: measurement_simex_logistic_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1564,
+      "label": "measurement_composition_statements_calibration: temporal_misclassification_three_arm_contrast_l95",
+      "grid": true
+    },
+    {
+      "index": 1565,
+      "label": "measurement_composition_statements_calibration: temporal_misclassification_three_arm_reference_mean_l95",
+      "grid": true
+    },
+    {
+      "index": 1566,
+      "label": "measurement_composition_statements_calibration: temporal_misclassification_ordered_levels_step_l95",
+      "grid": true
+    },
+    {
+      "index": 1567,
+      "label": "measurement_composition_statements_calibration: temporal_misclassification_factorial_main_effect_l95",
+      "grid": true
+    },
+    {
+      "index": 1568,
+      "label": "measurement_composition_statements_calibration: temporal_misclassification_factorial_interaction_l95",
+      "grid": true
+    },
+    {
+      "index": 1569,
+      "label": "measurement_composition_statements_calibration: temporal_misclassification_interference_direct_effect_l95",
+      "grid": true
+    },
+    {
+      "index": 1570,
+      "label": "measurement_composition_statements_calibration: temporal_misclassification_interference_spillover_effect_l95",
+      "grid": true
+    },
+    {
+      "index": 1571,
+      "label": "measurement_composition_statements_calibration: composed_sum_shared_rows_gaussian_l95",
+      "grid": true
+    },
+    {
+      "index": 1572,
+      "label": "measurement_composition_statements_calibration: composed_weighted_sum_shared_rows_gaussian_l95",
+      "grid": true
+    },
+    {
+      "index": 1573,
+      "label": "measurement_composition_statements_calibration: composed_sum_aligned_posterior_gaussian_l95",
+      "grid": true
+    },
+    {
+      "index": 1574,
+      "label": "measurement_composition_statements_calibration: composed_sum_aligned_posterior_skewed_pair_l95",
+      "grid": true
+    },
+    {
+      "index": 1575,
+      "label": "measurement_composition_statements_calibration: composed_weighted_sum_aligned_posterior_gaussian_l95",
+      "grid": true
+    },
+    {
+      "index": 1576,
+      "label": "measurement_composition_statements_calibration: composed_product_aligned_posterior_gaussian_l95",
+      "grid": true
+    },
+    {
+      "index": 1577,
+      "label": "measurement_composition_statements_calibration: composed_product_aligned_posterior_skewed_pair_l95",
+      "grid": true
+    },
+    {
+      "index": 1578,
+      "label": "measurement_composition_statements_calibration: composed_ratio_aligned_posterior_gaussian_l95",
+      "grid": true
+    },
+    {
+      "index": 1579,
+      "label": "panel_did_statements_calibration: rollout_dynamic_aggregation_intervals_and_band",
+      "grid": true
+    },
+    {
+      "index": 1580,
+      "label": "panel_did_statements_calibration: rollout_group_aggregation_intervals_and_band",
+      "grid": true
+    },
+    {
+      "index": 1581,
+      "label": "panel_did_statements_calibration: rollout_calendar_aggregation_intervals_and_band",
+      "grid": true
+    },
+    {
+      "index": 1582,
+      "label": "panel_did_statements_calibration: rollout_group_time_and_pre_trend_simultaneous_bands",
+      "grid": true
+    },
+    {
+      "index": 1583,
+      "label": "panel_did_statements_calibration: rollout_unbalanced_callaway_santanna_multiplier_interval",
+      "grid": true
+    },
+    {
+      "index": 1584,
+      "label": "panel_did_statements_calibration: rollout_unbalanced_sun_abraham_multiplier_interval",
+      "grid": true
+    },
+    {
+      "index": 1585,
+      "label": "panel_did_statements_calibration: rollout_unbalanced_imputation_multiplier_interval",
+      "grid": true
+    },
+    {
+      "index": 1586,
+      "label": "panel_did_statements_calibration: augmented_panel_estimated_nuisance_bootstrap_interval",
+      "grid": true
+    },
+    {
+      "index": 1587,
+      "label": "temporal_design_statements_calibration: temporal_design_two_arm_arm_mean_intervals",
+      "grid": true
+    },
+    {
+      "index": 1588,
+      "label": "temporal_design_statements_calibration: temporal_design_multi_arm_other_coordinate_intervals",
+      "grid": true
+    },
+    {
+      "index": 1589,
+      "label": "temporal_design_statements_calibration: temporal_design_categorical_other_coordinate_intervals",
+      "grid": true
+    },
+    {
+      "index": 1590,
+      "label": "temporal_design_statements_calibration: temporal_design_factorial_other_coordinate_intervals",
+      "grid": true
+    },
+    {
+      "index": 1591,
+      "label": "temporal_design_statements_calibration: temporal_design_interference_other_coordinate_intervals",
+      "grid": true
+    },
+    {
+      "index": 1592,
+      "label": "temporal_design_statements_calibration: temporal_design_continuous_dose_response_intervals",
+      "grid": true
+    },
+    {
+      "index": 1593,
+      "label": "temporal_design_statements_calibration: temporal_design_smoothed_dose_other_grid_intervals",
+      "grid": true
+    },
+    {
+      "index": 1594,
+      "label": "temporal_design_statements_calibration: temporal_design_dose_grid_other_level_intervals",
+      "grid": true
+    },
+    {
+      "index": 1595,
+      "label": "temporal_design_statements_calibration: temporal_design_quantile_arm_median_bootstrap_intervals",
+      "grid": true
+    },
+    {
+      "index": 1596,
+      "label": "temporal_design_statements_calibration: temporal_design_multi_arm_contrast_band",
+      "grid": true
+    },
+    {
+      "index": 1597,
+      "label": "temporal_design_statements_calibration: temporal_design_categorical_contrast_band",
+      "grid": true
+    },
+    {
+      "index": 1598,
+      "label": "temporal_design_statements_calibration: temporal_design_factorial_effect_band",
+      "grid": true
+    },
+    {
+      "index": 1599,
+      "label": "temporal_design_statements_calibration: temporal_design_interference_effect_band",
+      "grid": true
+    },
+    {
+      "index": 1600,
+      "label": "temporal_design_statements_calibration: temporal_design_smoothed_dose_curve_band",
+      "grid": true
+    },
+    {
+      "index": 1601,
+      "label": "temporal_design_statements_calibration: temporal_design_dose_grid_level_band",
+      "grid": true
+    },
+    {
+      "index": 1602,
+      "label": "temporal_design_statements_calibration: temporal_design_multi_arm_holm_family_error",
+      "grid": true
+    },
+    {
+      "index": 1603,
+      "label": "temporal_design_statements_calibration: temporal_design_categorical_holm_family_error",
+      "grid": true
+    },
+    {
+      "index": 1604,
+      "label": "temporal_design_statements_calibration: temporal_design_factorial_holm_family_error",
+      "grid": true
+    },
+    {
+      "index": 1605,
+      "label": "temporal_design_statements_calibration: temporal_design_interference_holm_family_error",
+      "grid": true
+    },
+    {
+      "index": 1606,
+      "label": "temporal_design_statements_calibration: temporal_design_lower_quartile_effect_bootstrap_intervals",
+      "grid": true
+    },
+    {
+      "index": 1607,
+      "label": "temporal_design_statements_calibration: temporal_design_upper_quartile_effect_bootstrap_intervals",
+      "grid": true
+    },
+    {
+      "index": 1608,
+      "label": "temporal_design_statements_calibration: temporal_design_dose_grid_derivative_intervals",
+      "grid": true
+    },
+    {
+      "index": 1609,
+      "label": "temporal_design_statements_calibration: temporal_design_dose_grid_bias_aware_level_intervals",
+      "grid": true
+    },
+    {
+      "index": 1610,
+      "label": "temporal_design_statements_calibration: temporal_design_dose_grid_bias_aware_derivative_intervals",
+      "grid": true
+    },
+    {
+      "index": 1611,
+      "label": "temporal_design_statements_calibration: temporal_design_regime_survival_longer_horizon_bootstrap_interval",
+      "grid": true
+    },
+    {
+      "index": 1612,
+      "label": "temporal_wider_range_calibration: temporal_design_two_arm_excursion_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1613,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1614,
+      "label": "temporal_wider_range_calibration: temporal_design_two_arm_excursion_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1615,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1616,
+      "label": "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1617,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1618,
+      "label": "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1619,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1620,
+      "label": "temporal_wider_range_calibration: temporal_design_categorical_step_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1621,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1622,
+      "label": "temporal_wider_range_calibration: temporal_design_categorical_step_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1623,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1624,
+      "label": "temporal_wider_range_calibration: temporal_design_factorial_main_effect_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1625,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1626,
+      "label": "temporal_wider_range_calibration: temporal_design_factorial_main_effect_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1627,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1628,
+      "label": "temporal_wider_range_calibration: temporal_design_interference_direct_effect_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1629,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1630,
+      "label": "temporal_wider_range_calibration: temporal_design_interference_direct_effect_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1631,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1632,
+      "label": "temporal_wider_range_calibration: temporal_design_continuous_dose_contrast_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1633,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_continuous_dose_contrast_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1634,
+      "label": "temporal_wider_range_calibration: temporal_design_continuous_dose_contrast_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1635,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_continuous_dose_contrast_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1636,
+      "label": "temporal_wider_range_calibration: temporal_design_smoothed_dose_curve_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1637,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_smoothed_dose_curve_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1638,
+      "label": "temporal_wider_range_calibration: temporal_design_smoothed_dose_curve_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1639,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_smoothed_dose_curve_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1640,
+      "label": "temporal_wider_range_calibration: temporal_design_dose_grid_local_quadratic_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1641,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_dose_grid_local_quadratic_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1642,
+      "label": "temporal_wider_range_calibration: temporal_design_dose_grid_local_quadratic_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1643,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_dose_grid_local_quadratic_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1644,
+      "label": "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1645,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_lag_two_interval",
+      "grid": true
+    },
+    {
+      "index": 1646,
+      "label": "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1647,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_lag_three_interval",
+      "grid": true
+    },
+    {
+      "index": 1648,
+      "label": "temporal_wider_range_calibration: temporal_design_two_arm_excursion_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1649,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1650,
+      "label": "temporal_wider_range_calibration: temporal_design_interference_direct_effect_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1651,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1652,
+      "label": "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1653,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1654,
+      "label": "temporal_wider_range_calibration: temporal_design_categorical_step_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1655,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1656,
+      "label": "temporal_wider_range_calibration: temporal_design_factorial_main_effect_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1657,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1658,
+      "label": "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1659,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_floor_probability_interval",
+      "grid": true
+    },
+    {
+      "index": 1660,
+      "label": "temporal_wider_range_calibration: sequential_crossfit_contrast_wald_interval_wide_probability_coverage",
+      "grid": true
+    },
+    {
+      "index": 1661,
+      "label": "temporal_wider_range_calibration: bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage",
+      "grid": true
+    },
+    {
+      "index": 1662,
+      "label": "temporal_wider_range_calibration: temporal_design_regime_survival_low_overlap_bootstrap_interval",
+      "grid": true
+    },
+    {
+      "index": 1663,
+      "label": "temporal_wider_range_calibration: temporal_design_regime_survival_heavy_censoring_bootstrap_interval",
+      "grid": true
+    },
+    {
+      "index": 1664,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_regime_survival_low_overlap_interval",
+      "grid": true
+    },
+    {
+      "index": 1665,
+      "label": "temporal_wider_range_calibration: bayesian_temporal_design_regime_survival_heavy_censoring_interval",
+      "grid": true
+    },
+    {
+      "index": 1666,
+      "label": "graphless_wider_range_calibration: cluster_bayesian_bootstrap_student_reference_law_upper_arms_credible_interval",
+      "grid": true
+    },
+    {
+      "index": 1667,
+      "label": "graphless_wider_range_calibration: cluster_bayesian_bootstrap_dirichlet_law_from_fifty_arms_credible_interval",
+      "grid": true
+    },
+    {
+      "index": 1668,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_twenty_donors",
+      "grid": true
+    },
+    {
+      "index": 1669,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_average_interval_twenty_donors",
+      "grid": true
+    },
+    {
+      "index": 1670,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_first_period_interval_twenty_donors",
+      "grid": true
+    },
+    {
+      "index": 1671,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_last_period_interval_twenty_donors",
+      "grid": true
+    },
+    {
+      "index": 1672,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_first_period_set_twenty_donors",
+      "grid": true
+    },
+    {
+      "index": 1673,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_last_period_set_twenty_donors",
+      "grid": true
+    },
+    {
+      "index": 1674,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_constant_effect_set_twenty_donors",
+      "grid": true
+    },
+    {
+      "index": 1675,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_forty_donors",
+      "grid": true
+    },
+    {
+      "index": 1676,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_average_interval_forty_donors",
+      "grid": true
+    },
+    {
+      "index": 1677,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_first_period_interval_forty_donors",
+      "grid": true
+    },
+    {
+      "index": 1678,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_last_period_interval_forty_donors",
+      "grid": true
+    },
+    {
+      "index": 1679,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_first_period_set_forty_donors",
+      "grid": true
+    },
+    {
+      "index": 1680,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_last_period_set_forty_donors",
+      "grid": true
+    },
+    {
+      "index": 1681,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_constant_effect_set_forty_donors",
+      "grid": true
+    },
+    {
+      "index": 1682,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_one_post_period",
+      "grid": true
+    },
+    {
+      "index": 1683,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_three_post_periods",
+      "grid": true
+    },
+    {
+      "index": 1684,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_first_period_set_unaligned_pre_periods",
+      "grid": true
+    },
+    {
+      "index": 1685,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_last_period_set_unaligned_pre_periods",
+      "grid": true
+    },
+    {
+      "index": 1686,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_constant_effect_set_unaligned_pre_periods",
+      "grid": true
+    },
+    {
+      "index": 1687,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_upper_pre_periods",
+      "grid": true
+    },
+    {
+      "index": 1688,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_average_interval_upper_pre_periods",
+      "grid": true
+    },
+    {
+      "index": 1689,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_first_period_interval_upper_pre_periods",
+      "grid": true
+    },
+    {
+      "index": 1690,
+      "label": "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_last_period_interval_upper_pre_periods",
+      "grid": true
+    },
+    {
+      "index": 1691,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_first_period_set_upper_pre_periods",
+      "grid": true
+    },
+    {
+      "index": 1692,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_last_period_set_upper_pre_periods",
+      "grid": true
+    },
+    {
+      "index": 1693,
+      "label": "graphless_wider_range_calibration: conformal_synthetic_control_constant_effect_set_upper_pre_periods",
+      "grid": true
+    },
+    {
+      "index": 1694,
+      "label": "graphless_wider_range_calibration: bayesian_two_period_posterior_interval_upper_group_sizes",
+      "grid": true
+    },
+    {
+      "index": 1695,
+      "label": "graphless_wider_range_calibration: augmented_panel_true_nuisance_bootstrap_interval_upper_subjects",
+      "grid": true
+    },
+    {
+      "index": 1696,
+      "label": "graphless_wider_range_calibration: rollout_callaway_santanna_not_yet_treated_multiplier_interval_upper_units",
+      "grid": true
+    },
+    {
+      "index": 1697,
+      "label": "graphless_wider_range_calibration: rollout_callaway_santanna_never_treated_bootstrap_interval_upper_units",
+      "grid": true
+    },
+    {
+      "index": 1698,
+      "label": "graphless_wider_range_calibration: rollout_sun_abraham_multiplier_interval_upper_units",
+      "grid": true
+    },
+    {
+      "index": 1699,
+      "label": "graphless_wider_range_calibration: rollout_imputation_multiplier_interval_upper_units",
+      "grid": true
+    },
+    {
+      "index": 1700,
+      "label": "graphless_wider_range_calibration: bayesian_rollout_bootstrap_credible_interval_upper_units",
+      "grid": true
+    },
+    {
+      "index": 1701,
+      "label": "graphless_wider_range_calibration: iv_bounds_imbens_manski_interval_covers_the_lower_bound_upper_rows",
+      "grid": true
+    },
+    {
+      "index": 1702,
+      "label": "graphless_wider_range_calibration: iv_bounds_imbens_manski_interval_covers_the_upper_bound_upper_rows",
+      "grid": true
+    },
+    {
+      "index": 1703,
+      "label": "graphless_wider_range_calibration: bayesian_iv_bounds_endpoint_interval_covers_the_lower_bound_upper_rows",
+      "grid": true
+    },
+    {
+      "index": 1704,
+      "label": "graphless_wider_range_calibration: bayesian_iv_bounds_endpoint_interval_covers_the_upper_bound_upper_rows",
+      "grid": true
+    },
+    {
+      "index": 1705,
+      "label": "graphless_wider_range_calibration: association_static_sandwich_slope_interval_upper_rows",
+      "grid": true
+    },
+    {
+      "index": 1706,
+      "label": "graphless_wider_range_calibration: association_static_bootstrap_spread_slope_interval_upper_rows",
+      "grid": true
+    },
+    {
+      "index": 1707,
+      "label": "graphless_wider_range_calibration: association_temporal_newey_west_slope_interval_upper_rows",
+      "grid": true
+    },
+    {
+      "index": 1708,
+      "label": "graphless_wider_range_calibration: association_temporal_block_bootstrap_spread_slope_interval_upper_rows",
+      "grid": true
+    },
+    {
+      "index": 1709,
+      "label": "graphless_wider_range_calibration: bayesian_association_static_slope_credible_interval_upper_rows",
+      "grid": true
+    },
+    {
+      "index": 1710,
+      "label": "graphless_wider_range_calibration: bayesian_association_temporal_slope_credible_interval_upper_rows",
+      "grid": true
+    },
+    {
+      "index": 1711,
+      "label": "local_designs_statements_calibration: temporal_fuzzy_rd_block_bootstrap_interval_covers_the_jump_under_ar2_errors",
+      "grid": true
+    },
+    {
+      "index": 1712,
+      "label": "local_designs_statements_calibration: temporal_regression_kink_block_bootstrap_interval_covers_the_slope_ratio_under_ar2_errors",
+      "grid": true
+    },
+    {
+      "index": 1713,
+      "label": "local_designs_statements_calibration: bayesian_temporal_fuzzy_rd_block_posterior_covers_the_jump_under_ar2_errors",
+      "grid": true
+    },
+    {
+      "index": 1714,
+      "label": "local_designs_statements_calibration: bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio_under_ar2_errors",
       "grid": true
     }
   ],
