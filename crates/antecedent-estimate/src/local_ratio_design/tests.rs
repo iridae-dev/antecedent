@@ -354,7 +354,7 @@ fn the_trend_correction_recovers_the_autocorrelation_of_a_persistent_error() {
         raw += cross / square / f64::from(replicates);
         let fitted =
             super::error_series(&trends, [series[0].as_slice(), series[1].as_slice()]).unwrap();
-        corrected += fitted.coefficient / f64::from(replicates);
+        corrected += fitted.model.phi[0] / f64::from(replicates);
     }
     assert!(raw < corrected - 0.015, "{raw} vs {corrected}");
     assert!((corrected - 0.7).abs() < 0.02, "{corrected}");
@@ -391,81 +391,84 @@ fn in_time_ar2(seed: u64) -> Sample {
     sample
 }
 
-fn temporal_design() -> LocalRatioDesign {
-    LocalRatioDesign {
+/// Per-side trend of `rows` equally spaced distances in `[0, 1)`.
+fn cubic_trend(rows: usize) -> super::SideTrend {
+    let distances: Vec<f64> = (0..rows).map(|i| i as f64 / rows as f64).collect();
+    super::SideTrend {
+        inverse: super::inverse_gram(&distances, super::TREND_ORDER, |_| 1.0).unwrap(),
+        basis: distances.iter().map(|&d| super::monomials(d, super::TREND_ORDER)).collect(),
+    }
+}
+
+/// Stationary AR(2) series of `rows` points (`0.5`, `0.3`, marginal standard deviation `0.7`)
+/// or AR(1) (`0.7`, `0.7`) about a cubic.
+fn trend_plus_ar(rng: &mut FixtureRng, rows: usize, second_order: bool) -> Vec<f64> {
+    let (phi1, phi2, marginal): (f64, f64, f64) =
+        if second_order { (0.5, 0.3, 0.7) } else { (0.7, 0.0, 0.7) };
+    let innovation =
+        marginal * ((1.0 + phi2) * ((1.0 - phi2).powi(2) - phi1 * phi1) / (1.0 - phi2)).sqrt();
+    let (mut previous, mut before) = (0.0, 0.0);
+    let mut series = Vec::with_capacity(rows);
+    for step in 0..rows + 300 {
+        let error = phi1 * previous + phi2 * before + innovation * normal(rng);
+        before = previous;
+        previous = error;
+        if step >= 300 {
+            let d = (step - 300) as f64 / rows as f64;
+            series.push(1.0 + d - 2.0 * d.powi(3) + error);
+        }
+    }
+    series
+}
+
+#[test]
+fn the_error_model_recovers_the_persistence_of_a_second_order_error_through_the_trend() {
+    let trends = [cubic_trend(300), cubic_trend(300)];
+    let mut rng = FixtureRng::new(52);
+    for (second_order, persistence) in [(true, 0.8), (false, 0.7)] {
+        let replicates = 40;
+        let (mut total, mut higher) = (0.0, 0);
+        for _ in 0..replicates {
+            let sides = [
+                trend_plus_ar(&mut rng, 300, second_order),
+                trend_plus_ar(&mut rng, 300, second_order),
+            ];
+            let fitted =
+                super::error_series(&trends, [sides[0].as_slice(), sides[1].as_slice()]).unwrap();
+            total += fitted.model.phi.iter().sum::<f64>() / f64::from(replicates);
+            higher += usize::from(fitted.model.phi.len() >= 2);
+        }
+        assert!((total - persistence).abs() < 0.04, "{second_order}: {total}");
+        if second_order {
+            assert!(higher >= 36, "{higher}");
+        } else {
+            assert!(higher <= 4, "{higher}");
+        }
+    }
+}
+
+#[test]
+fn an_ar2_error_widens_the_interval_beyond_the_first_order_model() {
+    let design = LocalRatioDesign {
         select_bandwidth: false,
         temporal_replicates: Some(199),
         density_test: false,
-    }
-}
-
-#[test]
-fn centered_shifts_have_zero_mean_and_skip_unusable_draws() {
-    let raw = vec![
-        Some(vec![1.0, 0.5]),
-        Some(vec![3.0, 1.5]),
-        None,
-        Some(vec![f64::NAN, 0.0]),
-        Some(vec![5.0, 2.5]),
-    ];
-    let centered = super::center_shifts(&raw);
-    assert_eq!(centered[0], Some([-2.0, -1.0]));
-    assert_eq!(centered[1], Some([0.0, 0.0]));
-    assert_eq!(centered[4], Some([2.0, 1.0]));
-    assert!(centered[2].is_none() && centered[3].is_none());
-}
-
-#[test]
-fn the_innovation_screen_separates_white_noise_from_lagged_dependence() {
-    let mut rng = FixtureRng::new(11);
-    let white: Vec<f64> = (0..600).map(|_| normal(&mut rng)).collect();
-    let p_white = super::innovation_dependence_p_value(&white, 300).unwrap();
-    assert!(p_white > super::SCREEN_LEVEL, "{p_white}");
-    // `z_t + 0.5 z_{t-2}` has a lag-two autocorrelation of 0.4 within each side.
-    let shocks: Vec<f64> = (0..604).map(|_| normal(&mut rng)).collect();
-    let mut dependent = Vec::with_capacity(600);
-    for side in 0..2 {
-        for i in 0..300 {
-            let at = side * 302 + i + 2;
-            dependent.push(shocks[at] + 0.5 * shocks[at - 2]);
-        }
-    }
-    let p_dependent = super::innovation_dependence_p_value(&dependent, 300).unwrap();
-    assert!(p_dependent < 1e-6, "{p_dependent}");
-    assert!(super::innovation_dependence_p_value(&[0.0; 40], 20).is_none());
-}
-
-#[test]
-fn an_ar2_error_withholds_the_interval_and_an_ar1_error_keeps_it() {
-    let ar2 = in_time_ar2(46);
-    let rejected = fit_local_ratio_design(
-        &ar2.columns(),
+    };
+    let sample = in_time_ar2(46);
+    let fit = fit_local_ratio_design(
+        &sample.columns(),
         &[],
         1000.0,
         300.0,
         false,
-        temporal_design(),
+        design,
         &ExecutionContext::for_tests(7),
     )
     .unwrap();
-    let record = rejected.temporal.unwrap();
-    assert!(record.serial_dependence_rejected.is_some_and(|p| p < super::SCREEN_LEVEL));
-    assert!(record.ratio.interval.is_none() && record.ratio.band.is_none());
-    assert!(record.reference_degrees_of_freedom.is_none());
-    // The point estimate is untouched by the withdrawal.
-    assert!(rejected.fit.estimate.is_finite());
-    let ar1 = in_time(45);
-    let kept = fit_local_ratio_design(
-        &ar1.columns(),
-        &[],
-        1000.0,
-        300.0,
-        false,
-        temporal_design(),
-        &ExecutionContext::for_tests(7),
-    )
-    .unwrap();
-    let record = kept.temporal.unwrap();
-    assert!(record.serial_dependence_rejected.is_none());
+    let record = fit.temporal.unwrap();
     assert!(record.ratio.interval.is_some());
+    // The long-run sd of this error is about 3.3 times its row-wise sd, the independent-row
+    // delta-method standard error ignores it, and the first-order model would reach only 2.4.
+    let block_se = record.ratio.standard_error.unwrap();
+    assert!(block_se > 1.3 * fit.fit.standard_error, "{block_se} vs {}", fit.fit.standard_error);
 }
