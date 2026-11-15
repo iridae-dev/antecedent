@@ -3127,7 +3127,7 @@ route = "supported.Counterfactual.Dag"
 target = "Counterfactual"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_counterfactual_route_evidence.rs::checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty none (point_only_cell)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/checked_counterfactual_route_evidence.rs::checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty none (asserted_no_interval)"
 provenance = [
   "counterfactual.aap",
   "counterfactual.temporal_fixed_population",
@@ -3243,7 +3243,7 @@ route = "supported.AnomalyAttribution.Dag"
 target = "AnomalyAttribution"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/unsupported_refuter_states_and_mechanism_bootstrap.rs::frequentist_attribution_bootstraps_publish_unsupported_standard_errors; consumer crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target; uncertainty none (point_only_cell)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/unsupported_refuter_states_and_mechanism_bootstrap.rs::frequentist_attribution_bootstraps_publish_unsupported_standard_errors; consumer crates/antecedent/src/analysis/target_validation.rs::refute_prepared_target; uncertainty none (asserted_no_interval)"
 provenance = [
   "attribution.basic",
 ]
@@ -4091,7 +4091,7 @@ route = "method.decision.static.frequentist"
 target = "DecisionContract"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-design/tests/decision_mean_source.rs::expected_utility_of_an_affine_utility_is_the_utility_of_the_means; consumer crates/antecedent-design/src/decision_artifact.rs::from_bytes; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-design/tests/decision_mean_source.rs::expected_utility_of_an_affine_utility_is_the_utility_of_the_means; consumer crates/antecedent-design/src/decision_artifact.rs::from_bytes; uncertainty none (asserted_no_interval)"
 provenance = [
   "design.decision",
 ]
@@ -4139,7 +4139,7 @@ route = "method.temporal_policy_transport.temporal.frequentist"
 target = "TransportedPolicyValue"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-design/tests/transported_evaluation.rs::transported_value_matches_the_hand_value_across_target_laws; consumer crates/antecedent-design/src/transported_decision_artifact.rs::consume_transported_decision; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-design/tests/transported_evaluation.rs::transported_value_matches_the_hand_value_across_target_laws; consumer crates/antecedent-design/src/transported_decision_artifact.rs::consume_transported_decision; uncertainty none (asserted_no_interval)"
 provenance = [
   "transport.period_shift_policy",
 ]
@@ -4187,7 +4187,7 @@ route = "method.ols_refresh.static.frequentist"
 target = "LinearModelRefresh"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-state/tests/ols_refresh_contract.rs::appended_rows_and_windows_equal_the_reference_without_a_rebuild; consumer crates/antecedent/src/period_refresh.rs::OlsRefresh; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent-state/tests/ols_refresh_contract.rs::appended_rows_and_windows_equal_the_reference_without_a_rebuild; consumer crates/antecedent/src/period_refresh.rs::OlsRefresh; uncertainty none (asserted_no_interval)"
 provenance = [
   "state.ols_refresh",
 ]
@@ -4237,7 +4237,7 @@ route = "method.period_refresh.temporal.frequentist"
 target = "AutoregressiveModelRefresh"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/period_refresh_lifecycle.rs::a_declared_invariant_period_extends_and_equals_one_batch_fit; consumer crates/antecedent/src/analysis/temporal_extensions.rs::consume_period_refresh_artifact; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/period_refresh_lifecycle.rs::a_declared_invariant_period_extends_and_equals_one_batch_fit; consumer crates/antecedent/src/analysis/temporal_extensions.rs::consume_period_refresh_artifact; uncertainty none (asserted_no_interval)"
 provenance = [
   "state.period_refresh",
 ]
@@ -4287,7 +4287,7 @@ route = "parity/capabilities/route_manifest.toml"
 target = "RouteMigration"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had; consumer scripts/gate_retained_routes.py; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had; consumer scripts/gate_retained_routes.py; uncertainty none (non_statistical)"
 provenance = [
   "not_applicable: the compiler dispatch that migrates routes onto the common contracts; no estimator of its own",
 ]
@@ -4313,7 +4313,7 @@ route = "parity/capabilities/route_manifest.toml"
 target = "RouteMigration"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had; consumer scripts/gate_retained_routes.py; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had; consumer scripts/gate_retained_routes.py; uncertainty none (non_statistical)"
 provenance = [
   "not_applicable: the compiler dispatch that migrates routes onto the common contracts; no estimator of its own",
 ]
@@ -4339,7 +4339,7 @@ route = "parity/capabilities/route_manifest.toml"
 target = "RouteMigration"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had; consumer scripts/gate_retained_routes.py; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had; consumer scripts/gate_retained_routes.py; uncertainty none (non_statistical)"
 provenance = [
   "not_applicable: the compiler dispatch that migrates routes onto the common contracts; no estimator of its own",
 ]
@@ -4365,7 +4365,7 @@ route = "parity/capabilities/route_manifest.toml"
 target = "RouteMigration"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had; consumer scripts/gate_retained_routes.py; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had; consumer scripts/gate_retained_routes.py; uncertainty none (non_statistical)"
 provenance = [
   "not_applicable: the compiler dispatch that migrates routes onto the common contracts; no estimator of its own",
 ]
@@ -4391,7 +4391,7 @@ route = "method.closure_audit.static.frequentist"
 target = "ClosureAudit"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each; consumer scripts/gate_release.sh; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each; consumer scripts/gate_release.sh; uncertainty none (non_statistical)"
 provenance = [
   "not_applicable: an audit over method records, not a statistical method",
 ]
@@ -4417,7 +4417,7 @@ route = "method.closure_audit.static.bayesian"
 target = "ClosureAudit"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each; consumer scripts/gate_release.sh; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each; consumer scripts/gate_release.sh; uncertainty none (non_statistical)"
 provenance = [
   "not_applicable: an audit over method records, not a statistical method",
 ]
@@ -4443,7 +4443,7 @@ route = "method.closure_audit.temporal.frequentist"
 target = "ClosureAudit"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each; consumer scripts/gate_release.sh; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each; consumer scripts/gate_release.sh; uncertainty none (non_statistical)"
 provenance = [
   "not_applicable: an audit over method records, not a statistical method",
 ]
@@ -4469,7 +4469,7 @@ route = "method.closure_audit.temporal.bayesian"
 target = "ClosureAudit"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each; consumer scripts/gate_release.sh; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each; consumer scripts/gate_release.sh; uncertainty none (non_statistical)"
 provenance = [
   "not_applicable: an audit over method records, not a statistical method",
 ]

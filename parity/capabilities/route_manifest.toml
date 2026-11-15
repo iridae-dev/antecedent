@@ -4169,8 +4169,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
-evidence = ["crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused", "crates/antecedent/tests/checked_attribution_route_evidence.rs::accepted_dag_attribution_plans_are_sealed_for_both_inference_modes", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+evidence = ["crates/antecedent/tests/point_only_routes.rs::the_default_frequentist_dag_anomaly_attribution_publishes_scores_and_no_interval", "crates/antecedent/tests/checked_attribution_route_evidence.rs::accepted_dag_attribution_plans_are_sealed_for_both_inference_modes", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::accepted_dag_attribution_plans_are_sealed_for_both_inference_modes"]
 
 [[method]]
 id = "method.AnomalyAttribution.Dag.gcm.fit.bayesian.bayesian"
@@ -7333,8 +7333,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
-evidence = ["crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused", "crates/antecedent/tests/checked_attribution_route_evidence.rs::accepted_dag_attribution_plans_are_sealed_for_both_inference_modes", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+evidence = ["crates/antecedent/tests/point_only_routes.rs::the_default_frequentist_dag_change_attribution_publishes_the_change_and_no_interval", "crates/antecedent/tests/checked_attribution_route_evidence.rs::accepted_dag_attribution_plans_are_sealed_for_both_inference_modes", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::accepted_dag_attribution_plans_are_sealed_for_both_inference_modes"]
 
 [[method]]
 id = "method.ChangeAttribution.Pag.gcm.attribution.bayesian.bayesian"
@@ -7977,7 +7977,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
-evidence = ["crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs::counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_validation_executes_from_the_retained_plan_without_the_builder"]
+evidence = ["crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs::counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/point_only_routes.rs::a_frequentist_admg_counterfactual_publishes_the_point_and_no_interval", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_validation_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/admg_conditional_effect.rs::the_static_admg_average_effect_posterior_names_its_procedure"]
 
 [[method]]
@@ -8089,7 +8089,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
-evidence = ["crates/antecedent/tests/checked_counterfactual_route_evidence.rs::checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay", "crates/antecedent/tests/cross_world_dag_validation_truth.rs::counterfactual_dag_validation_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs::counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+evidence = ["crates/antecedent/tests/point_only_routes.rs::a_frequentist_dag_counterfactual_publishes_the_mean_effect_and_no_interval", "crates/antecedent/tests/checked_counterfactual_route_evidence.rs::checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay", "crates/antecedent/tests/cross_world_dag_validation_truth.rs::counterfactual_dag_validation_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs::counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_counterfactual_route_evidence.rs::checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay"]
 
 [[method]]
@@ -8201,7 +8201,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
-evidence = ["crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs::counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_validation_executes_from_the_retained_plan_without_the_builder"]
+evidence = ["crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs::counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/point_only_routes.rs::a_frequentist_temporal_admg_counterfactual_publishes_the_point_and_no_interval", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_validation_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::diagnostic_optional_estimator_closure_after_builder_and_study_drop"]
 
 [[method]]
@@ -11673,7 +11673,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
-evidence = ["crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_validation_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+evidence = ["crates/antecedent/tests/point_only_routes.rs::a_frequentist_admg_natural_direct_effect_publishes_the_point_and_no_interval", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_validation_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/admg_conditional_effect.rs::the_static_admg_average_effect_posterior_names_its_procedure"]
 
 [[method]]
@@ -11785,7 +11785,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
-evidence = ["crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+evidence = ["crates/antecedent/tests/point_only_routes.rs::a_frequentist_dag_posterior_natural_direct_effect_publishes_the_point_and_no_interval", "crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/identity_contract.rs::supported_family_path_specific_frequentist_consumes"]
 
 [[method]]
@@ -11953,7 +11953,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
-evidence = ["crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_validation_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+evidence = ["crates/antecedent/tests/point_only_routes.rs::a_frequentist_temporal_admg_natural_direct_effect_publishes_the_point_and_no_interval", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_validation_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::diagnostic_optional_estimator_closure_after_builder_and_study_drop"]
 
 [[method]]
@@ -20739,7 +20739,7 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "non_statistical|child:P19.static.frequentist"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
@@ -20767,7 +20767,7 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "non_statistical|child:P19.static.bayesian"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
@@ -20795,7 +20795,7 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "non_statistical|child:P19.temporal.frequentist"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
@@ -20823,7 +20823,7 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "non_statistical|child:P19.temporal.bayesian"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
@@ -20851,7 +20851,7 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "non_statistical|child:P20.static.frequentist"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "scripts/closure_audit.py"
@@ -20879,7 +20879,7 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "non_statistical|child:P20.static.bayesian"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "scripts/closure_audit.py"
@@ -20907,7 +20907,7 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "non_statistical|child:P20.temporal.frequentist"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "scripts/closure_audit.py"
@@ -20935,7 +20935,7 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "non_statistical|child:P20.temporal.bayesian"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "scripts/closure_audit.py"

@@ -23747,3 +23747,10 @@ crate = "antecedent"
 cargo_target = "graphless_wider_range_calibration"
 path = "crates/antecedent/tests/graphless_wider_range_calibration.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "point-only-routes"
+crate = "antecedent"
+cargo_target = "point_only_routes"
+path = "crates/antecedent/tests/point_only_routes.rs"
+gates = ["inventory", "named"]

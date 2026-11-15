@@ -5,9 +5,9 @@
 
 schema = 1
 missing_attempts = 0
-missing_consumers = 0
+missing_consumers = 4
 adjusted_claims = 43
-unresolved_mandatorys = 0
+unresolved_mandatorys = 2
 families = 28
 
 [[family]]
@@ -109,13 +109,13 @@ gaps = "none = 4"
 [[family]]
 id = "P17"
 children = 4
-unresolved_evidence = 0
+unresolved_evidence = 2
 gaps = "none = 4"
 
 [[family]]
 id = "P18"
 children = 4
-unresolved_evidence = 0
+unresolved_evidence = 2
 gaps = "none = 4"
 
 [[family]]
@@ -177,6 +177,26 @@ id = "X06"
 children = 4
 unresolved_evidence = 0
 gaps = "target = 2, validation = 2"
+
+[[missing_consumer]]
+id = "P17.static.frequentist"
+family = "P17"
+reasons = ["P17.static.frequentist: fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
+
+[[missing_consumer]]
+id = "P17.temporal.frequentist"
+family = "P17"
+reasons = ["P17.temporal.frequentist: fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
+
+[[missing_consumer]]
+id = "P18.static.frequentist"
+family = "P18"
+reasons = ["P18.static.frequentist: fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
+
+[[missing_consumer]]
+id = "P18.temporal.frequentist"
+family = "P18"
+reasons = ["P18.temporal.frequentist: fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
 
 [[adjusted_claim]]
 id = "P07.dose_grid.static.frequentist"
@@ -521,6 +541,16 @@ side = "static.frequentist"
 status = "supported"
 reason = "the route publishes a point value and no interval (declared_not_measured)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
+
+[[unresolved_mandatory]]
+id = "P18.static.frequentist"
+list = "mandatory"
+missing = ["fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
+
+[[unresolved_mandatory]]
+id = "P18.temporal.frequentist"
+list = "mandatory"
+missing = ["fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
 
 [[audited_attempt]]
 id = "X01.static.bayesian"

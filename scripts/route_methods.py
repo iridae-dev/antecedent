@@ -267,6 +267,10 @@ CORROBORATION = {
     ),
     "enclosure": ("bound", "identified_set", "IdentifiedSet", "partial"),
 }
+# A method child that is not a statistical procedure (a compiler migration, an audit script)
+# declares `kind = "non_statistical"` and a `kind_reason` in children.toml. It publishes no
+# estimate, so its record asserts nothing about an interval.
+NON_STATISTICAL = "non_statistical"
 # How a test states that a result publishes nothing inferential: the interval binding is the
 # `None` method, the result has no interval, or the calibration slot carries the run-time reason.
 NO_INTERVAL = re.compile(
@@ -1134,7 +1138,12 @@ def facade_methods(src: Sources, methods: list[dict]) -> list[dict]:
         evidence = [t for t in ev.tokens(child["fixtures"]) if ev.fixture_findings(t) == []]
         consumers = ev.tokens(child["consumer"])
         kind = FACADE_KIND.get(f"{module}|{parts[-2]}.{parts[-1]}", "unresolved")
-        asserted = no_interval_test(ev, evidence) if kind == "none" else ""
+        non_statistical = child.get("kind") == NON_STATISTICAL and bool(
+            str(child.get("kind_reason", "")).strip()
+        )
+        if non_statistical:
+            kind = "none"
+        asserted = no_interval_test(ev, evidence) if kind == "none" and not non_statistical else ""
         out.append(
             {
                 "id": f"method.{stem}.{parts[-2]}.{parts[-1]}",
@@ -1155,7 +1164,9 @@ def facade_methods(src: Sources, methods: list[dict]) -> list[dict]:
                 "coordinates": 0,
                 "uncertainty": kind,
                 "uncertainty_structure": "none",
-                "uncertainty_basis": f"asserted_no_interval|test:{asserted}"
+                "uncertainty_basis": f"{NON_STATISTICAL}|child:{child['id']}"
+                if non_statistical
+                else f"asserted_no_interval|test:{asserted}"
                 if asserted
                 else "declared_and_corroborated",
                 "uncertainty_by_structure": [],
@@ -1318,6 +1329,15 @@ def verify_uncertainty(src: Sources, m: dict, methods: list[dict] | None = None)
             return [f"{mid}: {token} is not a test the record cites for this method"]
         if no_interval_test(ev, [token]) != token:
             return [f"{mid}: {token} does not assert that the result carries no interval"]
+        return []
+    if label == NON_STATISTICAL:
+        child = next((c for c in src.children if c["id"] == m["child"]), None)
+        if m["kind"] != "facade_method" or kind != "none":
+            return [f"{mid}: only a facade method with no uncertainty can be non-statistical"]
+        if not child or child.get("kind") != NON_STATISTICAL:
+            return [f"{mid}: child {m['child']} does not declare kind = \"non_statistical\""]
+        if not str(child.get("kind_reason", "")).strip():
+            return [f"{mid}: child {m['child']} declares no reason for being non-statistical"]
         return []
     if m["kind"] == "supported_estimator":
         if label not in (

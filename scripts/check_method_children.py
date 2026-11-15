@@ -49,6 +49,11 @@ def child_findings(ev: Evidence, child: dict, routes: set[str]) -> list[str]:
     out: list[str] = []
     if child["gap"] not in GAPS:
         out.append(f"{cid}: gap {child['gap']!r} is outside the vocabulary")
+    kind = child.get("kind")
+    if kind is not None and kind != "non_statistical":
+        out.append(f"{cid}: kind {kind!r} is outside the vocabulary (only non_statistical)")
+    if kind == "non_statistical" and not str(child.get("kind_reason", "")).strip():
+        out.append(f"{cid}: a non_statistical child states why it publishes no estimate")
     route = child["route"]
     if route not in UNLISTED and route not in routes and not ev.repo.exists(route.split(" ")[0]):
         out.append(f"{cid}: route {route!r} is not in the route manifest")
@@ -129,9 +134,13 @@ def self_test() -> int:
             ("consumer", "crates/c/src/reader.rs::absent", "does not mention"),
             ("route", "r.two", "not in the route manifest"),
             ("target", "Gadget", "mentions the method"),
+            ("kind", "statistical", "outside the vocabulary"),
+            ("kind", "non_statistical", "states why it publishes no estimate"),
         ):
             got = child_findings(ev, base | {field: value}, routes)
             assert any(needle in line for line in got), (field, value, got)
+        declared = base | {"kind": "non_statistical", "kind_reason": "an audit script"}
+        assert child_findings(ev, declared, routes) == [], child_findings(ev, declared, routes)
     print("check_method_children self-test passed")
     return 0
 

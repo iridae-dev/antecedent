@@ -53,6 +53,7 @@ BASES = (
     "construction_fixture",
     "point_only_cell",
     "asserted_no_interval",
+    "non_statistical",
     "asserted_in_test",
     "estimator_records",
     "declared_not_measured",
