@@ -114,6 +114,26 @@ pub(super) fn log_likelihood_score(
         _ => numerical_score(x, ctx, &|values| likelihood::log_likelihood(data, values)),
     }
 }
+/// [`optimize_target_with_score`] with an exact score, falling back to the central-difference
+/// optimizer when the exact path reaches a point whose score is not finite.
+///
+/// The exact score moves faster, so on a degenerate design (a flat outcome, a scale at its
+/// clamp) it can reach a region the central-difference path never visits. There the fit is
+/// rerun exactly as before the exact score existed, so a degenerate design behaves as it did.
+pub(super) fn optimize_target_exact(
+    start: Vec<f64>,
+    options: PanelOptimizerOptions,
+    ctx: &ExecutionContext,
+    objective_fn: &impl Fn(&[f64]) -> f64,
+    score_fn: &impl Fn(&[f64]) -> Result<Vec<f64>, PanelError>,
+) -> Result<LocalFit, PanelError> {
+    match optimize_target_with_score(start.clone(), options, ctx, objective_fn, score_fn) {
+        Err(PanelError::Numerical(detail)) if detail == "nonfinite local likelihood score" => {
+            optimize_target(start, options, ctx, objective_fn)
+        }
+        other => other,
+    }
+}
 /// The shared optimizer; only the source of the score differs between callers.
 pub(super) fn optimize_target_with_score(
     start: Vec<f64>,
@@ -208,10 +228,23 @@ pub(super) fn information_inverse_target(
     for (column, &original) in x.iter().enumerate() {
         check_cancelled(ctx)?;
         let step = 1e-3 * (1.0 + original.abs());
+        // At a degenerate optimum (a scale at its clamp) the score next to the point can be
+        // non-finite: the curvature is then unavailable, never an error of the fit.
+        let finite = |result: Result<Vec<f64>, PanelError>| match result {
+            Ok(score) => Ok(Some(score)),
+            Err(PanelError::Numerical(detail)) if detail == "nonfinite local likelihood score" => {
+                Ok(None)
+            }
+            Err(error) => Err(error),
+        };
         work[column] = original + step;
-        let high = numerical_score(&work, ctx, objective)?;
+        let Some(high) = finite(numerical_score(&work, ctx, objective))? else {
+            return Ok(None);
+        };
         work[column] = original - step;
-        let low = numerical_score(&work, ctx, objective)?;
+        let Some(low) = finite(numerical_score(&work, ctx, objective))? else {
+            return Ok(None);
+        };
         work[column] = original;
         for (row, (&high, &low)) in high.iter().zip(&low).enumerate() {
             matrix[row * p + column] = -(high - low) / (2.0 * step);
@@ -425,7 +458,7 @@ pub(super) fn fit(
     let start = likelihood::encode(data, &initial)?;
     record_physical(PhysicalEvent::Scan, 1);
     run_operation(Operation::AdjustedFit, || {
-        let local = optimize_target_with_score(
+        let local = optimize_target_exact(
             start,
             options.optimizer,
             ctx,
@@ -529,7 +562,7 @@ fn bootstrap_draws(
         // start at the original optimum would be a different fitted procedure.
         let initial = options.initial.clone().unwrap_or_else(|| likelihood::initial(&compiled));
         let start = likelihood::encode(&compiled, &initial)?;
-        let fit = optimize_target_with_score(
+        let fit = optimize_target_exact(
             start,
             options.optimizer,
             ctx,

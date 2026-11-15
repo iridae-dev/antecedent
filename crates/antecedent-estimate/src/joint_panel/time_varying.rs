@@ -646,7 +646,7 @@ fn fit_candidates(
                 }
             }
         };
-        match inference::optimize_target_with_score(
+        match inference::optimize_target_exact(
             initial,
             options.optimizer,
             ctx,
