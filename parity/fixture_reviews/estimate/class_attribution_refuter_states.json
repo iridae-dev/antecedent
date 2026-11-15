@@ -86,7 +86,7 @@
         "struct Case",
         "struct Family"
       ],
-      "sha256": "802e2b66e84291284e3de492f84edb82c5b5954ceef48281e884a32caad33c15"
+      "sha256": "0c31a3244fee966f285b3ad1326ba03bc765c431fd39cf5842e07d01d31c1ad1"
     }
   ],
   "fixture_payload_sha256": "6e4c1416d37f345fa1fe36132b770c74237c63c702a2628a95553a17bcdae408"
