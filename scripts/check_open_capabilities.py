@@ -10,7 +10,9 @@ ledger records it:
   measurement   a scenario cell whose calibration is still owed, or a coverage record a
                 capability route's interval allocates that is not measured
   attempt       a mandatory scope row whose attempt has no recorded outcome
-  capability    a capability record that is not supported and names no closed question
+  capability    a capability record that is not supported and names no closed question, or
+                a capability unit the support gate (`gate_support.check_capability`) does
+                not find supported, with the gate's missing evidence
   statement     a published uncertainty statement no measurement covers
 
     python3 scripts/check_open_capabilities.py                 # print the open list
@@ -58,7 +60,28 @@ def route_items(
     return items
 
 
-def open_items(root: Path = ROOT) -> list[tuple[str, str, str]]:
+def gate_unsupported_capabilities() -> list[tuple[str, str, str]]:
+    """Capability units the support gate does not find supported, with its missing evidence.
+
+    This runs the gate's own rule over the registries (provenance and a resolvable independent
+    check) instead of reading the embedded `unit_support_status.json` snapshot: that snapshot is
+    rewritten only by the generator, so it can lag the registries, and a unit that lost its
+    evidence would stay hidden until regeneration. Ledger currency is not applied here; owed
+    scientific records are listed as measurements."""
+    import gate_support
+
+    result = gate_support.evaluate(evidence_only=True)
+    return [
+        ("capability", unit.ident, "; ".join(dict.fromkeys(unit.problems)))
+        for unit in result["capabilities"]
+        if not unit.supported
+    ]
+
+
+def open_items(
+    root: Path = ROOT,
+    gate_items: list[tuple[str, str, str]] | None = None,
+) -> list[tuple[str, str, str]]:
     """Every open item as (kind, id, what is missing)."""
     parity = root / "parity"
     records = load_toml(parity / "capability_records.toml").get("record", [])
@@ -74,9 +97,14 @@ def open_items(root: Path = ROOT) -> list[tuple[str, str, str]]:
     for entry in load_toml(parity / "release_scope/scope.toml").get("entry", []):
         if entry.get("status") == "pending_attempt":
             items.append(("attempt", entry["id"], str(entry.get("implementation_status", ""))))
+    declared: set[str] = set()
     for record in records:
         if record.get("status") != "supported" and not record.get("closed_question"):
             items.append(("capability", record["id"], str(record.get("guarantee", ""))))
+            declared.add(str(record["id"]))
+    if gate_items is None:
+        gate_items = gate_unsupported_capabilities()
+    items.extend(item for item in gate_items if item[1] not in declared)
     statements = parity / "unmeasured_statements.toml"
     if statements.is_file():
         for row in load_toml(statements).get("statement", []):

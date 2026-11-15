@@ -417,8 +417,13 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
             matched.update(str(rec["id"]) for rec in owing)
             reasons[group.index] = f"{len(owing)} record(s) owed"
     if reasons:
+        import gate_carry
+
+        gate_rows = gate_carry.gate_rows(GATE_REGISTRY)
         for group in recordless:
-            reasons[group.index] = "pass/fail gate, no record"
+            carried, why = gate_carry.group_carried(gate_carry.rows_of(group.safe, group.points, gate_rows))
+            if not carried:
+                reasons[group.index] = f"pass/fail gate, no record; {why}"
     for test in sorted({str(r["test"]) for r in wanted if str(r["id"]) not in matched}):
         print(f"warning: no gate group measures {test}", file=sys.stderr)
     chosen = [g for g in groups if g.index in reasons]

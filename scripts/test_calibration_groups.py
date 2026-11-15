@@ -211,7 +211,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         self.assertEqual([g.index for g in selection.groups], [2, 3, 4, 5, 6, 7])
         for index in (2, 3, 4, 5):
             self.assertEqual(selection.reasons[index], "no record in the registry")
-        self.assertEqual(selection.reasons[6], "pass/fail gate, no record")
+        self.assertTrue(selection.reasons[6].startswith("pass/fail gate, no record"))
         # If the missing cells disappear, current registry rows do not trigger gates.
         with patch.dict(sys.modules, {"calibration_status": facets}):
             self.assertEqual(
