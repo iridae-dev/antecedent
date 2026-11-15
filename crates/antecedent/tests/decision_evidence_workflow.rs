@@ -1709,6 +1709,10 @@ fn pinned_expression(value: &serde_json::Value) -> UtilityExpr {
 /// arithmetic (gradient by forward-mode differentiation, normal or Student critical value),
 /// for cluster, complete, matched-pair and switchback constructions.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "each design's evidence and its pinned interval are checked in one pass"
+)]
 fn the_margin_interval_equals_the_independent_delta_method_truth() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/design/decision_margin_interval/expected.json"

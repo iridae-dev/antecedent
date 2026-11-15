@@ -799,7 +799,8 @@ fn independent_ewc_se(a: &[f64], y: &[f64], trial: &[f64], ipw: f64, terms: usiz
     let target_n = trial.iter().filter(|&&t| t == 0.0).count() as f64;
     let psi: Vec<f64> = (0..n)
         .map(|t| {
-            if trial[t] == 1.0 { if a[t] == 1.0 { 2.0 * y[t] } else { -2.0 * y[t] } } else { -ipw }
+            // `trial` and `a` are 0/1 indicators.
+            if trial[t] > 0.5 { if a[t] > 0.5 { 2.0 * y[t] } else { -2.0 * y[t] } } else { -ipw }
         })
         .collect();
     let nf = n as f64;

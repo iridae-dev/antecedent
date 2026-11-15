@@ -79,6 +79,7 @@ pub(super) fn optimize_target(
 }
 /// A score supplied by a gradient routine, refused when it is not finite exactly as the
 /// central-difference score is.
+#[cfg(test)]
 pub(super) fn checked_score(score: Option<Vec<f64>>) -> Result<Vec<f64>, PanelError> {
     score
         .filter(|score| score.iter().all(|value| value.is_finite()))

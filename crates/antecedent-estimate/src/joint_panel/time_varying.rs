@@ -443,14 +443,14 @@ impl PeriodMechanisms {
             } else {
                 None
             };
-            of_period.push(match same {
-                Some(index) => index,
-                None => {
-                    distinct.push(likelihood::decode(data, &current)?);
-                    coordinates_of.push(current.clone());
-                    distinct.len() - 1
-                }
-            });
+            let index = if let Some(index) = same {
+                index
+            } else {
+                distinct.push(likelihood::decode(data, &current)?);
+                coordinates_of.push(current.clone());
+                distinct.len() - 1
+            };
+            of_period.push(index);
         }
         Some(Self { distinct, of_period })
     }
