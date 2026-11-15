@@ -1666,3 +1666,6 @@ name = "bounds_association_range_calibration"
 
 [[test]]
 name = "temporal_wider_range_calibration"
+
+[[test]]
+name = "graphless_wider_range_calibration"

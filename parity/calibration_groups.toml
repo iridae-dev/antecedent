@@ -13928,3 +13928,363 @@ target = "temporal_wider_range_calibration"
 tests = ["bayesian_temporal_design_regime_survival_heavy_censoring_interval"]
 ignored = true
 grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: cluster_bayesian_bootstrap_student_reference_law_upper_arms_credible_interval"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["cluster_bayesian_bootstrap_student_reference_law_upper_arms_credible_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: cluster_bayesian_bootstrap_dirichlet_law_from_fifty_arms_credible_interval"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["cluster_bayesian_bootstrap_dirichlet_law_from_fifty_arms_credible_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_twenty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_posterior_interval_twenty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_average_interval_twenty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_average_interval_twenty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_first_period_interval_twenty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_first_period_interval_twenty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_last_period_interval_twenty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_last_period_interval_twenty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_first_period_set_twenty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_first_period_set_twenty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_last_period_set_twenty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_last_period_set_twenty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_constant_effect_set_twenty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_constant_effect_set_twenty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_forty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_posterior_interval_forty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_average_interval_forty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_average_interval_forty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_first_period_interval_forty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_first_period_interval_forty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_last_period_interval_forty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_last_period_interval_forty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_first_period_set_forty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_first_period_set_forty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_last_period_set_forty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_last_period_set_forty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_constant_effect_set_forty_donors"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_constant_effect_set_forty_donors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_one_post_period"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_posterior_interval_one_post_period"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_three_post_periods"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_posterior_interval_three_post_periods"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_first_period_set_unaligned_pre_periods"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_first_period_set_unaligned_pre_periods"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_last_period_set_unaligned_pre_periods"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_last_period_set_unaligned_pre_periods"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_constant_effect_set_unaligned_pre_periods"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_constant_effect_set_unaligned_pre_periods"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_posterior_interval_upper_pre_periods"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_posterior_interval_upper_pre_periods"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_average_interval_upper_pre_periods"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_average_interval_upper_pre_periods"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_first_period_interval_upper_pre_periods"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_first_period_interval_upper_pre_periods"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_synthetic_control_predictive_path_last_period_interval_upper_pre_periods"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_last_period_interval_upper_pre_periods"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_first_period_set_upper_pre_periods"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_first_period_set_upper_pre_periods"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_last_period_set_upper_pre_periods"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_last_period_set_upper_pre_periods"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: conformal_synthetic_control_constant_effect_set_upper_pre_periods"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["conformal_synthetic_control_constant_effect_set_upper_pre_periods"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_two_period_posterior_interval_upper_group_sizes"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_two_period_posterior_interval_upper_group_sizes"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: augmented_panel_true_nuisance_bootstrap_interval_upper_subjects"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["augmented_panel_true_nuisance_bootstrap_interval_upper_subjects"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: rollout_callaway_santanna_not_yet_treated_multiplier_interval_upper_units"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["rollout_callaway_santanna_not_yet_treated_multiplier_interval_upper_units"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: rollout_callaway_santanna_never_treated_bootstrap_interval_upper_units"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["rollout_callaway_santanna_never_treated_bootstrap_interval_upper_units"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: rollout_sun_abraham_multiplier_interval_upper_units"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["rollout_sun_abraham_multiplier_interval_upper_units"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: rollout_imputation_multiplier_interval_upper_units"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["rollout_imputation_multiplier_interval_upper_units"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_rollout_bootstrap_credible_interval_upper_units"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_rollout_bootstrap_credible_interval_upper_units"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: iv_bounds_imbens_manski_interval_covers_the_lower_bound_upper_rows"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["iv_bounds_imbens_manski_interval_covers_the_lower_bound_upper_rows"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: iv_bounds_imbens_manski_interval_covers_the_upper_bound_upper_rows"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["iv_bounds_imbens_manski_interval_covers_the_upper_bound_upper_rows"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_iv_bounds_endpoint_interval_covers_the_lower_bound_upper_rows"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_iv_bounds_endpoint_interval_covers_the_lower_bound_upper_rows"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_iv_bounds_endpoint_interval_covers_the_upper_bound_upper_rows"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_iv_bounds_endpoint_interval_covers_the_upper_bound_upper_rows"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: association_static_sandwich_slope_interval_upper_rows"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["association_static_sandwich_slope_interval_upper_rows"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: association_static_bootstrap_spread_slope_interval_upper_rows"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["association_static_bootstrap_spread_slope_interval_upper_rows"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: association_temporal_newey_west_slope_interval_upper_rows"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["association_temporal_newey_west_slope_interval_upper_rows"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: association_temporal_block_bootstrap_spread_slope_interval_upper_rows"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["association_temporal_block_bootstrap_spread_slope_interval_upper_rows"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_association_static_slope_credible_interval_upper_rows"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_association_static_slope_credible_interval_upper_rows"]
+ignored = true
+grid = true
+
+[[group]]
+label = "graphless_wider_range_calibration: bayesian_association_temporal_slope_credible_interval_upper_rows"
+package = "antecedent"
+target = "graphless_wider_range_calibration"
+tests = ["bayesian_association_temporal_slope_credible_interval_upper_rows"]
+ignored = true
+grid = true

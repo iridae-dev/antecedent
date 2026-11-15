@@ -11512,6 +11512,7 @@ crate = "antecedent-identify"
 cargo_target = "lib"
 path = "crates/antecedent-identify/src/response.rs"
 gates = ["inventory", "named"]
+
 [[test]]
 id = "audit-crates-antecedent-tests-counterfactual-contrasts-rs"
 crate = "antecedent"
@@ -20941,7 +20942,6 @@ cargo_target = "lib"
 path = "crates/antecedent-io/src/cpdag_completion_artifact.rs"
 gates = ["inventory"]
 
-
 [[test]]
 id = "data-diagnostics-engine"
 crate = "antecedent-validate"
@@ -23740,3 +23740,10 @@ crate = "antecedent"
 cargo_target = "temporal_wider_range_calibration"
 path = "crates/antecedent/tests/temporal_wider_range_calibration.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "graphless-wider-range-calibration"
+crate = "antecedent"
+cargo_target = "graphless_wider_range_calibration"
+path = "crates/antecedent/tests/graphless_wider_range_calibration.rs"
+gates = ["inventory"]
