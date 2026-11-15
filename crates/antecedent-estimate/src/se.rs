@@ -53,6 +53,13 @@ pub enum AnalyticSeKind {
         /// Temporal HAC lag within clusters.
         lag: usize,
     },
+    /// Equal-weighted cosine long-run variance of one series' influence, referred to Student-t
+    /// on `terms` degrees of freedom. Reported by the trial-to-target series route, which sizes
+    /// `terms` itself; it is not a declarable estimator kind.
+    SeriesEwc {
+        /// Cosine terms, and the Student-t degrees of freedom of the interval.
+        terms: usize,
+    },
 }
 
 impl AnalyticSeKind {
@@ -69,6 +76,7 @@ impl AnalyticSeKind {
             Self::Multiway => "multiway",
             Self::NeweyWest { .. } => "newey_west",
             Self::PanelClusterHac { .. } => "panel_cluster_hac",
+            Self::SeriesEwc { .. } => "series_ewc",
         }
     }
 }
@@ -323,6 +331,7 @@ pub(crate) fn with_resolved_sandwich<T>(
             let time = require_panel_times(panel_times, nrows)?;
             use_kind(Some(SandwichKind::PanelClusterHac { groups, time, lag }))
         }
+        AnalyticSeKind::SeriesEwc { .. } => Err(series_ewc_not_declarable()),
     }
 }
 
@@ -721,7 +730,18 @@ pub(crate) fn influence_se_kind(
             let t = gather_times(times_full);
             panel_cluster_hac_influence_se(psi, &g, &t, lag)?
         }
+        AnalyticSeKind::SeriesEwc { .. } => return Err(series_ewc_not_declarable()),
     })
+}
+
+/// The refusal for declaring [`AnalyticSeKind::SeriesEwc`] on an estimator: only the
+/// trial-to-target series route computes it.
+fn series_ewc_not_declarable() -> EstimationError {
+    EstimationError::unsupported_coded(
+        antecedent_core::reason_code!("estimator_inference_mismatch"),
+        "AnalyticSeKind::SeriesEwc is reported by the trial-to-target series route and cannot be \
+         declared on an estimator; declare Newey-West with a lag for a serial error",
+    )
 }
 
 #[cfg(test)]

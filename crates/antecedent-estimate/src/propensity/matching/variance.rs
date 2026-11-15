@@ -127,7 +127,8 @@ impl MatchedVariance<'_> {
             AnalyticSeKind::Cluster
             | AnalyticSeKind::Multiway
             | AnalyticSeKind::NeweyWest { .. }
-            | AnalyticSeKind::PanelClusterHac { .. } => {
+            | AnalyticSeKind::PanelClusterHac { .. }
+            | AnalyticSeKind::SeriesEwc { .. } => {
                 return Err(EstimationError::refused(
                     antecedent_core::reason_code!("estimator_inference_mismatch"),
                     "matching has no valid cluster, multiway or HAC standard error (donor outcomes \

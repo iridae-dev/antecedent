@@ -62,6 +62,12 @@ pub enum AnalyticSeKindWire {
         /// Lag.
         lag: u64,
     },
+    /// Equal-weighted cosine series error with its number of cosine terms. Artifacts written
+    /// before this kind existed never carry it and decode unchanged.
+    SeriesEwc {
+        /// Cosine terms (the Student-t degrees of freedom).
+        terms: u64,
+    },
 }
 
 /// Circular-block SE family.
@@ -481,6 +487,9 @@ fn kind_to_wire(kind: antecedent_estimate::AnalyticSeKind) -> AnalyticSeKindWire
         K::PanelClusterHac { lag } => {
             AnalyticSeKindWire::PanelClusterHac { lag: crate::width::lossless_u64(lag) }
         }
+        K::SeriesEwc { terms } => {
+            AnalyticSeKindWire::SeriesEwc { terms: crate::width::lossless_u64(terms) }
+        }
     }
 }
 
@@ -501,6 +510,9 @@ fn kind_from_wire(
         }
         AnalyticSeKindWire::PanelClusterHac { lag } => {
             K::PanelClusterHac { lag: usize::try_from(lag).map_err(|_| IoError::TooLarge)? }
+        }
+        AnalyticSeKindWire::SeriesEwc { terms } => {
+            K::SeriesEwc { terms: usize::try_from(terms).map_err(|_| IoError::TooLarge)? }
         }
     })
 }
@@ -1325,6 +1337,26 @@ mod tests {
         invalid = diagnostic;
         invalid.uncertainty_withheld = Some(UncertaintyWithheldWire::AndersonRubinSetIsUnion);
         assert!(first_stage_from_wire(&invalid).is_err());
+    }
+
+    #[test]
+    fn series_ewc_kind_round_trips_and_existing_kinds_decode_unchanged() {
+        use antecedent_estimate::AnalyticSeKind as K;
+        let kind = K::SeriesEwc { terms: 25 };
+        let wire = kind_to_wire(kind);
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        assert_eq!(bytes, br#"{"series_ewc":{"terms":25}}"#);
+        let decoded: AnalyticSeKindWire = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(kind_from_wire(decoded).unwrap(), kind);
+        // Encodings written before the kind existed decode to the same kinds.
+        for (text, expected) in [
+            (r#"{"newey_west":{"lag":3}}"#, K::NeweyWest { lag: 3 }),
+            (r#"{"panel_cluster_hac":{"lag":2}}"#, K::PanelClusterHac { lag: 2 }),
+            (r#""cluster""#, K::Cluster),
+        ] {
+            let decoded: AnalyticSeKindWire = serde_json::from_str(text).unwrap();
+            assert_eq!(kind_from_wire(decoded).unwrap(), expected);
+        }
     }
 
     #[test]

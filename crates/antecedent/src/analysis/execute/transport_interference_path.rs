@@ -599,13 +599,13 @@ pub(super) fn frequentist_transport_estimate(
                 .map_err(CausalError::from)?,
             antecedent_estimate::AnalyticSeKind::default(),
         ),
-        (TrialDependence::SizedSeries(lag), None) => {
+        (TrialDependence::SizedSeries(_), None) => {
             let (se, terms) = antecedent_estimate::trial_to_target_ipw_ewc_se(
                 outcomes, treatment, trial, selection, propensity, ipw,
             )
             .map_err(CausalError::from)?;
             series_terms = Some(terms);
-            (se, antecedent_estimate::AnalyticSeKind::NeweyWest { lag: *lag })
+            (se, antecedent_estimate::AnalyticSeKind::SeriesEwc { terms })
         }
         (TrialDependence::Series(lag), None) => (
             antecedent_estimate::trial_to_target_ipw_hac_se(

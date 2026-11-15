@@ -109,7 +109,8 @@ pub(super) fn stacked_theta_cov_and_grad(
         | AnalyticSeKind::Hc3
         | AnalyticSeKind::Multiway
         | AnalyticSeKind::NeweyWest { .. }
-        | AnalyticSeKind::PanelClusterHac { .. } => {
+        | AnalyticSeKind::PanelClusterHac { .. }
+        | AnalyticSeKind::SeriesEwc { .. } => {
             return Err(EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("estimator_inference_mismatch"),
                 "FrontDoorTwoStage stacked SE supports Hc0/Hc1/Cluster only",

@@ -76,13 +76,22 @@ impl StudyResult {
         use antecedent_estimate::AnalyticSeKind;
         match self.logical_plan.data_classification {
             C::Temporal | C::Event => match se_kind {
-                Some(AnalyticSeKind::NeweyWest { .. }) => "serial_hac",
+                Some(AnalyticSeKind::NeweyWest { .. } | AnalyticSeKind::SeriesEwc { .. }) => {
+                    "serial_hac"
+                }
                 _ => "serial_unmodelled",
             },
             // A table routed as `Tabular` can still be one serial table (a trial-to-target series):
-            // a Newey-West SE there is serial-dependence handling and is labelled so. Every
+            // a Newey-West or equal-weighted cosine SE there is serial-dependence handling and is labelled so. Every
             // other tabular SE keeps the base label, so `iid` records keep their keys.
-            C::Tabular if matches!(se_kind, Some(AnalyticSeKind::NeweyWest { .. })) => "serial_hac",
+            C::Tabular
+                if matches!(
+                    se_kind,
+                    Some(AnalyticSeKind::NeweyWest { .. } | AnalyticSeKind::SeriesEwc { .. })
+                ) =>
+            {
+                "serial_hac"
+            }
             _ => self.base_dependence(),
         }
     }
