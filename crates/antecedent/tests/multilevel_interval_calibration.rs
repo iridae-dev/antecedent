@@ -32,8 +32,8 @@ use antecedent::result::{REPORTED_SE_INTERVAL_LEVEL, reported_se_interval_z};
 use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_kernels::standard_normal;
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
-    n_sim,
+    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, grid_seed,
+    map_replicates, n_sim,
 };
 
 const INTERVAL: &str = "analytic_se";
@@ -214,7 +214,7 @@ fn multilevel_generalized_propensity_interval() {
         },
         REPORTED_LEVEL,
     );
-    for row in map_replicates(n_sim(), |rep| replicate(n, BASE_SEED + rep)) {
+    for row in map_replicates(n_sim(), |rep| replicate(n, grid_seed(BASE_SEED + rep))) {
         let Some((interval, rows)) = row else {
             tally.skip();
             continue;

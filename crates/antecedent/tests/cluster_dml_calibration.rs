@@ -22,8 +22,8 @@ use antecedent_estimate::{AipwAte, ClusterDml};
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
-    n_sim,
+    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, grid_seed,
+    map_replicates, n_sim,
 };
 
 const INTERVAL: &str = "analytic_se";
@@ -130,7 +130,7 @@ fn cluster_dml_t_wald_interval() {
         },
         REPORTED_LEVEL,
     );
-    for row in map_replicates(n_sim(), |rep| replicate(groups, 61_000 + rep)) {
+    for row in map_replicates(n_sim(), |rep| replicate(groups, grid_seed(61_000 + rep))) {
         let Some((interval, rows)) = row else {
             tally.skip();
             continue;
