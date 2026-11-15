@@ -401,3 +401,44 @@ fn a_set_narrower_than_the_first_grid_spacing_is_found() {
     assert_eq!(super::invert(0.0, 1.0, |_| Ok(false)).unwrap(), None);
     assert_eq!(super::invert(0.0, 1.0, |_| Ok(true)).unwrap(), None);
 }
+
+#[test]
+fn single_interval_selections_equal_the_matching_entries_of_the_full_fit() {
+    use super::{ConformalIntervals, ROLLOUT_LEVEL, conformal_synthetic_control_for};
+    let rows = exchangeable_panel(900, 40, 38, 1.0);
+    let ctx = ExecutionContext::for_tests(1);
+    let full = conformal_synthetic_control(&rows.panel(), "treated", 38, &ctx).unwrap();
+    assert_eq!(full.periods.len(), 3);
+    let same = |left: Option<[f64; 2]>, right: Option<[f64; 2]>| match (left, right) {
+        (Some(a), Some(b)) => a[0].to_bits() == b[0].to_bits() && a[1].to_bits() == b[1].to_bits(),
+        (None, None) => true,
+        _ => false,
+    };
+    let select = |intervals| {
+        conformal_synthetic_control_for(
+            &rows.panel(),
+            "treated",
+            38,
+            ROLLOUT_LEVEL,
+            intervals,
+            &ctx,
+        )
+        .unwrap()
+    };
+    for (index, expected) in full.periods.iter().enumerate() {
+        let single = select(ConformalIntervals::Period(expected.period.unwrap()));
+        assert!(same(single.periods[index].interval, expected.interval), "period {index}");
+        assert_eq!(single.overall.estimate.to_bits(), full.overall.estimate.to_bits());
+        assert!(single.overall.interval.is_none());
+        for (other, entry) in single.periods.iter().enumerate() {
+            assert_eq!(entry.estimate.to_bits(), full.periods[other].estimate.to_bits());
+            assert_eq!(entry.interval.is_some(), other == index && expected.interval.is_some());
+        }
+        assert_eq!(single.donor_weights, full.donor_weights);
+        assert_eq!(single.pre_treatment_rmse.to_bits(), full.pre_treatment_rmse.to_bits());
+    }
+    let overall = select(ConformalIntervals::Overall);
+    assert!(same(overall.overall.interval, full.overall.interval));
+    assert!(overall.periods.iter().all(|entry| entry.interval.is_none()));
+    assert_eq!(select(ConformalIntervals::All), full);
+}
