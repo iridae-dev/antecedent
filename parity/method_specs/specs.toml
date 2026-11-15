@@ -3347,7 +3347,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "validate.target_native_refuters",
 ]
-api_review = "parity/public_api/antecedent-validate.txt: 58 of 60 public items reviewed"
+api_review = "parity/public_api/antecedent-validate.txt: 58 of 61 public items reviewed"
 identifying_result = "ATE refuters do not certify conditional, derivative, mediation, or world-valued targets"
 assumptions = "Manifest states this refusal on derivative and attribution routes."
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"

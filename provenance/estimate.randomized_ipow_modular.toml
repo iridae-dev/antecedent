@@ -30,6 +30,7 @@ findings_resolved = [
   "Corrected the claim that every proper-prior posterior mean equals a Hajek responder mean, and identified the conditional working law explicitly.",
   "Tests reject changed posterior means, source outcomes and priors after valid container re-encoding, respect consumer capability restrictions and bounded replay, and exercise retained execution after the builder has been dropped.",
   "Re-reviewed the bound contract verifier after indexing graph-posterior mixture atoms by key: the index retains the first published atom for duplicate keys, leaves the original weight and refusal checks in order, and does not change the graphless randomized IPW checks. A duplicate-key regression and contract verifier tests pass.",
+  "Re-reviewed bayesian_arms.rs and the route test after the finite-population estimand was published under additive unit effects and after support rows were added. Read the diff against this review: the finite-population wording and its weighted refusal text changed but the weighted route still refuses that estimand and the superpopulation IPW pseudo-outcome construction, prior binding and posterior call are unchanged; the new complete-design arm support row is stated only when no outcome is missing (observed is none), so it is not reached by the IPW composition reviewed here; the new complier row is a separate route outside this review's scope. The test change recomputes the unweighted finite-population expectation (Beta(4, 2) minus Beta(3, 5), mean 4/6 - 3/8, variance 8/252 + 15/576), which I rechecked by hand; the IPW assertions are unchanged. I did not run the tests."
 ]
 record_sha256 = "238d3501c6292bdc3c1e149ecd5247d030872817320f2553646878eb8eec877d"
 
@@ -43,7 +44,7 @@ sha256 = "9dbd301f2644512fa3e0162575d408103ab638daf90281e90ebd479feb7d4e08"
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"
 items = ["module"]
-sha256 = "bfc520a426647a52c529d50a3b364024d8353de9a727820a1f2c5b73acac2f26"
+sha256 = "887032919c5f6a2297a08bc1678aa49c749d03cd281e459e22c813fcdc829bb8"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -73,4 +74,4 @@ sha256 = "d86dc9ebd4686b51cf3e612eb8e964bc3fac9d57a197094d818951c5115100e6"
 role = "assertion"
 path = "crates/antecedent/tests/bayesian_randomized_routes.rs"
 items = ["const ASSIGNMENT", "const DOSE", "const IPW_MISSING", "const IPW_OUTCOME", "const OUTCOME", "const ROUTE", "const TRIAL", "fn a_declared_first_order_carryover_adds_the_carryover_and_sustained_effects", "fn a_first_stage_that_reaches_zero_is_refused_not_published_as_a_ratio", "fn a_tampered_bayesian_dose_grid_artifact_is_refused_with_its_exact_typed_error", "fn bayes", "fn close", "fn column", "fn consume", "fn encouragement", "fn four_arm_data", "fn gaussian_arms", "fn inverse_probability", "fn ipw_trial", "fn live", "fn many_arms_report_every_arm_against_the_reference", "fn request", "fn run", "fn run_weighted", "fn supported_ipow_posterior_recovers_the_causal_target_and_declared_prior_update", "fn supported_ipow_posterior_replays_after_the_builder_is_dropped", "fn switchback", "fn switchback_model", "fn the_bayesian_dose_grid_route_replays_to_the_conjugate_reference_through_a_fresh_consumer", "fn the_boundaries_are_refused_with_their_next_attempt", "fn the_complier_posterior_recovers_the_known_effect_and_is_unsupported", "fn the_complier_posterior_refuses_an_arm_contrast_estimator", "fn the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_based_target", "fn the_factorial_main_effects_and_interaction_match_the_exact_moments", "fn the_retained_artifact_carries_the_posterior_and_an_independent_loader_recomputes_it", "fn the_superpopulation_estimator_answers_the_other_estimand", "fn the_switchback_posterior_matches_the_whitened_least_squares_reference", "fn the_weighted_posterior_is_not_the_responder_only_posterior", "fn trial", "fn uniform_arms", "fn units", "fn unrestricted_carryover_and_an_unspecified_dependence_are_typed_refusals", "fn unsupported_multi_arm_and_factorial_ipow_are_typed_refusals", "fn weighted_bayesian_boundaries_are_typed_refusals", "fn weighted_conjugate_update_matches_the_closed_form_pseudo_outcome_posterior"]
-sha256 = "7cc551e85d26ce1eadbb1c54dae83506fe2c6e4b53c5e8582b3186fd313d43a5"
+sha256 = "c7241d317c8db19f35c7a3552a1cda08127487ceff24777bbb417373a20f9bc1"

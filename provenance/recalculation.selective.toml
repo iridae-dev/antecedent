@@ -41,7 +41,7 @@ test_sources = [
 status = "justified_non_algorithm"
 kind = "contract"
 rationale = "The stage model and planner that decide per stage whether an artifact is reused, recomputed or refused from BLAKE3 stage identities, plus one instrumented route (cross-fitted AIPW) that proves reuse by counts."
-no_independent_algorithm = "recalc.rs and recalc/standing.rs compare identity sets and statuses (no floating-point computation); the route in recalc_receipt.rs calls the AIPW estimator and the retarget and keeps the integer fit counts. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
+no_independent_algorithm = "recalc.rs and recalc/standing.rs compare identity sets and statuses (no floating-point computation); the route in recalc_receipt.rs calls the AIPW estimator and the retarget and keeps the integer fit counts. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs. The standard-error kind identity written by recalc_receipt.rs gained tag 9 (series_ewc with its usize terms) for the new equal-weighted cosine kind; re-read the arm: it follows the existing pattern (distinct unused tag then the integer parameter, tags 0 to 8 unchanged), so identities of every previously identified kind are unchanged and a change in terms changes the identity. No arithmetic was added."
 record_sha256 = "3c24fbd17d87c61914ab155dd827de35b64b8c04418b08d0e1ac41f050b53640"
 
 [[non_algorithm_review.artifacts]]
@@ -60,7 +60,7 @@ sha256 = "f9422fb0c7c136e15a900a0bb0cb5b117b3d4e944c7f027235a68740f732335f"
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_receipt.rs"
 items = ["const ALL", "const EXTENDED", "enum Counter", "enum RecalcRequestCode", "enum RecalcRunError", "enum ReceiptError", "fn add", "fn as_slice", "fn as_str", "fn column", "fn counts", "fn data", "fn decide", "fn default", "fn entries", "fn entry", "fn estimator_identity_bytes", "fn execute_with_receipt", "fn f64", "fn f64s", "fn finish", "fn from", "fn get", "fn graph", "fn identities", "fn identity", "fn into_iter", "fn is_live", "fn is_recomputed", "fn law_stage", "fn measured", "fn n_rows", "fn name", "fn new", "fn opt_f64", "fn opt_panel", "fn opt_u32s", "fn plan", "fn push", "fn raw", "fn record", "fn resume", "fn run_stages", "fn score_stages", "fn score_table", "fn set_request_support", "fn set_retarget_support", "fn stage", "fn status_table", "fn study", "fn tag", "fn to_u64", "fn total", "fn totals", "fn u32", "fn u32s", "fn usize", "fn validate", "fn values", "fn write", "fn write_identity", "struct Columns", "struct DecisionValue", "struct IdentityBytes", "struct LawValue", "struct Live", "struct RecalcOutcome", "struct RecalcReceipt", "struct RecalcRequest", "struct RecalcSession", "struct ReceiptEntry", "struct ReceiptRecorder", "struct StageCounts", "struct TargetWeights", "struct UtilitySpec", "trait CanonicalIdentity", "type IntoIter", "type RetainedScoreStage"]
-sha256 = "ba59ba8fb12d6ed1d39d8250201c6a538d55533c8496c33e0b4f98b2fc3ef233"
+sha256 = "bd9223f066959f587a9c64e4aa5bf9bed62492ce85490e810e430572f7ed8d6e"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
