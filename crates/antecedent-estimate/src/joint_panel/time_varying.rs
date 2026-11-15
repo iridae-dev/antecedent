@@ -1556,9 +1556,9 @@ mod tests {
     #[test]
     fn specification_sampler_recovers_posterior_masses_across_whitenings() {
         use super::super::PanelSamplingOptions;
-        let centers = [[0.0, 0.0], [0.5, -0.3], [1.0, 1.0]];
-        let scales = [[1.0, 1.0], [0.1, 0.2], [0.15, 0.7]];
-        let weights = [1.0, 2.0, 3.0];
+        let centers: [[f64; 2]; 3] = [[0.0, 0.0], [0.5, -0.3], [1.0, 1.0]];
+        let scales: [[f64; 2]; 3] = [[1.0, 1.0], [0.1, 0.2], [0.15, 0.7]];
+        let weights: [f64; 3] = [1.0, 2.0, 3.0];
         let whitenings: Vec<Whitening> = (0..3)
             .map(|m| Whitening {
                 center: centers[m].to_vec(),

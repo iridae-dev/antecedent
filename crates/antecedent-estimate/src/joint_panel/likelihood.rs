@@ -389,6 +389,7 @@ pub(super) fn saturate(x: f64, k: f64, shape: Option<f64>) -> f64 {
         }
     }
 }
+#[cfg(test)]
 pub(super) fn response(
     data: &CompiledPanel<'_>,
     p: &PanelParameters,

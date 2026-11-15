@@ -277,6 +277,7 @@ impl ProcedureDesign {
 }
 
 /// The weighted procedure on subject weights (multiplicities in a bootstrap replicate).
+#[cfg(test)]
 fn ipw_procedure(
     data: &Trajectories,
     subject_weights: Option<&[f64]>,
