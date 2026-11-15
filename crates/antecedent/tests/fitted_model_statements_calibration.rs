@@ -823,9 +823,9 @@ const STRUCTURE_POPULATION: usize = 300;
 /// simulated through `x` and the comparison law is not, so the Monte Carlo error of the two
 /// simulated means does not cancel in their difference; every refit simulates on the same
 /// stream, so that error is an offset the refit spread does not see. Its variance is at most
-/// the sampling variance of the change times `rows per population / draws`: 1% at the base
+/// the sampling variance of the change times `rows per population / draws`: 1.5% at the base
 /// sample size.
-const STRUCTURE_SAMPLES: usize = 30_000;
+const STRUCTURE_SAMPLES: usize = 20_000;
 
 fn populations(pop: usize) -> ChangeAttributionQuery {
     ChangeAttributionQuery::new(

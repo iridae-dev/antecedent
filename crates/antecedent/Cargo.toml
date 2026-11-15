@@ -1619,3 +1619,32 @@ name = "bayesian_randomized_statements_calibration"
 
 [[test]]
 name = "bounds_association_statements_calibration"
+
+[[test]]
+name = "discovery_statements_calibration"
+
+[[test]]
+name = "dose_grid_statements_calibration"
+
+[[test]]
+name = "temporal_routes_statements_calibration"
+
+[[test]]
+name = "fitted_model_statements_calibration"
+
+[[test]]
+name = "temporal_transport_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "refuter_error_rates_calibration"
+
+[[test]]
+name = "static_mechanism_bootstrap_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "continuous_program_search_reliability"
+
+[[test]]
+name = "joint_panel_calibration"
