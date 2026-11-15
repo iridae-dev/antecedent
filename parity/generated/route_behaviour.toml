@@ -7647,13 +7647,31 @@ routes = [
 
 [[record]]
 id = "graph_imputation.compiled_candidate"
-status = "not_supported"
+status = "supported"
+refusals = [
+  { code = "route_not_supported", detail = "graph_imputation.interval_unsupported" },
+  { code = "route_not_supported", detail = "graph_imputation.unsupported" },
+  { code = "invalid_argument", detail = "graph_imputation.candidate_refused" },
+  { code = "invalid_argument", detail = "graph_imputation.lowering" },
+  { code = "invalid_argument", detail = "graph_imputation.compiled" },
+  { code = "invalid_argument", detail = "graph_imputation.execution_refused" },
+  { code = "execution_resource_limit", detail = "graph_imputation.resource_limit" },
+  { code = "cancelled_no_claim", detail = "graph_imputation.cancelled" },
+  { code = "cancelled_no_claim", detail = "graph_imputation.search_cancelled" },
+  { code = "execution_resource_limit", detail = "graph_imputation.search_exhausted" },
+  { code = "invalid_argument", detail = "graph_imputation.atom_failure" },
+  { code = "invalid_argument", detail = "graph_imputation.invalid_source" },
+  { code = "public_builder_reentry", detail = "graph_imputation.reentry" },
+  { code = "effect_not_identified", detail = "graph_imputation.supported_graph_unidentified" },
+  { code = "effect_not_identified", detail = "graph_imputation.unidentified" },
+  { code = "invalid_argument", detail = "graph_imputation.unscorable" },
+]
 routes = [
-  { route = "antecedent.graph_imputation.compiled_point", stage = "evaluate", status = "closed", reason_code = "not_supported", claim = "none" },
-  { route = "antecedent.graph_imputation.decision", stage = "evaluate", status = "closed", reason_code = "decision_contract_unsatisfied", claim = "none" },
-  { route = "antecedent.graph_imputation.compiled_interval", stage = "uncertainty", status = "closed", reason_code = "not_supported", claim = "none" },
-  { route = "antecedent.python.missing.PreparedGraphImputation", stage = "evaluate", status = "closed", reason_code = "not_supported", claim = "none" },
-  { route = "antecedent.python.missing.CompiledGraphImputationResult.interval", stage = "uncertainty", status = "closed", reason_code = "not_supported", claim = "none" },
+  { route = "antecedent.graph_imputation.compiled_point", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.graph_imputation.decision", stage = "evaluate", status = "closed", reason_code = "decision_contract_unsatisfied", claim = "interval" },
+  { route = "antecedent.graph_imputation.compiled_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.python.missing.PreparedGraphImputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.python.missing.CompiledGraphImputationResult.interval", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
 
 [[record]]

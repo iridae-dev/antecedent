@@ -1224,9 +1224,10 @@ class graph_imputation:  # noqa: N801
     INTERVAL_UNSUPPORTED: Final = "graph_imputation.interval_unsupported"
     INVALID_SOURCE: Final = "graph_imputation.invalid_source"
     LOWERING: Final = "graph_imputation.lowering"
-    POINT_UNSUPPORTED: Final = "graph_imputation.point_unsupported"
+    REENTRY: Final = "graph_imputation.reentry"
     RESOURCE_LIMIT: Final = "graph_imputation.resource_limit"
-    SEARCH_STOPPED: Final = "graph_imputation.search_stopped"
+    SEARCH_CANCELLED: Final = "graph_imputation.search_cancelled"
+    SEARCH_EXHAUSTED: Final = "graph_imputation.search_exhausted"
     SUPPORTED_GRAPH_UNIDENTIFIED: Final = "graph_imputation.supported_graph_unidentified"
     UNIDENTIFIED: Final = "graph_imputation.unidentified"
     UNSCORABLE: Final = "graph_imputation.unscorable"
@@ -4423,9 +4424,10 @@ ALL: Final[tuple[str, ...]] = (
     "graph_imputation.interval_unsupported",
     "graph_imputation.invalid_source",
     "graph_imputation.lowering",
-    "graph_imputation.point_unsupported",
+    "graph_imputation.reentry",
     "graph_imputation.resource_limit",
-    "graph_imputation.search_stopped",
+    "graph_imputation.search_cancelled",
+    "graph_imputation.search_exhausted",
     "graph_imputation.supported_graph_unidentified",
     "graph_imputation.unidentified",
     "graph_imputation.unscorable",
@@ -7152,21 +7154,22 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "graph_falsification.node_not_static": ("route_not_supported",),
     "graph_falsification.too_few_nodes": ("invalid_argument",),
     "graph_falsification.work_limit": (),
-    "graph_imputation.atom_failure": (),
+    "graph_imputation.atom_failure": ("invalid_argument",),
     "graph_imputation.atom_not_lowered": (),
     "graph_imputation.cancelled": ("cancelled_no_claim",),
     "graph_imputation.candidate_refused": ("invalid_argument",),
     "graph_imputation.compiled": ("invalid_argument",),
     "graph_imputation.execution_refused": ("invalid_argument",),
     "graph_imputation.interval_unsupported": ("route_not_supported",),
-    "graph_imputation.invalid_source": (),
+    "graph_imputation.invalid_source": ("invalid_argument",),
     "graph_imputation.lowering": ("invalid_argument",),
-    "graph_imputation.point_unsupported": (),
+    "graph_imputation.reentry": ("public_builder_reentry",),
     "graph_imputation.resource_limit": ("execution_resource_limit",),
-    "graph_imputation.search_stopped": ("cancelled_no_claim", "execution_resource_limit"),
-    "graph_imputation.supported_graph_unidentified": (),
-    "graph_imputation.unidentified": (),
-    "graph_imputation.unscorable": (),
+    "graph_imputation.search_cancelled": ("cancelled_no_claim",),
+    "graph_imputation.search_exhausted": ("execution_resource_limit",),
+    "graph_imputation.supported_graph_unidentified": ("effect_not_identified",),
+    "graph_imputation.unidentified": ("effect_not_identified",),
+    "graph_imputation.unscorable": ("invalid_argument",),
     "graph_imputation.unsupported": ("route_not_supported",),
     "graph_imputation.wrong_dispatch": (),
     "graph_selection_imputation.columns": ("invalid_argument",),

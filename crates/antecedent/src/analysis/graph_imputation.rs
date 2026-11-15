@@ -43,7 +43,14 @@ use crate::{BayesianConfig, CausalError, EstimatorId, InferenceMode, RefuteSuite
 pub use antecedent_core::graph_imputation_contract::GraphSupport as GraphImputationSupport;
 
 fn invalid(message: impl std::fmt::Display) -> CausalError {
-    CausalError::Compile { message: format!("graph_imputation.candidate_refused: {message}") }
+    let detail = format!("graph_imputation.candidate_refused: {message}");
+    CausalError::Compile {
+        message: format!(
+            "{}{}: {detail}",
+            antecedent_core::reason_code::PREFIX,
+            antecedent_core::reason_code!("invalid_argument")
+        ),
+    }
 }
 
 /// A refusal of the native replay, in the engine's own terms. Calibration never refuses: an
@@ -98,9 +105,6 @@ pub enum GraphImputationError {
     /// An existing engine refusal or execution error.
     #[error(transparent)]
     Engine(#[from] CausalError),
-    /// No scientific point has been supported for this candidate.
-    #[error("graph_imputation.point_unsupported: the compiled candidate is not supported")]
-    PointUnavailable,
     /// The replayed execution reported no interval scalar.
     #[error("graph_imputation.interval_unsupported: the replay reported no interval")]
     IntervalUnavailable,
@@ -111,7 +115,7 @@ pub enum GraphImputationError {
         mask: u64,
     },
     /// The shared bounded search stopped with its resource receipt.
-    #[error("graph_imputation.search_stopped: {}", .0.summary())]
+    #[error("{}", search_stopped_message(.0))]
     SearchStopped(antecedent_core::search::SearchReceipt),
     /// Some graphs had no finite score, so their mass is unknown.
     #[error("graph_imputation.unscorable: table {table}, {count} graphs")]
@@ -143,6 +147,40 @@ pub enum GraphImputationError {
         /// Graph masks and bounded reasons.
         reasons: Vec<(u64, String)>,
     },
+}
+
+/// The message of a stopped search: cancellation and an exhausted budget are different refusals.
+fn search_stopped_message(receipt: &antecedent_core::search::SearchReceipt) -> String {
+    if receipt.stop == antecedent_core::search::SearchStop::Cancelled {
+        format!("graph_imputation.search_cancelled: {}", receipt.summary())
+    } else {
+        format!("graph_imputation.search_exhausted: {}", receipt.summary())
+    }
+}
+
+impl GraphImputationError {
+    /// The registered reason code of a refusal this error states itself; `None` for an engine
+    /// error, which carries its own.
+    #[must_use]
+    pub fn reason_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Engine(_) => None,
+            Self::IntervalUnavailable => Some(antecedent_core::reason_code!("route_not_supported")),
+            Self::SearchStopped(receipt) => {
+                Some(if receipt.stop == antecedent_core::search::SearchStop::Cancelled {
+                    antecedent_core::reason_code!("cancelled_no_claim")
+                } else {
+                    antecedent_core::reason_code!("execution_resource_limit")
+                })
+            }
+            Self::SupportedGraphNotIdentified { .. } | Self::Unidentified { .. } => {
+                Some(antecedent_core::reason_code!("effect_not_identified"))
+            }
+            Self::Unscorable { .. } | Self::AtomFailures { .. } => {
+                Some(antecedent_core::reason_code!("invalid_argument"))
+            }
+        }
+    }
 }
 
 /// Point and diagnostic SD are model-conditional; neither is an interval or calibrated authority.

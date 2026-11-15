@@ -21594,20 +21594,19 @@ fixtures = [
 [[record]]
 id = "graph_imputation.compiled_candidate"
 capability = "graph_imputation.compiled_candidate"
-status = "not_supported"
+status = "supported"
 consumer_question = "Can original incomplete observations be imputed, graph-scored and evaluated by retained native graph-specific operations with an independently replayed source identity?"
 theorem = "The bounded candidate enumerates the predeclared direct-effect DAG support (treatment root, or treatment with parents) on two to four variables, combines Gaussian BIC scores with a uniform prior over that support, and mixes the retained per-graph conjugate effects within each completed table. These stages are model-conditional and do not assert one joint posterior or measured interval coverage."
 reference = "provenance/graph_imputation.compiled_candidate.toml"
-guarantee = "candidate_only_no_supported_point_interval_or_decision"
+guarantee = "model_conditional_point_and_interval_reported_with_the_calibration_slot_of_the_construction_no_decision"
 graph_class = "Only labeled two- to four-variable DAGs with a direct treatment-to-outcome edge, treatment either a root or allowed parents as declared; declared before scoring, with graph identity and proofs retained separately."
 population_semantics = "Rows from the declared source population, with missing-at-random chained-equation assumptions and declared variable domains."
 evidence_family = "Exact source-bound observations and native retained graph-specific operations only."
 provider = "antecedent::analysis::graph_imputation::CompiledGraphImputation"
 estimand = "Model-conditional binary-treatment mean contrast; no identified population claim is issued."
-inference_claim = "none"
-inference_notes = "The V3 candidate measures coverage averaged over a declared Uniform(-1,1) direct-effect distribution, in randomized and confounded cells on three and four variables; it does not measure pointwise or uniform coverage, does not support inference on its own, and the measured route is supported only where a current attesting record covers the construction and row count. It is not supported pending independent scientific review and applicable records."
-coverage_records = []
-candidate_coverage_records = [
+inference_claim = "interval"
+inference_notes = "The point is the model-conditional pooled posterior mean of the graph mixture and the interval is the nearest-rank 95% interval of the pooled posterior draws. The interval carries the calibration slot of its own construction and row count: calibrated exactly when a current attesting record measured this construction (coverage averaged over a declared Uniform(-1,1) direct-effect distribution, in randomized and confounded cells on three and four variables), otherwise annotated with the status that names why. It is neither pointwise nor uniform coverage, and a graph-imputation realization carries no decision."
+coverage_records = [
   "cov.average_effect.dag.graphimputationcompositev2.nearest_rank_95.l95.graph_imputation_mar_bic_nearest_rank_candidate.v2_validation_none.v2_structure_graph_posterior",
   "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_uniform_effect_candidate.v2_validation_none.v2_structure_graph_posterior",
   "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_confounded_candidate.v2_validation_none.v2_structure_graph_posterior",
@@ -21617,34 +21616,41 @@ candidate_coverage_records = [
 owners = ["antecedent-discovery", "antecedent", "antecedent-py", "python/antecedent"]
 identity_inputs = ["source content and schema", "predeclared direct-effect graph support, treatment-root or treatment-with-parents", "variable domains, treatment, outcome, model, seeds and bounds", "every graph mask, identification proof and child program", "each completed input, graph weight and child execution"]
 wire_changes = ["Bounded original-source artifact with separately retained expected program, source and receipt identities; consumption recompiles and replays."]
-compatibility = "Additive closed candidate; no existing inference family or legacy calibration label is reinterpreted."
+compatibility = "Additive; no existing inference family or legacy calibration label is reinterpreted."
 search = true
 bounds = { cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "one operation per retained labeled graph plus fixed slack, derived from the variable count", depth_limit = 1, memory_limit = 26214400 }
 search_impl = ["crates/antecedent/src/analysis/graph_imputation.rs", "crates/antecedent/src/analysis/lowering/graph_imputation.rs", "crates/antecedent-discovery/src/graph_imputation_enumeration.rs"]
 refusals = [
-  { code = "route_not_supported", detail = "graph_imputation.interval_unsupported", when = "The replay reports no interval scalar." },
-  { code = "route_not_supported", detail = "graph_imputation.unsupported", when = "The replay reports no point or interval." },
-  { code = "invalid_argument", detail = "graph_imputation.candidate_refused", when = "The source, declaration, child execution or replay does not satisfy the bounded candidate contract." },
-  { code = "invalid_argument", detail = "graph_imputation.lowering", when = "A retained atom or graph proof is inconsistent with the compiled declaration." },
-  { code = "invalid_argument", detail = "graph_imputation.compiled", when = "The Python bridge receives an invalid source or declaration." },
-  { code = "invalid_argument", detail = "graph_imputation.execution_refused", when = "A bounded native graph atom or scoring operation refuses." },
-  { code = "execution_resource_limit", detail = "graph_imputation.resource_limit", when = "The execution admission pool cannot fund preparation or replay." },
-  { code = "cancelled_no_claim", detail = "graph_imputation.cancelled", when = "The supplied execution token is cancelled." },
-  { code = "execution_resource_limit", detail = "graph_imputation.search_stopped", when = "The shared search budget stops bounded graph enumeration." },
-  { code = "cancelled_no_claim", detail = "graph_imputation.search_stopped", when = "Cancellation stops bounded graph enumeration." },
+  { detail = "graph_imputation.interval_unsupported", when = "The replay reports no interval scalar.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.unsupported", when = "The replay reports no point or interval.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.candidate_refused", when = "The source, declaration, child execution or replay does not satisfy the bounded candidate contract.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.lowering", when = "A retained atom or graph proof is inconsistent with the compiled declaration.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.compiled", when = "The Python bridge receives an invalid source or declaration.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.execution_refused", when = "A bounded native graph atom or scoring operation refuses.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.resource_limit", when = "The execution admission pool cannot fund preparation or replay.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.cancelled", when = "The supplied execution token is cancelled.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.search_cancelled", when = "Cancellation stops bounded graph enumeration.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.search_exhausted", when = "The shared search budget is exhausted during bounded graph enumeration.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.atom_failure", when = "A graph atom failed numerically or was skipped for part of the graph mass.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.invalid_source", when = "The original source bytes are malformed or untrusted.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.reentry", when = "Compile is called inside another lowered dispatch.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.supported_graph_unidentified", when = "A graph inside the declared support has no identified effect proof.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.unidentified", when = "A completed table retains graph mass without an identified effect.", remedy = "Correct the declaration, source or resources the refusal names." },
+  { detail = "graph_imputation.unscorable", when = "Some graphs of a completed table have no finite score, so their mass is unknown.", remedy = "Correct the declaration, source or resources the refusal names." },
 ]
 routes = [
-  { name = "antecedent.graph_imputation.compiled_point", stage = "evaluate", status = "closed", reason_code = "not_supported" },
+  { name = "antecedent.graph_imputation.compiled_point", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent.graph_imputation.decision", stage = "evaluate", status = "closed", reason_code = "decision_contract_unsatisfied", refusal_test = "crates/antecedent/src/analysis/execute/compile_decision.rs", refusal_assertion = "graph_imputation_candidate_refuses_decision_carriers" },
-  { name = "antecedent.graph_imputation.compiled_interval", stage = "uncertainty", status = "closed", reason_code = "not_supported", refusal_test = "crates/antecedent/src/analysis/graph_imputation.rs", refusal_assertion = "retained_execution_replay_and_source_mutation" },
-  { name = "antecedent.python.missing.PreparedGraphImputation", stage = "evaluate", status = "closed", reason_code = "not_supported" },
-  { name = "antecedent.python.missing.CompiledGraphImputationResult.interval", stage = "uncertainty", status = "closed", reason_code = "not_supported", refusal_test = "python/tests/test_compiled_graph_imputation.py", refusal_assertion = "test_interval_is_calibrated_or_refused_where_no_record_covers_the_execution" },
+  { name = "antecedent.graph_imputation.compiled_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.python.missing.PreparedGraphImputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.python.missing.CompiledGraphImputationResult.interval", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
 fixtures = [
   { id = "graph_imputation.compiled_candidate.enumeration.positive", role = "positive", intent = "Independent labeled DAG counts and mixture-moment identities constrain the bounded native operation.", evidence_test = "crates/antecedent/src/analysis/graph_imputation.rs", evidence_assertion = "exact_dag_enumeration_matches_known_counts_and_rejects_cycles" },
   { id = "graph_imputation.compiled_candidate.ridge_posterior_mean.truth", role = "truth", intent = "On a balanced two-arm design the compiled composite's pooled point equals the closed-form ridge posterior mean of the treatment coefficient solved from the raw rows (2 variables, and 3 variables with imputed covariate cells over six root-treatment graphs), within the Monte-Carlo error of its posterior draws.", evidence_test = "crates/antecedent/tests/graph_imputation_known_truth.rs", evidence_assertion = "a_two_variable_design_has_the_ridge_posterior_mean_of_the_treatment_coefficient" },
   { id = "graph_imputation.compiled_candidate.replay.artifact", role = "artifact", intent = "Original-source replay refuses altered source or identities.", evidence_test = "crates/antecedent/src/analysis/graph_imputation.rs", evidence_assertion = "retained_execution_replay_and_source_mutation" },
   { id = "graph_imputation.compiled_candidate.scope.negative", role = "negative", intent = "Unsupported dimensions and missing domains refuse.", evidence_test = "python/tests/test_compiled_graph_imputation.py", evidence_assertion = "test_declaration_refuses_missing_domains_and_unbounded_shape" },
+  { id = "graph_imputation.compiled_candidate.covering_record.construction", role = "construction", intent = "The nearest-rank interval route resolves a covering attesting record to a calibrated slot, replays, and never extrapolates beyond the rows the record measured.", evidence_test = "crates/antecedent-io/src/measured_inference/graph_candidate.rs", evidence_assertion = "a_covering_attesting_record_supports_the_route_and_it_replays" },
   { id = "graph_imputation.compiled_candidate.budget.budget", role = "budget", intent = "The native bounded DAG search returns a SearchReceipt on operation exhaustion.", evidence_test = "crates/antecedent-discovery/src/graph_imputation_enumeration.rs", evidence_assertion = "bounded_search_returns_precise_operation_stop_receipt" },
 ]
 

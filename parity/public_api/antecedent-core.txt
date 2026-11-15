@@ -8543,9 +8543,9 @@ pub const antecedent_core::reason_details::graph_imputation::EXECUTION_REFUSED: 
 pub const antecedent_core::reason_details::graph_imputation::INTERVAL_UNSUPPORTED: &str
 pub const antecedent_core::reason_details::graph_imputation::INVALID_SOURCE: &str
 pub const antecedent_core::reason_details::graph_imputation::LOWERING: &str
-pub const antecedent_core::reason_details::graph_imputation::POINT_UNSUPPORTED: &str
 pub const antecedent_core::reason_details::graph_imputation::RESOURCE_LIMIT: &str
-pub const antecedent_core::reason_details::graph_imputation::SEARCH_STOPPED: &str
+pub const antecedent_core::reason_details::graph_imputation::SEARCH_CANCELLED: &str
+pub const antecedent_core::reason_details::graph_imputation::SEARCH_EXHAUSTED: &str
 pub const antecedent_core::reason_details::graph_imputation::SUPPORTED_GRAPH_UNIDENTIFIED: &str
 pub const antecedent_core::reason_details::graph_imputation::UNIDENTIFIED: &str
 pub const antecedent_core::reason_details::graph_imputation::UNSCORABLE: &str

@@ -3,6 +3,7 @@
 use super::{
     Dependence, DerivedQuantity, DerivedResult, EvidenceRefusal, Exposure, InputBinding,
     JointExperimentEvidence, Request, SamplingInterval, Target, UnresolvedReason, derive,
+    derive_uncalibrated,
 };
 use antecedent_core::CanonicalWriter;
 
@@ -152,7 +153,7 @@ pub fn decision_interval_calibration_basis(
     request: &Request,
     quantity: &DerivedQuantity,
 ) -> Result<antecedent_core::CalibrationBasis, EvidenceRefusal> {
-    let result = derive(evidence, request, quantity)?;
+    let result = derive_uncalibrated(evidence, request, quantity)?;
     if result.sampling.is_none()
         || result.assumption_range.is_some()
         || !matches!(

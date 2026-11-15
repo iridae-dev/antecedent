@@ -10541,19 +10541,19 @@ notes = "The pooled and hierarchical choice-share intervals are reported with th
 
 [[routes]]
 route = "antecedent.graph_imputation.compiled_point"
-notes = "Bounded native compiled candidate only; independent scientific review and support remain outstanding. Its numerical output is diagnostic."
+notes = "Bounded native compiled graph-selection imputation. The point is the model-conditional pooled posterior mean of the graph mixture."
 
 [[routes]]
 route = "antecedent.graph_imputation.compiled_interval"
-notes = "The whole-method calibration candidate is registered but has not been measured or supported."
+notes = "The nearest-rank 95% interval of the pooled posterior draws is reported with the calibration slot of its own construction and row count; calibration annotates the interval and never withholds it."
 
 [[routes]]
 route = "antecedent.python.missing.PreparedGraphImputation"
-notes = "The Python prepared handle delegates to the same bounded native compiler; its numerical result is diagnostic pending scientific review and support."
+notes = "The Python prepared handle delegates to the same bounded native compiler; its point is the model-conditional pooled posterior mean."
 
 [[routes]]
 route = "antecedent.python.missing.CompiledGraphImputationResult.interval"
-notes = "The Python facade delegates the unsupported interval refusal to the native graph-imputation boundary."
+notes = "The Python facade reports the native interval with the calibration slot of its construction; calibration annotates the interval and never withholds it."
 
 [[routes]]
 route = "antecedent.graph_imputation.decision"

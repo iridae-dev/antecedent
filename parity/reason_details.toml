@@ -5708,8 +5708,8 @@ meaning = "Refusal detail emitted by the source; no record declares its conditio
 [[detail]]
 id = "graph_imputation.atom_failure"
 family = "graph_imputation"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["invalid_argument"]
+meaning = "A graph atom failed numerically or was skipped for part of the graph mass."
 
 [[detail]]
 id = "graph_imputation.atom_not_lowered"
@@ -5750,8 +5750,8 @@ meaning = "The replay reports no interval scalar."
 [[detail]]
 id = "graph_imputation.invalid_source"
 family = "graph_imputation"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["invalid_argument"]
+meaning = "The original source bytes are malformed or untrusted."
 
 [[detail]]
 id = "graph_imputation.lowering"
@@ -5760,10 +5760,10 @@ codes = ["invalid_argument"]
 meaning = "A retained atom or graph proof is inconsistent with the compiled declaration."
 
 [[detail]]
-id = "graph_imputation.point_unsupported"
+id = "graph_imputation.reentry"
 family = "graph_imputation"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["public_builder_reentry"]
+meaning = "Compile is called inside another lowered dispatch."
 
 [[detail]]
 id = "graph_imputation.resource_limit"
@@ -5772,28 +5772,34 @@ codes = ["execution_resource_limit"]
 meaning = "The execution admission pool cannot fund preparation or replay."
 
 [[detail]]
-id = "graph_imputation.search_stopped"
+id = "graph_imputation.search_cancelled"
 family = "graph_imputation"
-codes = ["cancelled_no_claim", "execution_resource_limit"]
-meaning = "The shared search budget stops bounded graph enumeration."
+codes = ["cancelled_no_claim"]
+meaning = "Cancellation stops bounded graph enumeration."
+
+[[detail]]
+id = "graph_imputation.search_exhausted"
+family = "graph_imputation"
+codes = ["execution_resource_limit"]
+meaning = "The shared search budget is exhausted during bounded graph enumeration."
 
 [[detail]]
 id = "graph_imputation.supported_graph_unidentified"
 family = "graph_imputation"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["effect_not_identified"]
+meaning = "A graph inside the declared support has no identified effect proof."
 
 [[detail]]
 id = "graph_imputation.unidentified"
 family = "graph_imputation"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["effect_not_identified"]
+meaning = "A completed table retains graph mass without an identified effect."
 
 [[detail]]
 id = "graph_imputation.unscorable"
 family = "graph_imputation"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["invalid_argument"]
+meaning = "Some graphs of a completed table have no finite score, so their mass is unknown."
 
 [[detail]]
 id = "graph_imputation.unsupported"

@@ -175,6 +175,7 @@ fn the_margin_interval_is_annotated_with_the_calibration_slot_of_its_own_constru
         &antecedent_io_core::calibration::CalibrationBasisWire::from(&basis),
     );
     assert_eq!(slot, expected);
+    assert_eq!(result.calibration, slot.status.as_str(), "the result reports its slot's status");
     assert_eq!(slot.status.as_str(), "not_measured", "no record measured this margin quantity");
     assert!(slot.record_id.is_none());
 
