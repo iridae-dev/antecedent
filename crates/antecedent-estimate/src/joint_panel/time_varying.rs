@@ -411,6 +411,13 @@ fn conditional_state(
     detail: likelihood::Detail,
 ) -> Option<likelihood::Marginal> {
     let base = likelihood::decode(data, values.get(..likelihood::parameter_count(data))?)?;
+    // The mechanism at a period does not depend on the group: decode it once per period
+    // instead of once per row. A period no group reaches is never decoded, as before.
+    let periods = data.groups.iter().map(|group| group.outcome.len()).max().unwrap_or(0);
+    let by_period = (0..periods)
+        .map(|time| parameters_at(data, spec, choice, values, time))
+        .collect::<Option<Vec<_>>>()?;
+    let mut buffers = likelihood::ResponseScratch::default();
     let residuals = data
         .groups
         .iter()
@@ -418,15 +425,19 @@ fn conditional_state(
         .map(|(index, group)| {
             (0..group.outcome.len())
                 .map(|time| {
-                    let p = parameters_at(data, spec, choice, values, time)?;
-                    Some(
-                        group.outcome[time]
-                            - likelihood::observed_response(data, &p, group, index, time),
-                    )
+                    group.outcome[time]
+                        - likelihood::observed_response_with(
+                            data,
+                            &by_period[time],
+                            group,
+                            index,
+                            time,
+                            &mut buffers,
+                        )
                 })
-                .collect::<Option<Vec<_>>>()
+                .collect::<Vec<_>>()
         })
-        .collect::<Option<Vec<_>>>()?;
+        .collect::<Vec<_>>();
     likelihood::marginal(data, &base, &residuals, detail)
 }
 fn objective(

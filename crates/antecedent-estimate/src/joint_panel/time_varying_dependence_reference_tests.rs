@@ -100,3 +100,45 @@ fn time_varying_clustered_dependence_matches_the_dense_shared_intercept_covarian
     assert_matches_dense(0.05, 0.3, 0.9);
     assert_matches_dense(0.3, 0.25, 0.6);
 }
+
+/// The per-period parameter table and the reused response buffers change no bit of the
+/// objective: it equals the row-by-row evaluation that decodes the mechanism for every row
+/// with fresh buffers, for every candidate path shape.
+#[test]
+fn objective_is_bit_identical_to_the_row_by_row_evaluation() {
+    let (data, baseline, _) = super::super::tests::fixture();
+    let spec = specification();
+    let compiled = likelihood::CompiledPanel::new(&data).unwrap();
+    let base = likelihood::encode(&data, &baseline.parameters).unwrap();
+    let choices = [
+        (TemporalModelChoice::NoChange, vec![]),
+        (TemporalModelChoice::Piecewise { at: 12 }, vec![1.5]),
+        (TemporalModelChoice::Smooth { penalty: 0.5 }, vec![0.4, -0.7, 1.1]),
+    ];
+    for (choice, delta) in choices {
+        let mut values = base.clone();
+        values.extend(delta);
+        let decoded =
+            likelihood::decode(&data, &values[..likelihood::parameter_count(&data)]).unwrap();
+        let residuals: Vec<Vec<f64>> = compiled
+            .groups
+            .iter()
+            .enumerate()
+            .map(|(index, group)| {
+                (0..group.outcome.len())
+                    .map(|time| {
+                        let p = parameters_at(&data, &spec, &choice, &values, time).unwrap();
+                        group.outcome[time]
+                            - likelihood::observed_response(&compiled, &p, group, index, time)
+                    })
+                    .collect()
+            })
+            .collect();
+        let expected =
+            likelihood::marginal(&compiled, &decoded, &residuals, likelihood::Detail::Value)
+                .unwrap()
+                .log_likelihood;
+        let actual = objective(&compiled, &spec, &choice, &values);
+        assert_eq!(actual.to_bits(), expected.to_bits());
+    }
+}

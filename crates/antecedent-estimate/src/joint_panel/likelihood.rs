@@ -416,15 +416,35 @@ pub(super) fn mechanism(
     exposures: &[f64],
     class: usize,
 ) -> (f64, f64) {
+    mechanism_with(data, p, exposures, class, &mut ResponseScratch::default())
+}
+/// Reusable buffers of one response evaluation. Reuse never changes a value: every buffer is
+/// cleared or fully overwritten before it is read.
+#[derive(Default)]
+pub(super) struct ResponseScratch {
+    exposures: Vec<f64>,
+    saturated: Vec<f64>,
+    values: Vec<f64>,
+    scratch: Vec<f64>,
+}
+fn mechanism_with(
+    data: &CompiledPanel<'_>,
+    p: &PanelParameters,
+    exposures: &[f64],
+    class: usize,
+    buffers: &mut ResponseScratch,
+) -> (f64, f64) {
     let k = p.half_saturation_of(class);
-    let saturated: Vec<_> = exposures
-        .iter()
-        .enumerate()
-        .map(|(index, x)| saturate(*x, k, p.family.hill_shape.get(index).copied()))
-        .collect();
-    let main = p.channels.iter().zip(&saturated).map(|(c, x)| c.coefficient * x).sum::<f64>();
-    let mut values = Vec::new();
-    let mut scratch = Vec::new();
+    let ResponseScratch { saturated, values, scratch, .. } = buffers;
+    saturated.clear();
+    saturated.extend(
+        exposures
+            .iter()
+            .enumerate()
+            .map(|(index, x)| saturate(*x, k, p.family.hill_shape.get(index).copied())),
+    );
+    let saturated: &[f64] = saturated;
+    let main = p.channels.iter().zip(saturated).map(|(c, x)| c.coefficient * x).sum::<f64>();
     let products = data
         .features
         .iter()
@@ -433,7 +453,7 @@ pub(super) fn mechanism(
             // The common production expression executor validates every numerical result.
             param.coefficient
                 * program
-                    .evaluate_columns_with_scratch(&saturated, &mut values, &mut scratch, None)
+                    .evaluate_columns_with_scratch(saturated, values, scratch, None)
                     .unwrap_or(f64::NAN)
         })
         .sum::<f64>();
@@ -446,21 +466,30 @@ pub(super) fn observed_response(
     group_index: usize,
     time: usize,
 ) -> f64 {
-    let exposures: Vec<_> = group
-        .channels
-        .iter()
-        .zip(&group.history)
-        .zip(&p.channels)
-        .map(|((values, history), channel)| exposure(values, *history, channel.lag, time))
-        .collect();
-    response(
-        data,
-        p,
-        &exposures,
-        group.confounder[time],
-        group.season[time],
-        data.family.class_of(group_index),
-    )
+    observed_response_with(data, p, group, group_index, time, &mut ResponseScratch::default())
+}
+/// `observed_response` over caller-owned buffers: the same operations in the same order.
+pub(super) fn observed_response_with(
+    data: &CompiledPanel<'_>,
+    p: &PanelParameters,
+    group: &PanelGroup,
+    group_index: usize,
+    time: usize,
+    buffers: &mut ResponseScratch,
+) -> f64 {
+    let mut exposures = std::mem::take(&mut buffers.exposures);
+    exposures.clear();
+    exposures.extend(
+        group
+            .channels
+            .iter()
+            .zip(&group.history)
+            .zip(&p.channels)
+            .map(|((values, history), channel)| exposure(values, *history, channel.lag, time)),
+    );
+    let mechanism = mechanism_with(data, p, &exposures, data.family.class_of(group_index), buffers);
+    buffers.exposures = exposures;
+    combine(p, mechanism, group.confounder[time], group.season[time])
 }
 /// The mechanism value of the last exposure vector a scenario saw. A program holds its
 /// schedule constant over stretches (and every adstock window fills after the carryover
@@ -568,8 +597,12 @@ pub(super) fn group_likelihood(
     p: &PanelParameters,
 ) -> Option<GaussianGroup> {
     let group = &data.groups[group_index];
+    let mut buffers = ResponseScratch::default();
     let residuals: Vec<_> = (0..group.outcome.len())
-        .map(|time| group.outcome[time] - observed_response(data, p, group, group_index, time))
+        .map(|time| {
+            group.outcome[time]
+                - observed_response_with(data, p, group, group_index, time, &mut buffers)
+        })
         .collect();
     let mut value = group_marginal(group, &residuals, p.rho, p.innovation_sd, p.group_sd)?;
     value.log_likelihood *= group.weight;
@@ -679,12 +712,16 @@ fn ar1_random_intercept_at(
 }
 /// Residual vector of every group under one mechanism.
 pub(super) fn residuals(data: &CompiledPanel<'_>, p: &PanelParameters) -> Vec<Vec<f64>> {
+    let mut buffers = ResponseScratch::default();
     data.groups
         .iter()
         .enumerate()
         .map(|(index, group)| {
             (0..group.outcome.len())
-                .map(|time| group.outcome[time] - observed_response(data, p, group, index, time))
+                .map(|time| {
+                    group.outcome[time]
+                        - observed_response_with(data, p, group, index, time, &mut buffers)
+                })
                 .collect()
         })
         .collect()
