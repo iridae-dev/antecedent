@@ -49,7 +49,9 @@ per node pair and conditioning subset) would not fit the budget.
 
 `ExactDagPosterior` enumerates every labeled DAG and stops at **6** variables. For more,
 `OrderMcmc` and `StructureMcmc` (and `CiScreenedPosterior`, which runs structure MCMC on the
-pairs its screen kept) sample the same Gaussian-BIC pseudo-posterior over DAGs and accept up to
+pairs its screen kept, plus any pair the screen dropped without decisive Gaussian-BIC evidence of
+independence: a test that fails to reject a weak edge shows low power, not absence, and no sample
+under 361 rows can decide) sample the same Gaussian-BIC pseudo-posterior over DAGs and accept up to
 **16** variables. The posterior carries each atom's directed edges as a packed edge set of
 64-bit words, so a graph on at most eight variables is a single word. `GraphPosterior.adjacency`
 in Python holds one Python `int` per atom, so graphs of up to 16 variables decode with ordinary

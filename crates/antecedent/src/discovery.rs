@@ -694,6 +694,10 @@ pub fn discover_ci_screened_posterior(
         .with_constraints(static_pc_constraints(screen.alpha, screen.max_cond_size))
         .with_ci(Arc::clone(&screen.ci))
         .with_soft_weight(soft_weight)
+        // A test that fails to reject a weak edge has shown low power, not independence: keep
+        // the pair proposable unless the marginal likelihood decisively supports its absence,
+        // so the published credible set can reach the true structure at every sample size.
+        .with_retain_undecided(true)
         .with_mcmc(mcmc);
     // Preserve FDR from screen (CiScreenedPosterior::new sets a default).
     let mut eng = eng;

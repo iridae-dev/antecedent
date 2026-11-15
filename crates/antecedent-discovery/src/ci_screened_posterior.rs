@@ -7,7 +7,14 @@
 //!
 //! The screen is a frequentist filter, not an oracle: a pair the CI test fails
 //! to reject is excluded from the MCMC proposal set, so its posterior marginal
-//! is bounded by the search space, not by evidence against the edge. The
+//! is bounded by the search space, not by evidence against the edge. A test that
+//! fails to reject has only shown the dependence is not detectable at that sample
+//! size, and a weak true edge fails it with the test's Type-II probability (for a
+//! partial correlation of 0.35 at 75 rows, about one replicate in eight); once
+//! the pair is dropped the posterior can never put mass on the true structure,
+//! whatever its credible set claims. With [`CiScreenedPosterior::retain_undecided`]
+//! a dropped pair therefore stays proposable unless the marginal likelihood
+//! itself decisively supports independence (the Gaussian-BIC odds rule `removal_is_decisive`). The
 //! screening constraints and the caller's [`GraphPrior`] constraints are
 //! merged (required/forbidden unioned, `max_parents` taken as the stricter of
 //! the two), never one silently replacing the other; a real disagreement
@@ -62,6 +69,10 @@ pub struct CiScreenedPosterior {
     pub fdr: Option<FdrAdjustment>,
     /// Soft weight diagnostic (does not replace the Gaussian-BIC posterior).
     pub soft_weight: CiSoftWeight,
+    /// Keep a pair the CI test dropped in the proposal set unless the Gaussian-BIC evidence
+    /// for independence, given the separating set that dropped it, is decisive
+    /// (`removal_is_decisive`). `false` restricts the posterior to the CI skeleton exactly.
+    pub retain_undecided: bool,
     /// Structure MCMC schedule.
     pub mcmc: StructureMcmc,
 }
@@ -73,6 +84,7 @@ impl std::fmt::Debug for CiScreenedPosterior {
             .field("ci", &"<dyn ConditionalIndependence>")
             .field("fdr", &self.fdr)
             .field("soft_weight", &self.soft_weight)
+            .field("retain_undecided", &self.retain_undecided)
             .field("mcmc", &self.mcmc)
             .finish()
     }
@@ -99,6 +111,7 @@ impl CiScreenedPosterior {
             ci: Arc::new(PartialCorrelation),
             fdr: Some(crate::pipeline::static_bh_fdr()),
             soft_weight: CiSoftWeight::None,
+            retain_undecided: false,
             mcmc: StructureMcmc::new().with_schedule(2, 300, 600, 1),
         }
     }
@@ -121,6 +134,14 @@ impl CiScreenedPosterior {
     #[must_use]
     pub fn with_soft_weight(mut self, soft: CiSoftWeight) -> Self {
         self.soft_weight = soft;
+        self
+    }
+
+    /// Keep CI-dropped pairs whose independence the marginal likelihood does not decisively
+    /// support ([`Self::retain_undecided`]).
+    #[must_use]
+    pub fn with_retain_undecided(mut self, retain: bool) -> Self {
+        self.retain_undecided = retain;
         self
     }
 
@@ -155,7 +176,13 @@ impl CiScreenedPosterior {
         let mut prior = prior.clone();
         prior.constraints = effective.clone();
 
-        let pairs = pc_skeleton_pairs(&effective, self, data, variables, workspace, ctx)?;
+        let (mut pairs, sepsets) =
+            pc_skeleton_pairs(&effective, self, data, variables, workspace, ctx)?;
+        let readmitted = if self.retain_undecided {
+            readmit_undecided_pairs(&mut pairs, &sepsets, &effective, data, variables)?
+        } else {
+            Vec::new()
+        };
         if pairs.is_empty() {
             return Err(DiscoveryError::unsupported("CI screening produced empty skeleton"));
         }
@@ -169,6 +196,14 @@ impl CiScreenedPosterior {
             post.push_note(note);
         }
         post.push_note(format!("ci_screened_pairs={}", pair_arc.len()));
+        if !readmitted.is_empty() {
+            post.push_note(format!(
+                "ci_screen_retained pairs=[{}]: the CI test dropped them but the Gaussian-BIC \
+                 evidence for independence is not decisive (odds under {SCREEN_DECISIVE_ODDS}:1), \
+                 so the sampler may still propose them",
+                readmitted.join(", ")
+            ));
+        }
         if merged_caller_constraints {
             post.push_note(
                 "ci_screened_prior_constraints_merged=caller required/forbidden/max_parents/tiers \
@@ -396,7 +431,7 @@ fn pc_skeleton_pairs(
     variables: &[VariableId],
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
-) -> Result<Vec<(u32, u32)>, DiscoveryError> {
+) -> Result<(Vec<(u32, u32)>, crate::result::PcSepsets), DiscoveryError> {
     // The screen reads the uncapped skeleton. The posterior enforces the parent limit through
     // its own prior.
     let mut screening = constraints.clone();
@@ -414,7 +449,147 @@ fn pc_skeleton_pairs(
     }
     let mut v: Vec<_> = pairs.into_iter().collect();
     v.sort_unstable();
-    Ok(v)
+    Ok((v, result.sepsets))
+}
+
+/// Odds against an edge at which the marginal likelihood is said to decide for independence:
+/// 19:1 is the posterior odds that leave an edge at most 5% probability under even prior odds,
+/// the mass a 95% credible set may omit.
+const SCREEN_DECISIVE_ODDS: f64 = 19.0;
+
+/// Whether the Gaussian-BIC evidence decisively supports `x ⊥ y | S` over the edge `x — y`.
+///
+/// `rho` is the sample partial correlation of the pair given the separating set and `n` the row
+/// count. Adding the edge to a Gaussian node already conditioned on `S` changes the BIC score
+/// by `-(n/2)·ln(1 - rho²) - ½·ln n`: the log-likelihood gain of one coefficient less its
+/// penalty. The edge is decisively absent when that is below `-ln(19)`. Even a partial
+/// correlation of exactly zero loses only `½·ln n`, so no sample under 361 rows can decide: at
+/// those sizes a CI test that fails to reject has not shown independence, only low power.
+#[must_use]
+pub(crate) fn removal_is_decisive(n: usize, rho: f64) -> bool {
+    if n < 2 || !rho.is_finite() {
+        return false;
+    }
+    let nf = n as f64;
+    let gain = -0.5 * nf * (1.0 - rho * rho).max(f64::MIN_POSITIVE).ln() - 0.5 * nf.ln();
+    gain < -SCREEN_DECISIVE_ODDS.ln()
+}
+
+/// Sample partial correlation of columns `i` and `j` given `given`, `None` when a value is not
+/// finite or the correlation matrix is singular.
+fn partial_correlation_of(cols: &[&[f64]], i: usize, j: usize, given: &[usize]) -> Option<f64> {
+    let idx: Vec<usize> = [i, j].into_iter().chain(given.iter().copied()).collect();
+    let k = idx.len();
+    let n = cols[i].len();
+    let means: Vec<f64> = idx.iter().map(|&c| cols[c].iter().sum::<f64>() / n as f64).collect();
+    let mut a = vec![vec![0.0_f64; 2 * k]; k];
+    for p in 0..k {
+        for q in 0..k {
+            let mut s = 0.0;
+            for r in 0..n {
+                s += (cols[idx[p]][r] - means[p]) * (cols[idx[q]][r] - means[q]);
+            }
+            a[p][q] = s;
+        }
+    }
+    let sd: Vec<f64> = (0..k).map(|p| a[p][p].sqrt()).collect();
+    if sd.iter().any(|v| !v.is_finite() || *v <= 0.0) {
+        return None;
+    }
+    for p in 0..k {
+        for q in 0..k {
+            a[p][q] /= sd[p] * sd[q];
+        }
+        a[p][k + p] = 1.0;
+    }
+    // Gauss-Jordan inverse with partial pivoting.
+    for col in 0..k {
+        let piv = (col..k).max_by(|&x, &y| a[x][col].abs().total_cmp(&a[y][col].abs()))?;
+        if a[piv][col].abs() < 1e-12 {
+            return None;
+        }
+        a.swap(col, piv);
+        let d = a[col][col];
+        for v in &mut a[col] {
+            *v /= d;
+        }
+        for r in 0..k {
+            if r != col {
+                let f = a[r][col];
+                if f != 0.0 {
+                    for c in 0..2 * k {
+                        let t = a[col][c];
+                        a[r][c] -= f * t;
+                    }
+                }
+            }
+        }
+    }
+    let (p00, p11, p01) = (a[0][k], a[1][k + 1], a[0][k + 1]);
+    let rho = -p01 / (p00 * p11).sqrt();
+    rho.is_finite().then_some(rho)
+}
+
+/// Add back every pair the CI test dropped unless the marginal likelihood decisively supports
+/// the independence that dropped it (`removal_is_decisive`); returns the pairs added, named.
+///
+/// The separating set is the one the screen recorded for the pair (the empty set when the pair
+/// was dropped without one, as by the family-wise correction). A pair the constraints forbid
+/// stays out, and a pair whose partial correlation cannot be computed stays in.
+fn readmit_undecided_pairs(
+    pairs: &mut Vec<(u32, u32)>,
+    sepsets: &crate::result::PcSepsets,
+    constraints: &DiscoveryConstraints,
+    data: &TabularData,
+    variables: &[VariableId],
+) -> Result<Vec<String>, DiscoveryError> {
+    use antecedent_core::Lag;
+    use antecedent_data::TableView;
+    let cols = crate::pc::collect_float_columns(data, variables)?;
+    let col_refs: Vec<&[f64]> = cols.iter().map(std::convert::AsRef::as_ref).collect();
+    let n = col_refs.first().map_or(0, |c| c.len());
+    let kept: HashSet<(u32, u32)> = pairs.iter().copied().collect();
+    let forbidden: HashSet<(usize, usize)> = constraints
+        .forbidden
+        .iter()
+        .filter_map(|link| {
+            let si = variables.iter().position(|v| *v == link.source)?;
+            let ti = variables.iter().position(|v| *v == link.target)?;
+            Some((si, ti))
+        })
+        .collect();
+    let name = |i: usize| {
+        data.schema()
+            .get(variables[i])
+            .map_or_else(|_| variables[i].raw().to_string(), |v| v.name.to_string())
+    };
+    let mut added = Vec::new();
+    let p = variables.len();
+    for i in 0..p {
+        for j in (i + 1)..p {
+            let key = (crate::indexing::dense_u32(i), crate::indexing::dense_u32(j));
+            if kept.contains(&key) || forbidden.contains(&(i, j)) || forbidden.contains(&(j, i)) {
+                continue;
+            }
+            let lag = Lag::CONTEMPORANEOUS;
+            let sep = sepsets
+                .get(&(variables[i], lag, variables[j], lag))
+                .or_else(|| sepsets.get(&(variables[j], lag, variables[i], lag)));
+            let given: Option<Vec<usize>> = sep.map_or_else(
+                || Some(Vec::new()),
+                |s| s.iter().map(|(v, _)| variables.iter().position(|w| w == v)).collect(),
+            );
+            let decisive = given
+                .and_then(|g| partial_correlation_of(&col_refs, i, j, &g))
+                .is_some_and(|rho| removal_is_decisive(n, rho));
+            if !decisive {
+                pairs.push(key);
+                added.push(format!("{}-{}", name(i), name(j)));
+            }
+        }
+    }
+    pairs.sort_unstable();
+    Ok(added)
 }
 
 fn soft_weight_note(
@@ -500,6 +675,52 @@ mod tests {
             .unwrap();
         assert!(post.n_graphs() >= 1);
         assert!(post.diagnostics().notes.iter().any(|n| n.contains("ci_screened_pairs")));
+    }
+
+    /// A weak true edge dropped by a conditional test (here the partial correlation 0.35 at 75
+    /// rows, power about 0.87) must stay proposable: nothing at that size can decide for
+    /// independence, while a large sample with a null partial correlation can.
+    #[test]
+    fn removal_needs_decisive_evidence_of_independence() {
+        assert!(!removal_is_decisive(75, 0.3465));
+        assert!(!removal_is_decisive(75, 0.0));
+        assert!(!removal_is_decisive(300, 0.0));
+        assert!(removal_is_decisive(1000, 0.0));
+        assert!(!removal_is_decisive(1000, 0.1));
+        assert!(!removal_is_decisive(100_000, 0.05));
+        assert!(!removal_is_decisive(10, f64::NAN));
+    }
+
+    #[test]
+    fn partial_correlation_matches_the_closed_form() {
+        let (data, vars) = chain_data(400);
+        let cols = crate::pc::collect_float_columns(&data, &vars).unwrap();
+        let refs: Vec<&[f64]> = cols.iter().map(std::convert::AsRef::as_ref).collect();
+        let r = |x: usize, y: usize| partial_correlation_of(&refs, x, y, &[]).unwrap();
+        let (rab, rbc, rac) = (r(0, 1), r(1, 2), r(0, 2));
+        let closed = (rac - rab * rbc) / ((1.0 - rab * rab) * (1.0 - rbc * rbc)).sqrt();
+        let got = partial_correlation_of(&refs, 0, 2, &[1]).unwrap();
+        assert!((got - closed).abs() < 1e-9, "{got} vs {closed}");
+    }
+
+    /// At 180 rows the screen's drop of `a—c` is not decisive, so a retaining screen keeps all
+    /// three pairs.
+    #[test]
+    fn retaining_screen_keeps_pairs_it_cannot_decide() {
+        let (data, vars) = chain_data(180);
+        let eng = CiScreenedPosterior::new()
+            .with_retain_undecided(true)
+            .with_mcmc(StructureMcmc::new().with_schedule(4, 400, 1200, 1));
+        let ctx = ExecutionContext::for_tests(5);
+        let mut ws = DiscoveryWorkspace::default();
+        let post = eng
+            .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &mut ws, &ctx)
+            .unwrap();
+        assert!(
+            post.diagnostics().notes.iter().any(|n| n.contains("ci_screened_pairs=3")),
+            "{:?}",
+            post.diagnostics().notes
+        );
     }
 
     /// With the default prior (no `edge_inclusion`), `a—c` is screened out and its marginal is
