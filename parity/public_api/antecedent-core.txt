@@ -7715,6 +7715,7 @@ pub const antecedent_core::reason_details::aligned_joint_draws::LEGACY_BINDING: 
 pub const antecedent_core::reason_details::aligned_joint_draws::LEGACY_SOURCE: &str
 pub const antecedent_core::reason_details::aligned_joint_draws::MARGINALS_NOT_JOINT: &str
 pub const antecedent_core::reason_details::aligned_joint_draws::OUTCOME_COORDINATE: &str
+pub const antecedent_core::reason_details::attribute_refit::NOISE_BLOCKS_UNSUPPORTED: &str
 pub const antecedent_core::reason_details::batch_retarget::CANCELLED: &str
 pub const antecedent_core::reason_details::batch_retarget::CONTRAST_MEMBER_FAILED: &str
 pub const antecedent_core::reason_details::batch_retarget::COVARIANCE_UNAVAILABLE: &str
@@ -8543,6 +8544,7 @@ pub const antecedent_core::reason_details::graph_imputation::EXECUTION_REFUSED: 
 pub const antecedent_core::reason_details::graph_imputation::INTERVAL_UNSUPPORTED: &str
 pub const antecedent_core::reason_details::graph_imputation::INVALID_SOURCE: &str
 pub const antecedent_core::reason_details::graph_imputation::LOWERING: &str
+pub const antecedent_core::reason_details::graph_imputation::REENTRY: &str
 pub const antecedent_core::reason_details::graph_imputation::RESOURCE_LIMIT: &str
 pub const antecedent_core::reason_details::graph_imputation::SEARCH_CANCELLED: &str
 pub const antecedent_core::reason_details::graph_imputation::SEARCH_EXHAUSTED: &str
@@ -8715,6 +8717,8 @@ pub const antecedent_core::reason_details::joint_law_propagation::SPREAD_NEEDS_S
 pub const antecedent_core::reason_details::joint_law_propagation::STRUCTURE_NOT_VERIFIED: &str
 pub const antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED: &str
 pub const antecedent_core::reason_details::joint_law_propagation::TRANSPORT_PIECES_INCOMPLETE: &str
+pub const antecedent_core::reason_details::joint_response::READING_LAW_UNAVAILABLE: &str
+pub const antecedent_core::reason_details::joint_response::READING_LEVEL_INVALID: &str
 pub const antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED: &str
 pub const antecedent_core::reason_details::joint_sensitivity::BUDGET: &str
 pub const antecedent_core::reason_details::joint_sensitivity::BUDGET_COUPLING: &str
@@ -8883,6 +8887,8 @@ pub const antecedent_core::reason_details::measurement_model::UNMODELLED_PROXY: 
 pub const antecedent_core::reason_details::measurement_model::UNRECOGNIZED: &str
 pub const antecedent_core::reason_details::measurement_model::VARIANCE_NOT_POSITIVE: &str
 pub const antecedent_core::reason_details::measurement_model::YOUDEN_TOO_SMALL: &str
+pub const antecedent_core::reason_details::mechanism_change::PARENT_COVARIATE_SHIFT: &str
+pub const antecedent_core::reason_details::mechanism_change::POPULATION_TOO_SMALL: &str
 pub const antecedent_core::reason_details::mechanism_composition::ARTIFACT_INVALID: &str
 pub const antecedent_core::reason_details::mechanism_composition::ARTIFACT_KIND_MISMATCH: &str
 pub const antecedent_core::reason_details::mechanism_composition::CANCELLED: &str
@@ -8986,6 +8992,8 @@ pub const antecedent_core::reason_details::mechanism_posterior::EMPTY_SUMMARY: &
 pub const antecedent_core::reason_details::mechanism_posterior::EXTERNAL_POWER_PRIOR: &str
 pub const antecedent_core::reason_details::mechanism_posterior::MAPPED_PRIOR: &str
 pub const antecedent_core::reason_details::mechanism_posterior::NON_POSITIVE_SCALE: &str
+pub const antecedent_core::reason_details::mechanism_selection::CONSTRAINT_CONTRADICTORY: &str
+pub const antecedent_core::reason_details::mechanism_selection::FAMILY_OUTCOME_MISMATCH: &str
 pub const antecedent_core::reason_details::mechanism_transport::DIAGRAM_SOURCE_MISMATCH: &str
 pub const antecedent_core::reason_details::mechanism_transport::DIAGRAM_TARGET_MISMATCH: &str
 pub const antecedent_core::reason_details::mechanism_transport::DUPLICATE_MECHANISM: &str
@@ -9950,6 +9958,7 @@ pub const antecedent_core::reason_details::signal_provider::SAMPLE_SIZE_INVALID:
 pub const antecedent_core::reason_details::signal_provider::SAMPLE_SIZE_MISMATCH: &str
 pub const antecedent_core::reason_details::signal_provider::TRUST_MISMATCH: &str
 pub const antecedent_core::reason_details::signal_provider::TRUST_NATIVE_CLAIMED: &str
+pub const antecedent_core::reason_details::simulate_refit::TEMPORAL_ROLLOUT_REQUIRED: &str
 pub const antecedent_core::reason_details::smoothed_dose_posterior::BAND_NOT_CONSTRUCTED: &str
 pub const antecedent_core::reason_details::smoothed_dose_posterior::CANCELLED: &str
 pub const antecedent_core::reason_details::smoothed_dose_posterior::CERTIFICATE_MISMATCH: &str
@@ -10002,6 +10011,7 @@ pub const antecedent_core::reason_details::split_effect::SOURCE_NOT_CANONICAL: &
 pub const antecedent_core::reason_details::split_effect::STRUCTURE_CLASS: &str
 pub const antecedent_core::reason_details::split_effect::STRUCTURE_UNRESOLVED: &str
 pub const antecedent_core::reason_details::split_effect::TOO_FEW_ROWS: &str
+pub const antecedent_core::reason_details::structure_posterior::EDGE_PRIOR_PROBABILITY: &str
 pub const antecedent_core::reason_details::structured_refusals::MALFORMED_DETAIL: &str
 pub const antecedent_core::reason_details::structured_refusals::MISSING_STAGE: &str
 pub const antecedent_core::reason_details::structured_refusals::UNREGISTERED_CODE: &str
@@ -10037,6 +10047,7 @@ pub const antecedent_core::reason_details::survival_effect::TOO_FEW_ROWS: &str
 pub const antecedent_core::reason_details::survival_effect::TRAINING_FOLD_WITHOUT_EVENTS: &str
 pub const antecedent_core::reason_details::survival_effect::TREATMENT_POSITIVITY: &str
 pub const antecedent_core::reason_details::survival_effect::UNDECLARED_LEVEL: &str
+pub const antecedent_core::reason_details::synthetic_control_panel::OBSERVED_WINDOW_OPTION: &str
 pub const antecedent_core::reason_details::temporal_counterfactual::ARTIFACT_CHANGED: &str
 pub const antecedent_core::reason_details::temporal_counterfactual::FIT_MISMATCH: &str
 pub const antecedent_core::reason_details::temporal_counterfactual::HISTORY_NAME_INVALID: &str
@@ -10263,6 +10274,7 @@ pub const antecedent_core::reason_details::typed_mechanism_transport::SHIFTED_WI
 pub const antecedent_core::reason_details::typed_mechanism_transport::TARGET_SPECIFICATION_DIFFERS: &str
 pub const antecedent_core::reason_details::typed_mechanism_transport::TRANSPORT_IDENTITY_MISMATCH: &str
 pub const antecedent_core::reason_details::typed_mechanism_transport::UNKNOWN_VARIABLE: &str
+pub const antecedent_core::reason_details::unit_change::OUTCOME_WITHOUT_PARENTS: &str
 pub const antecedent_core::reason_details::vector_posterior::BAND_NOT_CONSTRUCTED: &str
 pub const antecedent_core::reason_details::vector_posterior::EXTERNAL_POWER_PRIOR: &str
 pub const antecedent_core::reason_details::vector_posterior::MAPPED_PRIOR: &str
@@ -12846,6 +12858,7 @@ pub mod antecedent_core::reason_details::adaptive_transport
 pub mod antecedent_core::reason_details::admg_conditional_posterior
 pub mod antecedent_core::reason_details::admg_transport
 pub mod antecedent_core::reason_details::aligned_joint_draws
+pub mod antecedent_core::reason_details::attribute_refit
 pub mod antecedent_core::reason_details::batch_retarget
 pub mod antecedent_core::reason_details::batch_retarget_posterior
 pub mod antecedent_core::reason_details::bayesian_transport
@@ -12925,6 +12938,7 @@ pub mod antecedent_core::reason_details::inverse_forward_source
 pub mod antecedent_core::reason_details::inverse_observational_scenarios
 pub mod antecedent_core::reason_details::joint_cells
 pub mod antecedent_core::reason_details::joint_law_propagation
+pub mod antecedent_core::reason_details::joint_response
 pub mod antecedent_core::reason_details::joint_sensitivity
 pub mod antecedent_core::reason_details::latent_class
 pub mod antecedent_core::reason_details::latent_class_posterior
@@ -12937,9 +12951,11 @@ pub mod antecedent_core::reason_details::measured_inference
 pub mod antecedent_core::reason_details::measured_interval
 pub mod antecedent_core::reason_details::measured_transport
 pub mod antecedent_core::reason_details::measurement_model
+pub mod antecedent_core::reason_details::mechanism_change
 pub mod antecedent_core::reason_details::mechanism_composition
 pub mod antecedent_core::reason_details::mechanism_discrepancy
 pub mod antecedent_core::reason_details::mechanism_posterior
+pub mod antecedent_core::reason_details::mechanism_selection
 pub mod antecedent_core::reason_details::mechanism_transport
 pub mod antecedent_core::reason_details::mediation_posterior
 pub mod antecedent_core::reason_details::missing_data
@@ -12993,14 +13009,17 @@ pub mod antecedent_core::reason_details::sensitivity_decision_composition
 pub mod antecedent_core::reason_details::sensitivity_source
 pub mod antecedent_core::reason_details::sequential_evaluation
 pub mod antecedent_core::reason_details::signal_provider
+pub mod antecedent_core::reason_details::simulate_refit
 pub mod antecedent_core::reason_details::smoothed_dose_posterior
 pub mod antecedent_core::reason_details::source_evidence
 pub mod antecedent_core::reason_details::source_projection
 pub mod antecedent_core::reason_details::split_effect
+pub mod antecedent_core::reason_details::structure_posterior
 pub mod antecedent_core::reason_details::structured_refusals
 pub mod antecedent_core::reason_details::study_candidate
 pub mod antecedent_core::reason_details::study_plan
 pub mod antecedent_core::reason_details::survival_effect
+pub mod antecedent_core::reason_details::synthetic_control_panel
 pub mod antecedent_core::reason_details::temporal_counterfactual
 pub mod antecedent_core::reason_details::temporal_interval
 pub mod antecedent_core::reason_details::temporal_policy_transport
@@ -13018,6 +13037,7 @@ pub mod antecedent_core::reason_details::transported_synthesis
 pub mod antecedent_core::reason_details::treatment_levels
 pub mod antecedent_core::reason_details::two_step_posterior
 pub mod antecedent_core::reason_details::typed_mechanism_transport
+pub mod antecedent_core::reason_details::unit_change
 pub mod antecedent_core::reason_details::vector_posterior
 pub mod antecedent_core::reason_details::vector_treatment
 pub mod antecedent_core::recalc

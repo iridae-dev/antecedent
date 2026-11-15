@@ -714,6 +714,7 @@ impl core::clone::Clone for antecedent_io_core::graph_networkx::NetworkXAdjNeigh
 impl core::clone::Clone for antecedent_io_core::graph_networkx::NetworkXLink
 impl core::clone::Clone for antecedent_io_core::graph_networkx::NetworkXNode
 impl core::clone::Clone for antecedent_io_core::graphless_support::GraphlessAssignmentSupport
+impl core::clone::Clone for antecedent_io_core::graphless_support::GraphlessResampleSupport
 impl core::clone::Clone for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::clone::Clone for antecedent_io_core::identity::IdentityMarkedEdgeWire
 impl core::clone::Clone for antecedent_io_core::identity::IdentityNodeWire
@@ -1989,6 +1990,7 @@ impl core::cmp::PartialEq for antecedent_io_core::graph_networkx::NetworkXAdjNei
 impl core::cmp::PartialEq for antecedent_io_core::graph_networkx::NetworkXLink
 impl core::cmp::PartialEq for antecedent_io_core::graph_networkx::NetworkXNode
 impl core::cmp::PartialEq for antecedent_io_core::graphless_support::GraphlessAssignmentSupport
+impl core::cmp::PartialEq for antecedent_io_core::graphless_support::GraphlessResampleSupport
 impl core::cmp::PartialEq for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::cmp::PartialEq for antecedent_io_core::identity::IdentityMarkedEdgeWire
 impl core::cmp::PartialEq for antecedent_io_core::identity::IdentityNodeWire
@@ -2332,6 +2334,7 @@ impl core::default::Default for antecedent_io_core::evidence_ledger_artifact::Ev
 impl core::default::Default for antecedent_io_core::external_column_claim_artifact::ExternalColumnIntakeLimits
 impl core::default::Default for antecedent_io_core::frozen_scores_artifact::FrozenScoresIntakeLimits
 impl core::default::Default for antecedent_io_core::graphless_support::GraphlessAssignmentSupport
+impl core::default::Default for antecedent_io_core::graphless_support::GraphlessResampleSupport
 impl core::default::Default for antecedent_io_core::interface_contract_artifact::InterfaceContractIntakeLimits
 impl core::default::Default for antecedent_io_core::joint_law_propagation_artifact::JointLawPropagationLimits
 impl core::default::Default for antecedent_io_core::propagation_chain_record::PropagationChainLimits
@@ -3002,6 +3005,7 @@ impl core::fmt::Debug for antecedent_io_core::graph_networkx::NetworkXAdjNeighbo
 impl core::fmt::Debug for antecedent_io_core::graph_networkx::NetworkXLink
 impl core::fmt::Debug for antecedent_io_core::graph_networkx::NetworkXNode
 impl core::fmt::Debug for antecedent_io_core::graphless_support::GraphlessAssignmentSupport
+impl core::fmt::Debug for antecedent_io_core::graphless_support::GraphlessResampleSupport
 impl core::fmt::Debug for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::fmt::Debug for antecedent_io_core::identity::IdentityMarkedEdgeWire
 impl core::fmt::Debug for antecedent_io_core::identity::IdentityNodeWire
@@ -3405,6 +3409,7 @@ impl core::marker::Copy for antecedent_io_core::external_claim_artifact::Externa
 impl core::marker::Copy for antecedent_io_core::external_column_claim_artifact::ExternalColumnIntakeLimits
 impl core::marker::Copy for antecedent_io_core::frozen_scores_artifact::FrozenScoresIntakeLimits
 impl core::marker::Copy for antecedent_io_core::graphless_support::GraphlessAssignmentSupport
+impl core::marker::Copy for antecedent_io_core::graphless_support::GraphlessResampleSupport
 impl core::marker::Copy for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::marker::Copy for antecedent_io_core::interface_contract_artifact::InterfaceContractIntakeLimits
 impl core::marker::Copy for antecedent_io_core::joint_law_propagation_artifact::JointLawPropagationLimits
@@ -4042,6 +4047,7 @@ impl core::marker::Freeze for antecedent_io_core::graph_networkx::NetworkXAdjNei
 impl core::marker::Freeze for antecedent_io_core::graph_networkx::NetworkXLink [auto]
 impl core::marker::Freeze for antecedent_io_core::graph_networkx::NetworkXNode [auto]
 impl core::marker::Freeze for antecedent_io_core::graphless_support::GraphlessAssignmentSupport [auto]
+impl core::marker::Freeze for antecedent_io_core::graphless_support::GraphlessResampleSupport [auto]
 impl core::marker::Freeze for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::marker::Freeze for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::marker::Freeze for antecedent_io_core::identity::IdentityNodeWire [auto]
@@ -4899,6 +4905,7 @@ impl core::marker::Send for antecedent_io_core::graph_networkx::NetworkXAdjNeigh
 impl core::marker::Send for antecedent_io_core::graph_networkx::NetworkXLink [auto]
 impl core::marker::Send for antecedent_io_core::graph_networkx::NetworkXNode [auto]
 impl core::marker::Send for antecedent_io_core::graphless_support::GraphlessAssignmentSupport [auto]
+impl core::marker::Send for antecedent_io_core::graphless_support::GraphlessResampleSupport [auto]
 impl core::marker::Send for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::marker::Send for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::marker::Send for antecedent_io_core::identity::IdentityNodeWire [auto]
@@ -5709,6 +5716,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::graph_networkx::N
 impl core::marker::StructuralPartialEq for antecedent_io_core::graph_networkx::NetworkXLink
 impl core::marker::StructuralPartialEq for antecedent_io_core::graph_networkx::NetworkXNode
 impl core::marker::StructuralPartialEq for antecedent_io_core::graphless_support::GraphlessAssignmentSupport
+impl core::marker::StructuralPartialEq for antecedent_io_core::graphless_support::GraphlessResampleSupport
 impl core::marker::StructuralPartialEq for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::marker::StructuralPartialEq for antecedent_io_core::identity::IdentityMarkedEdgeWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::identity::IdentityNodeWire
@@ -6554,6 +6562,7 @@ impl core::marker::Sync for antecedent_io_core::graph_networkx::NetworkXAdjNeigh
 impl core::marker::Sync for antecedent_io_core::graph_networkx::NetworkXLink [auto]
 impl core::marker::Sync for antecedent_io_core::graph_networkx::NetworkXNode [auto]
 impl core::marker::Sync for antecedent_io_core::graphless_support::GraphlessAssignmentSupport [auto]
+impl core::marker::Sync for antecedent_io_core::graphless_support::GraphlessResampleSupport [auto]
 impl core::marker::Sync for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::marker::Sync for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::marker::Sync for antecedent_io_core::identity::IdentityNodeWire [auto]
@@ -7412,6 +7421,7 @@ impl core::marker::Unpin for antecedent_io_core::graph_networkx::NetworkXAdjNeig
 impl core::marker::Unpin for antecedent_io_core::graph_networkx::NetworkXLink [auto]
 impl core::marker::Unpin for antecedent_io_core::graph_networkx::NetworkXNode [auto]
 impl core::marker::Unpin for antecedent_io_core::graphless_support::GraphlessAssignmentSupport [auto]
+impl core::marker::Unpin for antecedent_io_core::graphless_support::GraphlessResampleSupport [auto]
 impl core::marker::Unpin for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::marker::Unpin for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::marker::Unpin for antecedent_io_core::identity::IdentityNodeWire [auto]
@@ -8270,6 +8280,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::graph_netwo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::graph_networkx::NetworkXLink [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::graph_networkx::NetworkXNode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::graphless_support::GraphlessAssignmentSupport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::graphless_support::GraphlessResampleSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::identity::IdentityNodeWire [auto]
@@ -9127,6 +9138,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::graph_networkx
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::graph_networkx::NetworkXLink [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::graph_networkx::NetworkXNode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::graphless_support::GraphlessAssignmentSupport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::graphless_support::GraphlessResampleSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::identity::IdentityNodeWire [auto]
@@ -10046,6 +10058,7 @@ impl<'a, E> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::byte_cu
 impl<'a> !core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::container::StreamWork<'a> [auto]
 impl<'a> !core::panic::unwind_safe::UnwindSafe for antecedent_io_core::container::StreamWork<'a> [auto]
 impl<'a> core::clone::Clone for antecedent_io_core::ScoreTableKey<'a>
+impl<'a> core::clone::Clone for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a>
 impl<'a> core::clone::Clone for antecedent_io_core::capacity_account::ResidentWeightedRows<'a>
 impl<'a> core::clone::Clone for antecedent_io_core::container::StreamWork<'a>
 impl<'a> core::clone::Clone for antecedent_io_core::feature_version::RequestedVersion<'a>
@@ -10055,17 +10068,20 @@ impl<'a> core::cmp::Eq for antecedent_io_core::graphless_support::GraphlessSuppo
 impl<'a> core::cmp::PartialEq for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::cmp::PartialEq for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 impl<'a> core::fmt::Debug for antecedent_io_core::ScoreTableKey<'a>
+impl<'a> core::fmt::Debug for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a>
 impl<'a> core::fmt::Debug for antecedent_io_core::capacity_account::ResidentWeightedRows<'a>
 impl<'a> core::fmt::Debug for antecedent_io_core::container::StreamWork<'a>
 impl<'a> core::fmt::Debug for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::fmt::Debug for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::ScoreTableKey<'a>
+impl<'a> core::marker::Copy for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::container::StreamWork<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::feature_version::RequestedVersion<'a>
 impl<'a> core::marker::Copy for antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 impl<'a> core::marker::Freeze for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::container::StreamWork<'a> [auto]
@@ -10078,6 +10094,7 @@ impl<'a> core::marker::Freeze for antecedent_io_core::transport_interference_wir
 impl<'a> core::marker::Send for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::container::StreamWork<'a> [auto]
@@ -10092,6 +10109,7 @@ impl<'a> core::marker::StructuralPartialEq for antecedent_io_core::graphless_sup
 impl<'a> core::marker::Sync for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::container::StreamWork<'a> [auto]
@@ -10104,6 +10122,7 @@ impl<'a> core::marker::Sync for antecedent_io_core::transport_interference_wire:
 impl<'a> core::marker::Unpin for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::container::StreamWork<'a> [auto]
@@ -10116,6 +10135,7 @@ impl<'a> core::marker::Unpin for antecedent_io_core::transport_interference_wire
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::expr_wire::BorrowedExprArenaWire<'a> [auto]
@@ -10127,6 +10147,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::transpo
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ArtifactContainer<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::OutSection<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ScoreTableKey<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::expr_wire::BorrowedExprArenaWire<'a> [auto]
@@ -10878,6 +10899,8 @@ pub const antecedent_io_core::adaptive_monitoring_contract_artifact::ADAPTIVE_MO
 pub const antecedent_io_core::adaptive_monitoring_contract_artifact::BOUNDARY_REPLAY_TOLERANCE: f64
 pub const antecedent_io_core::adaptive_monitoring_contract_artifact::MAX_ADAPTIVE_MONITORING_CONTRACT_BYTES: usize
 pub const antecedent_io_core::adaptive_monitoring_contract_artifact::PROCEDURE_KIND: &str
+pub const antecedent_io_core::analysis_result_artifact::rollout_support::STUDENT_REFERENCE_DIAGNOSTIC: &str
+pub const antecedent_io_core::analysis_result_artifact::stated_section_rows::HISTORY_MATCH_FIXED_B_UNCERTAINTY: &str
 pub const antecedent_io_core::bayesian_prior_recalc_artifact::BOUND_PRIOR_MAGIC: &[u8]
 pub const antecedent_io_core::bayesian_prior_recalc_artifact::BOUND_PRIOR_MAX_BYTES: usize
 pub const antecedent_io_core::bound_identity::CYCLIC_SOLUTION_CONTRACT: &str
@@ -10989,6 +11012,14 @@ pub const antecedent_io_core::frozen_scores_artifact::MAX_FROZEN_SCORES_ARTIFACT
 pub const antecedent_io_core::frozen_scores_artifact::MAX_FROZEN_SCORE_ROWS: usize
 pub const antecedent_io_core::frozen_scores_artifact::MAX_FROZEN_SCORE_STAGES: usize
 pub const antecedent_io_core::frozen_scores_artifact::MAX_FROZEN_SCORE_VALUES: usize
+pub const antecedent_io_core::graphless_support::ASSOCIATION_SLOPE_ROW_CODE: &str
+pub const antecedent_io_core::graphless_support::AUGMENTED_DID_ROW_CODE: &str
+pub const antecedent_io_core::graphless_support::CROSSFIT_CONTRAST_ROW_CODE: &str
+pub const antecedent_io_core::graphless_support::DESIGN_POSTERIOR_ROW_CODE: &str
+pub const antecedent_io_core::graphless_support::IV_BOUNDS_ROW_CODE: &str
+pub const antecedent_io_core::graphless_support::PERIOD_HISTORY_ROW_CODE: &str
+pub const antecedent_io_core::graphless_support::SECTION_ROW_CODES: [&str; 6]
+pub const antecedent_io_core::graphless_support::TEMPORAL_DESIGN_ROW_CODE: &str
 pub const antecedent_io_core::interface_contract_artifact::INTERFACE_CONTRACT_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::interface_contract_artifact::INTERFACE_CONTRACT_ARTIFACT_TAG: &str
 pub const antecedent_io_core::interface_contract_artifact::INTERFACE_CONTRACT_ARTIFACT_VERSION: u16
@@ -12954,6 +12985,13 @@ pub field antecedent_io_core::analysis_result_artifact::TemporalDesignWire::supp
 pub field antecedent_io_core::analysis_result_artifact::TemporalDesignWire::uncertainty: alloc::string::String
 pub field antecedent_io_core::analysis_result_artifact::TemporalDesignWire::unpaired: u64
 pub field antecedent_io_core::analysis_result_artifact::TemporalDesignWire::upper: alloc::vec::Vec<f64>
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec::comparison: &'a str
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec::covariates: usize
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec::estimator: &'a str
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec::measured_options: bool
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec::nuisance: &'a str
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec::scheme: core::option::Option<&'a str>
+pub field antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec::two_period: bool
 pub field antecedent_io_core::analysis_wire::HedgeProblemWire::bidirected: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io_core::analysis_wire::HedgeProblemWire::directed: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io_core::analysis_wire::HedgeProblemWire::outcomes: alloc::vec::Vec<u32>
@@ -13933,6 +13971,8 @@ pub field antecedent_io_core::graphless_support::GraphlessAssignmentSupport::rep
 pub field antecedent_io_core::graphless_support::GraphlessAssignmentSupport::rows: usize
 pub field antecedent_io_core::graphless_support::GraphlessAssignmentSupport::treated: usize
 pub field antecedent_io_core::graphless_support::GraphlessAssignmentSupport::uncoupled_constraints: bool
+pub field antecedent_io_core::graphless_support::GraphlessResampleSupport::first_stage_t: f64
+pub field antecedent_io_core::graphless_support::GraphlessResampleSupport::interval_resamples: usize
 pub field antecedent_io_core::graphless_support::GraphlessSupportKey::design: &'a str
 pub field antecedent_io_core::graphless_support::GraphlessSupportKey::family: &'a str
 pub field antecedent_io_core::graphless_support::GraphlessSupportKey::inference_claim: &'a str
@@ -15848,6 +15888,10 @@ pub fn antecedent_io_core::analysis_result_artifact::encode_analysis_result_arti
 pub fn antecedent_io_core::analysis_result_artifact::identified_set_interval_from_wire(wire: &antecedent_io_core::IdentifiedSetIntervalWire) -> core::result::Result<antecedent_stats::identified_set::IdentifiedSetInterval, antecedent_io_core::IoError>
 pub fn antecedent_io_core::analysis_result_artifact::identified_set_interval_to_wire(interval: &antecedent_stats::identified_set::IdentifiedSetInterval) -> core::result::Result<antecedent_io_core::IdentifiedSetIntervalWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::analysis_result_artifact::rederive_rollout_summary(wire: &antecedent_io_core::analysis_result_artifact::QuasiRolloutWire) -> core::option::Option<f64>
+pub fn antecedent_io_core::analysis_result_artifact::rollout_support::did_rollout_row_admits(spec: antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'_>, section: &antecedent_io_core::analysis_result_artifact::QuasiRolloutWire) -> bool
+pub fn antecedent_io_core::analysis_result_artifact::rollout_support::local_design_row_admits(selected_bandwidth: bool, section: &antecedent_io_core::analysis_result_artifact::QuasiRolloutWire) -> bool
+pub fn antecedent_io_core::analysis_result_artifact::rollout_support::synthetic_rollout_row_admits(section: &antecedent_io_core::analysis_result_artifact::QuasiRolloutWire) -> bool
+pub fn antecedent_io_core::analysis_result_artifact::stated_section_rows::section_row_stated(result: &antecedent_io_core::AnalysisResultWire, code: &str) -> bool
 pub fn antecedent_io_core::analysis_wire::diagnostic_from_wire(w: &antecedent_io_core::DiagnosticWire) -> core::result::Result<antecedent_core::diagnostic::Diagnostic, antecedent_io_core::IoError>
 pub fn antecedent_io_core::analysis_wire::diagnostic_to_wire(d: &antecedent_core::diagnostic::Diagnostic) -> antecedent_io_core::DiagnosticWire
 pub fn antecedent_io_core::analysis_wire::identification_from_wire(w: &antecedent_io_core::IdentificationResultWire) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent_io_core::IoError>
@@ -16088,7 +16132,10 @@ pub fn antecedent_io_core::graph_networkx::dag_with_names_from_networkx_node_lin
 pub fn antecedent_io_core::graph_networkx::networkx_node_link_from_wire(wire: &antecedent_io_core::DagWire, names: core::option::Option<&[alloc::string::String]>) -> core::result::Result<antecedent_io_core::NetworkXNodeLink, antecedent_io_core::IoError>
 pub fn antecedent_io_core::graph_posterior_atom_identities(posterior: &antecedent_discovery::graph_posterior::GraphPosterior) -> core::result::Result<alloc::vec::Vec<antecedent_io_core::PosteriorAtomIdentityWire>, antecedent_io_core::IoError>
 pub fn antecedent_io_core::graphless_support::classify_graphless(key: antecedent_io_core::graphless_support::GraphlessSupportKey<'_>, observed: antecedent_io_core::graphless_support::GraphlessAssignmentSupport) -> antecedent_io_core::graphless_support::GraphlessSupportStatus
+pub fn antecedent_io_core::graphless_support::design_posterior_row_stated(fields: &[(alloc::string::String, alloc::string::String)]) -> bool
+pub fn antecedent_io_core::graphless_support::design_posterior_row_statement(key: antecedent_io_core::graphless_support::GraphlessSupportKey<'_>, observed: antecedent_io_core::graphless_support::GraphlessAssignmentSupport, resampled: antecedent_io_core::graphless_support::GraphlessResampleSupport) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn antecedent_io_core::graphless_support::graphless_admits(key: antecedent_io_core::graphless_support::GraphlessSupportKey<'_>, observed: antecedent_io_core::graphless_support::GraphlessAssignmentSupport) -> bool
+pub fn antecedent_io_core::graphless_support::graphless_admits_resampled(key: antecedent_io_core::graphless_support::GraphlessSupportKey<'_>, observed: antecedent_io_core::graphless_support::GraphlessAssignmentSupport, resampled: antecedent_io_core::graphless_support::GraphlessResampleSupport) -> bool
 pub fn antecedent_io_core::identification_digest(wire: &antecedent_io_core::IdentificationIdentityWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
 pub fn antecedent_io_core::identification_product_digest(result: &antecedent_identify::result::IdentificationResult, search_capped: bool) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
 pub fn antecedent_io_core::identification_product_digest_wire(wire: &antecedent_io_core::IdentificationProductWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
@@ -16200,6 +16247,8 @@ pub fn antecedent_io_core::transport_identification_to_wire(value: &antecedent_i
 pub mod antecedent_io_core::adaptive_monitoring_contract_artifact
 pub mod antecedent_io_core::admitted_json
 pub mod antecedent_io_core::analysis_result_artifact
+pub mod antecedent_io_core::analysis_result_artifact::rollout_support
+pub mod antecedent_io_core::analysis_result_artifact::stated_section_rows
 pub mod antecedent_io_core::analysis_wire
 pub mod antecedent_io_core::artifact_codec
 pub mod antecedent_io_core::bayesian_prior_recalc_artifact
@@ -16580,6 +16629,7 @@ pub struct antecedent_io_core::analysis_result_artifact::MultiActionCateWire
 pub struct antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 pub struct antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 pub struct antecedent_io_core::analysis_result_artifact::TemporalDesignWire
+pub struct antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a>
 pub struct antecedent_io_core::analysis_wire::BorrowedIdentificationWire has private fields
 pub struct antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a>
 pub struct antecedent_io_core::analysis_wire::HedgeProblemWire
@@ -16817,6 +16867,7 @@ pub struct antecedent_io_core::graph_networkx::NetworkXAdjNeighbor
 pub struct antecedent_io_core::graph_networkx::NetworkXLink
 pub struct antecedent_io_core::graph_networkx::NetworkXNode
 pub struct antecedent_io_core::graphless_support::GraphlessAssignmentSupport
+pub struct antecedent_io_core::graphless_support::GraphlessResampleSupport
 pub struct antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 pub struct antecedent_io_core::identity::IdentityMarkedEdgeWire
 pub struct antecedent_io_core::identity::TemporalAdmgIdentityWire

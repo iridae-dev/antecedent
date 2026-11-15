@@ -12956,6 +12956,7 @@ pub const <antecedent_estimate::TransportIntervalReason>::ALL: [Self; 6]
 pub const <antecedent_estimate::temporal_dependent_interval::ObservedStateSequence>::LABEL: &'static str
 pub const <antecedent_estimate::temporal_initial_state::FixedStateEffect>::LABEL: &'static str
 pub const <antecedent_estimate::temporal_initial_state::MarginalizedEffect>::LABEL: &'static str
+pub const antecedent_estimate::CLUSTER_DIRICHLET_MIN_ARM_CLUSTERS: usize
 pub const antecedent_estimate::DEFAULT_AIPW_FOLDS: usize
 pub const antecedent_estimate::DEFAULT_MIN_CLUSTERS: usize
 pub const antecedent_estimate::DEFAULT_MIN_COMPONENTS_PER_FOLD: usize
@@ -12966,6 +12967,8 @@ pub const antecedent_estimate::EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP: &str
 pub const antecedent_estimate::EMPIRICAL_TABLE_PLUGIN: &str
 pub const antecedent_estimate::GENERALIZED_PROPENSITY_PROVENANCE: &str
 pub const antecedent_estimate::INTERVAL_NUMERICAL_FAILURE: &str
+pub const antecedent_estimate::JOINT_HORIZON_DISPERSION: &str
+pub const antecedent_estimate::JOINT_HORIZON_INFLUENCE: &str
 pub const antecedent_estimate::JOINT_HORIZON_LAYOUT: &str
 pub const antecedent_estimate::JOINT_HORIZON_REPLICATES: &str
 pub const antecedent_estimate::KNN_DISTANCE_MATCHING_CONSTRUCTION: &str
@@ -15713,6 +15716,7 @@ pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::attritio
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::balanced: bool
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::clusters: usize
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::cohort_support: alloc::vec::Vec<antecedent_estimate::heterogeneity_robust_did::CohortSupport>
+pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::comparison_propensity_max: core::option::Option<f64>
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::dropped_cohorts: alloc::vec::Vec<i64>
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::dropped_rows: usize
 pub field antecedent_estimate::heterogeneity_robust_did::RolloutDidFit::dropped_units: usize
@@ -16509,6 +16513,7 @@ pub field antecedent_estimate::local_ratio_design::LocalRatioDesignFit::fit: ant
 pub field antecedent_estimate::local_ratio_design::LocalRatioDesignFit::temporal: core::option::Option<antecedent_estimate::local_ratio_design::TemporalBlockRecord>
 pub field antecedent_estimate::local_ratio_design::TemporalBlockRecord::block_length: usize
 pub field antecedent_estimate::local_ratio_design::TemporalBlockRecord::ratio: antecedent_estimate::rollout_resampling::ReplicateQuantity
+pub field antecedent_estimate::local_ratio_design::TemporalBlockRecord::reference_degrees_of_freedom: core::option::Option<f64>
 pub field antecedent_estimate::local_ratio_design::TemporalBlockRecord::replicates_failed: u32
 pub field antecedent_estimate::local_ratio_design::TemporalBlockRecord::replicates_ok: u32
 pub field antecedent_estimate::local_ratio_design::TemporalBlockRecord::requested: u32
@@ -19477,6 +19482,7 @@ pub fn antecedent_estimate::ancova::small_arm_interval_any_covariates_95(outcome
 pub fn antecedent_estimate::assemble_point_laws(input: &antecedent_estimate::StatisticalTransportInput, functional: &antecedent_identify::sid::BoundTransportFunctional, options: &antecedent_estimate::EmpiricalTableOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_expr::exact::transport::ExactTransportData, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::augmented_panel_did::estimate(pre: &[f64], post: &[f64], treated: &[bool], propensity: &[f64], prediction: &[f64]) -> core::result::Result<antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit, &'static str>
 pub fn antecedent_estimate::augmented_panel_did::resample_augmented_panel(pre: &[f64], post: &[f64], treated: &[bool], propensity: &[f64], prediction: &[f64], clusters: &[alloc::sync::Arc<str>], weighting: antecedent_estimate::rollout_resampling::UnitWeighting, replicates: u32, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit, antecedent_estimate::rollout_resampling::ReplicateSummary), antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::augmented_panel_did::resample_interval_95(point: f64, standard_error: f64, replicates_ok: u32) -> core::option::Option<[f64; 2]>
 pub fn antecedent_estimate::bayesian::coefficient_covariance_from_draws(quantities: &[antecedent_prob::posterior::PosteriorQuantityKind], draws_colmajor: &[f64], n_draws: usize) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::bayesian::endpoint_mcse_from_notes(notes: &[alloc::sync::Arc<str>]) -> core::option::Option<antecedent_estimate::EndpointMonteCarloError>
 pub fn antecedent_estimate::bayesian::endpoint_monte_carlo_error(posterior: &antecedent_estimate::CausalPosterior) -> core::result::Result<antecedent_estimate::EndpointMonteCarloError, antecedent_estimate::EstimationError>
@@ -19628,6 +19634,7 @@ pub fn antecedent_estimate::empirical_table::validate_options(options: &antecede
 pub fn antecedent_estimate::empirical_threshold_grid(y: &[f64], points: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::endpoint_components(first: &[u32], second: &[u32]) -> alloc::vec::Vec<u32>
 pub fn antecedent_estimate::estimate_cluster_interference_bayesian_bootstrap(query: &antecedent_core::query::interference::InterferenceQuery, data: &antecedent_data::network::NetworkData, assignment: &[bool], options: antecedent_estimate::score_posterior::ScorePosteriorOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_estimate::InterferenceEstimate, antecedent_estimate::score_posterior::ScorePosterior), antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::estimate_cluster_interference_small_arm_posterior(query: &antecedent_core::query::interference::InterferenceQuery, data: &antecedent_data::network::NetworkData, assignment: &[bool], options: antecedent_estimate::score_posterior::ScorePosteriorOptions) -> core::result::Result<core::option::Option<(antecedent_estimate::InterferenceEstimate, antecedent_estimate::score_posterior::ScorePosterior)>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::estimate_cluster_interference_total(query: &antecedent_core::query::interference::InterferenceQuery, data: &antecedent_data::network::NetworkData, assignment: &[bool]) -> core::result::Result<antecedent_estimate::InterferenceEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::estimate_cluster_interference_total_with_inference(query: &antecedent_core::query::interference::InterferenceQuery, data: &antecedent_data::network::NetworkData, assignment: &[bool]) -> core::result::Result<(antecedent_estimate::InterferenceEstimate, core::option::Option<antecedent_estimate::ClusterTotalInterval>), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::estimate_interference(query: &antecedent_core::query::interference::InterferenceQuery, data: &antecedent_data::network::NetworkData, assignment: &[bool], seed: u64) -> core::result::Result<antecedent_estimate::InterferenceEstimate, antecedent_estimate::EstimationError>
@@ -19939,6 +19946,7 @@ pub fn antecedent_estimate::rollout_resampling::unit_weights(weighting: antecede
 pub fn antecedent_estimate::row_block_bootstrap_vec(rows: usize, block_length: usize, replicates: u32, stream_base: u64, ctx: &antecedent_core::execution::context::ExecutionContext, estimate: impl core::ops::function::FnMut(&[usize]) -> core::option::Option<alloc::vec::Vec<f64>>) -> antecedent_estimate::RowBlockDraws
 pub fn antecedent_estimate::sampling_weights::invalid(message: &str) -> antecedent_estimate::EstimationError
 pub fn antecedent_estimate::sampling_weights::unsupported_route(message: &str) -> antecedent_estimate::EstimationError
+pub fn antecedent_estimate::scale_series_draws_to_ewc(draws: &mut [f64], (outcome, treatment, trial): (&[f64], &[bool], &[bool]), (selection_probability, treatment_probability): (&[f64], &[f64])) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::scenario_covariance::covariance_estimator_moments(replicates: &[f64], weights: &[f64], k: usize, correction: f64, n_rows: usize) -> core::option::Option<(alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)>
 pub fn antecedent_estimate::scenario_covariance::exact_enumeration_covariance(scenarios: &[antecedent_estimate::scenario_covariance::ScenarioRowEstimator], options: &antecedent_estimate::scenario_covariance::ExactEnumerationOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::scenario_covariance::exact_or_bootstrap_covariance(scenarios: &[antecedent_estimate::scenario_covariance::ScenarioRowEstimator], exact: &antecedent_estimate::scenario_covariance::ExactEnumerationOptions, bootstrap: &antecedent_estimate::scenario_covariance::SharedRowBootstrapOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_estimate::EstimationError>
@@ -19955,6 +19963,7 @@ pub fn antecedent_estimate::serial_dependence::tempering_capped_from_notes(notes
 pub fn antecedent_estimate::serial_dependence::tempering_inestimable_from_notes(notes: &[alloc::sync::Arc<str>]) -> bool
 pub fn antecedent_estimate::serial_dependence::tempering_kappa_from_notes(notes: &[alloc::sync::Arc<str>]) -> core::option::Option<f64>
 pub fn antecedent_estimate::serial_dependence::window_segments(complete: &[bool]) -> alloc::sync::Arc<[u32]>
+pub fn antecedent_estimate::series_ewc_terms(rows: usize) -> usize
 pub fn antecedent_estimate::shared_mediation_block_bootstrap(atoms: &[&antecedent_estimate::PreparedTemporalMediation], weights: &[f64], contrast: antecedent_core::query::mediation::MediationContrast, replicates: u32, stream_base: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::option::Option<antecedent_estimate::SharedMediationBlockSe>
 pub fn antecedent_estimate::single_temporal_intervention(query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<core::option::Option<(antecedent_core::ids::VariableId, core::option::Option<f64>, f64)>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::smoothed_dose::smoothed_dose_estimator_menu(id: &antecedent_identify::transport::TransportIdentification, query: &antecedent_core::query::smoothed_dose::SmoothedDoseTransportQuery, options: core::option::Option<&antecedent_estimate::SmoothedDoseOptions>, sampling: core::option::Option<antecedent_estimate::TrialSampling>) -> antecedent_estimate::EstimatorMenu
@@ -20054,8 +20063,10 @@ pub fn antecedent_estimate::transport::trial_to_target_bayesian_bootstrap(identi
 pub fn antecedent_estimate::transport::trial_to_target_bayesian_bootstrap_blocks(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], (sampling, block): (antecedent_estimate::DrawSpec, core::option::Option<usize>)) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_to_target_effect(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], outcome_regressions: core::option::Option<(&[f64], &[f64])>) -> core::result::Result<antecedent_estimate::TransportEffectEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_to_target_effect_with_context(identification: &antecedent_identify::transport::TransportIdentification, outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], outcome_regressions: core::option::Option<(&[f64], &[f64])>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::TransportEffectEstimate, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::transport::trial_to_target_ipw_ewc_se(outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], ipw: f64) -> core::result::Result<(f64, usize), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_to_target_ipw_hac_se(outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], (ipw, lag): (f64, usize)) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport::trial_to_target_ipw_se(outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64], ipw: f64) -> core::result::Result<f64, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::transport::trial_to_target_series_block_length(outcome: &[f64], treatment: &[bool], trial: &[bool], selection_probability: &[f64], treatment_probability: &[f64]) -> core::result::Result<usize, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport_estimator_menu(id: &antecedent_identify::transport::TransportIdentification, query: &antecedent_core::query::transport::TransportQuery, learners: core::option::Option<(antecedent_learn::spec::LearnerSpec, antecedent_learn::spec::LearnerSpec)>) -> antecedent_estimate::EstimatorMenu
 pub fn antecedent_estimate::transport_scenarios::prepare_empirical_transport_scenarios(decision: antecedent_identify::sid::scenarios::ScenarioSetDecision, input: antecedent_estimate::StatisticalTransportInput, max_joint_cells: usize, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::transport_scenarios::PreparedScenarioSet, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::transport_scenarios::prepare_transport_scenarios(decision: antecedent_identify::sid::scenarios::ScenarioSetDecision, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::transport_scenarios::PreparedScenarioSet, antecedent_estimate::EstimationError>
@@ -21722,6 +21733,8 @@ pub use antecedent_estimate::transport::prepare_exact_transport = antecedent_est
 pub use antecedent_estimate::transport::prepare_exact_z_transport = antecedent_estimate::prepare_exact_z_transport
 pub use antecedent_estimate::transport::refuse_cancelled = antecedent_estimate::refuse_cancelled
 pub use antecedent_estimate::transport::refuse_eval = antecedent_estimate::refuse_eval
+pub use antecedent_estimate::transport::scale_series_draws_to_ewc = antecedent_estimate::scale_series_draws_to_ewc
+pub use antecedent_estimate::transport::series_ewc_terms = antecedent_estimate::series_ewc_terms
 pub use antecedent_estimate::transport_augmented_response_grid = antecedent_estimate::transport::transport_augmented_response_grid
 pub use antecedent_estimate::transport_augmented_response_grid_with_context = antecedent_estimate::transport::transport_augmented_response_grid_with_context
 pub use antecedent_estimate::transport_outcome_kind = antecedent_estimate::transport::transport_outcome_kind
@@ -21730,8 +21743,10 @@ pub use antecedent_estimate::trial_to_target_bayesian_bootstrap = antecedent_est
 pub use antecedent_estimate::trial_to_target_bayesian_bootstrap_blocks = antecedent_estimate::transport::trial_to_target_bayesian_bootstrap_blocks
 pub use antecedent_estimate::trial_to_target_effect = antecedent_estimate::transport::trial_to_target_effect
 pub use antecedent_estimate::trial_to_target_effect_with_context = antecedent_estimate::transport::trial_to_target_effect_with_context
+pub use antecedent_estimate::trial_to_target_ipw_ewc_se = antecedent_estimate::transport::trial_to_target_ipw_ewc_se
 pub use antecedent_estimate::trial_to_target_ipw_hac_se = antecedent_estimate::transport::trial_to_target_ipw_hac_se
 pub use antecedent_estimate::trial_to_target_ipw_se = antecedent_estimate::transport::trial_to_target_ipw_se
+pub use antecedent_estimate::trial_to_target_series_block_length = antecedent_estimate::transport::trial_to_target_series_block_length
 pub use antecedent_estimate::util::BootstrapSeResult = antecedent_estimate::BootstrapSeResult
 pub use antecedent_estimate::util::DrawSpec = antecedent_estimate::DrawSpec
 pub use antecedent_estimate::util::IntervalRequest = antecedent_estimate::IntervalRequest
@@ -21754,6 +21769,7 @@ pub variant antecedent_estimate::AnalyticSeKind::Homoskedastic
 pub variant antecedent_estimate::AnalyticSeKind::Multiway
 pub variant antecedent_estimate::AnalyticSeKind::NeweyWest { lag: usize }
 pub variant antecedent_estimate::AnalyticSeKind::PanelClusterHac { lag: usize }
+pub variant antecedent_estimate::AnalyticSeKind::SeriesEwc { terms: usize }
 pub variant antecedent_estimate::AssociationAnalysis::DistanceCorrelation
 pub variant antecedent_estimate::AssociationAnalysis::LinearRegression
 pub variant antecedent_estimate::AssociationAnalysis::LogisticRegression

@@ -3806,13 +3806,16 @@ pub fn antecedent_validate::rosenbaum_vector_range(target: antecedent_validate::
 pub fn antecedent_validate::run_target_plan(plan: &antecedent_validate::TargetRefutationPlan, refit: &dyn antecedent_validate::TargetRefit, config: &antecedent_validate::target_native::TargetRefutationConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::target_native::TargetRefutationRun, antecedent_validate::ValidationError>
 pub fn antecedent_validate::staleness::dependency_class(stage: antecedent_core::recalc::Stage) -> core::option::Option<antecedent_io_core::dependency_key::DependencyClass>
 pub fn antecedent_validate::staleness::snapshot_identity(data: &antecedent_data::dataset::TabularData) -> alloc::string::String
+pub fn antecedent_validate::target_native::effective_covariance_df(replicates: usize, independent_units: core::option::Option<usize>) -> f64
 pub fn antecedent_validate::target_native::finite_difference_consistency(response: impl core::ops::function::FnMut(f64) -> core::result::Result<f64, antecedent_validate::ValidationError>, points: &[antecedent_validate::target_native::DerivativeCheckPoint], step: f64, tolerance: f64) -> core::result::Result<antecedent_validate::target_native::DerivativeConsistency, antecedent_validate::ValidationError>
 pub fn antecedent_validate::target_native::joint_mahalanobis(expected: &[f64], replicates: &[f64], k: usize) -> core::result::Result<antecedent_validate::target_native::JointStatistic, antecedent_validate::ValidationError>
 pub fn antecedent_validate::target_native::joint_mahalanobis_with_bias(expected: &[f64], replicates: &[f64], k: usize) -> core::result::Result<(antecedent_validate::target_native::JointStatistic, alloc::vec::Vec<f64>), antecedent_validate::ValidationError>
 pub fn antecedent_validate::target_native::local_linearity(response: impl core::ops::function::FnMut(f64) -> core::result::Result<f64, antecedent_validate::ValidationError>, points: &[f64], step: f64, tolerance: f64, slope_floor: f64) -> core::result::Result<antecedent_validate::target_native::LocalLinearity, antecedent_validate::ValidationError>
 pub fn antecedent_validate::target_native::posterior_predictive_target_check(input: &antecedent_validate::target_native::PosteriorPredictiveTarget<'_>) -> core::result::Result<antecedent_validate::TargetRefutationReport, antecedent_validate::ValidationError>
 pub fn antecedent_validate::target_native::prior_sensitivity_target_check(input: &antecedent_validate::target_native::PriorSensitivityTarget<'_>) -> core::result::Result<antecedent_validate::TargetRefutationReport, antecedent_validate::ValidationError>
+pub fn antecedent_validate::target_native::replicate_reference_tail(value: f64, k: usize, replicates: usize, independent_units: core::option::Option<usize>) -> core::option::Option<f64>
 pub fn antecedent_validate::target_native::retain_target_reports(reports: &[antecedent_validate::TargetRefutationReport], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::target_native::RetainedTargetReports, antecedent_validate::ValidationError>
+pub fn antecedent_validate::target_native::robust_spread_discrepancy(expected: &[f64], replicates: &[f64], k: usize) -> f64
 pub fn antecedent_validate::target_native::target_refuter_stream(kind: antecedent_validate::TargetRefuterKind, replicate: u32, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_core::execution::rng::CausalRng
 pub mod antecedent_validate::assumption_range
 pub mod antecedent_validate::bayesian_checks
@@ -4038,6 +4041,7 @@ pub trait antecedent_validate::Validator<A>: antecedent_validate::validator::sea
 pub trait antecedent_validate::common::EffectRefit: core::fmt::Debug
 pub trait fn fn antecedent_validate::CustomEffectValidator::name(&self) -> &str
 pub trait fn fn antecedent_validate::CustomEffectValidator::validate(&self, problem: &antecedent_validate::RefutationProblem<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
+pub trait fn fn antecedent_validate::TargetRefit::independent_resampling_units(&self) -> core::option::Option<usize> {default}
 pub trait fn fn antecedent_validate::TargetRefit::native_check(&self, kind: antecedent_validate::TargetRefuterKind, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::TargetRefutationReport, antecedent_validate::target_native::TargetRefitError> {default}
 pub trait fn fn antecedent_validate::TargetRefit::original(&self) -> &[f64]
 pub trait fn fn antecedent_validate::TargetRefit::refit(&self, perturbation: antecedent_validate::target_native::TargetPerturbation, rng: &mut antecedent_core::execution::rng::CausalRng, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_validate::target_native::TargetRefitError>
@@ -4497,9 +4501,11 @@ pub variant antecedent_validate::staleness::implications::GraphImplications::Lis
 pub variant antecedent_validate::staleness::implications::GraphImplications::Unavailable(alloc::string::String)
 pub variant antecedent_validate::target_native::JointStatisticKind::BreakEven
 pub variant antecedent_validate::target_native::JointStatisticKind::MahalanobisChiSquare
+pub variant antecedent_validate::target_native::JointStatisticKind::MahalanobisHotelling
 pub variant antecedent_validate::target_native::JointStatisticKind::MaxStandardizedDiscrepancy
 pub variant antecedent_validate::target_native::JointStatisticKind::PosteriorShift
 pub variant antecedent_validate::target_native::JointStatisticKind::PredictiveTail
+pub variant antecedent_validate::target_native::JointStatisticKind::RobustMahalanobisHotelling
 pub variant antecedent_validate::target_native::RefuterExpectation::Diagnostic
 pub variant antecedent_validate::target_native::RefuterExpectation::Null
 pub variant antecedent_validate::target_native::RefuterExpectation::Original

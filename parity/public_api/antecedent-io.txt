@@ -6150,7 +6150,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::vector_treatment_a
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::z_transport_artifact::ZTransportArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::z_transport_artifact::ZTransportPointWire
 pub const <antecedent_io::release_migration::IntentionalBreak>::ALL: [Self; 7]
-pub const <antecedent_io::release_migration::ManifestRouteStatus>::ALL: [Self; 5]
+pub const <antecedent_io::release_migration::ManifestRouteStatus>::ALL: [Self; 6]
 pub const <antecedent_io::release_migration::RouteAxis>::ALL: [Self; 4]
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_RETAINED_BYTES: u64
 pub const <antecedent_io::stream_artifact::StreamBounds>::DEFAULT_MAX_SECTIONS: u32
@@ -11083,6 +11083,7 @@ pub variant antecedent_io::AnalyticSeKindWire::Homoskedastic
 pub variant antecedent_io::AnalyticSeKindWire::Multiway
 pub variant antecedent_io::AnalyticSeKindWire::NeweyWest { lag: u64 }
 pub variant antecedent_io::AnalyticSeKindWire::PanelClusterHac { lag: u64 }
+pub variant antecedent_io::AnalyticSeKindWire::SeriesEwc { terms: u64 }
 pub variant antecedent_io::BlockFamilyWire::Mediation
 pub variant antecedent_io::BlockFamilyWire::Mixture
 pub variant antecedent_io::BlockFamilyWire::RowBlock
@@ -11463,6 +11464,7 @@ pub variant antecedent_io::release_migration::IntentionalBreak::RouteWithoutCurr
 pub variant antecedent_io::release_migration::IntentionalBreak::ScientificTargetDigest
 pub variant antecedent_io::release_migration::IntentionalBreak::ScoreRowIdWidth
 pub variant antecedent_io::release_migration::IntentionalBreak::SupportNotCarried
+pub variant antecedent_io::release_migration::ManifestRouteStatus::Capability
 pub variant antecedent_io::release_migration::ManifestRouteStatus::ExecutionOnly
 pub variant antecedent_io::release_migration::ManifestRouteStatus::FittingGap
 pub variant antecedent_io::release_migration::ManifestRouteStatus::Graphless

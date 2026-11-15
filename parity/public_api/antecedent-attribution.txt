@@ -601,6 +601,7 @@ pub field antecedent_attribution::UnitChangeResult::unit_rows: alloc::sync::Arc<
 pub fn <antecedent_attribution::AttributionError>::const fn invalid_input(message: &'static str) -> Self
 pub fn <antecedent_attribution::AttributionError>::const fn missing_var(kind: &'static str, id: antecedent_core::ids::VariableId) -> Self
 pub fn <antecedent_attribution::AttributionError>::const fn unsupported(message: &'static str) -> Self
+pub fn <antecedent_attribution::AttributionError>::fn refused(code: &'static str, detail: &'static str, message: impl core::fmt::Display) -> Self
 pub fn <antecedent_attribution::ChangeAttribution>::const fn components(self, components: antecedent_core::query::attribution::AttributionComponents) -> Self
 pub fn <antecedent_attribution::ChangeAttribution>::const fn outcome(self, outcome: antecedent_core::ids::VariableId) -> Self
 pub fn <antecedent_attribution::ChangeAttribution>::const fn robust(self, robust: bool) -> Self

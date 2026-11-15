@@ -4541,6 +4541,7 @@ pub fn <antecedent_stats::ci::CovarianceCiSession<'a>>::fn try_test(&self, query
 pub fn <antecedent_stats::continuous_error::OutcomeFamily>::const fn as_str(self) -> &'static str
 pub fn <antecedent_stats::continuous_error::SimexConfig>::fn validate(&self) -> core::result::Result<(), antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::continuous_error::SimexExtrapolant>::const fn as_str(self) -> &'static str
+pub fn <antecedent_stats::continuous_error::SimexExtrapolant>::const fn resolve(self, family: antecedent_stats::continuous_error::OutcomeFamily) -> Self
 pub fn <antecedent_stats::dcor::DistanceY>::const fn is_defined(&self) -> bool
 pub fn <antecedent_stats::dcor::DistanceY>::fn correlate(&self, x: &[f64]) -> f64
 pub fn <antecedent_stats::dcor::DistanceY>::fn correlate_or_zero_without_spread(&self, x: &[f64]) -> f64
@@ -5942,8 +5943,10 @@ pub variant antecedent_stats::ci::AttainableP::NonparametricPermutation
 pub variant antecedent_stats::ci::AttainableP::Zero
 pub variant antecedent_stats::continuous_error::OutcomeFamily::Linear
 pub variant antecedent_stats::continuous_error::OutcomeFamily::Logistic
+pub variant antecedent_stats::continuous_error::SimexExtrapolant::Automatic
 pub variant antecedent_stats::continuous_error::SimexExtrapolant::Linear
 pub variant antecedent_stats::continuous_error::SimexExtrapolant::Quadratic
+pub variant antecedent_stats::continuous_error::SimexExtrapolant::Rational
 pub variant antecedent_stats::faer_scope::FaerScopeError::ScratchOverBudget { required_bytes: u64, budget_bytes: u64 }
 pub variant antecedent_stats::faer_scope::FaerScopeError::ScratchOverflow
 pub variant antecedent_stats::faer_scope::FaerScopeError::ZeroWorkers

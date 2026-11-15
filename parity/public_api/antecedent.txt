@@ -737,6 +737,7 @@ impl core::clone::Clone for antecedent::analysis::file_table::SummaryMissing
 impl core::clone::Clone for antecedent::analysis::graph_imputation::GraphImputationExpectation
 impl core::clone::Clone for antecedent::analysis::graph_imputation::GraphImputationSpec
 impl core::clone::Clone for antecedent::analysis::horizon_composition::ComposedHorizons
+impl core::clone::Clone for antecedent::analysis::horizon_composition::HorizonCompositionInterval
 impl core::clone::Clone for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::clone::Clone for antecedent::analysis::inverse_sources::ComposedActionQuery
 impl core::clone::Clone for antecedent::analysis::inverse_sources::ComposedSourceRefusal
@@ -1698,6 +1699,7 @@ impl core::cmp::PartialEq for antecedent::analysis::file_table::RowFault
 impl core::cmp::PartialEq for antecedent::analysis::file_table::SummaryMissing
 impl core::cmp::PartialEq for antecedent::analysis::graph_imputation::GraphImputationExpectation
 impl core::cmp::PartialEq for antecedent::analysis::horizon_composition::ComposedHorizons
+impl core::cmp::PartialEq for antecedent::analysis::horizon_composition::HorizonCompositionInterval
 impl core::cmp::PartialEq for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::cmp::PartialEq for antecedent::analysis::inverse_sources::ComposedActionQuery
 impl core::cmp::PartialEq for antecedent::analysis::inverse_sources::ComposedSourceRefusal
@@ -2714,6 +2716,7 @@ impl core::fmt::Debug for antecedent::analysis::graph_imputation::GraphImputatio
 impl core::fmt::Debug for antecedent::analysis::graph_imputation::GraphImputationExpectation
 impl core::fmt::Debug for antecedent::analysis::graph_imputation::GraphImputationSpec
 impl core::fmt::Debug for antecedent::analysis::horizon_composition::ComposedHorizons
+impl core::fmt::Debug for antecedent::analysis::horizon_composition::HorizonCompositionInterval
 impl core::fmt::Debug for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::fmt::Debug for antecedent::analysis::inverse_sources::ComposedActionQuery
 impl core::fmt::Debug for antecedent::analysis::inverse_sources::ComposedSourceRefusal
@@ -3960,6 +3963,7 @@ impl core::marker::Freeze for antecedent::analysis::graph_imputation::GraphImput
 impl core::marker::Freeze for antecedent::analysis::graph_imputation::GraphImputationExpectation [auto]
 impl core::marker::Freeze for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::marker::Freeze for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::marker::Freeze for antecedent::analysis::horizon_composition::HorizonCompositionInterval [auto]
 impl core::marker::Freeze for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Freeze for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::marker::Freeze for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
@@ -4939,6 +4943,7 @@ impl core::marker::Send for antecedent::analysis::graph_imputation::GraphImputat
 impl core::marker::Send for antecedent::analysis::graph_imputation::GraphImputationPoint [auto]
 impl core::marker::Send for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::marker::Send for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::marker::Send for antecedent::analysis::horizon_composition::HorizonCompositionInterval [auto]
 impl core::marker::Send for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Send for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::marker::Send for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
@@ -5702,6 +5707,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::file_table::Row
 impl core::marker::StructuralPartialEq for antecedent::analysis::file_table::SummaryMissing
 impl core::marker::StructuralPartialEq for antecedent::analysis::graph_imputation::GraphImputationExpectation
 impl core::marker::StructuralPartialEq for antecedent::analysis::horizon_composition::ComposedHorizons
+impl core::marker::StructuralPartialEq for antecedent::analysis::horizon_composition::HorizonCompositionInterval
 impl core::marker::StructuralPartialEq for antecedent::analysis::horizon_composition::HorizonDraws
 impl core::marker::StructuralPartialEq for antecedent::analysis::inverse_sources::ComposedActionQuery
 impl core::marker::StructuralPartialEq for antecedent::analysis::inverse_sources::ComposedSourceRefusal
@@ -6485,6 +6491,7 @@ impl core::marker::Sync for antecedent::analysis::graph_imputation::GraphImputat
 impl core::marker::Sync for antecedent::analysis::graph_imputation::GraphImputationPoint [auto]
 impl core::marker::Sync for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::marker::Sync for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::marker::Sync for antecedent::analysis::horizon_composition::HorizonCompositionInterval [auto]
 impl core::marker::Sync for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Sync for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::marker::Sync for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
@@ -7466,6 +7473,7 @@ impl core::marker::Unpin for antecedent::analysis::graph_imputation::GraphImputa
 impl core::marker::Unpin for antecedent::analysis::graph_imputation::GraphImputationPoint [auto]
 impl core::marker::Unpin for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::marker::Unpin for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::marker::Unpin for antecedent::analysis::horizon_composition::HorizonCompositionInterval [auto]
 impl core::marker::Unpin for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::marker::Unpin for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::marker::Unpin for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
@@ -8432,6 +8440,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::graph_imp
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::graph_imputation::GraphImputationExpectation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::horizon_composition::HorizonCompositionInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
@@ -9361,6 +9370,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::graph_imputa
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::graph_imputation::GraphImputationExpectation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::graph_imputation::GraphImputationSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::horizon_composition::ComposedHorizons [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::horizon_composition::HorizonCompositionInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::horizon_composition::HorizonDraws [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::inverse_sources::ComposedSourceRefusal [auto]
@@ -10178,6 +10188,16 @@ impl<S> core::marker::Sync for antecedent::PreparedStudy<S> where S: core::marke
 impl<S> core::marker::Unpin for antecedent::PreparedStudy<S> where S: core::marker::Unpin [auto]
 impl<S> core::panic::unwind_safe::RefUnwindSafe for antecedent::PreparedStudy<S> where S: core::panic::unwind_safe::RefUnwindSafe [auto]
 impl<S> core::panic::unwind_safe::UnwindSafe for antecedent::PreparedStudy<S> where S: core::panic::unwind_safe::UnwindSafe [auto]
+impl<T: core::clone::Clone> core::clone::Clone for antecedent::analysis::joint_panel::JointResponseReading<T>
+impl<T: core::cmp::PartialEq> core::cmp::PartialEq for antecedent::analysis::joint_panel::JointResponseReading<T>
+impl<T: core::fmt::Debug> core::fmt::Debug for antecedent::analysis::joint_panel::JointResponseReading<T>
+impl<T> core::marker::Freeze for antecedent::analysis::joint_panel::JointResponseReading<T> where T: core::marker::Freeze [auto]
+impl<T> core::marker::Send for antecedent::analysis::joint_panel::JointResponseReading<T> where T: core::marker::Send [auto]
+impl<T> core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::JointResponseReading<T>
+impl<T> core::marker::Sync for antecedent::analysis::joint_panel::JointResponseReading<T> where T: core::marker::Sync [auto]
+impl<T> core::marker::Unpin for antecedent::analysis::joint_panel::JointResponseReading<T> where T: core::marker::Unpin [auto]
+impl<T> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::JointResponseReading<T> where T: core::panic::unwind_safe::RefUnwindSafe [auto]
+impl<T> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::JointResponseReading<T> where T: core::panic::unwind_safe::UnwindSafe [auto]
 macro antecedent::compile_reason!
 macro antecedent::support_reason!
 macro antecedent::unsupported_reason!
@@ -10232,9 +10252,13 @@ pub const antecedent::analysis::discovered_transport_estimate::MAX_JOINT_CELLS: 
 pub const antecedent::analysis::evidence_plan::STUDY_POPULATION: &str
 pub const antecedent::analysis::fallback::NONCAUSAL_NOTICE: &str
 pub const antecedent::analysis::file_table::INTERCEPT_COLUMN: &str
+pub const antecedent::analysis::horizon_composition::HORIZON_BLOCK_BOOTSTRAP_INTERVAL: &str
+pub const antecedent::analysis::horizon_composition::HORIZON_BLOCK_WEIGHT_INTERVAL: &str
+pub const antecedent::analysis::horizon_composition::HORIZON_INTERVAL_LEVEL: f64
 pub const antecedent::analysis::joint_law_composed_basis::COMPOSED_LEVEL: f64
 pub const antecedent::analysis::joint_law_composed_basis::COMPOSED_QUERY: &str
 pub const antecedent::analysis::joint_panel::DEFAULT_TILE_DRAWS: usize
+pub const antecedent::analysis::joint_panel::JOINT_RESPONSE_QUERY: &str
 pub const antecedent::analysis::joint_panel::designs::MAX_DESIGN_ARTIFACT_BYTES: usize
 pub const antecedent::analysis::missing_support::ALL_QUERY_KINDS: [antecedent_core::query::variants::CausalQueryKind; 31]
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_ADJUSTMENT_BASIS: &str
@@ -12241,6 +12265,17 @@ pub field antecedent::analysis::horizon_composition::ComposedHorizons::draws: al
 pub field antecedent::analysis::horizon_composition::ComposedHorizons::label: &'static str
 pub field antecedent::analysis::horizon_composition::ComposedHorizons::plan: antecedent_contract::joint_law_rule::PropagationPlan
 pub field antecedent::analysis::horizon_composition::ComposedHorizons::spread: antecedent_stats::joint_law::DrawSpread
+pub field antecedent::analysis::horizon_composition::HorizonCompositionInterval::center: f64
+pub field antecedent::analysis::horizon_composition::HorizonCompositionInterval::composed: antecedent::analysis::horizon_composition::ComposedHorizons
+pub field antecedent::analysis::horizon_composition::HorizonCompositionInterval::construction: &'static str
+pub field antecedent::analysis::horizon_composition::HorizonCompositionInterval::effective_blocks: core::option::Option<f64>
+pub field antecedent::analysis::horizon_composition::HorizonCompositionInterval::kernel_factor: f64
+pub field antecedent::analysis::horizon_composition::HorizonCompositionInterval::level: f64
+pub field antecedent::analysis::horizon_composition::HorizonCompositionInterval::lower: f64
+pub field antecedent::analysis::horizon_composition::HorizonCompositionInterval::replicates: usize
+pub field antecedent::analysis::horizon_composition::HorizonCompositionInterval::rows: u64
+pub field antecedent::analysis::horizon_composition::HorizonCompositionInterval::standard_error: f64
+pub field antecedent::analysis::horizon_composition::HorizonCompositionInterval::upper: f64
 pub field antecedent::analysis::horizon_composition::HorizonDraws::alignment_id: alloc::string::String
 pub field antecedent::analysis::horizon_composition::HorizonDraws::center: alloc::vec::Vec<f64>
 pub field antecedent::analysis::horizon_composition::HorizonDraws::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
@@ -12409,6 +12444,9 @@ pub field antecedent::analysis::joint_panel::JointPanelWorldSupport::identified:
 pub field antecedent::analysis::joint_panel::JointPanelWorldSupport::matched_groups: alloc::vec::Vec<alloc::string::String>
 pub field antecedent::analysis::joint_panel::JointPanelWorldSupport::reason: alloc::string::String
 pub field antecedent::analysis::joint_panel::JointPanelWorldSupport::world: antecedent_core::scientific_target::model::ScientificWorldId
+pub field antecedent::analysis::joint_panel::JointResponseReading::basis: antecedent_core::calibration_basis::CalibrationBasis
+pub field antecedent::analysis::joint_panel::JointResponseReading::bounds: T
+pub field antecedent::analysis::joint_panel::JointResponseReading::calibration: antecedent_io_core::contract_section::CalibrationSlotWire
 pub field antecedent::analysis::joint_panel::LawExperimentLimits::max_bytes: usize
 pub field antecedent::analysis::joint_panel::LocalRatioGaussianRegularization::assumption: alloc::string::String
 pub field antecedent::analysis::joint_panel::LocalRatioGaussianRegularization::max_abs_intercept: f64
@@ -14744,6 +14782,7 @@ pub fn <antecedent::StudyResult>::fn sequential_contrast(&self) -> core::option:
 pub fn <antecedent::StudyResult>::fn set_borrowed_input_bytes(&mut self, bytes: core::option::Option<u64>)
 pub fn <antecedent::StudyResult>::fn simulation(&self) -> core::option::Option<&antecedent::SimulationPayload>
 pub fn <antecedent::StudyResult>::fn simultaneous_band_binding(&self, bayesian: bool) -> core::option::Option<antecedent::result::IntervalBinding>
+pub fn <antecedent::StudyResult>::fn states_section_row(&self) -> bool
 pub fn <antecedent::StudyResult>::fn static_result_wire(&self, query: &antecedent_core::query::variants::CausalQuery, registry: core::option::Option<&antecedent_core::query::population::PopulationRegistry>) -> core::result::Result<antecedent_io_core::causal_artifact::StaticResultWire, antecedent::CausalError>
 pub fn <antecedent::StudyResult>::fn support_diagnostics(&self) -> impl core::iter::traits::iterator::Iterator<Item = &antecedent_core::diagnostic::Diagnostic>
 pub fn <antecedent::StudyResult>::fn survival(&self) -> core::option::Option<&antecedent::SurvivalEstimate>
@@ -15330,8 +15369,10 @@ pub fn <antecedent::analysis::joint_panel::JointDesignResult>::fn export_referen
 pub fn <antecedent::analysis::joint_panel::JointDesignResult>::fn export_reference_decomposition_with_limits(&self, bindings: &antecedent::analysis::joint_panel::ReferenceComponentBindings, scope: antecedent_design::scientific_source::ScientificConsumptionScope, ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent::analysis::joint_panel::ReferenceArtifactLimits) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointDesignResult>::fn law(&self) -> &antecedent_estimate::joint_design::compiled::JointDesignLaw
 pub fn <antecedent::analysis::joint_panel::JointDesignResult>::fn mean_source(&self) -> core::result::Result<antecedent_design::scientific_source::ScientificDecisionSource, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::JointDesignResult>::fn population_reference_region(&self, decomposition: &antecedent::analysis::joint_panel::PopulationReferenceDecomposition, level: f64) -> core::result::Result<antecedent::analysis::joint_panel::JointResponseReading<[[f64; 2]; 4]>, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointDesignResult>::fn posterior_source(&self) -> core::result::Result<antecedent_design::scientific_source::ScientificDecisionSource, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointDesignResult>::fn prepared(&self) -> &antecedent::analysis::joint_panel::PreparedJointDesign
+pub fn <antecedent::analysis::joint_panel::JointDesignResult>::fn updated_contrast_reading(&self, updated: &antecedent::analysis::joint_panel::JointLawExperimentResult, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, coefficients: &[f64], level: f64) -> core::result::Result<antecedent::analysis::joint_panel::JointResponseReading<[f64; 2]>, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointLawExperimentResult>::fn condition(original: antecedent_design::scientific_source::ScientificDecisionSource, request: antecedent::analysis::joint_panel::JointLawExperimentRequest, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointLawExperimentResult>::fn consume_current(&self, bytes: &[u8], ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::PanelExperimentDecisionSource, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointLawExperimentResult>::fn consume_current_with_limits(&self, bytes: &[u8], ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent::analysis::joint_panel::LawExperimentLimits) -> core::result::Result<antecedent::analysis::joint_panel::PanelExperimentDecisionSource, antecedent::analysis::joint_panel::JointPanelError>
@@ -15468,6 +15509,9 @@ pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::co
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::const fn dependency_identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::const fn support(&self) -> &'static str
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn condition_native_experiment(&self, binding: antecedent::analysis::joint_panel::NativeExperimentBinding, request: antecedent::analysis::joint_panel::JointLawExperimentRequest, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::NativeJointExperimentResult, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn contrast_interval(&self, coefficients: &[f64], level: f64) -> core::result::Result<[f64; 2], antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn contrast_interval_basis(&self, level: f64) -> core::result::Result<antecedent_core::calibration_basis::CalibrationBasis, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn contrast_interval_reading(&self, coefficients: &[f64], level: f64) -> core::result::Result<antecedent::analysis::joint_panel::JointResponseReading<[f64; 2]>, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn experiment_quantities(&self, binding: &antecedent::analysis::joint_panel::NativeExperimentBinding) -> core::result::Result<alloc::vec::Vec<antecedent_contract::quantity::ScientificQuantity>, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn experiment_quantity(&self, binding: &antecedent::analysis::joint_panel::NativeExperimentBinding) -> core::result::Result<antecedent_contract::quantity::ScientificQuantity, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn export_artifact(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::joint_panel::JointPanelError>
@@ -15492,9 +15536,11 @@ pub fn <antecedent::analysis::joint_panel::selection::RandomizedSelectionResult>
 pub fn <antecedent::analysis::joint_panel::selection::RandomizedSelectionResult>::const fn procedure(&self) -> &antecedent_design::program_search::selection::procedure::WholeProcedureSelection<usize>
 pub fn <antecedent::analysis::joint_panel::selection::RandomizedSelectionResult>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent::analysis::joint_panel::selection::RandomizedSelectionResult>::fn report(&self) -> serde_json::value::Value
+pub fn <antecedent::analysis::joint_panel::selection::RandomizedSelectionResult>::fn selected_value_reading(&self, level: f64) -> core::result::Result<antecedent::analysis::joint_panel::JointResponseReading<[f64; 2]>, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionRequest>::fn execute(&self, repetitions: usize, tie_tolerance: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult, antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult>::fn report(&self) -> serde_json::value::Value
+pub fn <antecedent::analysis::joint_panel::selection::instrumented::InstrumentedSelectionResult>::fn selected_value_reading(&self, level: f64) -> core::result::Result<antecedent::analysis::joint_panel::JointResponseReading<[f64; 2]>, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::latent_class_effects::LatentClassEffects>::fn artifact(&self) -> &antecedent_io::latent_class_artifact::LatentClassArtifact
 pub fn <antecedent::analysis::latent_class_effects::LatentClassEffects>::fn consume(bytes: &[u8], expected: core::option::Option<&antecedent_io::latent_class_artifact::LatentClassIdentity>) -> core::result::Result<Self, antecedent_io::latent_class_artifact::LatentClassArtifactError>
 pub fn <antecedent::analysis::latent_class_effects::LatentClassEffects>::fn consume_with(bytes: &[u8], expected: core::option::Option<&antecedent_io::latent_class_artifact::LatentClassIdentity>, data: core::option::Option<&antecedent_io::latent_class_artifact::LatentClassDataWire>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::latent_class_artifact::LatentClassArtifactError>
@@ -16509,6 +16555,7 @@ pub fn antecedent::analysis::forecast_law_from_sample(output: &antecedent_contra
 pub fn antecedent::analysis::graph_imputation::consume(bytes: &[u8], expected: antecedent::analysis::graph_imputation::GraphImputationExpectation, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::graph_imputation::GraphImputationPoint, antecedent::analysis::graph_imputation::GraphImputationError>
 pub fn antecedent::analysis::horizon_composition::compose_horizons(draws: &antecedent::analysis::horizon_composition::HorizonDraws, coefficients: &[f64], operation: antecedent_contract::joint_law_rule::PropagationOperation) -> core::result::Result<antecedent::analysis::horizon_composition::ComposedHorizons, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::horizon_composition::compose_horizons_with(draws: &antecedent::analysis::horizon_composition::HorizonDraws, operation: antecedent_contract::joint_law_rule::PropagationOperation, map: &dyn core::ops::function::Fn(&[f64]) -> f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::horizon_composition::ComposedHorizons, antecedent_contract::external_refusal::ExternalRefusal>
+pub fn antecedent::analysis::horizon_composition::horizon_composition_interval(response: &antecedent_core::response::CausalResponse, dose_index: usize, coefficients: &[f64], operation: antecedent_contract::joint_law_rule::PropagationOperation) -> core::result::Result<antecedent::analysis::horizon_composition::HorizonCompositionInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::horizon_composition::horizon_draws(response: &antecedent_core::response::CausalResponse, dose_index: usize) -> core::result::Result<antecedent::analysis::horizon_composition::HorizonDraws, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::independent_product_table(columns: &[alloc::vec::Vec<f64>], max_rows: usize) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, antecedent_contract::propagation_chain::ChainRefusal>
 pub fn antecedent::analysis::input_alignment(artifact: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<antecedent_contract::joint_law_rule::InputAlignment, antecedent::analysis::JointLawPropagationRefusal>
@@ -17768,6 +17815,7 @@ pub struct antecedent::analysis::graph_imputation::GraphImputationPoint
 pub struct antecedent::analysis::graph_imputation::GraphImputationPoint has private fields
 pub struct antecedent::analysis::graph_imputation::GraphImputationSpec
 pub struct antecedent::analysis::horizon_composition::ComposedHorizons
+pub struct antecedent::analysis::horizon_composition::HorizonCompositionInterval
 pub struct antecedent::analysis::horizon_composition::HorizonDraws
 pub struct antecedent::analysis::inverse_sources::ComposedActionQuery
 pub struct antecedent::analysis::inverse_sources::ForwardSourceInspection
@@ -17822,6 +17870,7 @@ pub struct antecedent::analysis::joint_panel::JointPanelState
 pub struct antecedent::analysis::joint_panel::JointPanelState has private fields
 pub struct antecedent::analysis::joint_panel::JointPanelWorld
 pub struct antecedent::analysis::joint_panel::JointPanelWorldSupport
+pub struct antecedent::analysis::joint_panel::JointResponseReading<T>
 pub struct antecedent::analysis::joint_panel::LawExperimentLimits
 pub struct antecedent::analysis::joint_panel::LocalRatioGaussianRegularization
 pub struct antecedent::analysis::joint_panel::NativeExperimentBinding
