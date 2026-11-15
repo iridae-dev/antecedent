@@ -1,0 +1,1 @@
+[{"digest":"2f7685a16e7ec728664be20c680c5d9729b4afbd0fd2e6f0efc6e7481e3c0421","file":"a0d53eecc0359d8bbf269ddeb8a4c06156030168096745181bfe4b99f355bc61","kind":"rust_items","path":"crates/antecedent/tests/source_evidence_exact.rs","role":"compile","scopes":[[[],true]],"select":{"full":[13,14,16,17]},"table":"381180452583eb6aa4c45ebf8de21b1979b320550105d39ef45a7c3256e0ba09"}]

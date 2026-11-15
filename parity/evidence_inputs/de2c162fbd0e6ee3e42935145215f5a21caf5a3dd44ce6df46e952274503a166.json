@@ -1,0 +1,1 @@
+[{"digest":"7dc4599a114cf1234994694c48b9e6ab495b28c1b85d93f8269f8b7c80c0e0bb","file":"abc90e75b4d76cf43c290583730d9a9e6c63d4676857cb3ec5828062aaf459b3","kind":"rust_items","path":"crates/antecedent/tests/smoothed_dose_posterior_exact.rs","role":"compile","scopes":[[[],true]],"select":{"full":[0,6,7,8]},"table":"061d007ce0967631b8ccea458f77b27f382e47606b2f9a33f6b493e17ee6fb7a"}]
