@@ -1797,6 +1797,13 @@
       "missing_evidence": []
     },
     {
+      "id": "joint_law.transported_composition",
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: no truth or parity fixture"
+      ]
+    },
+    {
       "id": "joint_law.composed_interval",
       "status": "supported",
       "missing_evidence": []
@@ -2172,7 +2179,20 @@
       "missing_evidence": []
     },
     {
+      "id": "decision.experimental_margin.interval_candidates",
+      "status": "not_supported",
+      "missing_evidence": [
+        "no independent check: no truth or parity fixture",
+        "no provenance: no provenance record names this capability or its modules"
+      ]
+    },
+    {
       "id": "choice_inference.interval_candidates",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "graph_imputation.compiled_candidate",
       "status": "supported",
       "missing_evidence": []
     },
@@ -2208,13 +2228,17 @@
     },
     {
       "id": "gcm.attribute.mechanism_refit",
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
     },
     {
       "id": "gcm.simulate.mechanism_refit",
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
     },
     {
       "id": "attribution.mechanism_change_detection",
@@ -2223,13 +2247,17 @@
     },
     {
       "id": "discovery.structure_posterior",
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
     },
     {
       "id": "gcm.model.mechanism_selection",
-      "status": "supported",
-      "missing_evidence": []
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
     },
     {
       "id": "attribution.unit_change",
