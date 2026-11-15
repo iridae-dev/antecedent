@@ -6212,7 +6212,7 @@ commit = "b965a3aeec7fd2c2caf0132c76bd891b17aac663"
 dirty = false
 fingerprint = "b395a1f910ba7f4cd9a4d01cd07472548c3301039fa8238f4a2a73918b46e92c"
 recorded_at = "2026-11-15T05:54:14Z"
-dependency_manifest = "d65bfa85c1b93ca7be3b47f59f87126fa5e97193381a4197bf5117694baa0bd1"
+dependency_manifest = "c01956080dd83ced8701e5d479ccaeb99bb42f7ae3e85c2240d55d4308b571b4"
 
 [[record]]
 test = "antecedent::graphless_did_known_truth::repeated_cross_section_matches_the_analytic_effect_cluster_sandwich_and_interval"
@@ -6222,7 +6222,7 @@ commit = "b965a3aeec7fd2c2caf0132c76bd891b17aac663"
 dirty = false
 fingerprint = "b395a1f910ba7f4cd9a4d01cd07472548c3301039fa8238f4a2a73918b46e92c"
 recorded_at = "2026-11-15T05:54:14Z"
-dependency_manifest = "cf54178642278fa9465caa23757b5a03f76a433eb6e1ca64866e510122ba67eb"
+dependency_manifest = "edbee8fc97ed946a6c5e3771eaa68736c75447c67b8ad1b9e45693f1603255f3"
 
 [[record]]
 test = "antecedent::graphless_did_known_truth::staggered_event_study_matches_the_analytic_event_time_effects_and_intervals"
@@ -6232,7 +6232,7 @@ commit = "b965a3aeec7fd2c2caf0132c76bd891b17aac663"
 dirty = false
 fingerprint = "b395a1f910ba7f4cd9a4d01cd07472548c3301039fa8238f4a2a73918b46e92c"
 recorded_at = "2026-11-15T05:54:14Z"
-dependency_manifest = "be26cc21e530ee2e4a04705ae5269262adab8de586f717cbba8f4f31151f75aa"
+dependency_manifest = "1dfdc8a58fa51d7ccf406587d82e5c6f0d8a1842bf0143b86d65ccd529802168"
 
 [[record]]
 test = "antecedent::horizon_composition::a_linear_composition_interval_equals_the_hand_construction"
@@ -7602,7 +7602,7 @@ commit = "b965a3aeec7fd2c2caf0132c76bd891b17aac663"
 dirty = false
 fingerprint = "d9d48e9e68bf84e5a466f06be1c60b6744232b7256379f49a9ae436e0000950d"
 recorded_at = "2026-11-15T05:38:28Z"
-dependency_manifest = "52277f1561d4e9f77599791bccd953f6f89e7b94d50c0601f3e77d7b58d79797"
+dependency_manifest = "c0bff56585ed769f60f1152f4fe5b7c5991e9f09fafcc659eefb4e0ef7252615"
 
 [[record]]
 test = "antecedent::prepared_analysis::bayesian_conditional_staged_known_truth"
