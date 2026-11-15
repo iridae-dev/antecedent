@@ -1673,3 +1673,7 @@ name = "graphless_wider_range_calibration"
 [[test]]
 name = "point_only_routes"
 path = "tests/point_only_routes.rs"
+
+[[test]]
+name = "policy_value_error_calibration"
+required-features = ["calibration-internal"]

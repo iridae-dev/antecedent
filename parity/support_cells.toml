@@ -40323,7 +40323,7 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cross_world_class_truth"
 evidence_test = "crates/antecedent/tests/cross_world_class_truth.rs"
-evidence_assertion = "class_cross_world_effects_match_the_exact_functionals_of_the_count_tables"
+evidence_assertion = "a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/cross_world_class_truth.rs", assertion = "class_cross_world_effects_execute_from_the_retained_plan_without_the_builder" },
 ]
@@ -40360,7 +40360,7 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cross_world_class_truth"
 evidence_test = "crates/antecedent/tests/cross_world_class_truth.rs"
-evidence_assertion = "class_cross_world_effects_match_the_exact_functionals_of_the_count_tables"
+evidence_assertion = "a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/cross_world_class_truth.rs", assertion = "class_cross_world_effects_execute_from_the_retained_plan_without_the_builder" },
 ]
@@ -40397,7 +40397,7 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cross_world_class_truth"
 evidence_test = "crates/antecedent/tests/cross_world_class_truth.rs"
-evidence_assertion = "class_cross_world_effects_match_the_exact_functionals_of_the_count_tables"
+evidence_assertion = "a_cpdag_counterfactual_publishes_the_exact_set_of_completion_values_and_no_interval"
 checked_execution = [
   { estimator = "gcm.fit", test = "crates/antecedent/tests/cross_world_class_truth.rs", assertion = "class_cross_world_effects_execute_from_the_retained_plan_without_the_builder" },
 ]
@@ -40508,7 +40508,7 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cross_world_class_truth"
 evidence_test = "crates/antecedent/tests/cross_world_class_truth.rs"
-evidence_assertion = "class_cross_world_effects_match_the_exact_functionals_of_the_count_tables"
+evidence_assertion = "a_cpdag_counterfactual_publishes_the_exact_set_of_completion_values_and_no_interval"
 checked_execution = [
   { estimator = "gcm.fit", test = "crates/antecedent/tests/cross_world_class_truth.rs", assertion = "class_cross_world_effects_execute_from_the_retained_plan_without_the_builder" },
 ]
@@ -41063,7 +41063,7 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cross_world_class_truth"
 evidence_test = "crates/antecedent/tests/cross_world_class_truth.rs"
-evidence_assertion = "class_cross_world_effects_match_the_exact_functionals_of_the_count_tables"
+evidence_assertion = "a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/cross_world_class_truth.rs", assertion = "class_cross_world_effects_execute_from_the_retained_plan_without_the_builder" },
 ]
@@ -41174,7 +41174,7 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cross_world_class_truth"
 evidence_test = "crates/antecedent/tests/cross_world_class_truth.rs"
-evidence_assertion = "class_cross_world_effects_match_the_exact_functionals_of_the_count_tables"
+evidence_assertion = "a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/cross_world_class_truth.rs", assertion = "class_cross_world_effects_execute_from_the_retained_plan_without_the_builder" },
 ]
@@ -41285,7 +41285,7 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cross_world_class_truth"
 evidence_test = "crates/antecedent/tests/cross_world_class_truth.rs"
-evidence_assertion = "class_cross_world_effects_match_the_exact_functionals_of_the_count_tables"
+evidence_assertion = "a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/cross_world_class_truth.rs", assertion = "class_cross_world_effects_execute_from_the_retained_plan_without_the_builder" },
 ]
@@ -41396,7 +41396,7 @@ staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/estimate/cross_world_class_truth"
 evidence_test = "crates/antecedent/tests/cross_world_class_truth.rs"
-evidence_assertion = "class_cross_world_effects_match_the_exact_functionals_of_the_count_tables"
+evidence_assertion = "a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval"
 checked_execution = [
   { estimator = "functional.effect", test = "crates/antecedent/tests/cross_world_class_truth.rs", assertion = "class_cross_world_effects_execute_from_the_retained_plan_without_the_builder" },
 ]

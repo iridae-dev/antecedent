@@ -253,6 +253,42 @@ class GeneratorChecks(unittest.TestCase):
         self.assertEqual(gen.route_method(route), "Part")
         self.assertEqual(gen.route_method(route | {"counterpart_method": "Whole"}), "Whole")
 
+    def test_a_route_that_runs_on_every_quadrant_gets_one_row_each(self) -> None:
+        route = unit_route(
+            "step.runs_everywhere",
+            "Step",
+            "unlisted",
+            status="capability",
+            counterpart_quadrants=[f"{d}.{i}" for d in gen.DESIGNS for i in gen.INFERENCES],
+        )
+        evidenced = gen.Evidenced(
+            {"method": [unit_method("step.runs_everywhere", "unlisted", "none")]},
+            [],
+            Evidence(gen.ROOT),
+        )
+        rows = gen.route_rows([route], {}, evidenced)
+        self.assertEqual(
+            sorted(f"{row['design']}.{row['inference']}" for row in rows), sorted(gen.QUADRANTS)
+        )
+        self.assertEqual({row["method"] for row in rows}, {"Step"})
+        # Without the declaration the same unit route has no design and so no row.
+        self.assertEqual(
+            gen.route_rows([route | {"counterpart_quadrants": []}], {}, evidenced), []
+        )
+
+    def test_an_identified_set_rests_only_when_the_test_reads_it_and_asserts_no_interval(self) -> None:
+        import route_methods as rm
+
+        both = (
+            "let set = mixture.identified_set.as_ref().unwrap();\n"
+            "assert_eq!(result.interval().as_ref().map(|b| b.method), Some(IntervalMethod::None));"
+        )
+        self.assertTrue(rm.asserts_identified_set(both))
+        self.assertFalse(rm.asserts_identified_set("let set = mixture.identified_set.unwrap();"))
+        self.assertFalse(rm.asserts_identified_set("assert!(result.interval().is_none());"))
+        self.assertFalse(rm.asserts_identified_set(both + "\nlet _ = IntervalMethod::AnalyticSe;"))
+        self.assertIn("asserted_identified_set", gen.BASES)
+
 
 def unit_route(rid: str, target: str, inference: str, **extra: str) -> dict:
     return {

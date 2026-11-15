@@ -6,7 +6,7 @@
 schema = 1
 missing_attempts = 0
 missing_consumers = 0
-adjusted_claims = 35
+adjusted_claims = 31
 unresolved_mandatorys = 0
 families = 28
 
@@ -395,22 +395,6 @@ reason = "the composition is a linear combination (compose_horizons, with a 95% 
 next_attempt = "extend the interval to nonlinear compositions through the delta-method influence of the map, and the joint replicates to intervention-level responses and series with gaps"
 
 [[adjusted_claim]]
-id = "supported.Counterfactual.Cpdag#static.frequentist"
-method = "Counterfactual"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.Counterfactual.Pag#static.frequentist"
-method = "Counterfactual"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
 id = "supported.DirectionalDerivative.Dag#static.frequentist"
 method = "DirectionalDerivative"
 side = "static.frequentist"
@@ -433,22 +417,6 @@ side = "temporal.bayesian"
 status = "not_supported"
 reason = "temporal interference is identified by the declared sequential assignment design of a unit-period panel, not by a graph: the route reports the exposure contrast the design identifies and none of a TemporalAdmg or an observational temporal exposure. Whether interference is carried between periods (carryover through the exposure) is declared by the design, not tested."
 next_attempt = "identify an observational temporal exposure contrast by a declared exposure mapping and interference graph over the unit-period panel, or record the counterexample where the exposure and the unit history are confounded"
-
-[[adjusted_claim]]
-id = "supported.NestedCounterfactualEffect.Cpdag#static.frequentist"
-method = "NestedCounterfactualEffect"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.NestedCounterfactualEffect.Pag#static.frequentist"
-method = "NestedCounterfactualEffect"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "supported.ResponseJacobian.Dag#static.frequentist"

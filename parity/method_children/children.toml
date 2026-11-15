@@ -406,7 +406,7 @@ inference = "PC/FCI constraint search; bootstrap stability over PC, FCI, RFCI, G
 gap = "none"
 missing = "none"
 owner = "crates/antecedent-discovery"
-fixtures = "crates/antecedent-discovery/tests/static_discovery_oracle.rs::fci_and_ges_match_causal_learn_across_motifs_and_all_permutations"
+fixtures = "crates/antecedent-discovery/tests/static_discovery_oracle.rs::fci_and_ges_match_causal_learn_across_motifs_and_all_permutations;crates/antecedent/tests/structure_uncertainty_routes.rs::a_frequentist_static_search_returns_its_graph_and_publishes_no_interval"
 consumer = "crates/antecedent/src/analysis/structure_route.rs::accept_discovered;crates/antecedent/tests/structure_uncertainty_routes.rs"
 notes = "Also fci.rs. Not a geometric route_manifest query. CPDAG/PAG meanings stay on the discovery result. The search carries its sampling uncertainty through the same Discover route: DiscoverySpec::bootstrap_stability re-runs the search on row resamples drawn under the declared sampling design (independent subjects; a clustered or dependent-series design is a typed refusal) and tabulates per-pair, per-mark and per-structure selection frequencies in antecedent-discovery stability.rs, keeping failed resamples as failed mass. The frequencies are a bootstrap distribution of the search, not a posterior; coverage is not_measured. Complete rows only: a searched column with a missing value, a masked table or a weighted table is refused with the next attempt of dropping the rows first."
 
@@ -434,7 +434,7 @@ inference = "PCMCI family; bootstrap stability over PCMCI, PCMCI+, LPCMCI, J-PCM
 gap = "none"
 missing = "none"
 owner = "crates/antecedent-discovery"
-fixtures = "crates/antecedent-discovery/tests/discovery_pcmci_lag1.rs::discovery_pcmci_lag1_exact_parents"
+fixtures = "crates/antecedent-discovery/tests/discovery_pcmci_lag1.rs::discovery_pcmci_lag1_exact_parents;crates/antecedent/tests/structure_uncertainty_routes.rs::a_frequentist_temporal_search_returns_its_lag_graph_and_publishes_no_interval"
 consumer = "crates/antecedent/src/analysis/structure_route.rs::accept_discovered;crates/antecedent/tests/structure_uncertainty_routes.rs"
 notes = "Also pcmci_plus.rs, lpcmci.rs, jpcmci_plus.rs, rpcmci.rs. Lagged edges are not contemporaneous mechanisms. PCMCI, PCMCI+, LPCMCI, J-PCMCI+ and regime PCMCI carry their sampling uncertainty through the Discover route (DiscoverySpec::bootstrap_stability): a series is resampled in circular blocks (length the larger of the lag span and the cube root of the series length), a panel by whole units, every environment of a multi-environment study in blocks on its own, and regime PCMCI gathers its labels along each block map and tabulates one table per regime. Python: discover_bootstrap_stability, discover_jpcmci_plus_stability and discover_rpcmci_stability. A series needs the declared dependent-series design (the default) and a panel independent subject trajectories or a clustered panel. Executes unsupported; coverage not_measured."
 

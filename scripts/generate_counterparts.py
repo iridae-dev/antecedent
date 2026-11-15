@@ -54,6 +54,7 @@ BASES = (
     "point_only_cell",
     "asserted_no_interval",
     "non_statistical",
+    "asserted_identified_set",
     "asserted_in_test",
     "estimator_records",
     "declared_not_measured",
@@ -445,7 +446,10 @@ def route_rows(
     """One row per quadrant of each supported or closed route, grouped by its target.
 
     A route outside the dotted ``static``/``temporal`` id scheme is included when it declares its
-    ``counterpart_design``. ``narrowed_reason`` and ``narrowed_next_attempt`` narrow the rows of
+    ``counterpart_design``. A route that runs identically on every quadrant (a step that
+    precedes the inference mode and the design, as mechanism selection does) lists them in
+    ``counterpart_quadrants`` (``"static.frequentist"`` and so on) and gets one row each.
+    ``narrowed_reason`` and ``narrowed_next_attempt`` narrow the rows of
     the route's own target the way ``counterpart_reason`` narrows a counterpart's. A route that
     is one of several entries of a wider method records its rows under that method with
     ``counterpart_method``.
@@ -467,16 +471,20 @@ def route_rows(
         design = route_design(route)
         inferences = route_inferences(route)
         counterparts = route.get("counterpart_targets", [])
+        quadrants = [tuple(q.split(".", 1)) for q in route.get("counterpart_quadrants", [])]
         if (
             route["status"] in UNIT_ROUTE_STATUSES
             and id_design(route) is None
             and "counterpart_design" not in route
+            and not quadrants
         ):
             continue
         targets = list(dict.fromkeys([route_method(route), *counterparts]))
-        for inference in inferences:
+        for side_design, inference in quadrants or [(design, i) for i in inferences]:
             for target in targets:
-                rows.append(quadrant_row(route, design, inference, target, lowerings, evidenced))
+                rows.append(
+                    quadrant_row(route, side_design, inference, target, lowerings, evidenced)
+                )
     if graphless:
         rowed = set(named) | {row["route"] for row in rows}
         rows += family_rows(routes, graphless, lowerings, evidenced, rowed)

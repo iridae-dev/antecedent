@@ -23754,3 +23754,31 @@ crate = "antecedent"
 cargo_target = "point_only_routes"
 path = "crates/antecedent/tests/point_only_routes.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "policy-value-error-calibration"
+crate = "antecedent"
+cargo_target = "policy_value_error_calibration"
+path = "crates/antecedent/tests/policy_value_error_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "attribution-unit-change-mc-error"
+crate = "antecedent-attribution"
+cargo_target = "unit_change_mc_error"
+path = "crates/antecedent-attribution/tests/unit_change_mc_error.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "attribution-mechanism-change-size"
+crate = "antecedent-attribution"
+cargo_target = "mechanism_change_size"
+path = "crates/antecedent-attribution/tests/mechanism_change_size.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "model-mechanism-selection-point-only"
+crate = "antecedent-model"
+cargo_target = "mechanism_selection_point_only"
+path = "crates/antecedent-model/tests/mechanism_selection_point_only.rs"
+gates = ["inventory", "named"]
