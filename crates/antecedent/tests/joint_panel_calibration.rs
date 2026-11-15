@@ -37,8 +37,13 @@
 //! The time-varying panels let `b01` change once, at a declared period inside the candidate
 //! set, so the truth at the last period uses the changed value.
 //!
-//! Sizes scale with the grid (groups at three quarters, one and two times the base), so the
-//! smallest design of each cell is the lower end of its record's measured range.
+//! Frequentist fits are measured at fixed truth (sizes scale with the grid: groups at three
+//! quarters, one and two times the base). Bayesian fits are measured by simulation-based
+//! calibration instead: the generating law is drawn from the fit's own proper prior
+//! (`prior_law` lists every component), a panel is simulated from it, and the published
+//! equal-tailed interval is scored against the drawn truth, which a correct posterior covers
+//! at exactly its level. That statistic holds at any size, so one small size is measured, with
+//! the library's default sampler.
 //!
 //! Beyond the contrast intervals the file measures what else the panel route publishes:
 //! the specification masses of the time-varying fit on panels with no change (a one-sided
@@ -64,7 +69,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use antecedent::analysis::joint_panel::{
-    ChangeComponent, DecompositionEndpoint, JointPanelColumns, JointPanelFunctional,
+    ChangeComponent, DecompositionEndpoint, JointPanelColumns, JointPanelFit, JointPanelFunctional,
     JointPanelRequest, JointPanelResponseFunctional, JointPanelResult, JointPanelState,
     JointPanelWorld, MechanismPeriodMap, PanelDecompositionRequest, PanelExperimentDecisionState,
     PanelExperimentEvidence, PanelExperimentMapping, PanelExperimentModularPolicy,
@@ -102,9 +107,18 @@ const CADENCE_NS: u64 = 604_800_000_000_000;
 /// worlds.
 const HORIZON: usize = 24;
 const DOSE: f64 = 4.0;
-/// Sandwich draws of an invariant fit and bootstrap replicates of a time-varying fit.
-const SANDWICH_DRAWS: usize = 2_000;
-const BOOTSTRAP_DRAWS: usize = 300;
+/// Draw slots of a frequentist fit (sandwich draws of an invariant fit, whole-procedure
+/// bootstrap replicates of a time-varying fit). The library has no default: the caller states
+/// the count, and the repository's own workflow uses 100, which is used here. The Monte Carlo
+/// noise of a 100-draw interval is part of what is measured.
+const FREQUENTIST_DRAWS: usize = 100;
+/// Groups and periods of the prior-drawn calibration panels: the fewest the model needs (the
+/// programs run for 24 periods, a class needs several groups). Calibration under prior-drawn
+/// truths is exact at any size, so one size is measured.
+const CALIBRATION_GROUPS: usize = 12;
+/// Candidate change periods and smoothing grid of the time-varying specification.
+const CHANGE_POINTS: [usize; 3] = [8, 12, 16];
+const SMOOTH_KNOTS: [usize; 4] = [0, 8, 16, 23];
 /// The one change of the time-varying panels: first changed period and the changed
 /// interaction coefficient.
 const CHANGE_AT: usize = 12;
@@ -139,6 +153,9 @@ enum Path {
     Changed,
     /// Time-varying fit on panels with no change.
     Unchanged,
+    /// Time-varying fit on panels whose change (or none) is drawn from the specification's
+    /// own prior.
+    Prior,
 }
 
 impl Path {
@@ -151,10 +168,10 @@ impl Path {
     fn temporal(self) -> Option<TemporalPanelSpec> {
         self.varying().then(|| TemporalPanelSpec {
             varying: vec![PanelMeanParameter::Interaction { id: "ab".into() }],
-            change_points: vec![8, 12, 16],
+            change_points: CHANGE_POINTS.to_vec(),
             minimum_segment: 4,
             weak_change_gap: 4.0,
-            smooth_knots: vec![0, 8, 16, 23],
+            smooth_knots: SMOOTH_KNOTS.to_vec(),
             smoothing: vec![1.0],
             path_prior_sd: 1.0,
         })
@@ -188,6 +205,22 @@ struct Law {
     group_sd: f64,
     /// Whether odd groups form a second saturation class.
     classes: bool,
+    /// Departure of the interaction coefficient from `interaction` over follow-up periods.
+    shift: Shift,
+}
+
+/// The path of the interaction coefficient relative to its baseline.
+#[derive(Clone, Copy)]
+enum Shift {
+    None,
+    /// Added from this follow-up period on.
+    Step {
+        at: usize,
+        delta: f64,
+    },
+    /// Piecewise-linear path through zero at period 0 and these values at the smooth knots
+    /// after the first.
+    Smooth([f64; 3]),
 }
 
 /// Normalized truncated geometric weights `(1, theta, theta^2)`.
@@ -214,6 +247,7 @@ impl Law {
                 innovation_sd: 0.2,
                 group_sd: 0.35,
                 classes: false,
+                shift: Shift::None,
             },
             (true, false) => Self {
                 intercept: 2.0,
@@ -228,6 +262,7 @@ impl Law {
                 innovation_sd: 0.2,
                 group_sd: 0.35,
                 classes: false,
+                shift: Shift::None,
             },
             (false, true) => Self {
                 intercept: 1.0,
@@ -242,6 +277,7 @@ impl Law {
                 innovation_sd: 0.2,
                 group_sd: 0.35,
                 classes: true,
+                shift: Shift::None,
             },
             (true, true) => Self {
                 intercept: 1.0,
@@ -256,6 +292,7 @@ impl Law {
                 innovation_sd: 0.2,
                 group_sd: 0.35,
                 classes: true,
+                shift: Shift::None,
             },
         }
     }
@@ -276,12 +313,36 @@ impl Law {
         }
     }
     /// The interaction coefficient in follow-up period `t`.
-    fn interaction_at(&self, path: Path, t: usize) -> f64 {
-        if path == Path::Changed && t >= CHANGE_AT { CHANGED_INTERACTION } else { self.interaction }
+    fn interaction_at(&self, t: usize) -> f64 {
+        self.interaction
+            + match self.shift {
+                Shift::None => 0.0,
+                Shift::Step { at, delta } => {
+                    if t >= at {
+                        delta
+                    } else {
+                        0.0
+                    }
+                }
+                Shift::Smooth(values) => {
+                    let heights = [0.0, values[0], values[1], values[2]];
+                    let mut at = heights[3];
+                    for segment in 0..3 {
+                        let (left, right) = (SMOOTH_KNOTS[segment], SMOOTH_KNOTS[segment + 1]);
+                        if t <= right {
+                            let fraction = (t - left) as f64 / (right - left) as f64;
+                            at = heights[segment]
+                                + fraction * (heights[segment + 1] - heights[segment]);
+                            break;
+                        }
+                    }
+                    at
+                }
+            }
     }
     /// The analytic terminal interaction contrast over `groups` equally weighted groups.
-    fn terminal_contrast(&self, path: Path, groups: usize) -> f64 {
-        let coefficient = self.interaction_at(path, HORIZON - 1);
+    fn terminal_contrast(&self, groups: usize) -> f64 {
+        let coefficient = self.interaction_at(HORIZON - 1);
         (0..groups)
             .map(|group| {
                 let class = self.class_of(group);
@@ -302,7 +363,7 @@ struct Raw {
     season: Vec<f64>,
 }
 
-fn simulate_raw(cell: Cell, law: &Law, class: usize, path: Path, periods: usize, seed: u64) -> Raw {
+fn simulate_raw(cell: Cell, law: &Law, class: usize, periods: usize, seed: u64) -> Raw {
     let prefix = cell.prefix();
     let rows = periods + prefix;
     let mut normal = gaussian(stream_seed(seed, 1));
@@ -328,7 +389,7 @@ fn simulate_raw(cell: Cell, law: &Law, class: usize, path: Path, periods: usize,
         y[row] = law.intercept
             + law.channel[0] * s0
             + law.channel[1] * s1
-            + law.interaction_at(path, t) * s0 * s1
+            + law.interaction_at(t) * s0 * s1
             + law.confounder * z[row]
             + law.season[row % 4]
             + intercept
@@ -344,21 +405,23 @@ struct Generated {
     rows: u64,
 }
 
+/// Panels with the fixed generating law of the cell (one declared change on `Changed`).
 fn generate_panel(cell: Cell, path: Path, groups: usize, seed: u64) -> Generated {
-    let law = Law::of(cell);
-    let periods = path.periods();
+    let mut law = Law::of(cell);
+    if path == Path::Changed {
+        law.shift = Shift::Step { at: CHANGE_AT, delta: CHANGED_INTERACTION - law.interaction };
+    }
+    generate_from(cell, &law, path.periods(), groups, seed)
+}
+
+/// Panels from an explicit generating law.
+fn generate_from(cell: Cell, law: &Law, periods: usize, groups: usize, seed: u64) -> Generated {
     let prefix = cell.prefix();
     let mut units = Vec::with_capacity(groups);
     let mut scenarios = Vec::with_capacity(groups);
     for group in 0..groups {
-        let raw = simulate_raw(
-            cell,
-            &law,
-            law.class_of(group),
-            path,
-            periods,
-            stream_seed(seed, group as u64),
-        );
+        let raw =
+            simulate_raw(cell, law, law.class_of(group), periods, stream_seed(seed, group as u64));
         let history = |x: &[f64]| if prefix == 2 { [x[0], x[1]] } else { [0.0; 2] };
         scenarios.push(PanelScenario {
             group: group.to_string(),
@@ -381,7 +444,7 @@ fn generate_panel(cell: Cell, path: Path, groups: usize, seed: u64) -> Generated
     Generated {
         data: PanelData::try_new(Arc::from(units)).unwrap(),
         scenarios,
-        truth: law.terminal_contrast(path, groups),
+        truth: law.terminal_contrast(groups),
         rows: (groups * periods) as u64,
     }
 }
@@ -430,24 +493,19 @@ fn family(cell: Cell, groups: usize) -> PanelFamily {
     }
 }
 
-/// Sampler effort. Convergence thresholds stay at the library defaults, and the fit keeps its
-/// own verdict: a posterior that does not meet them publishes no interval.
-fn sampler(cell: Cell, path: Path) -> PanelSamplingOptions {
-    let (warmup, draws) = match (cell.broader, path.varying()) {
-        (false, false) => (3_000, 3_000),
-        (false, true) => (4_000, 4_000),
-        (true, _) => (6_000, 5_000),
-    };
-    PanelSamplingOptions { chains: 4, warmup, draws, ..PanelSamplingOptions::default() }
+/// The library's default sampler: four chains of 2000 warmup and 2000 retained draws, with
+/// the default convergence thresholds (rank-normalized R-hat at most 1.05, bulk and tail ESS
+/// at least 100). The fit keeps its own verdict: a posterior that does not meet them
+/// publishes no interval.
+fn default_sampling() -> PanelSamplingOptions {
+    PanelSamplingOptions::default()
 }
 
-fn inference(mode: Mode, cell: Cell, path: Path) -> PanelInference {
+fn inference(mode: Mode, sampling: PanelSamplingOptions) -> PanelInference {
     match mode {
-        Mode::Frequentist => PanelInference::Frequentist {
-            draws: if path.varying() { BOOTSTRAP_DRAWS } else { SANDWICH_DRAWS },
-        },
+        Mode::Frequentist => PanelInference::Frequentist { draws: FREQUENTIST_DRAWS },
         Mode::Bayesian => {
-            PanelInference::Bayesian { prior: PanelPrior::default(), sampler: sampler(cell, path) }
+            PanelInference::Bayesian { prior: PanelPrior::default(), sampler: sampling }
         }
     }
 }
@@ -506,22 +564,37 @@ fn request(
     }
 }
 
-/// The compiled and fitted panel of one replicate.
+type Fitted = (PreparedStudy<JointPanelState>, JointPanelResult, f64, u64, ExecutionContext);
+
+/// Compile and fit one generated panel.
+fn fit_generated(
+    cell: Cell,
+    path: Path,
+    mode: Mode,
+    sampling: PanelSamplingOptions,
+    groups: usize,
+    generated: Generated,
+    seed: u64,
+) -> Result<Fitted, String> {
+    let Generated { data, scenarios, truth, rows } = generated;
+    let ctx = ExecutionContext::for_tests(grid_seed(seed));
+    let request = request(&data, cell, path, groups, &scenarios, inference(mode, sampling));
+    let prepared = Study::prepare_joint_panel(data, request, &ctx)
+        .map_err(|error| format!("prepare: {error}"))?;
+    let result = prepared.estimate(&ctx).map_err(|error| format!("estimate: {error}"))?;
+    Ok((prepared, result, truth, rows, ctx))
+}
+
+/// The compiled and fitted panel of one fixed-truth replicate.
 fn fit_panel(
     cell: Cell,
     path: Path,
     mode: Mode,
     groups: usize,
     seed: u64,
-) -> Result<(PreparedStudy<JointPanelState>, JointPanelResult, f64, u64, ExecutionContext), String>
-{
-    let Generated { data, scenarios, truth, rows } = generate_panel(cell, path, groups, seed);
-    let ctx = ExecutionContext::for_tests(grid_seed(seed));
-    let request = request(&data, cell, path, groups, &scenarios, inference(mode, cell, path));
-    let prepared = Study::prepare_joint_panel(data, request, &ctx)
-        .map_err(|error| format!("prepare: {error}"))?;
-    let result = prepared.estimate(&ctx).map_err(|error| format!("estimate: {error}"))?;
-    Ok((prepared, result, truth, rows, ctx))
+) -> Result<Fitted, String> {
+    let generated = generate_panel(cell, path, groups, seed);
+    fit_generated(cell, path, mode, default_sampling(), groups, generated, seed)
 }
 
 // ---------------------------------------------------------------------------------------
@@ -537,6 +610,9 @@ enum Reading {
         /// Draw slots the fit retained, and how many were complete.
         slots: u32,
         complete: u32,
+        /// For a time-varying posterior under prior-drawn truth: whether the smallest set of
+        /// specifications holding the level of the published mass contains the true one.
+        choice_covered: Option<bool>,
     },
     /// The library refused the fit.
     Refused(String),
@@ -559,6 +635,7 @@ fn contrast_reading(cell: Cell, path: Path, mode: Mode, groups: usize, seed: u64
         rows,
         slots: u32::try_from(contrast.draws.len()).unwrap(),
         complete: u32::try_from(contrast.draws.iter().flatten().count()).unwrap(),
+        choice_covered: None,
     }
 }
 
@@ -572,7 +649,7 @@ fn interval_label(mode: Mode, path: Path) -> &'static str {
 
 /// The construction a record describes. The panel route reports no runtime calibration key,
 /// so it is declared here, as for the other routes without one.
-fn construction(cell: Cell, path: Path, mode: Mode) -> Construction {
+fn construction(cell: Cell, path: Path, mode: Mode, calibration: bool) -> Construction {
     let estimator = format!(
         "joint_panel.{}.{}.{}",
         if cell.lagged { "finite_lag" } else { "static" },
@@ -583,7 +660,12 @@ fn construction(cell: Cell, path: Path, mode: Mode) -> Construction {
         query: "JointPanel".into(),
         graph_class: "NotApplicable".into(),
         structure: "panel".into(),
-        modality: "scheduled_contrast".into(),
+        modality: if calibration {
+            "scheduled_contrast_posterior_calibration"
+        } else {
+            "scheduled_contrast"
+        }
+        .into(),
         inference: match mode {
             Mode::Frequentist => "Frequentist",
             Mode::Bayesian => "Bayesian",
@@ -613,22 +695,35 @@ fn measure_contrast(test: &'static str, cell: Cell, path: Path, mode: Mode, seed
     let groups = path.groups();
     let readings =
         map_replicates(n_sim(), |rep| contrast_reading(cell, path, mode, groups, seed_base + rep));
+    score_contrast(test, "generate_panel", cell, path, mode, false, &readings);
+}
+
+/// Fold readings into one record and hold it to the gate.
+fn score_contrast(
+    test: &'static str,
+    dgp: &'static str,
+    cell: Cell,
+    path: Path,
+    mode: Mode,
+    calibration: bool,
+    readings: &[Reading],
+) {
     let mut tally = CoverageTally::for_record(
-        RecordKey { test, dgp: "generate_panel", interval: interval_label(mode, path) },
+        RecordKey { test, dgp, interval: interval_label(mode, path) },
         LEVEL,
     );
     let mut refusals = BTreeMap::<String, usize>::new();
     let mut withheld = 0_usize;
-    for reading in &readings {
+    for reading in readings {
         match reading {
             Reading::Refused(reason) => {
                 tally.skip();
                 *refusals.entry(reason.clone()).or_default() += 1;
             }
-            Reading::Scored { interval, truth, rows, slots, complete } => {
+            Reading::Scored { interval, truth, rows, slots, complete, .. } => {
                 withheld += usize::from(interval.is_none());
                 tally.bind_validation(
-                    &construction(cell, path, mode),
+                    &construction(cell, path, mode, calibration),
                     ScopeFacts {
                         row_count: *rows,
                         replicates_ok: (mode == Mode::Frequentist).then_some(*complete),
@@ -647,6 +742,216 @@ fn measure_contrast(test: &'static str, cell: Cell, path: Path, mode: Mode, seed
     }
     tally.assert();
 }
+
+// ---------------------------------------------------------------------------------------
+// Posterior calibration under prior-drawn truths.
+// ---------------------------------------------------------------------------------------
+
+/// Draw the generating law from the prior the Bayesian fit declares (`PanelPrior::default()`
+/// and the temporal specification's path prior), so that a correct posterior is calibrated
+/// exactly. Every component is a proper density: coefficients, intercept, confounder and
+/// non-reference seasons are Normal(0, 10^2); `log k` is Normal(0, 1); each lag simplex is
+/// Dirichlet(1, 1, 1) (the geometric decay is Beta(1, 1), uniform); the Hill log shapes are
+/// Normal(0, 0.5^2) and a second class's `log k` is Normal(`log k` of class zero, 0.5^2);
+/// `rho` is uniform on (-1, 1); the innovation and group standard deviations are half-Normal
+/// with scale 2. For the time-varying fit the specification is uniform over no change, each
+/// change period and each smoothing penalty, with a change a Normal(0, path_prior_sd^2)
+/// offset and a smooth path a Gaussian random walk over the knots whose step variance is
+/// `path_prior_sd^2 / penalty`. No prior component is improper or data dependent.
+fn prior_law(cell: Cell, varying: bool, seed: u64) -> (Law, Option<TemporalModelChoice>) {
+    let prior = PanelPrior::default();
+    assert!(prior.lag.is_empty(), "the drawn simplexes are Dirichlet(1, 1, 1)");
+    assert_eq!(prior.family.geometric_decay, [1.0, 1.0], "the drawn decay is Beta(1, 1)");
+    let mut normal = gaussian(stream_seed(seed, 901));
+    let mut unit = uniform(stream_seed(seed, 902), 17);
+    let c = prior.coefficient_sd;
+    let intercept = c * normal();
+    let channel = [c * normal(), c * normal()];
+    let interaction = c * normal();
+    let confounder = c * normal();
+    let season = [0.0, c * normal(), c * normal(), c * normal()];
+    let k0 = (prior.log_half_saturation_mean + prior.log_half_saturation_sd * normal()).exp();
+    let family = &prior.family;
+    let (half_saturation, hill) = if cell.broader {
+        let k1 = (k0.ln() + family.class_log_saturation_sd * normal()).exp();
+        let shape = [
+            (family.log_hill_shape_mean + family.log_hill_shape_sd * normal()).exp(),
+            (family.log_hill_shape_mean + family.log_hill_shape_sd * normal()).exp(),
+        ];
+        ([k0, k1], Some(shape))
+    } else {
+        ([k0, k0], None)
+    };
+    let lag = if !cell.lagged {
+        [[1.0, 0.0, 0.0]; 2]
+    } else if cell.broader {
+        [geometric(unit()), geometric(unit())]
+    } else {
+        let mut dirichlet = || {
+            let e = [-unit().ln(), -unit().ln(), -unit().ln()];
+            let sum = e[0] + e[1] + e[2];
+            [e[0] / sum, e[1] / sum, e[2] / sum]
+        };
+        [dirichlet(), dirichlet()]
+    };
+    let rho = if cell.lagged { 2.0 * unit() - 1.0 } else { 0.0 };
+    let innovation_sd = prior.innovation_scale * normal().abs();
+    let group_sd = prior.group_scale * normal().abs();
+    let (shift, choice) = if varying {
+        let spec = Path::Prior.temporal().expect("a time-varying specification");
+        let candidates = 1 + spec.change_points.len() + spec.smoothing.len();
+        let index = ((unit() * candidates as f64) as usize).min(candidates - 1);
+        if index == 0 {
+            (Shift::None, TemporalModelChoice::NoChange)
+        } else if index <= spec.change_points.len() {
+            let at = spec.change_points[index - 1];
+            (
+                Shift::Step { at, delta: spec.path_prior_sd * normal() },
+                TemporalModelChoice::Piecewise { at },
+            )
+        } else {
+            let penalty = spec.smoothing[index - 1 - spec.change_points.len()];
+            let step = spec.path_prior_sd / penalty.sqrt();
+            let mut values = [0.0; 3];
+            let mut level = 0.0;
+            for value in &mut values {
+                level += step * normal();
+                *value = level;
+            }
+            (Shift::Smooth(values), TemporalModelChoice::Smooth { penalty })
+        }
+    } else {
+        (Shift::None, TemporalModelChoice::NoChange)
+    };
+    let law = Law {
+        intercept,
+        channel,
+        interaction,
+        confounder,
+        season,
+        half_saturation,
+        hill,
+        lag,
+        rho,
+        innovation_sd,
+        group_sd,
+        classes: cell.broader,
+        shift,
+    };
+    (law, varying.then_some(choice))
+}
+
+fn calibration_reading(cell: Cell, varying: bool, seed: u64) -> Reading {
+    let path = if varying { Path::Prior } else { Path::Invariant };
+    let (law, true_choice) = prior_law(cell, varying, seed);
+    let generated = generate_from(cell, &law, HORIZON, CALIBRATION_GROUPS, seed);
+    let (_, result, truth, rows, _) = match fit_generated(
+        cell,
+        path,
+        Mode::Bayesian,
+        default_sampling(),
+        CALIBRATION_GROUPS,
+        generated,
+        seed,
+    ) {
+        Ok(fitted) => fitted,
+        Err(reason) => return Reading::Refused(reason),
+    };
+    let contrast =
+        match result.scheduled_contrast(&JointPanelResponseFunctional::TerminalMean, LEVEL) {
+            Ok(contrast) => contrast,
+            Err(error) => return Reading::Refused(format!("contrast: {error}")),
+        };
+    // The smallest set of specifications, taken by decreasing published mass, that holds the
+    // level; a posterior that failed its diagnostics publishes none and scores a miss.
+    let choice_covered = true_choice.map(|truth| match &result.fit {
+        JointPanelFit::Varying(fit) if fit.posterior_converged == Some(true) => {
+            let total: usize = fit.selection_counts.iter().map(|(_, count)| *count).sum();
+            let mut order: Vec<&(TemporalModelChoice, usize)> =
+                fit.selection_counts.iter().collect();
+            order.sort_by(|a, b| b.1.cmp(&a.1));
+            let (mut cumulative, mut hit) = (0_usize, false);
+            for entry in order {
+                cumulative += entry.1;
+                hit |= entry.0 == truth;
+                if cumulative as f64 >= LEVEL * total as f64 {
+                    break;
+                }
+            }
+            total > 0 && hit
+        }
+        _ => false,
+    });
+    Reading::Scored {
+        interval: contrast.interval,
+        truth,
+        rows,
+        slots: u32::try_from(contrast.draws.len()).unwrap(),
+        complete: u32::try_from(contrast.draws.iter().flatten().count()).unwrap(),
+        choice_covered,
+    }
+}
+
+/// Simulation-based calibration of one Bayesian fit: truths drawn from the fit's own prior, a
+/// panel simulated from each, the published equal-tailed interval of the terminal contrast at
+/// the published level scored against the drawn truth. Under prior-drawn truths a correct
+/// posterior covers at exactly its level, so the two-sided gate is the calibration statistic.
+/// The time-varying fits also score the specification: the smallest set of specifications
+/// holding the level of the published mass must contain the drawn one (an at-least claim,
+/// exact for probabilities and conservative only by the discreteness of the set).
+fn measure_calibration(test: &'static str, cell: Cell, varying: bool, seed_base: u64) {
+    let path = if varying { Path::Prior } else { Path::Invariant };
+    let readings =
+        map_replicates(n_sim(), |rep| calibration_reading(cell, varying, seed_base + rep));
+    if varying {
+        let mut set = CoverageTally::new(format!("{test} specification set"), LEVEL);
+        for reading in &readings {
+            match reading {
+                Reading::Scored { choice_covered, .. } => {
+                    let hit = *choice_covered == Some(true);
+                    set.record(Some((0.0, 1.0)), if hit { 0.5 } else { 2.0 });
+                }
+                Reading::Refused(_) => set.skip(),
+            }
+        }
+        score_contrast(test, "generate_from", cell, path, Mode::Bayesian, true, &readings);
+        set.assert_at_least();
+    } else {
+        score_contrast(test, "generate_from", cell, path, Mode::Bayesian, true, &readings);
+    }
+}
+
+macro_rules! calibration_test {
+    ($name:ident, $cell:expr, $varying:expr, $seed:expr) => {
+        #[test]
+        #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+        fn $name() {
+            measure_calibration(stringify!($name), $cell, $varying, $seed);
+        }
+    };
+}
+
+calibration_test!(joint_panel_posterior_calibration_static_l95, STATIC, false, 31_100_000);
+calibration_test!(joint_panel_posterior_calibration_lagged_l95, LAGGED, false, 31_300_000);
+calibration_test!(
+    joint_panel_posterior_calibration_broader_static_l95,
+    BROADER_STATIC,
+    false,
+    31_500_000
+);
+calibration_test!(
+    joint_panel_posterior_calibration_broader_lagged_l95,
+    BROADER_LAGGED,
+    false,
+    31_700_000
+);
+calibration_test!(joint_panel_posterior_calibration_time_varying_l95, LAGGED, true, 32_100_000);
+calibration_test!(
+    joint_panel_posterior_calibration_time_varying_broader_l95,
+    BROADER_LAGGED,
+    true,
+    32_300_000
+);
 
 const STATIC: Cell = Cell { lagged: false, broader: false };
 const LAGGED: Cell = Cell { lagged: true, broader: false };
@@ -671,25 +976,11 @@ contrast_test!(
     31_000_000
 );
 contrast_test!(
-    joint_panel_contrast_static_bayesian_l95,
-    STATIC,
-    Path::Invariant,
-    Mode::Bayesian,
-    31_100_000
-);
-contrast_test!(
     joint_panel_contrast_lagged_frequentist_l95,
     LAGGED,
     Path::Invariant,
     Mode::Frequentist,
     31_200_000
-);
-contrast_test!(
-    joint_panel_contrast_lagged_bayesian_l95,
-    LAGGED,
-    Path::Invariant,
-    Mode::Bayesian,
-    31_300_000
 );
 contrast_test!(
     joint_panel_contrast_broader_static_frequentist_l95,
@@ -699,25 +990,11 @@ contrast_test!(
     31_400_000
 );
 contrast_test!(
-    joint_panel_contrast_broader_static_bayesian_l95,
-    BROADER_STATIC,
-    Path::Invariant,
-    Mode::Bayesian,
-    31_500_000
-);
-contrast_test!(
     joint_panel_contrast_broader_lagged_frequentist_l95,
     BROADER_LAGGED,
     Path::Invariant,
     Mode::Frequentist,
     31_600_000
-);
-contrast_test!(
-    joint_panel_contrast_broader_lagged_bayesian_l95,
-    BROADER_LAGGED,
-    Path::Invariant,
-    Mode::Bayesian,
-    31_700_000
 );
 
 // The time-varying fit: one change at a declared candidate period; the interval carries the
@@ -730,25 +1007,11 @@ contrast_test!(
     32_000_000
 );
 contrast_test!(
-    joint_panel_time_varying_contrast_bayesian_l95,
-    LAGGED,
-    Path::Changed,
-    Mode::Bayesian,
-    32_100_000
-);
-contrast_test!(
     joint_panel_time_varying_contrast_broader_frequentist_l95,
     BROADER_LAGGED,
     Path::Changed,
     Mode::Frequentist,
     32_200_000
-);
-contrast_test!(
-    joint_panel_time_varying_contrast_broader_bayesian_l95,
-    BROADER_LAGGED,
-    Path::Changed,
-    Mode::Bayesian,
-    32_300_000
 );
 
 // ---------------------------------------------------------------------------------------
@@ -819,9 +1082,9 @@ fn masses_reading(cell: Cell, mode: Mode, groups: usize, seed: u64) -> Masses {
 
 /// One-sided false-change measurement on panels whose mechanism never changes.
 ///
-/// The published masses are selection frequencies (bootstrap) or posterior probabilities over
-/// a fixed prior on the candidate union (Bayesian). Their calibration as probabilities holds
-/// only for truths drawn from that prior, so a fixed no-change law cannot test that the mass
+/// The published masses are selection frequencies of the bootstrap. Their calibration as
+/// probabilities holds only for truths drawn from a prior (the Bayesian counterpart is scored
+/// under prior-drawn truths in the posterior calibration tests), so a fixed no-change law cannot test that the mass
 /// on "no change" equals a frequency. What a fixed no-change law can test, and what a reader
 /// does with these masses, is the confident claim: a replicate scores a miss when the law
 /// puts a mass of at least the level on specifications with a change, a false confident
@@ -875,17 +1138,6 @@ fn joint_panel_selection_false_change_frequentist() {
         LAGGED,
         Mode::Frequentist,
         33_000_000,
-    );
-}
-
-#[test]
-#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
-fn joint_panel_selection_false_change_bayesian() {
-    measure_false_change(
-        "joint_panel_selection_false_change_bayesian",
-        LAGGED,
-        Mode::Bayesian,
-        33_100_000,
     );
 }
 
@@ -1005,12 +1257,51 @@ fn identity_bridge(target: &antecedent_contract::ScientificQuantity) -> BridgeCo
 /// Fit one Bayesian panel posterior and declare the experiment over its terminal contrast.
 fn experiment_source(cell: Cell, path: Path, seed: u64) -> Source {
     let groups = path.groups();
-    let (prepared, result, _, _, _) = fit_panel(cell, path, Mode::Bayesian, groups, seed)
-        .unwrap_or_else(|reason| panic!("the source panel fit was refused: {reason}"));
     let functional = JointPanelResponseFunctional::TerminalMean;
-    let prior = result.numerical_project_law_source(&functional).expect(
-        "the source posterior must pass its declared diagnostics before an experiment updates it",
-    );
+    // The source posterior must pass its declared diagnostics before an experiment can update
+    // it. One fit serves every replicate, so it gets generous effort, and a posterior that
+    // misses the thresholds is refitted on a fresh panel a bounded number of times, with the
+    // diagnostics printed, before the test fails.
+    const SOURCE_ATTEMPTS: u64 = 6;
+    let mut source = None;
+    for attempt in 0..SOURCE_ATTEMPTS {
+        let attempt_seed = seed + 7_919 * attempt;
+        let generated = generate_panel(cell, path, groups, attempt_seed);
+        let sampling = PanelSamplingOptions {
+            chains: 4,
+            warmup: 5_000,
+            draws: 5_000,
+            ..PanelSamplingOptions::default()
+        };
+        let fitted =
+            fit_generated(cell, path, Mode::Bayesian, sampling, groups, generated, attempt_seed);
+        let (prepared, result, _, _, _) = match fitted {
+            Ok(fitted) => fitted,
+            Err(reason) => {
+                eprintln!("source attempt {attempt}: the fit was refused: {reason}");
+                continue;
+            }
+        };
+        match result.numerical_project_law_source(&functional) {
+            Ok(law) => {
+                source = Some((prepared, result, law));
+                break;
+            }
+            Err(error) => {
+                let diagnostics = match &result.fit {
+                    JointPanelFit::Invariant(fit) => format!("{:?}", fit.diagnostics),
+                    JointPanelFit::Varying(fit) => format!(
+                        "posterior diagnostics [rhat, bulk ess, tail ess] {:?}, converged {:?}",
+                        fit.posterior_diagnostics, fit.posterior_converged
+                    ),
+                };
+                eprintln!("source attempt {attempt}: no complete law ({error}); {diagnostics}");
+            }
+        }
+    }
+    let (prepared, result, prior) = source.unwrap_or_else(|| {
+        panic!("no source posterior passed its diagnostics in {SOURCE_ATTEMPTS} attempts")
+    });
     let width = prior.shape()[1];
     let TargetForm::Contrast(contrast) = result.request().target.form() else {
         panic!("assembled target")
