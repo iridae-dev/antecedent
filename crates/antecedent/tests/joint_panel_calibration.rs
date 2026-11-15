@@ -1398,31 +1398,42 @@ fn measure_update_weights(test: &'static str, cell: Cell, path: Path, seed: u64)
         RecordKey { test, dgp: "experiment_source", interval: "weighted_posterior_quantile" },
         LEVEL,
     );
+    // The two generators are consumed in replicate order, so every replicate's draw is taken
+    // up front and the replicates themselves are independent of execution order.
     let mut draw = uniform(grid_seed(seed), 41);
     let mut noise = gaussian(stream_seed(grid_seed(seed), 42));
+    let inputs: Vec<(usize, f64)> =
+        (0..n_sim()).map(|_| (((draw() * n as f64) as usize).min(n - 1), noise())).collect();
     let mut refused = BTreeMap::<String, usize>::new();
-    for rep in 0..n_sim() {
-        let slot = ((draw() * n as f64) as usize).min(n - 1);
+    let readings = map_replicates(n_sim(), |rep| {
+        let (slot, shock) = inputs[usize::try_from(rep).expect("replicate index")];
         let truth = source.states[slot];
         let mut update = source.update.clone();
-        update.observed_mean = truth + OBSERVATION_SD_RATIO * source.sd * noise();
-        let ctx = ExecutionContext::for_tests(grid_seed(seed + 1 + u64::from(rep)));
+        update.observed_mean = truth + OBSERVATION_SD_RATIO * source.sd * shock;
+        let ctx = ExecutionContext::for_tests(grid_seed(seed + 1 + rep));
         let attempt = source
             .prepared
             .with_experiment(update, &source.ledger)
             .and_then(|program| program.estimate(&source.ledger, &ctx));
         let updated = match attempt {
             Ok(updated) => updated,
-            Err(error) => {
-                tally.skip();
-                *refused.entry(error.to_string()).or_default() += 1;
-                continue;
-            }
+            Err(error) => return Err(error.to_string()),
         };
         let weights: Option<Vec<f64>> = updated
             .numerical_law_source(&source.ledger)
             .ok()
             .and_then(|law| law.metadata().weights.as_ref().map(|w| w.iter().copied().collect()));
+        Ok((weights.and_then(|weights| weighted_interval(&source.states, &order, &weights)), truth))
+    });
+    for reading in readings {
+        let (interval, truth) = match reading {
+            Ok(reading) => reading,
+            Err(error) => {
+                tally.skip();
+                *refused.entry(error).or_default() += 1;
+                continue;
+            }
+        };
         tally.bind_validation(
             &experiment_construction(cell, path, "weighted_posterior_quantile"),
             ScopeFacts {
@@ -1433,10 +1444,7 @@ fn measure_update_weights(test: &'static str, cell: Cell, path: Path, seed: u64)
             },
             "not_applicable",
         );
-        tally.record(
-            weights.and_then(|weights| weighted_interval(&source.states, &order, &weights)),
-            truth,
-        );
+        tally.record(interval, truth);
     }
     for (reason, count) in &refused {
         eprintln!("{test}: {count} replicate(s) refused: {reason}");
@@ -1588,20 +1596,24 @@ fn measure_future_sample_standard_error(test: &'static str, cell: Cell, path: Pa
         RecordKey { test, dgp: "experiment_source", interval: "monte_carlo_standard_error" },
         LEVEL,
     );
-    for rep in 0..n_sim() {
-        let ctx = ExecutionContext::for_tests(grid_seed(seed + 1 + u64::from(rep)));
-        let ranked = updated.rank_next_samples(
-            &problem,
-            std::slice::from_ref(&candidate),
-            REPLICATES,
-            &source.ledger,
-            &ctx,
-        );
-        let Ok(ranked) = ranked else {
+    let readings = map_replicates(n_sim(), |rep| {
+        let ctx = ExecutionContext::for_tests(grid_seed(seed + 1 + rep));
+        updated
+            .rank_next_samples(
+                &problem,
+                std::slice::from_ref(&candidate),
+                REPLICATES,
+                &source.ledger,
+                &ctx,
+            )
+            .ok()
+            .map(|ranked| (ranked[0].gross_evsi, ranked[0].standard_error))
+    });
+    for reading in readings {
+        let Some((gross_evsi, standard_error)) = reading else {
             tally.skip();
             continue;
         };
-        let value = &ranked[0];
         tally.bind_validation(
             &experiment_construction(cell, path, "monte_carlo_standard_error"),
             ScopeFacts {
@@ -1612,7 +1624,7 @@ fn measure_future_sample_standard_error(test: &'static str, cell: Cell, path: Pa
             },
             "not_applicable",
         );
-        tally.record(normal_interval(value.gross_evsi, Some(value.standard_error), Z95), exact);
+        tally.record(normal_interval(gross_evsi, Some(standard_error), Z95), exact);
     }
     tally.assert();
 }
