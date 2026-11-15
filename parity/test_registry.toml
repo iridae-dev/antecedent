@@ -23588,6 +23588,146 @@ path = "crates/antecedent/tests/synthetic_control_calibration.rs"
 gates = ["inventory"]
 
 [[test]]
+id = "continuous-program-search-reliability"
+crate = "antecedent"
+cargo_target = "continuous_program_search_reliability"
+path = "crates/antecedent/tests/continuous_program_search_reliability.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "discovery-statements-calibration"
+crate = "antecedent"
+cargo_target = "discovery_statements_calibration"
+path = "crates/antecedent/tests/discovery_statements_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "dose-grid-statements-calibration"
+crate = "antecedent"
+cargo_target = "dose_grid_statements_calibration"
+path = "crates/antecedent/tests/dose_grid_statements_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "fitted-model-statements-calibration"
+crate = "antecedent"
+cargo_target = "fitted_model_statements_calibration"
+path = "crates/antecedent/tests/fitted_model_statements_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "joint-panel-calibration"
+crate = "antecedent"
+cargo_target = "joint_panel_calibration"
+path = "crates/antecedent/tests/joint_panel_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "refuter-error-rates-calibration"
+crate = "antecedent"
+cargo_target = "refuter_error_rates_calibration"
+path = "crates/antecedent/tests/refuter_error_rates_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "static-mechanism-bootstrap-calibration"
+crate = "antecedent"
+cargo_target = "static_mechanism_bootstrap_calibration"
+path = "crates/antecedent/tests/static_mechanism_bootstrap_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "temporal-routes-statements-calibration"
+crate = "antecedent"
+cargo_target = "temporal_routes_statements_calibration"
+path = "crates/antecedent/tests/temporal_routes_statements_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "temporal-transport-calibration"
+crate = "antecedent"
+cargo_target = "temporal_transport_calibration"
+path = "crates/antecedent/tests/temporal_transport_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "panel-did-range-calibration"
+crate = "antecedent"
+cargo_target = "panel_did_range_calibration"
+path = "crates/antecedent/tests/panel_did_range_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "synthetic-control-range-calibration"
+crate = "antecedent"
+cargo_target = "synthetic_control_range_calibration"
+path = "crates/antecedent/tests/synthetic_control_range_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "temporal-design-range-calibration"
+crate = "antecedent"
+cargo_target = "temporal_design_range_calibration"
+path = "crates/antecedent/tests/temporal_design_range_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "temporal-routes-range-calibration"
+crate = "antecedent"
+cargo_target = "temporal_routes_range_calibration"
+path = "crates/antecedent/tests/temporal_routes_range_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "bounds-association-range-calibration"
+crate = "antecedent"
+cargo_target = "bounds_association_range_calibration"
+path = "crates/antecedent/tests/bounds_association_range_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "bayesian-randomized-statements-calibration"
+crate = "antecedent"
+cargo_target = "bayesian_randomized_statements_calibration"
+path = "crates/antecedent/tests/bayesian_randomized_statements_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "bounds-association-statements-calibration"
+crate = "antecedent"
+cargo_target = "bounds_association_statements_calibration"
+path = "crates/antecedent/tests/bounds_association_statements_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "local-designs-statements-calibration"
+crate = "antecedent"
+cargo_target = "local_designs_statements_calibration"
+path = "crates/antecedent/tests/local_designs_statements_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "measurement-composition-statements-calibration"
+crate = "antecedent"
+cargo_target = "measurement_composition_statements_calibration"
+path = "crates/antecedent/tests/measurement_composition_statements_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "panel-did-statements-calibration"
+crate = "antecedent"
+cargo_target = "panel_did_statements_calibration"
+path = "crates/antecedent/tests/panel_did_statements_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "temporal-design-statements-calibration"
+crate = "antecedent"
+cargo_target = "temporal_design_statements_calibration"
+path = "crates/antecedent/tests/temporal_design_statements_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
 id = "rollout-design-support-rows"
 crate = "antecedent"
 cargo_target = "rollout_design_support_rows"

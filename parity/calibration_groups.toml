@@ -12092,3 +12092,1407 @@ target = "synthetic_control_calibration"
 tests = ["multi_unit_synthetic_placebo_variance_interval"]
 ignored = true
 grid = true
+
+[[group]]
+label = "discovery_statements_calibration: discovery_static_order_mcmc_class_posterior_credible_set_coverage"
+package = "antecedent"
+target = "discovery_statements_calibration"
+tests = ["discovery_static_order_mcmc_class_posterior_credible_set_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "discovery_statements_calibration: discovery_static_order_mcmc_laplace_dag_posterior_credible_set_coverage"
+package = "antecedent"
+target = "discovery_statements_calibration"
+tests = ["discovery_static_order_mcmc_laplace_dag_posterior_credible_set_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "discovery_statements_calibration: discovery_static_structure_mcmc_class_posterior_credible_set_coverage"
+package = "antecedent"
+target = "discovery_statements_calibration"
+tests = ["discovery_static_structure_mcmc_class_posterior_credible_set_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "discovery_statements_calibration: discovery_static_ci_screened_class_posterior_credible_set_coverage"
+package = "antecedent"
+target = "discovery_statements_calibration"
+tests = ["discovery_static_ci_screened_class_posterior_credible_set_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "discovery_statements_calibration: discovery_static_exact_pag_posterior_collider_credible_set_coverage"
+package = "antecedent"
+target = "discovery_statements_calibration"
+tests = ["discovery_static_exact_pag_posterior_collider_credible_set_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "discovery_statements_calibration: discovery_static_exact_pag_posterior_chain_credible_set_coverage"
+package = "antecedent"
+target = "discovery_statements_calibration"
+tests = ["discovery_static_exact_pag_posterior_chain_credible_set_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "discovery_statements_calibration: discovery_static_pag_mcmc_posterior_collider_credible_set_coverage"
+package = "antecedent"
+target = "discovery_statements_calibration"
+tests = ["discovery_static_pag_mcmc_posterior_collider_credible_set_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "discovery_statements_calibration: discovery_static_exact_edge_marginals_indicator_credible_set_coverage"
+package = "antecedent"
+target = "discovery_statements_calibration"
+tests = ["discovery_static_exact_edge_marginals_indicator_credible_set_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "discovery_statements_calibration: discovery_temporal_dbn_class_posterior_lagged_edge_credible_set_coverage"
+package = "antecedent"
+target = "discovery_statements_calibration"
+tests = ["discovery_temporal_dbn_class_posterior_lagged_edge_credible_set_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "discovery_statements_calibration: discovery_temporal_dbn_class_posterior_contemporaneous_edge_credible_set_coverage"
+package = "antecedent"
+target = "discovery_statements_calibration"
+tests = ["discovery_temporal_dbn_class_posterior_contemporaneous_edge_credible_set_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dose_grid_statements_calibration: dose_grid_zero_bound_level_intervals_and_band"
+package = "antecedent"
+target = "dose_grid_statements_calibration"
+tests = ["dose_grid_zero_bound_level_intervals_and_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dose_grid_statements_calibration: dose_grid_zero_bound_derivative_intervals_and_band"
+package = "antecedent"
+target = "dose_grid_statements_calibration"
+tests = ["dose_grid_zero_bound_derivative_intervals_and_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dose_grid_statements_calibration: dose_grid_bias_aware_level_intervals_and_band"
+package = "antecedent"
+target = "dose_grid_statements_calibration"
+tests = ["dose_grid_bias_aware_level_intervals_and_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dose_grid_statements_calibration: dose_grid_bias_aware_derivative_intervals_and_band"
+package = "antecedent"
+target = "dose_grid_statements_calibration"
+tests = ["dose_grid_bias_aware_derivative_intervals_and_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dose_grid_statements_calibration: dose_grid_bias_aware_contrast_interval"
+package = "antecedent"
+target = "dose_grid_statements_calibration"
+tests = ["dose_grid_bias_aware_contrast_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_paths_dag_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_paths_dag_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_feature_relevance_dag_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_feature_relevance_dag_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_anomaly_dag_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_anomaly_dag_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_anomaly_empirical_reference_dag_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_anomaly_empirical_reference_dag_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_unit_change_dag_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_unit_change_dag_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_unit_change_dag_bayesian_dirichlet_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_unit_change_dag_bayesian_dirichlet_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_anomaly_empirical_reference_dag_bayesian_dirichlet_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_anomaly_empirical_reference_dag_bayesian_dirichlet_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_distribution_change_robust_dag_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_distribution_change_robust_dag_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_structure_change_dag_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_structure_change_dag_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_structure_change_dag_bayesian_dirichlet_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_structure_change_dag_bayesian_dirichlet_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_temporal_dag_bayesian_block_weights_component_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_temporal_dag_bayesian_block_weights_component_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: attribute_temporal_intrinsic_influence_bayesian_block_weights_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["attribute_temporal_intrinsic_influence_bayesian_block_weights_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: simulate_interventional_sample_dag_bayesian_dirichlet_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["simulate_interventional_sample_dag_bayesian_dirichlet_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: simulate_interventional_sample_dag_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["simulate_interventional_sample_dag_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: simulate_unit_effects_dag_bayesian_dirichlet_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["simulate_unit_effects_dag_bayesian_dirichlet_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: simulate_unit_effects_dag_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["simulate_unit_effects_dag_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: simulate_counterfactual_dag_bayesian_dirichlet_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["simulate_counterfactual_dag_bayesian_dirichlet_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: simulate_counterfactual_dag_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["simulate_counterfactual_dag_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: simulate_temporal_counterfactual_dag_bayesian_dirichlet_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["simulate_temporal_counterfactual_dag_bayesian_dirichlet_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "fitted_model_statements_calibration: simulate_temporal_counterfactual_dag_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "fitted_model_statements_calibration"
+tests = ["simulate_temporal_counterfactual_dag_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selection_false_change_frequentist"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selection_false_change_frequentist"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_experiment_update_weights_finite_lag_bayesian_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_experiment_update_weights_finite_lag_bayesian_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_experiment_update_weights_time_varying_bayesian_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_experiment_update_weights_time_varying_bayesian_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_future_sample_value_standard_error_finite_lag_bayesian_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_future_sample_value_standard_error_finite_lag_bayesian_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_future_sample_value_standard_error_time_varying_bayesian_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_future_sample_value_standard_error_time_varying_bayesian_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: prepared_joint_response_contrast_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["prepared_joint_response_contrast_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: prepared_joint_response_contrast_bayesian_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["prepared_joint_response_contrast_bayesian_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_posterior_calibration_static_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_posterior_calibration_static_l95"]
+ignored = true
+grid = false
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_posterior_calibration_lagged_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_posterior_calibration_lagged_l95"]
+ignored = true
+grid = false
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_posterior_calibration_broader_static_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_posterior_calibration_broader_static_l95"]
+ignored = true
+grid = false
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_posterior_calibration_broader_lagged_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_posterior_calibration_broader_lagged_l95"]
+ignored = true
+grid = false
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_posterior_calibration_time_varying_l95"]
+ignored = true
+grid = false
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_broader_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_posterior_calibration_time_varying_broader_l95"]
+ignored = true
+grid = false
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_contrast_static_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_contrast_static_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_contrast_lagged_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_contrast_lagged_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_contrast_broader_static_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_contrast_broader_static_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_contrast_broader_lagged_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_contrast_broader_lagged_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_time_varying_contrast_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_time_varying_contrast_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_time_varying_contrast_broader_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_time_varying_contrast_broader_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "refuter_error_rates_calibration: static_frequentist_refuters_false_rejection_under_a_sound_procedure"
+package = "antecedent"
+target = "refuter_error_rates_calibration"
+tests = ["static_frequentist_refuters_false_rejection_under_a_sound_procedure"]
+ignored = true
+grid = true
+
+[[group]]
+label = "refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_spurious_effect"
+package = "antecedent"
+target = "refuter_error_rates_calibration"
+tests = ["static_frequentist_refuters_power_against_a_spurious_effect"]
+ignored = true
+grid = true
+
+[[group]]
+label = "refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_misreported_target"
+package = "antecedent"
+target = "refuter_error_rates_calibration"
+tests = ["static_frequentist_refuters_power_against_a_misreported_target"]
+ignored = true
+grid = true
+
+[[group]]
+label = "refuter_error_rates_calibration: temporal_frequentist_refuters_false_rejection_under_a_sound_procedure"
+package = "antecedent"
+target = "refuter_error_rates_calibration"
+tests = ["temporal_frequentist_refuters_false_rejection_under_a_sound_procedure"]
+ignored = true
+grid = true
+
+[[group]]
+label = "refuter_error_rates_calibration: temporal_facade_refuters_false_rejection_under_a_sound_procedure"
+package = "antecedent"
+target = "refuter_error_rates_calibration"
+tests = ["temporal_facade_refuters_false_rejection_under_a_sound_procedure"]
+ignored = true
+grid = true
+
+[[group]]
+label = "refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_spurious_effect"
+package = "antecedent"
+target = "refuter_error_rates_calibration"
+tests = ["temporal_frequentist_refuters_power_against_a_spurious_effect"]
+ignored = true
+grid = true
+
+[[group]]
+label = "refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_misreported_target"
+package = "antecedent"
+target = "refuter_error_rates_calibration"
+tests = ["temporal_frequentist_refuters_power_against_a_misreported_target"]
+ignored = true
+grid = true
+
+[[group]]
+label = "refuter_error_rates_calibration: static_bayesian_predictive_check_false_rejection_under_a_correct_model"
+package = "antecedent"
+target = "refuter_error_rates_calibration"
+tests = ["static_bayesian_predictive_check_false_rejection_under_a_correct_model"]
+ignored = true
+grid = true
+
+[[group]]
+label = "refuter_error_rates_calibration: static_bayesian_predictive_check_power_against_a_misreported_target"
+package = "antecedent"
+target = "refuter_error_rates_calibration"
+tests = ["static_bayesian_predictive_check_power_against_a_misreported_target"]
+ignored = true
+grid = true
+
+[[group]]
+label = "refuter_error_rates_calibration: temporal_bayesian_predictive_check_false_rejection_under_a_correct_model"
+package = "antecedent"
+target = "refuter_error_rates_calibration"
+tests = ["temporal_bayesian_predictive_check_false_rejection_under_a_correct_model"]
+ignored = true
+grid = true
+
+[[group]]
+label = "refuter_error_rates_calibration: temporal_bayesian_predictive_check_power_against_a_misreported_target"
+package = "antecedent"
+target = "refuter_error_rates_calibration"
+tests = ["temporal_bayesian_predictive_check_power_against_a_misreported_target"]
+ignored = true
+grid = true
+
+[[group]]
+label = "static_mechanism_bootstrap_calibration: counterfactual_dag_explicit_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "static_mechanism_bootstrap_calibration"
+features = ["calibration-internal"]
+tests = ["counterfactual_dag_explicit_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "static_mechanism_bootstrap_calibration: anomaly_attribution_dag_explicit_frequentist_bootstrap_coverage"
+package = "antecedent"
+target = "static_mechanism_bootstrap_calibration"
+features = ["calibration-internal"]
+tests = ["anomaly_attribution_dag_explicit_frequentist_bootstrap_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_routes_statements_calibration: bayesian_sequential_regime_value_fitted_crossfit_posterior_coverage"
+package = "antecedent"
+target = "temporal_routes_statements_calibration"
+tests = ["bayesian_sequential_regime_value_fitted_crossfit_posterior_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_transport_calibration: transport_series_newey_west_interval_coverage"
+package = "antecedent"
+target = "temporal_transport_calibration"
+features = ["calibration-internal"]
+tests = ["transport_series_newey_west_interval_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_transport_calibration: transport_series_block_posterior_coverage"
+package = "antecedent"
+target = "temporal_transport_calibration"
+features = ["calibration-internal"]
+tests = ["transport_series_block_posterior_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "panel_did_range_calibration: bayesian_two_period_posterior_interval_from_the_row_floor"
+package = "antecedent"
+target = "panel_did_range_calibration"
+tests = ["bayesian_two_period_posterior_interval_from_the_row_floor"]
+ignored = true
+grid = true
+
+[[group]]
+label = "panel_did_range_calibration: augmented_panel_in_sample_nuisance_bootstrap_interval"
+package = "antecedent"
+target = "panel_did_range_calibration"
+tests = ["augmented_panel_in_sample_nuisance_bootstrap_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_one_post_period_average_interval"
+package = "antecedent"
+target = "synthetic_control_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_one_post_period_average_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_one_post_period_period_interval"
+package = "antecedent"
+target = "synthetic_control_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_one_post_period_period_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_three_post_periods_average_interval"
+package = "antecedent"
+target = "synthetic_control_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_three_post_periods_average_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_three_post_periods_first_period_interval"
+package = "antecedent"
+target = "synthetic_control_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_three_post_periods_first_period_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "synthetic_control_range_calibration: bayesian_synthetic_control_predictive_path_three_post_periods_last_period_interval"
+package = "antecedent"
+target = "synthetic_control_range_calibration"
+tests = ["bayesian_synthetic_control_predictive_path_three_post_periods_last_period_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "synthetic_control_range_calibration: conformal_synthetic_control_one_post_period_period_set"
+package = "antecedent"
+target = "synthetic_control_range_calibration"
+tests = ["conformal_synthetic_control_one_post_period_period_set"]
+ignored = true
+grid = true
+
+[[group]]
+label = "synthetic_control_range_calibration: conformal_synthetic_control_one_post_period_constant_effect_set"
+package = "antecedent"
+target = "synthetic_control_range_calibration"
+tests = ["conformal_synthetic_control_one_post_period_constant_effect_set"]
+ignored = true
+grid = true
+
+[[group]]
+label = "synthetic_control_range_calibration: conformal_synthetic_control_three_post_periods_first_period_set"
+package = "antecedent"
+target = "synthetic_control_range_calibration"
+tests = ["conformal_synthetic_control_three_post_periods_first_period_set"]
+ignored = true
+grid = true
+
+[[group]]
+label = "synthetic_control_range_calibration: conformal_synthetic_control_three_post_periods_last_period_set"
+package = "antecedent"
+target = "synthetic_control_range_calibration"
+tests = ["conformal_synthetic_control_three_post_periods_last_period_set"]
+ignored = true
+grid = true
+
+[[group]]
+label = "synthetic_control_range_calibration: conformal_synthetic_control_three_post_periods_constant_effect_set"
+package = "antecedent"
+target = "synthetic_control_range_calibration"
+tests = ["conformal_synthetic_control_three_post_periods_constant_effect_set"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_range_calibration: temporal_design_regime_survival_horizon_one_bootstrap_interval"
+package = "antecedent"
+target = "temporal_design_range_calibration"
+tests = ["temporal_design_regime_survival_horizon_one_bootstrap_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_range_calibration: temporal_design_regime_survival_horizon_two_bootstrap_interval"
+package = "antecedent"
+target = "temporal_design_range_calibration"
+tests = ["temporal_design_regime_survival_horizon_two_bootstrap_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_range_calibration: bayesian_temporal_design_regime_survival_horizon_one_interval"
+package = "antecedent"
+target = "temporal_design_range_calibration"
+tests = ["bayesian_temporal_design_regime_survival_horizon_one_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_range_calibration: bayesian_temporal_design_regime_survival_horizon_two_interval"
+package = "antecedent"
+target = "temporal_design_range_calibration"
+tests = ["bayesian_temporal_design_regime_survival_horizon_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_routes_range_calibration: sequential_crossfit_contrast_wald_interval_ten_folds_coverage"
+package = "antecedent"
+target = "temporal_routes_range_calibration"
+tests = ["sequential_crossfit_contrast_wald_interval_ten_folds_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_routes_range_calibration: sequential_crossfit_contrast_wald_interval_unbalanced_folds_coverage"
+package = "antecedent"
+target = "temporal_routes_range_calibration"
+tests = ["sequential_crossfit_contrast_wald_interval_unbalanced_folds_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_routes_range_calibration: bayesian_sequential_crossfit_contrast_posterior_ten_folds_coverage"
+package = "antecedent"
+target = "temporal_routes_range_calibration"
+tests = ["bayesian_sequential_crossfit_contrast_posterior_ten_folds_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_routes_range_calibration: bayesian_sequential_crossfit_contrast_posterior_unbalanced_folds_coverage"
+package = "antecedent"
+target = "temporal_routes_range_calibration"
+tests = ["bayesian_sequential_crossfit_contrast_posterior_unbalanced_folds_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_range_calibration: bayesian_association_static_slope_credible_interval_prior_scale_six"
+package = "antecedent"
+target = "bounds_association_range_calibration"
+tests = ["bayesian_association_static_slope_credible_interval_prior_scale_six"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_range_calibration: bayesian_association_static_slope_credible_interval_prior_scale_one_thousand"
+package = "antecedent"
+target = "bounds_association_range_calibration"
+tests = ["bayesian_association_static_slope_credible_interval_prior_scale_one_thousand"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bayesian_randomized_statements_calibration: finite_population_bernoulli_arms_sharp_null_credible_interval"
+package = "antecedent"
+target = "bayesian_randomized_statements_calibration"
+tests = ["finite_population_bernoulli_arms_sharp_null_credible_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bayesian_randomized_statements_calibration: finite_population_bernoulli_arms_varying_effects_credible_interval"
+package = "antecedent"
+target = "bayesian_randomized_statements_calibration"
+tests = ["finite_population_bernoulli_arms_varying_effects_credible_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bayesian_randomized_statements_calibration: cluster_bayesian_bootstrap_larger_small_arm_credible_interval"
+package = "antecedent"
+target = "bayesian_randomized_statements_calibration"
+tests = ["cluster_bayesian_bootstrap_larger_small_arm_credible_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_static_stratum_mean_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_static_stratum_mean_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_static_stratum_probability_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_static_stratum_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_static_stratum_mean_bootstrap_spread_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_static_stratum_mean_bootstrap_spread_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_static_logistic_slope_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_static_logistic_slope_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_static_logistic_bootstrap_spread_slope_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_static_logistic_bootstrap_spread_slope_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_static_poisson_slope_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_static_poisson_slope_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_static_poisson_bootstrap_spread_slope_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_static_poisson_bootstrap_spread_slope_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_static_pearson_correlation_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_static_pearson_correlation_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_static_pearson_correlation_bootstrap_spread_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_static_pearson_correlation_bootstrap_spread_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_static_distance_correlation_bootstrap_spread_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_static_distance_correlation_bootstrap_spread_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: bayesian_association_static_bootstrap_logistic_slope_credible_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["bayesian_association_static_bootstrap_logistic_slope_credible_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: bayesian_association_static_bootstrap_stratum_probability_credible_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["bayesian_association_static_bootstrap_stratum_probability_credible_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: bayesian_association_static_bootstrap_pearson_correlation_credible_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["bayesian_association_static_bootstrap_pearson_correlation_credible_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_temporal_stratum_mean_newey_west_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_temporal_stratum_mean_newey_west_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "bounds_association_statements_calibration: association_temporal_stratum_mean_block_bootstrap_spread_interval"
+package = "antecedent"
+target = "bounds_association_statements_calibration"
+tests = ["association_temporal_stratum_mean_block_bootstrap_spread_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "local_designs_statements_calibration: regression_kink_declared_bandwidth_rbc_with_diagnostics_interval_covers_the_slope_ratio"
+package = "antecedent"
+target = "local_designs_statements_calibration"
+tests = ["regression_kink_declared_bandwidth_rbc_with_diagnostics_interval_covers_the_slope_ratio"]
+ignored = true
+grid = true
+
+[[group]]
+label = "local_designs_statements_calibration: temporal_fuzzy_rd_selected_bandwidth_block_bootstrap_interval_covers_the_jump"
+package = "antecedent"
+target = "local_designs_statements_calibration"
+tests = ["temporal_fuzzy_rd_selected_bandwidth_block_bootstrap_interval_covers_the_jump"]
+ignored = true
+grid = true
+
+[[group]]
+label = "local_designs_statements_calibration: temporal_regression_kink_selected_bandwidth_block_bootstrap_interval_covers_the_slope_ratio"
+package = "antecedent"
+target = "local_designs_statements_calibration"
+tests = ["temporal_regression_kink_selected_bandwidth_block_bootstrap_interval_covers_the_slope_ratio"]
+ignored = true
+grid = true
+
+[[group]]
+label = "local_designs_statements_calibration: temporal_fuzzy_step_block_bootstrap_interval_covers_the_local_ratio"
+package = "antecedent"
+target = "local_designs_statements_calibration"
+tests = ["temporal_fuzzy_step_block_bootstrap_interval_covers_the_local_ratio"]
+ignored = true
+grid = true
+
+[[group]]
+label = "local_designs_statements_calibration: bayesian_temporal_fuzzy_rd_selected_bandwidth_block_posterior_covers_the_jump"
+package = "antecedent"
+target = "local_designs_statements_calibration"
+tests = ["bayesian_temporal_fuzzy_rd_selected_bandwidth_block_posterior_covers_the_jump"]
+ignored = true
+grid = true
+
+[[group]]
+label = "local_designs_statements_calibration: bayesian_temporal_regression_kink_selected_bandwidth_block_posterior_covers_the_slope_ratio"
+package = "antecedent"
+target = "local_designs_statements_calibration"
+tests = ["bayesian_temporal_regression_kink_selected_bandwidth_block_posterior_covers_the_slope_ratio"]
+ignored = true
+grid = true
+
+[[group]]
+label = "local_designs_statements_calibration: bayesian_temporal_fuzzy_step_block_posterior_covers_the_local_ratio"
+package = "antecedent"
+target = "local_designs_statements_calibration"
+tests = ["bayesian_temporal_fuzzy_step_block_posterior_covers_the_local_ratio"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: measurement_categorical_proportion_wald_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["measurement_categorical_proportion_wald_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: measurement_categorical_outcome_mean_wald_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["measurement_categorical_outcome_mean_wald_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: measurement_categorical_outcome_contrast_wald_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["measurement_categorical_outcome_contrast_wald_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: measurement_regression_calibration_linear_wald_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["measurement_regression_calibration_linear_wald_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: measurement_regression_calibration_covariate_error_wald_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["measurement_regression_calibration_covariate_error_wald_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: measurement_regression_calibration_logistic_wald_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["measurement_regression_calibration_logistic_wald_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: measurement_simex_linear_wald_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["measurement_simex_linear_wald_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: measurement_simex_linear_quadratic_extrapolation_limit_wald_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["measurement_simex_linear_quadratic_extrapolation_limit_wald_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: measurement_simex_linear_linear_extrapolation_limit_wald_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["measurement_simex_linear_linear_extrapolation_limit_wald_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: measurement_simex_logistic_wald_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["measurement_simex_logistic_wald_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: temporal_misclassification_three_arm_contrast_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["temporal_misclassification_three_arm_contrast_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: temporal_misclassification_three_arm_reference_mean_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["temporal_misclassification_three_arm_reference_mean_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: temporal_misclassification_ordered_levels_step_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["temporal_misclassification_ordered_levels_step_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: temporal_misclassification_factorial_main_effect_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["temporal_misclassification_factorial_main_effect_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: temporal_misclassification_factorial_interaction_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["temporal_misclassification_factorial_interaction_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: temporal_misclassification_interference_direct_effect_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["temporal_misclassification_interference_direct_effect_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: temporal_misclassification_interference_spillover_effect_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["temporal_misclassification_interference_spillover_effect_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: composed_sum_shared_rows_gaussian_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["composed_sum_shared_rows_gaussian_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: composed_weighted_sum_shared_rows_gaussian_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["composed_weighted_sum_shared_rows_gaussian_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: composed_sum_aligned_posterior_gaussian_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["composed_sum_aligned_posterior_gaussian_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: composed_sum_aligned_posterior_skewed_pair_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["composed_sum_aligned_posterior_skewed_pair_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: composed_weighted_sum_aligned_posterior_gaussian_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["composed_weighted_sum_aligned_posterior_gaussian_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: composed_product_aligned_posterior_gaussian_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["composed_product_aligned_posterior_gaussian_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: composed_product_aligned_posterior_skewed_pair_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["composed_product_aligned_posterior_skewed_pair_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measurement_composition_statements_calibration: composed_ratio_aligned_posterior_gaussian_l95"
+package = "antecedent"
+target = "measurement_composition_statements_calibration"
+tests = ["composed_ratio_aligned_posterior_gaussian_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "panel_did_statements_calibration: rollout_dynamic_aggregation_intervals_and_band"
+package = "antecedent"
+target = "panel_did_statements_calibration"
+tests = ["rollout_dynamic_aggregation_intervals_and_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "panel_did_statements_calibration: rollout_group_aggregation_intervals_and_band"
+package = "antecedent"
+target = "panel_did_statements_calibration"
+tests = ["rollout_group_aggregation_intervals_and_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "panel_did_statements_calibration: rollout_calendar_aggregation_intervals_and_band"
+package = "antecedent"
+target = "panel_did_statements_calibration"
+tests = ["rollout_calendar_aggregation_intervals_and_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "panel_did_statements_calibration: rollout_group_time_and_pre_trend_simultaneous_bands"
+package = "antecedent"
+target = "panel_did_statements_calibration"
+tests = ["rollout_group_time_and_pre_trend_simultaneous_bands"]
+ignored = true
+grid = true
+
+[[group]]
+label = "panel_did_statements_calibration: rollout_unbalanced_callaway_santanna_multiplier_interval"
+package = "antecedent"
+target = "panel_did_statements_calibration"
+tests = ["rollout_unbalanced_callaway_santanna_multiplier_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "panel_did_statements_calibration: rollout_unbalanced_sun_abraham_multiplier_interval"
+package = "antecedent"
+target = "panel_did_statements_calibration"
+tests = ["rollout_unbalanced_sun_abraham_multiplier_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "panel_did_statements_calibration: rollout_unbalanced_imputation_multiplier_interval"
+package = "antecedent"
+target = "panel_did_statements_calibration"
+tests = ["rollout_unbalanced_imputation_multiplier_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "panel_did_statements_calibration: augmented_panel_estimated_nuisance_bootstrap_interval"
+package = "antecedent"
+target = "panel_did_statements_calibration"
+tests = ["augmented_panel_estimated_nuisance_bootstrap_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_two_arm_arm_mean_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_two_arm_arm_mean_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_multi_arm_other_coordinate_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_multi_arm_other_coordinate_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_categorical_other_coordinate_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_categorical_other_coordinate_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_factorial_other_coordinate_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_factorial_other_coordinate_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_interference_other_coordinate_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_interference_other_coordinate_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_continuous_dose_response_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_continuous_dose_response_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_smoothed_dose_other_grid_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_smoothed_dose_other_grid_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_dose_grid_other_level_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_dose_grid_other_level_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_quantile_arm_median_bootstrap_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_quantile_arm_median_bootstrap_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_multi_arm_contrast_band"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_multi_arm_contrast_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_categorical_contrast_band"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_categorical_contrast_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_factorial_effect_band"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_factorial_effect_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_interference_effect_band"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_interference_effect_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_smoothed_dose_curve_band"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_smoothed_dose_curve_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_dose_grid_level_band"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_dose_grid_level_band"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_multi_arm_holm_family_error"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_multi_arm_holm_family_error"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_categorical_holm_family_error"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_categorical_holm_family_error"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_factorial_holm_family_error"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_factorial_holm_family_error"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_interference_holm_family_error"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_interference_holm_family_error"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_lower_quartile_effect_bootstrap_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_lower_quartile_effect_bootstrap_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_upper_quartile_effect_bootstrap_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_upper_quartile_effect_bootstrap_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_dose_grid_derivative_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_dose_grid_derivative_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_dose_grid_bias_aware_level_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_dose_grid_bias_aware_level_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_dose_grid_bias_aware_derivative_intervals"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_dose_grid_bias_aware_derivative_intervals"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_design_statements_calibration: temporal_design_regime_survival_longer_horizon_bootstrap_interval"
+package = "antecedent"
+target = "temporal_design_statements_calibration"
+tests = ["temporal_design_regime_survival_longer_horizon_bootstrap_interval"]
+ignored = true
+grid = true
