@@ -16713,7 +16713,7 @@ truth_grid_allocation = "Closed-form Bernoulli and uniform endpoints and enumera
 [[record]]
 id = "joint_law.transported_composition"
 capability = "joint_law.transported_composition"
-status = "not_supported"
+status = "supported"
 consumer_question = "May a transported interval, or the source-sampling, target-sampling and transport-functional pieces of one transported claim, be composed with another claim?"
 theorem = "A transported interval depends on source sampling, target sampling and the transport functional, and the pieces are dependent when evidence is shared; independence is never assumed for them. The composition needs the aligned draws of one joint law (one alignment identity for every piece) or a supplied covariance between the pieces; a transported interval composed with another claim without either is refused. A component interval does not cover the composition."
 reference = "docs/joint-law-propagation.md"
@@ -16734,14 +16734,13 @@ prerequisite_reason = "Executes only through the linear and aligned routes; take
 bounds = { cancellation = true }
 inference_inventory_disposition = "no_new_inference_outputs"
 refusals = [
-  { code = "joint_law_required", detail = "joint_law_propagation.horizon_draws_not_joint", when = "The response retains no realizations coupled across horizons.", remedy = "Run a temporal response with joint replicates retained." },
-  { code = "option_not_applicable", detail = "joint_law_propagation.horizon_draws_mean_curve", when = "The response is not a temporal mean curve or intervention response, or lacks horizon identification.", remedy = "Compose the horizons of a temporal mean curve or intervention response." },
-  { code = "invalid_argument", detail = "joint_law_propagation.horizon_draws_layout", when = "The retained layout, replicate cells or point surface do not match the horizons.", remedy = "Retain a response whose point surface and joint replicates match its horizon layout." },
-  { code = "invalid_argument", detail = "joint_law_propagation.horizon_draws_dose", when = "The requested dose index is outside the retained curve grid.", remedy = "Name a dose inside the curve grid." },
-  { code = "invalid_argument", detail = "joint_law_propagation.horizon_composition", when = "Horizon coefficients or aligned realizations have an invalid shape, non-finite values, or fewer than two realizations.", remedy = "Give one coefficient per horizon and compose at least two finite, equally sized joint realizations." },
-  { code = "option_not_applicable", detail = "joint_law_propagation.horizon_composition", when = "The nonlinear horizon composition method receives a linear operation.", remedy = "Use compose_horizons for a linear combination." },
-  { code = "joint_law_required", detail = "joint_law_propagation.transported_dependence_required", when = "A transported interval, or a source- or target-sampling piece of one, is composed without an aligned law or a covariance.", remedy = "Supply the aligned draws of one joint law or the covariance between the pieces before composing a transported interval with another claim." },
-  { code = "joint_law_required", detail = "joint_law_propagation.transport_pieces_incomplete", when = "A spread of a transported composition does not name source sampling, target sampling and the transport functional with their dependence.", remedy = "Name all three pieces and their dependence, or ask for the point value." },
+  { detail = "joint_law_propagation.horizon_draws_not_joint", when = "The response retains no realizations coupled across horizons.", remedy = "Run a temporal response with joint replicates retained." },
+  { detail = "joint_law_propagation.horizon_draws_mean_curve", when = "The response is not a temporal mean curve or intervention response, or lacks horizon identification.", remedy = "Compose the horizons of a temporal mean curve or intervention response." },
+  { detail = "joint_law_propagation.horizon_draws_layout", when = "The retained layout, replicate cells or point surface do not match the horizons.", remedy = "Retain a response whose point surface and joint replicates match its horizon layout." },
+  { detail = "joint_law_propagation.horizon_draws_dose", when = "The requested dose index is outside the retained curve grid.", remedy = "Name a dose inside the curve grid." },
+  { detail = "joint_law_propagation.horizon_composition", when = "Horizon coefficients or aligned realizations have an invalid shape, non-finite values, or fewer than two realizations.", remedy = "Give one coefficient per horizon and compose at least two finite, equally sized joint realizations." },
+  { detail = "joint_law_propagation.transported_dependence_required", when = "A transported interval, or a source- or target-sampling piece of one, is composed without an aligned law or a covariance.", remedy = "Supply the aligned draws of one joint law or the covariance between the pieces before composing a transported interval with another claim." },
+  { detail = "joint_law_propagation.transport_pieces_incomplete", when = "A spread of a transported composition does not name source sampling, target sampling and the transport functional with their dependence.", remedy = "Name all three pieces and their dependence, or ask for the point value." },
 ]
 routes = [
   { name = "antecedent_contract.joint_law_rule.transported_dependence_required", stage = "prepare", status = "closed", reason_code = "joint_law_required", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/joint_law_rule.rs", refusal_assertion = "a_transported_interval_needs_an_aligned_law_or_a_covariance" },
@@ -21503,19 +21502,19 @@ inherited_coverage_records = []
 [[record]]
 id = "decision.experimental_margin.interval_candidates"
 capability = "decision.experimental_margin.interval_candidates"
-status = "not_supported"
-consumer_question = "Have the registered decision-margin interval constructions been measured?"
-theorem = "The candidate studies measure the whole derived margin under their declared assignment, dependence, adjustment and target. Registering them does not establish coverage or support an interval."
+status = "supported"
+consumer_question = "What does a derived decision-margin interval carry about its own measured calibration?"
+theorem = "A derived decision margin keeps the dependence of its joint experimental evidence and reports its first-order sampling interval at its own construction: assignment design, dependence, adjustment, target and derived quantity. The calibration slot of that interval is resolved from the shipped coverage records: calibrated exactly when a current attesting record measured the whole derived margin under that construction and the number of independently randomized units lies in the measured range, otherwise outside_measured_scope, measured_below_nominal or not_measured. Calibration annotates the interval; it never withholds it, and no component support is inherited."
 reference = "crates/antecedent-design/src/decision_evidence/derive.rs"
-guarantee = "candidate_measurement_pending_no_interval_support"
+guarantee = "margin_interval_reported_with_the_calibration_slot_of_its_own_construction"
 graph_class = "Randomized trial or declared observational regime, as named by the producer."
 population_semantics = "The explicit population and assignment or regime in each candidate study."
 evidence_family = "Native joint experimental evidence and derived decision margins."
-provider = "antecedent_design::decision_evidence::decision_interval_calibration_basis"
+provider = "antecedent_design::decision_evidence::decision_interval_calibration_slot"
 estimand = "The declared derived decision margin under the experiment or regime."
-inference_claim = "none"
-coverage_records = []
-candidate_coverage_records = [
+inference_claim = "interval"
+inference_notes = "The interval is the first-order delta-method interval of the derived margin; its calibration is annotated from the shipped coverage records measured under each assignment design, never inherited from a component."
+coverage_records = [
   "cov.decision_evidence.randomized_trial.frequentist.delta_method_normal_95.l95.decision_margin_joint_cluster_delta_interval.v2_validation_none",
   "cov.decision_evidence.randomized_trial.frequentist.delta_method_normal_95.l95.decision_margin_centered_cuped_cluster_delta_interval.v2_validation_none",
   "cov.decision_evidence.randomized_trial.frequentist.delta_method_student_95.l95.decision_margin_matched_pair_delta_interval.v2_validation_none",
@@ -21526,17 +21525,35 @@ candidate_coverage_records = [
 ]
 owners = ["antecedent-design", "antecedent"]
 identity_inputs = ["assignment design", "dependence", "adjustment", "target", "derived quantity", "interval method"]
-wire_changes = ["None; registering candidates creates no coverage records or interval authority."]
-compatibility = "Additive inventory of existing calibration tests; not_measured intervals remain unsupported."
+wire_changes = ["None; the slot is resolved from the shipped coverage records and carries no new wire field."]
+compatibility = "Additive: a new function resolves the calibration slot of an interval the derivation already reports; no existing result field changes."
 search = false
 bounds = { cancellation = true }
-refusals = [{ code = "decision_evidence_scope_mismatch", detail = "decision_evidence.incompatible_population", when = "The request names a population outside the retained evidence scope." }]
-routes = [{ name = "decision.experimental_margin.measured_interval", stage = "uncertainty", status = "closed", reason_code = "not_supported" }]
-fixtures = [
-  { id = "decision.experimental_margin.interval_candidates.joint.positive", role = "positive", intent = "The derived margin retains dependence and reports its existing not_measured status.", evidence_test = "crates/antecedent/tests/decision_evidence_workflow.rs", evidence_assertion = "nonlinear_margin_from_a_clustered_experiment_keeps_dependence_and_inherits_no_support" },
-  { id = "decision.experimental_margin.interval_candidates.scope.negative", role = "negative", intent = "Requests outside the declared evidence scope are refused.", evidence_test = "crates/antecedent/tests/decision_evidence_workflow.rs", evidence_assertion = "out_of_scope_requests_are_typed_refusals_and_deployment_needs_a_bridge" },
-  { id = "decision.experimental_margin.interval_candidates.artifact", role = "artifact", intent = "Artifact evidence is required before capability of this candidate inventory." },
+refusals = [
+  { detail = "decision_evidence.incompatible_population", when = "The request names a population outside the retained evidence scope.", remedy = "Name the population of the retained evidence." },
+  { detail = "decision_evidence.adjustment_not_admissible", when = "The adjustment named by the request is not admissible for the retained evidence.", remedy = "Correct the declaration or request named by the detail." },
+  { detail = "decision_evidence.cancelled", when = "The supplied execution token is cancelled.", remedy = "Correct the declaration or request named by the detail." },
+  { detail = "decision_evidence.dependence_unknown", when = "The joint dependence between the arms or outcomes is not declared.", remedy = "Correct the declaration or request named by the detail." },
+  { detail = "decision_evidence.deployment_bridge_missing", when = "A deployment decision is requested without a bridge from the experiment to the deployment population.", remedy = "Correct the declaration or request named by the detail." },
+  { detail = "decision_evidence.frame_shape", when = "The decision frame does not name exactly two actions.", remedy = "Correct the declaration or request named by the detail." },
+  { detail = "decision_evidence.incompatible_horizon", when = "The requested horizon differs from the retained evidence horizon.", remedy = "Correct the declaration or request named by the detail." },
+  { detail = "decision_evidence.incompatible_intervention", when = "The requested regimes differ from the retained evidence regimes.", remedy = "Correct the declaration or request named by the detail." },
+  { detail = "decision_evidence.interference_unspecified", when = "The exposure does not state that there is no between-unit interference.", remedy = "Correct the declaration or request named by the detail." },
+  { detail = "decision_evidence.invalid_declaration", when = "The evidence, request or derived quantity declaration is inconsistent.", remedy = "Correct the declaration or request named by the detail." },
+  { detail = "decision_evidence.resource_limit", when = "The execution admission pool cannot fund the derivation.", remedy = "Correct the declaration or request named by the detail." },
+  { detail = "decision_evidence.too_many_unknowns", when = "More assumption dimensions are unknown than the bounded vertex enumeration admits.", remedy = "Correct the declaration or request named by the detail." },
+  { detail = "decision_evidence.unsupported_assignment_design", when = "The assignment design has no derivation for the requested target.", remedy = "Correct the declaration or request named by the detail." },
 ]
+routes = [{ name = "decision.experimental_margin.measured_interval", stage = "uncertainty", status = "supported", claim = "interval" }]
+fixtures = [
+  { id = "decision.experimental_margin.interval_candidates.joint.positive", role = "positive", intent = "The derived margin retains dependence and reports its interval with the calibration status of its own construction.", evidence_test = "crates/antecedent/tests/decision_evidence_workflow.rs", evidence_assertion = "nonlinear_margin_from_a_clustered_experiment_keeps_dependence_and_inherits_no_support" },
+  { id = "decision.experimental_margin.interval_candidates.scope.negative", role = "negative", intent = "Requests outside the declared evidence scope are refused.", evidence_test = "crates/antecedent/tests/decision_evidence_workflow.rs", evidence_assertion = "out_of_scope_requests_are_typed_refusals_and_deployment_needs_a_bridge" },
+  { id = "decision.experimental_margin.interval_candidates.slot.positive", role = "positive", intent = "The interval is reported whatever its calibration, and its slot equals the one the shipped records resolve for the margin's own basis; a margin no record measured is not_measured and an assumption range has no sampling-only slot.", evidence_test = "crates/antecedent/tests/decision_evidence_workflow.rs", evidence_assertion = "the_margin_interval_is_annotated_with_the_calibration_slot_of_its_own_construction" },
+  { id = "decision.experimental_margin.interval_candidates.matched_pair_oracle.construction", role = "construction", intent = "The matched-pair delta-method covariance equals an independent rational-arithmetic oracle.", evidence_test = "crates/antecedent/tests/decision_evidence_workflow.rs", evidence_assertion = "compiled_matched_pair_covariance_matches_rational_oracle" },
+  { id = "decision.experimental_margin.interval_candidates.regime_artifact.artifact", role = "artifact", intent = "The retained regime source exports and is consumed back to the same law.", evidence_test = "crates/antecedent/tests/decision_evidence_workflow.rs", evidence_assertion = "static_regime_bootstrap_refits_outcomes_with_the_same_subject_weights" },
+]
+inference_inventory_disposition = "no_new_inference_outputs"
+inference_outputs = []
 
 [[record]]
 id = "choice_inference.interval_candidates"
@@ -21593,9 +21610,9 @@ coverage_records = []
 candidate_coverage_records = [
   "cov.average_effect.dag.graphimputationcompositev2.nearest_rank_95.l95.graph_imputation_mar_bic_nearest_rank_candidate.v2_validation_none.v2_structure_graph_posterior",
   "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_uniform_effect_candidate.v2_validation_none.v2_structure_graph_posterior",
-  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_confounded_candidate.v2_validation_none",
+  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_confounded_candidate.v2_validation_none.v2_structure_graph_posterior",
   "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_four_variable_candidate.v2_validation_none.v2_structure_graph_posterior",
-  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_four_variable_confounded_candidate.v2_validation_none",
+  "cov.average_effect.dag.graphimputationcompositev3.nearest_rank_95.l95.graph_imputation_prior_predictive_four_variable_confounded_candidate.v2_validation_none.v2_structure_graph_posterior",
 ]
 owners = ["antecedent-discovery", "antecedent", "antecedent-py", "python/antecedent"]
 identity_inputs = ["source content and schema", "predeclared direct-effect graph support, treatment-root or treatment-with-parents", "variable domains, treatment, outcome, model, seeds and bounds", "every graph mask, identification proof and child program", "each completed input, graph weight and child execution"]

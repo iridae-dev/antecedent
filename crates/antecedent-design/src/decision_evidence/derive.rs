@@ -5,6 +5,7 @@ mod decision;
 
 pub use decision::{
     Arm, DecisionFrame, DecisionResult, Verdict, decide, decision_interval_calibration_basis,
+    decision_interval_calibration_slot,
 };
 
 use antecedent_core::CanonicalWriter;

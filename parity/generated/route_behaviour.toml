@@ -5813,7 +5813,17 @@ routes = [
 
 [[record]]
 id = "joint_law.transported_composition"
-status = "not_supported"
+status = "supported"
+refusals = [
+  { code = "joint_law_required", detail = "joint_law_propagation.horizon_draws_not_joint" },
+  { code = "option_not_applicable", detail = "joint_law_propagation.horizon_draws_mean_curve" },
+  { code = "invalid_argument", detail = "joint_law_propagation.horizon_draws_layout" },
+  { code = "invalid_argument", detail = "joint_law_propagation.horizon_draws_dose" },
+  { code = "invalid_argument", detail = "joint_law_propagation.horizon_composition" },
+  { code = "option_not_applicable", detail = "joint_law_propagation.horizon_composition" },
+  { code = "joint_law_required", detail = "joint_law_propagation.transported_dependence_required" },
+  { code = "joint_law_required", detail = "joint_law_propagation.transport_pieces_incomplete" },
+]
 routes = [
   { route = "antecedent_contract.joint_law_rule.transported_dependence_required", stage = "prepare", status = "closed", reason_code = "joint_law_required", claim = "none" },
 ]
@@ -7605,9 +7615,24 @@ routes = [
 
 [[record]]
 id = "decision.experimental_margin.interval_candidates"
-status = "not_supported"
+status = "supported"
+refusals = [
+  { code = "decision_evidence_scope_mismatch", detail = "decision_evidence.incompatible_population" },
+  { code = "decision_evidence_design_unsupported", detail = "decision_evidence.adjustment_not_admissible" },
+  { code = "execution_cancelled", detail = "decision_evidence.cancelled" },
+  { code = "evidence_overlap_unknown", detail = "decision_evidence.dependence_unknown" },
+  { code = "decision_evidence_scope_mismatch", detail = "decision_evidence.deployment_bridge_missing" },
+  { code = "decision_evidence_invalid", detail = "decision_evidence.frame_shape" },
+  { code = "decision_evidence_scope_mismatch", detail = "decision_evidence.incompatible_horizon" },
+  { code = "decision_evidence_scope_mismatch", detail = "decision_evidence.incompatible_intervention" },
+  { code = "decision_evidence_design_unsupported", detail = "decision_evidence.interference_unspecified" },
+  { code = "decision_evidence_invalid", detail = "decision_evidence.invalid_declaration" },
+  { code = "execution_resource_limit", detail = "decision_evidence.resource_limit" },
+  { code = "decision_evidence_design_unsupported", detail = "decision_evidence.too_many_unknowns" },
+  { code = "decision_evidence_design_unsupported", detail = "decision_evidence.unsupported_assignment_design" },
+]
 routes = [
-  { route = "decision.experimental_margin.measured_interval", stage = "uncertainty", status = "closed", reason_code = "not_supported", claim = "none" },
+  { route = "decision.experimental_margin.measured_interval", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
 
 [[record]]

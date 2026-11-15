@@ -140,7 +140,8 @@ pub fn decide(
 }
 
 /// Describe the exact decision-evidence interval construction for calibration measurement.
-/// This is a candidate basis only: it does not support or attest an interval.
+/// The basis names the construction a coverage record measures; whether a record attests it
+/// is resolved by [`decision_interval_calibration_slot`].
 /// The scope count is the number of independently randomized units, not outcome rows.
 ///
 /// # Errors
@@ -283,4 +284,26 @@ pub fn decision_interval_calibration_basis(
         0.0,
     )
     .with_validation("none"))
+}
+
+/// The calibration slot of the derived margin's sampling interval at its own construction.
+///
+/// The slot is `calibrated` exactly when a current attesting coverage record measured this
+/// construction (assignment design, dependence, adjustment, target and derived quantity) and
+/// the number of independently randomized units lies inside its measured range. Otherwise it
+/// names why not (`outside_measured_scope`, `measured_below_nominal` or `not_measured`).
+/// Calibration annotates the interval; it never withholds it.
+///
+/// # Errors
+/// As [`decision_interval_calibration_basis`]: a refusal when the request has no sampling
+/// interval or has an assumption range.
+pub fn decision_interval_calibration_slot(
+    evidence: &JointExperimentEvidence,
+    request: &Request,
+    quantity: &DerivedQuantity,
+) -> Result<antecedent_io_core::contract_section::CalibrationSlotWire, EvidenceRefusal> {
+    let basis = decision_interval_calibration_basis(evidence, request, quantity)?;
+    Ok(antecedent_io_core::calibration::calibration_slot(
+        &antecedent_io_core::calibration::CalibrationBasisWire::from(&basis),
+    ))
 }
