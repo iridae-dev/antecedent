@@ -5693,10 +5693,10 @@ estimators = ["gcm.fit"]
 route_estimator = "gcm.fit"
 matrix_digest = "c813fea0c3434c71"
 support_basis = "explicit_support"
-compiler_execution = ["gcm.fit = crates/antecedent/tests/checked_counterfactual_route_evidence.rs::checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay"]
+compiler_execution = ["gcm.fit = crates/antecedent/tests/point_only_routes.rs::a_frequentist_dag_counterfactual_publishes_the_mean_effect_and_no_interval"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/staged_static_kinds.rs|static_kinds_known_truth|conformance/estimate/staged_static_kinds"
 uncertainty = "no_interval_reported"
-evidence_reachability = ["crates/antecedent/tests/checked_counterfactual_route_evidence.rs", "crates/antecedent/tests/staged_static_kinds.rs", "conformance/estimate/staged_static_kinds"]
+evidence_reachability = ["crates/antecedent/tests/point_only_routes.rs", "crates/antecedent/tests/staged_static_kinds.rs", "conformance/estimate/staged_static_kinds"]
 
 [[obligation]]
 id = "Counterfactual:Dag:accepted:Frequentist:none"
@@ -7699,10 +7699,10 @@ estimators = ["gcm.fit"]
 route_estimator = "gcm.fit"
 matrix_digest = "d9a852e8398fb7e4"
 support_basis = "explicit_support"
-compiler_execution = ["gcm.fit = crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+compiler_execution = ["gcm.fit = crates/antecedent/tests/point_only_routes.rs::the_default_frequentist_dag_anomaly_attribution_publishes_scores_and_no_interval"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/staged_attribution_transport_interference.rs|anomaly_attribution_known_truth|conformance/estimate/staged_attribution"
 uncertainty = "no_interval_reported"
-evidence_reachability = ["crates/antecedent/tests/checked_attribution_route_evidence.rs", "crates/antecedent/tests/staged_attribution_transport_interference.rs", "conformance/estimate/staged_attribution"]
+evidence_reachability = ["crates/antecedent/tests/point_only_routes.rs", "crates/antecedent/tests/staged_attribution_transport_interference.rs", "conformance/estimate/staged_attribution"]
 
 [[obligation]]
 id = "ChangeAttribution:Dag:explicit:Frequentist:none"
@@ -7716,10 +7716,10 @@ estimators = ["gcm.fit"]
 route_estimator = "gcm.fit"
 matrix_digest = "f9fd6c82be3f30fe"
 support_basis = "explicit_support"
-compiler_execution = ["gcm.fit = crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+compiler_execution = ["gcm.fit = crates/antecedent/tests/point_only_routes.rs::the_default_frequentist_dag_change_attribution_publishes_the_change_and_no_interval"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/staged_attribution_transport_interference.rs|change_attribution_known_truth|conformance/estimate/staged_attribution"
 uncertainty = "no_interval_reported"
-evidence_reachability = ["crates/antecedent/tests/checked_attribution_route_evidence.rs", "crates/antecedent/tests/staged_attribution_transport_interference.rs", "conformance/estimate/staged_attribution"]
+evidence_reachability = ["crates/antecedent/tests/point_only_routes.rs", "crates/antecedent/tests/staged_attribution_transport_interference.rs", "conformance/estimate/staged_attribution"]
 
 [[obligation]]
 id = "AnomalyAttribution:Dag:explicit:Bayesian:none"
@@ -36565,10 +36565,10 @@ estimators = ["functional.effect"]
 route_estimator = "functional.effect"
 matrix_digest = "ee10518f7d8a0e83"
 support_basis = "explicit_support"
-compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.effect = crates/antecedent/tests/point_only_routes.rs::a_frequentist_admg_counterfactual_publishes_the_point_and_no_interval"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|class_cross_world_effects_match_the_exact_functionals_of_the_count_tables|conformance/estimate/cross_world_class_truth"
 uncertainty = "no_interval_reported"
-evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "conformance/estimate/cross_world_class_truth"]
+evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "crates/antecedent/tests/point_only_routes.rs", "conformance/estimate/cross_world_class_truth"]
 
 [[obligation]]
 id = "Counterfactual:Admg:explicit:Frequentist:cheap"
@@ -36769,10 +36769,10 @@ estimators = ["functional.effect"]
 route_estimator = "functional.effect"
 matrix_digest = "0c831d50c63dd98c"
 support_basis = "explicit_support"
-compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.effect = crates/antecedent/tests/point_only_routes.rs::a_frequentist_temporal_admg_counterfactual_publishes_the_point_and_no_interval"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|class_cross_world_effects_match_the_exact_functionals_of_the_count_tables|conformance/estimate/cross_world_class_truth"
 uncertainty = "no_interval_reported"
-evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "conformance/estimate/cross_world_class_truth"]
+evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "crates/antecedent/tests/point_only_routes.rs", "conformance/estimate/cross_world_class_truth"]
 
 [[obligation]]
 id = "Counterfactual:TemporalAdmg:explicit:Frequentist:cheap"
@@ -37245,10 +37245,10 @@ estimators = ["functional.effect"]
 route_estimator = "functional.effect"
 matrix_digest = "32221dd3b851b53a"
 support_basis = "explicit_support"
-compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.effect = crates/antecedent/tests/point_only_routes.rs::a_frequentist_admg_natural_direct_effect_publishes_the_point_and_no_interval"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|class_cross_world_effects_match_the_exact_functionals_of_the_count_tables|conformance/estimate/cross_world_class_truth"
 uncertainty = "no_interval_reported"
-evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "conformance/estimate/cross_world_class_truth"]
+evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "crates/antecedent/tests/point_only_routes.rs", "conformance/estimate/cross_world_class_truth"]
 
 [[obligation]]
 id = "NestedCounterfactualEffect:Admg:explicit:Frequentist:cheap"
@@ -37449,10 +37449,10 @@ estimators = ["functional.effect"]
 route_estimator = "functional.effect"
 matrix_digest = "ddb3944a258ea890"
 support_basis = "explicit_support"
-compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.effect = crates/antecedent/tests/point_only_routes.rs::a_frequentist_temporal_admg_natural_direct_effect_publishes_the_point_and_no_interval"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|class_cross_world_effects_match_the_exact_functionals_of_the_count_tables|conformance/estimate/cross_world_class_truth"
 uncertainty = "no_interval_reported"
-evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "conformance/estimate/cross_world_class_truth"]
+evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "crates/antecedent/tests/point_only_routes.rs", "conformance/estimate/cross_world_class_truth"]
 
 [[obligation]]
 id = "NestedCounterfactualEffect:TemporalAdmg:explicit:Frequentist:cheap"
@@ -38061,10 +38061,10 @@ estimators = ["functional.effect"]
 route_estimator = "functional.effect"
 matrix_digest = "51e6bd0154b03906"
 support_basis = "explicit_support"
-compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
+compiler_execution = ["functional.effect = crates/antecedent/tests/point_only_routes.rs::a_frequentist_dag_posterior_natural_direct_effect_publishes_the_point_and_no_interval"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_posterior_truth.rs|nested_graph_posterior_is_the_weighted_mean_of_the_atoms_closed_forms_under_every_suite|conformance/estimate/cross_world_class_truth"
 uncertainty = "no_interval_reported"
-evidence_reachability = ["crates/antecedent/tests/cross_world_posterior_truth.rs", "conformance/estimate/cross_world_class_truth"]
+evidence_reachability = ["crates/antecedent/tests/cross_world_posterior_truth.rs", "crates/antecedent/tests/point_only_routes.rs", "conformance/estimate/cross_world_class_truth"]
 
 [[obligation]]
 id = "NestedCounterfactualEffect:Dag:graph_posterior:Frequentist:cheap"

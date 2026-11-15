@@ -223,6 +223,30 @@ class AcceptanceInventoryTest(unittest.TestCase):
             },
         )
 
+    def test_a_non_statistical_child_rests_only_on_its_own_declaration(self):
+        self.fx.sources["obligations"] = []
+        self.fx.sources["counterparts"] = [
+            counterpart(
+                id="P99.static.frequentist",
+                kind="method",
+                route="unlisted",
+                status="supported",
+                uncertainty="none",
+                uncertainty_basis="non_statistical",
+            )
+        ]
+        child = {"id": "P99.static.frequentist", "route": "unlisted", "gap": "none"}
+        outcomes = {}
+        for label, declared in (
+            ("none", {}),
+            ("kind only", {"kind": "non_statistical"}),
+            ("kind and reason", {"kind": "non_statistical", "kind_reason": "an audit script"}),
+        ):
+            self.fx.sources["children"] = [child | declared]
+            row = self.fx.rows()[0]
+            outcomes[label] = not any("non_statistical" in r for r in row["incomplete_reasons"])
+        self.assertEqual(outcomes, {"none": False, "kind only": False, "kind and reason": True})
+
     def test_an_asserted_point_only_route_still_owes_its_execution_and_consumer(self):
         self.fx.sources["obligations"] = []
         self.fx.sources["families"][0]["routes"].append("design.point")

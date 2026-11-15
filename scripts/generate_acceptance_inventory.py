@@ -19,7 +19,9 @@ representative and closes as delivered; otherwise it is `incomplete` and every r
 listed. A route that publishes a point and no uncertainty statement owes no calibration and is
 complete when a test asserts that its result carries no interval (basis
 `asserted_no_interval`); a point-only cell or a declared procedure without such a test is
-incomplete. `conflicts` lists records that disagree about the row (a status, a closure kind, a
+incomplete. A method child that is not a statistical procedure declares `kind = "non_statistical"`
+with a reason in `children.toml`; it publishes no estimate, so it owes neither an interval nor a
+test about one (basis `non_statistical`). `conflicts` lists records that disagree about the row (a status, a closure kind, a
 scope list, support without its evidence); the checker rejects any conflict.
 
     python3 scripts/generate_acceptance_inventory.py           # rewrite the file
@@ -44,6 +46,11 @@ UNLISTED = {"", "unlisted", "none"}
 # asserts the result carries no interval. Such a method owes no calibration. A point-only cell
 # or a declared procedure without that test has only said so, and stays incomplete.
 POINT_ONLY_ASSERTED = "asserted_no_interval"
+# The basis of a method child that is not a statistical procedure (a compiler migration, an audit
+# script): it publishes no estimate, so it has no uncertainty statement to assert or measure. The
+# child itself declares `kind = "non_statistical"` with a reason; without that declaration the
+# basis does not rest.
+NON_STATISTICAL = "non_statistical"
 FIELDS = (
     "id",
     "kind",
@@ -349,7 +356,19 @@ def counterpart_row(row: dict, ix: Index) -> dict:
     executing = status in ("supported", "not_supported", "closed_with_next_attempt")
     if executing:
         reasons += execution_problems(root, row["execution"])
-        if row["uncertainty"] == "none" and row["uncertainty_basis"] != POINT_ONLY_ASSERTED:
+        if row["uncertainty_basis"] == NON_STATISTICAL and not (
+            child
+            and child.get("kind") == NON_STATISTICAL
+            and str(child.get("kind_reason", "")).strip()
+        ):
+            reasons.append(
+                "uncertainty basis is non_statistical but the method child declares no "
+                "non_statistical kind with a reason"
+            )
+        elif row["uncertainty"] == "none" and row["uncertainty_basis"] not in (
+            POINT_ONLY_ASSERTED,
+            NON_STATISTICAL,
+        ):
             reasons.append(
                 f"publishes no uncertainty and no test asserts that the result carries no "
                 f"interval (basis {row['uncertainty_basis']})"

@@ -1492,7 +1492,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-state/src/ols_refresh.rs", "crates/antecedent-state"]
-fixtures = ["crates/antecedent-state/tests/ols_refresh_contract.rs::appended_rows_and_windows_equal_the_reference_without_a_rebuild"]
+fixtures = ["crates/antecedent-state/tests/ols_refresh_contract.rs::appended_rows_and_windows_equal_the_reference_without_a_rebuild", "crates/antecedent/tests/point_only_routes.rs::an_appended_least_squares_refresh_publishes_finite_coefficients_and_no_interval"]
 consumer = ["crates/antecedent/src/period_refresh.rs::OlsRefresh;crates/antecedent-state/tests/ols_refresh_contract.rs"]
 
 [[row]]
@@ -1510,7 +1510,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/period_refresh.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/period_refresh_lifecycle.rs::a_declared_invariant_period_extends_and_equals_one_batch_fit"]
+fixtures = ["crates/antecedent/tests/period_refresh_lifecycle.rs::a_declared_invariant_period_extends_and_equals_one_batch_fit", "crates/antecedent/tests/point_only_routes.rs::a_declared_invariant_period_refresh_publishes_the_least_squares_fit_and_no_interval"]
 consumer = ["crates/antecedent/src/analysis/temporal_extensions.rs::consume_period_refresh_artifact;crates/antecedent/tests/period_refresh_lifecycle.rs"]
 
 [[row]]
