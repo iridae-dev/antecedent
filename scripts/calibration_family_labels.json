@@ -1445,36 +1445,41 @@
     },
     {
       "path": "crates/antecedent/tests/joint_panel_calibration.rs",
-      "sha256": "3f434bcb0eeb9ea90b7c855633771de4e095b093b9b7e83860861aefa43e0e82",
+      "sha256": "aa6d42865e6543fb9cdb233668d187c892941795d76fd47fa2e5185ef027be0b",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 711,
+          "line": 756,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: interval_label(mode, path) },\n        LEVEL,"
         },
         {
-          "line": 911,
+          "line": 937,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: WARP_DGP, interval: interval_label(mode, path) },\n        LEVEL,"
+        },
+        {
+          "line": 1200,
           "call": "CoverageTally::new(",
           "argument": "format!(\"{test} specification set\"), LEVEL"
         },
         {
-          "line": 1102,
+          "line": 1478,
           "call": "CoverageTally::new(",
           "argument": "test, LEVEL"
         },
         {
-          "line": 1401,
+          "line": 1816,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"weighted_posterior_quantile\" },\n        LEVEL,"
         },
         {
-          "line": 1597,
+          "line": 2012,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"monte_carlo_standard_error\" },\n        LEVEL,"
         },
         {
-          "line": 1776,
+          "line": 2191,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"response_data\", interval }, LEVEL"
         }

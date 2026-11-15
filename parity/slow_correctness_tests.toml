@@ -173,3 +173,21 @@ reason = "Full-size bootstrap solver traffic regression reserved for an explicit
 path = "crates/antecedent-stats/src/faer_backend/resampling.rs"
 name = "practitioner_pairs_bootstrap_matches_full_qr"
 reason = "Full-size prepared-solver versus QR performance comparison reserved for an explicit practitioner-scale run."
+
+[[slow]]
+path = "crates/antecedent/tests/joint_panel_calibration.rs"
+name = "joint_panel_warp_speed_validation_time_varying_contrast"
+reason = "Warp-speed validation: the nested and pooled-draw coverage of the time-varying contrast agree on 100 paired replicates."
+expected_seconds = 900
+
+[[slow]]
+path = "crates/antecedent/tests/joint_panel_calibration.rs"
+name = "joint_panel_warp_speed_validation_time_varying_contrast_broader"
+reason = "Warp-speed validation: the nested and pooled-draw coverage of the broader time-varying contrast agree on 100 paired replicates."
+expected_seconds = 1100
+
+[[slow]]
+path = "crates/antecedent/tests/joint_panel_calibration.rs"
+name = "joint_panel_warp_speed_validation_false_change"
+reason = "Screen validation: the screened false-change verdicts equal the nested ones on 100 paired replicates."
+expected_seconds = 1300
