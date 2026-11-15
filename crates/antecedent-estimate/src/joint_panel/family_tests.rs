@@ -1376,7 +1376,16 @@ fn cells_06_degenerate_designs_are_refused_or_withhold_uncertainty_instead_of_fa
     let flat = mutated(&|g| g.outcome = vec![1.0; g.outcome.len()]);
     if flat.validate().is_ok() {
         let draws = 6;
-        let fit = fit_panel(&flat, &options(None, draws), &context(3)).unwrap();
+        // The fit may refuse with the typed numerical failure (the score is not finite at the
+        // degenerate point the optimizer reaches), which is what the facade reports for a
+        // constant outcome; an admitted fit must still withhold every uncertainty slot.
+        let fit = match fit_panel(&flat, &options(None, draws), &context(3)) {
+            Err(PanelError::Numerical(detail)) => {
+                assert!(detail.contains("nonfinite local likelihood score"), "{detail}");
+                return;
+            }
+            result => result.unwrap(),
+        };
         assert!(!fit.diagnostics.optimizer_converged);
         assert!(!fit.diagnostics.curvature_available);
         assert_eq!(fit.diagnostics.failed_draws, draws);
