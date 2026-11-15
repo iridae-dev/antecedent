@@ -713,7 +713,7 @@ fn temporal_admg_transport_explicit() {
 /// dependent. The trial indicator is an independent coin per row, and the supplied selection and
 /// treatment probabilities are the true 0.5.
 #[allow(clippy::cast_precision_loss, reason = "a uniform draw from the top 53 bits of a word")]
-fn dependent_transport_series(n: usize) -> TabularData {
+fn dependent_transport_vectors(n: usize) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let mut state = 0x9E37_79B9_7F4A_7C15_u64;
     let mut uniform = move || {
         state =
@@ -733,6 +733,12 @@ fn dependent_transport_series(n: usize) -> TabularData {
         y.push(arm + noise);
         trial.push(if uniform() < 0.5 { 1.0 } else { 0.0 });
     }
+    (a, y, trial)
+}
+
+/// [`dependent_transport_vectors`] as a table with the true 0.5 probabilities.
+fn dependent_transport_series(n: usize) -> TabularData {
+    let (a, y, trial) = dependent_transport_vectors(n);
     let half = vec![0.5; n];
     TabularData::from_f64_columns([
         ("a", a.as_slice()),
@@ -783,9 +789,37 @@ fn transport_study(
         .unwrap()
 }
 
+/// Equal-weighted cosine standard error of the trial-to-target contrast, recomputed from the
+/// raw columns: the per-row influence is `+-(1 - s) / s / e * y` on trial rows (`+` treated;
+/// with `s = e = 1/2` that is `+-2 y`) and `-ipw` on target rows; `terms` cosine projections
+/// `sqrt(2/n) sum_t psi_t cos(pi j (t + 1/2) / n)` give the long-run variance as the mean of
+/// their squares, and the error is `sqrt(n * variance) / target_n`.
+fn independent_ewc_se(a: &[f64], y: &[f64], trial: &[f64], ipw: f64, terms: usize) -> f64 {
+    let n = y.len();
+    let target_n = trial.iter().filter(|&&t| t == 0.0).count() as f64;
+    let psi: Vec<f64> = (0..n)
+        .map(|t| {
+            if trial[t] == 1.0 { if a[t] == 1.0 { 2.0 * y[t] } else { -2.0 * y[t] } } else { -ipw }
+        })
+        .collect();
+    let nf = n as f64;
+    let mean_square = (1..=terms)
+        .map(|j| {
+            let projection: f64 = psi
+                .iter()
+                .enumerate()
+                .map(|(t, v)| v * (std::f64::consts::PI * j as f64 * (t as f64 + 0.5) / nf).cos())
+                .sum();
+            2.0 / nf * projection * projection
+        })
+        .sum::<f64>()
+        / terms as f64;
+    (nf * mean_square).sqrt() / target_n
+}
+
 /// A temporal transport reports an interval that respects the serial dependence of its rows: the
-/// frequentist standard error is the Newey-West long-run variance of the per-row influence at
-/// the series block length, and the Bayesian interval is the posterior of one Dirichlet weight
+/// frequentist standard error is the equal-weighted cosine long-run variance of the per-row
+/// influence on the terms its two-thirds rule gives, and the Bayesian interval is the posterior of one Dirichlet weight
 /// per circular block. Both are wider than the same rows read as independent, which a static
 /// ADMG does. Both are unsupported with calibration `not_measured`.
 #[test]
@@ -799,10 +833,19 @@ fn temporal_admg_transport_reports_a_serial_dependence_aware_interval() {
     let rows = transport_study(&data, admg.clone(), false);
     let series_effect = series.estimate().as_effect().expect("a temporal transport effect");
     let rows_effect = rows.estimate().as_effect().expect("a static transport effect");
+    // No lag is declared: the route reports the equal-weighted cosine error on
+    // floor(0.4 * 1000^(2/3)) = 40 terms (1000^(2/3) = 100).
     assert!(matches!(
         series_effect.uncertainty.analytic.kind,
-        Some(antecedent_estimate::AnalyticSeKind::NeweyWest { lag: 10 })
+        Some(antecedent_estimate::AnalyticSeKind::SeriesEwc { terms: 40 })
     ));
+    let (a, y, trial) = dependent_transport_vectors(1000);
+    let recomputed = independent_ewc_se(&a, &y, &trial, series_effect.ate, 40);
+    assert!(
+        (series_effect.uncertainty.analytic.se - recomputed).abs() < 1e-9 * recomputed,
+        "route {} vs independent {recomputed}",
+        series_effect.uncertainty.analytic.se
+    );
     assert!(
         (series_effect.ate - rows_effect.ate).abs() < 1e-12,
         "the point estimate is the same contrast"
@@ -810,7 +853,10 @@ fn temporal_admg_transport_reports_a_serial_dependence_aware_interval() {
     let (series_se, rows_se) =
         (series_effect.uncertainty.analytic.se, rows_effect.uncertainty.analytic.se);
     assert!(series_se.is_finite() && rows_se.is_finite() && rows_se > 0.0);
-    assert!(series_se > 1.3 * rows_se, "Newey-West {series_se} vs independent rows {rows_se}");
+    assert!(
+        series_se > 1.3 * rows_se,
+        "equal-weighted cosine {series_se} vs independent rows {rows_se}"
+    );
 
     let series_posterior = transport_study(&data, temporal, true);
     let rows_posterior = transport_study(&data, admg, true);

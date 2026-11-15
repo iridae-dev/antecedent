@@ -82,8 +82,19 @@ pub fn trial_to_target_series_block_length(
     reason = "0.4 n^(2/3) of a series length is a non-negative count far below usize::MAX"
 )]
 pub fn series_ewc_terms(rows: usize) -> usize {
-    let terms = (0.4 * (rows as f64).powf(2.0 / 3.0)).floor() as usize;
-    terms.clamp(2, rows.saturating_sub(1).max(2))
+    // `floor(0.4 n^(2/3))` is the largest integer `B` with `B^3 <= 0.064 n^2`, that is
+    // `125 B^3 <= 8 n^2`. The floating-point power is only a starting guess: at exact cubes
+    // (n = 1000 gives 100 and so B = 40) `powf` can land one ulp below the integer and floor
+    // one term short, so the guess is corrected with exact integer arithmetic.
+    let fits = |b: u128| 125 * b * b * b <= 8 * (rows as u128) * (rows as u128);
+    let mut terms = (0.4 * (rows as f64).powf(2.0 / 3.0)).floor() as u128;
+    while terms > 0 && !fits(terms) {
+        terms -= 1;
+    }
+    while fits(terms + 1) {
+        terms += 1;
+    }
+    (terms as usize).clamp(2, rows.saturating_sub(1).max(2))
 }
 
 /// Equal-weighted cosine standard error of the contrast from its per-row `influence`.
@@ -216,7 +227,16 @@ mod tests {
         let block = trial_to_target_series_block_length(&y, &a, &trial, &half, &half).unwrap();
         assert!(block >= 8);
         let target_n = rows / 2;
-        let ipw = y.iter().zip(&a).filter(|(_, arm)| **arm).map(|(v, _)| 2.0 * v).sum::<f64>()
+        // The contrast's point estimate: each trial row carries sign * (1 - s) / s / arm * y,
+        // which is +-2 y at s = arm = 1/2 (+ for treated, - for control rows), summed over the
+        // target count. Non-trial rows are not part of the sum.
+        let ipw = y
+            .iter()
+            .zip(&a)
+            .zip(&trial)
+            .filter(|(_, in_trial)| **in_trial)
+            .map(|((v, arm), _)| if *arm { 2.0 * v } else { -2.0 * v })
+            .sum::<f64>()
             / target_n as f64;
         let (se, terms) = trial_to_target_ipw_ewc_se(&y, &a, &trial, &half, &half, ipw).unwrap();
         assert!(se > 0.0 && terms == 25);
