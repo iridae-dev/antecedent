@@ -814,23 +814,22 @@ enum WarpReading {
         truth: f64,
         rows: u64,
     },
-    /// The library refused the fit.
-    Refused(String),
+    /// The library refused the fit; a refused replicate is scored as a miss.
+    Refused,
 }
 
 /// The fit of one replicate with `draws` inner whole-procedure draws: the product's own fit and
 /// contrast assembly, with the draw count the only difference from the nested measurement. The
 /// interval the product forms from so few draws is not read.
 fn warp_reading(cell: Cell, path: Path, groups: usize, seed: u64, draws: usize) -> WarpReading {
-    let (_, result, truth, rows, _) = match fit_panel_draws(cell, path, groups, seed, draws) {
-        Ok(fitted) => fitted,
-        Err(reason) => return WarpReading::Refused(reason),
+    let Ok((_, result, truth, rows, _)) = fit_panel_draws(cell, path, groups, seed, draws) else {
+        return WarpReading::Refused;
     };
     match result.scheduled_contrast(&JointPanelResponseFunctional::TerminalMean, LEVEL) {
         Ok(contrast) => {
             WarpReading::Scored { point: contrast.point, draws: contrast.draws, truth, rows }
         }
-        Err(error) => WarpReading::Refused(format!("contrast: {error}")),
+        Err(_) => WarpReading::Refused,
     }
 }
 
@@ -869,7 +868,7 @@ fn warp_intervals(readings: &[WarpReading], seed: u64) -> Vec<Option<(f64, f64)>
             WarpReading::Scored { point, draws, .. } => {
                 Some(Replicate::with_draws(*point, draws.iter().flatten().copied().collect()))
             }
-            WarpReading::Refused(_) => None,
+            WarpReading::Refused => None,
         })
         .collect();
     let (mut slots, mut failed) = (0_usize, 0_usize);
@@ -943,7 +942,7 @@ fn score_warp_contrast(
     let draws = u32::try_from(FREQUENTIST_DRAWS).unwrap();
     for (reading, interval) in readings.iter().zip(&intervals) {
         match reading {
-            WarpReading::Refused(_) => {
+            WarpReading::Refused => {
                 tally.skip();
                 refused += 1;
             }
@@ -1387,7 +1386,7 @@ fn masses_reading(cell: Cell, mode: Mode, groups: usize, seed: u64, draws: usize
     );
     let all_draws = match &result.fit {
         JointPanelFit::Varying(fit) => fit.draws.iter().all(Option::is_some),
-        _ => false,
+        JointPanelFit::Invariant(_) => false,
     };
     Masses::Published {
         change,
