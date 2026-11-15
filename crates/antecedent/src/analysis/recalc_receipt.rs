@@ -837,6 +837,9 @@ impl CanonicalIdentity for antecedent_estimate::AnalyticSeKind {
             Kind::PanelClusterHac { lag } => {
                 out.tag(8).usize(lag);
             }
+            Kind::SeriesEwc { terms } => {
+                out.tag(9).usize(terms);
+            }
         }
     }
 }
