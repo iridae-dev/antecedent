@@ -7,7 +7,9 @@ use super::decomposition::{
     decompose_panel_law,
 };
 use super::family::SPATIAL_JITTER;
-use super::inference::numerical_score;
+use super::inference::{
+    log_likelihood_score, numerical_score, optimize_target, optimize_target_with_score,
+};
 use super::likelihood::{self, CompiledPanel, Detail};
 use super::*;
 
@@ -1382,4 +1384,162 @@ fn cells_06_degenerate_designs_are_refused_or_withhold_uncertainty_instead_of_fa
         assert_eq!(fit.diagnostics.claim, "model_conditional_mechanism_only");
         assert!(fit.point.parameters.channels.iter().all(|c| c.coefficient.abs() < 1e-6));
     }
+}
+
+/// Fourth-order central difference with a relative step, accurate far below the tolerance the
+/// analytic score is held to.
+pub(super) fn five_point_gradient(x: &[f64], objective: &dyn Fn(&[f64]) -> f64) -> Vec<f64> {
+    let mut work = x.to_vec();
+    (0..x.len())
+        .map(|i| {
+            let h = 1e-3 * (1.0 + x[i].abs());
+            let mut at = |offset: f64| {
+                work[i] = x[i] + offset;
+                let value = objective(&work);
+                work[i] = x[i];
+                value
+            };
+            let (a, b, c, d) = (at(h), at(-h), at(2.0 * h), at(-2.0 * h));
+            (8.0 * (a - b) - (c - d)) / (12.0 * h)
+        })
+        .collect()
+}
+pub(super) fn assert_scores_agree(analytic: &[f64], numeric: &[f64], label: &str) {
+    assert_eq!(analytic.len(), numeric.len(), "{label}");
+    for (j, (a, n)) in analytic.iter().zip(numeric).enumerate() {
+        assert!(
+            (a - n).abs() <= 1e-6 * (1.0 + a.abs().max(n.abs())),
+            "{label} coordinate {j}: analytic {a} vs central difference {n}"
+        );
+    }
+}
+fn assert_static_score(data: &PanelData, start: &[f64], seed: u64, label: &str) {
+    let compiled = CompiledPanel::new(data).unwrap();
+    let mut state = seed;
+    for point in 0..4 {
+        let x: Vec<f64> = start.iter().map(|v| v + 0.5 * (uniform(&mut state) - 0.5)).collect();
+        assert!(likelihood::log_likelihood(&compiled, &x).is_finite(), "{label} point {point}");
+        let analytic = log_likelihood_score(&compiled, &x, &context(1)).unwrap();
+        let numeric = five_point_gradient(&x, &|v| likelihood::log_likelihood(&compiled, v));
+        assert_scores_agree(&analytic, &numeric, &format!("{label} point {point}"));
+    }
+}
+/// Weights, an excluded first period and interior gaps on a simulated panel.
+fn with_gaps_and_weights(mut data: PanelData) -> PanelData {
+    data.groups[1].weight = 2.5;
+    data.groups[2].weight = 0.4;
+    data.groups[0].outcome[0] = f64::NAN;
+    data.groups[2].outcome[3] = f64::NAN;
+    data.groups[2].outcome[4] = f64::NAN;
+    data.groups[3].outcome[9] = f64::NAN;
+    data
+}
+
+#[test]
+fn analytic_score_matches_central_differences_in_every_independent_family() {
+    let geometric_hill_classes = PanelFamily {
+        adstock: PanelAdstock::Geometric,
+        saturation: PanelSaturation::Hill,
+        scope: PanelSaturationScope::Classes { assignment: vec![0, 0, 1, 1, 2, 2] },
+        spatial: None,
+    };
+    let simplex_hill = PanelFamily { saturation: PanelSaturation::Hill, ..PanelFamily::default() };
+    let geometric_shared =
+        PanelFamily { adstock: PanelAdstock::Geometric, ..PanelFamily::default() };
+    let classes = PanelFamily {
+        scope: PanelSaturationScope::Classes { assignment: vec![0, 1, 1, 0, 1, 0] },
+        ..PanelFamily::default()
+    };
+    for (index, family) in
+        [PanelFamily::default(), geometric_hill_classes, simplex_hill, geometric_shared, classes]
+            .into_iter()
+            .enumerate()
+    {
+        let p = truth(&family);
+        let data = simulate(family, &p, 6, 14, 40 + index as u64);
+        let start = likelihood::encode(&data, &p).unwrap();
+        assert_static_score(&data, &start, 100 + index as u64, "contiguous");
+        let gapped = with_gaps_and_weights(data);
+        assert_static_score(&gapped, &start, 200 + index as u64, "gaps and weights");
+    }
+}
+
+#[test]
+fn analytic_score_matches_central_differences_without_carryover() {
+    let family = PanelFamily::default();
+    let mut p = truth(&family);
+    p.rho = 0.0;
+    for channel in &mut p.channels {
+        channel.lag = [1.0, 0.0, 0.0];
+    }
+    let mut data = simulate(family, &p, 5, 12, 61);
+    data.lag_order = 0;
+    let start = likelihood::encode(&data, &p).unwrap();
+    assert_static_score(&data, &start, 300, "static mechanism");
+}
+
+#[test]
+fn analytic_score_matches_central_differences_through_interactions_and_seasons() {
+    use antecedent_core::{ArithOp, ValueExpr, VariableId};
+    let (mut data, mut draw, _) = super::tests::fixture();
+    let variable = |raw| ValueExpr::var(VariableId::from_raw(raw));
+    let arith = |op, lhs, rhs| ValueExpr::Arith { op, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+    let one_plus = arith(ArithOp::Add, ValueExpr::constant(1.0), variable(1));
+    let extra = [
+        ("quotient", arith(ArithOp::Div, arith(ArithOp::Mul, variable(0), variable(1)), one_plus)),
+        (
+            "clipped",
+            ValueExpr::Clip {
+                value: Box::new(arith(ArithOp::Sub, variable(0), variable(1))),
+                lower: Box::new(ValueExpr::constant(-0.2)),
+                upper: Box::new(ValueExpr::constant(0.15)),
+            },
+        ),
+        (
+            "smaller",
+            arith(
+                ArithOp::Min,
+                variable(0),
+                arith(ArithOp::Mul, variable(1), ValueExpr::constant(1.5)),
+            ),
+        ),
+        ("negated", ValueExpr::Neg(Box::new(arith(ArithOp::Max, variable(0), variable(1))))),
+    ];
+    for (id, expression) in extra {
+        data.interactions
+            .push(PanelInteractionSpec::from_saturated_features(id, &expression).unwrap());
+        draw.parameters
+            .interactions
+            .push(PanelInteractionParameter { id: id.into(), coefficient: 0.7 });
+    }
+    data.validate().unwrap();
+    let start = likelihood::encode(&data, &draw.parameters).unwrap();
+    assert_static_score(&data, &start, 400, "interactions");
+    let mut gapped = data.clone();
+    gapped.groups[0].outcome[2] = f64::NAN;
+    gapped.groups[1].weight = 1.7;
+    assert_static_score(&gapped, &start, 401, "interactions with gaps");
+}
+
+#[test]
+fn both_gradient_sources_reach_the_same_optimum() {
+    let family = PanelFamily::default();
+    let p = truth(&family);
+    let data = with_gaps_and_weights(simulate(family, &p, 6, 30, 72));
+    let compiled = CompiledPanel::new(&data).unwrap();
+    let start = likelihood::encode(&compiled, &likelihood::initial(&compiled)).unwrap();
+    let options = PanelOptimizerOptions { max_iterations: 3_000, gradient_tolerance: 1e-3 };
+    let objective = |x: &[f64]| likelihood::log_likelihood(&compiled, x);
+    let numeric = optimize_target(start.clone(), options, &context(2), &objective).unwrap();
+    let analytic = optimize_target_with_score(start, options, &context(2), &objective, &|x| {
+        log_likelihood_score(&compiled, x, &context(2))
+    })
+    .unwrap();
+    assert!(numeric.converged && analytic.converged);
+    assert!(
+        (numeric.likelihood - analytic.likelihood).abs() <= 1e-6 * (1.0 + numeric.likelihood.abs()),
+        "{} vs {}",
+        numeric.likelihood,
+        analytic.likelihood
+    );
 }

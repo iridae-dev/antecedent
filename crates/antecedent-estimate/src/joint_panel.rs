@@ -15,6 +15,7 @@ pub mod decomposition;
 pub mod expression;
 /// Selectable adstock, saturation, saturation-scope and spatial-residual families.
 pub mod family;
+mod gradient;
 mod inference;
 mod likelihood;
 /// Checks of the declared Gaussian restriction on a fitted point mechanism.

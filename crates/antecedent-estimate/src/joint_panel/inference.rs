@@ -65,11 +65,52 @@ pub(super) struct LocalFit {
     pub(super) converged: bool,
     pub(super) line_search_exhausted: bool,
 }
+/// Central-difference score of an arbitrary objective; the gradient source of every fit
+/// whose score has no analytic form.
 pub(super) fn optimize_target(
     start: Vec<f64>,
     options: PanelOptimizerOptions,
     ctx: &ExecutionContext,
     objective_fn: &impl Fn(&[f64]) -> f64,
+) -> Result<LocalFit, PanelError> {
+    optimize_target_with_score(start, options, ctx, objective_fn, &|x| {
+        numerical_score(x, ctx, objective_fn)
+    })
+}
+/// A score supplied by a gradient routine, refused when it is not finite exactly as the
+/// central-difference score is.
+pub(super) fn checked_score(score: Option<Vec<f64>>) -> Result<Vec<f64>, PanelError> {
+    score
+        .filter(|score| score.iter().all(|value| value.is_finite()))
+        .ok_or_else(|| PanelError::Numerical("nonfinite local likelihood score".into()))
+}
+/// Score of the marginal log likelihood: exact for independent groups, central differences
+/// under a spatial residual law (whose Cholesky coupling has no cheap exact form here).
+pub(super) fn log_likelihood_score(
+    data: &likelihood::CompiledPanel<'_>,
+    x: &[f64],
+    ctx: &ExecutionContext,
+) -> Result<Vec<f64>, PanelError> {
+    check_cancelled(ctx)?;
+    if data.family.spatial.is_some() {
+        return numerical_score(x, ctx, &|values| likelihood::log_likelihood(data, values));
+    }
+    checked_score(super::gradient::independent_score(data, x, &[x.to_vec()], &|_| 0).map(|score| {
+        score
+            .shared
+            .iter()
+            .zip(&score.slots[0])
+            .map(|(shared, mechanism)| shared + mechanism)
+            .collect()
+    }))
+}
+/// The shared optimizer; only the source of the score differs between callers.
+pub(super) fn optimize_target_with_score(
+    start: Vec<f64>,
+    options: PanelOptimizerOptions,
+    ctx: &ExecutionContext,
+    objective_fn: &impl Fn(&[f64]) -> f64,
+    score_fn: &impl Fn(&[f64]) -> Result<Vec<f64>, PanelError>,
 ) -> Result<LocalFit, PanelError> {
     if options.max_iterations == 0
         || options.max_iterations > 100_000
@@ -83,7 +124,7 @@ pub(super) fn optimize_target(
     if !objective.is_finite() {
         return Err(PanelError::Numerical("invalid starting likelihood".into()));
     }
-    let mut gradient = numerical_score(&values, ctx, objective_fn)?;
+    let mut gradient = score_fn(&values)?;
     let mut curvature = crate::cyclic_optim::InverseCurvature::default();
     let mut iterations = 0;
     let mut exhausted = false;
@@ -121,7 +162,7 @@ pub(super) fn optimize_target(
             exhausted = true;
             break;
         };
-        let next_score = numerical_score(&candidate, ctx, objective_fn)?;
+        let next_score = score_fn(&candidate)?;
         curvature.update(&values, &candidate, &gradient, &next_score);
         values = candidate;
         objective = next_objective;
@@ -374,9 +415,13 @@ pub(super) fn fit(
     let start = likelihood::encode(data, &initial)?;
     record_physical(PhysicalEvent::Scan, 1);
     run_operation(Operation::AdjustedFit, || {
-        let local = optimize_target(start, options.optimizer, ctx, &|x| {
-            likelihood::log_likelihood(data, x)
-        })?;
+        let local = optimize_target_with_score(
+            start,
+            options.optimizer,
+            ctx,
+            &|x| likelihood::log_likelihood(data, x),
+            &|x| log_likelihood_score(data, x, ctx),
+        )?;
         let inverse = information_inverse(data, &local.values, ctx)?;
         let point = point(data, &local.values)?;
         let mut diagnostics = PanelFitDiagnostics {
@@ -474,9 +519,13 @@ fn bootstrap_draws(
         // start at the original optimum would be a different fitted procedure.
         let initial = options.initial.clone().unwrap_or_else(|| likelihood::initial(&compiled));
         let start = likelihood::encode(&compiled, &initial)?;
-        let fit = optimize_target(start, options.optimizer, ctx, &|x| {
-            likelihood::log_likelihood(&compiled, x)
-        });
+        let fit = optimize_target_with_score(
+            start,
+            options.optimizer,
+            ctx,
+            &|x| likelihood::log_likelihood(&compiled, x),
+            &|x| log_likelihood_score(&compiled, x, ctx),
+        );
         let draw = match fit {
             Ok(fit) if fit.converged => conditional_draw(&compiled, &fit.values, &mut rng),
             Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),

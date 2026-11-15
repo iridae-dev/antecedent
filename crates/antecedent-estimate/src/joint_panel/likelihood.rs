@@ -10,6 +10,10 @@ use super::{
 pub(super) struct CompiledPanel<'a> {
     pub source: &'a PanelData,
     features: Vec<antecedent_model::program::NodeProgram>,
+    /// The portable expression of every feature, for exact partial derivatives.
+    pub(super) expressions: Vec<antecedent_core::ValueExpr>,
+    /// The expression variable of every channel, in channel order.
+    pub(super) axis: Vec<antecedent_core::VariableId>,
 }
 impl std::ops::Deref for CompiledPanel<'_> {
     type Target = PanelData;
@@ -31,7 +35,20 @@ impl<'a> CompiledPanel<'a> {
                 .map_err(|error| invalid(&format!("programmable feature compilation: {error:?}")))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self { source, features })
+        let expressions = source.interactions.iter().map(|f| f.expression.to_domain()).collect();
+        Ok(Self { source, features, expressions, axis })
+    }
+    /// One interaction feature at the saturated channel values, as the mechanism evaluates it.
+    pub fn feature_value(
+        &self,
+        index: usize,
+        saturated: &[f64],
+        values: &mut Vec<f64>,
+        scratch: &mut Vec<f64>,
+    ) -> f64 {
+        self.features[index]
+            .evaluate_columns_with_scratch(saturated, values, scratch, None)
+            .unwrap_or(f64::NAN)
     }
     pub fn workspace_bytes(&self) -> Result<usize, PanelError> {
         let feature = self.features.iter().try_fold(0_usize, |peak, program| {
@@ -249,8 +266,14 @@ pub(super) fn geometric(logit: f64) -> [f64; 3] {
 /// to zero or overflows to infinity; those coordinates decode to the smallest normal and the
 /// largest finite scale, which are the representable boundary values of the same flat
 /// likelihood, instead of making the whole parameter vector invalid.
-fn positive_exp(log_scale: f64) -> f64 {
+pub(super) fn positive_exp(log_scale: f64) -> f64 {
     log_scale.exp().clamp(f64::MIN_POSITIVE, f64::MAX)
+}
+/// `d positive_exp(x) / d x` divided by `positive_exp(x)`: one inside the representable range
+/// and zero where the decoded scale is held at a boundary value.
+pub(super) fn positive_exp_log_slope(log_scale: f64) -> f64 {
+    let scale = log_scale.exp();
+    if scale > f64::MIN_POSITIVE && scale < f64::MAX { 1.0 } else { 0.0 }
 }
 pub(super) fn decode(data: &PanelData, x: &[f64]) -> Option<PanelParameters> {
     let layout = layout(data);

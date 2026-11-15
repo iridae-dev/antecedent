@@ -359,6 +359,12 @@ fn offsets(spec: &TemporalPanelSpec, choice: &TemporalModelChoice) -> usize {
         TemporalModelChoice::Smooth { .. } => spec.varying.len() * (spec.smooth_knots.len() - 1),
     }
 }
+/// The knots on either side of a period and the interpolation fraction toward the right one.
+fn smooth_bracket(knots: &[usize], time: usize) -> (usize, usize, f64) {
+    let right = knots.partition_point(|&point| point < time).max(1).min(knots.len() - 1);
+    let left = right - 1;
+    (left, right, (time - knots[left]) as f64 / (knots[right] - knots[left]) as f64)
+}
 fn path_value(
     spec: &TemporalPanelSpec,
     choice: &TemporalModelChoice,
@@ -376,10 +382,7 @@ fn path_value(
             }
         }
         TemporalModelChoice::Smooth { .. } => {
-            let knots = &spec.smooth_knots;
-            let right = knots.partition_point(|&point| point < time).max(1).min(knots.len() - 1);
-            let left = right - 1;
-            let fraction = (time - knots[left]) as f64 / (knots[right] - knots[left]) as f64;
+            let (left, right, fraction) = smooth_bracket(&spec.smooth_knots, time);
             let at = |knot| {
                 if knot == 0 { 0.0 } else { delta[(knot - 1) * spec.varying.len() + coordinate] }
             };
@@ -464,6 +467,77 @@ fn penalty(spec: &TemporalPanelSpec, choice: &TemporalModelChoice, delta: &[f64]
     }
     0.5 * result
 }
+/// Gradient of `objective - penalty` with respect to the global coordinates followed by the
+/// path offsets. The path enters only as `current_t = global + path_value(t)` on the varying
+/// mechanism coordinates, so each period's mechanism derivative is shared between the global
+/// coordinate and the offsets that move it.
+fn score(
+    data: &likelihood::CompiledPanel<'_>,
+    spec: &TemporalPanelSpec,
+    choice: &TemporalModelChoice,
+    values: &[f64],
+) -> Option<Vec<f64>> {
+    let p = likelihood::parameter_count(data);
+    let selected = coordinates(data, spec).ok()?;
+    let delta = values.get(p..p + offsets(spec, choice))?;
+    let global = values.get(..p)?;
+    let periods = data.groups.iter().map(|group| group.outcome.len()).max().unwrap_or(0);
+    let slot_x: Vec<Vec<f64>> = (0..periods)
+        .map(|time| {
+            let mut current = global.to_vec();
+            for (coordinate, &index) in selected.iter().enumerate() {
+                current[index] += path_value(spec, choice, delta, coordinate, time);
+            }
+            current
+        })
+        .collect();
+    let score = super::gradient::independent_score(data, global, &slot_x, &|time| time)?;
+    let mut output = score.shared;
+    output.extend(std::iter::repeat_n(0.0, delta.len()));
+    for slot in &score.slots {
+        for (target, value) in output.iter_mut().zip(slot) {
+            *target += value;
+        }
+    }
+    let varying = spec.varying.len();
+    for (time, slot) in score.slots.iter().enumerate() {
+        for (coordinate, &index) in selected.iter().enumerate() {
+            let through = slot[index];
+            match choice {
+                TemporalModelChoice::NoChange => {}
+                TemporalModelChoice::Piecewise { at } => {
+                    if time >= *at {
+                        output[p + coordinate] += through;
+                    }
+                }
+                TemporalModelChoice::Smooth { .. } => {
+                    let (left, right, fraction) = smooth_bracket(&spec.smooth_knots, time);
+                    if left > 0 {
+                        output[p + (left - 1) * varying + coordinate] += through * (1.0 - fraction);
+                    }
+                    output[p + (right - 1) * varying + coordinate] += through * fraction;
+                }
+            }
+        }
+    }
+    if let TemporalModelChoice::Smooth { penalty } = choice {
+        // d/d delta_k of 0.5 * penalty * sum_k (delta_k - delta_(k-1))^2, delta_0 = 0.
+        let knots = spec.smooth_knots.len();
+        for coordinate in 0..varying {
+            let at = |knot: usize| {
+                if knot == 0 { 0.0 } else { delta[(knot - 1) * varying + coordinate] }
+            };
+            for knot in 1..knots {
+                let mut slope = penalty * (at(knot) - at(knot - 1));
+                if knot + 1 < knots {
+                    slope -= penalty * (at(knot + 1) - at(knot));
+                }
+                output[p + (knot - 1) * varying + coordinate] -= slope;
+            }
+        }
+    }
+    output.iter().all(|value| value.is_finite()).then_some(output)
+}
 struct Selected {
     values: Vec<f64>,
     choice: TemporalModelChoice,
@@ -489,7 +563,21 @@ fn fit_candidates(
         let function = |values: &[f64]| {
             objective(data, spec, &choice, values) - penalty(spec, &choice, &values[p..])
         };
-        match inference::optimize_target(initial, options.optimizer, ctx, &function) {
+        let gradient = |values: &[f64]| {
+            check_cancelled(ctx)?;
+            if data.family.spatial.is_some() {
+                inference::numerical_score(values, ctx, &function)
+            } else {
+                inference::checked_score(score(data, spec, &choice, values))
+            }
+        };
+        match inference::optimize_target_with_score(
+            initial,
+            options.optimizer,
+            ctx,
+            &function,
+            &gradient,
+        ) {
             Ok(fit) => {
                 let ll = objective(data, spec, &choice, &fit.values);
                 let criterion = -2.0 * fit.likelihood + (fit.values.len() as f64) * n.ln();
@@ -1489,6 +1577,101 @@ mod tests {
             "the fitted shape must rise after the change: {} then {}",
             path[2].family.hill_shape[0],
             path[20].family.hill_shape[0]
+        );
+    }
+    #[test]
+    fn analytic_path_score_matches_central_differences_for_every_specification() {
+        use super::super::family::{
+            PanelAdstock, PanelFamily, PanelSaturation, PanelSaturationScope,
+        };
+        use super::super::family_tests::{
+            assert_scores_agree, five_point_gradient, simulate, truth,
+        };
+        let family = PanelFamily {
+            adstock: PanelAdstock::Geometric,
+            saturation: PanelSaturation::Hill,
+            scope: PanelSaturationScope::Classes { assignment: vec![0, 0, 0, 1, 1, 1] },
+            spatial: None,
+        };
+        let base = truth(&family);
+        let mut broad = simulate(family, &base, 6, 24, 90);
+        broad.groups[1].weight = 2.0;
+        broad.groups[2].outcome[5] = f64::NAN;
+        broad.groups[4].outcome[11] = f64::NAN;
+        let broad_start = likelihood::encode(&broad, &base).unwrap();
+        let broad_spec = TemporalPanelSpec {
+            varying: vec![
+                PanelMeanParameter::HillShape { channel: "0".into() },
+                PanelMeanParameter::GeometricDecay { channel: "1".into() },
+                PanelMeanParameter::ClassLogHalfSaturation { class: 1 },
+                PanelMeanParameter::Intercept,
+            ],
+            ..specification()
+        };
+        let (reviewed, baseline, _) = super::super::tests::fixture();
+        let reviewed_start = likelihood::encode(&reviewed, &baseline.parameters).unwrap();
+        let cases = [(broad, broad_spec, broad_start), (reviewed, specification(), reviewed_start)];
+        let mut state = 17_u64;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1_u64 << 53) as f64 - 0.5
+        };
+        for (data, spec, start) in cases {
+            let compiled = likelihood::CompiledPanel::new(&data).unwrap();
+            let p = start.len();
+            for choice in [
+                TemporalModelChoice::NoChange,
+                TemporalModelChoice::Piecewise { at: 12 },
+                TemporalModelChoice::Smooth { penalty: 2.0 },
+            ] {
+                for point in 0..3 {
+                    let mut values = start.clone();
+                    values.resize(p + offsets(&spec, &choice), 0.0);
+                    for value in &mut values {
+                        *value += 0.3 * next();
+                    }
+                    let function = |values: &[f64]| {
+                        objective(&compiled, &spec, &choice, values)
+                            - penalty(&spec, &choice, &values[p..])
+                    };
+                    assert!(function(&values).is_finite());
+                    let analytic = score(&compiled, &spec, &choice, &values).unwrap();
+                    let numeric = five_point_gradient(&values, &function);
+                    assert_scores_agree(&analytic, &numeric, &format!("{choice:?} point {point}"));
+                }
+            }
+        }
+    }
+    #[test]
+    fn both_gradient_sources_reach_the_same_temporal_optimum() {
+        let (data, baseline, _) = super::super::tests::fixture();
+        let spec = specification();
+        let choice = TemporalModelChoice::Piecewise { at: 12 };
+        let compiled = likelihood::CompiledPanel::new(&data).unwrap();
+        let p = likelihood::parameter_count(&data);
+        let mut start = likelihood::encode(&data, &baseline.parameters).unwrap();
+        start.resize(p + offsets(&spec, &choice), 0.0);
+        let function = |values: &[f64]| {
+            objective(&compiled, &spec, &choice, values) - penalty(&spec, &choice, &values[p..])
+        };
+        let options =
+            super::super::PanelOptimizerOptions { max_iterations: 3_000, gradient_tolerance: 1e-3 };
+        let ctx = ExecutionContext::for_tests(3);
+        let numeric = inference::optimize_target(start.clone(), options, &ctx, &function).unwrap();
+        let analytic =
+            inference::optimize_target_with_score(start, options, &ctx, &function, &|values| {
+                inference::checked_score(score(&compiled, &spec, &choice, values))
+            })
+            .unwrap();
+        assert!(numeric.converged && analytic.converged);
+        assert!(
+            (numeric.likelihood - analytic.likelihood).abs()
+                <= 1e-6 * (1.0 + numeric.likelihood.abs()),
+            "{} vs {}",
+            numeric.likelihood,
+            analytic.likelihood
         );
     }
     #[test]
