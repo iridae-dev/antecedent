@@ -17,7 +17,7 @@ notes = "The pointwise sampling interval and its excludes-null tipping conclusio
 
 [[routes]]
 route = "decision.experimental_margin.measured_interval"
-notes = "Candidate coverage studies are registered; no measured interval authority is allocated."
+notes = "The derived margin interval is reported with the calibration slot of its own construction (calibrated, outside_measured_scope, measured_below_nominal or not_measured); calibration annotates the interval and never withholds it."
 
 [[routes]]
 route = "antecedent.transport.identify"

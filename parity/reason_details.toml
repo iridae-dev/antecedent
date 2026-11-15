@@ -3608,44 +3608,44 @@ meaning = "A source coordinate an action reads is masked as unsupported."
 [[detail]]
 id = "decision_evidence.adjustment_not_admissible"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["decision_evidence_design_unsupported"]
+meaning = "The adjustment named by the request is not admissible for the retained evidence."
 
 [[detail]]
 id = "decision_evidence.cancelled"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["execution_cancelled"]
+meaning = "The supplied execution token is cancelled."
 
 [[detail]]
 id = "decision_evidence.dependence_unknown"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["evidence_overlap_unknown"]
+meaning = "The joint dependence between the arms or outcomes is not declared."
 
 [[detail]]
 id = "decision_evidence.deployment_bridge_missing"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["decision_evidence_scope_mismatch"]
+meaning = "A deployment decision is requested without a bridge from the experiment to the deployment population."
 
 [[detail]]
 id = "decision_evidence.frame_shape"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["decision_evidence_invalid"]
+meaning = "The decision frame does not name exactly two actions."
 
 [[detail]]
 id = "decision_evidence.incompatible_horizon"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["decision_evidence_scope_mismatch"]
+meaning = "The requested horizon differs from the retained evidence horizon."
 
 [[detail]]
 id = "decision_evidence.incompatible_intervention"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["decision_evidence_scope_mismatch"]
+meaning = "The requested regimes differ from the retained evidence regimes."
 
 [[detail]]
 id = "decision_evidence.incompatible_population"
@@ -3656,32 +3656,32 @@ meaning = "The request names a population outside the retained evidence scope."
 [[detail]]
 id = "decision_evidence.interference_unspecified"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["decision_evidence_design_unsupported"]
+meaning = "The exposure does not state that there is no between-unit interference."
 
 [[detail]]
 id = "decision_evidence.invalid_declaration"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["decision_evidence_invalid"]
+meaning = "The evidence, request or derived quantity declaration is inconsistent."
 
 [[detail]]
 id = "decision_evidence.resource_limit"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["execution_resource_limit"]
+meaning = "The execution admission pool cannot fund the derivation."
 
 [[detail]]
 id = "decision_evidence.too_many_unknowns"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["decision_evidence_design_unsupported"]
+meaning = "More assumption dimensions are unknown than the bounded vertex enumeration admits."
 
 [[detail]]
 id = "decision_evidence.unsupported_assignment_design"
 family = "decision_evidence"
-codes = []
-meaning = "Refusal detail emitted by the source; no record declares its condition."
+codes = ["decision_evidence_design_unsupported"]
+meaning = "The assignment design has no derivation for the requested target."
 
 [[detail]]
 id = "decision_posterior.band_not_constructed"

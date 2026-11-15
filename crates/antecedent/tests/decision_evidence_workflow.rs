@@ -160,6 +160,34 @@ fn nonlinear_margin_from_a_clustered_experiment_keeps_dependence_and_inherits_no
     );
 }
 
+/// The interval is reported at its own construction with a calibration slot that annotates it:
+/// a construction no record measured is `not_measured` and still has its interval, and the
+/// slot is the one the shipped table resolves for the basis, never a refusal.
+#[test]
+fn the_margin_interval_is_annotated_with_the_calibration_slot_of_its_own_construction() {
+    let ev = evidence(80);
+    let q = margin(InputBinding::Measured("cost".into()));
+    let result = derive(&ev, &request(), &q).unwrap();
+    assert!(result.sampling.is_some(), "the interval is reported whatever its calibration");
+    let slot = decision_interval_calibration_slot(&ev, &request(), &q).unwrap();
+    let basis = decision_interval_calibration_basis(&ev, &request(), &q).unwrap();
+    let expected = antecedent_io_core::calibration::calibration_slot(
+        &antecedent_io_core::calibration::CalibrationBasisWire::from(&basis),
+    );
+    assert_eq!(slot, expected);
+    assert_eq!(slot.status.as_str(), "not_measured", "no record measured this margin quantity");
+    assert!(slot.record_id.is_none());
+
+    // A construction with an assumption range has no sampling-only interval to annotate.
+    let ranged = margin(InputBinding::Assumed {
+        lower: 4.0,
+        upper: 12.0,
+        assumption_id: "assumption.unit_cost_range".into(),
+        shared_across_arms: true,
+    });
+    assert!(decision_interval_calibration_slot(&ev, &request(), &ranged).is_err());
+}
+
 #[test]
 fn the_decision_is_robust_assumption_dependent_or_unresolved_and_the_reasons_are_named() {
     let ev = evidence(80);

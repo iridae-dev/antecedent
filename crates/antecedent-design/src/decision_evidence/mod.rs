@@ -55,7 +55,7 @@ use antecedent_core::CanonicalWriter;
 pub use derive::{
     Arm, AssumedRange, DecisionFrame, DecisionResult, DerivedQuantity, DerivedResult, InputBinding,
     SamplingInterval, Standing, UnresolvedReason, Verdict, decide,
-    decision_interval_calibration_basis, derive,
+    decision_interval_calibration_basis, decision_interval_calibration_slot, derive,
 };
 pub use plan::{Candidate, EvidencePlan, PlanRow, PlanValue, PlanningModel, plan_evidence};
 pub use proxy::{ProxyBridge, ProxyDecision, ProxyMapping, decide_with_proxy};
