@@ -3,8 +3,9 @@
 
 Scientific passes, calibration measurements and probe attestations reference a
 manifest in `parity/evidence_manifests/<sha256>.json`. A record is current when
-its manifest binds exactly that record, was written under the current analyzer
-policy and compiler pin, and every input still matches. Inputs are hashed once
+its manifest binds exactly that record, was written under an accepted analyzer
+policy and the compiler pin, and every input still matches. A build recipe is an
+input by what it says (`evidence_recipes`), not by its bytes. Inputs are hashed once
 per invocation. Directory membership is every file git does not ignore, and
 environment inputs are compared with the canonical build environment, never
 the environment of the process running the check. No compiler, Cargo metadata,
@@ -60,11 +61,15 @@ def grouped(manifest: dict) -> tuple[dict, dict[str, bytes]]:
 SCHEMA = 1
 NORMALIZATION = "raw-bytes-v1"
 # The dependency policy that writes manifests. Changing what earning records,
-# or how, renames it, which owes every manifest written under the old policy.
-ANALYZER = "compiler-items-v1"
+# or how, renames it. A manifest of an earlier policy stays current only while that
+# policy is listed here: `compiler-items-v1` bound a superset of what the current
+# policy binds (every function the executed code names, and recipes by their bytes),
+# so what it attests still holds.
+ANALYZER = "compiler-items-v2"
+ANALYZERS = ("compiler-items-v1", ANALYZER)
 HEX = re.compile(r"[0-9a-f]{64}\Z")
 KINDS = ("file", "tree", "env", "membership", "evidence_file", "glob", "build_env",
-         "rust_items", "rust_names", "rust_guards", "declarations", "locked_package")
+         "rust_items", "rust_names", "rust_guards", "declarations", "locked_package", "build_recipe")
 # Inputs keyed by a name rather than a repository path.
 NAMED_KINDS = ("env", "build_env", "locked_package")
 # A locked registry package, `<name> <version>`; its digest is the Cargo.lock checksum.
@@ -259,6 +264,15 @@ def validate(manifest: dict, binding: dict) -> None:
             raise InvalidManifest("invalid input declarations")
         if kind == "evidence_file" and entry.get("text") not in (None, "rust"):
             raise InvalidManifest("unknown evidence text normalization")
+        if kind == "build_recipe":
+            from evidence_recipes import FORMS
+            nodes = entry.get("nodes")
+            if (entry.get("form") not in FORMS or not isinstance(entry.get("raw"), str)
+                    or not HEX.fullmatch(entry["raw"])
+                    or (entry["form"] == "flake-lock") != isinstance(nodes, list)
+                    or (nodes is not None and (not nodes or nodes != sorted(set(nodes))
+                                               or not all(isinstance(n, str) for n in nodes)))):
+                raise InvalidManifest("invalid build recipe binding")
         if kind == "build_env" and key not in BUILD_ENV:
             raise InvalidManifest("unknown build environment input")
         if entry.get("role") not in ROLES:
@@ -319,7 +333,9 @@ def validate_nix_receipt(receipt: object, binding: dict, inputs: list[dict]) -> 
         if (policy.get("source_projection_allowed") is not True
                 or not HEX.fullmatch(policy["audit_selection_sha256"])):
             raise ValueError("invalid policy")
+        # A recipe is bound by its bytes, or by its content with the bytes it was read from.
         tracked = {i.get("path"): i.get("digest") for i in inputs if i.get("kind") == "evidence_file"}
+        tracked.update({i.get("path"): i.get("raw") for i in inputs if i.get("kind") == "build_recipe"})
         required = dict(artifact["recipe_sha256"])
         if set(required) != set(platform.recipes):
             raise ValueError("incomplete recipe identity")
@@ -485,6 +501,20 @@ class Checker:
             return digest(b"missing-input")
         return rust_text_digest(path.read_text(encoding="utf-8", errors="replace"))
 
+    def recipe_current(self, entry: dict) -> bool:
+        """Whether a build recipe still says what it said when bound (`evidence_recipes`)."""
+        import evidence_recipes
+        path = self.path(entry["path"])
+        if self.input_digest("file", entry["path"]) == entry["raw"] if path.is_file() else False:
+            return True
+        key = ("recipe", entry["path"], entry["form"], tuple(entry.get("nodes") or ()))
+        if key not in self.cache:
+            try:
+                self.cache[key] = evidence_recipes.digest(entry["form"], path.read_bytes(), nodes=entry.get("nodes"))
+            except (OSError, ValueError):
+                self.cache[key] = digest(b"missing-input")
+        return self.cache[key] == entry["digest"]
+
     def same_code_as_bound(self, key: str, bound: str, manifest: dict) -> bool:
         """Whether a Rust file bound by raw bytes differs from them only in comments or layout.
 
@@ -612,7 +642,7 @@ class Checker:
             reasons = result["reasons"]
             if manifest["compiler"] != {k: self.pin[k] for k in ("release", "commit")}:
                 reasons.append("compiler_identity_changed")
-            if manifest["analyzer"] != ANALYZER:
+            if manifest["analyzer"] not in ANALYZERS:
                 reasons.append("analyzer_policy_changed")
             if "nix_build" in manifest:
                 from evidence_platforms import recheck_selection
@@ -630,6 +660,8 @@ class Checker:
                     unchanged = True
                 elif kind == "declarations":
                     unchanged = declarations_digest(self.root, entry["sources"]) == entry["digest"]
+                elif kind == "build_recipe":
+                    unchanged = self.recipe_current(entry)
                 elif kind == "evidence_file" and entry.get("text") == "rust":
                     unchanged = self.rust_text(key) == entry["digest"]
                 else:

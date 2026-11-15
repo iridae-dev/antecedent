@@ -86,6 +86,7 @@ class File:
         self.by_locator: dict[str, Node] = {}
         self._name(self.root)
         self._starts = None
+        self._digests: dict[tuple[str, str], str] = {}
         self._ascii: bool | None = None
         self._bytes: bytes | None = None
 
@@ -406,10 +407,13 @@ class File:
         raise ValueError(part)
 
     def digest(self, locator: str, part: str) -> str | None:
-        node = self.root if locator == "" else self.by_locator.get(locator)
-        if node is None:
-            return None
-        return hashlib.sha256(self.part(node, part).encode()).hexdigest()
+        found = self._digests.get((locator, part))
+        if found is None:
+            node = self.root if locator == "" else self.by_locator.get(locator)
+            if node is None:
+                return None
+            found = self._digests[(locator, part)] = hashlib.sha256(self.part(node, part).encode()).hexdigest()
+        return found
 
     # ------------------------------------------------------------------ positions
 

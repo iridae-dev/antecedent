@@ -236,6 +236,9 @@ class Snapshot:
             files.update(root / rel for rel in (*platform.recipes, *platform.policy_sources))
             if 'release' in nix_build:
                 files.update(root / rel for rel in nix_build['release']['recipe_sha256'])
+        # Recipes and policy code are bound by what they say, not their bytes.
+        recipe_files = sorted(path.relative_to(root).as_posix() for path in files
+                              if path.suffix != '.toml' and path.name != 'config' and path.is_file())
         self.fixed_files = {path.resolve() for path in files}
         files |= used.files
         for rel in row.get('fixtures', []):
@@ -359,7 +362,15 @@ class Snapshot:
         if stray:
             raise RuntimeError('untracked files among the evidence inputs; add or ignore them: '
                                + ', '.join(stray[:10]) + (' …' if len(stray) > 10 else ''))
+        recipe_texts = [(root / rel).read_text(encoding='utf-8', errors='replace')
+                        for rel in recipe_files if rel.endswith('.nix')]
+
         def bound(rel: str) -> dict:
+            if rel in recipe_files:
+                from evidence_recipes import entry
+                recipe = entry(rel, (root / rel).read_bytes(), 'external', recipes=recipe_texts)
+                if recipe is not None:
+                    return recipe
             # A Rust source bound whole is bound as code, so a comment edit never owes it.
             if rel.endswith('.rs') and (root / rel).is_file():
                 return dict(kind='evidence_file', path=rel, digest=checker.rust_text(rel), text='rust', role='external')
@@ -431,6 +442,9 @@ class Snapshot:
             elif i['kind'] == 'declarations':
                 if declarations_digest(self.root, i['sources']) != i['digest']:
                     return False
+            elif i['kind'] == 'build_recipe':
+                if not checker.recipe_current(i):
+                    return False
             elif i['kind'] == 'evidence_file' and i.get('text') == 'rust':
                 if checker.rust_text(i['path']) != i['digest']:
                     return False
@@ -440,7 +454,8 @@ class Snapshot:
 
     def verify_commit(self, sha: str) -> None:
         """Collected logs may attest only inputs actually present in their commit."""
-        files = [i['path'] for i in self.manifest['inputs'] if i['kind'] == 'evidence_file' and (self.root / i['path']).is_file()]
+        files = [i['path'] for i in self.manifest['inputs']
+                 if i['kind'] in ('evidence_file', 'build_recipe') and (self.root / i['path']).is_file()]
         tracked, changed = _commit_state(self.root, sha)
         if any(path not in tracked for path in files):
             raise RuntimeError('measurement inputs are not all tracked at the measured commit')
@@ -593,7 +608,9 @@ def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tu
             raise RuntimeError('Nix precision requires compiler inventory and instrumented coverage')
         return
     root = snapshot.root.resolve()
-    selection = Selection(root, inventory, callee_bodies=callee_bodies)
+    # A sliced measurement keeps what the executed code names whole, except what the
+    # measurement cannot enter (`evidence_reach`).
+    selection = Selection(root, inventory, callee_bodies=callee_bodies, narrow=callee_bodies)
     executed = 0
     for path, positions in sorted(coverage.items()):
         try:
@@ -615,6 +632,7 @@ def select_items(snapshot: Snapshot, directory: Path, coverage: dict[str, set[tu
     for path in snapshot.source_consumers:
         if path.suffix == '.rs' and path.is_relative_to(root):
             selection.keep_whole(path.relative_to(root).as_posix(), 'read as data')
+    selection.settle()
     entries, tables = selection.entries(Checker(root), snapshot.crate_dirs, snapshot.scope_dir)
 
     def selected(source: Path, position: int) -> bool:

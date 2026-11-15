@@ -1,0 +1,1 @@
+[{"digest":"66a383b5039b2cbdbf80cc96d0d5ea2f2cd5525f1f540c1eb8441a6890d30042","file":"5f4484299fddfd76ba4d0b679f66cc52e1437187f6fc46725337662d2feb3d39","kind":"rust_items","path":"crates/antecedent-contract/tests/ledger_transport_exact.rs","role":"compile","scopes":[[[],true]],"select":{"full":[3,5,16]},"table":"e86d094dc927acce6ad980667202e64a54afda9cf0bc0ba65956af7056e52eaf"}]

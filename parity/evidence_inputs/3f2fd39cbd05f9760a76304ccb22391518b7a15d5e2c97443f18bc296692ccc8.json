@@ -1,0 +1,1 @@
+[{"digest":"760c8d14553f340a0a6971974c3cd7a479e92914e396e25b9c63b669b71b58cd","file":"d4b72f9cadf6b5816c03d719dcd51b411d4575b5966a52a47baab88158904a5f","kind":"rust_items","path":"crates/antecedent/tests/learned_continuous_posterior_exact.rs","role":"compile","scopes":[[[],true]],"select":{"full":[0,5]},"table":"57baf4ed20fa33178b9cb937da089a32647b5d52ba1f75dc0cf8fc14eb95da9e"}]
