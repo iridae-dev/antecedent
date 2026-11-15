@@ -72,4 +72,4 @@ sha256 = "31641c7742bb751e344ce4fdd7f299447468c4dde1fa988a11de324049fc01e1"
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-estimate/tests/oracle_data/estimate_association_reference.json"
-sha256 = "3a8dc17b462eb288af233ad33ff4fe93a9800a145cc04b8e254bf6db470ac5f1"
+sha256 = "653d1443deb3988ab998d1d8763b33d2e2000ad01f98a4d6cc0c9712422f5a40"
