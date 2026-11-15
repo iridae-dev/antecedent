@@ -256,17 +256,18 @@ impl super::CheckedLocalPolynomialRatioOperation {
             backend: "bayesian_bootstrap.within_side_block_dirichlet",
             model: format!(
                 "within-side block Bayesian bootstrap of the errors at the fixed time design: \
-                 flat-Dirichlet weights on consecutive blocks of {} time-ordered AR(1)-prewhitened \
-                 innovations redraw each side's errors, the prewhitening coefficient is drawn \
-                 from its large-sample posterior, and the robust bias-corrected local ratio is \
-                 refit per draw; serial dependence within a block is kept, across block \
-                 boundaries its AR(1) part is",
+                 flat-Dirichlet weights on consecutive blocks of {} time-ordered innovations of \
+                 an autoregressive error model (order one to four by BIC, coefficients \
+                 corrected for the per-side trend fit) redraw each side's errors, the \
+                 coefficients are drawn from their large-sample posterior, and the robust \
+                 bias-corrected local ratio is refit per draw; serial dependence within a \
+                 block is kept, across block boundaries the autoregressive part is",
                 posterior.block_length
             ),
             assumptions: vec![(
                 "bayesian_block_bootstrap_serial_dependence",
                 "the errors about a smooth time path are stationary within each side, their \
-                 serial dependence beyond an AR(1) fit is shorter than a block, and blocks of \
+                 serial dependence beyond the fitted autoregression is shorter than a block, and blocks of \
                  innovations are exchangeable draws within each side"
                     .to_string(),
             )],
@@ -414,8 +415,8 @@ impl super::CheckedLocalPolynomialRatioOperation {
                     if fit.bandwidth.capped { ", capped at the declared bandwidth" } else { "" }
                 )),
                 if temporal.is_some() {
-                    "calendar-time rows: within-side moving-block bootstrap of the prewhitened \
-                     errors refits the whole local ratio and its interquartile standard error \
+                    "calendar-time rows: within-side moving-block bootstrap of the autoregressively \
+                     prewhitened errors (order one to four by BIC) refits the whole local ratio and its interquartile standard error \
                      gives the Student-t interval"
                 } else {
                     "independent rows: HC0 delta-method interval of the bias-corrected ratio"

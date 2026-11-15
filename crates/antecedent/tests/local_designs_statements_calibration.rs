@@ -206,6 +206,29 @@ fn time_jump_ar2_rows(seed: u64) -> (TabularData, LocalPolynomialRatioQuery, f64
     )
 }
 
+/// The kink of [`time_kink_rows`] with AR(2) errors (`0.5`, `0.3`, marginal standard deviation
+/// `0.5`): dependence beyond the first-order autoregression, whose slope-change ratio is 2.
+fn time_kink_ar2_rows(seed: u64) -> (TabularData, LocalPolynomialRatioQuery, f64) {
+    let n = grid_n(2_000);
+    let cutoff = n as f64 / 2.0;
+    let bandwidth = 0.15 * n as f64;
+    let time: Vec<f64> = (1..=n).map(|i| i as f64).collect();
+    let error = ar2_noise(n, 0.5, 0.3, 0.5, stream_seed(seed, 0x5F));
+    let mut dose_noise = gaussian(stream_seed(seed, 0x60));
+    let scaled: Vec<f64> = time.iter().map(|&t| (t - cutoff) / bandwidth).collect();
+    let treatment: Vec<f64> =
+        scaled.iter().map(|&s| 1.0 + 0.5 * s + 3.0 * s.max(0.0) + 0.02 * dose_noise()).collect();
+    let outcome: Vec<f64> = (0..n)
+        .map(|i| {
+            let s = scaled[i];
+            0.7 + 0.5 * s + 0.3 * s * s + 0.1 * s.powi(3) + TREATMENT * treatment[i] + error[i]
+        })
+        .collect();
+    let options =
+        LocalRatioOptions { temporal_replicates: Some(199), ..LocalRatioOptions::default() };
+    (tabular(&time, &treatment, &outcome), query(cutoff, bandwidth, true, Some(options)), TREATMENT)
+}
+
 /// Periods `1..=n` with a fuzzy step at the middle period: the treatment is received with
 /// probability `0.1` before it and `0.9` from it on, independently by period, and the outcome
 /// is a linear trend plus `2 t` plus AR(1) errors (`0.7`, marginal standard deviation `0.7`).
@@ -412,6 +435,23 @@ fn temporal_fuzzy_rd_block_bootstrap_interval_covers_the_jump_under_ar2_errors()
         (data, query)
     });
 }
+const TIME_KINK_AR2: Cell = Cell {
+    test: "temporal_regression_kink_block_bootstrap_interval_covers_the_slope_ratio_under_ar2_errors",
+    dgp: "time_kink_ar2_rows",
+    estimator: "quasi.regression_kink.declared_bandwidth_rbc_block_bootstrap",
+    interval: "bootstrap_se",
+    dependence: "moving_block",
+};
+
+/// A kink in time under AR(2) errors at the declared bandwidth.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn temporal_regression_kink_block_bootstrap_interval_covers_the_slope_ratio_under_ar2_errors() {
+    measure_design(TIME_KINK_AR2, TREATMENT, 0x1D_000B, |seed| {
+        let (data, query, _) = time_kink_ar2_rows(seed);
+        (data, query)
+    });
+}
 // ------------------------------------------------------------------ Bayesian
 
 const TEMPORAL_DRAWS: usize = 500;
@@ -526,6 +566,37 @@ fn bayesian_temporal_fuzzy_step_block_posterior_covers_the_local_ratio() {
     };
     measure_posterior(cell, TREATMENT, 0x1D_0107, TEMPORAL_DRAWS, |seed| {
         let (data, query, _) = time_fuzzy_rows(seed);
+        (data, query)
+    });
+}
+
+/// A sharp discontinuity in time under AR(2) errors at the declared bandwidth: the block
+/// Bayesian bootstrap with the autoregressive order chosen from the data.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn bayesian_temporal_fuzzy_rd_block_posterior_covers_the_jump_under_ar2_errors() {
+    let cell = BayesCell {
+        test: "bayesian_temporal_fuzzy_rd_block_posterior_covers_the_jump_under_ar2_errors",
+        dgp: "time_jump_ar2_rows",
+        estimator: "bayesian.local_ratio",
+    };
+    measure_posterior(cell, 1.0, 0x1D_0108, TEMPORAL_DRAWS, |seed| {
+        let (data, query, _) = time_jump_ar2_rows(seed);
+        (data, query)
+    });
+}
+
+/// A kink in time under AR(2) errors at the declared bandwidth.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio_under_ar2_errors() {
+    let cell = BayesCell {
+        test: "bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio_under_ar2_errors",
+        dgp: "time_kink_ar2_rows",
+        estimator: "bayesian.local_ratio",
+    };
+    measure_posterior(cell, TREATMENT, 0x1D_0109, TEMPORAL_DRAWS, |seed| {
+        let (data, query, _) = time_kink_ar2_rows(seed);
         (data, query)
     });
 }

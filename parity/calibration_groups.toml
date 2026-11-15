@@ -12092,3 +12092,35 @@ target = "synthetic_control_calibration"
 tests = ["multi_unit_synthetic_placebo_variance_interval"]
 ignored = true
 grid = true
+
+[[group]]
+label = "local_designs_statements_calibration: temporal_fuzzy_rd_block_bootstrap_interval_covers_the_jump_under_ar2_errors"
+package = "antecedent"
+target = "local_designs_statements_calibration"
+tests = ["temporal_fuzzy_rd_block_bootstrap_interval_covers_the_jump_under_ar2_errors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "local_designs_statements_calibration: temporal_regression_kink_block_bootstrap_interval_covers_the_slope_ratio_under_ar2_errors"
+package = "antecedent"
+target = "local_designs_statements_calibration"
+tests = ["temporal_regression_kink_block_bootstrap_interval_covers_the_slope_ratio_under_ar2_errors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "local_designs_statements_calibration: bayesian_temporal_fuzzy_rd_block_posterior_covers_the_jump_under_ar2_errors"
+package = "antecedent"
+target = "local_designs_statements_calibration"
+tests = ["bayesian_temporal_fuzzy_rd_block_posterior_covers_the_jump_under_ar2_errors"]
+ignored = true
+grid = true
+
+[[group]]
+label = "local_designs_statements_calibration: bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio_under_ar2_errors"
+package = "antecedent"
+target = "local_designs_statements_calibration"
+tests = ["bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio_under_ar2_errors"]
+ignored = true
+grid = true
