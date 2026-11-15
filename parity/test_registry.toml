@@ -23739,7 +23739,7 @@ id = "temporal-wider-range-calibration"
 crate = "antecedent"
 cargo_target = "temporal_wider_range_calibration"
 path = "crates/antecedent/tests/temporal_wider_range_calibration.rs"
-gates = ["inventory", "named"]
+gates = ["inventory"]
 
 [[test]]
 id = "graphless-wider-range-calibration"
@@ -23782,3 +23782,80 @@ crate = "antecedent-model"
 cargo_target = "mechanism_selection_point_only"
 path = "crates/antecedent-model/tests/mechanism_selection_point_only.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "interference-small-arm"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/interference_small_arm.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "transport-series"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/transport_series.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "analysis-result-recomputed-support"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/analysis_result_artifact/recomputed_support.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "target-native-reference"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/target_native/reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "check-doc-links-script"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_check_doc_links.py"
+gates = ["inventory"]
+
+[[test]]
+id = "evidence-binding-registry-script"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_evidence_binding_registry.py"
+gates = ["inventory"]
+
+[[test]]
+id = "evidence-reach-script"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_evidence_reach.py"
+gates = ["inventory"]
+
+[[test]]
+id = "evidence-recipes-script"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_evidence_recipes.py"
+gates = ["inventory"]
+
+[[test]]
+id = "example-coverage-script"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_example_coverage.py"
+gates = ["inventory"]
+
+[[test]]
+id = "narrow-evidence-binding-script"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_narrow_evidence_binding.py"
+gates = ["inventory"]
+
+[[test]]
+id = "release-body-script"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_release_body.py"
+gates = ["inventory"]

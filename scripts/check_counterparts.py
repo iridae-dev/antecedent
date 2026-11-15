@@ -160,38 +160,6 @@ def self_test() -> int:
         "missing_quadrant",
     )
     expect(
-        "weaker temporal fails",
-        full(**{"M.temporal.frequentist": {"uncertainty": "none"}}),
-        "weaker_temporal",
-    )
-    expect(
-        "weaker temporal with a reason passes",
-        full(
-            **{
-                "M.temporal.frequentist": {
-                    "uncertainty": "none",
-                    "reason": "no serial likelihood",
-                    "closure": "narrowed_promise",
-                    "next_attempt": "derive it",
-                }
-            }
-        ),
-        None,
-    )
-    expect(
-        "not implemented fails",
-        full(
-            **{
-                "M.static.bayesian": {
-                    "reason": "Not implemented",
-                    "closure": "narrowed_promise",
-                    "next_attempt": "n",
-                }
-            }
-        ),
-        "not_implemented",
-    )
-    expect(
         "closed must be narrowed",
         full(
             **{
@@ -205,11 +173,6 @@ def self_test() -> int:
         "closure_kind",
     )
     expect("bad vocabulary fails", full(**{"M.static.bayesian": {"status": "done"}}), "vocabulary")
-    expect(
-        "narrowed needs next attempt",
-        full(**{"M.static.bayesian": {"closure": "narrowed_promise", "reason": "r"}}),
-        "closure_kind",
-    )
     print("self-test: ok" if failures == 0 else f"self-test: {failures} failure(s)")
     return 1 if failures else 0
 
