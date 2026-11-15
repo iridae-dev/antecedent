@@ -2590,6 +2590,12 @@ status = "bound"
 python = "antecedent.results.response.CausalResponseView.horizon_draws"
 
 [[entry]]
+rust = "antecedent::analysis::horizon_composition::horizon_composition_interval"
+kind = "fn"
+status = "bound"
+python = "antecedent.results.response.CausalResponseView.horizon_interval"
+
+[[entry]]
 rust = "antecedent::analysis::structure_route::attribution_quantities"
 kind = "fn"
 status = "bound"

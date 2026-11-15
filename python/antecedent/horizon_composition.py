@@ -38,6 +38,34 @@ class ComposedHorizons:
 
 
 @dataclass(frozen=True)
+class HorizonInterval:
+    """The interval of a linear combination of horizons, from the joint replicates.
+
+    ``center`` is the composed point value; ``lower`` and ``upper`` are ``center`` -/+ the
+    normal quantile of ``level`` times ``standard_error``. ``construction`` names the replicate
+    kind behind it (block bootstrap or block weights), ``kernel_factor`` is the kernel-bias
+    factor of the composed influence, ``rows`` the lag-aligned rows every horizon fits,
+    ``replicates`` the joint realizations composed, and ``effective_blocks`` the effective block
+    count behind the Student-t reference (``None`` for bootstrap replicates).
+    """
+
+    coordinate: str
+    horizons: tuple[int, ...]
+    alignment_id: str | None
+    label: str
+    center: float
+    standard_error: float
+    lower: float
+    upper: float
+    level: float
+    construction: str
+    kernel_factor: float
+    rows: int
+    replicates: int
+    effective_blocks: float | None
+
+
+@dataclass(frozen=True)
 class JointHorizonDraws:
     """The draws of one dose coupled across the horizons of a temporal response.
 
@@ -120,4 +148,4 @@ def compose_horizons(
     )
 
 
-__all__ = ["ComposedHorizons", "JointHorizonDraws", "compose_horizons"]
+__all__ = ["ComposedHorizons", "HorizonInterval", "JointHorizonDraws", "compose_horizons"]

@@ -547,6 +547,60 @@ class CausalResponseView(ResultModel, ResultAPI):
             evidence_id=raw["evidence_id"],
         )
 
+    def horizon_interval(
+        self,
+        coefficients: Sequence[float],
+        *,
+        dose_index: int = 0,
+        operation: str = "weighted_sum",
+    ) -> Any:
+        """The 95% interval of a linear combination of the horizons of dose ``dose_index``.
+
+        ``coefficients`` weights the horizons in order (``[1, 1]`` for a cumulative effect,
+        ``[-1, 1]`` for a contrast). The interval is built on the joint replicates of a response
+        prepared with ``retain_joint_horizons=True``, so it keeps the dependence between the
+        horizons and the serial dependence of the series. A nonlinear composition (a peak, a
+        product) has a spread, from :meth:`horizon_draws`, and no interval. Returns a
+        :class:`~antecedent.horizon_composition.HorizonInterval`.
+
+        Raises:
+            CausalValueError: ``dose_index`` is negative, ``operation`` is not a propagation
+                operation, or the view carries no native payload.
+            ExternalRefusal: the response retains no joint draws or dispersion readings, the
+                operation is nonlinear, or the composition is refused.
+        """
+        from ..horizon_composition import HorizonInterval
+
+        native = getattr(self._raw, "horizon_interval_json", None)
+        if native is None:
+            raise CausalValueError(
+                "this response view carries no native response payload to read horizon draws from"
+            )
+        if dose_index < 0:
+            raise CausalValueError("dose_index must be non-negative")
+        interval, refusal = native(int(dose_index), [float(c) for c in coefficients], operation)
+        if refusal is not None:
+            from ..external import ExternalRefusal
+
+            raise ExternalRefusal(json.loads(refusal))
+        raw = json.loads(interval)
+        return HorizonInterval(
+            coordinate=raw["coordinate"],
+            horizons=tuple(raw["horizons"]),
+            alignment_id=raw["alignment_id"],
+            label=raw["label"],
+            center=raw["center"],
+            standard_error=raw["standard_error"],
+            lower=raw["lower"],
+            upper=raw["upper"],
+            level=raw["level"],
+            construction=raw["construction"],
+            kernel_factor=raw["kernel_factor"],
+            rows=raw["rows"],
+            replicates=raw["replicates"],
+            effective_blocks=raw["effective_blocks"],
+        )
+
     @property
     def simultaneous_band(self) -> SimultaneousBand | None:
         """Band over the whole response grid published next to the pointwise band.

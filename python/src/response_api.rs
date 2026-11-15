@@ -280,6 +280,66 @@ impl ResponseAnalysisResult {
         })
     }
 
+    /// The 95% interval of a linear combination of the horizons of dose number `dose_index`.
+    ///
+    /// Returns `(interval_json, refusal_json)`: exactly one is `None`. A nonlinear operation,
+    /// a response without retained joint draws or without the dispersion readings behind them,
+    /// and a composition the propagation rule refuses are refusals.
+    fn horizon_interval_json(
+        &self,
+        dose_index: usize,
+        coefficients: Vec<f64>,
+        operation: &str,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        crate::catch_ffi(|| {
+            let Some(authority) = &self.authority else {
+                return Err(crate::value_err(
+                    "this response carries no native response payload to read horizon draws from",
+                ));
+            };
+            let operation = antecedent::contract::PropagationOperation::from_name(operation)
+                .ok_or_else(|| {
+                    crate::value_err(format!("unknown propagation operation {operation:?}"))
+                })?;
+            match antecedent::analysis::horizon_composition::horizon_composition_interval(
+                &authority.response,
+                dose_index,
+                &coefficients,
+                operation,
+            ) {
+                Ok(interval) => Ok((
+                    Some(
+                        serde_json::json!({
+                            "coordinate": interval.composed.coordinate.id(),
+                            "horizons": interval.composed.coordinate.horizons,
+                            "alignment_id": interval.composed.plan.alignment_id,
+                            "label": interval.composed.label,
+                            "center": interval.center,
+                            "standard_error": interval.standard_error,
+                            "lower": interval.lower,
+                            "upper": interval.upper,
+                            "level": interval.level,
+                            "construction": interval.construction,
+                            "kernel_factor": interval.kernel_factor,
+                            "rows": interval.rows,
+                            "replicates": interval.replicates,
+                            "effective_blocks": interval.effective_blocks,
+                        })
+                        .to_string(),
+                    ),
+                    None,
+                )),
+                Err(refusal) => {
+                    let json = serde_json::to_string(
+                        &antecedent::io::external_binding_wire::RefusalWire::from(refusal),
+                    )
+                    .map_err(|error| crate::value_err(error.to_string()))?;
+                    Ok((None, Some(json)))
+                }
+            }
+        })
+    }
+
     /// The scientific coordinates of the response values, derived natively.
     ///
     /// Returns `(quantities_json, refusal_json)`: exactly one is `None`. The

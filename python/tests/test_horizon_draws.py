@@ -194,3 +194,35 @@ def test_bayesian_horizon_draws_are_the_block_weight_posterior_draws():
     )
     with pytest.raises(ExternalRefusal):
         marginal.horizon_draws(1)
+
+
+def test_a_linear_horizon_interval_brackets_the_composed_point_and_a_peak_has_none():
+    data = _series()
+    for result in (
+        require_success(_estimate(data, bootstrap=60, retain_joint_horizons=True)),
+        require_success(
+            _estimate(
+                data,
+                inference=antecedent.Bayesian(n_draws=60, backend="conjugate"),
+                retain_joint_horizons=True,
+            )
+        ),
+    ):
+        cells = _cells(result)
+        contrast = result.horizon_interval([-1.0, 1.0], dose_index=1, operation="contrast")
+        assert contrast.center == pytest.approx(cells[3] - cells[2], rel=1e-9)
+        assert contrast.lower < contrast.center < contrast.upper
+        assert contrast.standard_error > 0.0
+        assert contrast.horizons == tuple(_HORIZONS)
+        assert contrast.coordinate.endswith("|horizons=1,2")
+        assert contrast.level == pytest.approx(0.95)
+        assert contrast.construction.startswith("block")
+        total = result.horizon_interval([1.0, 1.0], dose_index=1)
+        assert total.center == pytest.approx(cells[2] + cells[3], rel=1e-9)
+        assert total.lower < total.center < total.upper
+        with pytest.raises(ExternalRefusal):
+            result.horizon_interval([1.0, 1.0], operation="nonlinear_functional")
+        with pytest.raises(CausalValueError):
+            result.horizon_interval([1.0, 1.0], dose_index=-1)
+        with pytest.raises(CausalValueError):
+            result.horizon_interval([1.0, 1.0], operation="not_an_operation")
