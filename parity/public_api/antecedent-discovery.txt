@@ -1390,6 +1390,7 @@ pub field antecedent_discovery::CiScreenedPosterior::ci: alloc::sync::Arc<dyn an
 pub field antecedent_discovery::CiScreenedPosterior::constraints: antecedent_discovery::DiscoveryConstraints
 pub field antecedent_discovery::CiScreenedPosterior::fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>
 pub field antecedent_discovery::CiScreenedPosterior::mcmc: antecedent_discovery::StructureMcmc
+pub field antecedent_discovery::CiScreenedPosterior::retain_undecided: bool
 pub field antecedent_discovery::CiScreenedPosterior::soft_weight: antecedent_discovery::CiSoftWeight
 pub field antecedent_discovery::CompiledConstraints::candidates: antecedent_graph::workspace::BitSet
 pub field antecedent_discovery::CompiledConstraints::catalog: antecedent_discovery::CandidateCatalog
@@ -1782,6 +1783,7 @@ pub fn <antecedent_discovery::CiScreenedPosterior>::fn run(&self, data: &anteced
 pub fn <antecedent_discovery::CiScreenedPosterior>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::CiScreenedPosterior>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::CiScreenedPosterior>::fn with_mcmc(self, mcmc: antecedent_discovery::StructureMcmc) -> Self
+pub fn <antecedent_discovery::CiScreenedPosterior>::fn with_retain_undecided(self, retain: bool) -> Self
 pub fn <antecedent_discovery::CiScreenedPosterior>::fn with_soft_weight(self, soft: antecedent_discovery::CiSoftWeight) -> Self
 pub fn <antecedent_discovery::CompiledConstraints>::fn allows(&self, link: antecedent_discovery::LaggedLink) -> bool
 pub fn <antecedent_discovery::CompiledConstraints>::fn requires(&self, link: antecedent_discovery::LaggedLink) -> bool
