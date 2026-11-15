@@ -10103,6 +10103,7 @@ prerequisite_reason = "Reads the same randomized-dose design attestation, named 
 identity_inputs = ["design attestation", "named functional", "grid or the two contrast doses", "declared support", "coefficient prior scales", "residual prior", "draw count and seed", "the (dose, outcome) table bit for bit"]
 wire_changes = ["None: the posterior row artifact and its request are unchanged."]
 compatibility = "Additive record of an existing route; no request, result or artifact byte changes."
+coverage_records = ["cov.dose_response.dag.bayesian.posterior_quantile.l95.bayesian_dose_grid_level_credible_interval.v2_validation_not_applicable", "cov.dose_response.dag.bayesian.posterior_quantile.l95.bayesian_dose_grid_derivative_credible_interval.v2_validation_not_applicable", "cov.dose_response.dag.bayesian.posterior_quantile.l95.bayesian_dose_grid_contrast_credible_interval.v2_validation_not_applicable"]
 search = false
 surface_rust = ["crates/antecedent-estimate/src/dose_grid_posterior.rs"]
 surface_values = ["DoseGridPosteriorRequest", "DoseGridPosterior", "CompiledDoseGridPosterior"]
