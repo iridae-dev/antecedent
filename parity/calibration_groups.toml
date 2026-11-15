@@ -12098,10 +12098,6 @@ label = "discovery_statements_calibration: discovery_static_order_mcmc_class_pos
 package = "antecedent"
 target = "discovery_statements_calibration"
 tests = ["discovery_static_order_mcmc_class_posterior_credible_set_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_two_arm_excursion_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_two_arm_excursion_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12110,10 +12106,6 @@ label = "discovery_statements_calibration: discovery_static_order_mcmc_laplace_d
 package = "antecedent"
 target = "discovery_statements_calibration"
 tests = ["discovery_static_order_mcmc_laplace_dag_posterior_credible_set_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_two_arm_excursion_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12122,10 +12114,6 @@ label = "discovery_statements_calibration: discovery_static_structure_mcmc_class
 package = "antecedent"
 target = "discovery_statements_calibration"
 tests = ["discovery_static_structure_mcmc_class_posterior_credible_set_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_two_arm_excursion_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_two_arm_excursion_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12134,10 +12122,6 @@ label = "discovery_statements_calibration: discovery_static_ci_screened_class_po
 package = "antecedent"
 target = "discovery_statements_calibration"
 tests = ["discovery_static_ci_screened_class_posterior_credible_set_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_two_arm_excursion_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12146,10 +12130,6 @@ label = "discovery_statements_calibration: discovery_static_exact_pag_posterior_
 package = "antecedent"
 target = "discovery_statements_calibration"
 tests = ["discovery_static_exact_pag_posterior_collider_credible_set_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_multi_arm_contrast_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12158,10 +12138,6 @@ label = "discovery_statements_calibration: discovery_static_exact_pag_posterior_
 package = "antecedent"
 target = "discovery_statements_calibration"
 tests = ["discovery_static_exact_pag_posterior_chain_credible_set_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_multi_arm_contrast_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12170,10 +12146,6 @@ label = "discovery_statements_calibration: discovery_static_pag_mcmc_posterior_c
 package = "antecedent"
 target = "discovery_statements_calibration"
 tests = ["discovery_static_pag_mcmc_posterior_collider_credible_set_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_multi_arm_contrast_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12182,10 +12154,6 @@ label = "discovery_statements_calibration: discovery_static_exact_edge_marginals
 package = "antecedent"
 target = "discovery_statements_calibration"
 tests = ["discovery_static_exact_edge_marginals_indicator_credible_set_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_multi_arm_contrast_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12194,10 +12162,6 @@ label = "discovery_statements_calibration: discovery_temporal_dbn_class_posterio
 package = "antecedent"
 target = "discovery_statements_calibration"
 tests = ["discovery_temporal_dbn_class_posterior_lagged_edge_credible_set_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_categorical_step_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_categorical_step_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12206,10 +12170,6 @@ label = "discovery_statements_calibration: discovery_temporal_dbn_class_posterio
 package = "antecedent"
 target = "discovery_statements_calibration"
 tests = ["discovery_temporal_dbn_class_posterior_contemporaneous_edge_credible_set_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_categorical_step_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12218,10 +12178,6 @@ label = "dose_grid_statements_calibration: dose_grid_zero_bound_level_intervals_
 package = "antecedent"
 target = "dose_grid_statements_calibration"
 tests = ["dose_grid_zero_bound_level_intervals_and_band"]
-label = "temporal_wider_range_calibration: temporal_design_categorical_step_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_categorical_step_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12230,10 +12186,6 @@ label = "dose_grid_statements_calibration: dose_grid_zero_bound_derivative_inter
 package = "antecedent"
 target = "dose_grid_statements_calibration"
 tests = ["dose_grid_zero_bound_derivative_intervals_and_band"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_categorical_step_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12242,10 +12194,6 @@ label = "dose_grid_statements_calibration: dose_grid_bias_aware_level_intervals_
 package = "antecedent"
 target = "dose_grid_statements_calibration"
 tests = ["dose_grid_bias_aware_level_intervals_and_band"]
-label = "temporal_wider_range_calibration: temporal_design_factorial_main_effect_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_factorial_main_effect_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12254,10 +12202,6 @@ label = "dose_grid_statements_calibration: dose_grid_bias_aware_derivative_inter
 package = "antecedent"
 target = "dose_grid_statements_calibration"
 tests = ["dose_grid_bias_aware_derivative_intervals_and_band"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_factorial_main_effect_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12266,10 +12210,6 @@ label = "dose_grid_statements_calibration: dose_grid_bias_aware_contrast_interva
 package = "antecedent"
 target = "dose_grid_statements_calibration"
 tests = ["dose_grid_bias_aware_contrast_interval"]
-label = "temporal_wider_range_calibration: temporal_design_factorial_main_effect_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_factorial_main_effect_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12278,10 +12218,6 @@ label = "fitted_model_statements_calibration: attribute_paths_dag_frequentist_bo
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_paths_dag_frequentist_bootstrap_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_factorial_main_effect_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12290,10 +12226,6 @@ label = "fitted_model_statements_calibration: attribute_feature_relevance_dag_fr
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_feature_relevance_dag_frequentist_bootstrap_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_interference_direct_effect_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_interference_direct_effect_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12302,10 +12234,6 @@ label = "fitted_model_statements_calibration: attribute_anomaly_dag_frequentist_
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_anomaly_dag_frequentist_bootstrap_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_interference_direct_effect_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12314,10 +12242,6 @@ label = "fitted_model_statements_calibration: attribute_anomaly_empirical_refere
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_anomaly_empirical_reference_dag_frequentist_bootstrap_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_interference_direct_effect_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_interference_direct_effect_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12326,10 +12250,6 @@ label = "fitted_model_statements_calibration: attribute_unit_change_dag_frequent
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_unit_change_dag_frequentist_bootstrap_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_interference_direct_effect_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12338,10 +12258,6 @@ label = "fitted_model_statements_calibration: attribute_unit_change_dag_bayesian
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_unit_change_dag_bayesian_dirichlet_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_continuous_dose_contrast_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_continuous_dose_contrast_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12350,10 +12266,6 @@ label = "fitted_model_statements_calibration: attribute_anomaly_empirical_refere
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_anomaly_empirical_reference_dag_bayesian_dirichlet_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_continuous_dose_contrast_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_continuous_dose_contrast_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12362,10 +12274,6 @@ label = "fitted_model_statements_calibration: attribute_distribution_change_robu
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_distribution_change_robust_dag_frequentist_bootstrap_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_continuous_dose_contrast_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_continuous_dose_contrast_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12374,10 +12282,6 @@ label = "fitted_model_statements_calibration: attribute_structure_change_dag_fre
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_structure_change_dag_frequentist_bootstrap_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_continuous_dose_contrast_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_continuous_dose_contrast_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12386,10 +12290,6 @@ label = "fitted_model_statements_calibration: attribute_structure_change_dag_bay
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_structure_change_dag_bayesian_dirichlet_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_smoothed_dose_curve_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_smoothed_dose_curve_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12398,10 +12298,6 @@ label = "fitted_model_statements_calibration: attribute_temporal_dag_bayesian_bl
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_temporal_dag_bayesian_block_weights_component_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_smoothed_dose_curve_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_smoothed_dose_curve_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12410,10 +12306,6 @@ label = "fitted_model_statements_calibration: attribute_temporal_intrinsic_influ
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["attribute_temporal_intrinsic_influence_bayesian_block_weights_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_smoothed_dose_curve_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_smoothed_dose_curve_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12422,10 +12314,6 @@ label = "fitted_model_statements_calibration: simulate_interventional_sample_dag
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["simulate_interventional_sample_dag_bayesian_dirichlet_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_smoothed_dose_curve_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_smoothed_dose_curve_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12434,10 +12322,6 @@ label = "fitted_model_statements_calibration: simulate_interventional_sample_dag
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["simulate_interventional_sample_dag_frequentist_bootstrap_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_dose_grid_local_quadratic_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_dose_grid_local_quadratic_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12446,10 +12330,6 @@ label = "fitted_model_statements_calibration: simulate_unit_effects_dag_bayesian
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["simulate_unit_effects_dag_bayesian_dirichlet_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_dose_grid_local_quadratic_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_dose_grid_local_quadratic_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12458,10 +12338,6 @@ label = "fitted_model_statements_calibration: simulate_unit_effects_dag_frequent
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["simulate_unit_effects_dag_frequentist_bootstrap_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_dose_grid_local_quadratic_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_dose_grid_local_quadratic_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12470,10 +12346,6 @@ label = "fitted_model_statements_calibration: simulate_counterfactual_dag_bayesi
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["simulate_counterfactual_dag_bayesian_dirichlet_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_dose_grid_local_quadratic_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_dose_grid_local_quadratic_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12482,10 +12354,6 @@ label = "fitted_model_statements_calibration: simulate_counterfactual_dag_freque
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["simulate_counterfactual_dag_frequentist_bootstrap_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_quantile_effect_bootstrap_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12494,10 +12362,6 @@ label = "fitted_model_statements_calibration: simulate_temporal_counterfactual_d
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["simulate_temporal_counterfactual_dag_bayesian_dirichlet_coverage"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_lag_two_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_quantile_effect_lag_two_interval"]
 ignored = true
 grid = true
 
@@ -12506,10 +12370,6 @@ label = "fitted_model_statements_calibration: simulate_temporal_counterfactual_d
 package = "antecedent"
 target = "fitted_model_statements_calibration"
 tests = ["simulate_temporal_counterfactual_dag_frequentist_bootstrap_coverage"]
-label = "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_quantile_effect_bootstrap_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12518,10 +12378,6 @@ label = "joint_panel_calibration: joint_panel_selection_false_change_frequentist
 package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_selection_false_change_frequentist"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_lag_three_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_quantile_effect_lag_three_interval"]
 ignored = true
 grid = true
 
@@ -12530,10 +12386,6 @@ label = "joint_panel_calibration: joint_panel_experiment_update_weights_finite_l
 package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_experiment_update_weights_finite_lag_bayesian_l95"]
-label = "temporal_wider_range_calibration: temporal_design_two_arm_excursion_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_two_arm_excursion_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -12542,10 +12394,6 @@ label = "joint_panel_calibration: joint_panel_experiment_update_weights_time_var
 package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_experiment_update_weights_time_varying_bayesian_l95"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_two_arm_excursion_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -12554,10 +12402,6 @@ label = "joint_panel_calibration: joint_panel_future_sample_value_standard_error
 package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_future_sample_value_standard_error_finite_lag_bayesian_l95"]
-label = "temporal_wider_range_calibration: temporal_design_interference_direct_effect_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_interference_direct_effect_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -12566,10 +12410,6 @@ label = "joint_panel_calibration: joint_panel_future_sample_value_standard_error
 package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_future_sample_value_standard_error_time_varying_bayesian_l95"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_interference_direct_effect_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -12578,10 +12418,6 @@ label = "joint_panel_calibration: prepared_joint_response_contrast_frequentist_l
 package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["prepared_joint_response_contrast_frequentist_l95"]
-label = "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_multi_arm_contrast_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -12590,10 +12426,6 @@ label = "joint_panel_calibration: prepared_joint_response_contrast_bayesian_l95"
 package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["prepared_joint_response_contrast_bayesian_l95"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_multi_arm_contrast_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -13574,10 +13406,6 @@ label = "temporal_design_statements_calibration: temporal_design_smoothed_dose_c
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_smoothed_dose_curve_band"]
-label = "temporal_wider_range_calibration: temporal_design_categorical_step_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_categorical_step_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -13586,10 +13414,6 @@ label = "temporal_design_statements_calibration: temporal_design_dose_grid_level
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_dose_grid_level_band"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_categorical_step_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -13598,10 +13422,6 @@ label = "temporal_design_statements_calibration: temporal_design_multi_arm_holm_
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_multi_arm_holm_family_error"]
-label = "temporal_wider_range_calibration: temporal_design_factorial_main_effect_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_factorial_main_effect_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -13610,10 +13430,6 @@ label = "temporal_design_statements_calibration: temporal_design_categorical_hol
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_categorical_holm_family_error"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_factorial_main_effect_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -13622,10 +13438,6 @@ label = "temporal_design_statements_calibration: temporal_design_factorial_holm_
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_factorial_holm_family_error"]
-label = "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_quantile_effect_bootstrap_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -13634,10 +13446,6 @@ label = "temporal_design_statements_calibration: temporal_design_interference_ho
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_interference_holm_family_error"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_floor_probability_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_quantile_effect_floor_probability_interval"]
 ignored = true
 grid = true
 
@@ -13646,10 +13454,6 @@ label = "temporal_design_statements_calibration: temporal_design_lower_quartile_
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_lower_quartile_effect_bootstrap_intervals"]
-label = "temporal_wider_range_calibration: sequential_crossfit_contrast_wald_interval_wide_probability_coverage"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["sequential_crossfit_contrast_wald_interval_wide_probability_coverage"]
 ignored = true
 grid = true
 
@@ -13658,10 +13462,6 @@ label = "temporal_design_statements_calibration: temporal_design_upper_quartile_
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_upper_quartile_effect_bootstrap_intervals"]
-label = "temporal_wider_range_calibration: bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage"]
 ignored = true
 grid = true
 
@@ -13670,10 +13470,6 @@ label = "temporal_design_statements_calibration: temporal_design_dose_grid_deriv
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_dose_grid_derivative_intervals"]
-label = "temporal_wider_range_calibration: temporal_design_regime_survival_low_overlap_bootstrap_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_regime_survival_low_overlap_bootstrap_interval"]
 ignored = true
 grid = true
 
@@ -13682,10 +13478,6 @@ label = "temporal_design_statements_calibration: temporal_design_dose_grid_bias_
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_dose_grid_bias_aware_level_intervals"]
-label = "temporal_wider_range_calibration: temporal_design_regime_survival_heavy_censoring_bootstrap_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["temporal_design_regime_survival_heavy_censoring_bootstrap_interval"]
 ignored = true
 grid = true
 
@@ -13694,10 +13486,6 @@ label = "temporal_design_statements_calibration: temporal_design_dose_grid_bias_
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_dose_grid_bias_aware_derivative_intervals"]
-label = "temporal_wider_range_calibration: bayesian_temporal_design_regime_survival_low_overlap_interval"
-package = "antecedent"
-target = "temporal_wider_range_calibration"
-tests = ["bayesian_temporal_design_regime_survival_low_overlap_interval"]
 ignored = true
 grid = true
 
@@ -13706,6 +13494,434 @@ label = "temporal_design_statements_calibration: temporal_design_regime_survival
 package = "antecedent"
 target = "temporal_design_statements_calibration"
 tests = ["temporal_design_regime_survival_longer_horizon_bootstrap_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_two_arm_excursion_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_two_arm_excursion_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_two_arm_excursion_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_two_arm_excursion_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_two_arm_excursion_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_two_arm_excursion_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_multi_arm_contrast_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_multi_arm_contrast_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_multi_arm_contrast_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_multi_arm_contrast_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_categorical_step_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_categorical_step_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_categorical_step_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_categorical_step_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_categorical_step_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_categorical_step_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_factorial_main_effect_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_factorial_main_effect_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_factorial_main_effect_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_factorial_main_effect_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_factorial_main_effect_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_factorial_main_effect_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_interference_direct_effect_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_interference_direct_effect_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_interference_direct_effect_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_interference_direct_effect_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_interference_direct_effect_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_interference_direct_effect_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_continuous_dose_contrast_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_continuous_dose_contrast_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_continuous_dose_contrast_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_continuous_dose_contrast_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_continuous_dose_contrast_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_continuous_dose_contrast_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_continuous_dose_contrast_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_continuous_dose_contrast_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_smoothed_dose_curve_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_smoothed_dose_curve_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_smoothed_dose_curve_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_smoothed_dose_curve_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_smoothed_dose_curve_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_smoothed_dose_curve_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_smoothed_dose_curve_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_smoothed_dose_curve_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_dose_grid_local_quadratic_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_dose_grid_local_quadratic_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_dose_grid_local_quadratic_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_dose_grid_local_quadratic_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_dose_grid_local_quadratic_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_dose_grid_local_quadratic_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_dose_grid_local_quadratic_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_dose_grid_local_quadratic_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_quantile_effect_bootstrap_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_lag_two_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_quantile_effect_lag_two_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_quantile_effect_bootstrap_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_lag_three_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_quantile_effect_lag_three_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_two_arm_excursion_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_two_arm_excursion_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_two_arm_excursion_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_two_arm_excursion_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_interference_direct_effect_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_interference_direct_effect_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_interference_direct_effect_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_interference_direct_effect_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_multi_arm_contrast_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_multi_arm_contrast_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_multi_arm_contrast_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_multi_arm_contrast_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_categorical_step_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_categorical_step_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_categorical_step_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_categorical_step_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_factorial_main_effect_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_factorial_main_effect_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_factorial_main_effect_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_factorial_main_effect_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_quantile_effect_bootstrap_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_quantile_effect_bootstrap_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_quantile_effect_floor_probability_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_quantile_effect_floor_probability_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: sequential_crossfit_contrast_wald_interval_wide_probability_coverage"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["sequential_crossfit_contrast_wald_interval_wide_probability_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_sequential_crossfit_contrast_posterior_wide_probability_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_regime_survival_low_overlap_bootstrap_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_regime_survival_low_overlap_bootstrap_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: temporal_design_regime_survival_heavy_censoring_bootstrap_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["temporal_design_regime_survival_heavy_censoring_bootstrap_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "temporal_wider_range_calibration: bayesian_temporal_design_regime_survival_low_overlap_interval"
+package = "antecedent"
+target = "temporal_wider_range_calibration"
+tests = ["bayesian_temporal_design_regime_survival_low_overlap_interval"]
+ignored = true
+grid = true
+
+[[group]]
 label = "temporal_wider_range_calibration: bayesian_temporal_design_regime_survival_heavy_censoring_interval"
 package = "antecedent"
 target = "temporal_wider_range_calibration"
