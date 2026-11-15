@@ -19,10 +19,12 @@
   "refuter_contract": {
     "Frequentist": {
       "cheap": [
-        "target.placebo_treatment"
+        "target.placebo_treatment",
+        "target.subset_stability"
       ],
       "full": [
         "target.placebo_treatment",
+        "target.subset_stability",
         "target.placebo_outcome",
         "target.negative_control_outcome",
         "target.pre_trend",
@@ -52,10 +54,8 @@
       "target.anticipation"
     ],
     "original_expected": [
+      "target.subset_stability",
       "target.prior_sensitivity"
-    ],
-    "not_published": [
-      "target.subset_stability"
     ],
     "planted": {
       "pre_trend": "adding 1.5 x_t to y_t (the outcome moves with the treatment of the period the pulse is read from) is detected by target.pre_trend; the clean law passes it"

@@ -18,7 +18,7 @@ use antecedent_core::{
 };
 
 use super::joint::{JointStatisticKind, joint_mahalanobis_with_bias};
-use super::reference::replicate_reference_tail;
+use super::reference::{replicate_reference_tail, replicates_for_defined_reference};
 use super::{
     RefutationTarget, RefuterExpectation, TargetFamily, TargetRefutationPlan,
     TargetRefutationReport, TargetRefuterKind,
@@ -365,7 +365,15 @@ fn replicate_check(
 ) -> Result<TargetRefutationReport, TargetRefitError> {
     let target = refit.target();
     let k = target.dimension();
-    let replicates = config.replicates;
+    // Enough replicates that the reference is defined: the replicate covariance of a `k`-vector
+    // from a resample with `g` independent units has effective degrees of freedom below `k`
+    // unless `R` is large enough (see `replicate_reference_tail`), so more are drawn rather
+    // than the check refused.
+    let replicates = replicates_for_defined_reference(
+        k,
+        config.replicates,
+        refit.independent_resampling_units(),
+    );
     if (replicates as usize) < k + 2 {
         return Err(TargetRefitError::Unsupported {
             reason: Arc::from(format!(

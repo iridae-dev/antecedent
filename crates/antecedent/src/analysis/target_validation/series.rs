@@ -508,17 +508,39 @@ impl PreparedRefit<'_> {
         if refit.as_ref().err().is_some_and(operational_refit_error) {
             return refit;
         }
-        // A route that reads no row weights cannot take the circular window as zero weights.
-        // A window confined to the series over-weights the middle periods, so its replicate
-        // mean is not centred on the full-series estimate and a sound procedure would be
-        // rejected far above the stated tolerance. No verdict is published for it; the refuter
-        // is recorded as not run.
-        if refit.is_err() && matches!(perturbation, TargetPerturbation::Subset { .. }) {
-            return Err(unsupported(
-                "subset stability needs a circular window, and this route reads no row weights; \
-                 a window confined to the series is not centred on the full-series estimate",
-                "a route that reads row weights, or a circular gathered-rows window",
-            ));
+        // A route that reads no row weights (a conditional effect) cannot take the circular
+        // window as zero weights, so the same circular window is drawn as a gathered series:
+        // the rows `start, start + 1, ..` taken modulo the series length. A window confined to
+        // the series would cover the middle periods more often than the edge ones, so the mean of
+        // its refits would differ from the full-series estimate by about one replicate spread
+        // and a sound procedure would be rejected far above its tolerance. A circular window
+        // starting uniformly covers every period with the same probability (`width / n`), so the
+        // mean of the window estimates is centred on the full-series estimate, as on the primary
+        // path. The window crosses the series end once; a design row whose lag window crosses
+        // that join pairs values observed apart and has zero weight where the route reads
+        // weights. A route that reads neither keeps at most `span - 1` such rows out of `width`,
+        // an attenuation of order `(span - 1) / width` of a lagged effect, on the share of
+        // windows that wrap.
+        if refit.is_err()
+            && let TargetPerturbation::Subset { fraction, .. } = perturbation
+        {
+            let n = series.row_count();
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "the subset fraction lies in (0, 1), and the saturating cast is clamped into [1, n]"
+            )]
+            let width = ((fraction * n as f64).round() as usize).clamp(1, n);
+            let start = unbiased_index(rng, n);
+            let map: Vec<usize> = (0..width).map(|i| (start + i) % n).collect();
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            let (gathered, _guard) = self.gathered_rows(series, &map, None, &mut budget, ctx)?;
+            match self.reestimate(&Modal::Series(gathered), ctx) {
+                Ok(values) => return Ok(values),
+                Err(error) if operational_refit_error(&error) => return Err(error),
+                Err(_) => {}
+            }
         }
         // Routes that do not consume row weights need a gathered circular-block series.
         // Attribution refits retain the block boundaries so complete windows do not cross joins.

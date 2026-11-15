@@ -6,7 +6,7 @@
 //! `x_t = a r_t + e_t`, `w_t ~ Bernoulli(p)`, `y_t = b x_{t-1} + c w_t + d x_{t-1} w_t +
 //! s u_t`: the slope of the pulse at the modifier is `b + d w`, so the effect marginal over the
 //! modifier is `b + d p`. The functional refuter state runs the circular-shift placebo
-//! treatment and, under full, the placebo outcome and the
+//! treatment, contiguous-window subset stability and, under full, the placebo outcome and the
 //! negative-control, pre-trend and anticipation checks (Bayesian: prior sensitivity and the
 //! posterior predictive check of the lag-aware reference model). The placebo and control checks
 //! have the exact null 0 and the stability checks the original value.
@@ -225,15 +225,6 @@ fn assert_cell(
         assert!(
             result.refutations.iter().any(|report| bare(report.refuter.as_ref()) == name),
             "{label}: refuter {name} did not run"
-        );
-    }
-    // A route that reads no row weights has no centred subset window, so it records subset
-    // stability as not run instead of publishing a verdict for a non-centred window.
-    for name in contract["not_published"].as_array().unwrap() {
-        let name = name.as_str().unwrap();
-        assert!(
-            result.refutations.iter().all(|report| bare(report.refuter.as_ref()) != name),
-            "{label}: {name} published a verdict from a non-centred window"
         );
     }
     let listed = |key: &str, name: &str| {
