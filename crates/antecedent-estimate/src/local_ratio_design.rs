@@ -651,8 +651,8 @@ fn error_series(trends: &[SideTrend; 2], values: [&[f64]; 2]) -> Option<ErrorSer
         return None;
     }
     let moments = [
-        LagMoments::new(&trends[0].basis, &trends[0].inverse),
-        LagMoments::new(&trends[1].basis, &trends[1].inverse),
+        LagMoments::cached(&trends[0].basis, &trends[0].inverse),
+        LagMoments::cached(&trends[1].basis, &trends[1].inverse),
     ];
     let fitted = fit_error_model(&moments, &residuals)?;
     Some(ErrorSeries { innovations: fitted.innovations, model: fitted.model })

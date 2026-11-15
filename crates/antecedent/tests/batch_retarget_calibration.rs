@@ -27,8 +27,8 @@ use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, map_replicates,
-    n_sim,
+    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, grid_seed,
+    map_replicates, n_sim,
 };
 
 const INTERVAL: &str = "simultaneous_band";
@@ -187,7 +187,8 @@ fn batch_retarget_max_t_simultaneous_band() {
         },
         REPORTED_LEVEL,
     );
-    let bands = map_replicates(n_sim(), |rep| replicate(n, 41_000 + rep, rep));
+    let bands =
+        map_replicates(n_sim(), |rep| replicate(n, grid_seed(41_000 + rep), grid_seed(rep)));
     for band in bands {
         let Some(band) = band else {
             tally.skip();

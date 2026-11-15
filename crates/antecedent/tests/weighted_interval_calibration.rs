@@ -42,7 +42,7 @@ use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::{sigmoid, standard_normal};
 use antecedent_stats::GlmFamily;
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, Z95, grid_n,
+    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, Z95, grid_n, grid_seed,
     map_replicates, n_sim, validation_seed,
 };
 
@@ -572,7 +572,7 @@ fn measure_against(
     let mut tally = analytic_tally(test, dgp, construction);
     let mut centres = Vec::new();
     let mut se_squared_sum = 0.0;
-    for row in map_replicates(n_sim(), |rep| replicate(n, 91_000 + rep)) {
+    for row in map_replicates(n_sim(), |rep| replicate(n, grid_seed(91_000 + rep))) {
         let Some((interval, rows)) = row else {
             tally.skip();
             continue;
@@ -844,7 +844,7 @@ fn measure_balanced_hajek(test: &'static str, cluster: bool) {
         CoverageTally::for_record(RecordKey { test, dgp, interval: method }, REPORTED_LEVEL);
     let mut reference_df = Vec::new();
     for fit in map_replicates(n_sim(), |rep| {
-        let sample = sample(n, 91_000 + rep, Effect::Heterogeneous, cluster);
+        let sample = sample(n, grid_seed(91_000 + rep), Effect::Heterogeneous, cluster);
         let (data, estimand) = table(&sample)?;
         let mut estimator = PropensityWeighting::new()
             .with_bootstrap_replicates(0)
@@ -930,9 +930,9 @@ fn measure_population_aipw(
         REPORTED_LEVEL,
     );
     let mut diagnostics = Vec::new();
-    for result in
-        map_replicates(n_sim(), |rep| fit(&sample(n, 91_000 + rep, Effect::Heterogeneous, false)))
-    {
+    for result in map_replicates(n_sim(), |rep| {
+        fit(&sample(n, grid_seed(91_000 + rep), Effect::Heterogeneous, false))
+    }) {
         let Some(result) = result else {
             tally.skip();
             continue;
@@ -1264,7 +1264,7 @@ fn weighted_aipw_atc_interval() {
         REPORTED_LEVEL,
     );
     for result in map_replicates(n_sim(), |rep| {
-        let s = sample(n, 91_000 + rep, Effect::Constant, false);
+        let s = sample(n, grid_seed(91_000 + rep), Effect::Constant, false);
         let (data, estimand) = table(&s)?;
         let estimator = AipwAte::new()
             .with_bootstrap_replicates(0)

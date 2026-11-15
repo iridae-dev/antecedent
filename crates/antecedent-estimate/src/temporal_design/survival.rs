@@ -236,33 +236,82 @@ pub struct SurvivalFit {
     pub person_periods: usize,
 }
 
+/// The person-period design of the treatment and censoring models, built once per fit.
+///
+/// Each subject's rows are contiguous, so a bootstrap replicate gathers the rows of the
+/// subjects it drew instead of rebuilding every feature vector.
+struct ProcedureDesign {
+    width: usize,
+    /// `[start, end)` person-period rows of subject `i` are `offsets[i]..offsets[i + 1]`.
+    offsets: Vec<usize>,
+    treatment_x: Vec<f64>,
+    treatment_y: Vec<f64>,
+    censoring_x: Vec<f64>,
+    censoring_y: Vec<f64>,
+}
+
+impl ProcedureDesign {
+    fn new(data: &Trajectories) -> Self {
+        let (mut tx, mut ty) = (Vec::new(), Vec::new());
+        let (mut cx, mut cy) = (Vec::new(), Vec::new());
+        let mut offsets = Vec::with_capacity(data.subjects.len() + 1);
+        offsets.push(0);
+        for subject in &data.subjects {
+            for k in 0..subject.treatment.len() {
+                data.treatment_features(subject, k, &mut tx);
+                ty.push(f64::from(u8::from(subject.treatment[k])));
+                data.current_features(&subject.confounders[k], subject.treatment[k], k, &mut cx);
+                cy.push(f64::from(u8::from(subject.censored[k])));
+            }
+            offsets.push(ty.len());
+        }
+        Self {
+            width: data.width(),
+            offsets,
+            treatment_x: tx,
+            treatment_y: ty,
+            censoring_x: cx,
+            censoring_y: cy,
+        }
+    }
+}
+
 /// The weighted procedure on subject weights (multiplicities in a bootstrap replicate).
-#[allow(
-    clippy::float_cmp,
-    reason = "a subject absent from a bootstrap replicate has a weight of exactly zero"
-)]
 fn ipw_procedure(
     data: &Trajectories,
     subject_weights: Option<&[f64]>,
     floor: f64,
 ) -> Result<([f64; 3], f64), EstimationError> {
-    let width = data.width();
+    ipw_procedure_on(data, &ProcedureDesign::new(data), subject_weights, floor)
+}
+
+/// [`ipw_procedure`] on a prebuilt design.
+#[allow(
+    clippy::float_cmp,
+    reason = "a subject absent from a bootstrap replicate has a weight of exactly zero"
+)]
+fn ipw_procedure_on(
+    data: &Trajectories,
+    design: &ProcedureDesign,
+    subject_weights: Option<&[f64]>,
+    floor: f64,
+) -> Result<([f64; 3], f64), EstimationError> {
+    let width = design.width;
     let weight = |i: usize| subject_weights.map_or(1.0, |weights| weights[i]);
     let (mut tx, mut ty, mut tw) = (Vec::new(), Vec::new(), Vec::new());
     let (mut cx, mut cy, mut cw) = (Vec::new(), Vec::new(), Vec::new());
-    for (i, subject) in data.subjects.iter().enumerate() {
+    for i in 0..data.subjects.len() {
         let w = weight(i);
         if w == 0.0 {
             continue;
         }
-        for k in 0..subject.treatment.len() {
-            data.treatment_features(subject, k, &mut tx);
-            ty.push(f64::from(u8::from(subject.treatment[k])));
-            tw.push(w);
-            data.current_features(&subject.confounders[k], subject.treatment[k], k, &mut cx);
-            cy.push(f64::from(u8::from(subject.censored[k])));
-            cw.push(w);
-        }
+        let (start, end) = (design.offsets[i], design.offsets[i + 1]);
+        tx.extend_from_slice(&design.treatment_x[start * width..end * width]);
+        ty.extend_from_slice(&design.treatment_y[start..end]);
+        cx.extend_from_slice(&design.censoring_x[start * width..end * width]);
+        cy.extend_from_slice(&design.censoring_y[start..end]);
+        tw.resize(tw.len() + (end - start), w);
+        cw.resize(cw.len() + (end - start), w);
     }
     let treatment = fit_logistic(&tx, width, &ty, Some(&tw), 0.0)?;
     let censoring = if cy.iter().any(|value| *value > 0.0) {
@@ -385,12 +434,13 @@ pub fn fit_regime_survival(
              bootstrap_replicates to 99 or more",
         ));
     }
-    let (estimate, minimum) = ipw_procedure(data, None, floor)?;
+    let design = ProcedureDesign::new(data);
+    let (estimate, minimum) = ipw_procedure_on(data, &design, None, floor)?;
     let n = data.subjects();
     let _lease = crate::util::admit_array::<f64>(ctx, replicates, 3 + n)?;
     let (mut columns, failed) =
         super::bootstrap_unit_draws(n, replicates, BOOTSTRAP_STREAM, ctx, |counts| {
-            ipw_procedure(data, Some(counts), floor).ok().map(|(values, _)| values)
+            ipw_procedure_on(data, &design, Some(counts), floor).ok().map(|(values, _)| values)
         })?;
     if failed as f64 > MAX_FAILED_SHARE * replicates as f64 {
         return Err(refuse(

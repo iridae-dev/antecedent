@@ -360,6 +360,7 @@ fn fit_family(
     n: usize,
     d: usize,
     y: &[f64],
+    workspace: &mut LeastSquaresWorkspace,
 ) -> Result<Vec<f64>, MeasurementErrorError> {
     match family {
         OutcomeFamily::Linear => {
@@ -380,12 +381,11 @@ fn fit_family(
             solve_spd(&gram, d, &cross).ok_or(MeasurementErrorError::SingularDesign)
         }
         OutcomeFamily::Logistic => {
-            let mut workspace = LeastSquaresWorkspace::default();
             let fit = fit_glm(
                 GlmFamily::BinomialLogit,
                 GlmDesignRef { x_colmajor: design, nrows: n, ncols: d, y },
                 &FaerBackend,
-                &mut workspace,
+                workspace,
                 &GlmOptions::default().without_separation_ridge(),
             )
             .map_err(|e| MeasurementErrorError::OutcomeModelNotFitted(e.to_string()))?;
@@ -479,9 +479,10 @@ pub fn regression_calibration(
         x_hat.push(means[0] + shift);
     }
     let calibrated = design_with(&x_hat, data, n, d);
-    let coefficients = fit_family(family, &calibrated, n, d, data.y)?;
+    let mut workspace = LeastSquaresWorkspace::default();
+    let coefficients = fit_family(family, &calibrated, n, d, data.y, &mut workspace)?;
     let observed = design_with(data.w, data, n, d);
-    let naive_coefficients = fit_family(family, &observed, n, d, data.y)?;
+    let naive_coefficients = fit_family(family, &observed, n, d, data.y, &mut workspace)?;
     Ok(CalibratedFit { family, coefficients, naive_coefficients, reliability, error_variance })
 }
 
@@ -651,7 +652,8 @@ pub fn simex(
     let Shape { n, p } = shape;
     let d = p + 2;
     let mut design = design_with(data.w, data, n, d);
-    let naive_coefficients = fit_family(family, &design, n, d, data.y)?;
+    let mut workspace = LeastSquaresWorkspace::default();
+    let naive_coefficients = fit_family(family, &design, n, d, data.y, &mut workspace)?;
     let mut grid = config.lambdas.clone();
     grid.sort_by(f64::total_cmp);
     let mut lambdas = Vec::with_capacity(grid.len() + 1);
@@ -667,7 +669,7 @@ pub fn simex(
             for (i, slot) in design[n..2 * n].iter_mut().enumerate() {
                 *slot = data.w[i] + root * scale[i] * standard_normal(rng);
             }
-            let coefficients = fit_family(family, &design, n, d, data.y)?;
+            let coefficients = fit_family(family, &design, n, d, data.y, &mut workspace)?;
             for (s, c) in sum.iter_mut().zip(&coefficients) {
                 *s += c;
             }

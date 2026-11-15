@@ -19,7 +19,7 @@ use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_estimate::randomized_missing::responder_weighted_itt;
 use antecedent_kernels::standard_normal;
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, Z95, grid_n,
+    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, Z95, grid_n, grid_seed,
     map_replicates, n_sim,
 };
 
@@ -88,7 +88,7 @@ fn measure(test: &'static str, dgp: &'static str, estimator: &str, mechanism: Me
     let n = grid_n(600);
     let mut tally =
         CoverageTally::for_record(RecordKey { test, dgp, interval: INTERVAL }, REPORTED_LEVEL);
-    for row in map_replicates(n_sim(), |rep| replicate(n, 71_000 + rep, mechanism)) {
+    for row in map_replicates(n_sim(), |rep| replicate(n, grid_seed(71_000 + rep), mechanism)) {
         let Some((interval, rows)) = row else {
             tally.skip();
             continue;

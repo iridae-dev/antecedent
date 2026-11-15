@@ -6,12 +6,12 @@ use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_estimate::{AnalyticSeKind, GlmAdjustmentAte};
 use antecedent_graph::{Dag, DenseNodeId};
-use common::calibration::{CoverageTally, RecordKey, grid_n, map_replicates, n_sim};
+use common::calibration::{CoverageTally, RecordKey, grid_n, grid_seed, map_replicates, n_sim};
 
 fn measure(name: &'static str, se: AnalyticSeKind) {
     let per_cell = grid_n(120);
-    let rows = map_replicates(n_sim(), |seed| {
-        let ctx = ExecutionContext::for_tests(seed);
+    let rows = map_replicates(n_sim(), |rep| {
+        let ctx = ExecutionContext::for_tests(grid_seed(rep));
         let mut rng = ctx.rng.stream(0);
         let (mut t, mut z, mut y, mut w) = (vec![], vec![], vec![], vec![]);
         for (a, b, p) in [(0.0, 0.0, 0.25), (1.0, 0.0, 0.5), (0.0, 1.0, 0.4), (1.0, 1.0, 2.0 / 3.0)]
