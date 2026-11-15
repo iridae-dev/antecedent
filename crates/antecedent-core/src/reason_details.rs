@@ -967,9 +967,10 @@ pub const REASON_DETAILS: &[&str] = &[
     "graph_imputation.interval_unsupported",
     "graph_imputation.invalid_source",
     "graph_imputation.lowering",
-    "graph_imputation.point_unsupported",
+    "graph_imputation.reentry",
     "graph_imputation.resource_limit",
-    "graph_imputation.search_stopped",
+    "graph_imputation.search_cancelled",
+    "graph_imputation.search_exhausted",
     "graph_imputation.supported_graph_unidentified",
     "graph_imputation.unidentified",
     "graph_imputation.unscorable",
@@ -3682,21 +3683,22 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("graph_falsification.node_not_static", &["route_not_supported"]),
     ("graph_falsification.too_few_nodes", &["invalid_argument"]),
     ("graph_falsification.work_limit", &[]),
-    ("graph_imputation.atom_failure", &[]),
+    ("graph_imputation.atom_failure", &["invalid_argument"]),
     ("graph_imputation.atom_not_lowered", &[]),
     ("graph_imputation.cancelled", &["cancelled_no_claim"]),
     ("graph_imputation.candidate_refused", &["invalid_argument"]),
     ("graph_imputation.compiled", &["invalid_argument"]),
     ("graph_imputation.execution_refused", &["invalid_argument"]),
     ("graph_imputation.interval_unsupported", &["route_not_supported"]),
-    ("graph_imputation.invalid_source", &[]),
+    ("graph_imputation.invalid_source", &["invalid_argument"]),
     ("graph_imputation.lowering", &["invalid_argument"]),
-    ("graph_imputation.point_unsupported", &[]),
+    ("graph_imputation.reentry", &["public_builder_reentry"]),
     ("graph_imputation.resource_limit", &["execution_resource_limit"]),
-    ("graph_imputation.search_stopped", &["cancelled_no_claim", "execution_resource_limit"]),
-    ("graph_imputation.supported_graph_unidentified", &[]),
-    ("graph_imputation.unidentified", &[]),
-    ("graph_imputation.unscorable", &[]),
+    ("graph_imputation.search_cancelled", &["cancelled_no_claim"]),
+    ("graph_imputation.search_exhausted", &["execution_resource_limit"]),
+    ("graph_imputation.supported_graph_unidentified", &["effect_not_identified"]),
+    ("graph_imputation.unidentified", &["effect_not_identified"]),
+    ("graph_imputation.unscorable", &["invalid_argument"]),
     ("graph_imputation.unsupported", &["route_not_supported"]),
     ("graph_imputation.wrong_dispatch", &[]),
     ("graph_selection_imputation.columns", &["invalid_argument"]),
@@ -7673,12 +7675,14 @@ pub mod graph_imputation {
     pub const INVALID_SOURCE: &str = "graph_imputation.invalid_source";
     /// Detail `graph_imputation.lowering`.
     pub const LOWERING: &str = "graph_imputation.lowering";
-    /// Detail `graph_imputation.point_unsupported`.
-    pub const POINT_UNSUPPORTED: &str = "graph_imputation.point_unsupported";
+    /// Detail `graph_imputation.reentry`.
+    pub const REENTRY: &str = "graph_imputation.reentry";
     /// Detail `graph_imputation.resource_limit`.
     pub const RESOURCE_LIMIT: &str = "graph_imputation.resource_limit";
-    /// Detail `graph_imputation.search_stopped`.
-    pub const SEARCH_STOPPED: &str = "graph_imputation.search_stopped";
+    /// Detail `graph_imputation.search_cancelled`.
+    pub const SEARCH_CANCELLED: &str = "graph_imputation.search_cancelled";
+    /// Detail `graph_imputation.search_exhausted`.
+    pub const SEARCH_EXHAUSTED: &str = "graph_imputation.search_exhausted";
     /// Detail `graph_imputation.supported_graph_unidentified`.
     pub const SUPPORTED_GRAPH_UNIDENTIFIED: &str = "graph_imputation.supported_graph_unidentified";
     /// Detail `graph_imputation.unidentified`.

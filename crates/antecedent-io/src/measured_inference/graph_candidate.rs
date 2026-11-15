@@ -435,7 +435,7 @@ fn execute(rec: &Reconstructed, ctx: &ExecutionContext) -> Result<Execution, IoE
         let mut mixed = aggregate_effect_envelope(
             &samples,
             &effects,
-            InferenceDiagnostics::analytic("graph_imputation.bic_weighted_graph_mixture"),
+            InferenceDiagnostics::analytic("graph_imputation_label.bic_weighted_graph_mixture"),
             EnvelopeOptions::default(),
         )
         .map_err(execution_refused)?;
@@ -561,7 +561,7 @@ fn core_functional(parts: &GraphImputationParts) -> String {
 /// The functional coordinate the measured route reports for these parts.
 #[must_use]
 pub fn route_functional(parts: &GraphImputationParts) -> String {
-    format!("{PRIOR_PREDICTIVE_FAMILY}graph_imputation.v3:{}", core_functional(parts))
+    format!("{PRIOR_PREDICTIVE_FAMILY}graph_imputation_label.v3:{}", core_functional(parts))
 }
 
 fn basis_for(parts: &GraphImputationParts, kind: CandidateBasis) -> CalibrationBasis {
@@ -570,7 +570,7 @@ fn basis_for(parts: &GraphImputationParts, kind: CandidateBasis) -> CalibrationB
         CandidateBasis::PriorPredictive => ("GraphImputationCompositeV3", route_functional(parts)),
         CandidateBasis::FixedEffect => (
             "GraphImputationCompositeV2",
-            format!("graph_imputation.v2:{}", core_functional(parts)),
+            format!("graph_imputation_label.v2:{}", core_functional(parts)),
         ),
     };
     CalibrationBasis::new(
@@ -580,7 +580,7 @@ fn basis_for(parts: &GraphImputationParts, kind: CandidateBasis) -> CalibrationB
             a("graph_posterior"),
             a("tabular"),
             a(inference),
-            a("graph_imputation.bic_conjugate"),
+            a("graph_imputation_label.bic_conjugate"),
             a("nearest_rank_95"),
             a(""),
             a("iid"),
@@ -842,7 +842,7 @@ mod tests {
             structure: "graph_posterior",
             modality: "tabular",
             inference: "GraphImputationCompositeV3",
-            estimator: "graph_imputation.bic_conjugate",
+            estimator: "graph_imputation_label.bic_conjugate",
             interval_method: "nearest_rank_95",
             se_kind: "",
             dependence: "iid",

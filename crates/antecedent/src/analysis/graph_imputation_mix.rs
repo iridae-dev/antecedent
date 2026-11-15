@@ -170,7 +170,7 @@ pub(crate) fn mix_completed_table(
     let mut posterior = aggregate_effect_envelope(
         &graphs,
         &draws,
-        InferenceDiagnostics::analytic("graph_imputation.bic_weighted_graph_mixture"),
+        InferenceDiagnostics::analytic("graph_imputation_label.bic_weighted_graph_mixture"),
         EnvelopeOptions::default(),
     )
     .map_err(|e| MixError::Estimation(e.to_string()))?;

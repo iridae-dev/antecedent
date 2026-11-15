@@ -15292,6 +15292,7 @@ pub fn <antecedent::analysis::graph_imputation::CompiledGraphImputation>::fn exp
 pub fn <antecedent::analysis::graph_imputation::CompiledGraphImputation>::fn replay(&self, expected: [u8; 32], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::graph_imputation::GraphImputationPoint, antecedent::analysis::graph_imputation::GraphImputationError>
 pub fn <antecedent::analysis::graph_imputation::GraphImputationArtifact>::fn bytes(&self) -> &[u8]
 pub fn <antecedent::analysis::graph_imputation::GraphImputationArtifact>::fn expectation(&self) -> antecedent::analysis::graph_imputation::GraphImputationExpectation
+pub fn <antecedent::analysis::graph_imputation::GraphImputationError>::fn reason_code(&self) -> core::option::Option<&'static str>
 pub fn <antecedent::analysis::graph_imputation::GraphImputationPoint>::fn calibration(&self) -> core::result::Result<antecedent_io_core::contract_section::CalibrationSlotWire, antecedent::analysis::graph_imputation::GraphImputationError>
 pub fn <antecedent::analysis::graph_imputation::GraphImputationPoint>::fn interval(&self) -> core::result::Result<(f64, f64), antecedent::analysis::graph_imputation::GraphImputationError>
 pub fn <antecedent::analysis::graph_imputation::GraphImputationPoint>::fn measured(&self) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent::analysis::graph_imputation::GraphImputationError>
@@ -23653,7 +23654,6 @@ pub variant antecedent::analysis::file_table::SummaryMissing::Refuse
 pub variant antecedent::analysis::graph_imputation::GraphImputationError::AtomFailures { table: u32, failed_mass: f64, skipped_mass: f64, reasons: alloc::vec::Vec<(u64, alloc::string::String)> }
 pub variant antecedent::analysis::graph_imputation::GraphImputationError::Engine(antecedent::CausalError)
 pub variant antecedent::analysis::graph_imputation::GraphImputationError::IntervalUnavailable
-pub variant antecedent::analysis::graph_imputation::GraphImputationError::PointUnavailable
 pub variant antecedent::analysis::graph_imputation::GraphImputationError::SearchStopped(antecedent_core::search::SearchReceipt)
 pub variant antecedent::analysis::graph_imputation::GraphImputationError::SupportedGraphNotIdentified { mask: u64 }
 pub variant antecedent::analysis::graph_imputation::GraphImputationError::Unidentified { table: u32, mass: f64 }

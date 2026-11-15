@@ -212,22 +212,25 @@ fn compiled_runtime_error(
     use antecedent::analysis::graph_imputation::GraphImputationError;
     use antecedent::execution::SearchStop;
     let (code, detail, message) = match error {
-        GraphImputationError::PointUnavailable | GraphImputationError::IntervalUnavailable => (
+        GraphImputationError::IntervalUnavailable => (
             reason_code!("route_not_supported"),
             antecedent::reason::reason_details::graph_imputation::UNSUPPORTED,
             error.to_string(),
         ),
         GraphImputationError::SearchStopped(receipt) => {
-            let code = if receipt.stop == SearchStop::Cancelled {
-                reason_code!("cancelled_no_claim")
+            if receipt.stop == SearchStop::Cancelled {
+                (
+                    reason_code!("cancelled_no_claim"),
+                    antecedent::reason::reason_details::graph_imputation::SEARCH_CANCELLED,
+                    receipt.summary(),
+                )
             } else {
-                reason_code!("execution_resource_limit")
-            };
-            (
-                code,
-                antecedent::reason::reason_details::graph_imputation::SEARCH_STOPPED,
-                receipt.summary(),
-            )
+                (
+                    reason_code!("execution_resource_limit"),
+                    antecedent::reason::reason_details::graph_imputation::SEARCH_EXHAUSTED,
+                    receipt.summary(),
+                )
+            }
         }
         GraphImputationError::Engine(CausalError::Cancelled { stage }) => (
             reason_code!("cancelled_no_claim"),

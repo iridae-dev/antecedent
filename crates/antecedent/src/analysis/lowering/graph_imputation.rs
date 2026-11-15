@@ -27,7 +27,7 @@ use crate::planner::statistical::{ModelRole, ModelSlot, Realization, Statistical
 use crate::{BayesianConfig, InferenceMode, RefuteSuite};
 
 const TAG: &str = "antecedent.graph_imputation.declaration.v3";
-const CELL: &str = "graph_imputation.exact_bic_average_effect";
+const CELL: &str = "graph_imputation_label.exact_bic_average_effect";
 const DESIGN: &str = "row imputation and native graph-weighted effects";
 
 /// One exact graph and its native atom prepared before composite dispatch.
@@ -62,7 +62,14 @@ pub(crate) struct LoweringInput {
 }
 
 fn refuse(message: impl std::fmt::Display) -> CausalError {
-    CausalError::Compile { message: format!("graph_imputation.lowering: {message}") }
+    let detail = format!("graph_imputation.lowering: {message}");
+    CausalError::Compile {
+        message: format!(
+            "{}{}: {detail}",
+            antecedent_core::reason_code::PREFIX,
+            antecedent_core::reason_code!("invalid_argument")
+        ),
+    }
 }
 
 fn operator(effect: PhysicalEffect, bytes: Option<u64>) -> Result<PhysicalOperator, CausalError> {

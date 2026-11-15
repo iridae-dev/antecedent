@@ -209,7 +209,8 @@ pub struct DerivedResult {
     pub standing: Standing,
     /// Support inherited: always none.
     pub support: &'static str,
-    /// Calibration of the interval: always `not_measured`.
+    /// Calibration status of the interval: the status of the slot its construction resolves
+    /// from the shipped coverage records, `not_measured` when none applies.
     pub calibration: &'static str,
     /// Statement about the interval construction.
     pub interval_statement: &'static str,
@@ -609,6 +610,22 @@ enum DimKind {
 /// deployment target has no declared bridge, a binding is malformed, or there are too many
 /// unknown dimensions.
 pub fn derive(
+    evidence: &JointExperimentEvidence,
+    request: &Request,
+    quantity: &DerivedQuantity,
+) -> Result<DerivedResult, EvidenceRefusal> {
+    let mut result = derive_uncalibrated(evidence, request, quantity)?;
+    // The interval's calibration is the status of the slot its own construction resolves;
+    // a derivation with no sampling-only interval has no slot and stays not_measured.
+    if let Ok(slot) = decision_interval_calibration_slot(evidence, request, quantity) {
+        result.calibration = slot.status.as_str();
+    }
+    Ok(result)
+}
+
+/// The derivation before its interval is annotated with a calibration slot. The calibration
+/// basis is built from this result, so the slot is resolved outside it.
+pub(super) fn derive_uncalibrated(
     evidence: &JointExperimentEvidence,
     request: &Request,
     quantity: &DerivedQuantity,
