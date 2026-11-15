@@ -381,13 +381,41 @@ fn transport_result(data: &TabularData, graph: impl antecedent::IntoGraphInput) 
         .unwrap()
 }
 
+/// Equal-weighted cosine standard error of the trial-to-target contrast, recomputed from the
+/// raw columns: the per-row influence is `+-(1 - s) / s / e * y` on trial rows (`+` treated;
+/// with `s = e = 1/2` that is `+-2 y`) and `-ipw` on target rows; `terms` cosine projections
+/// `sqrt(2/n) sum_t psi_t cos(pi j (t + 1/2) / n)` give the long-run variance as the mean of
+/// their squares, and the error is `sqrt(n * variance) / target_n`.
+fn independent_ewc_se(a: &[f64], y: &[f64], trial: &[f64], ipw: f64, terms: usize) -> f64 {
+    let n = y.len();
+    let target_n = trial.iter().filter(|&&t| t == 0.0).count() as f64;
+    let psi: Vec<f64> = (0..n)
+        .map(|t| {
+            if trial[t] == 1.0 { if a[t] == 1.0 { 2.0 * y[t] } else { -2.0 * y[t] } } else { -ipw }
+        })
+        .collect();
+    let nf = n as f64;
+    let mean_square = (1..=terms)
+        .map(|j| {
+            let projection: f64 = psi
+                .iter()
+                .enumerate()
+                .map(|(t, v)| v * (std::f64::consts::PI * j as f64 * (t as f64 + 0.5) / nf).cos())
+                .sum();
+            2.0 / nf * projection * projection
+        })
+        .sum::<f64>()
+        / terms as f64;
+    (nf * mean_square).sqrt() / target_n
+}
+
 /// outcome: equivalent transported contrast; the interval is `not_equivalent` (long-run
 /// variance against iid rows).
 ///
 /// A temporal ADMG whose every variable appears once at lag zero is the contemporaneous
 /// projection of the static ADMG, so the transported contrast is the same inverse-probability
-/// weighted number. The temporal route reads the rows as one series and reports a Newey-West
-/// long-run standard error where the static route reports the iid score standard error; on
+/// weighted number. The temporal route reads the rows as one series and reports an equal-weighted
+/// cosine long-run standard error where the static route reports the iid score standard error; on
 /// serially independent rows the two are of the same size but they are different estimators.
 #[test]
 fn horizon_one_transport_is_the_static_contrast_with_a_long_run_variance() {
@@ -418,16 +446,24 @@ fn horizon_one_transport_is_the_static_contrast_with_a_long_run_variance() {
     assert!((expected - 1.087_326_798_735_091_2).abs() < 1e-12);
     assert!((rows_effect.ate - expected).abs() < 1e-9, "{} vs {expected}", rows_effect.ate);
     assert!((series_effect.ate - expected).abs() < 1e-9);
+    // No lag is declared, so the series is sized on the contrast's influence and reports the
+    // equal-weighted cosine error on floor(0.4 * 1000^(2/3)) = 40 terms (1000^(2/3) = 100).
     assert!(matches!(
         series_effect.uncertainty.analytic.kind,
-        Some(AnalyticSeKind::NeweyWest { lag: 10 })
+        Some(AnalyticSeKind::SeriesEwc { terms: 40 })
     ));
     assert!(!matches!(
         rows_effect.uncertainty.analytic.kind,
-        Some(AnalyticSeKind::NeweyWest { .. })
+        Some(AnalyticSeKind::NeweyWest { .. } | AnalyticSeKind::SeriesEwc { .. })
     ));
     let (series_se, rows_se) =
         (series_effect.uncertainty.analytic.se, rows_effect.uncertainty.analytic.se);
+    let (a, y, trial) = transport_vectors(1000);
+    let recomputed = independent_ewc_se(&a, &y, &trial, series_effect.ate, 40);
+    assert!(
+        (series_se - recomputed).abs() < 1e-9 * recomputed,
+        "route {series_se} vs independent {recomputed}"
+    );
     assert!(series_se.is_finite() && rows_se.is_finite() && rows_se > 0.0);
     assert!(series_se > 0.5 * rows_se && series_se < 2.0 * rows_se, "{series_se} vs {rows_se}");
 }
