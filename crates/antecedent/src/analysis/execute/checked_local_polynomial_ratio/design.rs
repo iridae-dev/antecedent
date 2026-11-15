@@ -448,16 +448,6 @@ impl super::CheckedLocalPolynomialRatioOperation {
                  band; local continuity is doubtful",
             ));
         }
-        if let Some(p_value) = temporal.and_then(|record| record.serial_dependence_rejected) {
-            notes.push(Diagnostic::new(
-                "diagnostic.quasi.local_ratio.serial_dependence_beyond_ar1",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Warning,
-                format!(
-                    "the innovations of the AR(1)-prewhitened errors are serially dependent at                      lags two to six (Ljung-Box p {p_value:.2e}), so the AR(1) error model of the                      window does not hold and no interval is published; the point estimate is                      unchanged. Next attempt: a design whose errors are AR(1) about the time                      path, or a longer window of the same process"
-                ),
-            ));
-        }
         let (uncertainty, replicates) = match temporal {
             Some(record) => (
                 "within_side_moving_block_bootstrap_refit_iqr_se_student_t_interval",

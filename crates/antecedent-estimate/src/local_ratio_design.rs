@@ -24,9 +24,10 @@
 //! so the design is held fixed and the errors are redrawn: the reported ratio is linear in the
 //! outcome and the treatment at a fixed design, and the errors of the structural series
 //! `Y − τ̂·T` and of the treatment about a cubic trend on each side are prewhitened by an
-//! AR(1) fit, as in a prewhitened long-run variance (Andrews and Monahan). The trend absorbs
-//! the low-frequency part of a persistent error, so the AR(1) coefficient and the error
-//! variance are the ones whose expected trend residuals match the observed residuals. The
+//! autoregressive fit, as in a prewhitened long-run variance (Andrews and Monahan). The trend
+//! absorbs the low-frequency part of a persistent error, which the ratio loads on, so the
+//! autoregressive coefficients (order by BIC up to four) and the error variance are the ones
+//! whose expected trend residual autocorrelations match the observed ones (`error_model`). The
 //! interval is a moving-block bootstrap of the innovations within each side of the cutoff
 //! (blocks of consecutive rows in time order, length the rounded cube root of the side's
 //! window rows), recolored through the cutoff, refitting the whole robust bias-corrected
@@ -42,6 +43,12 @@
 #[cfg(test)]
 #[path = "local_ratio_design/tests.rs"]
 mod tests;
+
+mod error_model;
+
+use error_model::{
+    ArModel, DERIVATIVE_STEP, LagMoments, MAX_PARTIAL, coefficients_from_partial, fit_error_model,
+};
 
 use antecedent_core::{CausalRng, ExecutionContext};
 
@@ -136,9 +143,6 @@ pub struct TemporalBlockRecord {
     /// Satterthwaite degrees of freedom of the Student-t interval; `None` when the interval is
     /// the normal interval of the standard error.
     pub reference_degrees_of_freedom: Option<f64>,
-    /// The p-value of the screen of the innovations for serial dependence the AR(1) error
-    /// model leaves, when it rejected the model: the interval is then withheld.
-    pub serial_dependence_rejected: Option<f64>,
 }
 
 /// The local ratio with its design layer.
@@ -455,12 +459,6 @@ fn temporal_side_rows(running: &[f64], cutoff: f64, bandwidth: f64) -> (Vec<usiz
 /// Order of the per-side trend whose residuals are the error series.
 const TREND_ORDER: usize = 3;
 
-/// Largest prewhitening coefficient in absolute value.
-const MAX_PREWHITENING: f64 = 0.97;
-
-/// Step of the numerical derivatives in the prewhitening coefficient.
-const COEFFICIENT_STEP: f64 = 0.01;
-
 /// Relative variance of the interquartile range of one Gaussian replicate:
 /// `0.25 / (φ(z₀.₇₅)² · (2 z₀.₇₅)²)`.
 const IQR_RELATIVE_VARIANCE: f64 = 1.360_5;
@@ -561,6 +559,7 @@ impl SideTrend {
     /// Expected lag-one cross product and sum of squares of the trend residuals of a
     /// unit-variance AR(1) series with coefficient `rho`: the sums of `(MΓM)[i][i+1]` and of
     /// `(MΓM)[i][i]`, with `M` the trend's residual maker and `Γ[i][j] = rho^|i−j|`.
+    #[cfg(test)]
     #[allow(
         clippy::needless_range_loop,
         reason = "the index pairs each row with its successor across aligned row sets"
@@ -622,26 +621,28 @@ impl SideTrend {
     }
 }
 
-/// The AR(1) model of one error series over the window.
+/// The autoregressive model of one error series over the window.
 struct ErrorSeries {
     /// Centered innovations in time order, left side then right side, on the scale of the
     /// fitted model.
     innovations: Vec<f64>,
-    /// AR(1) coefficient, corrected for the trend fit.
-    coefficient: f64,
-    /// Standard deviation of the coefficient.
-    coefficient_sd: f64,
+    /// The error model, corrected for the trend fit.
+    model: ArModel,
 }
 
-/// AR(1) model of the trend residuals of one series, `values` holding each side's rows.
+/// Autoregressive model of the trend residuals of one series, `values` holding each side's
+/// rows.
 ///
-/// The residuals of a fitted trend understate both the variance and the autocorrelation of a
-/// persistent error, because the trend absorbs its low-frequency part. The coefficient is
-/// therefore the one whose expected residual lag-one ratio equals the observed ratio, and the
-/// marginal variance the residual sum of squares over its expectation at that coefficient
-/// (both expectations exact for the trend design). The innovations are whitened with the
-/// uncorrected ratio, which leaves them empirically white, and rescaled to the corrected
-/// model. `None` when the trend reproduces the series exactly.
+/// The ratio loads on the low-frequency part of the errors, which the per-side cubic trend
+/// removes from the residuals, so the residuals' own autocorrelations understate the error's.
+/// The model is fit to the error, not the residual: its partial autocorrelations are those
+/// whose expected residual autocorrelations equal the observed ones, the marginal variance
+/// the residual sum of squares over its expectation (both expectations exact for the trend
+/// design), and the order the BIC minimizer up to a cap (`error_model`). A first-order fit
+/// extrapolates the lag-one autocorrelation alone and understates the low-frequency variance
+/// of a higher-order error. The innovations are whitened with the uncorrected filter, which
+/// leaves them empirically white, and rescaled to the corrected model. `None` when the trend
+/// reproduces the series exactly.
 fn error_series(trends: &[SideTrend; 2], values: [&[f64]; 2]) -> Option<ErrorSeries> {
     let residuals = [trends[0].residuals(values[0]), trends[1].residuals(values[1])];
     let energy: f64 = values.iter().flat_map(|side| side.iter()).map(|v| v * v).sum();
@@ -649,61 +650,32 @@ fn error_series(trends: &[SideTrend; 2], values: [&[f64]; 2]) -> Option<ErrorSer
     if square <= EXACT_FIT_FRACTION * energy {
         return None;
     }
-    let cross: f64 = residuals
-        .iter()
-        .map(|side| side.windows(2).map(|pair| pair[0] * pair[1]).sum::<f64>())
-        .sum();
-    let observed = cross / square;
-    let expected = |rho: f64| {
-        let (left, right) = (trends[0].residual_moments(rho), trends[1].residual_moments(rho));
-        ((left.0 + right.0) / (left.1 + right.1), left.1 + right.1)
-    };
-    let coefficient = if expected(MAX_PREWHITENING).0 <= observed {
-        MAX_PREWHITENING
-    } else if expected(-MAX_PREWHITENING).0 >= observed {
-        -MAX_PREWHITENING
-    } else {
-        let (mut lower, mut upper) = (-MAX_PREWHITENING, MAX_PREWHITENING);
-        for _ in 0..48 {
-            let middle = 0.5 * (lower + upper);
-            if expected(middle).0 < observed {
-                lower = middle;
-            } else {
-                upper = middle;
-            }
-        }
-        0.5 * (lower + upper)
-    };
-    let marginal_variance = square / expected(coefficient).1;
-    // Delta method through the correction: the observed ratio's large-sample variance over
-    // the squared slope of its expectation in the coefficient.
-    let below = (coefficient - COEFFICIENT_STEP).max(-MAX_PREWHITENING);
-    let above = (coefficient + COEFFICIENT_STEP).min(MAX_PREWHITENING);
-    let slope = (expected(above).0 - expected(below).0) / (above - below);
-    let pairs = residuals.iter().map(|side| side.len().saturating_sub(1)).sum::<usize>();
-    let ratio_sd = ((1.0 - observed * observed).max(0.0) / pairs.max(1) as f64).sqrt();
-    let coefficient_sd = if slope.is_finite() && slope > 0.0 { ratio_sd / slope } else { ratio_sd };
-    let whitening = observed.clamp(-MAX_PREWHITENING, MAX_PREWHITENING);
-    let mut innovations = Vec::with_capacity(residuals[0].len() + residuals[1].len());
-    for side in &residuals {
-        let start = innovations.len();
-        innovations.push((1.0 - whitening * whitening).sqrt() * side[0]);
-        innovations.extend(side.windows(2).map(|pair| pair[1] - whitening * pair[0]));
-        let mean = innovations[start..].iter().sum::<f64>() / side.len() as f64;
-        for value in &mut innovations[start..] {
-            *value -= mean;
-        }
+    let moments = [
+        LagMoments::new(&trends[0].basis, &trends[0].inverse),
+        LagMoments::new(&trends[1].basis, &trends[1].inverse),
+    ];
+    let fitted = fit_error_model(&moments, &residuals)?;
+    Some(ErrorSeries { innovations: fitted.innovations, model: fitted.model })
+}
+
+/// The estimator's weight on each innovation of an autoregressive error with coefficients
+/// `phi`: `loadings[j] = weights[j] + Σ_k phi[k] · loadings[j + 1 + k]`. A first-order error
+/// starts from its stationary law (see [`recolored_loadings`]); a higher-order one is
+/// started at the window's far end of the first side, where the triangular weights vanish.
+fn autoregressive_loadings(weights: &[f64], phi: &[f64]) -> Vec<f64> {
+    if let [rho] = phi {
+        return recolored_loadings(weights, *rho);
     }
-    let variance = innovations.iter().map(|e| e * e).sum::<f64>() / innovations.len() as f64;
-    let scale = if variance > 0.0 {
-        (marginal_variance * (1.0 - coefficient * coefficient) / variance).sqrt()
-    } else {
-        0.0
-    };
-    for value in &mut innovations {
-        *value *= scale;
+    let mut loadings = vec![0.0; weights.len()];
+    for index in (0..weights.len()).rev() {
+        let carried: f64 = phi
+            .iter()
+            .enumerate()
+            .filter_map(|(lag, coefficient)| loadings.get(index + 1 + lag).map(|c| coefficient * c))
+            .sum();
+        loadings[index] = weights[index] + carried;
     }
-    Some(ErrorSeries { innovations, coefficient, coefficient_sd })
+    loadings
 }
 
 /// The estimator's weight on each innovation of an AR(1) error with coefficient `rho`
@@ -803,7 +775,7 @@ impl TemporalErrors {
     /// The loadings of each series at its fitted coefficient.
     fn loadings(&self) -> [Option<Vec<f64>>; 2] {
         self.series.each_ref().map(|series| {
-            series.as_ref().map(|series| recolored_loadings(&self.weights, series.coefficient))
+            series.as_ref().map(|series| autoregressive_loadings(&self.weights, &series.model.phi))
         })
     }
 
@@ -833,14 +805,37 @@ impl TemporalErrors {
     /// replicates behind the interquartile range. `None` without a structural error.
     fn reference_degrees_of_freedom(&self, replicates_ok: u32) -> Option<f64> {
         let series = self.series[0].as_ref()?;
-        let log_variance = |rho: f64| {
-            recolored_loadings(&self.weights, rho).iter().map(|c| c * c).sum::<f64>().ln()
+        let log_variance = |partial: &[f64]| {
+            autoregressive_loadings(&self.weights, &coefficients_from_partial(partial))
+                .iter()
+                .map(|c| c * c)
+                .sum::<f64>()
+                .ln()
         };
-        let below = (series.coefficient - COEFFICIENT_STEP).max(-MAX_PREWHITENING);
-        let above = (series.coefficient + COEFFICIENT_STEP).min(MAX_PREWHITENING);
-        let sensitivity = (log_variance(above) - log_variance(below)) / (above - below);
+        let partial = &series.model.partial;
+        let sensitivity: Vec<f64> = (0..partial.len())
+            .map(|j| {
+                let mut below = partial.clone();
+                let mut above = partial.clone();
+                below[j] = (below[j] - DERIVATIVE_STEP).max(-MAX_PARTIAL);
+                above[j] = (above[j] + DERIVATIVE_STEP).min(MAX_PARTIAL);
+                (log_variance(&above) - log_variance(&below)) / (above[j] - below[j])
+            })
+            .collect();
+        // Delta-method variance of the log variance in the estimated partial autocorrelations.
+        let coefficient_variance: f64 = sensitivity
+            .iter()
+            .enumerate()
+            .map(|(i, si)| {
+                sensitivity
+                    .iter()
+                    .enumerate()
+                    .map(|(j, sj)| si * series.model.covariance[i][j] * sj)
+                    .sum::<f64>()
+            })
+            .sum();
         let relative_variance = 2.0 / self.residual_df
-            + (sensitivity * series.coefficient_sd).powi(2)
+            + coefficient_variance
             + 4.0 * IQR_RELATIVE_VARIANCE / f64::from(replicates_ok.max(1));
         (relative_variance.is_finite() && relative_variance > 0.0).then(|| 2.0 / relative_variance)
     }
@@ -906,56 +901,6 @@ impl TemporalErrors {
     }
 }
 
-/// Level of the screen of the innovations for serial dependence beyond the AR(1) model.
-const SCREEN_LEVEL: f64 = 0.01;
-
-/// Highest lag of the screen; the lag-one autocorrelation is removed by the prewhitening.
-const SCREEN_LAGS: usize = 6;
-
-/// Ljung-Box p-value for serial dependence at lags `2..=SCREEN_LAGS` in innovations that
-/// follow each other within the two sides (`split` rows on the first, the rest on the second).
-///
-/// The innovations are prewhitened by the observed lag-one ratio, so under an AR(1) error their
-/// autocorrelations at the other lags are zero up to the trend fit. The statistic
-/// `N (N + 2) Σ r_k² / (N − k)` over the `SCREEN_LAGS − 1` remaining lags is then
-/// asymptotically chi-square with that many degrees of freedom. `None` when the innovations
-/// carry no variation.
-fn innovation_dependence_p_value(innovations: &[f64], split: usize) -> Option<f64> {
-    let n = innovations.len();
-    let sum_of_squares: f64 = innovations.iter().map(|e| e * e).sum();
-    if n <= 2 * SCREEN_LAGS || !sum_of_squares.is_finite() || sum_of_squares <= 0.0 {
-        return None;
-    }
-    let sides = [&innovations[..split], &innovations[split..]];
-    let total = n as f64;
-    let mut statistic = 0.0;
-    for lag in 2..=SCREEN_LAGS {
-        let cross: f64 = sides
-            .iter()
-            .filter(|side| side.len() > lag)
-            .map(|side| side.iter().zip(&side[lag..]).map(|(a, b)| a * b).sum::<f64>())
-            .sum();
-        let correlation = cross / sum_of_squares;
-        statistic += correlation * correlation / (total - lag as f64);
-    }
-    statistic *= total * (total + 2.0);
-    Some(antecedent_stats::special::chi_square_sf(statistic, SCREEN_LAGS - 1))
-}
-
-impl TemporalErrors {
-    /// The screen's p-value on the structural innovations. The interval rests on an AR(1)
-    /// error model with blocks carrying only what that fit leaves within a block of rows;
-    /// serial dependence that persists past the AR(1) fit (an AR(2) error, say) moves the
-    /// low-frequency variance of the local fit, which the cubic trend absorbs from the
-    /// residuals and no resampling of those residuals recovers, so a rejected model leaves
-    /// the interval short of its level and none is published. `None` for a series without
-    /// error.
-    fn unmodelled_dependence_p_value(&self) -> Option<f64> {
-        let series = self.series[0].as_ref()?;
-        innovation_dependence_p_value(&series.innovations, self.split)
-    }
-}
-
 /// Appends the `len` redrawn source rows of the side that starts at window row `offset`:
 /// whole blocks of `block` consecutive rows from `next_start` until the side is filled.
 fn fill_side(
@@ -1005,17 +950,7 @@ fn temporal_block_bootstrap(
              error; next attempt: a wider bandwidth or more replicates",
         ));
     };
-    // An error model the innovations contradict publishes no interval: see
-    // `TemporalErrors::unmodelled_dependence_p_value`.
-    let serial_dependence_rejected =
-        errors.unmodelled_dependence_p_value().filter(|p| *p < SCREEN_LEVEL);
-    let reference_degrees_of_freedom = if serial_dependence_rejected.is_some() {
-        ratio.interval = None;
-        ratio.band = None;
-        None
-    } else {
-        errors.reference_degrees_of_freedom(summary.replicates_ok)
-    };
+    let reference_degrees_of_freedom = errors.reference_degrees_of_freedom(summary.replicates_ok);
     if let Some(degrees) = reference_degrees_of_freedom {
         let critical = antecedent_stats::special::student_t_ppf(0.5 + ROLLOUT_LEVEL / 2.0, degrees);
         let interval =
@@ -1030,7 +965,6 @@ fn temporal_block_bootstrap(
         replicates_failed: summary.replicates_failed,
         ratio,
         reference_degrees_of_freedom,
-        serial_dependence_rejected,
     })
 }
 
@@ -1098,10 +1032,20 @@ pub fn posterior_temporal_local_ratio(
     let raw = resample_draws(ctx, BLOCK_POSTERIOR_OPERATION, draws, 2, |rng| {
         let loadings = errors.series.each_ref().map(|series| {
             series.as_ref().map(|series| {
-                let coefficient = (series.coefficient
-                    + series.coefficient_sd * standard_normal(rng))
-                .clamp(-MAX_PREWHITENING, MAX_PREWHITENING);
-                recolored_loadings(&errors.weights, coefficient)
+                let shocks: Vec<f64> =
+                    series.model.partial.iter().map(|_| standard_normal(rng)).collect();
+                let partial: Vec<f64> = series
+                    .model
+                    .partial
+                    .iter()
+                    .enumerate()
+                    .map(|(i, estimate)| {
+                        let shift: f64 =
+                            series.model.factor[i].iter().zip(&shocks).map(|(l, z)| l * z).sum();
+                        (estimate + shift).clamp(-MAX_PARTIAL, MAX_PARTIAL)
+                    })
+                    .collect();
+                autoregressive_loadings(&errors.weights, &coefficients_from_partial(&partial))
             })
         });
         let mut sources = Vec::with_capacity(errors.weights.len());
