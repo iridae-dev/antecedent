@@ -317,9 +317,11 @@ impl CheckedAttributionOperation {
         };
         let fitted_model = matches!(target, AttributionTarget::Model(_));
         if blocks.is_some() && fitted_model {
-            return Err(CausalError::Compile {
-                message: "noise-block attribution supports only anomaly and change targets".into(),
-            });
+            return Err(crate::compile_reason!(
+                "route_not_supported",
+                "attribute_refit.noise_blocks_unsupported: noise-block attribution supports only \
+                 anomaly and change targets"
+            ));
         }
         let target_query = target.query();
         if !study.declared.custom_validators.is_empty() {
@@ -333,9 +335,10 @@ impl CheckedAttributionOperation {
         {
             return Err(crate::unsupported_reason!(
                 "option_not_applicable",
-                "on a TemporalDag a simulation is a temporal rollout of the fitted dynamics: \
-                 draws, policy values and counterfactuals of the unfolded graph would sample \
-                 the lagged copies as exogenous columns. Next attempt: use a TemporalRollout \
+                "simulate_refit.temporal_rollout_required: on a TemporalDag a simulation is a \
+                 temporal rollout of the fitted dynamics: draws, policy values and \
+                 counterfactuals of the unfolded graph would sample the lagged copies as \
+                 exogenous columns. Next attempt: use a TemporalRollout \
                  target, or fit the one-slice model on a supplied Dag"
             ));
         }

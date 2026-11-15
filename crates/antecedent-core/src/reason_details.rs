@@ -139,6 +139,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "aligned_joint_draws.legacy_source",
     "aligned_joint_draws.marginals_not_joint",
     "aligned_joint_draws.outcome_coordinate",
+    "attribute_refit.noise_blocks_unsupported",
     "batch_retarget.cancelled",
     "batch_retarget.contrast_member_failed",
     "batch_retarget.covariance_unavailable",
@@ -1309,6 +1310,8 @@ pub const REASON_DETAILS: &[&str] = &[
     "measurement_model.unrecognized",
     "measurement_model.variance_not_positive",
     "measurement_model.youden_too_small",
+    "mechanism_change.parent_covariate_shift",
+    "mechanism_change.population_too_small",
     "mechanism_composition.artifact_invalid",
     "mechanism_composition.artifact_kind_mismatch",
     "mechanism_composition.cancelled",
@@ -1412,6 +1415,8 @@ pub const REASON_DETAILS: &[&str] = &[
     "mechanism_posterior.external_power_prior",
     "mechanism_posterior.mapped_prior",
     "mechanism_posterior.non_positive_scale",
+    "mechanism_selection.constraint_contradictory",
+    "mechanism_selection.family_outcome_mismatch",
     "mechanism_transport.diagram_source_mismatch",
     "mechanism_transport.diagram_target_mismatch",
     "mechanism_transport.duplicate_mechanism",
@@ -2376,6 +2381,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "signal_provider.sample_size_mismatch",
     "signal_provider.trust_mismatch",
     "signal_provider.trust_native_claimed",
+    "simulate_refit.temporal_rollout_required",
     "smoothed_dose_posterior.band_not_constructed",
     "smoothed_dose_posterior.cancelled",
     "smoothed_dose_posterior.certificate_mismatch",
@@ -2428,6 +2434,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "split_effect.structure_class",
     "split_effect.structure_unresolved",
     "split_effect.too_few_rows",
+    "structure_posterior.edge_prior_probability",
     "structured_refusals.malformed_detail",
     "structured_refusals.missing_stage",
     "structured_refusals.unregistered_code",
@@ -2463,6 +2470,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "survival_effect.training_fold_without_events",
     "survival_effect.treatment_positivity",
     "survival_effect.undeclared_level",
+    "synthetic_control_panel.observed_window_option",
     "temporal_counterfactual.artifact_changed",
     "temporal_counterfactual.fit_mismatch",
     "temporal_counterfactual.history_name_invalid",
@@ -2689,6 +2697,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "typed_mechanism_transport.target_specification_differs",
     "typed_mechanism_transport.transport_identity_mismatch",
     "typed_mechanism_transport.unknown_variable",
+    "unit_change.outcome_without_parents",
     "vector_posterior.band_not_constructed",
     "vector_posterior.external_power_prior",
     "vector_posterior.mapped_prior",
@@ -2863,6 +2872,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("aligned_joint_draws.legacy_source", &["quantity_semantics_mismatch"]),
     ("aligned_joint_draws.marginals_not_joint", &["joint_law_required"]),
     ("aligned_joint_draws.outcome_coordinate", &["quantity_semantics_mismatch"]),
+    ("attribute_refit.noise_blocks_unsupported", &["route_not_supported"]),
     ("batch_retarget.cancelled", &["cancelled_no_claim"]),
     ("batch_retarget.contrast_member_failed", &["route_not_supported"]),
     ("batch_retarget.covariance_unavailable", &["route_not_supported"]),
@@ -4033,6 +4043,8 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("measurement_model.unrecognized", &["measurement_model_invalid"]),
     ("measurement_model.variance_not_positive", &["measurement_not_identified"]),
     ("measurement_model.youden_too_small", &["measurement_not_identified"]),
+    ("mechanism_change.parent_covariate_shift", &["invalid_argument"]),
+    ("mechanism_change.population_too_small", &["invalid_argument"]),
     ("mechanism_composition.artifact_invalid", &["invalid_argument"]),
     ("mechanism_composition.artifact_kind_mismatch", &["invalid_argument"]),
     ("mechanism_composition.cancelled", &["cancelled_no_claim"]),
@@ -4136,6 +4148,8 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("mechanism_posterior.external_power_prior", &["route_not_supported"]),
     ("mechanism_posterior.mapped_prior", &["route_not_supported"]),
     ("mechanism_posterior.non_positive_scale", &["invalid_argument"]),
+    ("mechanism_selection.constraint_contradictory", &["invalid_argument"]),
+    ("mechanism_selection.family_outcome_mismatch", &["invalid_argument"]),
     ("mechanism_transport.diagram_source_mismatch", &["quantity_semantics_mismatch"]),
     ("mechanism_transport.diagram_target_mismatch", &["quantity_semantics_mismatch"]),
     ("mechanism_transport.duplicate_mechanism", &["quantity_semantics_mismatch"]),
@@ -5100,6 +5114,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("signal_provider.sample_size_mismatch", &["design_signal_invalid"]),
     ("signal_provider.trust_mismatch", &["external_binding_mismatch"]),
     ("signal_provider.trust_native_claimed", &["external_binding_mismatch"]),
+    ("simulate_refit.temporal_rollout_required", &["option_not_applicable"]),
     ("smoothed_dose_posterior.band_not_constructed", &["route_not_supported"]),
     ("smoothed_dose_posterior.cancelled", &["transport_budget_cancel"]),
     ("smoothed_dose_posterior.certificate_mismatch", &["invalid_argument"]),
@@ -5152,6 +5167,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("split_effect.structure_class", &["invalid_argument"]),
     ("split_effect.structure_unresolved", &["discovered_structure_unresolved"]),
     ("split_effect.too_few_rows", &["invalid_argument"]),
+    ("structure_posterior.edge_prior_probability", &["invalid_argument"]),
     ("structured_refusals.malformed_detail", &["invalid_argument"]),
     ("structured_refusals.missing_stage", &["invalid_argument"]),
     ("structured_refusals.unregistered_code", &["invalid_argument"]),
@@ -5187,6 +5203,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("survival_effect.training_fold_without_events", &["arm_not_populated"]),
     ("survival_effect.treatment_positivity", &["positivity_violated"]),
     ("survival_effect.undeclared_level", &["treatment_level_undeclared"]),
+    ("synthetic_control_panel.observed_window_option", &["option_not_applicable"]),
     ("temporal_counterfactual.artifact_changed", &["route_not_supported"]),
     ("temporal_counterfactual.fit_mismatch", &["invalid_argument"]),
     ("temporal_counterfactual.history_name_invalid", &["invalid_argument"]),
@@ -5413,6 +5430,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("typed_mechanism_transport.target_specification_differs", &["quantity_semantics_mismatch"]),
     ("typed_mechanism_transport.transport_identity_mismatch", &["quantity_semantics_mismatch"]),
     ("typed_mechanism_transport.unknown_variable", &["mechanism_composition_incoherent"]),
+    ("unit_change.outcome_without_parents", &["route_not_supported"]),
     ("vector_posterior.band_not_constructed", &["route_not_supported"]),
     ("vector_posterior.external_power_prior", &["route_not_supported"]),
     ("vector_posterior.mapped_prior", &["route_not_supported"]),
@@ -5745,6 +5763,12 @@ pub mod aligned_joint_draws {
     pub const MARGINALS_NOT_JOINT: &str = "aligned_joint_draws.marginals_not_joint";
     /// Detail `aligned_joint_draws.outcome_coordinate`.
     pub const OUTCOME_COORDINATE: &str = "aligned_joint_draws.outcome_coordinate";
+}
+
+/// Details in the `attribute_refit` family.
+pub mod attribute_refit {
+    /// Detail `attribute_refit.noise_blocks_unsupported`.
+    pub const NOISE_BLOCKS_UNSUPPORTED: &str = "attribute_refit.noise_blocks_unsupported";
 }
 
 /// Details in the `batch_retarget` family.
@@ -8455,6 +8479,14 @@ pub mod measurement_model {
     pub const YOUDEN_TOO_SMALL: &str = "measurement_model.youden_too_small";
 }
 
+/// Details in the `mechanism_change` family.
+pub mod mechanism_change {
+    /// Detail `mechanism_change.parent_covariate_shift`.
+    pub const PARENT_COVARIATE_SHIFT: &str = "mechanism_change.parent_covariate_shift";
+    /// Detail `mechanism_change.population_too_small`.
+    pub const POPULATION_TOO_SMALL: &str = "mechanism_change.population_too_small";
+}
+
 /// Details in the `mechanism_composition` family.
 pub mod mechanism_composition {
     /// Detail `mechanism_composition.artifact_invalid`.
@@ -8671,6 +8703,14 @@ pub mod mechanism_posterior {
     pub const MAPPED_PRIOR: &str = "mechanism_posterior.mapped_prior";
     /// Detail `mechanism_posterior.non_positive_scale`.
     pub const NON_POSITIVE_SCALE: &str = "mechanism_posterior.non_positive_scale";
+}
+
+/// Details in the `mechanism_selection` family.
+pub mod mechanism_selection {
+    /// Detail `mechanism_selection.constraint_contradictory`.
+    pub const CONSTRAINT_CONTRADICTORY: &str = "mechanism_selection.constraint_contradictory";
+    /// Detail `mechanism_selection.family_outcome_mismatch`.
+    pub const FAMILY_OUTCOME_MISMATCH: &str = "mechanism_selection.family_outcome_mismatch";
 }
 
 /// Details in the `mechanism_transport` family.
@@ -10813,6 +10853,12 @@ pub mod signal_provider {
     pub const TRUST_NATIVE_CLAIMED: &str = "signal_provider.trust_native_claimed";
 }
 
+/// Details in the `simulate_refit` family.
+pub mod simulate_refit {
+    /// Detail `simulate_refit.temporal_rollout_required`.
+    pub const TEMPORAL_ROLLOUT_REQUIRED: &str = "simulate_refit.temporal_rollout_required";
+}
+
 /// Details in the `smoothed_dose_posterior` family.
 pub mod smoothed_dose_posterior {
     /// Detail `smoothed_dose_posterior.band_not_constructed`.
@@ -10933,6 +10979,12 @@ pub mod split_effect {
     pub const TOO_FEW_ROWS: &str = "split_effect.too_few_rows";
 }
 
+/// Details in the `structure_posterior` family.
+pub mod structure_posterior {
+    /// Detail `structure_posterior.edge_prior_probability`.
+    pub const EDGE_PRIOR_PROBABILITY: &str = "structure_posterior.edge_prior_probability";
+}
+
 /// Details in the `structured_refusals` family.
 pub mod structured_refusals {
     /// Detail `structured_refusals.malformed_detail`.
@@ -11017,6 +11069,12 @@ pub mod survival_effect {
     pub const TREATMENT_POSITIVITY: &str = "survival_effect.treatment_positivity";
     /// Detail `survival_effect.undeclared_level`.
     pub const UNDECLARED_LEVEL: &str = "survival_effect.undeclared_level";
+}
+
+/// Details in the `synthetic_control_panel` family.
+pub mod synthetic_control_panel {
+    /// Detail `synthetic_control_panel.observed_window_option`.
+    pub const OBSERVED_WINDOW_OPTION: &str = "synthetic_control_panel.observed_window_option";
 }
 
 /// Details in the `temporal_counterfactual` family.
@@ -11537,6 +11595,12 @@ pub mod typed_mechanism_transport {
     pub const TRANSPORT_IDENTITY_MISMATCH: &str = "typed_mechanism_transport.transport_identity_mismatch";
     /// Detail `typed_mechanism_transport.unknown_variable`.
     pub const UNKNOWN_VARIABLE: &str = "typed_mechanism_transport.unknown_variable";
+}
+
+/// Details in the `unit_change` family.
+pub mod unit_change {
+    /// Detail `unit_change.outcome_without_parents`.
+    pub const OUTCOME_WITHOUT_PARENTS: &str = "unit_change.outcome_without_parents";
 }
 
 /// Details in the `vector_posterior` family.

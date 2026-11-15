@@ -176,6 +176,10 @@ class aligned_joint_draws:  # noqa: N801
     OUTCOME_COORDINATE: Final = "aligned_joint_draws.outcome_coordinate"
 
 
+class attribute_refit:  # noqa: N801
+    NOISE_BLOCKS_UNSUPPORTED: Final = "attribute_refit.noise_blocks_unsupported"
+
+
 class batch_retarget:  # noqa: N801
     CANCELLED: Final = "batch_retarget.cancelled"
     CONTRAST_MEMBER_FAILED: Final = "batch_retarget.contrast_member_failed"
@@ -1662,6 +1666,11 @@ class measurement_model:  # noqa: N801
     YOUDEN_TOO_SMALL: Final = "measurement_model.youden_too_small"
 
 
+class mechanism_change:  # noqa: N801
+    PARENT_COVARIATE_SHIFT: Final = "mechanism_change.parent_covariate_shift"
+    POPULATION_TOO_SMALL: Final = "mechanism_change.population_too_small"
+
+
 class mechanism_composition:  # noqa: N801
     ARTIFACT_INVALID: Final = "mechanism_composition.artifact_invalid"
     ARTIFACT_KIND_MISMATCH: Final = "mechanism_composition.artifact_kind_mismatch"
@@ -1816,6 +1825,11 @@ class mechanism_posterior:  # noqa: N801
     EXTERNAL_POWER_PRIOR: Final = "mechanism_posterior.external_power_prior"
     MAPPED_PRIOR: Final = "mechanism_posterior.mapped_prior"
     NON_POSITIVE_SCALE: Final = "mechanism_posterior.non_positive_scale"
+
+
+class mechanism_selection:  # noqa: N801
+    CONSTRAINT_CONTRADICTORY: Final = "mechanism_selection.constraint_contradictory"
+    FAMILY_OUTCOME_MISMATCH: Final = "mechanism_selection.family_outcome_mismatch"
 
 
 class mechanism_transport:  # noqa: N801
@@ -2979,6 +2993,10 @@ class signal_provider:  # noqa: N801
     TRUST_NATIVE_CLAIMED: Final = "signal_provider.trust_native_claimed"
 
 
+class simulate_refit:  # noqa: N801
+    TEMPORAL_ROLLOUT_REQUIRED: Final = "simulate_refit.temporal_rollout_required"
+
+
 class smoothed_dose_posterior:  # noqa: N801
     BAND_NOT_CONSTRUCTED: Final = "smoothed_dose_posterior.band_not_constructed"
     CANCELLED: Final = "smoothed_dose_posterior.cancelled"
@@ -3043,6 +3061,10 @@ class split_effect:  # noqa: N801
     TOO_FEW_ROWS: Final = "split_effect.too_few_rows"
 
 
+class structure_posterior:  # noqa: N801
+    EDGE_PRIOR_PROBABILITY: Final = "structure_posterior.edge_prior_probability"
+
+
 class structured_refusals:  # noqa: N801
     MALFORMED_DETAIL: Final = "structured_refusals.malformed_detail"
     MISSING_STAGE: Final = "structured_refusals.missing_stage"
@@ -3088,6 +3110,10 @@ class survival_effect:  # noqa: N801
     TRAINING_FOLD_WITHOUT_EVENTS: Final = "survival_effect.training_fold_without_events"
     TREATMENT_POSITIVITY: Final = "survival_effect.treatment_positivity"
     UNDECLARED_LEVEL: Final = "survival_effect.undeclared_level"
+
+
+class synthetic_control_panel:  # noqa: N801
+    OBSERVED_WINDOW_OPTION: Final = "synthetic_control_panel.observed_window_option"
 
 
 class temporal_counterfactual:  # noqa: N801
@@ -3387,6 +3413,10 @@ class typed_mechanism_transport:  # noqa: N801
     UNKNOWN_VARIABLE: Final = "typed_mechanism_transport.unknown_variable"
 
 
+class unit_change:  # noqa: N801
+    OUTCOME_WITHOUT_PARENTS: Final = "unit_change.outcome_without_parents"
+
+
 class vector_posterior:  # noqa: N801
     BAND_NOT_CONSTRUCTED: Final = "vector_posterior.band_not_constructed"
     EXTERNAL_POWER_PRIOR: Final = "vector_posterior.external_power_prior"
@@ -3564,6 +3594,7 @@ ALL: Final[tuple[str, ...]] = (
     "aligned_joint_draws.legacy_source",
     "aligned_joint_draws.marginals_not_joint",
     "aligned_joint_draws.outcome_coordinate",
+    "attribute_refit.noise_blocks_unsupported",
     "batch_retarget.cancelled",
     "batch_retarget.contrast_member_failed",
     "batch_retarget.covariance_unavailable",
@@ -4734,6 +4765,8 @@ ALL: Final[tuple[str, ...]] = (
     "measurement_model.unrecognized",
     "measurement_model.variance_not_positive",
     "measurement_model.youden_too_small",
+    "mechanism_change.parent_covariate_shift",
+    "mechanism_change.population_too_small",
     "mechanism_composition.artifact_invalid",
     "mechanism_composition.artifact_kind_mismatch",
     "mechanism_composition.cancelled",
@@ -4837,6 +4870,8 @@ ALL: Final[tuple[str, ...]] = (
     "mechanism_posterior.external_power_prior",
     "mechanism_posterior.mapped_prior",
     "mechanism_posterior.non_positive_scale",
+    "mechanism_selection.constraint_contradictory",
+    "mechanism_selection.family_outcome_mismatch",
     "mechanism_transport.diagram_source_mismatch",
     "mechanism_transport.diagram_target_mismatch",
     "mechanism_transport.duplicate_mechanism",
@@ -5801,6 +5836,7 @@ ALL: Final[tuple[str, ...]] = (
     "signal_provider.sample_size_mismatch",
     "signal_provider.trust_mismatch",
     "signal_provider.trust_native_claimed",
+    "simulate_refit.temporal_rollout_required",
     "smoothed_dose_posterior.band_not_constructed",
     "smoothed_dose_posterior.cancelled",
     "smoothed_dose_posterior.certificate_mismatch",
@@ -5853,6 +5889,7 @@ ALL: Final[tuple[str, ...]] = (
     "split_effect.structure_class",
     "split_effect.structure_unresolved",
     "split_effect.too_few_rows",
+    "structure_posterior.edge_prior_probability",
     "structured_refusals.malformed_detail",
     "structured_refusals.missing_stage",
     "structured_refusals.unregistered_code",
@@ -5888,6 +5925,7 @@ ALL: Final[tuple[str, ...]] = (
     "survival_effect.training_fold_without_events",
     "survival_effect.treatment_positivity",
     "survival_effect.undeclared_level",
+    "synthetic_control_panel.observed_window_option",
     "temporal_counterfactual.artifact_changed",
     "temporal_counterfactual.fit_mismatch",
     "temporal_counterfactual.history_name_invalid",
@@ -6114,6 +6152,7 @@ ALL: Final[tuple[str, ...]] = (
     "typed_mechanism_transport.target_specification_differs",
     "typed_mechanism_transport.transport_identity_mismatch",
     "typed_mechanism_transport.unknown_variable",
+    "unit_change.outcome_without_parents",
     "vector_posterior.band_not_constructed",
     "vector_posterior.external_power_prior",
     "vector_posterior.mapped_prior",
@@ -6291,6 +6330,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "aligned_joint_draws.legacy_source": ("quantity_semantics_mismatch",),
     "aligned_joint_draws.marginals_not_joint": ("joint_law_required",),
     "aligned_joint_draws.outcome_coordinate": ("quantity_semantics_mismatch",),
+    "attribute_refit.noise_blocks_unsupported": ("route_not_supported",),
     "batch_retarget.cancelled": ("cancelled_no_claim",),
     "batch_retarget.contrast_member_failed": ("route_not_supported",),
     "batch_retarget.covariance_unavailable": ("route_not_supported",),
@@ -7471,6 +7511,8 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "measurement_model.unrecognized": ("measurement_model_invalid",),
     "measurement_model.variance_not_positive": ("measurement_not_identified",),
     "measurement_model.youden_too_small": ("measurement_not_identified",),
+    "mechanism_change.parent_covariate_shift": ("invalid_argument",),
+    "mechanism_change.population_too_small": ("invalid_argument",),
     "mechanism_composition.artifact_invalid": ("invalid_argument",),
     "mechanism_composition.artifact_kind_mismatch": ("invalid_argument",),
     "mechanism_composition.cancelled": ("cancelled_no_claim",),
@@ -7604,6 +7646,8 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "mechanism_posterior.external_power_prior": ("route_not_supported",),
     "mechanism_posterior.mapped_prior": ("route_not_supported",),
     "mechanism_posterior.non_positive_scale": ("invalid_argument",),
+    "mechanism_selection.constraint_contradictory": ("invalid_argument",),
+    "mechanism_selection.family_outcome_mismatch": ("invalid_argument",),
     "mechanism_transport.diagram_source_mismatch": ("quantity_semantics_mismatch",),
     "mechanism_transport.diagram_target_mismatch": ("quantity_semantics_mismatch",),
     "mechanism_transport.duplicate_mechanism": ("quantity_semantics_mismatch",),
@@ -8578,6 +8622,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "signal_provider.sample_size_mismatch": ("design_signal_invalid",),
     "signal_provider.trust_mismatch": ("external_binding_mismatch",),
     "signal_provider.trust_native_claimed": ("external_binding_mismatch",),
+    "simulate_refit.temporal_rollout_required": ("option_not_applicable",),
     "smoothed_dose_posterior.band_not_constructed": ("route_not_supported",),
     "smoothed_dose_posterior.cancelled": ("transport_budget_cancel",),
     "smoothed_dose_posterior.certificate_mismatch": ("invalid_argument",),
@@ -8630,6 +8675,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "split_effect.structure_class": ("invalid_argument",),
     "split_effect.structure_unresolved": ("discovered_structure_unresolved",),
     "split_effect.too_few_rows": ("invalid_argument",),
+    "structure_posterior.edge_prior_probability": ("invalid_argument",),
     "structured_refusals.malformed_detail": ("invalid_argument",),
     "structured_refusals.missing_stage": ("invalid_argument",),
     "structured_refusals.unregistered_code": ("invalid_argument",),
@@ -8665,6 +8711,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "survival_effect.training_fold_without_events": ("arm_not_populated",),
     "survival_effect.treatment_positivity": ("positivity_violated",),
     "survival_effect.undeclared_level": ("treatment_level_undeclared",),
+    "synthetic_control_panel.observed_window_option": ("option_not_applicable",),
     "temporal_counterfactual.artifact_changed": ("route_not_supported",),
     "temporal_counterfactual.fit_mismatch": ("invalid_argument",),
     "temporal_counterfactual.history_name_invalid": ("invalid_argument",),
@@ -8895,6 +8942,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "typed_mechanism_transport.target_specification_differs": ("quantity_semantics_mismatch",),
     "typed_mechanism_transport.transport_identity_mismatch": ("quantity_semantics_mismatch",),
     "typed_mechanism_transport.unknown_variable": ("mechanism_composition_incoherent",),
+    "unit_change.outcome_without_parents": ("route_not_supported",),
     "vector_posterior.band_not_constructed": ("route_not_supported",),
     "vector_posterior.external_power_prior": ("route_not_supported",),
     "vector_posterior.mapped_prior": ("route_not_supported",),

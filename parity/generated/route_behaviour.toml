@@ -7752,6 +7752,7 @@ routes = [
 id = "gcm.attribute.mechanism_refit"
 status = "supported"
 refusals = [
+  { code = "route_not_supported", detail = "attribute_refit.noise_blocks_unsupported" },
 ]
 routes = [
   { route = "antecedent.gcm.attribute.fitted_model_point", stage = "evaluate", status = "supported", claim = "point_only" },
@@ -7765,6 +7766,7 @@ routes = [
 id = "gcm.simulate.mechanism_refit"
 status = "supported"
 refusals = [
+  { code = "option_not_applicable", detail = "simulate_refit.temporal_rollout_required" },
 ]
 routes = [
   { route = "antecedent.gcm.simulate.fitted_model_draws", stage = "evaluate", status = "supported", claim = "point_only" },
@@ -7777,6 +7779,8 @@ routes = [
 id = "attribution.mechanism_change_detection"
 status = "supported"
 refusals = [
+  { code = "invalid_argument", detail = "mechanism_change.population_too_small" },
+  { code = "invalid_argument", detail = "mechanism_change.parent_covariate_shift" },
 ]
 routes = [
   { route = "antecedent.attribution.mechanism_change.detection", stage = "evaluate", status = "supported", claim = "none" },
@@ -7787,6 +7791,7 @@ routes = [
 id = "discovery.structure_posterior"
 status = "supported"
 refusals = [
+  { code = "invalid_argument", detail = "structure_posterior.edge_prior_probability" },
 ]
 routes = [
   { route = "antecedent.discovery.search.decision_rule", stage = "evaluate", status = "supported", claim = "none" },
@@ -7799,6 +7804,8 @@ routes = [
 id = "gcm.model.mechanism_selection"
 status = "supported"
 refusals = [
+  { code = "invalid_argument", detail = "mechanism_selection.constraint_contradictory" },
+  { code = "invalid_argument", detail = "mechanism_selection.family_outcome_mismatch" },
 ]
 routes = [
   { route = "antecedent.gcm.mechanism_selection.selection_record", stage = "evaluate", status = "supported", claim = "point_only" },
@@ -7808,6 +7815,7 @@ routes = [
 id = "attribution.unit_change"
 status = "supported"
 refusals = [
+  { code = "route_not_supported", detail = "unit_change.outcome_without_parents" },
 ]
 routes = [
   { route = "antecedent.attribution.unit_change.contributions", stage = "evaluate", status = "supported", claim = "point_only" },
@@ -7832,6 +7840,7 @@ routes = [
 id = "quasi.synthetic_control"
 status = "supported"
 refusals = [
+  { code = "option_not_applicable", detail = "synthetic_control_panel.observed_window_option" },
 ]
 routes = [
   { route = "antecedent.Study.synthetic_control", stage = "evaluate", status = "supported", claim = "point_only" },

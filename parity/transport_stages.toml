@@ -10743,6 +10743,4 @@ notes = "Weighted equal-tailed posterior interval of a contrast after an experim
 
 [[routes]]
 route = "antecedent.Study.synthetic_control"
-stage = "evaluate"
-status = "supported"
 notes = "Point-only synthetic control: the mean post-intervention gap with a descriptive placebo rank and an exact randomization tail; no interval."

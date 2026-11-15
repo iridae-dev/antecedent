@@ -55,7 +55,11 @@ pub fn unit_change(
     let parents: Vec<VariableId> =
         gather.parents.iter().map(|&p| model.output_layout.variables[p.as_usize()]).collect();
     if parents.is_empty() {
-        return Err(AttributionError::unsupported("unit_change requires parents of the outcome"));
+        return Err(AttributionError::refused(
+            antecedent_core::reason_code!("route_not_supported"),
+            "unit_change.outcome_without_parents",
+            "unit_change requires parents of the outcome",
+        ));
     }
     let players: Vec<ComponentId> =
         parents.iter().copied().map(ComponentId::from_variable).collect();
