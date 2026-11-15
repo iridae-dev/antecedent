@@ -14,6 +14,7 @@ from unittest import mock
 import evidence_items as ei
 import evidence_manifests as em
 import narrow_evidence_binding as narrowing
+from _repo import load_toml
 from test_evidence_reach import LIB, ROUTES, SOURCES, TEST, Workspace, inventory
 
 TEST_KEY = "c::t::measures_alpha"
@@ -61,7 +62,7 @@ class NarrowingTests(Workspace):
         return narrowing.run(self.root, "scientific", apply=apply, log_dirs=[], jobs=1, out=io.StringIO())
 
     def cited(self) -> str:
-        return em._repo.load_toml(self.root / REGISTRY)["record"][0]["dependency_manifest"]
+        return load_toml(self.root / REGISTRY)["record"][0]["dependency_manifest"]
 
     def status(self) -> dict:
         em._FILE_DIGESTS.clear()
@@ -72,20 +73,20 @@ class NarrowingTests(Workspace):
         return narrowing.Bound(checker, checker.load(ref)).parts
 
     def test_a_dry_run_counts_and_writes_nothing(self):
-        before = (self.root / REGISTRY).read_text()
+        before = (self.root / REGISTRY).read_text(encoding="utf-8")
         summary = self.run_tool(apply=False)["by_kind"]["scientific"]
         self.assertEqual((summary["current"], summary["migrated"], summary["selection_narrowed"]), (1, 1, 1))
         self.assertLess(summary["mean_items_after"], summary["mean_items_before"])
         self.assertEqual(summary["left_broad"], {})
-        self.assertEqual((self.root / REGISTRY).read_text(), before)
+        self.assertEqual((self.root / REGISTRY).read_text(encoding="utf-8"), before)
         self.assertEqual([p.stem for p in (self.root / em.STORE).iterdir()], [self.old])
 
     def test_the_narrowed_manifest_is_a_subset_and_only_the_address_changes(self):
-        before = (self.root / REGISTRY).read_text()
+        before = (self.root / REGISTRY).read_text(encoding="utf-8")
         self.run_tool(apply=True)
         new = self.cited()
         self.assertNotEqual(new, self.old)
-        self.assertEqual((self.root / REGISTRY).read_text(), before.replace(self.old, new))
+        self.assertEqual((self.root / REGISTRY).read_text(encoding="utf-8"), before.replace(self.old, new))
         self.assertTrue(self.status()["current"])
         new_parts = self.selected(new)
         for rel, parts in new_parts.items():
@@ -104,10 +105,10 @@ class NarrowingTests(Workspace):
 
     def test_a_staged_dry_run_is_applied_without_computing_it_again(self):
         stage = self.root / "stage"
-        before = (self.root / REGISTRY).read_text()
+        before = (self.root / REGISTRY).read_text(encoding="utf-8")
         em._FILE_DIGESTS.clear()
         narrowing.run(self.root, "scientific", apply=False, log_dirs=[], jobs=1, stage=stage, out=io.StringIO())
-        self.assertEqual((self.root / REGISTRY).read_text(), before)
+        self.assertEqual((self.root / REGISTRY).read_text(encoding="utf-8"), before)
         summary = narrowing.apply_staged(self.root, stage, out=io.StringIO())
         self.assertEqual((summary["rebound"], summary["staged"]), (1, 1))
         self.assertNotEqual(self.cited(), self.old)
@@ -141,11 +142,11 @@ class NarrowingTests(Workspace):
 
     def test_a_record_that_is_not_current_is_refused(self):
         self.edit(ROUTES, "q.x + shared(1.0)", "q.x - shared(1.0)")
-        before = (self.root / REGISTRY).read_text()
+        before = (self.root / REGISTRY).read_text(encoding="utf-8")
         summary = self.run_tool(apply=True)
         self.assertEqual(summary["refused_not_current"], 1)
         self.assertEqual(summary["by_kind"], {})
-        self.assertEqual((self.root / REGISTRY).read_text(), before)
+        self.assertEqual((self.root / REGISTRY).read_text(encoding="utf-8"), before)
         self.assertEqual(self.cited(), self.old)
 
     def test_a_kept_item_rebound_after_earning_stays_bound_as_the_manifest_binds_it(self):
@@ -153,7 +154,7 @@ class NarrowingTests(Workspace):
         # holds the earlier text). The narrowed manifest binds the function as the old
         # one does, and the tool says so.
         path = self.build_dir / "source" / ROUTES
-        path.write_text(path.read_text().replace("q.x + shared(1.0)", "q.x * shared(1.0)"), encoding="utf-8")
+        path.write_text(path.read_text(encoding="utf-8").replace("q.x + shared(1.0)", "q.x * shared(1.0)"), encoding="utf-8")
         ei._PARSED.clear()
         summary = self.run_tool(apply=True)["by_kind"]["scientific"]
         self.assertEqual(summary["keeping_items_rebound_since_earning"], 1)
@@ -165,7 +166,7 @@ class NarrowingTests(Workspace):
         # The build's source has a second `alpha` before the bound one: `fn:alpha#0` is a
         # different function there, so the analysis cannot be read against the manifest.
         path = self.build_dir / "source" / ROUTES
-        path.write_text(path.read_text().replace("pub fn alpha", "#[cfg(any())]\nfn alpha() {}\n\npub fn alpha"),
+        path.write_text(path.read_text(encoding="utf-8").replace("pub fn alpha", "#[cfg(any())]\nfn alpha() {}\n\npub fn alpha"),
                         encoding="utf-8")
         ei._PARSED.clear()
         summary = self.run_tool(apply=True)["by_kind"]["scientific"]
@@ -272,7 +273,7 @@ class IncludedFileTests(unittest.TestCase):
         narrowing.run(self.root, "scientific", apply=True, log_dirs=[], jobs=1, out=io.StringIO())
         em._FILE_DIGESTS.clear()
         checker = em.Checker(self.root, {})
-        ref = em._repo.load_toml(self.root / REGISTRY)["record"][0]["dependency_manifest"]
+        ref = load_toml(self.root / REGISTRY)["record"][0]["dependency_manifest"]
         return next((e for e in checker.load(ref)["inputs"] if e.get("path") == self.HELPERS), None)
 
     def current(self) -> bool:
@@ -307,13 +308,13 @@ class IncludedFileTests(unittest.TestCase):
             self.write(f"{em.INPUT_GROUPS}/{address}.json", data.decode())
         ref = em.manifest_id(stored)
         self.write(f"{em.STORE}/{ref}.json", em.canonical(stored).decode())
-        self.write(REGISTRY, (self.root / REGISTRY).read_text().replace(self.old, ref))
+        self.write(REGISTRY, (self.root / REGISTRY).read_text(encoding="utf-8").replace(self.old, ref))
         self.assertEqual(self.rebind()["kind"], "rust_items")
         self.assertTrue(self.current())
 
     def test_a_name_that_means_another_item_in_the_built_source_keeps_the_file_whole(self):
         path = self.build.source / self.HELPERS
-        path.write_text("#[cfg(any())]\nfn used() {}\n\n" + path.read_text(), encoding="utf-8")
+        path.write_text("#[cfg(any())]\nfn used() {}\n\n" + path.read_text(encoding="utf-8"), encoding="utf-8")
         ei._PARSED.clear()
         self.assertEqual(self.rebind()["kind"], "evidence_file")
         self.assertTrue(self.current())

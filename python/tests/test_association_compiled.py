@@ -158,13 +158,18 @@ def test_correlations_and_a_scored_predictive_model() -> None:
         )
     )
 
-    # Sample distance correlation (V-statistic) from double-centred distance matrices.
-    def centred(v: np.ndarray) -> np.ndarray:
+    # Bias-corrected distance correlation (Szekely and Rizzo 2014): U-centred distance
+    # matrices (zero diagonal), R = <A, B> / sqrt(<A, A> <B, B>), point sqrt(max(R, 0)).
+    def u_centred(v: np.ndarray) -> np.ndarray:
+        n = len(v)
         d = np.abs(v[:, None] - v[None, :])
-        return d - d.mean(axis=0) - d.mean(axis=1)[:, None] + d.mean()
+        rows, total = d.sum(axis=1), d.sum()
+        u = d - rows[:, None] / (n - 2) - rows[None, :] / (n - 2) + total / ((n - 1) * (n - 2))
+        np.fill_diagonal(u, 0.0)
+        return u
 
-    a, b = centred(data["x"]), centred(data["y"])
-    dcor = np.sqrt(np.mean(a * b) / np.sqrt(np.mean(a * a) * np.mean(b * b)))
+    a, b = u_centred(data["x"]), u_centred(data["y"])
+    dcor = np.sqrt(max(np.sum(a * b) / np.sqrt(np.sum(a * a) * np.sum(b * b)), 0.0))
     assert distance.terms[0].estimate == pytest.approx(dcor, abs=1e-9)
     scored = _association(
         require_success(

@@ -458,7 +458,9 @@ def test_resampled_augmented_panel_publishes_its_standard_error():
     section = require_success(antecedent.analyze(data, query=query)).panel_did
     assert section.standard_error is not None and section.standard_error > 0.0
     assert section.interval_95 is not None
-    half = 1.959963984540054 * section.standard_error
-    assert section.interval_95[0] == pytest.approx(section.estimate - half, rel=1e-9, abs=1e-12)
-    assert section.interval_95[1] == pytest.approx(section.estimate + half, rel=1e-9, abs=1e-12)
+    # The resample standard error comes from 199 refits, so the interval is the Student-t
+    # quantile on 198 degrees of freedom (1.97202), not the normal 1.95996.
+    lower, upper = section.interval_95
+    assert section.estimate - lower == pytest.approx(upper - section.estimate, rel=1e-9)
+    assert (upper - section.estimate) / section.standard_error == pytest.approx(1.97202, abs=1e-4)
     assert section.estimate == pytest.approx(2.0, abs=0.3)

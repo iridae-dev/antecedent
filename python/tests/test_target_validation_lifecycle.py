@@ -242,15 +242,16 @@ def test_failed_suite_cannot_claim_pass_by_vacuous_truth():
     assert replace(report, reports=()).passed is None
 
 
-def test_insufficient_vector_replicates_are_a_scientific_refusal_with_exact_next_actions():
+def test_too_few_requested_vector_replicates_are_raised_to_a_defined_reference():
+    # Three refits cannot estimate the covariance of a 5-coordinate target. On independent rows
+    # the refuters draw as many as the finite-resampling reference needs (at least k + 2)
+    # instead of refusing the check.
     study = ant.reconfigure(_static(), query=ant.ResponseCurve("x", "y", grid=[-2, -1, 0, 1, 2]))
-    result = v.refute_target(study, checks=v.TargetRefutationSpec(suite="cheap", replicates=3))
-    assert result.refusal is not None
-    assert result.refusal.code == "route_not_supported"
-    assert result.refusal.detail == "target_refutation.no_applicable_refuters"
-    assert result.refusal.causes
-    assert all("5-coordinate" in cause["message"] for cause in result.refusal.causes)
-    assert all("7" in action["action"] for action in result.refusal.next_actions)
+    report = require_success(
+        v.refute_target(study, checks=v.TargetRefutationSpec(suite="cheap", replicates=3))
+    )
+    assert report.reports
+    assert all(item.replicates >= 7 for item in report.reports)
 
 
 def test_independently_loaded_outcome_cannot_reconstruct_a_live_refit():

@@ -626,7 +626,7 @@ def retained_regions(root: Path, log_dirs: list[Path]) -> dict[str, tuple[str, d
             regions: dict[str, set] = {}
             try:
                 for stem in stems:
-                    for source, points in json.loads((log_dir / f"{stem}.coverage.json").read_text()).items():
+                    for source, points in json.loads((log_dir / f"{stem}.coverage.json").read_text(encoding="utf-8")).items():
                         regions.setdefault(source, set()).update(tuple(p) for p in points)
             except (OSError, ValueError):
                 continue
