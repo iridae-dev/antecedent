@@ -124,6 +124,34 @@ class NarrowingTests(Workspace):
         self.assertEqual(summary["rebound"], 0)
         self.assertEqual(self.cited(), self.old)
 
+    def test_rebinding_recipes_only_leaves_the_rust_selection_as_it_is(self):
+        before = (self.root / REGISTRY).read_text()
+        summary = narrowing.run(self.root, "scientific", apply=True, log_dirs=[], jobs=1, out=io.StringIO(),
+                                recipes_only=True)["by_kind"]["scientific"]
+        self.assertEqual((summary["current"], summary["migrated"], summary["selection_narrowed"]), (1, 0, 0))
+        self.assertEqual(summary["left_broad"], {})
+        self.assertEqual((self.root / REGISTRY).read_text(), before)
+
+    def test_a_recipe_bound_by_its_bytes_is_rebound_by_what_it_says(self):
+        from types import SimpleNamespace
+        recipe = "nix/evidence-target.nix"
+        self.write(recipe, "{ a = 1; } # a comment\n")
+        checker = em.Checker(self.root, {})
+        raw = checker.input_digest("file", recipe)
+        manifest = {"nix_build": {}}
+        platform = SimpleNamespace(recipes=(recipe,), policy_sources=())
+        entry = {"kind": "evidence_file", "path": recipe, "role": "external", "digest": raw}
+        with mock.patch("evidence_platforms.receipt_platform", lambda receipt: platform):
+            inputs, moved = narrowing.recipes_by_content(self.root, checker, manifest, [entry])
+            self.assertEqual((moved, inputs[0]["kind"], inputs[0]["raw"]), (1, "build_recipe", raw))
+            # Bytes that no longer match what the manifest bound are not rebound.
+            stale = dict(entry, digest="0" * 64)
+            self.assertEqual(narrowing.recipes_by_content(self.root, checker, manifest, [stale]), ([stale], 0))
+        # A comment edited afterwards owes nothing: the content digest is the same.
+        self.write(recipe, "# edited\n{ a = 1; }\n")
+        em._FILE_DIGESTS.clear()
+        self.assertTrue(em.Checker(self.root, {}).recipe_current(inputs[0]))
+
     def test_a_narrowed_record_is_left_as_it_is(self):
         self.run_tool(apply=True)
         cited = self.cited()

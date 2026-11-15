@@ -6,6 +6,7 @@
     python3 scripts/narrow_evidence_binding.py --logs DIR ...  # also cross-check retained runs
     python3 scripts/narrow_evidence_binding.py --stage DIR     # dry run, keeping its manifests
     python3 scripts/narrow_evidence_binding.py --stage DIR --apply   # rebind from that dry run
+    python3 scripts/narrow_evidence_binding.py --recipes-only --apply   # recipes only; Rust selections stay
 
 A record's manifest lists the inputs its measurement was bound to. Three of them bind
 more than the measurement can depend on:
@@ -522,7 +523,7 @@ def _plan(root: Path, checker: Checker, build: Build, bound: Bound, manifest: di
 
 
 def narrow(root: Path, checker: Checker, binding: dict, ref: str, test: str, *, kind: str,
-           regions: dict | None = None, write: Path | None = None) -> dict:
+           regions: dict | None = None, write: Path | None = None, recipes_only: bool = False) -> dict:
     """Narrow one current record: its new manifest address and counts. `kept` says why the
     Rust selection stayed as it was (if it did). The manifest is stored under `write` (the
     repository, or a staging directory laid out like it) when one is given."""
@@ -532,6 +533,8 @@ def narrow(root: Path, checker: Checker, binding: dict, ref: str, test: str, *, 
     inputs, tables, whole = manifest["inputs"], {}, manifest.get("whole_sources", [])
     build = None
     try:
+        if recipes_only:
+            raise Kept("only the recipes were rebound")
         build = build_of(manifest)
         sliced = _sliced(kind, manifest)
         key = digest(canonical([test, sliced, [entry for entry in manifest["inputs"]
@@ -556,7 +559,7 @@ def narrow(root: Path, checker: Checker, binding: dict, ref: str, test: str, *, 
         inputs += [entry for key, entry in changes.items() if key not in present]
         inputs = [entry for entry in inputs if entry is not _DROP]
     except Kept as kept:
-        result["kept"] = str(kept)
+        result["kept"] = None if recipes_only else str(kept)
         inputs, tables, whole = manifest["inputs"], {}, manifest.get("whole_sources", [])
     result["before"] = bound.count(build)
     inputs, result["recipes"] = recipes_by_content(root, checker, manifest, inputs)
@@ -646,7 +649,8 @@ def _one(index: int) -> dict:
     if held is not None and held[0] == (manifest.get("nix_build") or {}).get("artifact", {}).get("output"):
         regions = held[1]
     try:
-        result = narrow(root, checker, binding, ref, test, kind=kind, regions=regions, write=_WORK["write"])
+        result = narrow(root, checker, binding, ref, test, kind=kind, regions=regions, write=_WORK["write"],
+                        recipes_only=_WORK["recipes_only"])
     except Exception as error:  # one record's failure leaves that record as it is
         result = {"old": ref, "new": ref, "kept": f"not narrowed: {type(error).__name__}: {error}"[:200],
                   "compared": None, "rebound_files": 0, "before": 0, "after": 0, "recipes": 0}
@@ -660,7 +664,7 @@ STAGED = "narrowing.json"
 
 
 def run(root: Path, kind: str, *, apply: bool, log_dirs: list[Path], jobs: int, only: str | None = None,
-        stage: Path | None = None, out=sys.stdout) -> dict:
+        stage: Path | None = None, out=sys.stdout, recipes_only: bool = False) -> dict:
     """Narrow every current record. A dry run writes nothing, or, with `stage`, writes the
     new manifests and the address each record would cite under that directory, from which
     `apply_staged` rebinds the records without computing them again."""
@@ -676,7 +680,7 @@ def run(root: Path, kind: str, *, apply: bool, log_dirs: list[Path], jobs: int, 
     if stage is not None:
         stage.mkdir(parents=True, exist_ok=True)
     _WORK.update(root=root, checker=checker, items=current, retained=retained_regions(root, log_dirs),
-                 write=root if apply else stage)
+                 recipes_only=recipes_only, write=root if apply else stage)
     print(f"{len(current)} current record(s) to narrow, {len(refused)} refused", file=sys.stderr, flush=True)
     if jobs > 1 and len(current) > 1:
         import multiprocessing
@@ -760,11 +764,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--only", help="only records whose key contains this text")
     parser.add_argument("--stage", type=Path,
                         help="a directory: a dry run keeps its manifests there; with --apply, rebind from it")
+    parser.add_argument("--recipes-only", action="store_true",
+                        help="rebind only the recipes and policy code by content; leave every Rust selection as it is")
     args = parser.parse_args(argv)
     if args.apply and args.stage is not None:
         apply_staged(ROOT, args.stage)
     else:
-        run(ROOT, args.kind, apply=args.apply, log_dirs=args.logs, jobs=args.jobs, only=args.only, stage=args.stage)
+        run(ROOT, args.kind, apply=args.apply, log_dirs=args.logs, jobs=args.jobs, only=args.only, stage=args.stage,
+            recipes_only=args.recipes_only)
     return 0
 
 
