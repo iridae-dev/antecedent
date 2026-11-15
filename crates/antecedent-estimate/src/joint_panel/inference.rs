@@ -95,14 +95,23 @@ pub(super) fn log_likelihood_score(
     if data.family.spatial.is_some() {
         return numerical_score(x, ctx, &|values| likelihood::log_likelihood(data, values));
     }
-    checked_score(super::gradient::independent_score(data, x, &[x.to_vec()], &|_| 0).map(|score| {
-        score
-            .shared
-            .iter()
-            .zip(&score.slots[0])
-            .map(|(shared, mechanism)| shared + mechanism)
-            .collect()
-    }))
+    let exact: Option<Vec<f64>> =
+        super::gradient::independent_score(data, x, &[x.to_vec()], &|_| 0).map(|score| {
+            score
+                .shared
+                .iter()
+                .zip(&score.slots[0])
+                .map(|(shared, mechanism)| shared + mechanism)
+                .collect()
+        });
+    // A degenerate design (an innovation or intercept scale at its clamp, a perfectly flat
+    // outcome) can overflow an exact derivative whose objective is still finite. The
+    // central-difference score is the reference behaviour there, so it is used for that
+    // evaluation only.
+    match exact {
+        Some(score) if score.iter().all(|value| value.is_finite()) => Ok(score),
+        _ => numerical_score(x, ctx, &|values| likelihood::log_likelihood(data, values)),
+    }
 }
 /// The shared optimizer; only the source of the score differs between callers.
 pub(super) fn optimize_target_with_score(

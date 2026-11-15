@@ -568,7 +568,12 @@ fn fit_candidates(
             if data.family.spatial.is_some() {
                 inference::numerical_score(values, ctx, &function)
             } else {
-                inference::checked_score(score(data, spec, &choice, values))
+                // An exact derivative that overflows on a degenerate design (finite objective)
+                // falls back to central differences for that evaluation, as the static fit does.
+                match score(data, spec, &choice, values) {
+                    Some(exact) if exact.iter().all(|value| value.is_finite()) => Ok(exact),
+                    _ => inference::numerical_score(values, ctx, &function),
+                }
             }
         };
         match inference::optimize_target_with_score(
