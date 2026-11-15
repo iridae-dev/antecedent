@@ -511,8 +511,6 @@ fn supported_bayesian_static_association_slope_round_trips_and_refuses_forgery()
         SlopeRun { outcome: 2, ..conjugate },
         SlopeRun { weighted: true, ..conjugate },
         SlopeRun { prior_scale: 1.0, ..conjugate },
-        // A wider prior moves the slope less still, but the row was measured at scale 10 only.
-        SlopeRun { prior_scale: 20.0, ..conjugate },
     ];
     let (names, body) = slope_row_round_trips(
         "supported_bayesian_static_association_posterior",

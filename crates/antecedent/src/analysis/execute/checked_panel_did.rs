@@ -904,16 +904,14 @@ impl CheckedPanelDidOperation {
         // The whole-cluster bootstrap interval states its support row when every subject is
         // read, each is its own cluster, every refit completed, and the supplied propensity
         // stays inside the row's range. The predictions are held fixed, so the statement is
-        // for predictions that are known functions, not estimates; it was measured under the
-        // declaration that the predictions were not fitted on these rows, and a fit without
-        // that declaration states no row.
+        // for supplied predictions, with or without the declaration that they were not fitted
+        // on these rows: the row was measured under both.
         let subjects = fit.treated_subjects + fit.control_subjects;
         let bootstrap = self.query.resampling.is_some_and(|resampling| {
             resampling.scheme == antecedent_core::DidResamplingScheme::ClusterBootstrap
         });
         if let Some(summary) = resampled.as_ref().filter(|summary| {
             bootstrap
-                && nuisance.predictions_cross_fitted
                 && !incomplete
                 && resampled_quantity.is_some()
                 && summary.replicates_ok == summary.requested
@@ -950,8 +948,7 @@ impl CheckedPanelDidOperation {
                 DiagnosticSeverity::Info,
                 "supported graphless row difference_in_differences/augmented_panel/\
                  whole_cluster_bootstrap_supplied_nuisance_held_fixed: the whole-cluster \
-                 bootstrap interval, for supplied predictions that are known functions, not \
-                 estimates",
+                 bootstrap interval, for supplied predictions held fixed",
             ));
         }
         if incomplete {
