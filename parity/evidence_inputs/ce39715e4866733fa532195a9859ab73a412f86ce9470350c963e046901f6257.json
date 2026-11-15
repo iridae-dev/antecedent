@@ -1,0 +1,1 @@
+[{"digest":"ce1e9c62cb1d6120151cb2c001ed3211868370652af5cf1d9b83bb51b8634ae1","file":"0403758f56684fdf88399c8d98a515c6f10da46262c9d42ab99b03a93db2b060","kind":"rust_items","path":"crates/antecedent/tests/response_facade.rs","role":"compile","scopes":[[[],true]],"select":{"full":[20,21,22,23]},"table":"ba31ee42a7441e8f2d61242351f43d844ab836c9b041ebe73e51cab6187ac864"}]
