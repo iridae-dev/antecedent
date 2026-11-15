@@ -729,6 +729,13 @@ def gate_ledger(logs: list[Path], sha: str) -> dict[str, dict]:
             "passed": passed,
             "calibration_sha": sha,
         }
+        capture = log.with_name(log.name.removesuffix(".log") + ".coverage.json")
+        if capture.is_file():
+            import gate_carry
+
+            files = gate_carry.executed_files(json.loads(read_text(capture)))
+            if files:
+                rows[log.name.removesuffix(".log")]["executed_files"] = files
         raw = [
             {"log": name, **row, "record_id": row["record_id"] or ""}
             for name in sorted(
@@ -770,7 +777,7 @@ def write_gate_ledger(rows: dict[str, dict], keep: dict[str, dict] | None = None
             f"passed = {int(row['passed'])}",
             f"calibration_sha = {toml_value('calibration_sha', row['calibration_sha'])}",
         ]
-        for optional in ("decision_protocol", "coverage_decisions"):
+        for optional in ("decision_protocol", "coverage_decisions", "executed_files"):
             if optional in row:
                 lines.append(f"{optional} = {toml_value(optional, row[optional])}")
         if "protocol" in row:
