@@ -184,6 +184,7 @@ impl SupportedWire for PanelDidEstimate {
                 .collect(),
             event_time_intervals_95: self.event_time_intervals_95.to_vec(),
             augmented: self.augmented,
+            replicates_ok: self.replicates_ok,
         }
     }
 }

@@ -281,38 +281,26 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
                     && se > 0.0 =>
             {
                 // The whole-cluster resample interval: the point with its resample standard
-                // error and a Student reference on the completed refit count (the normal
-                // quantile when too few refits completed for one), never published as the
-                // scalar's. The completed count is not stored, so the radius must match the
-                // reference of some count the declared replicates allow.
+                // error and the Student reference on the completed refit count the payload
+                // carries (the normal quantile only when fewer than two refits completed),
+                // never published as the scalar's.
                 let requested =
                     query.resampling.as_ref().map_or(0, |resampling| resampling.replicates);
-                let radius_matches = |radius: f64| {
+                let radius = match did.replicates_ok {
+                    Some(completed) if (2..=requested).contains(&completed) => Some(
+                        antecedent_stats::special::student_t_ppf(0.975, f64::from(completed - 1))
+                            * se,
+                    ),
+                    Some(completed) if completed < 2 => Some(antecedent_stats::NORMAL_Q975 * se),
+                    _ => None,
+                };
+                radius.is_some_and(|radius| {
                     let tolerance =
-                        interval_bound_replay(INTERVAL_BOUND_RELATIVE_LOOSE, did.effect, radius);
-                    tolerance.close(bounds[0], did.effect - radius)
+                        interval_bound_replay(INTERVAL_BOUND_RELATIVE, did.effect, radius);
+                    bounds.iter().all(|value| value.is_finite())
+                        && tolerance.close(bounds[0], did.effect - radius)
                         && tolerance.close(bounds[1], did.effect + radius)
-                };
-                let critical_at = |completed: u32| {
-                    antecedent_stats::special::student_t_ppf(0.975, f64::from(completed - 1)) * se
-                };
-                let observed = (bounds[1] - bounds[0]) / 2.0;
-                let (mut low, mut high) = (2_u32, requested.max(2));
-                while low < high {
-                    let mid = low + (high - low) / 2;
-                    if critical_at(mid) > observed {
-                        low = mid + 1;
-                    } else {
-                        high = mid;
-                    }
-                }
-                let student_matches = requested >= 2
-                    && [low.saturating_sub(1).max(2), low]
-                        .into_iter()
-                        .any(|completed| radius_matches(critical_at(completed)));
-                bounds.iter().all(|value| value.is_finite())
-                    && (student_matches || radius_matches(antecedent_stats::NORMAL_Q975 * se))
-                    && result.standard_error.is_none()
+                }) && result.standard_error.is_none()
                     && did.graphless_support_status.is_none()
             }
             (None, _) => {
@@ -406,6 +394,7 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
         || !event_study_valid
         || !event_intervals_valid
         || !augmented_valid
+        || (query.augmented.is_none() && did.replicates_ok.is_some())
         || !graphless_status_ok(did.graphless_support_status.as_deref(), did_supported, true)
         || (query.repeated_cross_section
             && (duplicate_subject

@@ -85,6 +85,7 @@ fn panel_did_result_artifact_round_trips_design_uncertainty_semantics() {
         event_time_effects: vec![],
         event_time_intervals_95: vec![],
         augmented: None,
+        replicates_ok: None,
     });
     let encoded = encode_analysis_result_artifact(
         &result,
@@ -126,6 +127,7 @@ fn repeated_cross_section_did_result_round_trips_without_interval() {
         event_time_effects: vec![],
         event_time_intervals_95: vec![],
         augmented: None,
+        replicates_ok: None,
     });
     let encoded = encode_analysis_result_artifact(
         &result,
@@ -197,6 +199,7 @@ fn staggered_did_result_round_trips_selected_cohort_counts_without_interval() {
         event_time_effects: vec![],
         event_time_intervals_95: vec![],
         augmented: None,
+        replicates_ok: None,
     });
     let encoded = encode_analysis_result_artifact(
         &result,

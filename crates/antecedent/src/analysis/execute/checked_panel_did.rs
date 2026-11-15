@@ -495,6 +495,7 @@ impl CheckedPanelDidOperation {
             }),
             event_time_effects: Arc::from([]),
             event_time_intervals_95: Arc::from([]),
+            replicates_ok: None,
             augmented: None,
         });
         if crate::support::support_if_graphless(
@@ -893,6 +894,7 @@ impl CheckedPanelDidOperation {
             }),
             event_time_effects: Arc::from([]),
             event_time_intervals_95: Arc::from([]),
+            replicates_ok: resampled.as_ref().map(|summary| summary.replicates_ok),
             augmented: Some((
                 fit.propensity_min,
                 fit.propensity_max,
@@ -1049,6 +1051,7 @@ impl CheckedPanelDidOperation {
             }),
             event_time_effects: effects.into(),
             event_time_intervals_95: event_time_intervals_95.into(),
+            replicates_ok: None,
             augmented: None,
         });
         if graphless_supported {
@@ -1136,6 +1139,7 @@ impl CheckedPanelDidOperation {
             uncertainty: Arc::from("cluster_robust_standard_error_no_interval"),
             event_time_effects: Arc::from([]),
             event_time_intervals_95: Arc::from([]),
+            replicates_ok: None,
             augmented: None,
         });
         result.treatment = None;
@@ -1220,6 +1224,7 @@ impl CheckedPanelDidOperation {
             }),
             event_time_effects: Arc::from([]),
             event_time_intervals_95: Arc::from([]),
+            replicates_ok: None,
             augmented: None,
         });
         if crate::support::support_if_graphless(

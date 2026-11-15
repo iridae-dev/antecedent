@@ -588,6 +588,9 @@ pub struct PanelDidWire {
     /// Propensity range, effective control count, and caller cross-fit declaration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub augmented: Option<(f64, f64, f64, bool)>,
+    /// Completed whole-cluster refits behind a resample interval.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replicates_ok: Option<u32>,
 }
 
 /// Synthetic-control point result and donor-support diagnostics.
