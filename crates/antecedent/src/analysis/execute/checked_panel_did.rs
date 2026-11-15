@@ -409,6 +409,10 @@ impl CheckedPanelDidOperation {
         Ok(missing_data::report(MissingRoute::Panel, declared, Arc::from([]), accounting))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the panel fit and its published section are built in one pass"
+    )]
     fn execute_rows(
         &self,
         data: &TabularData,
