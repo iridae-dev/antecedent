@@ -30,6 +30,17 @@
 //!   and replicates centred at it (unbiased procedure): the same bound. A subset window must
 //!   keep that centring, so series windows are circular (every period equally often); a window
 //!   confined to the series over-weights the middle and is not centred on the original.
+//! * The subset refuter also asks what the replicate mean cannot show: whether dropping a small
+//!   share of units moves the refit far beyond the spread among subsets. A deciding unit splits
+//!   the refits into those that kept it and those that dropped it, with the full-data estimate
+//!   in neither group, and the mixture mean sits at the original. Per coordinate, the largest
+//!   gap between a lower and an upper group (each at least a tenth of the refits) that contains
+//!   the original, in pooled within-group standard deviations, is the separation; the refuter
+//!   also rejects when it exceeds 8 (`target_native::reference::subset_separation`). The
+//!   separation of refits from a smooth or skewed procedure stays well below that (under 3 for
+//!   normal refits, at most 0.3% above 8 for a log-normal with scale 1.5, simulated), so the
+//!   null rate is still bounded by `alpha`, while one deciding unit separates the groups by more
+//!   than ten spreads.
 //! * Negative-control and pre-trend refuters have `e = 0` and replicates that are resamples of
 //!   the data. `m` is then the sample estimate of a truly zero effect and `S` the resampling
 //!   spread of one replicate, so `D^2` is the squared standardised estimate on `k` degrees of

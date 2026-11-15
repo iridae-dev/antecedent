@@ -4501,6 +4501,7 @@ pub variant antecedent_validate::staleness::implications::GraphImplications::Una
 pub variant antecedent_validate::target_native::JointStatisticKind::BreakEven
 pub variant antecedent_validate::target_native::JointStatisticKind::MahalanobisChiSquare
 pub variant antecedent_validate::target_native::JointStatisticKind::MahalanobisHotelling
+pub variant antecedent_validate::target_native::JointStatisticKind::MahalanobisHotellingWithSeparation
 pub variant antecedent_validate::target_native::JointStatisticKind::MaxStandardizedDiscrepancy
 pub variant antecedent_validate::target_native::JointStatisticKind::PosteriorShift
 pub variant antecedent_validate::target_native::JointStatisticKind::PredictiveTail

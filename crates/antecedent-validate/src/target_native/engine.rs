@@ -18,7 +18,9 @@ use antecedent_core::{
 };
 
 use super::joint::{JointStatisticKind, joint_mahalanobis_with_bias};
-use super::reference::{replicate_reference_tail, replicates_for_defined_reference};
+use super::reference::{
+    replicate_reference_tail, replicates_for_defined_reference, separation_tail, subset_separation,
+};
 use super::{
     RefutationTarget, RefuterExpectation, TargetFamily, TargetRefutationPlan,
     TargetRefutationReport, TargetRefuterKind,
@@ -445,6 +447,17 @@ fn replicate_check(
         });
     };
     statistic.kind = JointStatisticKind::MahalanobisHotelling;
+    let mut tail = tail;
+    // Subset stability also asks whether the refits split into groups around the original (a
+    // deciding unit kept or dropped), which no statistic of the replicate mean can see; see
+    // `reference::subset_separation`.
+    let mut separation = None;
+    if kind == TargetRefuterKind::SubsetStability {
+        let value = subset_separation(refit.original(), &rows, k);
+        statistic.kind = JointStatisticKind::MahalanobisHotellingWithSeparation;
+        tail = tail.min(separation_tail(value, config.alpha));
+        separation = Some(value);
+    }
     statistic.p_value = Some(tail);
     let mut refuted = vec![0.0; k];
     for row in rows.chunks_exact(k) {
@@ -460,7 +473,7 @@ fn replicate_check(
     let failure = (!passed).then(|| {
         Arc::from(format!(
             "`{}`: the {} vector is further from the replicate centre than the tolerance \
-             (standardised discrepancy {:.4} on {} df, reference tail {p:.4} < {}); a resampling \
+             (standardised discrepancy {:.4} on {} df, reference tail {p:.4} < {}{}); a resampling \
              diagnostic, not a hypothesis test",
             kind.as_str(),
             match expectation {
@@ -469,7 +482,14 @@ fn replicate_check(
             },
             statistic.value,
             statistic.df,
-            config.alpha
+            config.alpha,
+            separation.filter(|value| *value > super::reference::SEPARATION_THRESHOLD).map_or(
+                String::new(),
+                |value| format!(
+                    "; the refits split into groups around the original, {value:.1} within-group \
+                     spreads apart"
+                )
+            )
         ))
     });
     Ok(TargetRefutationReport {
