@@ -479,8 +479,6 @@ fn executes(status: &str) -> bool {
 /// per-completion posteriors) reports resampling or an analytic enclosure; a programme
 /// (discovery, a decision search, an audit) has no interval of its own.
 const NOT_AN_ORDINARY_POSTERIOR: &[(&str, &str)] = &[
-    ("P05.static.bayesian", "none"),
-    ("P05.temporal.bayesian", "none"),
     ("P07.curve.temporal.bayesian", "analytic"),
     ("P07.derivative.temporal.bayesian", "design_aware_resampling"),
     ("P12.counterfactual.temporal.bayesian", "design_aware_resampling"),

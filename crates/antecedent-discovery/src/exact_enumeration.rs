@@ -428,6 +428,7 @@ mod tests {
         let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
         let data = TabularData::new(storage);
         let err = ExactDagPosterior::new()
+            .with_route_larger(false)
             .infer_graphs(
                 &data,
                 &vars,
