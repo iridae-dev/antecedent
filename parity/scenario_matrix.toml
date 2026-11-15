@@ -3611,21 +3611,7 @@ what = "the temporal conditional pulse and sustained effects on a temporal DAG r
 [[cell]]
 family = "P05"
 axis = "uncertainty"
-value = "static.bayesian"
-status = "unavailable"
-reason = "the product is a discovered graph, a discrete structure with no sampling interval or posterior of its own; uncertainty about the structure enters an effect through the accepted-graph or graph-posterior structures of the effect routes, which publish the effect interval"
-
-[[cell]]
-family = "P05"
-axis = "uncertainty"
 value = "static.frequentist"
-status = "unavailable"
-reason = "the product is a discovered graph, a discrete structure with no sampling interval or posterior of its own; uncertainty about the structure enters an effect through the accepted-graph or graph-posterior structures of the effect routes, which publish the effect interval"
-
-[[cell]]
-family = "P05"
-axis = "uncertainty"
-value = "temporal.bayesian"
 status = "unavailable"
 reason = "the product is a discovered graph, a discrete structure with no sampling interval or posterior of its own; uncertainty about the structure enters an effect through the accepted-graph or graph-posterior structures of the effect routes, which publish the effect interval"
 
