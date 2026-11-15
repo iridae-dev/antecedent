@@ -204,20 +204,6 @@ impl CorrectionMethod {
         }
     }
 
-    /// Whether an explicitly chosen extrapolant is known to be biased for a linear outcome model
-    /// under classical error, whose path is exactly rational: a polynomial then leaves a bias
-    /// that no variance of the procedure accounts for, so no interval is published for it.
-    fn extrapolant_biased_for(&self, link: OutcomeLink) -> bool {
-        matches!(link, OutcomeLink::Identity)
-            && matches!(
-                self,
-                Self::Simex {
-                    extrapolant: SimexExtrapolant::Linear | SimexExtrapolant::Quadratic,
-                    ..
-                }
-            )
-    }
-
     fn simex_config(&self) -> Option<SimexConfig> {
         match self {
             Self::RegressionCalibration => None,
@@ -1037,9 +1023,7 @@ fn bootstrapped(
         functional_id: &functional_id,
         point: point.coefficients[index],
         naive_point: Some(point.naive[index]),
-        // A polynomial extrapolant of a linear model's exactly rational path is biased; the
-        // point is returned and the interval is withheld (`route_not_supported`).
-        variance: (!spec.method.extrapolant_biased_for(spec.link)).then_some(total),
+        variance: Some(total),
         components,
         rows: cols.n as u64,
         data_identity: data_identity(cols),

@@ -935,8 +935,9 @@ class ContinuousErrorData:
     ``link`` is ``"identity"`` (linear) or ``"logit"`` (0/1 outcome). ``method`` is
     ``"regression_calibration"`` or ``"simex"`` (grid ``simex_lambdas`` plus ``0``,
     ``simex_replicates`` remeasurements per value, ``extrapolant`` ``"automatic"`` (rational for
-    ``"identity"``, quadratic for ``"logit"``), ``"rational"``, ``"quadratic"`` or ``"linear"``; a
-    quadratic or linear choice on an identity link returns the point without an interval).
+    ``"identity"``, quadratic for ``"logit"``), ``"rational"``, ``"quadratic"`` or ``"linear"``;
+    an explicit polynomial choice on an identity link centres its interval on the polynomial
+    extrapolation limit, not the structural coefficient).
     Logistic calibration and SIMEX report a bootstrap standard error over
     ``bootstrap_replicates`` (at least 50) resamples of the whole procedure, keyed by ``seed``.
 
