@@ -216,7 +216,7 @@ def test_a_linear_horizon_interval_brackets_the_composed_point_and_a_peak_has_no
         assert contrast.horizons == tuple(_HORIZONS)
         assert contrast.coordinate.endswith("|horizons=1,2")
         assert contrast.level == pytest.approx(0.95)
-        assert contrast.construction.startswith("block")
+        assert contrast.construction.startswith("horizon_block")
         total = result.horizon_interval([1.0, 1.0], dose_index=1)
         assert total.center == pytest.approx(cells[2] + cells[3], rel=1e-9)
         assert total.lower < total.center < total.upper

@@ -3815,7 +3815,6 @@ pub fn antecedent_validate::target_native::posterior_predictive_target_check(inp
 pub fn antecedent_validate::target_native::prior_sensitivity_target_check(input: &antecedent_validate::target_native::PriorSensitivityTarget<'_>) -> core::result::Result<antecedent_validate::TargetRefutationReport, antecedent_validate::ValidationError>
 pub fn antecedent_validate::target_native::replicate_reference_tail(value: f64, k: usize, replicates: usize, independent_units: core::option::Option<usize>) -> core::option::Option<f64>
 pub fn antecedent_validate::target_native::retain_target_reports(reports: &[antecedent_validate::TargetRefutationReport], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::target_native::RetainedTargetReports, antecedent_validate::ValidationError>
-pub fn antecedent_validate::target_native::robust_spread_discrepancy(expected: &[f64], replicates: &[f64], k: usize) -> f64
 pub fn antecedent_validate::target_native::target_refuter_stream(kind: antecedent_validate::TargetRefuterKind, replicate: u32, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_core::execution::rng::CausalRng
 pub mod antecedent_validate::assumption_range
 pub mod antecedent_validate::bayesian_checks
@@ -4505,7 +4504,6 @@ pub variant antecedent_validate::target_native::JointStatisticKind::MahalanobisH
 pub variant antecedent_validate::target_native::JointStatisticKind::MaxStandardizedDiscrepancy
 pub variant antecedent_validate::target_native::JointStatisticKind::PosteriorShift
 pub variant antecedent_validate::target_native::JointStatisticKind::PredictiveTail
-pub variant antecedent_validate::target_native::JointStatisticKind::RobustMahalanobisHotelling
 pub variant antecedent_validate::target_native::RefuterExpectation::Diagnostic
 pub variant antecedent_validate::target_native::RefuterExpectation::Null
 pub variant antecedent_validate::target_native::RefuterExpectation::Original
