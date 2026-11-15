@@ -6,3 +6,7 @@ mod decision;
 use decision::*;
 #[path = "common/calibration_decision_tests.rs"]
 mod tests;
+#[path = "common/warp_speed.rs"]
+mod warp_speed;
+#[path = "common/warp_speed_tests.rs"]
+mod warp_speed_tests;

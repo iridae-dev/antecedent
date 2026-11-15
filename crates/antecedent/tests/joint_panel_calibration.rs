@@ -51,6 +51,14 @@
 //! posterior, the Monte Carlo standard error of the value of a future sample, and the
 //! contrast and covariance of the prepared Gaussian joint response.
 //!
+//! The three tests whose replicates cost a complete 100-draw change-selection bootstrap each
+//! (the false-change measurement and the two time-varying contrast intervals) are measured by
+//! cheaper, validated methods: the contrast intervals by warp-speed pooling of a few inner draws
+//! per replicate, the false-change rate by a sequential screen (see `warp_intervals` and
+//! `screened_masses_reading`). Both are compared with the nested measurement on the same
+//! replicates by the `joint_panel_warp_speed_validation_*` tests, and
+//! `ANTECEDENT_CALIBRATION_NESTED=1` runs the nested measurement itself.
+//!
 //! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -64,6 +72,8 @@
 #![allow(clippy::too_many_lines, reason = "each design keeps its complete setup together")]
 
 mod common;
+#[path = "common/warp_speed.rs"]
+mod warp_speed;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -75,6 +85,7 @@ use antecedent::analysis::joint_panel::{
     PanelExperimentEvidence, PanelExperimentMapping, PanelExperimentModularPolicy,
     PanelExperimentUpdate, PanelFutureSample, joint_panel_target,
 };
+use antecedent::analysis::joint_panel::{JointPanelContrast, JointPanelContrastUncertainty};
 use antecedent::{BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_contract::bridge::*;
 use antecedent_contract::evidence_ledger::*;
@@ -98,8 +109,10 @@ use antecedent_estimate::joint_panel::{
 use antecedent_graph::Dag;
 use common::calibration::{
     Construction, CoverageTally, RecordKey, ScopeFacts, Z95, gaussian, grid_n, grid_seed,
-    map_replicates, n_sim, normal_interval, quantile_interval, stream_seed, uniform,
+    map_replicates, map_replicates_from, n_sim, normal_interval, quantile_interval, replicate_end,
+    replicate_start, stream_seed, uniform,
 };
+use warp_speed::{Pooling, QuantileRule, Replicate, next_u64, pooled_draw_sets};
 
 const LEVEL: f64 = 0.95;
 const CADENCE_NS: u64 = 604_800_000_000_000;
@@ -576,9 +589,22 @@ fn fit_generated(
     generated: Generated,
     seed: u64,
 ) -> Result<Fitted, String> {
+    fit_generated_with(cell, path, inference(mode, sampling), groups, generated, seed)
+}
+
+/// Compile and fit one generated panel under an explicit inference (a frequentist run with a
+/// draw count other than [`FREQUENTIST_DRAWS`] is the warp-speed and screening hook).
+fn fit_generated_with(
+    cell: Cell,
+    path: Path,
+    inference: PanelInference,
+    groups: usize,
+    generated: Generated,
+    seed: u64,
+) -> Result<Fitted, String> {
     let Generated { data, scenarios, truth, rows } = generated;
     let ctx = ExecutionContext::for_tests(grid_seed(seed));
-    let request = request(&data, cell, path, groups, &scenarios, inference(mode, sampling));
+    let request = request(&data, cell, path, groups, &scenarios, inference);
     let prepared = Study::prepare_joint_panel(data, request, &ctx)
         .map_err(|error| format!("prepare: {error}"))?;
     let result = prepared.estimate(&ctx).map_err(|error| format!("estimate: {error}"))?;
@@ -595,6 +621,19 @@ fn fit_panel(
 ) -> Result<Fitted, String> {
     let generated = generate_panel(cell, path, groups, seed);
     fit_generated(cell, path, mode, default_sampling(), groups, generated, seed)
+}
+
+/// The compiled and fitted panel of one fixed-truth replicate, frequentist with `draws`
+/// whole-procedure slots instead of [`FREQUENTIST_DRAWS`].
+fn fit_panel_draws(
+    cell: Cell,
+    path: Path,
+    groups: usize,
+    seed: u64,
+    draws: usize,
+) -> Result<Fitted, String> {
+    let generated = generate_panel(cell, path, groups, seed);
+    fit_generated_with(cell, path, PanelInference::Frequentist { draws }, groups, generated, seed)
 }
 
 // ---------------------------------------------------------------------------------------
@@ -692,6 +731,12 @@ fn construction(cell: Cell, path: Path, mode: Mode, calibration: bool) -> Constr
 }
 
 fn measure_contrast(test: &'static str, cell: Cell, path: Path, mode: Mode, seed_base: u64) {
+    // The time-varying frequentist interval is measured by the warp-speed method (see below);
+    // `ANTECEDENT_CALIBRATION_NESTED=1` runs the full nested measurement instead.
+    if path.varying() && mode == Mode::Frequentist && !nested_requested() {
+        measure_contrast_warp(test, cell, path, seed_base);
+        return;
+    }
     let groups = path.groups();
     let readings =
         map_replicates(n_sim(), |rep| contrast_reading(cell, path, mode, groups, seed_base + rep));
@@ -741,6 +786,251 @@ fn score_contrast(
         eprintln!("{test}: {count} replicate(s) refused: {reason}");
     }
     tally.assert();
+}
+
+// ---------------------------------------------------------------------------------------
+// Warp-speed measurement of the time-varying contrast interval.
+// ---------------------------------------------------------------------------------------
+
+/// Inner whole-procedure draws each outer replicate runs under the warp-speed measurement.
+const WARP_DRAWS: usize = 5;
+/// The data-generation label of a warp-speed record: the panels are those of
+/// `generate_panel`, the interval is composed from the pooled draws of all replicates.
+const WARP_DGP: &str = "generate_panel_warp_speed";
+/// Replicates of a warp-speed validation run, nested and warp-speed on the same seeds.
+const VALIDATION_REPLICATES: u32 = 100;
+
+/// Whether the full nested measurement is requested for a test that is warp-speed by default.
+fn nested_requested() -> bool {
+    std::env::var("ANTECEDENT_CALIBRATION_NESTED").is_ok_and(|value| value == "1")
+}
+
+/// One replicate of the warp-speed measurement: the point contrast and the few inner draws.
+enum WarpReading {
+    Scored {
+        point: f64,
+        /// Inner draws of the contrast; a failed or nonfinite slot stays `None`.
+        draws: Vec<Option<f64>>,
+        truth: f64,
+        rows: u64,
+    },
+    /// The library refused the fit.
+    Refused(String),
+}
+
+/// The fit of one replicate with `draws` inner whole-procedure draws: the product's own fit and
+/// contrast assembly, with the draw count the only difference from the nested measurement. The
+/// interval the product forms from so few draws is not read.
+fn warp_reading(cell: Cell, path: Path, groups: usize, seed: u64, draws: usize) -> WarpReading {
+    let (_, result, truth, rows, _) = match fit_panel_draws(cell, path, groups, seed, draws) {
+        Ok(fitted) => fitted,
+        Err(reason) => return WarpReading::Refused(reason),
+    };
+    match result.scheduled_contrast(&JointPanelResponseFunctional::TerminalMean, LEVEL) {
+        Ok(contrast) => {
+            WarpReading::Scored { point: contrast.point, draws: contrast.draws, truth, rows }
+        }
+        Err(error) => WarpReading::Refused(format!("contrast: {error}")),
+    }
+}
+
+/// Every replicate's interval, formed as the product forms it from the draws of its own law.
+///
+/// Why this measures the published interval. The time-varying interval is the interpolated
+/// equal-tailed percentile of the `FREQUENTIST_DRAWS` whole-procedure contrast draws
+/// (`JointPanelContrast::uncertainty_from_draws`): `point + q(draw - point)`. Each draw is the
+/// contrast of one parametric bootstrap panel, drawn from the fitted model of the replicate and
+/// passed through the complete change-selection procedure, and the draws of one replicate are
+/// independent given its data. Warp-speed Monte Carlo (Giacomini, Politis and White 2013)
+/// replaces the conditional law of the root `draw - point` given one replicate's data by the
+/// pooled law of the roots of every replicate: a replicate then needs a few draws, not a hundred.
+/// The pooled roots are the unconditional mixture of the replicates' bootstrap laws.
+///
+/// What is reproduced and what is not.
+///
+/// * First order only. The product's interval uses the law conditional on the replicate; the
+///   pooled law agrees with it when the conditional law of the root converges in probability to
+///   a constant law, and differs at the order of the data dependence of that law (its scale,
+///   its skewness, the mixture over selected specifications) otherwise. The roots are pooled
+///   unscaled: no standardizing quantity exists that is independent of the draws, and one built
+///   from five draws would put its own noise into every interval. The validation test compares
+///   the result with the nested measurement.
+/// * Finite-draw noise is kept. The product's interval rests on `FREQUENTIST_DRAWS` draws, whose
+///   order statistics are noisy; pooling every draw would measure the coverage of an interval
+///   with unboundedly many. Each replicate therefore composes a set of `FREQUENTIST_DRAWS`
+///   roots chosen at random without replacement from the pool.
+/// * The product withholds the interval when any of its slots fails. The pooled slots carry the
+///   same failure rate, and a replicate is withheld with the probability that one of its
+///   `FREQUENTIST_DRAWS` slots fails at that rate.
+fn warp_intervals(readings: &[WarpReading], seed: u64) -> Vec<Option<(f64, f64)>> {
+    let replicates: Vec<Option<Replicate>> = readings
+        .iter()
+        .map(|reading| match reading {
+            WarpReading::Scored { point, draws, .. } => {
+                Some(Replicate::with_draws(*point, draws.iter().flatten().copied().collect()))
+            }
+            WarpReading::Refused(_) => None,
+        })
+        .collect();
+    let (mut slots, mut failed) = (0_usize, 0_usize);
+    for reading in readings {
+        if let WarpReading::Scored { draws, .. } = reading {
+            slots += draws.len();
+            failed += draws.iter().filter(|draw| draw.is_none()).count();
+        }
+    }
+    let failure_rate = failed as f64 / slots.max(1) as f64;
+    let withheld = 1.0 - (1.0 - failure_rate).powi(i32::try_from(FREQUENTIST_DRAWS).unwrap());
+    let pooling = Pooling { level: LEVEL, min_pool: 2, inner: Some(FREQUENTIST_DRAWS), seed };
+    let sets = pooled_draw_sets(&replicates, QuantileRule::Interpolated, pooling);
+    sets.into_iter()
+        .enumerate()
+        .map(|(index, set)| {
+            let set = set?;
+            let mut state = seed ^ (index as u64).wrapping_mul(0xA24B_AED4_963E_E407);
+            let unit = (next_u64(&mut state) >> 11) as f64 / (1_u64 << 53) as f64;
+            if unit < withheld {
+                return None;
+            }
+            let draws: Vec<Option<f64>> = set.into_iter().map(Some).collect();
+            JointPanelContrast::uncertainty_from_draws(
+                &draws,
+                LEVEL,
+                JointPanelContrastUncertainty::EstimatorSampling,
+                true,
+            )
+            .1
+        })
+        .collect()
+}
+
+/// A warp-speed record pools draws across replicates, so it needs the whole replicate range in
+/// one process; replicate shards and extensions would pool within a shard only.
+fn require_unsharded(test: &str) {
+    assert!(
+        replicate_start() == 0 && replicate_end().is_none(),
+        "{test}: the warp-speed measurement pools draws across all replicates and cannot be \
+         sharded or extended; run it whole"
+    );
+}
+
+/// Warp-speed measurement of the published time-varying contrast interval: `WARP_DRAWS` inner
+/// draws per outer replicate, intervals composed from the pooled draws (`warp_intervals`), and
+/// the record marked by the `WARP_DGP` data-generation label.
+fn measure_contrast_warp(test: &'static str, cell: Cell, path: Path, seed_base: u64) {
+    require_unsharded(test);
+    let groups = path.groups();
+    let readings = map_replicates(n_sim(), |rep| {
+        warp_reading(cell, path, groups, seed_base + rep, WARP_DRAWS)
+    });
+    score_warp_contrast(test, cell, path, &readings, seed_base);
+}
+
+fn score_warp_contrast(
+    test: &'static str,
+    cell: Cell,
+    path: Path,
+    readings: &[WarpReading],
+    seed: u64,
+) {
+    let mode = Mode::Frequentist;
+    let intervals = warp_intervals(readings, seed);
+    let mut tally = CoverageTally::for_record(
+        RecordKey { test, dgp: WARP_DGP, interval: interval_label(mode, path) },
+        LEVEL,
+    );
+    let (mut refused, mut withheld) = (0_usize, 0_usize);
+    let draws = u32::try_from(FREQUENTIST_DRAWS).unwrap();
+    for (reading, interval) in readings.iter().zip(&intervals) {
+        match reading {
+            WarpReading::Refused(_) => {
+                tally.skip();
+                refused += 1;
+            }
+            WarpReading::Scored { truth, rows, .. } => {
+                withheld += usize::from(interval.is_none());
+                // The scope is that of the interval the product forms: all of its draw slots
+                // when it publishes one, at least one failed slot when it withholds it.
+                tally.bind_validation(
+                    &construction(cell, path, mode, false),
+                    ScopeFacts {
+                        row_count: *rows,
+                        replicates_ok: Some(if interval.is_some() { draws } else { draws - 1 }),
+                        posterior_draws: None,
+                        unidentified_mass: 0.0,
+                    },
+                    "not_applicable",
+                );
+                tally.record(*interval, *truth);
+            }
+        }
+    }
+    eprintln!(
+        "{test}: warp-speed measurement, {WARP_DRAWS} inner draws per replicate pooled over \
+         {} replicate(s); {withheld} composed interval(s) withheld by a failed slot (scored as \
+         misses), {refused} refused",
+        readings.len()
+    );
+    tally.assert();
+}
+
+/// Coverage of both measurements on the same replicates: the nested interval of the product
+/// and the warp-speed interval composed from `WARP_DRAWS` inner draws of the same fits.
+fn validate_warp_contrast(cell: Cell, seed_base: u64) {
+    let (path, mode) = (Path::Changed, Mode::Frequentist);
+    let groups = path.groups();
+    let nested = map_replicates_from(0, VALIDATION_REPLICATES, |rep| {
+        contrast_reading(cell, path, mode, groups, seed_base + rep)
+    });
+    let warp = map_replicates_from(0, VALIDATION_REPLICATES, |rep| {
+        warp_reading(cell, path, groups, seed_base + rep, WARP_DRAWS)
+    });
+    let composed = warp_intervals(&warp, seed_base);
+    let covers = |interval: &Option<(f64, f64)>, truth: f64| {
+        interval.is_some_and(|(low, high)| low <= truth && truth <= high)
+    };
+    let (mut pairs, mut nested_hits, mut warp_hits, mut disagree) = (0_u32, 0_u32, 0_u32, 0_u32);
+    let (mut nested_width, mut warp_width) = (0.0, 0.0);
+    for ((nested, warp), composed) in nested.iter().zip(&warp).zip(&composed) {
+        let (Reading::Scored { interval, truth, .. }, WarpReading::Scored { .. }) = (nested, warp)
+        else {
+            continue;
+        };
+        pairs += 1;
+        let (a, b) = (covers(interval, *truth), covers(composed, *truth));
+        nested_hits += u32::from(a);
+        warp_hits += u32::from(b);
+        disagree += u32::from(a != b);
+        nested_width += interval.map_or(0.0, |(low, high)| high - low);
+        warp_width += composed.map_or(0.0, |(low, high)| high - low);
+    }
+    let n = f64::from(pairs.max(1));
+    let (nested_rate, warp_rate) = (f64::from(nested_hits) / n, f64::from(warp_hits) / n);
+    let mcse = (nested_rate * (1.0 - nested_rate) / n + warp_rate * (1.0 - warp_rate) / n).sqrt();
+    eprintln!(
+        "warp-speed validation over {pairs} paired replicate(s): nested coverage {nested_rate:.4}, \
+         warp-speed coverage {warp_rate:.4}, combined MCSE {mcse:.4}, coverage verdicts differ in \
+         {disagree}; mean width nested {:.4}, warp-speed {:.4}",
+        nested_width / n,
+        warp_width / n
+    );
+    assert!(
+        (nested_rate - warp_rate).abs() <= 2.0 * mcse.max(1.0 / n),
+        "the warp-speed coverage {warp_rate:.4} differs from the nested coverage {nested_rate:.4} \
+         by more than two combined MCSE ({mcse:.4})"
+    );
+}
+
+#[test]
+#[ignore = "warp-speed validation: runs the nested measurement on 100 replicates; run by hand"]
+fn joint_panel_warp_speed_validation_time_varying_contrast() {
+    validate_warp_contrast(LAGGED, 32_000_000);
+}
+
+#[test]
+#[ignore = "warp-speed validation: runs the nested measurement on 100 replicates; run by hand"]
+fn joint_panel_warp_speed_validation_time_varying_contrast_broader() {
+    validate_warp_contrast(BROADER_LAGGED, 32_200_000);
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1030,14 +1320,28 @@ enum Masses {
         change: f64,
         /// Whether the point fit itself selected a change.
         point_change: bool,
+        /// Whether every draw slot of the fit completed.
+        all_draws: bool,
+    },
+    /// The first draws of the replicate already exclude a false confident change, so the
+    /// remaining draws were not run (see `screened_masses_reading`).
+    Screened {
+        /// Whether the point fit itself selected a change.
+        point_change: bool,
     },
     /// The fit executed and published no masses.
     Absent(String),
     Refused(String),
 }
 
-fn masses_reading(cell: Cell, mode: Mode, groups: usize, seed: u64) -> Masses {
-    let (_, result, _, _, ctx) = match fit_panel(cell, Path::Unchanged, mode, groups, seed) {
+/// The masses of one replicate from `draws` whole-procedure draws ([`FREQUENTIST_DRAWS`] is
+/// the published count).
+fn masses_reading(cell: Cell, mode: Mode, groups: usize, seed: u64, draws: usize) -> Masses {
+    let fitted = match mode {
+        Mode::Frequentist => fit_panel_draws(cell, Path::Unchanged, groups, seed, draws),
+        Mode::Bayesian => fit_panel(cell, Path::Unchanged, mode, groups, seed),
+    };
+    let (_, result, _, _, ctx) = match fitted {
         Ok(fitted) => fitted,
         Err(reason) => return Masses::Refused(reason),
     };
@@ -1081,7 +1385,65 @@ fn masses_reading(cell: Cell, mode: Mode, groups: usize, seed: u64) -> Masses {
         (change + split.no_change_mass - 1.0).abs() < 1e-9,
         "the specification masses must sum to one"
     );
-    Masses::Published { change, point_change: split.point_choice != TemporalModelChoice::NoChange }
+    let all_draws = match &result.fit {
+        JointPanelFit::Varying(fit) => fit.draws.iter().all(Option::is_some),
+        _ => false,
+    };
+    Masses::Published {
+        change,
+        point_change: split.point_choice != TemporalModelChoice::NoChange,
+        all_draws,
+    }
+}
+
+/// Draws of the screening stage of the false-change measurement: the first draws of the
+/// published whole-procedure run (the draws are indexed by their slot, so these are its first
+/// ten).
+const SCREEN_DRAWS: usize = 10;
+/// A replicate is screened out when at most this share of its screening draws selects a change.
+const SCREEN_MAX_CHANGE: f64 = 0.55;
+
+/// The masses of one replicate, running the published `FREQUENTIST_DRAWS` draws only when the
+/// first `SCREEN_DRAWS` of them leave a false confident change possible.
+///
+/// What the statistic is. A replicate errs when the published mass on specifications with a
+/// change is at least the level: at least 95 of the 100 bootstrap selections choose a change
+/// (every draw slot completed). Unlike a coverage indicator this is a function of the bootstrap
+/// draws themselves, and the law of those draws given the data varies from order one across
+/// replicates (a point fit that selected no change simulates from a no-change model and
+/// selects a change rarely; one that selected a large change selects it almost always), so the
+/// pooled-draw construction of the contrast tests does not apply: the error rate would be the
+/// binomial tail at the pooled selection frequency.
+///
+/// What is done instead is sequential: the first `SCREEN_DRAWS` draws are the first slots of the
+/// published run, and a replicate whose screen completed every slot, published its masses and
+/// selected a change in at most `SCREEN_MAX_CHANGE` of them is scored as not erring without the
+/// remaining draws. That conclusion is wrong only when the selection frequency `p` of the
+/// replicate is high enough for 95 changes in 100 draws (probability `P(Bin(100, p) >= 95)`)
+/// while at most 5 of the first 10 draws selected none: over every `p` the product of the two
+/// probabilities is below 2e-4, so the screened error count is unbiased to that order and its
+/// variance is that of the nested measurement. Anything else (a screen that failed a slot,
+/// published no masses, or leaned to a change) runs the published draws and is scored exactly
+/// as the nested measurement scores it.
+fn screened_masses_reading(cell: Cell, mode: Mode, groups: usize, seed: u64) -> Masses {
+    match masses_reading(cell, mode, groups, seed, SCREEN_DRAWS) {
+        Masses::Published { change, point_change, all_draws: true }
+            if change <= SCREEN_MAX_CHANGE =>
+        {
+            Masses::Screened { point_change }
+        }
+        _ => masses_reading(cell, mode, groups, seed, FREQUENTIST_DRAWS),
+    }
+}
+
+/// Whether a replicate counts as a false confident change: `None` for a refused fit (a skip).
+fn false_confident_change(reading: &Masses) -> Option<bool> {
+    match reading {
+        Masses::Refused(_) => None,
+        Masses::Absent(_) => Some(true),
+        Masses::Published { change, .. } => Some(*change >= LEVEL),
+        Masses::Screened { .. } => Some(false),
+    }
 }
 
 /// One-sided false-change measurement on panels whose mechanism never changes.
@@ -1095,12 +1457,28 @@ fn masses_reading(cell: Cell, mode: Mode, groups: usize, seed: u64) -> Masses {
 /// change. The record asserts that false confident changes are at most `1 - level` of the
 /// replicates: a floor on the complement, never an upper band. The point fit's own false
 /// selection rate and the mean published change mass are printed beside it.
-fn measure_false_change(test: &'static str, cell: Cell, mode: Mode, seed_base: u64) {
+///
+/// `screened` runs the published draws only for replicates whose first draws leave a false
+/// confident change possible (`screened_masses_reading`); the mean mass is then printed over
+/// the replicates that ran them.
+fn measure_false_change(
+    test: &'static str,
+    cell: Cell,
+    mode: Mode,
+    seed_base: u64,
+    screened: bool,
+) {
     let groups = Path::Unchanged.groups();
-    let readings =
-        map_replicates(n_sim(), |rep| masses_reading(cell, mode, groups, seed_base + rep));
+    let readings = map_replicates(n_sim(), |rep| {
+        if screened {
+            screened_masses_reading(cell, mode, groups, seed_base + rep)
+        } else {
+            masses_reading(cell, mode, groups, seed_base + rep, FREQUENTIST_DRAWS)
+        }
+    });
     let mut tally = CoverageTally::new(test, LEVEL);
     let (mut published, mut point_changes, mut mass_sum) = (0_usize, 0_usize, 0.0);
+    let mut screened_out = 0_usize;
     let mut refusals = BTreeMap::<String, usize>::new();
     for reading in &readings {
         match reading {
@@ -1114,7 +1492,12 @@ fn measure_false_change(test: &'static str, cell: Cell, mode: Mode, seed_base: u
                 tally.record(None, 0.5);
                 *refusals.entry(reason.clone()).or_default() += 1;
             }
-            Masses::Published { change, point_change } => {
+            Masses::Screened { point_change } => {
+                screened_out += 1;
+                point_changes += usize::from(*point_change);
+                tally.record(Some((0.0, 1.0)), 0.5);
+            }
+            Masses::Published { change, point_change, .. } => {
                 published += 1;
                 point_changes += usize::from(*point_change);
                 mass_sum += change;
@@ -1124,8 +1507,9 @@ fn measure_false_change(test: &'static str, cell: Cell, mode: Mode, seed_base: u
         }
     }
     eprintln!(
-        "{test}: {published} replicate(s) published masses; the point fit selected a change in \
-         {point_changes}; mean published change mass {:.4}",
+        "{test}: {published} replicate(s) published masses from the full draws and {screened_out} \
+         were screened out by their first {SCREEN_DRAWS} draws; the point fit selected a change \
+         in {point_changes}; mean published change mass over the full runs {:.4}",
         mass_sum / published.max(1) as f64
     );
     for (reason, count) in &refusals {
@@ -1142,7 +1526,39 @@ fn joint_panel_selection_false_change_frequentist() {
         LAGGED,
         Mode::Frequentist,
         33_000_000,
+        !nested_requested(),
     );
+}
+
+/// The screened false-change measurement against the nested one on the same replicates: the
+/// screen may differ from the published run only with probability below 2e-4 per replicate,
+/// so the two error counts must agree replicate by replicate.
+#[test]
+#[ignore = "warp-speed validation: runs the nested measurement on 100 replicates; run by hand"]
+fn joint_panel_warp_speed_validation_false_change() {
+    let (cell, mode, seed_base) = (LAGGED, Mode::Frequentist, 33_000_000);
+    let groups = Path::Unchanged.groups();
+    let nested = map_replicates_from(0, VALIDATION_REPLICATES, |rep| {
+        masses_reading(cell, mode, groups, seed_base + rep, FREQUENTIST_DRAWS)
+    });
+    let screened = map_replicates_from(0, VALIDATION_REPLICATES, |rep| {
+        screened_masses_reading(cell, mode, groups, seed_base + rep)
+    });
+    let (mut errors_nested, mut errors_screened, mut disagree, mut skipped_out) =
+        (0_u32, 0_u32, 0_u32, 0_u32);
+    for (nested, screened) in nested.iter().zip(&screened) {
+        skipped_out += u32::from(matches!(screened, Masses::Screened { .. }));
+        let (a, b) = (false_confident_change(nested), false_confident_change(screened));
+        errors_nested += u32::from(a == Some(true));
+        errors_screened += u32::from(b == Some(true));
+        disagree += u32::from(a != b);
+    }
+    eprintln!(
+        "false-change screen validation: {errors_nested} false confident change(s) nested, \
+         {errors_screened} screened, {disagree} replicate(s) differ, {skipped_out} of \
+         {VALIDATION_REPLICATES} screened out"
+    );
+    assert_eq!(disagree, 0, "the screen must reproduce the nested error indicator");
 }
 
 // ---------------------------------------------------------------------------------------
