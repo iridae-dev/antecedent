@@ -146,7 +146,7 @@ fn information_inverse(
 ) -> Result<Option<Vec<f64>>, PanelError> {
     information_inverse_target(x, ctx, &|values| likelihood::log_likelihood(data, values))
 }
-fn information_inverse_target(
+pub(super) fn information_inverse_target(
     x: &[f64],
     ctx: &ExecutionContext,
     objective: &impl Fn(&[f64]) -> f64,

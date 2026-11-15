@@ -12,11 +12,8 @@ use super::{
 };
 use super::{inference, likelihood};
 use antecedent_core::{ExecutionContext, SemanticDigest};
-use antecedent_kernels::standard_normal;
-use antecedent_prob::{
-    all_chains_moved, mcmc_summary,
-    metropolis::{MetropolisOptions, sample_metropolis_dispersed},
-};
+use antecedent_kernels::{cholesky_spd_into, standard_normal};
+use antecedent_prob::{all_chains_moved, mcmc_summary};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -638,6 +635,147 @@ fn path_log_prior(spec: &TemporalPanelSpec, choice: &TemporalModelChoice, delta:
     }
 }
 
+/// Share of sampler iterations that propose a change of specification rather than a move
+/// inside the current one.
+const SPECIFICATION_MOVE_PROBABILITY: f64 = 0.25;
+
+/// A specification's posterior location and scale: the coordinates `center + lower * z` map a
+/// standardized state `z` onto the full coordinate vector.
+struct Whitening {
+    center: Vec<f64>,
+    /// Row-major lower Cholesky factor of the local posterior covariance, or the identity
+    /// where the curvature is unavailable.
+    lower: Vec<f64>,
+    /// Log determinant of `lower`: the Jacobian of `z -> center + lower * z`.
+    log_det: f64,
+}
+
+impl Whitening {
+    fn position(&self, z: &[f64]) -> Vec<f64> {
+        let d = self.center.len();
+        (0..d)
+            .map(|row| {
+                self.center[row]
+                    + self.lower[row * d..row * d + row + 1]
+                        .iter()
+                        .zip(z)
+                        .map(|(l, z)| l * z)
+                        .sum::<f64>()
+            })
+            .collect()
+    }
+}
+
+/// Locate one specification's posterior mode and local covariance from its own density.
+///
+/// A random walk in raw coordinates cannot mix on a posterior whose directions differ in scale
+/// by orders of magnitude (a sharp mechanism parameter beside a weakly identified path
+/// coordinate), and started at raw offsets it never reaches the bulk, so the chains disagree
+/// and the posterior fails its diagnostics. Each specification is therefore whitened at its own
+/// mode, exactly as the invariant posterior is.
+fn whiten(
+    start: Vec<f64>,
+    density: &impl Fn(&[f64]) -> f64,
+    options: &PanelFitOptions,
+    ctx: &ExecutionContext,
+) -> Result<Whitening, PanelError> {
+    let d = start.len();
+    let center = match inference::optimize_target(start.clone(), options.optimizer, ctx, density) {
+        Ok(fit) => fit.values,
+        Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
+        Err(_) => start,
+    };
+    let covariance = match inference::information_inverse_target(&center, ctx, density) {
+        Ok(inverse) => inverse,
+        Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
+        Err(_) => None,
+    };
+    let mut lower = vec![0.0; d * d];
+    let factored = covariance
+        .as_deref()
+        .is_some_and(|covariance| cholesky_spd_into(covariance, d, &mut lower).is_ok());
+    if !factored {
+        lower.fill(0.0);
+        for j in 0..d {
+            lower[j * d + j] = 1.0;
+        }
+    }
+    let log_det = (0..d).map(|j| lower[j * d + j].ln()).sum();
+    Ok(Whitening { center, lower, log_det })
+}
+
+/// Metropolis over (specification, standardized state): a random walk in the standardized
+/// state of the current specification, and a move to another specification chosen uniformly
+/// that keeps the standardized state, so the proposal is symmetric. The target in that space
+/// is the specification's density times the Jacobian of its whitening, which makes the
+/// specification's marginal probability exactly its posterior mass.
+///
+/// Returns the draws in `(chain * draws + draw) * (d + 1) + coordinate` layout, with the last
+/// coordinate a uniform within the bin of the drawn specification (bin `i` of `n` holds
+/// specification `i`), the encoding the retained slots decode.
+fn sample_model_mixture(
+    whitenings: &[Whitening],
+    density: &impl Fn(usize, &[f64]) -> f64,
+    sampler: &super::PanelSamplingOptions,
+    ctx: &ExecutionContext,
+) -> Result<Vec<f64>, PanelError> {
+    let n = whitenings.len();
+    let d = whitenings.first().map_or(0, |w| w.center.len());
+    if n == 0 || d == 0 || sampler.chains == 0 {
+        return Err(invalid("empty temporal posterior state"));
+    }
+    let log_target = |model: usize, z: &[f64]| {
+        let w = &whitenings[model];
+        density(model, &w.position(z)) + w.log_det
+    };
+    let mut samples = Vec::with_capacity(sampler.chains * sampler.draws * (d + 1));
+    for chain in 0..sampler.chains {
+        let mut rng =
+            ctx.rng.stream(antecedent_core::derive_stream(0x5830_3354_5750_4d58, chain as u64));
+        let mut start = None;
+        for attempt in 0..64 {
+            let model = (chain + attempt) % n;
+            let z: Vec<f64> =
+                (0..d).map(|_| inference::CHAIN_START_SPREAD * standard_normal(&mut rng)).collect();
+            let logp = log_target(model, &z);
+            if logp.is_finite() {
+                start = Some((model, z, logp));
+                break;
+            }
+        }
+        let (mut model, mut z, mut logp) = start
+            .ok_or_else(|| PanelError::Numerical("dispersed posterior start density".into()))?;
+        for iteration in 0..sampler.warmup + sampler.draws {
+            check_cancelled(ctx)?;
+            let (next_model, next_z) = if n > 1 && rng.next_f64() < SPECIFICATION_MOVE_PROBABILITY {
+                let other = ((rng.next_f64() * (n - 1) as f64) as usize).min(n - 2);
+                (if other >= model { other + 1 } else { other }, z.clone())
+            } else {
+                (
+                    model,
+                    z.iter()
+                        .map(|v| v + sampler.proposal_scale * standard_normal(&mut rng))
+                        .collect(),
+                )
+            };
+            let next_logp = log_target(next_model, &next_z);
+            if next_logp.is_nan() || next_logp == f64::INFINITY {
+                return Err(PanelError::Numerical("nonfinite temporal posterior density".into()));
+            }
+            if rng.next_f64().ln() < next_logp - logp {
+                model = next_model;
+                z = next_z;
+                logp = next_logp;
+            }
+            if iteration >= sampler.warmup {
+                samples.extend(whitenings[model].position(&z));
+                samples.push((model as f64 + 0.05 + 0.9 * rng.next_f64()) / n as f64);
+            }
+        }
+    }
+    Ok(samples)
+}
+
 /// Fit both named specification attempts and retain whole-procedure uncertainty.
 ///
 /// Bayesian priors cover the prespecified union of no-change, piecewise and smooth models
@@ -710,57 +848,42 @@ fn fit_temporal_inner(
         }
         PanelInference::Bayesian { prior, sampler } => {
             let choices = candidate_choices(spec);
-            let selected_index = choices
-                .iter()
-                .position(|choice| *choice == selected.choice)
-                .ok_or_else(|| invalid("selected temporal model is outside the declared prior"))?;
-            let mut initial = selected.values.clone();
-            initial.resize(p + path_parameters, 0.0);
-            initial.push((selected_index as f64 + 0.5) / choices.len() as f64);
-            let target = |values: &[f64]| {
-                let Some(index) = choice_index(values[p + path_parameters], choices.len()) else {
-                    return f64::NEG_INFINITY;
-                };
+            // The density of one specification over the full coordinate vector: global
+            // parameters followed by every path coordinate. Coordinates a specification does
+            // not use are held by their prior alone, so every specification shares one
+            // dimension and the model choice is a plain discrete state.
+            let density = |index: usize, values: &[f64]| {
                 objective(data, spec, &choices[index], values)
                     + inference::log_prior(data, &values[..p], prior)
                     + path_log_prior(spec, &choices[index], &values[p..p + path_parameters])
             };
-            let samples = sample_metropolis_dispersed(
-                &initial,
-                10.0 * sampler.proposal_scale,
-                MetropolisOptions {
-                    chains: sampler.chains,
-                    warmup: sampler.warmup,
-                    draws: sampler.draws,
-                    proposal_scale: sampler.proposal_scale,
-                },
-                ctx,
-                target,
-            )
-            .map_err(|error| {
-                if ctx.cancellation.is_cancelled() {
-                    PanelError::Cancelled
-                } else {
-                    PanelError::Numerical(error.to_string())
-                }
-            })?;
-            let dimensions = initial.len();
-            let summary = mcmc_summary(&samples.samples, sampler.chains, sampler.draws, dimensions);
+            let coordinates = p + path_parameters;
+            let dimensions = coordinates + 1;
+            let mut start = selected.values.clone();
+            start.truncate(p);
+            start.resize(coordinates, 0.0);
+            let mut whitenings = Vec::with_capacity(choices.len());
+            for index in 0..choices.len() {
+                check_cancelled(ctx)?;
+                whitenings.push(whiten(
+                    start.clone(),
+                    &|values: &[f64]| density(index, values),
+                    options,
+                    ctx,
+                )?);
+            }
+            let samples = sample_model_mixture(&whitenings, &density, sampler, ctx)?;
+            let summary = mcmc_summary(&samples, sampler.chains, sampler.draws, dimensions);
             posterior_diagnostics =
                 Some([summary.max_rhat, summary.min_bulk_ess, summary.min_tail_ess]);
             posterior_converged = Some(
                 summary.max_rhat <= sampler.max_rhat
                     && summary.min_bulk_ess >= sampler.min_ess
                     && summary.min_tail_ess >= sampler.min_ess
-                    && all_chains_moved(
-                        &samples.samples,
-                        sampler.chains,
-                        sampler.draws,
-                        dimensions,
-                    ),
+                    && all_chains_moved(&samples, sampler.chains, sampler.draws, dimensions),
             );
             let mut output = Vec::with_capacity(slots);
-            for (slot, values) in samples.samples.chunks_exact(dimensions).enumerate() {
+            for (slot, values) in samples.chunks_exact(dimensions).enumerate() {
                 check_cancelled(ctx)?;
                 let mut rng = ctx
                     .rng
@@ -1415,6 +1538,48 @@ mod tests {
             }
         }
         assert!(fit.uncertainty.contains("posterior"));
+    }
+    /// Gaussian specifications of different location, scale and prior weight: the sampler's
+    /// specification frequencies must equal the weights, which holds only when the whitening
+    /// Jacobian is part of the target.
+    #[test]
+    fn specification_sampler_recovers_posterior_masses_across_whitenings() {
+        use super::super::PanelSamplingOptions;
+        let centers = [[0.0, 0.0], [0.5, -0.3], [1.0, 1.0]];
+        let scales = [[1.0, 1.0], [0.1, 0.2], [0.15, 0.7]];
+        let weights = [1.0, 2.0, 3.0];
+        let whitenings: Vec<Whitening> = (0..3)
+            .map(|m| Whitening {
+                center: centers[m].to_vec(),
+                lower: vec![scales[m][0], 0.0, 0.0, scales[m][1]],
+                log_det: scales[m][0].ln() + scales[m][1].ln(),
+            })
+            .collect();
+        let density = |m: usize, x: &[f64]| {
+            let quadratic: f64 =
+                (0..2).map(|j| ((x[j] - centers[m][j]) / scales[m][j]).powi(2)).sum();
+            weights[m].ln() - 0.5 * quadratic - scales[m][0].ln() - scales[m][1].ln()
+        };
+        let sampler = PanelSamplingOptions {
+            chains: 4,
+            warmup: 500,
+            draws: 6_000,
+            proposal_scale: 0.8,
+            max_rhat: 1.05,
+            min_ess: 100.0,
+        };
+        let samples =
+            sample_model_mixture(&whitenings, &density, &sampler, &ExecutionContext::for_tests(5))
+                .unwrap();
+        assert_eq!(samples.len(), 4 * 6_000 * 3);
+        let mut counts = [0.0_f64; 3];
+        for row in samples.chunks_exact(3) {
+            counts[(row[2] * 3.0) as usize] += 1.0;
+        }
+        let total: f64 = counts.iter().sum();
+        for (count, weight) in counts.iter().zip(weights) {
+            assert!((count / total - weight / 6.0).abs() < 0.04, "{counts:?}");
+        }
     }
     #[test]
     fn unsupported_specifications_and_unique_explanations_remain_separate_attempts() {
