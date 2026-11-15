@@ -1748,7 +1748,7 @@ fn the_margin_interval_equals_the_independent_delta_method_truth() {
         };
         let design = &case["design"];
         let units = |key: &str| usize::try_from(design[key].as_u64().unwrap()).unwrap();
-        let evidence = JointExperimentEvidence::new(
+        let mut evidence = JointExperimentEvidence::new(
             "exp-pinned",
             "pop",
             ("on", "off"),
@@ -1766,6 +1766,45 @@ fn the_margin_interval_equals_the_independent_delta_method_truth() {
             Exposure::NoBetweenUnitInterference { assumption_id: "assumption.isolation".into() },
         )
         .unwrap();
+        // Matched-pair and switchback evidence retains the compiled design it came from; the
+        // pinned covariance is supplied directly, so the details the case's design record
+        // describes are attached beside it.
+        match design["assignment_design"].as_str().unwrap() {
+            "matched_pairs" => {
+                let pairs = units("treated_units");
+                let clusters = 2 * pairs;
+                evidence.design_contract_id = Some("design.pinned_matched_pairs".into());
+                evidence.design_details = Some(DesignDetails::MatchedPairs {
+                    cluster_ids: (0..clusters).map(|i| format!("cluster-{i}")).collect(),
+                    pairs: (0..pairs).map(|i| (2 * i, 2 * i + 1)).collect(),
+                    matching_variables: vec!["pretreatment_level".into()],
+                    treatment_probabilities: vec![0.5; clusters],
+                    cluster_sizes: vec![units("outcome_rows") / clusters; clusters],
+                    realized_assignment: (0..clusters).map(|i| i % 2 == 0).collect(),
+                    preassignment_assumption_id: "pairing-fixed".into(),
+                    independent_pairs_assumption_id: "independent-pairs".into(),
+                    consistency_assumption_id: "consistency".into(),
+                });
+            }
+            "switchback" => {
+                let sequences = units("treated_units");
+                let periods = units("outcome_rows") / sequences;
+                let rows = sequences * periods;
+                evidence.design_contract_id = Some("design.pinned_switchback".into());
+                evidence.design_details = Some(DesignDetails::Switchback {
+                    sequence_ids: (0..rows).map(|i| format!("seq-{}", i / periods)).collect(),
+                    period_ids: (0..rows).map(|i| format!("period-{}", i % periods)).collect(),
+                    treatment_probabilities: vec![0.5; rows],
+                    realized_assignment: (0..rows).map(|i| (i + i / periods) % 2 == 0).collect(),
+                    no_carryover_assumption_id: "carryover-zero".into(),
+                    washout_rule_id: "washout-zero".into(),
+                    washout_periods: 0,
+                    independent_sequences_assumption_id: "sequences-independent".into(),
+                    consistency_assumption_id: "consistency".into(),
+                });
+            }
+            _ => {}
+        }
         let inputs = case["inputs"]
             .as_array()
             .unwrap()
