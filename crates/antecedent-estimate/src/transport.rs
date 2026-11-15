@@ -827,7 +827,7 @@ fn signed_weight_effective_sample_size(weights: &[f64]) -> f64 {
 #[path = "transport_series.rs"]
 mod series;
 pub use series::{
-    block_weight_reference_scale, trial_to_target_ipw_hac_se_fixed_b,
+    scale_series_draws_to_ewc, series_ewc_terms, trial_to_target_ipw_ewc_se,
     trial_to_target_series_block_length,
 };
 
