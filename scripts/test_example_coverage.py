@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from _repo import ensure_scripts_on_path
+from _repo import ensure_scripts_on_path, load_toml
 
 ensure_scripts_on_path()
 import example_coverage as cov  # noqa: E402
@@ -88,7 +88,7 @@ class CatalogTest(unittest.TestCase):
         rows = cov.current()
         self.assertEqual(cov.problems(rows), [])
         # The accounting covers the whole catalog, one row per declared artifact.
-        entries = cov.load_toml(cov.ROOT / "examples/catalog.toml")["example"]
+        entries = load_toml(cov.ROOT / "examples/catalog.toml")["example"]
         declared = [entry[kind] for entry in entries for kind in cov.KINDS if kind in entry]
         self.assertEqual([row["path"] for row in rows], declared)
         self.assertTrue(all(row["runners"] or row["reason"] for row in rows))

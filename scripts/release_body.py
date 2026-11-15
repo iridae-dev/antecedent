@@ -29,7 +29,7 @@ LINK = re.compile(r"\]\(([^)\s]+)\)")
 
 def site_url(root: Path = ROOT) -> str:
     """The documentation site root declared in mkdocs.yml."""
-    match = re.search(r"(?m)^site_url:\s*(\S+)\s*$", (root / "mkdocs.yml").read_text("utf-8"))
+    match = re.search(r"(?m)^site_url:\s*(\S+)\s*$", (root / "mkdocs.yml").read_text(encoding="utf-8"))
     if not match:
         raise SystemExit("mkdocs.yml: site_url not found")
     return match.group(1).rstrip("/")
