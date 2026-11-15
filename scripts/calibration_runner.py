@@ -201,6 +201,8 @@ def measure(spec: dict) -> dict:
     log, tallies = stem.with_name(stem.name + ".log"), stem.with_name(stem.name + ".tallies.jsonl")
     recheck_log = stem.with_name(stem.name + ".recheck.log")
     recheck_tallies = stem.with_name(stem.name + ".recheck.tallies.jsonl")
+    # Shard states stay out of `log_dir/*.log`, which the collector reads.
+    shards_dir = stem.parent / "shards" / stem.name
     for stale in (tallies, recheck_tallies, recheck_log):
         stale.unlink(missing_ok=True)
     base_env = {k: v for k, v in spec["env"].items() if k != "ANTECEDENT_CALIBRATION_GRID_POINT"}
@@ -216,8 +218,17 @@ def measure(spec: dict) -> dict:
     first = spec["first_nsim"]
     env = {**base_env, "ANTECEDENT_CALIBRATION_NSIM": str(first), "ANTECEDENT_CALIBRATION_TALLY_OUT": str(tallies)}
     started = time.monotonic()
-    status, output, regions, problem = measured_run(libtest_args(group), env)
-    first_seconds = time.monotonic() - started
+    shards = int(spec.get("shards", 1))
+    sharded = None
+    if shards > 1:
+        sharded = sharded_extension(
+            measured_run, libtest_args(group), env, start=0, end=first, shards=shards, prior=None,
+            tally_out=tallies, work_dir=shards_dir / "first")
+    if sharded is not None:
+        status, output, regions, problem, first_seconds = sharded
+    else:
+        status, output, regions, problem = measured_run(libtest_args(group), env)
+        first_seconds = time.monotonic() - started
     problems = []
     if status == 0 and passed_tests(output) < 1:
         problems.append(f"no test ran for this group (renamed or filtered away): {log}")
@@ -238,7 +249,15 @@ def measure(spec: dict) -> dict:
                "ANTECEDENT_CALIBRATION_REPLICATE_START": str(first),
                "ANTECEDENT_CALIBRATION_PRIOR_TALLIES": str(tallies),
                "ANTECEDENT_CALIBRATION_TALLY_OUT": str(recheck_tallies)}
-        status, output, regions, problem = measured_run(libtest_args(group, tests), env)
+        sharded = None
+        if shards > 1:
+            sharded = sharded_extension(
+                measured_run, libtest_args(group, tests), env, start=first, end=spec["recheck_nsim"],
+                shards=shards, prior=tallies, tally_out=recheck_tallies, work_dir=shards_dir / "recheck")
+        if sharded is not None:
+            status, output, regions, problem, _ = sharded
+        else:
+            status, output, regions, problem = measured_run(libtest_args(group, tests), env)
         if status == 0 and passed_tests(output) < 1:
             problems.append(f"no test ran for this group (renamed or filtered away): {recheck_log}")
             status = 1
@@ -269,6 +288,64 @@ def measure(spec: dict) -> dict:
             "coverage": merge_coverage(*coverage)}
 
 
+def sharded_extension(run, args: list[str], env: dict[str, str], *, start: int, end: int, shards: int,
+                      prior: Path | None, tally_out: Path, work_dir: Path):
+    """Replicates `start..end` of a job as parallel shards plus an asserting tail extension.
+
+    `run(args, env)` is a measurement run (status, output, regions, problem). `env` carries
+    `ANTECEDENT_CALIBRATION_NSIM=end`; `prior` is the tally file of the run that computed
+    `0..start` (`None` at 0). The shards run concurrently on empty tallies
+    (calibration_shards.py), their states merge onto `prior`, and the tail extension runs
+    from the merge, writing `tally_out` and printing the lines of one run over the range.
+    Returns `(status, output, regions, problem, equivalent_seconds)`, or `None` when the range is
+    too small to split or the shards could not be merged: the caller then runs it whole."""
+    import shutil
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    import calibration_shards as shard
+    from evidence_capture import merge_coverage as merge_regions
+
+    plan = shard.plan_ranges(start, end, shards)
+    if plan is None:
+        return None
+    ranges, (tail_start, _) = plan
+    shutil.rmtree(work_dir, ignore_errors=True)
+    work_dir.mkdir(parents=True)
+    base = {k: v for k, v in env.items()
+            if k not in (shard.PRIOR_ENV, shard.START_ENV, shard.END_ENV, shard.TALLY_ENV)}
+    # A shard is one worker; the tail runs on the cores the shards used.
+    shard_env = {**base, "ANTECEDENT_CALIBRATION_THREADS": "1"}
+    tail_env = {**base, "ANTECEDENT_CALIBRATION_THREADS": str(max(1, min(shards, os.cpu_count() or 1)))}
+
+    def one(bounds: tuple[int, int]):
+        out = work_dir / f"{bounds[0]}-{bounds[1]}.tallies.jsonl"
+        begun = time.monotonic()
+        status, output, regions, problem = run(args, {**shard_env, shard.START_ENV: str(bounds[0]),
+                                                      shard.END_ENV: str(bounds[1]), shard.TALLY_ENV: str(out)})
+        return bounds, out, status, output, regions, time.monotonic() - begun
+
+    with ThreadPoolExecutor(max_workers=len(ranges)) as pool:
+        done = list(pool.map(one, ranges))
+    if any(status != 0 or passed_tests(output) < 1 for _, _, status, output, _, _ in done):
+        return None
+    try:
+        merged = shard.merge(shard.load_states(prior) if prior is not None else None,
+                             [(a, b, shard.load_states(out)) for (a, b), out, *_ in done])
+    except (shard.ShardError, KeyError, ValueError):
+        return None
+    merged_path = work_dir / "merged.tallies.jsonl"
+    shard.write_states(merged_path, merged)
+    begun = time.monotonic()
+    status, output, regions, problem = run(args, {**tail_env, shard.START_ENV: str(tail_start),
+                                                  shard.PRIOR_ENV: str(merged_path), shard.TALLY_ENV: str(tally_out)})
+    tail_seconds = time.monotonic() - begun
+    # What one unsharded run of the range would have taken on the shard's threads.
+    seconds = sum(item[5] for item in done) + tail_seconds
+    covered = [r for _, _, _, _, r, _ in done if r] + ([regions] if regions else [])
+    return status, output, merge_regions(*covered) if covered else regions, problem, seconds
+
+
 # ---------------------------------------------------------------------- running tasks
 
 @dataclass(frozen=True)
@@ -277,6 +354,7 @@ class Task:
     point: int | None  # grid point, or None for a group measured once
     threads: int = 1  # `map_replicates` workers (ANTECEDENT_CALIBRATION_THREADS)
     nsim: int | None = None  # first-pass replicates; None: the gate's rule
+    shards: int = 1  # parallel replicate shards of the first pass and the recheck (calibration_shards.py)
 
     @property
     def key(self) -> tuple[int, int | None]:
@@ -363,7 +441,7 @@ def execute(root: Path, tasks: list[Task], *, env: dict[str, str], log_dir: Path
             "env": {**base, "ANTECEDENT_CALIBRATION_THREADS": str(task.threads)},
             "tools": {name: str(output / "bin" / name) for name in ("llvm-profdata", "llvm-cov")},
             "first_nsim": nsim, "recheck_nsim": recheck_nsim, "smoke": smoke, "sha": sha,
-            "decision_context": decision_context,
+            "decision_context": decision_context, "shards": task.shards,
         }
         futures[evidence_capture.submit(_timed_measure, spec)] = task
     results = {}

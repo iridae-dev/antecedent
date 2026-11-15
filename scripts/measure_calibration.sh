@@ -35,6 +35,9 @@
 #   bash scripts/measure_calibration.sh --missing-only --group 'weighted_interval_calibration:*'
 #   bash scripts/measure_calibration.sh --jobs 6       # default: one job per core, one worker thread each
 #   bash scripts/measure_calibration.sh --dry-run      # list the groups, rough duration
+#   bash scripts/measure_calibration.sh --estimates target/calibration-estimates.tsv --shards
+#                                                      # no timings yet: order longest first by the estimates, and split
+#                                                      # tasks longer than total work / jobs into parallel replicate shards
 #   bash scripts/measure_calibration.sh --pilot        # smoke-time selected jobs; no coverage evidence
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -53,6 +56,7 @@ REPLACEMENTS=()
 HAVE_FILTERS=0
 HAVE_REPLACEMENTS=0
 REPLICATES=()
+SCHEDULE=()
 DRY_RUN=0
 PILOT=0
 JOBS=""
@@ -89,6 +93,13 @@ while [[ $# -gt 0 ]]; do
     --replicates=*) REPLICATES=(--replicates "${1#--replicates=}") ;;
     --dry-run) DRY_RUN=1 ;;
     --pilot) PILOT=1 ;;
+    --shards) SCHEDULE+=(--shards) ;;
+    --estimates)
+      [[ $# -ge 2 ]] || { echo "--estimates needs a file" >&2; exit 2; }
+      SCHEDULE+=(--estimates "$2")
+      shift
+      ;;
+    --estimates=*) SCHEDULE+=(--estimates "${1#--estimates=}") ;;
     --jobs)
       [[ $# -ge 2 ]] || { echo "--jobs needs a number" >&2; exit 2; }
       JOBS="$2"
@@ -161,7 +172,7 @@ echo "== measuring calibration at ${HEAD_SHA} with ${JOBS} parallel job(s) =="
 # archiving logs, building or starting any measurement; it supplies the decision
 # context to each gate child rather than trusting an inherited caller value.
 RUN_STATUS=0
-python3 scripts/calibration_groups.py run ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${ONLY[@]+"${ONLY[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} --jobs "$JOBS" || RUN_STATUS=$?
+python3 scripts/calibration_groups.py run ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${ONLY[@]+"${ONLY[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} ${SCHEDULE[@]+"${SCHEDULE[@]}"} --jobs "$JOBS" || RUN_STATUS=$?
 if [[ "$RUN_STATUS" != "0" && "$MISSING_ONLY" != "1" && "$HAVE_FILTERS" == 0 ]]; then
   exit "$RUN_STATUS"
 fi

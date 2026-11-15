@@ -369,6 +369,15 @@ pub const THREADS_ENV: &str = "ANTECEDENT_CALIBRATION_THREADS";
 /// `0` runs every replicate.
 pub const REPLICATE_START_ENV: &str = "ANTECEDENT_CALIBRATION_REPLICATE_START";
 
+/// Environment variable of a replicate shard: the end (exclusive) of the replicate
+/// range [`map_replicates`] evaluates, from [`REPLICATE_START_ENV`] (`0` when unset).
+/// A shard computes `start..end` of the `n_sim()` replicates on empty tallies and
+/// writes their raw state (with each interval length, so a merge can fold the
+/// length sum in replicate order) to [`TALLY_OUT_ENV`]; it asserts and prints
+/// nothing. `scripts/calibration_shards.py` merges the states of consecutive shards
+/// into the prior of an ordinary extension, which does the asserting.
+pub const REPLICATE_END_ENV: &str = "ANTECEDENT_CALIBRATION_REPLICATE_END";
+
 /// Environment variable naming the first run's tally file an extending run
 /// seeds its tallies from (written by that run under [`TALLY_OUT_ENV`]).
 pub const PRIOR_TALLIES_ENV: &str = "ANTECEDENT_CALIBRATION_PRIOR_TALLIES";
@@ -412,6 +421,28 @@ pub fn replicate_start() -> u32 {
             .parse::<u32>()
             .unwrap_or_else(|_| panic!("{REPLICATE_START_ENV}={raw}: want a replicate index")),
     })
+}
+
+/// End of this run's replicate shard ([`REPLICATE_END_ENV`]); `None` outside a shard.
+///
+/// # Panics
+///
+/// When the variable is set to anything but a replicate index.
+#[must_use]
+pub fn replicate_end() -> Option<u32> {
+    static END: std::sync::OnceLock<Option<u32>> = std::sync::OnceLock::new();
+    *END.get_or_init(|| {
+        std::env::var(REPLICATE_END_ENV).ok().map(|raw| {
+            raw.trim()
+                .parse::<u32>()
+                .unwrap_or_else(|_| panic!("{REPLICATE_END_ENV}={raw}: want a replicate index"))
+        })
+    })
+}
+
+/// Whether this run is a replicate shard ([`REPLICATE_END_ENV`] is set).
+fn sharding() -> bool {
+    replicate_end().is_some()
 }
 
 thread_local! {
@@ -591,6 +622,15 @@ pub fn map_replicates<T: Send>(n: u32, f: impl Fn(u64) -> T + Sync) -> Vec<T> {
         start == 0 || start < n,
         "{REPLICATE_START_ENV}={start} is not below the replicate count {n}: nothing to extend"
     );
+    if let Some(end) = replicate_end() {
+        // A shard: `start..end` on empty tallies, which only write their state.
+        assert!(
+            start < end && end <= n,
+            "{REPLICATE_START_ENV}={start}, {REPLICATE_END_ENV}={end}: want start < end <= {n}"
+        );
+        MAP_STATE.with(|state| state.set((Some(end), false)));
+        return map_replicates_from(start, end, f);
+    }
     MAP_STATE.with(|state| state.set((Some(n), start > 0)));
     map_replicates_from(start, n, f)
 }
@@ -810,6 +850,9 @@ pub struct CoverageTally {
     /// Scored replicates that produced a finite, ordered interval.
     with_interval: u32,
     length_sum: f64,
+    /// Each interval length in replicate order, kept only by a shard so a merge folds
+    /// `length_sum` in the order a single run would.
+    lengths: Vec<f64>,
     record: Option<BoundRecord>,
     /// Whether the first `record` / `skip` / `bind` has run (and, on an
     /// extending thread, seeded the tally from its prior state).
@@ -842,6 +885,9 @@ struct TallyState {
     /// from which an extension continues the digest chain.
     #[serde(default)]
     event_digests: String,
+    /// A shard's interval lengths in replicate order (empty outside a shard).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    lengths: Vec<f64>,
     /// Chained digests of the first `k` replicate fingerprints, by `k`.
     #[serde(default)]
     prefix_digests: std::collections::BTreeMap<String, String>,
@@ -913,6 +959,7 @@ impl CoverageTally {
             skipped: 0,
             with_interval: 0,
             length_sum: 0.0,
+            lengths: Vec::new(),
             record: None,
             seeded: false,
             pending: Vec::new(),
@@ -1050,6 +1097,7 @@ impl CoverageTally {
             map_end: last_map_end(),
             decision_context: decision_context(),
             event_digests: hex(&self.events.concat()),
+            lengths: self.lengths.clone(),
             prefix_digests: self.prefix_digests(),
             record: self.record.as_ref().map(|record| RecordState {
                 construction: record.construction.clone(),
@@ -1327,6 +1375,9 @@ impl CoverageTally {
     /// replicate has been recorded, alongside the info-only tally's own report.
     pub fn persist(&self) {
         self.finish();
+        if sharding() {
+            return;
+        }
     }
 
     ///
@@ -1340,6 +1391,9 @@ impl CoverageTally {
             self.name
         );
         self.finish();
+        if sharding() {
+            return;
+        }
         let attempts = self.attempts();
         let rate = self.rate();
         let (lo, hi) = coverage_band(attempts, self.level);
@@ -1386,6 +1440,9 @@ impl CoverageTally {
     pub fn emit_named_boundary(&self) {
         assert!(self.record.is_some(), "{}: emit_named_boundary needs a record tally", self.name);
         self.finish();
+        if sharding() {
+            return;
+        }
         let attempts = self.attempts();
         eprintln!(
             "calibration-boundary {} (recorded, not gated): nominal={:.2} coverage={:.3} \
@@ -1540,6 +1597,9 @@ impl CoverageTally {
         };
         self.with_interval += 1;
         self.length_sum += hi - lo;
+        if sharding() {
+            self.lengths.push(hi - lo);
+        }
         if truth >= lo && truth <= hi {
             self.covered += 1;
         }
@@ -1607,6 +1667,9 @@ impl CoverageTally {
             self.name
         );
         self.finish();
+        if sharding() {
+            return;
+        }
         if smoke() {
             self.emit_smoke(!self.passes_nominal(), "gated");
             return;
@@ -1779,6 +1842,9 @@ impl CoverageTally {
         );
         assert!(!target.trim().is_empty(), "{}: a one-sided record states its target", self.name);
         self.finish();
+        if sharding() {
+            return;
+        }
         let attempts = self.attempts();
         let rate = self.rate();
         let one_sided = Some((side, target));
@@ -1849,6 +1915,10 @@ impl CoverageTally {
     /// be the registered look ([`n_sim`]).
     pub fn decide(&self, lower_only: bool) -> Option<bool> {
         self.finish();
+        if sharding() {
+            // A shard computes part of the replicates and decides nothing.
+            return Some(true);
+        }
         let decision = self.family_decision(lower_only)?;
         self.log_family_decision(&decision);
         Some(decision.compatible)
@@ -1873,6 +1943,9 @@ impl CoverageTally {
             self.name
         );
         self.finish();
+        if sharding() {
+            return;
+        }
         let attempts = self.attempts();
         let rate = self.rate();
         if smoke() {
@@ -1937,6 +2010,9 @@ impl CoverageTally {
         );
         assert!(self.record.as_ref().is_some_and(|r| !r.unasserted), "asserted record required");
         self.finish();
+        if sharding() {
+            return;
+        }
         let attempts = self.attempts();
         let rate = self.rate();
         if smoke() {
@@ -2037,6 +2113,9 @@ impl CoverageTally {
             self.name
         );
         self.finish();
+        if sharding() {
+            return;
+        }
         if smoke() {
             self.emit_smoke(true, "named_boundary");
             return;
