@@ -1448,6 +1448,7 @@ def verify_uncertainty(src: Sources, m: dict, methods: list[dict] | None = None)
             return [f"{mid}: child {m['child']} does not declare kind = \"non_statistical\""]
         if not str(child.get("kind_reason", "")).strip():
             return [f"{mid}: child {m['child']} declares no reason for being non-statistical"]
+        return []
     if label == IDENTIFIED_SET_ASSERTED:
         token = detail.removeprefix("test:")
         if kind != "enclosure" or m["kind"] != "supported_estimator":
