@@ -1,0 +1,1 @@
+["use:antecedent_estimate::switchback_posterior::{CarryoverDeclaration,PeriodAdjustment,SequenceDependence,SwitchbackModel,SwitchbackPrior,SwitchbackRows,posterior_switchback,};#0","use:serde_json::Value;#0","fn:reference#0","fn:f#0","fn:close#0","fn:check#0","fn:run#0","fn:every_effect_matches_the_exact_posterior#0"]
