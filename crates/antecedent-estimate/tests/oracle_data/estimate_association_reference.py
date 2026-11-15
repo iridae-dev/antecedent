@@ -45,7 +45,19 @@ Definitions:
   by sqrt((m + 1)/(m - 1)) t_{0.975}(nu) / z_{0.975} times the kernel-bias factor at the block length, with
   nu = min(m - 1, max(1, 3 (sum B^2)^2 / sum B^4 - 1)) over the centred block sums B of psi.
 * Pearson: weighted correlation, error |1 - r^2| / sqrt(max(neff - 1, 1)), neff = (sum w)^2 / sum w^2.
-* Distance correlation: V-statistic, sqrt(dCov2_xy / sqrt(dVar2_x dVar2_y)).
+* Distance correlation: the point is the root, clamped at zero, of the unbiased squared distance correlation
+  of Szekely and Rizzo (2014): U-centred matrices A~_ij = a_ij - a_i./(n-2) - a_.j/(n-2) + a_../((n-1)(n-2))
+  (i != j, zero diagonal) of the distance matrices a, dCov2 = sum A~ B~ / (n (n-3)),
+  R = dCov2_xy / sqrt(dCov2_xx dCov2_yy).  Its spread is the normal interval point +- z_{0.975} se of the
+  delete-one jackknife error se = sqrt((n-1)/n sum (theta_k - mean theta)^2), every theta_k recomputed on the
+  rows without k; no spread (and the V-statistic sqrt(dCov2_xy / sqrt(dVar2_x dVar2_y)) as the point) when
+  there are fewer than five rows or any of those numerators is not positive.  The bootstrap draws of the
+  distance correlation stay the V-statistic of the resampled rows.
+* Series group mean (stratum of a series): sqrt of the Bartlett variance of its influence series at lag L,
+  times the kernel-bias factor at the bandwidth M = L + 1, times the Kiefer-Vogelsang fixed-b ratio
+  (1.96 + 2.9694 b + 0.4160 b^2 - 0.5324 b^3) / 1.96 at b = min(M / n_k, 1) (n_k rows of positive weight),
+  divided by sqrt(1 - min(M / n_k, 1/2)) (the estimated group mean removes the share M / n_k of the
+  long-run variance from the residual influence series).
 * Conjugate: beta | s2 ~ N(0, s2 Lambda0^-1), s2 ~ InvGamma(1, var_y); Student-t marginals.
 Repository-authored (MIT OR Apache-2.0).
 """
@@ -497,13 +509,31 @@ def strata_influence(of_row, k, y, w):
     return out
 
 
+def fixed_b_ratio(bandwidth, rows):
+    b = min(max(bandwidth / rows, 0.0), 1.0)
+    return (FIXED_B_INTERCEPT + 2.9694 * b + 0.4160 * b * b - 0.5324 * b * b * b) / FIXED_B_INTERCEPT
+
+
+def stratum_series_error(psi, positive):
+    """Published error of the mean of one stratum of a series (see the module notes)."""
+    lag = newey_west_lag(len(psi))
+    bandwidth = lag + 1
+    values = [tof(v) for v in psi]
+    share = min(bandwidth / positive, 0.5)
+    raw = mp.sqrt(mpf(lagged_variance(psi, lag)))
+    return tof(
+        raw * mpf(kernel_bias_factor(values, bandwidth)) * mpf(fixed_b_ratio(bandwidth, positive))
+        / mp.sqrt(1 - mpf(share))
+    )
+
+
 def strata_errors_of(of_row, k, y, w, modality):
     out = []
     for psi, positive in strata_influence(of_row, k, y, w):
         if psi is None:
             out.append(None)
         elif modality == "series":
-            out.append(series_error(psi))
+            out.append(stratum_series_error(psi, positive))
         else:
             var = sum(v * v for v in psi) * F(positive) / F(positive - 1)
             out.append(tof(mp.sqrt(mpf(var))))
@@ -560,9 +590,73 @@ def distance_correlation(x, y):
     return tof(mp.sqrt(max(mpf(dxy), 0) / mp.sqrt(mpf(dxx) * mpf(dyy))))
 
 
+def u_centred(v):
+    n = len(v)
+    d = [[abs(F(a) - F(b)) for b in v] for a in v]
+    row = [sum(r) for r in d]
+    tot = sum(row)
+    return [
+        [
+            0 if i == j else d[i][j] - row[i] / (n - 2) - row[j] / (n - 2) + tot / ((n - 1) * (n - 2))
+            for j in range(n)
+        ]
+        for i in range(n)
+    ]
+
+
+def unbiased_squared_numerators(x, y):
+    """(dCov2_xy, dCov2_xx, dCov2_yy) of the unbiased U-centred estimator, or None below four rows."""
+    n = len(x)
+    if n < 4:
+        return None
+    a, b = u_centred(x), u_centred(y)
+
+    def cov(p, q):
+        return sum(p[i][j] * q[i][j] for i in range(n) for j in range(n)) / (n * (n - 3))
+
+    return cov(a, b), cov(a, a), cov(b, b)
+
+
+def unbiased_root(x, y):
+    """Root, clamped at zero, of the unbiased squared distance correlation; None when undefined."""
+    parts = unbiased_squared_numerators(x, y)
+    if parts is None or parts[1] <= 0 or parts[2] <= 0:
+        return None
+    return mp.sqrt(max(mpf(parts[0]) / mp.sqrt(mpf(parts[1]) * mpf(parts[2])), 0))
+
+
+def unbiased_distance(x, y):
+    """(point, jackknife error) of the unbiased distance correlation, or None."""
+    n = len(x)
+    if n < 5:
+        return None
+    point = unbiased_root(x, y)
+    if point is None:
+        return None
+    leave = []
+    for k in range(n):
+        root = unbiased_root(x[:k] + x[k + 1 :], y[:k] + y[k + 1 :])
+        if root is None:
+            return None
+        leave.append(root)
+    mean = sum(leave) / n
+    spread_sq = sum((v - mean) ** 2 for v in leave)
+    return tof(point), tof(mp.sqrt(mpf(n - 1) / n * spread_sq))
+
+
+def jackknife_spread(x, y):
+    """Normal interval of the jackknife error around the unbiased point at the 95% level."""
+    got = unbiased_distance(x, y)
+    if got is None:
+        return None
+    z = mp.sqrt(2) * mp.erfinv(mpf(0.95))
+    return [tof(mpf(got[0]) - z * mpf(got[1])), tof(mpf(got[0]) + z * mpf(got[1]))]
+
+
 # ---------------------------------------------------------------- the reported statistic vector
-def statistic(case, eff):
-    """The reported statistic vector under effective row weights `eff` (None = did not fit)."""
+def statistic(case, eff, point=False):
+    """The reported statistic vector under effective row weights `eff` (None = did not fit); `point`
+    is the published point of the full rows, where a distance correlation is the unbiased one."""
     kind = case["kind"]
     if kind == "strata":
         return strata_statistics(case, eff)
@@ -576,6 +670,10 @@ def statistic(case, eff):
     xs = case["columns"][case["predictors"][0]]
     if kind == "pearson":
         return [weighted_pearson(xs, y, eff)]
+    if point:
+        got = unbiased_distance(list(xs), list(y))
+        if got is not None:
+            return [got[0]]
     copies = [int(round(v)) for v in eff]
     px = [xs[i] for i in range(len(y)) for _ in range(max(copies[i], 0))]
     py = [y[i] for i in range(len(y)) for _ in range(max(copies[i], 0))]
@@ -719,7 +817,7 @@ def bootstrap_expect(case, streams):
         draws.append(statistic(case, [a * b for a, b in zip(w, mult)]))
         if not series and case["kind"] == "model":
             errors.append(analytic_resampled(case, index))
-    estimates = statistic(case, w)
+    estimates = statistic(case, w, point=True)
     pivots = pivot_errors(case) if errors else None
     psis = influence(case)
     attempted = len(draws)
@@ -738,6 +836,10 @@ def bootstrap_expect(case, streams):
         studentized = studentized_spread(estimates[k], pivots[k], draws, errors, k) if errors else None
         if studentized is not None:
             out.append({"se": se, "spread": studentized})
+            continue
+        if case["kind"] == "distance":
+            xs = case["columns"][case["predictors"][0]]
+            out.append({"se": se, "spread": jackknife_spread(list(xs), list(case["columns"][case["outcome"]]))})
             continue
         sp = spread(vals)
         if sp is not None:
@@ -1328,7 +1430,7 @@ def main():
     out_cases = []
     for orig in cases:
         c, dropped = clean(orig)
-        e = {"estimate": statistic(c, case_weights(c)), "se": analytic(c), "rows_dropped": dropped}
+        e = {"estimate": statistic(c, case_weights(c), point=True), "se": analytic(c), "rows_dropped": dropped}
         orig = dict(orig)
         orig["expect"] = e
         out_cases.append(orig)
@@ -1336,7 +1438,7 @@ def main():
     for c in resampling:
         c, _ = clean(c)
         s = streams[c["name"]]
-        e = {"estimate": statistic(c, case_weights(c)), "se": analytic(c)}
+        e = {"estimate": statistic(c, case_weights(c), point=True), "se": analytic(c)}
         if "boot" in c:
             e["bootstrap"] = bootstrap_expect(c, s)
             c["streams"] = {"indexes": s["indexes"], "block_length": s.get("block_length")}
