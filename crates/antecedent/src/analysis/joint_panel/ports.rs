@@ -681,6 +681,42 @@ pub struct JointPanelContrast {
     pub uncertainty: JointPanelContrastUncertainty,
 }
 
+impl JointPanelContrast {
+    /// Standard deviation and equal-tailed interval the result publishes for a set of contrast
+    /// draws: the single construction behind [`JointPanelResult::scheduled_contrast`].
+    ///
+    /// The interval is `None` unless `authorized` (the fit's diagnostics authorize a complete
+    /// uncertainty law) and every slot is a finite value, and needs at least two slots. A
+    /// frequentist law uses the interpolated order statistics of the draws, a posterior the
+    /// exchangeable-rank rule. Callers that hold draws of their own (a calibration harness
+    /// that composes a draw set from a pooled resampling law) form their interval through this
+    /// function so it can never differ from the published one.
+    #[must_use]
+    pub fn uncertainty_from_draws(
+        draws: &[Option<f64>],
+        level: f64,
+        uncertainty: JointPanelContrastUncertainty,
+        authorized: bool,
+    ) -> (Option<f64>, Option<(f64, f64)>) {
+        use antecedent_stats::quantile::{QuantileRule, equal_tail_interval_sorted};
+        let complete = draws.iter().copied().collect::<Option<Vec<f64>>>();
+        match complete {
+            Some(mut values) if authorized && values.len() > 1 => {
+                let n = values.len() as f64;
+                let mean = values.iter().sum::<f64>() / n;
+                let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
+                values.sort_by(f64::total_cmp);
+                let rule = match uncertainty {
+                    JointPanelContrastUncertainty::Posterior => QuantileRule::ExchangeableRank,
+                    JointPanelContrastUncertainty::EstimatorSampling => QuantileRule::Interpolated,
+                };
+                (Some(variance.sqrt()), Some(equal_tail_interval_sorted(&values, level, rule)))
+            }
+            _ => (None, None),
+        }
+    }
+}
+
 impl JointPanelResult {
     /// Assemble the target's contrast of scheduled programs under one prespecified time
     /// functional, with its shared-draw uncertainty.
@@ -693,7 +729,6 @@ impl JointPanelResult {
         functional: &JointPanelResponseFunctional,
         level: f64,
     ) -> Result<JointPanelContrast, JointPanelError> {
-        use antecedent_stats::quantile::{QuantileRule, equal_tail_interval_sorted};
         if !(level > 0.0 && level < 1.0) {
             return Err(JointPanelError::compile("contrast interval level must lie in (0, 1)"));
         }
@@ -746,20 +781,9 @@ impl JointPanelResult {
         } else {
             JointPanelContrastUncertainty::EstimatorSampling
         };
-        let complete = draws.iter().copied().collect::<Option<Vec<f64>>>();
         let authorized = self.law_semantic().is_ok();
-        let (standard_error, interval) = match complete {
-            Some(mut values) if authorized && values.len() > 1 => {
-                let n = values.len() as f64;
-                let mean = values.iter().sum::<f64>() / n;
-                let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
-                values.sort_by(f64::total_cmp);
-                let rule =
-                    if bayes { QuantileRule::ExchangeableRank } else { QuantileRule::Interpolated };
-                (Some(variance.sqrt()), Some(equal_tail_interval_sorted(&values, level, rule)))
-            }
-            _ => (None, None),
-        };
+        let (standard_error, interval) =
+            JointPanelContrast::uncertainty_from_draws(&draws, level, uncertainty, authorized);
         Ok(JointPanelContrast { point, draws, standard_error, interval, level, uncertainty })
     }
 }
