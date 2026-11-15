@@ -1018,31 +1018,42 @@ fn temporal_frequentist_refuters_false_rejection_under_a_sound_procedure() {
 }
 
 // The same null design through the real facade: a `Study` on series data with a temporal
-// pulse effect (`y_t = 0.5 x_{t-1} + AR(1) noise`, `x` serially independent), whose full suite
+// pulse effect conditional on a binary modifier (`y_t = 0.5 x_{t-1} + AR(1) noise`, `x`
+// serially independent, the modifier independent of everything and without interaction, so
+// the effect marginal over it is 0.5). A conditional effect is the route that reads no row
+// weights, so its subset window is the gathered circular one, and the target-native suite
+// (subset stability, pre-trend) is published only for such a conditional study. Its full suite
 // refits the compiled program itself. Subset stability and pre-trend are scored as above, from
 // the verdicts the study publishes; nothing here is a mock of the refit. The study's own
-// default replicate count, block length and pre-trend lead apply. A refuter the route records
-// as not run publishes no verdict and counts as a miss.
+// default replicate count, block length and pre-trend lead apply. A refuter the route does not
+// publish counts as a miss.
 
 fn facade_series(n: usize, seed: u64) -> TimeSeriesData {
     let mut rng = CausalRng::from_seed(seed);
     let x = normals(n, &mut rng);
     let noise = ar1(n, NOISE_RHO, &mut rng);
+    let w: Vec<f64> = (0..n).map(|_| f64::from(unbiased_index(&mut rng, 10) < 4)).collect();
     let y: Vec<f64> =
         (0..n).map(|t| noise[t] + if t > 0 { LAG0 * x[t - 1] } else { 0.0 }).collect();
-    TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
-        .expect("two float columns")
+    TimeSeriesData::from_f64_columns(
+        [("x", x.as_slice()), ("y", y.as_slice()), ("w", w.as_slice())],
+        1,
+    )
+    .expect("three float columns")
 }
 
 fn facade_verdicts(n: usize, seed: u64, kinds: &[TargetRefuterKind]) -> Verdicts {
     let mut graph = TemporalDag::empty();
     let x1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).ok()?;
     let y0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).ok()?;
+    let w0 = ensure_lagged(&mut graph, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).ok()?;
     graph.insert_directed(x1, y0).ok()?;
+    graph.insert_directed(w0, y0).ok()?;
     let query = CausalQuery::TemporalEffect(
         TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
             .with_horizon_steps(1)
             .with_max_history_lag(Some(1))
+            .with_effect_modifiers([VariableId::from_raw(2)])
             .with_policy(TemporalPolicy::pulse(-1)),
     );
     let result = Study::series(facade_series(n, seed))

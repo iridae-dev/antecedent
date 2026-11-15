@@ -50,7 +50,7 @@ pub fn replicate_reference_tail(
     let nu = effective_covariance_df(replicates, independent_units);
     let k = k as f64;
     let denominator = nu - k + 1.0;
-    if denominator.is_nan() || denominator < 1.0 || value.is_nan() {
+    if denominator.is_nan() || denominator < 1.0 - 1e-9 || value.is_nan() {
         return None;
     }
     if value <= 0.0 {
@@ -65,6 +65,32 @@ pub fn replicate_reference_tail(
     antecedent_stats::adaptive_inference::regularized_incomplete_beta(x, 0.5 * denominator, 0.5 * k)
         .ok()
         .map(|tail| tail.clamp(0.0, 1.0))
+}
+
+/// The replicate count a refuter draws so that [`replicate_reference_tail`] is defined.
+///
+/// The reference needs effective degrees of freedom `ν ≥ k`, with
+/// `1/ν = 1/(R − 1) + 1/(g − 1)`, which holds exactly when `R − 1 ≥ k (g − 1) / (g − 1 − k)`.
+/// That has a solution only when `g − 1 > k`: the replicate vectors of a resample with `g`
+/// independent units span at most `g − 1` directions, so with `g − 1 ≤ k` the `k × k`
+/// resampling covariance is singular however many replicates are drawn, and the discrepancy
+/// is undefined. Then (and when no units are declared) `requested` is returned unchanged and
+/// the tail is `None`. Never fewer than `requested`.
+#[must_use]
+pub fn replicates_for_defined_reference(
+    k: usize,
+    requested: u32,
+    independent_units: Option<usize>,
+) -> u32 {
+    let Some(units) = independent_units else {
+        return requested;
+    };
+    let g1 = units.saturating_sub(1);
+    if g1 <= k {
+        return requested;
+    }
+    let needed = (k * g1).div_ceil(g1 - k) + 1;
+    requested.max(u32::try_from(needed).unwrap_or(u32::MAX))
 }
 
 #[cfg(test)]
@@ -103,6 +129,23 @@ mod tests {
         assert!(tail > 0.06 && tail < 0.07, "{tail}");
         let blocks = replicate_reference_tail(5.991_464_547_107_98, 2, 40, Some(12)).unwrap();
         assert!(blocks > tail);
+    }
+
+    #[test]
+    fn replicates_are_raised_until_the_reference_is_defined() {
+        // Ten coordinates from thirteen units: forty replicates leave nu below ten, so more are
+        // drawn, and with them the tail is defined.
+        assert!(replicate_reference_tail(1.0, 10, 30, Some(13)).is_none());
+        let needed = replicates_for_defined_reference(10, 30, Some(13));
+        assert!(needed > 30);
+        assert!(replicate_reference_tail(1.0, 10, needed as usize, Some(13)).is_some());
+        assert!(replicate_reference_tail(1.0, 10, needed as usize - 1, Some(13)).is_none());
+        // Enough already, or no declared units: unchanged.
+        assert_eq!(replicates_for_defined_reference(2, 30, Some(500)), 30);
+        assert_eq!(replicates_for_defined_reference(2, 30, None), 30);
+        // As many units as coordinates plus one: singular resampling covariance, not raised.
+        assert_eq!(replicates_for_defined_reference(10, 30, Some(11)), 30);
+        assert!(replicate_reference_tail(1.0, 10, 100_000, Some(11)).is_none());
     }
 
     #[test]
