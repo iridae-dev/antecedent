@@ -1027,13 +1027,18 @@ pub(super) fn marginal(
         return spatial_marginal(data, p, residuals, detail);
     }
     let mut total = 0.0;
-    let mut intercept_mean = Vec::with_capacity(residuals.len());
-    let mut intercept_variance = Vec::with_capacity(residuals.len());
+    // A value-only evaluation never reads the conditional intercepts: do not collect them.
+    let keep = detail != Detail::Value;
+    let capacity = if keep { residuals.len() } else { 0 };
+    let mut intercept_mean = Vec::with_capacity(capacity);
+    let mut intercept_variance = Vec::with_capacity(capacity);
     for (group, r) in data.groups.iter().zip(residuals) {
         let value = group_marginal(group, r, p.rho, p.innovation_sd, p.group_sd)?;
         total += group.weight * value.log_likelihood;
-        intercept_mean.push(value.intercept_mean);
-        intercept_variance.push(value.intercept_variance);
+        if keep {
+            intercept_mean.push(value.intercept_mean);
+            intercept_variance.push(value.intercept_variance);
+        }
     }
     total.is_finite().then_some(Marginal {
         log_likelihood: total,

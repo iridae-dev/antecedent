@@ -271,6 +271,7 @@ struct Buffers {
     heights: Vec<f64>,
     values: Vec<f64>,
     scratch: Vec<f64>,
+    exposures: Vec<f64>,
 }
 
 /// Back-propagate `scale * dl/df` of one `(group, period)` mean response into the
@@ -297,14 +298,16 @@ fn accumulate_mechanism(
     let class = data.family.class_of(group_index);
     let k = p.half_saturation_of(class);
     let k_index = if class == 0 { layout.k0 } else { layout.class + class - 1 };
-    let Buffers { saturated, partials, heights, values, scratch } = buffers;
-    let exposures: Vec<f64> = group
-        .channels
-        .iter()
-        .zip(&group.history)
-        .zip(&p.channels)
-        .map(|((series, history), channel)| exposure(series, *history, channel.lag, time))
-        .collect();
+    let Buffers { saturated, partials, heights, values, scratch, exposures } = buffers;
+    exposures.clear();
+    exposures.extend(
+        group
+            .channels
+            .iter()
+            .zip(&group.history)
+            .zip(&p.channels)
+            .map(|((series, history), channel)| exposure(series, *history, channel.lag, time)),
+    );
     saturated.clear();
     saturated.extend(
         exposures
@@ -381,13 +384,42 @@ pub(super) fn independent_score(
     slot_x: &[Vec<f64>],
     slot_of: &dyn Fn(usize) -> usize,
 ) -> Option<Score> {
+    independent_score_with(data, shared_x, slot_x, slot_of, true)
+}
+
+/// [`independent_score`] with the decoding of bit-identical slot coordinates optionally shared.
+/// A decoded mechanism is a pure function of its coordinates, so sharing never changes a value;
+/// the switch exists so that a test can compare against the unshared path.
+pub(super) fn independent_score_with(
+    data: &CompiledPanel<'_>,
+    shared_x: &[f64],
+    slot_x: &[Vec<f64>],
+    slot_of: &dyn Fn(usize) -> usize,
+    share_equal_slots: bool,
+) -> Option<Score> {
     if data.family.spatial.is_some() {
         return None;
     }
     let layout = layout(data);
     let base = decode(data, shared_x)?;
-    let slot_p: Vec<PanelParameters> =
-        slot_x.iter().map(|x| decode(data, x)).collect::<Option<_>>()?;
+    let mut decoded: Vec<PanelParameters> = Vec::with_capacity(slot_x.len());
+    let mut decoded_of: Vec<usize> = Vec::with_capacity(slot_x.len());
+    for (index, x) in slot_x.iter().enumerate() {
+        let same = if share_equal_slots {
+            (0..index).find(|&earlier| {
+                slot_x[earlier].iter().zip(x).all(|(a, b)| a.to_bits() == b.to_bits())
+            })
+        } else {
+            None
+        };
+        if let Some(earlier) = same {
+            decoded_of.push(decoded_of[earlier]);
+        } else {
+            decoded.push(decode(data, x)?);
+            decoded_of.push(decoded.len() - 1);
+        }
+    }
+    let slot_p = |slot: usize| &decoded[decoded_of[slot]];
     let mut shared = vec![0.0; shared_x.len()];
     let mut slots = vec![vec![0.0; shared_x.len()]; slot_x.len()];
     let mut responses = ResponseScratch::default();
@@ -398,7 +430,7 @@ pub(super) fn independent_score(
             if group.outcome[time].is_finite() {
                 let fitted = observed_response_with(
                     data,
-                    &slot_p[slot_of(time)],
+                    slot_p(slot_of(time)),
                     group,
                     group_index,
                     time,
@@ -419,7 +451,7 @@ pub(super) fn independent_score(
             let slot = slot_of(time);
             accumulate_mechanism(
                 data,
-                &slot_p[slot],
+                slot_p(slot),
                 &slot_x[slot],
                 group,
                 group_index,

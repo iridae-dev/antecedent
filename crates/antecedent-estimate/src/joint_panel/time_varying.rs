@@ -406,6 +406,58 @@ fn parameters_at(
     }
     likelihood::decode(data, &current)
 }
+/// The decoded mechanism of every period, with periods whose mechanism coordinates are
+/// bit-identical sharing one decoded value (every period of a no-change path, every period on
+/// one side of a change point). Decoding is a pure function of the coordinates, so sharing never
+/// changes a value; `share_equal` exists so a test can compare against the unshared path.
+struct PeriodMechanisms {
+    distinct: Vec<PanelParameters>,
+    of_period: Vec<usize>,
+}
+impl PeriodMechanisms {
+    fn new(
+        data: &PanelData,
+        spec: &TemporalPanelSpec,
+        choice: &TemporalModelChoice,
+        values: &[f64],
+        periods: usize,
+        share_equal: bool,
+    ) -> Option<Self> {
+        let p = likelihood::parameter_count(data);
+        let global = values.get(..p)?;
+        let selected = coordinates(data, spec).ok()?;
+        let delta = values.get(p..p + offsets(spec, choice))?;
+        let mut coordinates_of: Vec<Vec<f64>> = Vec::new();
+        let mut distinct = Vec::new();
+        let mut of_period = Vec::with_capacity(periods);
+        let mut current = global.to_vec();
+        for time in 0..periods {
+            current.copy_from_slice(global);
+            for (coordinate, &index) in selected.iter().enumerate() {
+                current[index] += path_value(spec, choice, delta, coordinate, time);
+            }
+            let same = if share_equal {
+                coordinates_of.iter().position(|earlier| {
+                    earlier.iter().zip(&current).all(|(a, b)| a.to_bits() == b.to_bits())
+                })
+            } else {
+                None
+            };
+            of_period.push(match same {
+                Some(index) => index,
+                None => {
+                    distinct.push(likelihood::decode(data, &current)?);
+                    coordinates_of.push(current.clone());
+                    distinct.len() - 1
+                }
+            });
+        }
+        Some(Self { distinct, of_period })
+    }
+    fn at(&self, time: usize) -> &PanelParameters {
+        &self.distinct[self.of_period[time]]
+    }
+}
 fn conditional_state(
     data: &likelihood::CompiledPanel<'_>,
     spec: &TemporalPanelSpec,
@@ -413,13 +465,21 @@ fn conditional_state(
     values: &[f64],
     detail: likelihood::Detail,
 ) -> Option<likelihood::Marginal> {
+    conditional_state_with(data, spec, choice, values, detail, true)
+}
+fn conditional_state_with(
+    data: &likelihood::CompiledPanel<'_>,
+    spec: &TemporalPanelSpec,
+    choice: &TemporalModelChoice,
+    values: &[f64],
+    detail: likelihood::Detail,
+    share_equal: bool,
+) -> Option<likelihood::Marginal> {
     let base = likelihood::decode(data, values.get(..likelihood::parameter_count(data))?)?;
-    // The mechanism at a period does not depend on the group: decode it once per period
-    // instead of once per row. A period no group reaches is never decoded, as before.
+    // The mechanism at a period does not depend on the group: decode it once per distinct
+    // period mechanism instead of once per row. A period no group reaches is never decoded.
     let periods = data.groups.iter().map(|group| group.outcome.len()).max().unwrap_or(0);
-    let by_period = (0..periods)
-        .map(|time| parameters_at(data, spec, choice, values, time))
-        .collect::<Option<Vec<_>>>()?;
+    let mechanisms = PeriodMechanisms::new(data, spec, choice, values, periods, share_equal)?;
     let mut buffers = likelihood::ResponseScratch::default();
     let residuals = data
         .groups
@@ -431,7 +491,7 @@ fn conditional_state(
                     group.outcome[time]
                         - likelihood::observed_response_with(
                             data,
-                            &by_period[time],
+                            mechanisms.at(time),
                             group,
                             index,
                             time,
@@ -477,6 +537,15 @@ fn score(
     choice: &TemporalModelChoice,
     values: &[f64],
 ) -> Option<Vec<f64>> {
+    score_with(data, spec, choice, values, true)
+}
+fn score_with(
+    data: &likelihood::CompiledPanel<'_>,
+    spec: &TemporalPanelSpec,
+    choice: &TemporalModelChoice,
+    values: &[f64],
+    share_equal: bool,
+) -> Option<Vec<f64>> {
     let p = likelihood::parameter_count(data);
     let selected = coordinates(data, spec).ok()?;
     let delta = values.get(p..p + offsets(spec, choice))?;
@@ -491,7 +560,8 @@ fn score(
             current
         })
         .collect();
-    let score = super::gradient::independent_score(data, global, &slot_x, &|time| time)?;
+    let score =
+        super::gradient::independent_score_with(data, global, &slot_x, &|time| time, share_equal)?;
     let mut output = score.shared;
     output.extend(std::iter::repeat_n(0.0, delta.len()));
     for slot in &score.slots {
@@ -1646,6 +1716,51 @@ mod tests {
                     let numeric = five_point_gradient(&values, &function);
                     assert_scores_agree(&analytic, &numeric, &format!("{choice:?} point {point}"));
                 }
+            }
+        }
+    }
+    #[test]
+    fn shared_period_decoding_reproduces_per_period_decoding_bit_for_bit() {
+        let (data, baseline, _) = super::super::tests::fixture();
+        let spec = specification();
+        let compiled = likelihood::CompiledPanel::new(&data).unwrap();
+        let p = likelihood::parameter_count(&data);
+        let start = likelihood::encode(&data, &baseline.parameters).unwrap();
+        let mut state = 5_u64;
+        let mut next = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1_u64 << 53) as f64 - 0.5
+        };
+        for choice in [
+            TemporalModelChoice::NoChange,
+            TemporalModelChoice::Piecewise { at: 12 },
+            TemporalModelChoice::Smooth { penalty: 2.0 },
+        ] {
+            let mut values = start.clone();
+            values.resize(p + offsets(&spec, &choice), 0.0);
+            for value in &mut values {
+                *value += 0.2 * next();
+            }
+            for detail in [likelihood::Detail::Value, likelihood::Detail::Mean] {
+                let shared =
+                    conditional_state_with(&compiled, &spec, &choice, &values, detail, true)
+                        .unwrap();
+                let separate =
+                    conditional_state_with(&compiled, &spec, &choice, &values, detail, false)
+                        .unwrap();
+                assert_eq!(shared.log_likelihood.to_bits(), separate.log_likelihood.to_bits());
+                assert_eq!(shared.intercept_mean.len(), separate.intercept_mean.len());
+                for (a, b) in shared.intercept_mean.iter().zip(&separate.intercept_mean) {
+                    assert_eq!(a.to_bits(), b.to_bits());
+                }
+            }
+            let shared = score_with(&compiled, &spec, &choice, &values, true).unwrap();
+            let separate = score_with(&compiled, &spec, &choice, &values, false).unwrap();
+            assert_eq!(shared.len(), separate.len());
+            for (a, b) in shared.iter().zip(&separate) {
+                assert_eq!(a.to_bits(), b.to_bits(), "{choice:?}");
             }
         }
     }
