@@ -160,11 +160,11 @@ references = [
 id = "P01.iv.temporal.frequentist"
 parent = "P01"
 gap = "none"
-route = "supported.PulseEffect.TemporalDag"
+route = "temporal.lagged_instrument"
 target = "lagged instrument Wald ratio"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_frequentist_route_matches_the_wald_ratio_and_certifies_the_instrument_from_the_graph; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_frequentist_route_matches_the_wald_ratio_and_certifies_the_instrument_from_the_graph; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (estimator_records)"
 provenance = [
   "estimate.bayesian_temporal_lagged_instrument",
   "estimate.temporal_lagged_instrument",
@@ -185,11 +185,11 @@ references = [
 id = "P01.iv.temporal.bayesian"
 parent = "P01"
 gap = "none"
-route = "supported.PulseEffect.TemporalDag"
+route = "bayesian.temporal.lagged_instrument"
 target = "lagged instrument posterior ratio"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_bayesian_route_is_a_reduced_form_ratio_posterior_not_a_penalized_wald; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/temporal_lagged_instrument_route.rs::the_bayesian_route_is_a_reduced_form_ratio_posterior_not_a_penalized_wald; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (estimator_records)"
 provenance = [
   "estimate.bayesian_temporal_lagged_instrument",
   "estimate.temporal_lagged_instrument",
@@ -264,11 +264,11 @@ references = [
 id = "P02.glm.temporal.frequentist"
 parent = "P02"
 gap = "none"
-route = "supported.PulseEffect.TemporalDag"
+route = "temporal.glm_link_contrast"
 target = "decision-time mean-scale contrast"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_frequentist_contrast_matches_newton_and_the_delta_method; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_frequentist_contrast_matches_newton_and_the_delta_method; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty analytic (estimator_records)"
 provenance = [
   "estimate.bayesian_temporal_glm_link_contrast",
   "estimate.temporal_glm_link_contrast",
@@ -289,11 +289,11 @@ references = [
 id = "P02.glm.temporal.bayesian"
 parent = "P02"
 gap = "none"
-route = "supported.PulseEffect.TemporalDag"
+route = "bayesian.temporal.glm_link_contrast"
 target = "decision-time mean-scale contrast"
 review_status = "admitted"
 admission = "supported"
-decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_bayesian_contrast_matches_the_mode_and_a_laplace_sample; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (construction_fixture)"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/panel_link_contrast_route.rs::the_bayesian_contrast_matches_the_mode_and_a_laplace_sample; consumer crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result; uncertainty posterior (estimator_records)"
 provenance = [
   "estimate.bayesian_temporal_glm_link_contrast",
   "estimate.temporal_glm_link_contrast",
@@ -640,8 +640,8 @@ gap = "none"
 route = "bayesian.gcomp.model_based_arm_effect"
 target = "AverageEffect"
 review_status = "admitted"
-admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_arm_effect_routes.rs::bayesian_gcomp_on_the_treated_and_untreated_recovers_each_arms_model_based_effect; consumer crates/antecedent-io-core/src/posterior.rs::decode_posterior_artifact; uncertainty posterior (declared_and_corroborated)"
+admission = "supported"
+decision_basis = "supported per the counterpart inventory; execution crates/antecedent/tests/bayesian_arm_effect_routes.rs::bayesian_gcomp_on_the_treated_and_untreated_recovers_each_arms_model_based_effect; consumer crates/antecedent-io-core/src/posterior.rs::decode_posterior_artifact; uncertainty posterior (estimator_records)"
 provenance = [
   "estimate.bayesian_conditional",
   "estimate.bayesian_gcomp",
@@ -1732,7 +1732,7 @@ references = [
 id = "P09.multiarm.static.bayesian"
 parent = "P09"
 gap = "none"
-route = "bayesian.randomized_finite_population"
+route = "bayesian.randomized_superpopulation"
 target = "randomized_effect"
 review_status = "admitted"
 admission = "not_supported"
@@ -1928,7 +1928,7 @@ references = [
 id = "P09.factorial.static.bayesian"
 parent = "P09"
 gap = "none"
-route = "bayesian.randomized_finite_population"
+route = "bayesian.randomized_superpopulation"
 target = "randomized_effect"
 review_status = "admitted"
 admission = "not_supported"
@@ -2430,7 +2430,7 @@ references = [
 id = "P11.did.static.bayesian"
 parent = "P11"
 gap = "none"
-route = "bayesian.staggered_heterogeneity_robust"
+route = "bayesian.panel_did"
 target = "difference_in_differences"
 review_status = "admitted"
 admission = "not_supported"
@@ -2480,7 +2480,7 @@ references = [
 id = "P11.did.temporal.bayesian"
 parent = "P11"
 gap = "none"
-route = "bayesian.staggered_heterogeneity_robust"
+route = "bayesian.panel_did"
 target = "difference_in_differences"
 review_status = "admitted"
 admission = "not_supported"
@@ -2554,7 +2554,7 @@ references = [
 id = "P11.augmented_panel_did.temporal.frequentist"
 parent = "P11"
 gap = "none"
-route = "method.augmented_panel_did.temporal.frequentist"
+route = "quasi.augmented_panel_supplied_nuisance"
 target = "AugmentedPanelAtt"
 review_status = "admitted"
 admission = "not_supported"
@@ -2562,7 +2562,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "estimate.augmented_panel_did",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 3 of 3 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 3 of 4 public items reviewed"
 identifying_result = "AugmentedPanelAtt"
 assumptions = "the identification premises of AugmentedPanelAtt on the recorded route; the module documents no further premise"
 sampling_units = "Supplied-nuisance augmented two-period panel ATT."
@@ -2578,7 +2578,7 @@ references = [
 id = "P11.augmented_panel_did.temporal.bayesian"
 parent = "P11"
 gap = "none"
-route = "bayesian.staggered_heterogeneity_robust"
+route = "bayesian.panel_did"
 target = "AugmentedPanelAtt"
 review_status = "admitted"
 admission = "not_supported"
@@ -2676,7 +2676,7 @@ references = [
 id = "P11.staggered.temporal.bayesian"
 parent = "P11"
 gap = "none"
-route = "method.bayesian_staggered_event_study.temporal.bayesian"
+route = "bayesian.panel_did"
 target = "difference_in_differences"
 review_status = "admitted"
 admission = "not_supported"
@@ -2753,7 +2753,7 @@ route = "quasi.synthetic_control"
 target = "SyntheticControl"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/synthetic_control_route.rs::synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty none (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/synthetic_control_route.rs::synthetic_control_retained_route_recovers_truth_and_preserves_point_only_claim; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty none (asserted_no_interval)"
 provenance = [
   "quasi.synthetic_control",
 ]
@@ -2852,87 +2852,7 @@ review_status = "admitted"
 admission = "not_supported"
 decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
-  "adaptive_inference.analysis_contract",
-  "adaptive_inference.procedure_matrix",
-  "choice_inference.contract",
-  "choice_inference.hierarchical_study_value",
-  "cohort_decision.declared_shift",
-  "cohort_decision.law_valued_request",
-  "cohort_decision.mean_contrast",
-  "composition.boundary",
-  "composition.bundle",
-  "composition.panel_experiment_update",
-  "composition.rollout_state",
-  "composition.source_evidence",
-  "composition.source_lineage",
-  "composition.source_projection",
-  "composition.structured_refusals",
-  "composition.verifiers",
-  "decision.admissibility",
-  "decision.contract",
-  "decision.functional_inverse",
-  "decision.functionals",
-  "decision.robust_verdicts",
-  "decision.sensitivity_composition",
-  "decision.structural_policy",
-  "decision.structural_robustness",
-  "decision.transported_decision_artifact",
-  "decision.transported_source",
-  "decision_evidence.adaptive_regime",
-  "decision_evidence.decision_classification",
-  "decision_evidence.derived_quantity",
-  "decision_evidence.joint_excursion",
-  "decision_evidence.static_regime",
-  "decision_reliability.combined_uncertainty",
-  "decision_reliability.derived_numerical_interval",
-  "decision_reliability.derived_uncertainty",
-  "decision_reliability.optimality_confidence_set",
-  "decision_reliability.producer_carrier",
-  "decision_reliability.ranking_probability_interval",
-  "decision_reliability.ranking_statement",
-  "decision_reliability.sampled_decision",
-  "decision_reliability.selection_aware_evaluation",
-  "decision_reliability.selection_corrected_interval",
-  "design.adaptive_policy_search",
-  "design.compiled_program_search",
-  "design.decision",
-  "design.effect_width_reduction",
-  "design.eig",
-  "design.evidence_obligations",
-  "design.evidence_plan",
-  "design.evsi",
-  "design.external_signal",
-  "design.identification_repair",
-  "design.model_distinguish",
-  "design.prior_signal_planning",
-  "design.proposal_receipt",
-  "design.ranking_artifact",
-  "design.repair_search_receipt",
-  "design.study_candidate",
-  "design.study_planning",
-  "estimate.bayesian_temporal_design_excursion",
-  "estimate.bayesian_temporal_regime_survival",
-  "estimate.joint_design",
-  "estimate.response.temporal.bayesian",
-  "estimate.temporal_design_excursion",
-  "estimate.temporal_regime_survival",
-  "estimate.temporal_sequential",
-  "inverse.cohort_forward_source",
-  "inverse.composed_forward_source",
-  "inverse.observational_scenarios",
-  "inverse.transported_forward_source",
-  "recalculation.design_specific",
-  "sequential_evaluation.policy_evaluation",
-  "transport.adaptive_trial_source",
-  "transport.assumption_range",
-  "transport.covariate_shift_cohort_effect",
-  "transport.period_shift_policy",
-  "transport.policy_evaluation",
-  "transport.surrogate_bridge_premise",
-  "transport.synthesis",
-  "transport.synthesis_borrowing",
-  "transport.synthesis_pooling",
-  "transport.synthesis_transported_prior",
+  "estimate.local_ratio_design",
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "local_polynomial_ratio"
@@ -2957,87 +2877,7 @@ review_status = "admitted"
 admission = "not_supported"
 decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty posterior (declared_and_corroborated)"
 provenance = [
-  "adaptive_inference.analysis_contract",
-  "adaptive_inference.procedure_matrix",
-  "choice_inference.contract",
-  "choice_inference.hierarchical_study_value",
-  "cohort_decision.declared_shift",
-  "cohort_decision.law_valued_request",
-  "cohort_decision.mean_contrast",
-  "composition.boundary",
-  "composition.bundle",
-  "composition.panel_experiment_update",
-  "composition.rollout_state",
-  "composition.source_evidence",
-  "composition.source_lineage",
-  "composition.source_projection",
-  "composition.structured_refusals",
-  "composition.verifiers",
-  "decision.admissibility",
-  "decision.contract",
-  "decision.functional_inverse",
-  "decision.functionals",
-  "decision.robust_verdicts",
-  "decision.sensitivity_composition",
-  "decision.structural_policy",
-  "decision.structural_robustness",
-  "decision.transported_decision_artifact",
-  "decision.transported_source",
-  "decision_evidence.adaptive_regime",
-  "decision_evidence.decision_classification",
-  "decision_evidence.derived_quantity",
-  "decision_evidence.joint_excursion",
-  "decision_evidence.static_regime",
-  "decision_reliability.combined_uncertainty",
-  "decision_reliability.derived_numerical_interval",
-  "decision_reliability.derived_uncertainty",
-  "decision_reliability.optimality_confidence_set",
-  "decision_reliability.producer_carrier",
-  "decision_reliability.ranking_probability_interval",
-  "decision_reliability.ranking_statement",
-  "decision_reliability.sampled_decision",
-  "decision_reliability.selection_aware_evaluation",
-  "decision_reliability.selection_corrected_interval",
-  "design.adaptive_policy_search",
-  "design.compiled_program_search",
-  "design.decision",
-  "design.effect_width_reduction",
-  "design.eig",
-  "design.evidence_obligations",
-  "design.evidence_plan",
-  "design.evsi",
-  "design.external_signal",
-  "design.identification_repair",
-  "design.model_distinguish",
-  "design.prior_signal_planning",
-  "design.proposal_receipt",
-  "design.ranking_artifact",
-  "design.repair_search_receipt",
-  "design.study_candidate",
-  "design.study_planning",
-  "estimate.bayesian_temporal_design_excursion",
-  "estimate.bayesian_temporal_regime_survival",
-  "estimate.joint_design",
-  "estimate.response.temporal.bayesian",
-  "estimate.temporal_design_excursion",
-  "estimate.temporal_regime_survival",
-  "estimate.temporal_sequential",
-  "inverse.cohort_forward_source",
-  "inverse.composed_forward_source",
-  "inverse.observational_scenarios",
-  "inverse.transported_forward_source",
-  "recalculation.design_specific",
-  "sequential_evaluation.policy_evaluation",
-  "transport.adaptive_trial_source",
-  "transport.assumption_range",
-  "transport.covariate_shift_cohort_effect",
-  "transport.period_shift_policy",
-  "transport.policy_evaluation",
-  "transport.surrogate_bridge_premise",
-  "transport.synthesis",
-  "transport.synthesis_borrowing",
-  "transport.synthesis_pooling",
-  "transport.synthesis_transported_prior",
+  "estimate.local_ratio_design",
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "local_polynomial_ratio"
@@ -3111,87 +2951,7 @@ review_status = "admitted"
 admission = "not_supported"
 decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
-  "adaptive_inference.analysis_contract",
-  "adaptive_inference.procedure_matrix",
-  "choice_inference.contract",
-  "choice_inference.hierarchical_study_value",
-  "cohort_decision.declared_shift",
-  "cohort_decision.law_valued_request",
-  "cohort_decision.mean_contrast",
-  "composition.boundary",
-  "composition.bundle",
-  "composition.panel_experiment_update",
-  "composition.rollout_state",
-  "composition.source_evidence",
-  "composition.source_lineage",
-  "composition.source_projection",
-  "composition.structured_refusals",
-  "composition.verifiers",
-  "decision.admissibility",
-  "decision.contract",
-  "decision.functional_inverse",
-  "decision.functionals",
-  "decision.robust_verdicts",
-  "decision.sensitivity_composition",
-  "decision.structural_policy",
-  "decision.structural_robustness",
-  "decision.transported_decision_artifact",
-  "decision.transported_source",
-  "decision_evidence.adaptive_regime",
-  "decision_evidence.decision_classification",
-  "decision_evidence.derived_quantity",
-  "decision_evidence.joint_excursion",
-  "decision_evidence.static_regime",
-  "decision_reliability.combined_uncertainty",
-  "decision_reliability.derived_numerical_interval",
-  "decision_reliability.derived_uncertainty",
-  "decision_reliability.optimality_confidence_set",
-  "decision_reliability.producer_carrier",
-  "decision_reliability.ranking_probability_interval",
-  "decision_reliability.ranking_statement",
-  "decision_reliability.sampled_decision",
-  "decision_reliability.selection_aware_evaluation",
-  "decision_reliability.selection_corrected_interval",
-  "design.adaptive_policy_search",
-  "design.compiled_program_search",
-  "design.decision",
-  "design.effect_width_reduction",
-  "design.eig",
-  "design.evidence_obligations",
-  "design.evidence_plan",
-  "design.evsi",
-  "design.external_signal",
-  "design.identification_repair",
-  "design.model_distinguish",
-  "design.prior_signal_planning",
-  "design.proposal_receipt",
-  "design.ranking_artifact",
-  "design.repair_search_receipt",
-  "design.study_candidate",
-  "design.study_planning",
-  "estimate.bayesian_temporal_design_excursion",
-  "estimate.bayesian_temporal_regime_survival",
-  "estimate.joint_design",
-  "estimate.response.temporal.bayesian",
-  "estimate.temporal_design_excursion",
-  "estimate.temporal_regime_survival",
-  "estimate.temporal_sequential",
-  "inverse.cohort_forward_source",
-  "inverse.composed_forward_source",
-  "inverse.observational_scenarios",
-  "inverse.transported_forward_source",
-  "recalculation.design_specific",
-  "sequential_evaluation.policy_evaluation",
-  "transport.adaptive_trial_source",
-  "transport.assumption_range",
-  "transport.covariate_shift_cohort_effect",
-  "transport.period_shift_policy",
-  "transport.policy_evaluation",
-  "transport.surrogate_bridge_premise",
-  "transport.synthesis",
-  "transport.synthesis_borrowing",
-  "transport.synthesis_pooling",
-  "transport.synthesis_transported_prior",
+  "estimate.local_ratio_design",
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "Local_polynomial_ratio"
@@ -3216,87 +2976,7 @@ review_status = "admitted"
 admission = "not_supported"
 decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design; consumer crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact; uncertainty posterior (declared_and_corroborated)"
 provenance = [
-  "adaptive_inference.analysis_contract",
-  "adaptive_inference.procedure_matrix",
-  "choice_inference.contract",
-  "choice_inference.hierarchical_study_value",
-  "cohort_decision.declared_shift",
-  "cohort_decision.law_valued_request",
-  "cohort_decision.mean_contrast",
-  "composition.boundary",
-  "composition.bundle",
-  "composition.panel_experiment_update",
-  "composition.rollout_state",
-  "composition.source_evidence",
-  "composition.source_lineage",
-  "composition.source_projection",
-  "composition.structured_refusals",
-  "composition.verifiers",
-  "decision.admissibility",
-  "decision.contract",
-  "decision.functional_inverse",
-  "decision.functionals",
-  "decision.robust_verdicts",
-  "decision.sensitivity_composition",
-  "decision.structural_policy",
-  "decision.structural_robustness",
-  "decision.transported_decision_artifact",
-  "decision.transported_source",
-  "decision_evidence.adaptive_regime",
-  "decision_evidence.decision_classification",
-  "decision_evidence.derived_quantity",
-  "decision_evidence.joint_excursion",
-  "decision_evidence.static_regime",
-  "decision_reliability.combined_uncertainty",
-  "decision_reliability.derived_numerical_interval",
-  "decision_reliability.derived_uncertainty",
-  "decision_reliability.optimality_confidence_set",
-  "decision_reliability.producer_carrier",
-  "decision_reliability.ranking_probability_interval",
-  "decision_reliability.ranking_statement",
-  "decision_reliability.sampled_decision",
-  "decision_reliability.selection_aware_evaluation",
-  "decision_reliability.selection_corrected_interval",
-  "design.adaptive_policy_search",
-  "design.compiled_program_search",
-  "design.decision",
-  "design.effect_width_reduction",
-  "design.eig",
-  "design.evidence_obligations",
-  "design.evidence_plan",
-  "design.evsi",
-  "design.external_signal",
-  "design.identification_repair",
-  "design.model_distinguish",
-  "design.prior_signal_planning",
-  "design.proposal_receipt",
-  "design.ranking_artifact",
-  "design.repair_search_receipt",
-  "design.study_candidate",
-  "design.study_planning",
-  "estimate.bayesian_temporal_design_excursion",
-  "estimate.bayesian_temporal_regime_survival",
-  "estimate.joint_design",
-  "estimate.response.temporal.bayesian",
-  "estimate.temporal_design_excursion",
-  "estimate.temporal_regime_survival",
-  "estimate.temporal_sequential",
-  "inverse.cohort_forward_source",
-  "inverse.composed_forward_source",
-  "inverse.observational_scenarios",
-  "inverse.transported_forward_source",
-  "recalculation.design_specific",
-  "sequential_evaluation.policy_evaluation",
-  "transport.adaptive_trial_source",
-  "transport.assumption_range",
-  "transport.covariate_shift_cohort_effect",
-  "transport.period_shift_policy",
-  "transport.policy_evaluation",
-  "transport.surrogate_bridge_premise",
-  "transport.synthesis",
-  "transport.synthesis_borrowing",
-  "transport.synthesis_pooling",
-  "transport.synthesis_transported_prior",
+  "estimate.local_ratio_design",
 ]
 api_review = "internal: the module defines no public item"
 identifying_result = "Local_polynomial_ratio"
@@ -3667,7 +3347,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "validate.target_native_refuters",
 ]
-api_review = "parity/public_api/antecedent-validate.txt: 58 of 58 public items reviewed"
+api_review = "parity/public_api/antecedent-validate.txt: 58 of 60 public items reviewed"
 identifying_result = "ATE refuters do not certify conditional, derivative, mediation, or world-valued targets"
 assumptions = "Manifest states this refusal on derivative and attribution routes."
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -5604,7 +5284,7 @@ route = "method.joint_panel.temporal.frequentist"
 target = "synthetic two-channel panel"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution conformance/response/joint_panel; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty design_aware_resampling (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/joint_panel_workflow.rs; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty design_aware_resampling (declared_and_corroborated)"
 provenance = [
   "composition.panel_experiment_update",
   "design.compiled_program_search",
@@ -5635,7 +5315,7 @@ route = "method.joint_panel.temporal.bayesian"
 target = "synthetic two-channel panel"
 review_status = "admitted"
 admission = "not_supported"
-decision_basis = "not_supported per the counterpart inventory; execution conformance/response/joint_panel; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty posterior (declared_and_corroborated)"
+decision_basis = "not_supported per the counterpart inventory; execution crates/antecedent/tests/joint_panel_workflow.rs; consumer crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit; uncertainty posterior (declared_and_corroborated)"
 provenance = [
   "composition.panel_experiment_update",
   "design.compiled_program_search",

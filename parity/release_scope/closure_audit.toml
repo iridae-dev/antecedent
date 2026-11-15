@@ -6,7 +6,7 @@
 schema = 1
 missing_attempts = 0
 missing_consumers = 0
-adjusted_claims = 57
+adjusted_claims = 43
 unresolved_mandatorys = 0
 families = 28
 
@@ -379,72 +379,8 @@ reason = "Q09/E14 whole-procedure calibration and posterior uncertainty validati
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "supported.AnomalyAttribution.Admg#static.frequentist"
-method = "AnomalyAttribution"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.AnomalyAttribution.Cpdag#static.frequentist"
-method = "AnomalyAttribution"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
 id = "supported.AnomalyAttribution.Dag#static.frequentist"
 method = "AnomalyAttribution"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.AnomalyAttribution.Pag#static.frequentist"
-method = "AnomalyAttribution"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.AnomalyAttribution.TemporalAdmg#temporal.frequentist"
-method = "AnomalyAttribution"
-side = "temporal.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.AnomalyAttribution.TemporalCpdag#temporal.frequentist"
-method = "AnomalyAttribution"
-side = "temporal.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.AnomalyAttribution.TemporalPag#temporal.frequentist"
-method = "AnomalyAttribution"
-side = "temporal.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.ChangeAttribution.Admg#static.frequentist"
-method = "ChangeAttribution"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.ChangeAttribution.Cpdag#static.frequentist"
-method = "ChangeAttribution"
 side = "static.frequentist"
 status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
@@ -456,46 +392,6 @@ method = "ChangeAttribution"
 side = "static.frequentist"
 status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.ChangeAttribution.Pag#static.frequentist"
-method = "ChangeAttribution"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.ChangeAttribution.TemporalAdmg#temporal.frequentist"
-method = "ChangeAttribution"
-side = "temporal.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.ChangeAttribution.TemporalCpdag#temporal.frequentist"
-method = "ChangeAttribution"
-side = "temporal.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.ChangeAttribution.TemporalPag#temporal.frequentist"
-method = "ChangeAttribution"
-side = "temporal.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "composition.static.frequentist#static.frequentist"
-method = "ComposedQuantity"
-side = "static.frequentist"
-status = "not_supported"
-reason = "the route publishes a point value and no interval (declared_and_corroborated)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
@@ -513,14 +409,6 @@ side = "temporal.bayesian"
 status = "not_supported"
 reason = "the composition is a linear combination (compose_horizons, with a 95% interval from horizon_composition_interval) or an arbitrary nonlinear map (compose_horizons_with, a labelled uncalibrated spread only) of the horizons of one dose of a mean curve, reached from Study::compile with retain_joint_horizons (the option enters the contract inference binding, and the Bayesian program lowers to the block-weight posterior); gapped series publish no dispersion readings and so have no interval, and intervention responses and derivative responses retain no joint replicates"
 next_attempt = "extend the interval to nonlinear compositions through the delta-method influence of the map, and the joint replicates to intervention-level responses and series with gaps"
-
-[[adjusted_claim]]
-id = "supported.ConditionalEffect.TemporalAdmg#temporal.frequentist"
-method = "ConditionalEffect"
-side = "temporal.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
 id = "supported.Counterfactual.Admg#static.frequentist"

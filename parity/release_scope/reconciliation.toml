@@ -1672,7 +1672,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/joint_panel.rs", "crates/antecedent-estimate/src/joint_panel.rs", "crates/antecedent"]
-fixtures = ["conformance/response/joint_panel", "scripts/test_joint_panel_reference.py", "crates/antecedent/tests/joint_panel_workflow.rs", "parity/fixtures/joint_panel_procedures.toml"]
+fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs", "conformance/response/joint_panel", "scripts/test_joint_panel_reference.py", "parity/fixtures/joint_panel_procedures.toml"]
 consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer", "scripts/test_joint_panel_reference.py"]
 
 [[row]]
@@ -1681,7 +1681,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/joint_panel.rs", "crates/antecedent-estimate/src/joint_panel.rs", "crates/antecedent"]
-fixtures = ["conformance/response/joint_panel", "scripts/test_joint_panel_reference.py", "crates/antecedent/tests/joint_panel_workflow.rs", "parity/fixtures/joint_panel_procedures.toml"]
+fixtures = ["crates/antecedent/tests/joint_panel_workflow.rs", "conformance/response/joint_panel", "scripts/test_joint_panel_reference.py", "parity/fixtures/joint_panel_procedures.toml"]
 consumer = ["crates/antecedent-io/src/joint_panel_artifact.rs::FrozenPanelFit;crates/antecedent/tests/joint_panel_workflow.rs::fresh_process_panel_artifact_consumer", "scripts/test_joint_panel_reference.py"]
 
 [[row]]

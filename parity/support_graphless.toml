@@ -683,7 +683,7 @@ exit_by = "2027-03-31"
 family = "randomized_effect"
 axis = "temporal"
 disposition = "counterpart"
-routes = ["temporal_design.excursion.two_arm", "temporal_design.excursion.multi_arm", "temporal_design.excursion.factorial", "temporal_design.excursion.categorical", "temporal_design.excursion.quantile"]
+routes = ["temporal_design.excursion.two_arm", "temporal_design.excursion.multi_arm", "temporal_design.excursion.factorial", "temporal_design.excursion.categorical", "temporal_design.excursion.quantile", "bayesian.temporal_design.excursion.two_arm", "bayesian.temporal_design.excursion.multi_arm", "bayesian.temporal_design.excursion.factorial", "bayesian.temporal_design.excursion.categorical", "bayesian.temporal_design.excursion.quantile"]
 reason = "Temporal assignment designs over repeated periods; each has a Bayesian twin in the manifest. Retained and unsupported. The switchback row in this file is itself a within-unit time design."
 exit_by = "2027-03-31"
 
