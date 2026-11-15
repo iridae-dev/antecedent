@@ -1663,3 +1663,6 @@ name = "temporal_routes_range_calibration"
 
 [[test]]
 name = "bounds_association_range_calibration"
+
+[[test]]
+name = "graphless_wider_range_calibration"

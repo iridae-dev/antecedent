@@ -23593,3 +23593,10 @@ crate = "antecedent"
 cargo_target = "rollout_design_support_rows"
 path = "crates/antecedent/tests/rollout_design_support_rows.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "graphless-wider-range-calibration"
+crate = "antecedent"
+cargo_target = "graphless_wider_range_calibration"
+path = "crates/antecedent/tests/graphless_wider_range_calibration.rs"
+gates = ["inventory"]
