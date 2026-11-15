@@ -1677,3 +1677,130 @@ fn adaptive_regime_compiler_keeps_history_joint_covariance_and_target() {
     let basis = decision_interval_calibration_basis(ev, &req, &q).unwrap();
     assert_eq!(basis.row_count, ev.design.treated_units as u64);
 }
+
+fn pinned_numbers(value: &serde_json::Value) -> Vec<f64> {
+    value
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_f64().or_else(|| v.as_str().and_then(|s| s.parse().ok())).unwrap())
+        .collect()
+}
+
+fn pinned_expression(value: &serde_json::Value) -> UtilityExpr {
+    if let Some(k) = value.get("in") {
+        return UtilityExpr::Input(usize::try_from(k.as_u64().unwrap()).unwrap());
+    }
+    if let Some(c) = value.get("const") {
+        return UtilityExpr::Const(c.as_f64().unwrap());
+    }
+    let args = value["args"].as_array().unwrap();
+    let (left, right) = (pinned_expression(&args[0]), pinned_expression(&args[1]));
+    match value["op"].as_str().unwrap() {
+        "add" => UtilityExpr::sum(left, right),
+        "sub" => UtilityExpr::difference(left, right),
+        "mul" => UtilityExpr::product(left, right),
+        other => panic!("unknown pinned operator {other}"),
+    }
+}
+
+/// The first-order interval of a derived margin equals the delta-method interval that
+/// `conformance/design/decision_margin_interval/reference.py` derives in exact rational
+/// arithmetic (gradient by forward-mode differentiation, normal or Student critical value),
+/// for cluster, complete, matched-pair and switchback constructions.
+#[test]
+fn the_margin_interval_equals_the_independent_delta_method_truth() {
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/design/decision_margin_interval/expected.json"
+    ))
+    .unwrap();
+    let relative = pin["tolerance"]["relative"].as_f64().unwrap();
+    let close = |actual: f64, expected: f64| {
+        (actual - expected).abs() <= relative * 1.0_f64.max(actual.abs()).max(expected.abs())
+    };
+    let cases = pin["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 4);
+    for case in cases {
+        let name = case["name"].as_str().unwrap();
+        let components: Vec<OutcomeComponent> = case["components"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| {
+                let n = n.as_str().unwrap();
+                OutcomeComponent {
+                    name: n.into(),
+                    variable_id: format!("outcome.{n}"),
+                    units: "u".into(),
+                }
+            })
+            .collect();
+        let dependence = &case["dependence"];
+        let dependence = match dependence["kind"].as_str().unwrap() {
+            "arm_covariances" => Dependence::Joint {
+                treated: pinned_numbers(&dependence["treated"]),
+                control: pinned_numbers(&dependence["control"]),
+            },
+            "joint_arms" => {
+                Dependence::JointArms { covariance: pinned_numbers(&dependence["covariance"]) }
+            }
+            other => panic!("unknown pinned dependence {other}"),
+        };
+        let design = &case["design"];
+        let units = |key: &str| usize::try_from(design[key].as_u64().unwrap()).unwrap();
+        let evidence = JointExperimentEvidence::new(
+            "exp-pinned",
+            "pop",
+            ("on", "off"),
+            4,
+            components,
+            (pinned_numbers(&case["treated_means"]), pinned_numbers(&case["control_means"])),
+            dependence,
+            DesignRecord {
+                assignment_design: design["assignment_design"].as_str().unwrap().into(),
+                treated_units: units("treated_units"),
+                control_units: units("control_units"),
+                outcome_rows: units("outcome_rows"),
+            },
+            vec![],
+            Exposure::NoBetweenUnitInterference { assumption_id: "assumption.isolation".into() },
+        )
+        .unwrap();
+        let inputs = case["inputs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|binding| match binding.get("measured") {
+                Some(measured) => InputBinding::Measured(measured.as_str().unwrap().into()),
+                None => InputBinding::Fixed(binding["fixed"].as_f64().unwrap()),
+            })
+            .collect();
+        let quantity = DerivedQuantity {
+            name: "margin".into(),
+            units: "u".into(),
+            expr: pinned_expression(&case["expression"]),
+            inputs,
+        };
+        let request = Request {
+            population_id: "pop".into(),
+            treated_regime_id: "on".into(),
+            control_regime_id: "off".into(),
+            horizon: 4,
+            target: Target::ExperimentalContrast,
+        };
+        let result = derive(&evidence, &request, &quantity).unwrap();
+        let interval = result.sampling.as_ref().unwrap_or_else(|| panic!("{name}: interval"));
+        let expected = &case["expected"];
+        let pinned = |key: &str| expected[key].as_f64().unwrap();
+        assert!(close(interval.estimate, pinned("estimate")), "{name}: estimate");
+        assert!(close(result.contrast.unwrap(), pinned("estimate")), "{name}: contrast");
+        assert!(close(interval.standard_error, pinned("standard_error")), "{name}: standard error");
+        assert!(close(interval.lower, pinned("lower")), "{name}: lower end");
+        assert!(close(interval.upper, pinned("upper")), "{name}: upper end");
+        let half_width = 0.5 * (interval.upper - interval.lower);
+        assert!(
+            close(half_width / interval.standard_error, pinned("critical_value")),
+            "{name}: critical value"
+        );
+    }
+}

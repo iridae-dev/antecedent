@@ -262,6 +262,9 @@
   "decision.contract": [
    "decision.contract"
   ],
+  "decision.experimental_margin.interval_candidates": [
+   "decision.experimental_margin.interval_candidates"
+  ],
   "decision.finite_action_inverse": [
    "decision.finite_action_inverse"
   ],
@@ -2951,6 +2954,32 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
+  },
+  {
+   "deviations": [
+    "The delta method is applied to the contrast f(treated arm means) - f(control arm means) of a margin expression f. The gradient is accumulated forward over the expression tree, and the variance is the quadratic form of the gradients with the retained covariance: separate treated and control covariances, or one covariance of both arms' means with the control gradient negated. The paper states the asymptotic result for an estimator vector; no finite-sample coverage is claimed.",
+    "The 95% interval is the estimate plus or minus a critical value times the first-order standard error. The critical value is the normal quantile for cluster, complete and regime designs and the Student quantile with pairs (or sequences) minus one degrees of freedom for matched-pair and switchback designs; the delta-method paper prescribes neither.",
+    "An interval is withheld rather than clipped when the joint-arm quadratic form is negative or smaller than 64 machine epsilons of its absolute terms, when the expression has a kink, when the dependence is point-only or marginals-only over several components, or when an arm has fewer than 30 independently assigned units.",
+    "The calibration slot is an annotation: it is resolved from the shipped coverage records for the interval's own construction and never withholds or alters the interval, and no component support is inherited."
+   ],
+   "digest": "3f4e73cc52e6085678b84395d1091ed8bfe113798ef27d2ad6a851c7d629f31e",
+   "id": "decision.experimental_margin.interval_candidates",
+   "review": "method_review",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Gary W. Oehlert"
+     ],
+     "doi": "10.1080/00031305.1992.10475842",
+     "doi_verified": true,
+     "sections": [
+      "first-order variance of a differentiable function of asymptotically normal estimators"
+     ],
+     "title": "A Note on the Delta Method",
+     "year": 1992
+    }
+   ]
   },
   {
    "deviations": [

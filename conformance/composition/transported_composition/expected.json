@@ -1,0 +1,102 @@
+{
+  "schema_version": 2,
+  "scope": "Moments of a transported claim composed from its source-sampling, target-sampling and transport-functional pieces under a supplied covariance and under the aligned draws of one joint law; independence and unknown dependence are refused.",
+  "tolerance": {
+    "relative": 1e-12
+  },
+  "refused_without_dependence": [
+    "unknown",
+    "declared_independent"
+  ],
+  "covariance_route": {
+    "coefficients": [
+      "1",
+      "2",
+      "-0.5"
+    ],
+    "means": [
+      "1.5",
+      "-0.25",
+      "3"
+    ],
+    "covariance": [
+      "0.4375",
+      "0",
+      "-0.125",
+      "0",
+      "0.6875",
+      "-0.25",
+      "-0.125",
+      "-0.25",
+      "0.6875"
+    ],
+    "expected": {
+      "mean": -0.5,
+      "variance": 3.984375
+    }
+  },
+  "aligned_route": {
+    "coefficients": [
+      "1",
+      "0.5",
+      "-2"
+    ],
+    "pieces": [
+      [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8"
+      ],
+      [
+        "2",
+        "1",
+        "4",
+        "3",
+        "6",
+        "5",
+        "8",
+        "7"
+      ],
+      [
+        "0",
+        "0",
+        "1",
+        "2",
+        "-1",
+        "0",
+        "2",
+        "1"
+      ]
+    ],
+    "expected": {
+      "mean": 5.5,
+      "variance": 11.375
+    }
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "project": "exact rational arithmetic of linear-combination moments",
+    "method": "mean c.m and variance c'Sigma c from a supplied covariance; population mean and variance of the aligned row combinations from one joint law",
+    "generator": "conformance/composition/transported_composition/reference.py",
+    "command": "uv run --frozen --script conformance/composition/transported_composition/reference.py --check",
+    "environment_lock": "conformance/composition/transported_composition/reference.py.lock",
+    "generator_retained": true,
+    "limitations": "Hand-constructed three-piece covariance and eight aligned rows; point moments only, no interval or coverage claim.",
+    "independence_basis": "The generator evaluates c.m and c' Sigma c from decimal literals in exact Fractions, and the population mean and variance of the aligned row combinations in exact Fractions, rounding to float once. It imports no Antecedent code and calls no propagation routine. The covariance matrix is built as a Gram matrix plus a ridge so it is positive definite by construction; the self-test shows that dropping the cross terms changes the variance. The executing assertion drives the public propagation entry points with the fixture inputs and compares the claim values; the refusal list is the stated rule that dependence between pieces of one transported claim is never assumed away.",
+    "asserted_outputs": [
+      "covariance_route.expected.mean and variance",
+      "aligned_route.expected.mean and variance",
+      "refused_without_dependence (independence and unknown dependence are refused)"
+    ],
+    "context_only_outputs": [
+      "covariance_route and aligned_route coefficients, means, covariance and pieces (inputs)"
+    ],
+    "executing_assertion": "crates/antecedent/tests/composed_uncertainty_facade.rs::a_transported_composition_equals_the_independent_moment_truth",
+    "historical_exposure": "Authored for this fixture from the closed-form delta-method and linear-moment definitions; no product implementation source or product output was consulted to derive the values, and no earlier harness exists."
+  }
+}

@@ -490,3 +490,17 @@ evidence_assertion = "temporal_mediation_on_event_data_recovers_the_mediated_tru
 kind = "known_truth"
 fixtures = ["conformance/bayesian/known_truth_mixtures"]
 why = "Temporal graph-posterior mediated effect on event data recovers the identified atom's 0.44 path product within 0.015 and equals the aligned series route."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/composed_uncertainty_facade.rs"
+evidence_assertion = "a_transported_composition_equals_the_independent_moment_truth"
+kind = "known_truth"
+fixtures = ["conformance/composition/transported_composition"]
+why = "A transported claim composed under a supplied covariance and under aligned draws equals the exact rational moments of the fixture, and independence or unknown dependence is refused."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/decision_evidence_workflow.rs"
+evidence_assertion = "the_margin_interval_equals_the_independent_delta_method_truth"
+kind = "known_truth"
+fixtures = ["conformance/design/decision_margin_interval"]
+why = "The derived margin interval equals the closed-form delta-method contrast, standard error and interval of the fixture on cluster, complete, matched-pair and switchback constructions."
