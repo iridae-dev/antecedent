@@ -179,6 +179,24 @@ pub(super) fn join_free_mask(
     mask_from(&keep)
 }
 
+/// `series` with its row weights dropped (columns, analysis mask and time index kept).
+pub(super) fn without_row_weights(
+    series: &TimeSeriesData,
+) -> Result<TimeSeriesData, TargetRefitError> {
+    let storage = series.storage();
+    if storage.weights().is_none() {
+        return Ok(series.clone());
+    }
+    let storage = antecedent_data::OwnedColumnarStorage::try_new(
+        storage.schema().clone(),
+        storage.columns().to_vec(),
+        storage.analysis_mask().cloned(),
+        None,
+    )
+    .map_err(data_failed)?;
+    TimeSeriesData::try_new(storage, series.time_index().clone()).map_err(data_failed)
+}
+
 pub(super) fn series_with(
     series: &TimeSeriesData,
     replacements: &[(VariableId, Arc<[f64]>)],

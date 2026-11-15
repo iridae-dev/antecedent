@@ -29,15 +29,17 @@ use antecedent::{
     StudyBuilder, StudyResult, TransportTrialSpec,
 };
 use antecedent_core::{
-    AssignmentDesign, CausalQuery, ContinuousDomain, ExecutionContext, ExposureLevel,
-    ExposureMapping, GridSpec, IdentificationStatus, InterferenceFunctional, InterferenceQuery,
-    ResponseFunctional, ResponseQuery, ResponseValue, TransportQuery, VariableId,
+    AssignmentDesign, CausalQuery, ContinuousDomain, DeclaredSamplingDesign, ExecutionContext,
+    ExposureLevel, ExposureMapping, GridSpec, IdentificationStatus, InterferenceFunctional,
+    InterferenceQuery, ResponseFunctional, ResponseQuery, ResponseValue, TransportQuery,
+    VariableId,
 };
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_discovery::{
     GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg,
     adjacency_mask_from_cpdag, adjacency_masks_from_pag, set_edge,
 };
+use antecedent_estimate::ScoreDependence;
 use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Pag, TemporalAdmg};
 use antecedent_prob::InferenceDiagnostics;
 use antecedent_validate::RefutationReport;
@@ -235,23 +237,43 @@ fn transport_study(
     suite: RefuteSuite,
     selection: f64,
 ) -> Study {
+    let temporal = matches!(graph, Graph::TemporalAdmg(_));
     finish(
-        bind(Study::tabular(transport_data(selection)), graph, supplied),
+        declared_series(bind(Study::tabular(transport_data(selection)), graph, supplied), temporal),
         selection_targets,
         bayesian,
         suite,
     )
 }
 
+/// A temporal structure reads the four fixture rows as one series. The fixture declares that
+/// series with a Newey-West lag of two, so the closed-form pins hold: the Bartlett error of
+/// [`newey_west_se`] and blocks of two rows in the Bayesian draws. Without the declaration the
+/// route sizes the series on the contrast's influence and reports the equal-weighted cosine
+/// error, which the series-transport calibration measures; four rows have no closed form for it.
+fn declared_series(builder: StudyBuilder, temporal: bool) -> StudyBuilder {
+    if temporal {
+        builder
+            .sampling_design(DeclaredSamplingDesign::DependentTimeSeries)
+            .score_dependence(ScoreDependence::NeweyWest { lag: 2 })
+    } else {
+        builder
+    }
+}
+
 fn transport_posterior_study(
     posterior: GraphPosterior,
+    temporal: bool,
     selection_targets: &[u32],
     bayesian: bool,
     suite: RefuteSuite,
     selection: f64,
 ) -> Study {
     finish(
-        Study::tabular(transport_data(selection)).graph_posterior(posterior),
+        declared_series(
+            Study::tabular(transport_data(selection)).graph_posterior(posterior),
+            temporal,
+        ),
         selection_targets,
         bayesian,
         suite,
@@ -788,8 +810,14 @@ fn run_transport_posterior_cells(kind: &str, ctx: &ExecutionContext) {
         for suite in SUITES {
             let case = posterior_case(kind);
             let label = format!("{kind} posterior bayesian={bayesian} {suite:?}");
-            let built =
-                transport_posterior_study(case.posterior.clone(), &[Z], bayesian, suite, 0.5);
+            let built = transport_posterior_study(
+                case.posterior.clone(),
+                kind == "temporal_admg",
+                &[Z],
+                bayesian,
+                suite,
+                0.5,
+            );
             assert_eq!(built.support_status(), Some(CellStatus::Supported), "{label}");
             let result = built.run(ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
             assert_eq!(result.support_status(), Some(CellStatus::Supported), "{label}");
@@ -814,8 +842,14 @@ fn run_transport_posterior_cells(kind: &str, ctx: &ExecutionContext) {
             assert_posterior_masses(&result, &case, bayesian, &label);
             assert_transport_suite(&result, suite, &label);
             if suite != RefuteSuite::None && !bayesian {
-                let planted =
-                    transport_posterior_study(case.posterior.clone(), &[Z], false, suite, 0.9);
+                let planted = transport_posterior_study(
+                    case.posterior.clone(),
+                    kind == "temporal_admg",
+                    &[Z],
+                    false,
+                    suite,
+                    0.9,
+                );
                 assert_planted_selection_violation(&planted, kind == "temporal_admg", &label, ctx);
             }
         }
@@ -879,6 +913,7 @@ fn transport_cells_execute_from_the_retained_operation_after_builder_drop() {
                     format!("{kind} posterior"),
                     transport_posterior_study(
                         posterior_case(kind).posterior,
+                        kind == "temporal_admg",
                         &[Z],
                         bayesian,
                         RefuteSuite::Cheap,

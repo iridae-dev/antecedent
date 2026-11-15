@@ -1450,9 +1450,13 @@ fn refuter_states(names: &[&str]) {
                             clean.refutations
                         );
                     }
+                    let planted_subset = refutation(&planted, "target.subset_stability");
                     assert!(
-                        !refutation(&planted, "target.subset_stability").passed,
-                        "planted table fails subset stability, {tag}"
+                        !planted_subset.passed,
+                        "planted table fails subset stability, {tag}: tail {}, {} replicates, {:?}",
+                        planted_subset.comparison,
+                        planted_subset.replicates,
+                        planted_subset.failure_condition
                     );
                     assert_eq!(
                         clean

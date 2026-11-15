@@ -15,7 +15,7 @@ without the planted row, in exact rational arithmetic on the float inputs. The c
 above leverage 0.3; the planted row has leverage above 0.9 and carries the fitted slope with it, so a
 subset that drops it (one in five) refits a different mechanism. That is the planted violation the
 subset-stability refuter must detect, and the clean table is the case it must pass. The same derivation holds for the series: the lag-aligned design
-of a 20-period series with one period at x = 40 (the outcome of the next period raised by 60) has one row of
+of a 100-period series with one period at x = 40 (the outcome of the next period raised by 60) has one row of
 leverage above 0.9, and the clean series has none above 0.3.
 
 Standard library only; imports no Antecedent code and no statistics package.

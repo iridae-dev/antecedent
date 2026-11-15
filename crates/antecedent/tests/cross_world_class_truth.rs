@@ -699,25 +699,26 @@ fn a_cpdag_counterfactual_publishes_the_exact_set_of_completion_values_and_no_in
     }
 }
 
-/// The complete CPDAG on `x, m, y` has six DAG completions, one per order. On the noiseless
-/// factorial design `m = x + u`, `y = x + 2 m` the natural direct effect of `x` on `y` (the
-/// path-specific effect along the edges that avoid `m`) is the coefficient of the edge
-/// `x -> y` where the completion has it and 0 where `y` precedes `x`: 1 when `y` has both `x`
-/// and `m` as parents, 3 when `y` has `x` alone (`y = 3 x + 2 u` with `u` orthogonal to `x`),
-/// and 0 otherwise. The generating graph `x -> m -> y`, `x -> y` has value 1.
+/// The complete CPDAG on `x, m, y` has six DAG completions, one per order. The design is a
+/// balanced count table: binary `x`, `u` uniform on `0..4`, `m = 1` when `u + 2 x >= 3` (so
+/// `P(m = 1 | x = 0) = 1/4`, `P(m = 1 | x = 1) = 3/4`, and every `(x, m)` cell is observed),
+/// and `y = x + 2 m`. The natural direct effect of `x` on `y` (the effect along the edges that
+/// avoid `m`) is then 1 when `m` precedes `y` (as a mediator, `x < m < y`, or as a confounder,
+/// `m < x < y`: in both `y` moves by the coefficient of `x` with `m` held), 2 when `y` precedes
+/// `m` (`x < y < m`: the whole effect `1 + 2 (3/4 - 1/4)` avoids `m`), and 0 in the three orders
+/// where `y` precedes `x`. The generating graph `x -> m -> y`, `x -> y` has value 1.
 #[test]
 fn a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval() {
     let ctx = ExecutionContext::for_tests(5);
-    let (mut x, mut u) = (Vec::new(), Vec::new());
+    let (mut x, mut m) = (Vec::new(), Vec::new());
     for _ in 0..10 {
-        for a in [-1.0_f64, 0.0, 1.0] {
-            for b in [-1.0_f64, 0.0, 1.0] {
+        for a in [0.0_f64, 1.0] {
+            for b in [0.0_f64, 1.0, 2.0, 3.0] {
                 x.push(a);
-                u.push(b);
+                m.push(if b + 2.0 * a >= 3.0 { 1.0 } else { 0.0 });
             }
         }
     }
-    let m: Vec<f64> = x.iter().zip(&u).map(|(a, b)| a + b).collect();
     let y: Vec<f64> = x.iter().zip(&m).map(|(a, b)| a + 2.0 * b).collect();
     for accepted in [false, true] {
         let label = format!("accepted={accepted}");
@@ -741,7 +742,7 @@ fn a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_an
         let mut values = completion_values(&result);
         values.sort_by(f64::total_cmp);
         assert_eq!(values.len(), 6, "{label}: {values:?}");
-        let want = [0.0, 0.0, 0.0, 1.0, 1.0, 3.0];
+        let want = [0.0, 0.0, 0.0, 1.0, 1.0, 2.0];
         for (got, want) in values.iter().zip(want) {
             assert!((got - want).abs() < 1e-6, "{label}: {values:?}");
         }

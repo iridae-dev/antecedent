@@ -7,7 +7,7 @@ use super::{
     TableView, TargetFamily, TargetPerturbation, TargetRefitError, TimeSeriesData, VariableId,
     block_weights, data_failed, failed, join_free_mask, join_free_rows, max_graph_lag,
     operational_refit_error, series_with, shifted, subsample_bounds, times, truncated_series,
-    unbiased_index, unsupported, window_weights,
+    unbiased_index, unsupported, window_weights, without_row_weights,
 };
 
 impl PreparedRefit<'_> {
@@ -536,6 +536,11 @@ impl PreparedRefit<'_> {
             let mut budget =
                 antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
             let (gathered, _guard) = self.gathered_rows(series, &map, None, &mut budget, ctx)?;
+            // The route reads no row weights, so the window goes without the join's zero
+            // weights: a series that carried them would be refused as sampling-weighted. The
+            // source series is unweighted here (a route without a weighted construction refuses
+            // a weighted series before any refuter runs).
+            let gathered = without_row_weights(&gathered)?;
             match self.reestimate(&Modal::Series(gathered), ctx) {
                 Ok(values) => return Ok(values),
                 Err(error) if operational_refit_error(&error) => return Err(error),

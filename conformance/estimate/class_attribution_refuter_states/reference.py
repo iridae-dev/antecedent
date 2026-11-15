@@ -23,9 +23,9 @@ Tables (each with a clean and a planted variant):
   t_i = 1 + a_i + 2 b_i + 0.3 sin(2.17 i), 24 rows; planted row 7 moves a to 40 and b to 30 and adds
   150 to t.
 * `series_xy`: x_t = sin(0.37 t) + 0.5 cos(1.1 t), y_t = 1 + 2 x_{t-1} + 0.3 sin(2.17 t) (x_{-1} = 0),
-  20 periods; the planted series moves x_9 to 40 and adds 60 to y_10.
+  100 periods; the planted series moves x_9 to 40 and adds 60 to y_10.
 * `series_abt`: a_t = sin(0.37 t) + 0.5 cos(1.1 t), b_t = sin(0.53 t + 0.4) - 0.3 cos(1.9 t),
-  t_t = 1 + a_{t-1} + 2 b_{t-1} + 0.3 sin(2.17 t) (a_{-1} = b_{-1} = 0), 24 periods; the planted
+  t_t = 1 + a_{t-1} + 2 b_{t-1} + 0.3 sin(2.17 t) (a_{-1} = b_{-1} = 0), 100 periods; the planted
   series moves a_11 to 40 and adds 300 to t_12.
 
 The lag-aligned design of a series reads a lagged column at row max(t - 1, 0), the route's stated
@@ -82,7 +82,7 @@ def table_abt(planted):
 
 
 def table_series_xy(planted):
-    n = 20
+    n = 100
     x = [sx(t, 0.37, 1.1) for t in range(n)]
     if planted:
         x[9] = 40.0
@@ -95,7 +95,7 @@ def table_series_xy(planted):
 
 
 def table_series_abt(planted):
-    n = 24
+    n = 100
     a = [sx(t, 0.37, 1.1) for t in range(n)]
     b = [math.sin(0.53 * t + 0.4) - 0.3 * math.cos(1.9 * t) for t in range(n)]
     if planted:

@@ -1599,6 +1599,11 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                     key.dependence == "iid"
                         || (matches!(contract.target.query, crate::CausalQueryWire::PanelDid(_))
                             && key.dependence == "cluster")
+                        // A trial-to-target transport reads its trial table as one series
+                        // when the rows are serially dependent; its Newey-West or
+                        // equal-weighted cosine SE keys the record `serial_hac`.
+                        || (matches!(contract.target.query, crate::CausalQueryWire::Transport(_))
+                            && key.dependence == "serial_hac")
                 }
                 _ => key.dependence != "panel_cluster",
             }

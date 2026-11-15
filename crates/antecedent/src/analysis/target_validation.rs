@@ -932,7 +932,7 @@ mod rows;
 
 use rows::{
     JoinFreeRows, block_weights, join_free_mask, join_free_rows, mask_from, series_with, shifted,
-    subsample_bounds, times, truncated_series, window_weights,
+    subsample_bounds, times, truncated_series, window_weights, without_row_weights,
 };
 
 pub(super) use input::{CheckedRefutationInput, checked_refutation_input};
