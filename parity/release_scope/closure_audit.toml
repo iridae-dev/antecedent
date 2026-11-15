@@ -5,9 +5,9 @@
 
 schema = 1
 missing_attempts = 0
-missing_consumers = 4
-adjusted_claims = 43
-unresolved_mandatorys = 2
+missing_consumers = 0
+adjusted_claims = 35
+unresolved_mandatorys = 0
 families = 28
 
 [[family]]
@@ -109,13 +109,13 @@ gaps = "none = 4"
 [[family]]
 id = "P17"
 children = 4
-unresolved_evidence = 2
+unresolved_evidence = 0
 gaps = "none = 4"
 
 [[family]]
 id = "P18"
 children = 4
-unresolved_evidence = 2
+unresolved_evidence = 0
 gaps = "none = 4"
 
 [[family]]
@@ -177,26 +177,6 @@ id = "X06"
 children = 4
 unresolved_evidence = 0
 gaps = "target = 2, validation = 2"
-
-[[missing_consumer]]
-id = "P17.static.frequentist"
-family = "P17"
-reasons = ["P17.static.frequentist: fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
-
-[[missing_consumer]]
-id = "P17.temporal.frequentist"
-family = "P17"
-reasons = ["P17.temporal.frequentist: fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
-
-[[missing_consumer]]
-id = "P18.static.frequentist"
-family = "P18"
-reasons = ["P18.static.frequentist: fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
-
-[[missing_consumer]]
-id = "P18.temporal.frequentist"
-family = "P18"
-reasons = ["P18.temporal.frequentist: fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
 
 [[adjusted_claim]]
 id = "P07.dose_grid.static.frequentist"
@@ -399,22 +379,6 @@ reason = "Q09/E14 whole-procedure calibration and posterior uncertainty validati
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "supported.AnomalyAttribution.Dag#static.frequentist"
-method = "AnomalyAttribution"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.ChangeAttribution.Dag#static.frequentist"
-method = "ChangeAttribution"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
 id = "composition.temporal.frequentist#temporal.frequentist"
 method = "ComposedQuantity"
 side = "temporal.frequentist"
@@ -431,23 +395,7 @@ reason = "the composition is a linear combination (compose_horizons, with a 95% 
 next_attempt = "extend the interval to nonlinear compositions through the delta-method influence of the map, and the joint replicates to intervention-level responses and series with gaps"
 
 [[adjusted_claim]]
-id = "supported.Counterfactual.Admg#static.frequentist"
-method = "Counterfactual"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
 id = "supported.Counterfactual.Cpdag#static.frequentist"
-method = "Counterfactual"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.Counterfactual.Dag#static.frequentist"
 method = "Counterfactual"
 side = "static.frequentist"
 status = "supported"
@@ -458,14 +406,6 @@ next_attempt = "measure the whole-procedure coverage of this interval and record
 id = "supported.Counterfactual.Pag#static.frequentist"
 method = "Counterfactual"
 side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.Counterfactual.TemporalAdmg#temporal.frequentist"
-method = "Counterfactual"
-side = "temporal.frequentist"
 status = "supported"
 reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
@@ -495,23 +435,7 @@ reason = "temporal interference is identified by the declared sequential assignm
 next_attempt = "identify an observational temporal exposure contrast by a declared exposure mapping and interference graph over the unit-period panel, or record the counterexample where the exposure and the unit history are confounded"
 
 [[adjusted_claim]]
-id = "supported.NestedCounterfactualEffect.Admg#static.frequentist"
-method = "NestedCounterfactualEffect"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
 id = "supported.NestedCounterfactualEffect.Cpdag#static.frequentist"
-method = "NestedCounterfactualEffect"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.NestedCounterfactualEffect.Dag#static.frequentist"
 method = "NestedCounterfactualEffect"
 side = "static.frequentist"
 status = "supported"
@@ -527,30 +451,12 @@ reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "supported.NestedCounterfactualEffect.TemporalAdmg#temporal.frequentist"
-method = "NestedCounterfactualEffect"
-side = "temporal.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
 id = "supported.ResponseJacobian.Dag#static.frequentist"
 method = "ResponseJacobian"
 side = "static.frequentist"
 status = "supported"
 reason = "the route publishes a point value and no interval (declared_not_measured)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[unresolved_mandatory]]
-id = "P18.static.frequentist"
-list = "mandatory"
-missing = ["fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
-
-[[unresolved_mandatory]]
-id = "P18.temporal.frequentist"
-list = "mandatory"
-missing = ["fixture crates/antecedent/tests/point_only_routes.rs is not a registered test target"]
 
 [[audited_attempt]]
 id = "X01.static.bayesian"

@@ -4163,8 +4163,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::the_default_frequentist_dag_anomaly_attribution_publishes_scores_and_no_interval"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::the_default_frequentist_dag_anomaly_attribution_publishes_scores_and_no_interval", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -7327,8 +7327,8 @@ validations = ["none"]
 coordinates = 3
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::the_default_frequentist_dag_change_attribution_publishes_the_change_and_no_interval"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::the_default_frequentist_dag_change_attribution_publishes_the_change_and_no_interval", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -7971,8 +7971,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_admg_counterfactual_publishes_the_point_and_no_interval"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_admg_counterfactual_publishes_the_point_and_no_interval", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
@@ -8083,8 +8083,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=|"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_dag_counterfactual_publishes_the_mean_effect_and_no_interval"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_dag_counterfactual_publishes_the_mean_effect_and_no_interval", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=|"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -8195,8 +8195,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_temporal_admg_counterfactual_publishes_the_point_and_no_interval"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_temporal_admg_counterfactual_publishes_the_point_and_no_interval", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
@@ -11667,8 +11667,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_admg_natural_direct_effect_publishes_the_point_and_no_interval"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_admg_natural_direct_effect_publishes_the_point_and_no_interval", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
@@ -11779,8 +11779,8 @@ validations = ["cheap", "none"]
 coordinates = 2
 uncertainty = "none"
 uncertainty_structure = "graph_posterior"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_dag_posterior_natural_direct_effect_publishes_the_point_and_no_interval"
+uncertainty_by_structure = ["graph_posterior=none|asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_dag_posterior_natural_direct_effect_publishes_the_point_and_no_interval"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
@@ -11947,8 +11947,8 @@ validations = ["cheap", "full", "none"]
 coordinates = 9
 uncertainty = "none"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_temporal_admg_natural_direct_effect_publishes_the_point_and_no_interval"
+uncertainty_by_structure = ["explicit=none|asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_temporal_admg_natural_direct_effect_publishes_the_point_and_no_interval", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
@@ -20515,13 +20515,13 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_frequentist_decision_from_means_publishes_the_values_and_no_interval"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent-design/src/decision.rs"
 implementation = ["crates/antecedent-design/src/decision.rs"]
 provenance = []
-evidence = ["crates/antecedent-design/tests/decision_mean_source.rs::expected_utility_of_an_affine_utility_is_the_utility_of_the_means", "crates/antecedent-design/tests/decision_acceptance.rs::artifact_fresh_process_consumer_recomputes_result_from_receipts"]
+evidence = ["crates/antecedent-design/tests/decision_mean_source.rs::expected_utility_of_an_affine_utility_is_the_utility_of_the_means", "crates/antecedent-design/tests/decision_acceptance.rs::artifact_fresh_process_consumer_recomputes_result_from_receipts", "crates/antecedent/tests/point_only_routes.rs::a_frequentist_decision_from_means_publishes_the_values_and_no_interval"]
 artifact_consumer = ["crates/antecedent-design/src/decision_artifact.rs::from_bytes"]
 
 [[method]]
@@ -20571,13 +20571,13 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_transported_policy_value_is_a_finite_point_and_no_interval"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent-design/src/temporal_policy_transport.rs"
 implementation = ["crates/antecedent-design/src/temporal_policy_transport.rs"]
 provenance = []
-evidence = ["crates/antecedent-design/tests/transported_evaluation.rs::transported_value_matches_the_hand_value_across_target_laws", "crates/antecedent-design/tests/transported_evaluation.rs::a_shifted_dynamic_mechanism_is_refused_with_the_mechanism_named"]
+evidence = ["crates/antecedent-design/tests/transported_evaluation.rs::transported_value_matches_the_hand_value_across_target_laws", "crates/antecedent-design/tests/transported_evaluation.rs::a_shifted_dynamic_mechanism_is_refused_with_the_mechanism_named", "crates/antecedent/tests/point_only_routes.rs::a_transported_policy_value_is_a_finite_point_and_no_interval"]
 artifact_consumer = ["crates/antecedent-design/src/transported_decision_artifact.rs::consume_transported_decision"]
 
 [[method]]
@@ -20627,13 +20627,13 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::an_appended_least_squares_refresh_publishes_finite_coefficients_and_no_interval"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent-state/src/ols_refresh.rs"
 implementation = ["crates/antecedent-state/src/ols_refresh.rs"]
 provenance = []
-evidence = ["crates/antecedent-state/tests/ols_refresh_contract.rs::appended_rows_and_windows_equal_the_reference_without_a_rebuild"]
+evidence = ["crates/antecedent-state/tests/ols_refresh_contract.rs::appended_rows_and_windows_equal_the_reference_without_a_rebuild", "crates/antecedent/tests/point_only_routes.rs::an_appended_least_squares_refresh_publishes_finite_coefficients_and_no_interval"]
 artifact_consumer = ["crates/antecedent/src/period_refresh.rs::OlsRefresh", "crates/antecedent-state/tests/ols_refresh_contract.rs"]
 
 [[method]]
@@ -20683,13 +20683,13 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/point_only_routes.rs::a_declared_invariant_period_refresh_publishes_the_least_squares_fit_and_no_interval"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/period_refresh.rs"
 implementation = ["crates/antecedent/src/period_refresh.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/period_refresh_lifecycle.rs::a_declared_invariant_period_extends_and_equals_one_batch_fit"]
+evidence = ["crates/antecedent/tests/period_refresh_lifecycle.rs::a_declared_invariant_period_extends_and_equals_one_batch_fit", "crates/antecedent/tests/point_only_routes.rs::a_declared_invariant_period_refresh_publishes_the_least_squares_fit_and_no_interval"]
 artifact_consumer = ["crates/antecedent/src/analysis/temporal_extensions.rs::consume_period_refresh_artifact", "crates/antecedent/tests/period_refresh_lifecycle.rs"]
 
 [[method]]
