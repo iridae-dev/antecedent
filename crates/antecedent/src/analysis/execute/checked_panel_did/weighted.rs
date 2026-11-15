@@ -127,6 +127,7 @@ impl super::CheckedPanelDidOperation {
             uncertainty: Arc::from("sampling_weighted_cluster_robust_standard_error_no_interval"),
             event_time_effects: Arc::from([]),
             event_time_intervals_95: Arc::from([]),
+            replicates_ok: None,
             augmented: None,
         });
         if crate::support::support_if_graphless(

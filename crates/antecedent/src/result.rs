@@ -170,6 +170,8 @@ pub struct PanelDidEstimate {
     pub event_time_intervals_95: Arc<[Option<[f64; 2]>]>,
     /// Propensity range, effective control count, and caller cross-fit declaration.
     pub augmented: Option<(f64, f64, f64, bool)>,
+    /// Completed whole-cluster refits behind a resample interval; `None` without a resample.
+    pub replicates_ok: Option<u32>,
 }
 
 /// Balanced-panel synthetic-control point result and donor-support diagnostics.

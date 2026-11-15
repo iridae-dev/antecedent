@@ -61,15 +61,27 @@ impl PublishedInterval for MechanismAssignment {
     }
 }
 
-/// A chain `x -> y` with a quadratic mechanism and Gaussian noise.
+/// Two independent parents `x` and `z` of an outcome `y` that is quadratic in `x`, with
+/// Gaussian noise. The basis families need at least two parents, so a single-parent chain
+/// could never offer a curved candidate.
 fn quadratic_chain(n: usize) -> (TabularData, Dag) {
     let mut rng = CausalRng::from_seed(21);
     let x: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
-    let y: Vec<f64> =
-        x.iter().map(|x| 1.0 + 0.5 * x + 0.8 * x * x + 0.3 * standard_normal(&mut rng)).collect();
-    let data = TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
-    let mut graph = Dag::with_variables(2);
-    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let z: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
+    let y: Vec<f64> = x
+        .iter()
+        .zip(&z)
+        .map(|(x, z)| 1.0 + 0.5 * x + 0.8 * x * x + 0.4 * z + 0.3 * standard_normal(&mut rng))
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("x", x.as_slice()),
+        ("z", z.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     (data, graph)
 }
 
@@ -85,7 +97,7 @@ fn select(data: &TabularData, graph: &Dag, options: &SelectionOptions) -> Vec<Me
 fn a_selection_record_publishes_no_interval_standard_error_or_probability() {
     let (data, graph) = quadratic_chain(400);
     let record = select(&data, &graph, &SelectionOptions::default());
-    assert_eq!(record.len(), 2);
+    assert_eq!(record.len(), 3);
     for assignment in &record {
         assert!(assignment.interval().is_none());
         assert!(!assignment.candidates.is_empty());
@@ -117,8 +129,8 @@ fn the_best_score_rule_selects_the_top_scoring_candidate_and_the_score_is_held_o
  {
     let (data, graph) = quadratic_chain(400);
     let record = select(&data, &graph, &SelectionOptions::default());
-    // The root has one candidate list of its own; the outcome is the node the quadratic shapes.
-    let outcome = record.iter().find(|a| a.node == DenseNodeId::from_raw(1)).unwrap();
+    // Each root has a candidate list of its own; the outcome is the node the quadratic shapes.
+    let outcome = record.iter().find(|a| a.node == DenseNodeId::from_raw(2)).unwrap();
     assert_eq!(outcome.provenance.rule, SelectionRule::BestScore);
     assert_eq!(outcome.provenance.splits, ValidationSplits::Shuffled);
     let top = &outcome.candidates[0];

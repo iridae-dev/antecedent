@@ -280,14 +280,27 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
                     && se.is_finite()
                     && se > 0.0 =>
             {
-                // The unsupported whole-cluster resample interval: the normal interval of its
-                // interquartile bootstrap standard error, never published as the scalar's.
-                let radius = antecedent_stats::NORMAL_Q975 * se;
-                let tolerance =
-                    interval_bound_replay(INTERVAL_BOUND_RELATIVE_LOOSE, did.effect, radius);
-                tolerance.close(bounds[0], did.effect - radius)
-                    && tolerance.close(bounds[1], did.effect + radius)
-                    && result.standard_error.is_none()
+                // The whole-cluster resample interval: the point with its resample standard
+                // error and the Student reference on the completed refit count the payload
+                // carries (the normal quantile only when fewer than two refits completed),
+                // never published as the scalar's.
+                let requested =
+                    query.resampling.as_ref().map_or(0, |resampling| resampling.replicates);
+                let radius = match did.replicates_ok {
+                    Some(completed) if (2..=requested).contains(&completed) => Some(
+                        antecedent_stats::special::student_t_ppf(0.975, f64::from(completed - 1))
+                            * se,
+                    ),
+                    Some(completed) if completed < 2 => Some(antecedent_stats::NORMAL_Q975 * se),
+                    _ => None,
+                };
+                radius.is_some_and(|radius| {
+                    let tolerance =
+                        interval_bound_replay(INTERVAL_BOUND_RELATIVE, did.effect, radius);
+                    bounds.iter().all(|value| value.is_finite())
+                        && tolerance.close(bounds[0], did.effect - radius)
+                        && tolerance.close(bounds[1], did.effect + radius)
+                }) && result.standard_error.is_none()
                     && did.graphless_support_status.is_none()
             }
             (None, _) => {
@@ -381,6 +394,7 @@ pub(in crate::analysis_result_artifact) fn validate_did_graphless(
         || !event_study_valid
         || !event_intervals_valid
         || !augmented_valid
+        || (query.augmented.is_none() && did.replicates_ok.is_some())
         || !graphless_status_ok(did.graphless_support_status.as_deref(), did_supported, true)
         || (query.repeated_cross_section
             && (duplicate_subject

@@ -555,6 +555,16 @@ fn supported_augmented_panel_interval_round_trips_and_refuses_forgery() {
     let mut flagged = body.clone();
     flagged.panel_did.as_mut().unwrap().graphless_support_status = Some("supported".to_owned());
     assert!(refusal(&names, &flagged).contains("invalid panel DiD payload"), "{label}");
+    // The interval is the Student reference on the completed refit count the section carries:
+    // a radius from a different count, or a section without the count, is refused.
+    let completed = stored.replicates_ok.expect("a resample interval records its completed refits");
+    assert!((2..=199).contains(&completed), "{label}");
+    let mut other_count = body.clone();
+    other_count.panel_did.as_mut().unwrap().replicates_ok = Some(completed - 1);
+    assert!(refusal(&names, &other_count).contains("fabricated interval"), "{label}");
+    let mut uncounted = body.clone();
+    uncounted.panel_did.as_mut().unwrap().replicates_ok = None;
+    assert!(refusal(&names, &uncounted).contains("fabricated interval"), "{label}");
     // The row is stated with or without the declaration that the predictions were not fitted
     // on the analysed rows; both were measured.
     let mut undeclared = body.clone();
