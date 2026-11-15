@@ -274,13 +274,13 @@ def main() -> int:
     if args.write:
         fresh = build()
         if EXPECTED.exists():
-            previous = json.loads(EXPECTED.read_text())
+            previous = json.loads(EXPECTED.read_text(encoding="utf-8"))
             review = previous.get("oracle", {}).get("reference_review")
             if review is not None:
                 fresh["oracle"]["reference_review"] = review
-        EXPECTED.write_text(json.dumps(fresh, indent=2) + "\n")
+        EXPECTED.write_text(json.dumps(fresh, indent=2) + "\n", encoding="utf-8")
         return 0
-    document = json.loads(EXPECTED.read_text())
+    document = json.loads(EXPECTED.read_text(encoding="utf-8"))
     problems = check(document) + self_test(document)
     for problem in problems:
         print(problem, file=sys.stderr)

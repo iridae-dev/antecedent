@@ -9,7 +9,7 @@
     {
       "role": "generator",
       "path": "conformance/design/decision_margin_interval/reference.py",
-      "sha256": "13ffefc910857f9f03582cc0a9cfe9a3fec9cbe8ecce88460c0c7eaadc16286b"
+      "sha256": "2060e3ecfd59f9c4b87ff93b20c3df503be68c84f002a87c0ddd78fe660ee7f8"
     },
     {
       "role": "environment_lock",

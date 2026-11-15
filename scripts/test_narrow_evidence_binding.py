@@ -125,12 +125,12 @@ class NarrowingTests(Workspace):
         self.assertEqual(self.cited(), self.old)
 
     def test_rebinding_recipes_only_leaves_the_rust_selection_as_it_is(self):
-        before = (self.root / REGISTRY).read_text()
+        before = (self.root / REGISTRY).read_text(encoding="utf-8")
         summary = narrowing.run(self.root, "scientific", apply=True, log_dirs=[], jobs=1, out=io.StringIO(),
                                 recipes_only=True)["by_kind"]["scientific"]
         self.assertEqual((summary["current"], summary["migrated"], summary["selection_narrowed"]), (1, 0, 0))
         self.assertEqual(summary["left_broad"], {})
-        self.assertEqual((self.root / REGISTRY).read_text(), before)
+        self.assertEqual((self.root / REGISTRY).read_text(encoding="utf-8"), before)
 
     def test_a_recipe_bound_by_its_bytes_is_rebound_by_what_it_says(self):
         from types import SimpleNamespace

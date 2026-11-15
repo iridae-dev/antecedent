@@ -9,7 +9,7 @@
     {
       "role": "generator",
       "path": "conformance/composition/transported_composition/reference.py",
-      "sha256": "02bf2aa8809d607c1dbeab0b77879b0e045b99d53b282a18f5a2529c051235a9"
+      "sha256": "acb2028ac29d06fd6df216b3977795934d11c303e46651896229014737f53c04"
     },
     {
       "role": "environment_lock",
@@ -25,7 +25,7 @@
         "fn ctx",
         "fn quantity"
       ],
-      "sha256": "fd612938226e915bfa4f95dfa6617199dad08ebf7ae6c4361536f843bc74b085"
+      "sha256": "0e34fc77bfa91df3061f52bd05e629e3cf00378ada23fb3e16e9968b3f8bd1ad"
     }
   ],
   "fixture_payload_sha256": "55aa4e319c1b9a08523182d24df767bcde4f1a4a1ceb8200c241a88ced22ce84"

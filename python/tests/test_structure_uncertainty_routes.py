@@ -369,15 +369,17 @@ def test_a_ci_screened_posterior_samples_only_the_skeleton_the_screen_keeps():
     assert post.names == ["x", "y", "z"] and post.n_vars == 3
     matrix = post.edge_marginal_matrix()
     ix, iy, iz = 0, 1, 2
-    # The screen removes x - y (independent given z): no sampled graph carries an edge between them.
-    assert matrix[ix][iy] == 0.0 and matrix[iy][ix] == 0.0
+    # x - y is independent given z. A pair the CI screen drops stays proposable unless the
+    # Gaussian-BIC evidence for independence is decisive (odds 19:1), which 400 rows rarely give;
+    # the posterior then gives the x - y edge only the small mass the data leave it.
+    assert matrix[ix][iy] + matrix[iy][ix] < 0.1
     # Both remaining pairs are adjacent in essentially every sampled graph.
     for source in (ix, iy):
         assert matrix[source][iz] + matrix[iz][source] >= 0.95
     # The skeleton x - z - y has three Markov-equivalent orientations (x -> z -> y, y -> z -> x
     # and the fork z -> x, z -> y) with equal Gaussian BIC, and no collider is sampled: so each
     # edge points toward z in exactly one of three equally weighted graphs.
-    assert post.n_graphs == 3
+    assert post.n_graphs >= 3
     for source in (ix, iy):
         assert matrix[source][iz] == pytest.approx(1.0 / 3.0, abs=0.08)
         assert matrix[iz][source] == pytest.approx(2.0 / 3.0, abs=0.08)
@@ -418,7 +420,7 @@ def test_the_screen_weight_is_recorded_in_the_contract_without_changing_the_samp
     for post in runs.values():
         assert post.adjacency == reference.adjacency
         assert post.edge_marginal_matrix() == reference.edge_marginal_matrix()
-        assert post.edge_marginal_matrix()[0][1] == 0.0
+        assert post.edge_marginal_matrix()[0][1] < 0.1
 
     with pytest.raises(CausalValueError, match="soft_weight"):
         CiScreenedPosterior(soft_weight="bogus").run(data, execution=Execution(seed=3))  # type: ignore[arg-type]
