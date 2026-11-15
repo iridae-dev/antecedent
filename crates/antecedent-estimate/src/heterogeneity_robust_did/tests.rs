@@ -8,7 +8,7 @@ use antecedent_core::{
     RolloutDidEstimator,
 };
 
-use super::{RolloutDidSpec, RolloutPanel, RolloutResampling, estimate_rollout_did};
+use super::{RolloutDidSpec, RolloutPanel, RolloutResampling, estimate_rollout_did, prepare};
 use crate::rollout_resampling::{DesignEffectKind, UnitWeighting};
 use crate::splitmix::FixtureRng;
 
@@ -866,4 +866,19 @@ fn bayesian_bootstrap_posterior_matches_the_dirichlet_moments_of_a_two_by_two() 
     let want = treated_variance + control_variance;
     assert!((mean - (treated - control)).abs() < 5.0 * (want / n).sqrt(), "mean {mean}");
     assert!((variance / want - 1.0).abs() < 0.1, "variance {variance} against {want}");
+}
+
+#[test]
+fn the_dense_period_array_mirrors_every_unit_outcome_map() {
+    // Dropped rows leave unbalanced units, so absent periods must read as `None`.
+    let sim = staggered(13, 40, 0.3);
+    let declared = spec(RolloutDidEstimator::CallawaySantAnna, DidComparisonGroup::NotYetTreated);
+    let prepared = prepare(&sim.panel(), &declared).unwrap();
+    assert!(!prepared.balanced);
+    for unit in &prepared.units {
+        assert_eq!(unit.dense.len(), prepared.periods.len());
+        for (period, dense) in prepared.periods.iter().zip(&unit.dense) {
+            assert_eq!(dense.map(f64::to_bits), unit.outcomes.get(period).map(|v| v.to_bits()));
+        }
+    }
 }

@@ -240,6 +240,8 @@ struct PanelUnit {
     cohort: i64,
     cluster: usize,
     outcomes: BTreeMap<i64, f64>,
+    /// `outcomes` by position in the period grid, filled once the grid is known.
+    dense: Vec<Option<f64>>,
     covariates: Vec<f64>,
 }
 
@@ -373,6 +375,7 @@ pub fn prepare(
             cohort,
             cluster,
             outcomes: BTreeMap::new(),
+            dense: Vec::new(),
             covariates: Vec::new(),
         });
         if unit.cohort != cohort || unit.cluster != cluster {
@@ -398,7 +401,10 @@ pub fn prepare(
         }
     }
     let periods: Vec<i64> = grid.into_iter().collect();
-    let units: Vec<PanelUnit> = units.into_values().collect();
+    let mut units: Vec<PanelUnit> = units.into_values().collect();
+    for unit in &mut units {
+        unit.dense = periods.iter().map(|period| unit.outcomes.get(period).copied()).collect();
+    }
     let cohorts: Vec<i64> = units
         .iter()
         .map(|unit| unit.cohort)
@@ -1074,11 +1080,17 @@ fn two_by_two(
     let mut treated: Vec<(f64, &[f64], f64)> = Vec::new();
     let mut controls: Vec<(f64, &[f64], f64)> = Vec::new();
     let mut control_clusters: Vec<usize> = Vec::new();
+    // A period outside the grid is observed by no unit, so the cell is empty.
+    let (Ok(now_at), Ok(then_at)) =
+        (prepared.periods.binary_search(&period), prepared.periods.binary_search(&base))
+    else {
+        return Ok(None);
+    };
     for (unit, weight) in prepared.units.iter().zip(weights) {
         if *weight <= 0.0 {
             continue;
         }
-        let (Some(now), Some(then)) = (unit.outcomes.get(&period), unit.outcomes.get(&base)) else {
+        let (Some(now), Some(then)) = (unit.dense[now_at], unit.dense[then_at]) else {
             continue;
         };
         let change = now - then;
