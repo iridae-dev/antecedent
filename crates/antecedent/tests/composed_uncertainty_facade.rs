@@ -532,6 +532,124 @@ fn a_transported_spread_needs_all_three_pieces_and_their_dependence() {
     );
 }
 
+/// A transported claim composed from its three pieces equals the moments that
+/// `conformance/composition/transported_composition/reference.py` derives in exact rational
+/// arithmetic: `c . m` and `c' Sigma c` under a supplied covariance (every cross term kept), the
+/// population moments of the aligned row combinations under one joint law, and no value at
+/// all when the pieces are declared independent or their dependence is unknown.
+#[test]
+fn a_transported_composition_equals_the_independent_moment_truth() {
+    use antecedent::analysis::joint_law_propagation::propagate;
+    use antecedent_contract::{
+        InputAlignment, PropagationDependence, PropagationInput, PropagationRequest,
+        RequestedReading,
+    };
+    use antecedent_io::joint_law_propagation_artifact::{PropagationRequestWire, float_bits};
+
+    let pin: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/composition/transported_composition/expected.json"
+    ))
+    .unwrap();
+    let relative = pin["tolerance"]["relative"].as_f64().unwrap();
+    let close = |actual: f64, expected: f64| {
+        (actual - expected).abs() <= relative * 1.0_f64.max(actual.abs()).max(expected.abs())
+    };
+    let numbers = |value: &serde_json::Value| -> Vec<f64> {
+        value.as_array().unwrap().iter().map(|v| v.as_str().unwrap().parse().unwrap()).collect()
+    };
+
+    // Under a supplied covariance of the three pieces.
+    let case = &pin["covariance_route"];
+    let (coefficients, means, covariance) =
+        (numbers(&case["coefficients"]), numbers(&case["means"]), numbers(&case["covariance"]));
+    let declared = |dependence: PropagationDependence| PropagationRequest {
+        operation: PropagationOperation::TransportedComposition,
+        inputs: [
+            InputRole::SourceSampling,
+            InputRole::TargetSampling,
+            InputRole::TransportFunctional,
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(i, role)| PropagationInput {
+            id: format!("piece{i}"),
+            evidence_id: "shared-source-evidence".into(),
+            role,
+            alignment: InputAlignment::MomentsOnly,
+        })
+        .collect(),
+        dependence,
+        reading: RequestedReading::Point,
+    };
+    let wire = PropagationRequestWire::LinearCombination {
+        coefficients: float_bits(&coefficients),
+        means: float_bits(&means),
+        covariance: float_bits(&covariance),
+    };
+    let claim = propagate(
+        &declared(PropagationDependence::Covariance { id: "shared-source-evidence".into() }),
+        wire.clone(),
+        &ctx(),
+    )
+    .expect("a covariance supports the composition");
+    assert!(close(claim.value("mean").expect("mean"), case["expected"]["mean"].as_f64().unwrap()));
+    assert!(close(
+        claim.value("variance").expect("variance"),
+        case["expected"]["variance"].as_f64().unwrap()
+    ));
+
+    // Independence and unknown dependence are never assumed.
+    let refused: Vec<&str> = pin["refused_without_dependence"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(refused, ["unknown", "declared_independent"]);
+    for name in refused {
+        let dependence = match name {
+            "unknown" => PropagationDependence::Unknown,
+            _ => PropagationDependence::DeclaredIndependent,
+        };
+        let error =
+            propagate(&declared(dependence), wire.clone(), &ctx()).expect_err("no dependence");
+        assert_eq!(error.code(), "joint_law_required");
+        assert_eq!(
+            error.details(),
+            vec![
+                antecedent_core::reason_details::joint_law_propagation::TRANSPORTED_DEPENDENCE_REQUIRED
+            ]
+        );
+    }
+
+    // Under the aligned draws of one joint law.
+    let case = &pin["aligned_route"];
+    let columns: Vec<Vec<f64>> =
+        case["pieces"].as_array().unwrap().iter().map(|c| numbers(c)).collect();
+    let joint = artifact(
+        "snap-pinned-pieces",
+        DrawAlignment::Joint,
+        &[&columns[0], &columns[1], &columns[2]],
+    );
+    let source = PropagationDraws::from_artifact_column("source", &joint, 0).expect("s");
+    let target = PropagationDraws::from_artifact_column("target", &joint, 1).expect("t");
+    let functional = PropagationDraws::from_artifact_column("functional", &joint, 2).expect("f");
+    let weights = numbers(&case["coefficients"]);
+    let claim = propagate_transported_spread_aligned(
+        &source,
+        &target,
+        &functional,
+        [weights[0], weights[1], weights[2]],
+        &ctx(),
+    )
+    .expect("aligned pieces");
+    assert!(close(claim.value("mean").expect("mean"), case["expected"]["mean"].as_f64().unwrap()));
+    assert!(close(
+        claim.value("variance").expect("variance"),
+        case["expected"]["variance"].as_f64().unwrap()
+    ));
+}
+
 #[test]
 fn a_transported_spread_from_aligned_pieces_matches_the_row_sums() {
     let [s, t, f] = piece_draws("snap-pieces");

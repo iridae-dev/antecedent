@@ -1798,10 +1798,8 @@
     },
     {
       "id": "joint_law.transported_composition",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: no truth or parity fixture"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "joint_law.composed_interval",
@@ -2180,11 +2178,8 @@
     },
     {
       "id": "decision.experimental_margin.interval_candidates",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: no truth or parity fixture",
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "choice_inference.interval_candidates",
