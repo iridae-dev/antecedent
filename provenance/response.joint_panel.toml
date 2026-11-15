@@ -57,7 +57,7 @@ record_sha256 = "803e6894c93ff55725e221b19478eff9015f8c553a5a608c0f77e0a96798043
 role = "implementation"
 path = "crates/antecedent-estimate/src/joint_panel/likelihood.rs"
 items = ["enum Detail", "fn ar1_moments", "fn ar1_moments_at", "fn ar1_random_intercept", "fn ar1_random_intercept_at", "fn combine", "fn decode", "fn exposure", "fn group_marginal", "fn layout", "fn linear_count", "fn log_likelihood", "fn marginal", "fn mechanism", "fn new", "fn observed_periods", "fn observed_response", "fn positive_exp", "fn residuals", "fn response", "fn saturate", "fn spatial_correlation", "fn spatial_marginal", "fn validate_parameters", "struct Ar1Moments", "struct CompiledPanel", "struct GaussianGroup", "struct Layout", "struct Marginal"]
-sha256 = "ff140ceeca8a73a79c6c517088b3c69c103ecf9d6a14bf8e82daf9e9ca36276d"
+sha256 = "e0e24d9ef4133af0b9693cf7e9e766099ea51442afd4335836cf76f6ad4b838b"
 
 [[method_review.artifacts]]
 role = "assertion"

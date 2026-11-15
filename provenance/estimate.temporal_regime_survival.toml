@@ -37,7 +37,7 @@ record_sha256 = "a7ce5544ff5ffc57f8dcbc5c2e70f28a8076f1361cb5e248db5a4d1ac979efc
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/survival.rs"
 items = ["const BOOTSTRAP_STREAM", "const MAX_FAILED_SHARE", "const MIN_REPLICATES", "fn censor_survival", "fn current_features", "fn fit_regime_survival", "fn ipw_procedure", "fn new", "fn period_feature", "fn person_periods", "fn probability", "fn risk_survival", "fn subjects", "fn treatment_features", "fn width", "struct Subject", "struct SurvivalFit", "struct Trajectories", "struct TrajectoryRows"]
-sha256 = "13cd6d5e9cf1ec01e16e66a294352f5133e10166f61b41471759f5d012053d59"
+sha256 = "3c5f063aa5dd962debea50076f5e095e93ab4d455a53ffe612bf91b0c0cc690a"
 
 [[method_review.artifacts]]
 role = "implementation"

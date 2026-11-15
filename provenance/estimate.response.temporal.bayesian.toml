@@ -37,7 +37,7 @@ record_sha256 = "eabb501e9d0175361f328ba891f29295d02f77423284347d4e4d045e854a8d9
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_response/bayes.rs"
 items = ["const ORDINARY_LIKELIHOOD_REFUSAL", "const TEMPORAL_BAYESIAN_JOINT_UNAVAILABLE", "const WHITE_INNOVATION_SUPPORT_DIAGNOSTIC", "fn bayesian_target", "fn combine_columns", "fn disclose_posterior_basis", "fn estimate_bayesian", "fn fit_horizons", "fn joint_trajectory_draws", "fn of", "fn retained_joint_trajectory_draws", "fn retained_response_draws", "fn summarize_cells", "fn tie_horizons", "fn validate_bayesian_request", "struct BayesTarget", "struct CellSummaries", "struct HorizonFit", "struct HorizonFits", "struct HorizonRun", "type CellDraws"]
-sha256 = "87e277eaec83998063054e18be47432b7bd971d72494792e5648e7ba41509c8a"
+sha256 = "5c6923cf57b1a1049720a813bf8980433ee788b18f1a3c2e7ed13fe1d447ff83"
 
 [[method_review.artifacts]]
 role = "implementation"

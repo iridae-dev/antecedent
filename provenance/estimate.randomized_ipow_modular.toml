@@ -44,7 +44,7 @@ sha256 = "9dbd301f2644512fa3e0162575d408103ab638daf90281e90ebd479feb7d4e08"
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/checked_randomized/bayesian_arms.rs"
 items = ["module"]
-sha256 = "887032919c5f6a2297a08bc1678aa49c749d03cd281e459e22c813fcdc829bb8"
+sha256 = "b0dae22da78745af58d0923538104a7640bd6c7fe21822a92007a63688f63b03"
 
 [[method_review.artifacts]]
 role = "implementation"
