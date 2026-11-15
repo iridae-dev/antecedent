@@ -185,10 +185,20 @@ fn fit_simplex_with_limit(
     }
     let spread = if spread == 0.0 { 1.0 } else { spread };
     let value = |x: f64, t: usize| difference(x, t) / spread;
-    let frobenius: f64 = donors
-        .iter()
-        .flat_map(|donor| donor.iter().enumerate())
-        .map(|(t, x)| value(*x, t).powi(2))
+    // The normalized operands are fixed for the whole fit: compute each once, with the same
+    // arithmetic the objective applies, instead of at every gradient evaluation. Donor values
+    // are stored period-major so one period's row is contiguous.
+    let normalized_target: Vec<f64> =
+        target.iter().enumerate().map(|(t, x)| value(*x, t)).collect();
+    let mut normalized_donors = vec![0.0_f64; k * target.len()];
+    for (j, donor) in donors.iter().enumerate() {
+        for (t, x) in donor.iter().enumerate() {
+            normalized_donors[t * k + j] = value(*x, t);
+        }
+    }
+    let frobenius: f64 = (0..k)
+        .flat_map(|j| (0..target.len()).map(move |t| (j, t)))
+        .map(|(j, t)| normalized_donors[t * k + j].powi(2))
         .sum();
     let lipschitz = 2.0 * frobenius / n;
     let step = if lipschitz > 0.0 { 1.0 / lipschitz } else { 1.0 };
@@ -197,12 +207,11 @@ fn fit_simplex_with_limit(
     }
     let gradient = |weights: &[f64]| -> Vec<f64> {
         let mut grad = vec![0.0; k];
-        for (t, target_value) in target.iter().enumerate() {
-            let residual =
-                donors.iter().zip(weights).map(|(donor, w)| value(donor[t], t) * w).sum::<f64>()
-                    - value(*target_value, t);
-            for (g, donor) in grad.iter_mut().zip(donors) {
-                *g += 2.0 * value(donor[t], t) * residual / n;
+        for (t, target_value) in normalized_target.iter().enumerate() {
+            let row = &normalized_donors[t * k..(t + 1) * k];
+            let residual = row.iter().zip(weights).map(|(x, w)| x * w).sum::<f64>() - target_value;
+            for (g, x) in grad.iter_mut().zip(row) {
+                *g += 2.0 * x * residual / n;
             }
         }
         grad
@@ -227,10 +236,18 @@ fn fit_simplex_with_limit(
         if stationarity < SIMPLEX_TOLERANCE {
             return Ok(weights);
         }
-        let grad = gradient(&momentum);
-        if grad.iter().any(|v| !v.is_finite()) {
-            return Err(());
-        }
+        // The gradient at the momentum point is the gradient just computed whenever the
+        // momentum point is bit-for-bit the current weights (the first iteration, and after
+        // every restart), so it is reused rather than recomputed.
+        let grad = if momentum.iter().zip(&weights).all(|(m, w)| m.to_bits() == w.to_bits()) {
+            current_gradient
+        } else {
+            let grad = gradient(&momentum);
+            if grad.iter().any(|v| !v.is_finite()) {
+                return Err(());
+            }
+            grad
+        };
         let next = project_simplex(
             &momentum.iter().zip(&grad).map(|(m, g)| m - step * g).collect::<Vec<_>>(),
         );
@@ -315,6 +332,59 @@ pub fn conformal_synthetic_control_at_level(
     level: f64,
     ctx: &ExecutionContext,
 ) -> Result<ConformalSyntheticFit, EstimationError> {
+    conformal_synthetic_control_for(
+        panel,
+        treated,
+        intervention,
+        level,
+        ConformalIntervals::All,
+        ctx,
+    )
+}
+
+/// Which conformal intervals a fit inverts. Every estimate and the donor weights are always
+/// reported; an interval that is not selected is absent (`None`) and is not counted as
+/// unbounded. Each selected interval is the same number the full fit reports for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConformalIntervals {
+    /// Every per-period interval and the constant-effect interval.
+    All,
+    /// Only the constant-effect interval of the average effect.
+    Overall,
+    /// Only the interval of the post period at this calendar period.
+    Period(i64),
+}
+
+impl ConformalIntervals {
+    fn includes_overall(self) -> bool {
+        matches!(self, Self::All | Self::Overall)
+    }
+
+    fn includes_period(self, period: i64) -> bool {
+        match self {
+            Self::All => true,
+            Self::Overall => false,
+            Self::Period(selected) => selected == period,
+        }
+    }
+}
+
+/// Conformal synthetic-control inversion at an explicit level, inverting only the selected
+/// intervals.
+/// # Errors
+/// Invalid level, insufficient pre-period resolution, malformed panel or admission refusal.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one procedure: the pre-period fit, the per-period effects and the conformal inversion share the donor series"
+)]
+pub fn conformal_synthetic_control_for(
+    panel: &SyntheticRolloutPanel<'_>,
+    treated: &str,
+    intervention: i64,
+    level: f64,
+    intervals: ConformalIntervals,
+    ctx: &ExecutionContext,
+) -> Result<ConformalSyntheticFit, EstimationError> {
     if !level.is_finite() || level <= 0.0 || level >= 1.0 {
         return Err(invalid("conformal level must be strictly between zero and one"));
     }
@@ -354,20 +424,25 @@ pub fn conformal_synthetic_control_at_level(
                 "execution cancelled during conformal inversion",
             ));
         }
-        let times: Vec<usize> = pre.iter().copied().chain(std::iter::once(s)).collect();
-        let donor_series: Vec<Vec<f64>> = donors.iter().map(|u| series(*u, &times)).collect();
-        let target = series(unit, &times);
         let estimate = panel.values[unit][s]
             - donors.iter().zip(&warm).map(|(u, w)| panel.values[*u][s] * w).sum::<f64>();
-        let accept = |theta: f64| {
-            let mut adjusted = target.clone();
-            if let Some(last) = adjusted.last_mut() {
-                *last -= theta;
-            }
-            Ok(conformal_p(&adjusted, &donor_series, 1, &warm)? > alpha)
+        let interval = if intervals.includes_period(panel.periods[s]) {
+            let times: Vec<usize> = pre.iter().copied().chain(std::iter::once(s)).collect();
+            let donor_series: Vec<Vec<f64>> = donors.iter().map(|u| series(*u, &times)).collect();
+            let target = series(unit, &times);
+            let accept = |theta: f64| {
+                let mut adjusted = target.clone();
+                if let Some(last) = adjusted.last_mut() {
+                    *last -= theta;
+                }
+                Ok(conformal_p(&adjusted, &donor_series, 1, &warm)? > alpha)
+            };
+            let interval = invert(estimate, scale, accept)?;
+            unbounded += usize::from(interval.is_none());
+            interval
+        } else {
+            None
         };
-        let interval = invert(estimate, scale, accept)?;
-        unbounded += usize::from(interval.is_none());
         periods.push(DesignEffect {
             period: Some(panel.periods[s]),
             unit: Some(treated.to_string()),
@@ -377,19 +452,24 @@ pub fn conformal_synthetic_control_at_level(
             ..DesignEffect::point(DesignEffectKind::Period, estimate)
         });
     }
-    let all: Vec<usize> = pre.iter().chain(&post).copied().collect();
-    let donor_all: Vec<Vec<f64>> = donors.iter().map(|u| series(*u, &all)).collect();
-    let target_all = series(unit, &all);
     let average = periods.iter().map(|effect| effect.estimate).sum::<f64>() / post.len() as f64;
-    let accept = |theta: f64| {
-        let mut adjusted = target_all.clone();
-        for value in &mut adjusted[pre.len()..] {
-            *value -= theta;
-        }
-        Ok(conformal_p(&adjusted, &donor_all, post.len(), &warm)? > alpha)
+    let interval = if intervals.includes_overall() {
+        let all: Vec<usize> = pre.iter().chain(&post).copied().collect();
+        let donor_all: Vec<Vec<f64>> = donors.iter().map(|u| series(*u, &all)).collect();
+        let target_all = series(unit, &all);
+        let accept = |theta: f64| {
+            let mut adjusted = target_all.clone();
+            for value in &mut adjusted[pre.len()..] {
+                *value -= theta;
+            }
+            Ok(conformal_p(&adjusted, &donor_all, post.len(), &warm)? > alpha)
+        };
+        let interval = invert(average, scale, accept)?;
+        unbounded += usize::from(interval.is_none());
+        interval
+    } else {
+        None
     };
-    let interval = invert(average, scale, accept)?;
-    unbounded += usize::from(interval.is_none());
     Ok(ConformalSyntheticFit {
         overall: DesignEffect {
             unit: Some(treated.to_string()),
