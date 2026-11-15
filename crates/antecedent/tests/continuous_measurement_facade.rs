@@ -173,7 +173,10 @@ fn logistic_calibration_and_linear_simex_recover_the_slope() {
         .unwrap();
     assert!((linear.point() - 2.0).abs() < 0.15, "point {}", linear.point());
     assert!((linear.naive_point().unwrap() - 1.6).abs() < 0.1);
-    assert_eq!(linear.record().functional_id, "linear_coefficient.simex");
+    assert_eq!(
+        linear.record().functional_id,
+        "linear_coefficient.simex.quadratic_extrapolation_limit"
+    );
     assert!(linear.effect().simex.is_some());
 }
 

@@ -203,7 +203,10 @@ fn linear_simex_recovers_the_attenuated_slope() {
     // The quadratic extrapolant under-corrects a rational path: at
     // reliability 0.8 its large-sample limit is 1.94, not 2 (observed 1.960).
     assert_recovers(&effect, 2.0, 0.08);
-    assert_eq!(effect.record.functional_id, "linear_coefficient.simex");
+    assert_eq!(
+        effect.record.functional_id,
+        "linear_coefficient.simex.quadratic_extrapolation_limit"
+    );
     let path = effect.simex.as_ref().unwrap();
     assert_eq!(path.lambdas, vec![0.0, 0.5, 1.0, 1.5, 2.0]);
     assert!(path.lambda_means.windows(2).all(|w| w[1][1] < w[0][1]));
