@@ -148,21 +148,20 @@ fn fit_simplex(target: &[f64], donors: &[Vec<f64>], start: Option<&[f64]>) -> Re
     fit_simplex_with_limit(target, donors, start, SIMPLEX_ITERATIONS)
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "the accelerated projected-gradient loop keeps its restart and momentum steps together"
-)]
-fn fit_simplex_with_limit(
-    target: &[f64],
-    donors: &[Vec<f64>],
-    start: Option<&[f64]>,
-    iterations: usize,
-) -> Result<Vec<f64>, ()> {
+/// The operands of one fit after the common-level subtraction and scaling, with donor values
+/// stored period-major so one period's row is contiguous.
+struct NormalizedProblem {
+    k: usize,
+    n: usize,
+    target: Vec<f64>,
+    donors: Vec<f64>,
+}
+
+fn normalize_problem(target: &[f64], donors: &[Vec<f64>]) -> Result<NormalizedProblem, ()> {
     let k = donors.len();
     if k == 0 || target.is_empty() || donors.iter().any(|d| d.len() != target.len()) {
         return Err(());
     }
-    let n = target.len() as f64;
     // Subtract the first donor from all donors and the target. Since weights
     // sum to one this preserves the objective but removes irrelevant common
     // levels that otherwise dominate the Lipschitz bound.
@@ -189,9 +188,7 @@ fn fit_simplex_with_limit(
     }
     let spread = if spread == 0.0 { 1.0 } else { spread };
     let value = |x: f64, t: usize| difference(x, t) / spread;
-    // The normalized operands are fixed for the whole fit: compute each once, with the same
-    // arithmetic the objective applies, instead of at every gradient evaluation. Donor values
-    // are stored period-major so one period's row is contiguous.
+    // The normalized operands are fixed for the whole fit: compute each once.
     let normalized_target: Vec<f64> =
         target.iter().enumerate().map(|(t, x)| value(*x, t)).collect();
     let mut normalized_donors = vec![0.0_f64; k * target.len()];
@@ -200,26 +197,253 @@ fn fit_simplex_with_limit(
             normalized_donors[t * k + j] = value(*x, t);
         }
     }
-    let frobenius: f64 = (0..k)
-        .flat_map(|j| (0..target.len()).map(move |t| (j, t)))
-        .map(|(j, t)| normalized_donors[t * k + j].powi(2))
-        .sum();
-    let lipschitz = 2.0 * frobenius / n;
+    Ok(NormalizedProblem {
+        k,
+        n: target.len(),
+        target: normalized_target,
+        donors: normalized_donors,
+    })
+}
+
+/// `Zᵀ Z / n` (row-major, symmetric) of period-major `rows` with `k` columns, and `Zᵀ y / n`.
+fn gram_of(rows: &[f64], y: &[f64], k: usize, n: usize) -> (Vec<f64>, Vec<f64>) {
+    let mut gram = vec![0.0_f64; k * k];
+    let mut moment = vec![0.0_f64; k];
+    for t in 0..n {
+        let row = &rows[t * k..(t + 1) * k];
+        for (i, xi) in row.iter().enumerate() {
+            for (j, xj) in row.iter().enumerate().skip(i) {
+                gram[i * k + j] += xi * xj;
+            }
+            moment[i] += xi * y[t];
+        }
+    }
+    let n = n as f64;
+    for i in 0..k {
+        for j in i..k {
+            let value = gram[i * k + j] / n;
+            gram[i * k + j] = value;
+            gram[j * k + i] = value;
+        }
+        moment[i] /= n;
+    }
+    (gram, moment)
+}
+
+/// Gradient `2 r (G w - b)` of the mean squared residual from its Gram form, `r` being
+/// `factor`.
+fn gram_gradient(gram: &[f64], moment: &[f64], factor: f64, weights: &[f64]) -> Vec<f64> {
+    let k = weights.len();
+    (0..k)
+        .map(|i| {
+            let row = &gram[i * k..(i + 1) * k];
+            2.0 * factor * (row.iter().zip(weights).map(|(g, w)| g * w).sum::<f64>() - moment[i])
+        })
+        .collect()
+}
+
+/// The per-row gradient of the mean squared residual (the evaluation the Gram form replaces).
+#[cfg(test)]
+fn rowwise_gradient(problem: &NormalizedProblem, weights: &[f64]) -> Vec<f64> {
+    let (k, n) = (problem.k, problem.n as f64);
+    let mut grad = vec![0.0; k];
+    for (t, target_value) in problem.target.iter().enumerate() {
+        let row = &problem.donors[t * k..(t + 1) * k];
+        let residual = row.iter().zip(weights).map(|(x, w)| x * w).sum::<f64>() - target_value;
+        for (g, x) in grad.iter_mut().zip(row) {
+            *g += 2.0 * x * residual / n;
+        }
+    }
+    grad
+}
+
+/// The simplex fit by the per-row gradient (the original evaluation), kept to check the Gram
+/// form against.
+#[cfg(test)]
+fn fit_simplex_rowwise_with_limit(
+    target: &[f64],
+    donors: &[Vec<f64>],
+    start: Option<&[f64]>,
+    iterations: usize,
+) -> Result<Vec<f64>, ()> {
+    let problem = normalize_problem(target, donors)?;
+    let frobenius: f64 = problem.donors.iter().map(|x| x.powi(2)).sum();
+    let lipschitz = 2.0 * frobenius / problem.n as f64;
     let step = if lipschitz > 0.0 { 1.0 / lipschitz } else { 1.0 };
     if !step.is_finite() {
         return Err(());
     }
-    let gradient = |weights: &[f64]| -> Vec<f64> {
-        let mut grad = vec![0.0; k];
-        for (t, target_value) in normalized_target.iter().enumerate() {
-            let row = &normalized_donors[t * k..(t + 1) * k];
-            let residual = row.iter().zip(weights).map(|(x, w)| x * w).sum::<f64>() - target_value;
-            for (g, x) in grad.iter_mut().zip(row) {
-                *g += 2.0 * x * residual / n;
+    projected_gradient(problem.k, step, start, iterations, |weights| {
+        rowwise_gradient(&problem, weights)
+    })
+}
+
+fn fit_simplex_with_limit(
+    target: &[f64],
+    donors: &[Vec<f64>],
+    start: Option<&[f64]>,
+    iterations: usize,
+) -> Result<Vec<f64>, ()> {
+    let problem = normalize_problem(target, donors)?;
+    let (gram, moment) = gram_of(&problem.donors, &problem.target, problem.k, problem.n);
+    let trace: f64 = (0..problem.k).map(|i| gram[i * problem.k + i]).sum();
+    let lipschitz = 2.0 * trace;
+    let step = if lipschitz > 0.0 { 1.0 / lipschitz } else { 1.0 };
+    if !step.is_finite() {
+        return Err(());
+    }
+    projected_gradient(problem.k, step, start, iterations, |weights| {
+        gram_gradient(&gram, &moment, 1.0, weights)
+    })
+}
+
+/// A simplex fit whose target has `theta` subtracted from every period from `from` on, refit
+/// for many `theta` against the same donors. The donor Gram matrix does not depend on `theta`
+/// and the moment vector is affine in it, so each refit costs `O(k)` setup plus `O(k²)` per
+/// iteration instead of re-forming the problem from the `k n` raw values.
+struct ShiftedTargetFit<'a> {
+    target: &'a [f64],
+    donors: &'a [Vec<f64>],
+    from: usize,
+    k: usize,
+    n: usize,
+    /// Largest absolute donor-minus-first-donor value.
+    donor_spread: f64,
+    /// Largest absolute target-minus-first-donor value over the unshifted periods.
+    target_spread: f64,
+    /// Common scale of the stored operands.
+    common: f64,
+    /// `Zᵀ Z / n`, `Zᵀ y₀ / n` and `Zᵀ 1_shifted / n` of the operands divided by `common`.
+    gram: Vec<f64>,
+    moment: Vec<f64>,
+    shift_moment: Vec<f64>,
+}
+
+impl<'a> ShiftedTargetFit<'a> {
+    /// `None` when the operands need the general path (non-finite or overflowing values).
+    fn new(target: &'a [f64], donors: &'a [Vec<f64>], from: usize) -> Option<Self> {
+        let k = donors.len();
+        let n = target.len();
+        if k == 0 || n == 0 || from > n || donors.iter().any(|d| d.len() != n) {
+            return None;
+        }
+        if target.iter().chain(donors.iter().flatten()).any(|x| !x.is_finite()) {
+            return None;
+        }
+        let base = &donors[0];
+        let mut donor_spread = 0.0_f64;
+        for t in 0..n {
+            for donor in donors {
+                let difference = donor[t] - base[t];
+                if !difference.is_finite() {
+                    return None;
+                }
+                donor_spread = donor_spread.max(difference.abs());
             }
         }
-        grad
-    };
+        let mut target_spread = 0.0_f64;
+        for t in 0..from {
+            let difference = target[t] - base[t];
+            if !difference.is_finite() {
+                return None;
+            }
+            target_spread = target_spread.max(difference.abs());
+        }
+        if (from..n).any(|t| !(target[t] - base[t]).is_finite()) {
+            return None;
+        }
+        let common = if donor_spread == 0.0 { 1.0 } else { donor_spread };
+        let mut rows = vec![0.0_f64; k * n];
+        for (j, donor) in donors.iter().enumerate() {
+            for t in 0..n {
+                rows[t * k + j] = (donor[t] - base[t]) / common;
+            }
+        }
+        let scaled_target: Vec<f64> = (0..n).map(|t| (target[t] - base[t]) / common).collect();
+        let (gram, moment) = gram_of(&rows, &scaled_target, k, n);
+        let mut shift_moment = vec![0.0_f64; k];
+        for t in from..n {
+            for (j, value) in shift_moment.iter_mut().enumerate() {
+                *value += rows[t * k + j];
+            }
+        }
+        for value in &mut shift_moment {
+            *value /= n as f64;
+        }
+        if gram.iter().chain(&moment).chain(&shift_moment).any(|x| !x.is_finite()) {
+            return None;
+        }
+        Some(Self {
+            target,
+            donors,
+            from,
+            k,
+            n,
+            donor_spread,
+            target_spread,
+            common,
+            gram,
+            moment,
+            shift_moment,
+        })
+    }
+
+    /// The target with `theta` subtracted from the shifted periods.
+    fn adjusted(&self, theta: f64) -> Vec<f64> {
+        shifted_target(self.target, self.from, theta)
+    }
+
+    /// The moment vector and gradient factor for the target shifted by `theta`; `None` when
+    /// the general path must be used.
+    fn shifted_moment(&self, theta: f64) -> Option<(Vec<f64>, f64, f64)> {
+        let k = self.k;
+        let base = &self.donors[0];
+        let mut spread = self.donor_spread.max(self.target_spread);
+        for t in self.from..self.n {
+            let difference = (self.target[t] - theta) - base[t];
+            if !difference.is_finite() {
+                return None;
+            }
+            spread = spread.max(difference.abs());
+        }
+        let spread = if spread == 0.0 { 1.0 } else { spread };
+        let factor = (self.common / spread).powi(2);
+        let offset = theta / self.common;
+        let moment: Vec<f64> =
+            self.moment.iter().zip(&self.shift_moment).map(|(m, s)| m - offset * s).collect();
+        let trace: f64 = (0..k).map(|i| self.gram[i * k + i]).sum();
+        let lipschitz = 2.0 * factor * trace;
+        let step = if lipschitz > 0.0 { 1.0 / lipschitz } else { 1.0 };
+        if !step.is_finite() || moment.iter().any(|x| !x.is_finite()) {
+            return None;
+        }
+        Some((moment, factor, step))
+    }
+
+    /// The simplex weights for the target shifted by `theta`.
+    fn fit(&self, theta: f64, start: Option<&[f64]>, iterations: usize) -> Result<Vec<f64>, ()> {
+        let Some((moment, factor, step)) = self.shifted_moment(theta) else {
+            return fit_simplex_with_limit(&self.adjusted(theta), self.donors, start, iterations);
+        };
+        projected_gradient(self.k, step, start, iterations, |weights| {
+            gram_gradient(&self.gram, &moment, factor, weights)
+        })
+    }
+}
+
+/// Accelerated projected gradient with restart over the simplex for the given `gradient`
+/// and fixed `step`.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the accelerated projected-gradient loop keeps its restart and momentum steps together"
+)]
+fn projected_gradient(
+    k: usize,
+    step: f64,
+    start: Option<&[f64]>,
+    iterations: usize,
+    gradient: impl Fn(&[f64]) -> Vec<f64>,
+) -> Result<Vec<f64>, ()> {
     let mut weights = start.map_or_else(|| vec![1.0 / k as f64; k], <[f64]>::to_vec);
     if weights.len() != k || weights.iter().any(|x| !x.is_finite()) {
         return Err(());
@@ -434,12 +658,12 @@ pub fn conformal_synthetic_control_for(
             let times: Vec<usize> = pre.iter().copied().chain(std::iter::once(s)).collect();
             let donor_series: Vec<Vec<f64>> = donors.iter().map(|u| series(*u, &times)).collect();
             let target = series(unit, &times);
+            let refit = ShiftedTargetFit::new(&target, &donor_series, target.len() - 1);
             let accept = |theta: f64| {
-                let mut adjusted = target.clone();
-                if let Some(last) = adjusted.last_mut() {
-                    *last -= theta;
-                }
-                Ok(conformal_p(&adjusted, &donor_series, 1, &warm)? > alpha)
+                let adjusted = shifted_target(&target, target.len() - 1, theta);
+                let p =
+                    conformal_p_refit(refit.as_ref(), theta, &adjusted, &donor_series, 1, &warm)?;
+                Ok(p > alpha)
             };
             let interval = invert(estimate, scale, accept)?;
             unbounded += usize::from(interval.is_none());
@@ -461,12 +685,12 @@ pub fn conformal_synthetic_control_for(
         let all: Vec<usize> = pre.iter().chain(&post).copied().collect();
         let donor_all: Vec<Vec<f64>> = donors.iter().map(|u| series(*u, &all)).collect();
         let target_all = series(unit, &all);
+        let refit = ShiftedTargetFit::new(&target_all, &donor_all, pre.len());
         let accept = |theta: f64| {
-            let mut adjusted = target_all.clone();
-            for value in &mut adjusted[pre.len()..] {
-                *value -= theta;
-            }
-            Ok(conformal_p(&adjusted, &donor_all, post.len(), &warm)? > alpha)
+            let adjusted = shifted_target(&target_all, pre.len(), theta);
+            let p =
+                conformal_p_refit(refit.as_ref(), theta, &adjusted, &donor_all, post.len(), &warm)?;
+            Ok(p > alpha)
         };
         let interval = invert(average, scale, accept)?;
         unbounded += usize::from(interval.is_none());
@@ -519,17 +743,52 @@ fn conformal_p(
     post: usize,
     warm: &[f64],
 ) -> Result<f64, EstimationError> {
-    let n = target.len();
     let weights = fit_simplex(target, donors, Some(warm)).map_err(|()| optimizer_refusal())?;
+    Ok(conformal_p_at(target, donors, post, &weights))
+}
+
+/// The conformal p-value of `target` given the simplex `weights` already fit to it.
+fn conformal_p_at(target: &[f64], donors: &[Vec<f64>], post: usize, weights: &[f64]) -> f64 {
+    let n = target.len();
     let residuals: Vec<f64> =
-        (0..n).map(|t| (target[t] - synthetic(donors, &weights, t)).abs()).collect();
+        (0..n).map(|t| (target[t] - synthetic(donors, weights, t)).abs()).collect();
     let statistic = |shift: usize| -> f64 {
         (n - post..n).map(|position| residuals[(position + n - shift) % n]).sum()
     };
     let observed = statistic(0);
     let tolerance = 1e-12 * (1.0 + observed.abs());
     let at_least = (0..n).filter(|shift| statistic(*shift) >= observed - tolerance).count();
-    Ok(at_least as f64 / n as f64)
+    at_least as f64 / n as f64
+}
+
+/// `target` with `theta` subtracted from every period from `from` on.
+fn shifted_target(target: &[f64], from: usize, theta: f64) -> Vec<f64> {
+    let mut adjusted = target.to_vec();
+    for value in &mut adjusted[from..] {
+        *value -= theta;
+    }
+    adjusted
+}
+
+/// The conformal p-value of the shifted `adjusted` target, refit through the precomputed Gram
+/// pieces when available and from scratch otherwise.
+fn conformal_p_refit(
+    refit: Option<&ShiftedTargetFit<'_>>,
+    theta: f64,
+    adjusted: &[f64],
+    donors: &[Vec<f64>],
+    post: usize,
+    warm: &[f64],
+) -> Result<f64, EstimationError> {
+    match refit {
+        Some(refit) => {
+            let weights = refit
+                .fit(theta, Some(warm), SIMPLEX_ITERATIONS)
+                .map_err(|()| optimizer_refusal())?;
+            Ok(conformal_p_at(adjusted, donors, post, &weights))
+        }
+        None => conformal_p(adjusted, donors, post, warm),
+    }
 }
 
 /// The hull of `{θ : accept(θ)}` around `center`, searched on a grid scaled by `scale` and
