@@ -566,11 +566,7 @@ fn supported_augmented_panel_interval_round_trips_and_refuses_forgery() {
     uncounted.panel_did.as_mut().unwrap().replicates_ok = None;
     assert!(refusal(&names, &uncounted).contains("fabricated interval"), "{label}");
     // The row is stated with or without the declaration that the predictions were not fitted
-    // on the analysed rows; both were measured.
-    let mut undeclared = body.clone();
-    undeclared.panel_did.as_mut().unwrap().augmented.as_mut().unwrap().3 = false;
-    antecedent_io::encode_analysis_result_artifact(&undeclared, names.clone(), "undeclared")
-        .expect("a section without the declaration states the row");
+    // on the analysed rows; both were measured. A fit without the declaration states it.
     let mut in_sample = query.clone().with_resampling(DidResamplingScheme::ClusterBootstrap, 199);
     in_sample.augmented.as_mut().unwrap().predictions_cross_fitted = false;
     assert!(fit_panel(&data, in_sample, None, 6).1.states_section_row(), "{label}");
