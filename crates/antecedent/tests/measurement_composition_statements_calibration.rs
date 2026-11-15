@@ -33,8 +33,8 @@ use antecedent::analysis::joint_law_propagation::{
     propagate_aligned_linear_spread, propagate_linear_moments_spread, propagate_spread,
 };
 use antecedent::{
-    BayesianConfig, CategoricalTarget, ContinuousErrorInput, InferenceMode,
-    MeasurementAnalysisBinding, MeasurementInput, Study, StudyBuilder,
+    CategoricalTarget, ContinuousErrorInput, InferenceMode, MeasurementAnalysisBinding,
+    MeasurementInput, Study, StudyBuilder,
 };
 use antecedent_contract::{InputRole, PropagationOperation};
 use antecedent_core::measurement_model::{
@@ -765,10 +765,6 @@ const TEMPORAL_NORMAL: &str = "temporal_design_cluster_robust_normal";
 
 const TEMPORAL_CREDIBLE: &str = "temporal_design_posterior_quantile";
 
-fn bayesian() -> InferenceMode {
-    InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(1000))
-}
-
 /// A sequentially randomized design other than the two-arm one.
 #[derive(Clone, Copy)]
 enum Panel {
@@ -1045,15 +1041,6 @@ enum Law {
     Gaussian,
     /// Shared-evidence skewed pair `x = E1`, `y = 0.5 E1 + 0.5 E2`, exponential `E`; truth 0.
     Skewed,
-}
-
-impl Law {
-    fn truth(self) -> f64 {
-        match self {
-            Self::Gaussian => 0.6,
-            Self::Skewed => 0.0,
-        }
-    }
 }
 
 fn rows_of(law: Law, n: usize, seed: u64) -> (Vec<f64>, Vec<f64>) {

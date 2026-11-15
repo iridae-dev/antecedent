@@ -39,9 +39,6 @@ const DOSE_TOP: f64 = 2.0;
 /// Whole-procedure bootstrap replicates of the bootstrap routes: the route's replicate floor.
 const BOOTSTRAP_REPLICATES: u32 = 99;
 
-/// Horizon of the survival panel.
-const SURVIVAL_HORIZON: u32 = 3;
-
 fn labels(values: &[String]) -> Arc<[Arc<str>]> {
     values.iter().map(|value| Arc::<str>::from(value.as_str())).collect::<Vec<_>>().into()
 }
@@ -67,89 +64,16 @@ enum Design {
     SmoothedDose,
     DoseGrid,
     Quantile,
-    RegimeSurvival,
 }
 
 impl Design {
-    const ALL: [Self; 10] = [
-        Self::TwoArm,
-        Self::MultiArm,
-        Self::Categorical,
-        Self::Factorial,
-        Self::Interference,
-        Self::ContinuousDose,
-        Self::SmoothedDose,
-        Self::DoseGrid,
-        Self::Quantile,
-        Self::RegimeSurvival,
-    ];
-
     /// Units (or interference clusters, or subjects) at this run's sample-size grid point.
     fn units(self) -> usize {
         grid_n(match self {
             Self::MultiArm | Self::Categorical => 250,
             Self::Quantile => 200,
-            Self::RegimeSurvival => 1200,
             _ => 300,
         })
-    }
-
-    /// Index and name of the scored coordinate.
-    fn coordinate(self) -> (usize, &'static str) {
-        match self {
-            Self::TwoArm => (0, "excursion_effect"),
-            Self::MultiArm => (0, "contrast:mid-low"),
-            Self::Categorical => (2, "step:high-mid"),
-            Self::Factorial => (0, "main_effect:first"),
-            Self::Interference => (0, "direct_effect"),
-            Self::ContinuousDose => (0, "smoothed_contrast:1.2-0.8"),
-            Self::SmoothedDose => (1, "smoothed_response@1"),
-            Self::DoseGrid => (1, "level@1"),
-            Self::Quantile => (0, "quantile_effect"),
-            Self::RegimeSurvival => (0, "survival_difference"),
-        }
-    }
-
-    /// The analytic value of the scored coordinate.
-    fn truth(self) -> f64 {
-        match self {
-            Self::TwoArm => TWO_ARM_EFFECT,
-            Self::MultiArm => MULTI_ARM_EFFECTS[1] - MULTI_ARM_EFFECTS[0],
-            Self::Categorical => MULTI_ARM_EFFECTS[2] - MULTI_ARM_EFFECTS[1],
-            // Averaged over the other factor's two levels with equal weight.
-            Self::Factorial => FACTORIAL_EFFECTS[0] + 0.5 * FACTORIAL_EFFECTS[2],
-            Self::Interference => INTERFERENCE_EFFECTS[0],
-            Self::ContinuousDose => smoothed_response(1.2) - smoothed_response(0.8),
-            Self::SmoothedDose => smoothed_response(1.0),
-            Self::DoseGrid => dose_response(1.0),
-            Self::Quantile => 2.0,
-            Self::RegimeSurvival => survival_truth(),
-        }
-    }
-
-    /// Whole-procedure bootstrap replicates a frequentist study of the route asks for.
-    fn replicates(self) -> u32 {
-        match self {
-            Self::Quantile | Self::RegimeSurvival => BOOTSTRAP_REPLICATES,
-            _ => 0,
-        }
-    }
-
-    /// Posterior draws of a Bayesian study of the route.
-    fn draws(self) -> usize {
-        match self {
-            Self::DoseGrid | Self::RegimeSurvival => 500,
-            _ => 1000,
-        }
-    }
-
-    /// The frequentist interval the route publishes: its method and standard-error kind.
-    fn interval(self) -> (&'static str, &'static str) {
-        match self {
-            Self::DoseGrid => ("analytic_se", "local_quadratic_bias_aware"),
-            Self::Quantile | Self::RegimeSurvival => ("percentile_bootstrap", "percentile"),
-            _ => ("analytic_se", "cluster_ratio"),
-        }
     }
 
     /// Draw one panel and its query.
@@ -178,7 +102,6 @@ impl Design {
                 },
             ),
             Self::Quantile => quantile(units, seed),
-            Self::RegimeSurvival => survival(units, seed),
         }
     }
 }
@@ -498,13 +421,9 @@ fn next_confounder(current: f64, previous_treated: bool, noise: f64) -> f64 {
     0.5 * current - 0.4 * f64::from(u8::from(previous_treated)) + (noise - 0.5)
 }
 
-/// Subject trajectories with time-varying confounding: treatment is more likely when the
-/// confounder is high, the hazard is `expit(-2.5 + 0.8 L - 0.7 A)` and censoring is light.
-fn survival(subjects: usize, seed: u64) -> (TabularData, TemporalDesignQuery) {
-    survival_at(subjects, seed, SURVIVAL_HORIZON)
-}
-
-/// [`survival`] followed for `horizon` periods.
+/// Subject trajectories with time-varying confounding, followed for `horizon` periods: treatment
+/// is more likely when the confounder is high, the hazard is `expit(-2.5 + 0.8 L - 0.7 A)` and
+/// censoring is light.
 fn survival_at(subjects: usize, seed: u64, horizon: u32) -> (TabularData, TemporalDesignQuery) {
     let mut next = uniform(seed, 0x7D07);
     let (mut unit_labels, mut periods) = (Vec::new(), Vec::new());
@@ -558,15 +477,9 @@ fn survival_at(subjects: usize, seed: u64, horizon: u32) -> (TabularData, Tempor
     )
 }
 
-/// Always-treat minus never-treat survival at the horizon, by simulating the generating law
-/// under each static regime (the hazards are multiplied out, so only the confounder path is
+/// Always-treat minus never-treat survival at `horizon` periods, by simulating the generating
+/// law under each static regime (the hazards are multiplied out, so only the confounder path is
 /// random).
-fn survival_truth() -> f64 {
-    static TRUTH: OnceLock<f64> = OnceLock::new();
-    *TRUTH.get_or_init(|| simulated_survival_difference(SURVIVAL_HORIZON))
-}
-
-/// [`survival_truth`] at `horizon` periods.
 fn simulated_survival_difference(horizon: u32) -> f64 {
     let draws = 2_000_000_u32;
     let mut next = uniform(0x5A17_0001, 0x7D08);
