@@ -1,0 +1,82 @@
+feature_id = "gcm.simulate.mechanism_refit"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Capability `gcm.simulate.mechanism_refit`: the uncertainty a fitted graphical causal model
+# attaches to a simulation (interventional draws, policy value, unit effects, counterfactual,
+# temporal rollout) by refitting every mechanism on resampled or reweighted rows and rerunning
+# the simulation on the refit.
+#
+# Citation judgment, from reading the code. This is the same refit machinery as the attribution
+# record gcm.attribute.mechanism_refit (one replicate loop, one weight and count draw, one
+# Student-t reference), applied to a simulation query instead of an attribution. The row laws are
+# the published ones (Efron's multinomial bootstrap, Rubin's flat Dirichlet weights, and circular
+# block resampling of a series); the Student-t reference is the repository's own construction and
+# is reviewed once, in gcm.attribute.mechanism_refit, which this record relies on. The simulation
+# itself (interventional sampling of the fitted mechanisms and the intervention-program
+# expressions) is reviewed in model.intervention_programs, model.gcm_sampling and
+# estimate.gcm.fit.bayesian; what is reviewed here is the simulation-specific replicate
+# (simulate_replicate), the published quantity of a policy value and the rollout's separation of
+# refit uncertainty from the predictive law of a simulated path.
+papers = [
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1,...,1) weights on the observed units as a posterior over the sampling distribution"] },
+ { title = "Bootstrap methods: another look at the jackknife", sections = ["the nonparametric bootstrap of an arbitrary statistic by resampling the observed rows with replacement, and its standard error"] },
+ { title = "A circular block-resampling procedure for stationary data", sections = ["resampling a stationary dependent series in circular blocks to keep its serial dependence"] },
+]
+
+implementation_deviations = [
+ "The interval is the refit uncertainty of the fitted model's simulated value, not of an identified causal estimand: misspecification, identification and the selection of mechanism families (held at the ones selected on the original rows) are outside it.",
+ "Every refit simulates on the query's own seed (common random numbers), so the Monte Carlo error of the simulation is an offset common to all refits and is not in the interval; it is negligible only when the simulated draws are many times the fitted rows.",
+ "A policy value publishes the paired mean difference (policy mean minus baseline mean) as its point and as the quantity whose bootstrap standard error is on the estimate; its policy and baseline means are listed beside it.",
+ "On a temporal rollout every refit additionally rolls out one path under a seed drawn per replicate; the simulated-path columns are draws of the predictive law (refit uncertainty plus innovation noise) and are excluded from the Student-t reference, while the mean columns are referred to it with K the number of blocks of consecutive times.",
+ "Under Bayesian inference the mean-type columns are referred to the Student-t reference posterior of a mean of K independently weighted units by the repository's own construction (see gcm.attribute.mechanism_refit); it is exact for a linear functional of weighted means and a calibration device for a nonlinear functional of the refit.",
+ "Under a replicate count the published uncertainty is the standard deviation over the completed replicates as the standard error of a normal interval; a failed replicate is failed mass and never redrawn, and under Bayesian inference a failed refit is an error. A standalone temporal rollout requires a TemporalDag and is refused otherwise.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/attribute_mechanism_posterior.rs (every simulation target, interventional draws, policy value, unit effects and counterfactual, publishes a posterior of the declared draw count with finite means under Bayesian inference and a disclosed refit bootstrap under a replicate count; a temporal rollout holds x at one and recovers the fitted lag to y near 3, publishes sixteen posterior quantities (four steps by two variables as means and as simulated paths), simulated-path spread near the innovation sd and more than three times the refit spread of the mean, and a circular-block bootstrap disclosure)",
+ "crates/antecedent/src/analysis/execute/checked_attribution.rs (in-module tests: mechanism_refit_reference_matches_the_student_t_variance_and_keeps_sums, fitted_model_bootstrap_publishes_the_standard_error_of_the_published_quantity)",
+ "crates/antecedent-model/tests/intervention_programs.rs (the program semantics the simulated interventions are built from, reviewed in model.intervention_programs)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The simulation side of the fitted-model refit route in crates/antecedent/src/analysis/execute/checked_attribution/model_uncertainty.rs: the replicate loop shared with the attribution route (attribute_replicates dispatching a simulation query to simulate_replicate); simulate_replicate (one weight or count vector over the whole table or the series, weighted or frequency-weighted refit of every mechanism with the assignments held, the simulation rerun on the refit, on the lag-aligned unfolding for a rollout, the mean quantities of the simulation and, for a rollout, one extra path under a fresh per-replicate seed); the published quantity of a policy value (published_quantity); the posterior with its Student-t reference and the replicate-count bootstrap (model_posterior, model_bootstrap, disclose_model_bootstrap). Not the sampling of the fitted mechanisms or the intervention-program interpreter (model.gcm_sampling, model.intervention_programs), the shared weight generator (data.bayesian_bootstrap) or index laws (data.resample), mechanism-family selection (model.registry), the coverage statements and the interval-scope diagnostic, or the portable-policy artifact and the Python surface."
+assumptions = [
+ "The graph is a caller-declared or accepted DAG, or a TemporalDag whose rollout steps the fitted dynamics on the lag-aligned unfolding; the fitted mechanisms are taken as correctly specified.",
+ "Rows are exchangeable units of one table, or one dependent series kept in blocks of consecutive times; that this is the right sampling design is the caller's declaration.",
+ "The simulated value is that of the fitted model under the declared intervention program; it is not an identified estimand.",
+ "The weight and count draws, and the Student-t reference, are taken as reviewed in data.bayesian_bootstrap, data.resample and gcm.attribute.mechanism_refit.",
+]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review was made by reading the product source named in its scope and the bound tests; no test, build or measurement was run in the review and no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, as read. The Student-t reference has no published source and is recorded as the repository's own construction."
+redistribution = "Primary work is cited, not redistributed. The tests bound are repository-authored under MIT OR Apache-2.0 and use only the repository's own random-number streams and the standard library. No third-party code, data or papers are redistributed."
+limitations = "Evidence is structural and known-truth on small fixtures: a chain z -> t -> y with four simulation targets at ten draws or replicates (finite means, declared draw count, a disclosed bootstrap) and a lag-one series whose rollout mean (3 under the sustained intervention, 1 without) and path spread are asserted within wide bands; no refit interval of a simulation is compared with a closed-form sampling law or a measured coverage here, and the exact policy-mean closed form of the capability's evidence family is not among the bound assertions. The common-seed offset, the model-selection uncertainty, misspecification and identification are outside the interval. The Student-t reference is checked only as a second moment on independent normals. Tests were read, not executed, in this review."
+sources = ["https://doi.org/10.1214/aos/1176345338", "crates/antecedent/tests/attribute_mechanism_posterior.rs"]
+findings_resolved = [
+ "No defect found by reading: simulate_replicate draws one weight or count vector per replicate, refits all mechanisms from the held assignments, reruns the same simulation query on the refit (on the unfolding for a rollout) and returns named quantities; the rollout's extra path uses a seed drawn from the replicate stream so that its innovation noise differs in every refit while the mean columns share the query seed; path columns are skipped by the Student-t reference; a policy value's point is the paired mean difference.",
+ "Executing evidence is smoke and band assertions, not an independent closed-form comparison of a refit interval of a simulation; the limitation is stated rather than resolved.",
+]
+record_sha256 = "97ff9b5ebc8fa86661390993d3e62296176bc60883b4ea2999139502aee202ac"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/checked_attribution/model_uncertainty.rs"
+items = ["fn attribute_replicates", "fn draw_row_counts", "fn draw_row_weights", "fn mechanism_refit_path_column", "fn mechanism_refit_reference", "fn mechanism_refit_units", "fn model_bootstrap", "fn model_posterior", "fn published_quantity", "fn simulate_replicate"]
+sha256 = "85113469ce12bf0a4a8f78cc1931499e1724760ce8f8517323ef67f94369fa36"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/checked_attribution.rs"
+items = ["fn disclose_model_bootstrap", "fn rollout_query", "struct Replicates", "impl Replicates", "fn fitted_model_bootstrap_publishes_the_standard_error_of_the_published_quantity", "fn mechanism_refit_reference_matches_the_student_t_variance_and_keeps_sums"]
+sha256 = "ae82be10048844c9a8d3912b7dbdeb33783abd4bb8cf238c52e19833ef758b39"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/attribute_mechanism_posterior.rs"
+items = ["fn ctx", "fn on_large_stack", "struct Stream", "impl Stream", "fn bayesian", "fn chain_table", "fn chain_dag", "fn shifted_series", "fn series_with_shift", "fn temporal_chain", "fn rollout_study", "fn every_simulation_target_carries_refit_uncertainty_in_both_modes", "fn a_temporal_rollout_steps_the_fitted_dynamics_and_carries_block_refit_uncertainty"]
+sha256 = "bcc9cd706c939a161b5eb4041e996ab64d7abba90eef8ce9403eec7cdce81c3b"

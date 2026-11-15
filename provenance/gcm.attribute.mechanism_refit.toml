@@ -1,0 +1,93 @@
+feature_id = "gcm.attribute.mechanism_refit"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Capability `gcm.attribute.mechanism_refit`: the uncertainty a fitted graphical causal model
+# attaches to its attributions (change, root causes, structure change, paths, feature relevance,
+# anomaly scores, unit change, intrinsic influence) by refitting every mechanism on resampled or
+# reweighted rows and recomputing the attribution on the refit.
+#
+# Citation judgment, from reading the code. The row laws are the published ones: Efron's
+# multinomial bootstrap (frequentist replicate counts), Rubin's flat Dirichlet weights (Bayesian
+# inference), and the block resampling of Kuensch and of Politis and Romano for a lag-aligned
+# series. The attributions recomputed per refit are reviewed in their own records
+# (attribution.distribution_change, attribution.shapley, attribution.structure,
+# attribution.root_cause, attribution.path_decompose, attribution.feature_relevance,
+# attribution.basic, gcm.attribution.intrinsic_influence), and the Dirichlet-weight refit of a
+# fitted model is reviewed for the change and counterfactual routes in
+# estimate.gcm.attribution.bayesian and estimate.gcm.fit.bayesian. What is reviewed here is the
+# composition those records do not cover: the common replicate loop over every refit target, the
+# frequentist counterpart (standard error of a refit bootstrap), the block variants for a
+# lag-aligned series, and the finite-sample reference applied to the Dirichlet draws, which is the
+# repository's own construction and has no primary source.
+papers = [
+ { title = "The Bayesian Bootstrap", doi = "10.1214/aos/1176345338", sections = ["Dirichlet(1,...,1) weights on the observed units as a posterior over the sampling distribution"] },
+ { title = "Bootstrap methods: another look at the jackknife", sections = ["the nonparametric bootstrap of an arbitrary statistic by resampling the observed rows with replacement, and its standard error"] },
+ { title = "The jackknife and the bootstrap for general stationary observations", sections = ["the block bootstrap of a statistic of a dependent stationary series"] },
+ { title = "A circular block-resampling procedure for stationary data", sections = ["resampling a stationary dependent series in circular blocks to keep its serial dependence"] },
+]
+
+implementation_deviations = [
+ "The refit is a modular bootstrap pushforward of the fitted-model attribution: every selected mechanism is refit under the row weights or counts of the replicate and the attribution is recomputed on the refit. It is not a joint posterior over mechanisms and attribution, and the interval is for the fitted model's value, not for an identified causal quantity: misspecification and identification are not addressed.",
+ "Mechanism families are held at the ones selected on the original rows in every replicate; selection uncertainty is not in the interval (the whole-procedure interval of an intrinsic influence is a separate route).",
+ "The data references an attribution reads (feature means, parent means, the anomaly reference) stay at their observed values in every replicate.",
+ "Under Bayesian inference the draws of every mean-type column are not published as drawn: each deviation from the column mean is multiplied by sqrt((K + 1) / (K - 1)) * sqrt(nu / chi2_nu), nu = P (K - 1), with one chi-square variate per draw shared by every column and the column mean restored afterwards, so that the draws follow the Student-t reference posterior of a mean of K independently weighted units in each of P populations and a total and its components stay additive. This is the repository's own construction from the weighted-mean variance s^2 (K - 1) / (K (K + 1)) of Exp(1) weights; it is exact for a linear functional of the weighted means and is applied unchanged to nonlinear functionals of the refit (Shapley components, scores), where it is a calibration device, not a derived posterior. It is skipped for fewer than three units, for a column holding a non-finite value and for simulated-path columns.",
+ "For a change target K is the smaller of the two populations' unit counts and P is two; on a lag-aligned series K is the number of blocks of consecutive times, not the number of rows.",
+ "Under a replicate count the published uncertainty is the standard deviation of the recomputed quantity over the completed replicates as the standard error of a normal interval (no percentile interval); a replicate that fails is counted as failed mass and never redrawn, and under Bayesian inference a failed refit is an error.",
+ "Mechanism-change detection has no refit uncertainty (a two-sample test, not a smooth functional of the refit mechanisms); intrinsic influence keeps the nested refits its own engine returns, capped at 100 draws unless the draw count is set.",
+ "On a lag-aligned series the refit resamples (frequentist) or weights (Bayesian) blocks of consecutive times, with run-aware streams; a block that straddles a seam of the circular resample pairs times that were not observed together and that share of windows is not corrected.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/attribute_mechanism_posterior.rs (a Bayesian change attribution has a posterior whose total and components add up, whose mean is the exact intercept shift of 5 and whose spread is positive; the replicate-count counterpart publishes a bootstrap standard error whose ratio to the posterior standard deviation lies in (0.6, 1.6); every refit target publishes a posterior and a bootstrap; a TemporalDag resamples blocks in both inference modes; mechanism-change detection publishes no posterior and says why)",
+ "crates/antecedent/tests/gcm_bayesian_refit_reference.rs (change_attribution_draws_use_one_weight_vector_per_population_and_stay_coupled: sixteen draws against the closed form of the weighted covariate means of regenerated per-population Dirichlet weights, exact intercept component, efficiency)",
+ "crates/antecedent/src/analysis/execute/checked_attribution.rs (in-module tests: mechanism_refit_reference_matches_the_student_t_variance_and_keeps_sums, fitted_model_bootstrap_publishes_the_standard_error_of_the_published_quantity)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "The common refit machinery of the fitted-model attribution route in crates/antecedent/src/analysis/execute/checked_attribution.rs and checked_attribution/model_uncertainty.rs: the replicate loop (attribute_replicates) with its cancellation, shape check and failed-mass rule; the per-target replicate (attribute_replicate: one weight vector or count vector per population for a change, root-cause or structure-change target, one whole-table weight vector for paths, feature relevance, anomaly scores and unit change, refit of every mechanism under it with the families held, recomputation of the attribution on the refit); the weight and count draws (row weights and counts on a static table, block weights and circular-block counts on a lag-aligned series); the posterior (model_posterior) with the Student-t reference (mechanism_refit_reference) and its unit count (mechanism_refit_units); and the replicate-count bootstrap (model_bootstrap, disclose_model_bootstrap) publishing the standard error of the quantity the estimate's point is. Not the attributions recomputed per refit, the Shapley estimators or the coalition payoffs (their own records), the mechanism-family selection (model.registry), the shared Dirichlet weight generator (data.bayesian_bootstrap) or the circular-block index laws (data.resample), the intrinsic-influence engine's own nested refits, the coverage statements and the interval-scope diagnostic (mechanism_refit_scope), or the Python surface."
+assumptions = [
+ "The graph is a caller-declared or accepted DAG, or a TemporalDag run on its lag-aligned unfolding, with independent disturbances and no latent confounding between mechanisms; the fitted mechanisms are taken as correctly specified.",
+ "The rows are exchangeable units of one table (two row ranges for a change target), or one dependent series whose consecutive times are kept inside blocks of length ceil(n^(1/3)); that this is the right sampling design is the caller's declaration.",
+ "The Dirichlet and bootstrap-count draws are those of data.bayesian_bootstrap and data.resample, taken as correct here.",
+ "The uncertainty is that of the fitted model's own value (the quantity the attribution reports for the fitted mechanisms), not of a causal estimand.",
+]
+historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review was made by reading the product source named in its scope, including the helpers it calls, and by reading the bound tests; no test, build or measurement was run in the review and no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, as read, not a page-level reading of the papers. The Student-t reference has no published source and is recorded as the repository's own construction."
+redistribution = "Primary work is cited, not redistributed. The tests bound are repository-authored under MIT OR Apache-2.0; they use only the repository's own random-number streams and the standard library. No third-party code, data or papers are redistributed."
+limitations = "Evidence is structural and known-truth on small fixtures: a two-node two-period chain (exact intercept shift of 5, forty rows per period), a chain, and a lag-one series, with twelve to sixty draws or sixteen to forty replicates; the posterior spread and the bootstrap standard error are asserted to agree only within a factor of about 1.6 on one design. The Student-t reference is checked as a second moment (the scale mixture's variance equals (K + 1) / (K - 1) * nu / (nu - 2) on independent normals) and for kept sums, not against the sampling law of an attribution under repeated sampling; whether the refit interval of a nonlinear functional covers its fitted-model value at its nominal level is a coverage question this review does not answer, and the route's measured statements live in the capability record and the interval-scope diagnostic, not in this review. Per-target recomputation (Shapley components, anomaly scores, path products, unit change) is covered by smoke assertions of finiteness and positive spread, except the change attribution whose draws are compared with a closed form. Selection uncertainty, misspecification, identification and Monte Carlo error of the sampled coalition estimators are outside the interval. The temporal refit is exercised through one lag-one chain; seam effects of circular blocks on lagged windows are not measured. Tests were read, not executed, in this review."
+sources = ["https://doi.org/10.1214/aos/1176345338", "crates/antecedent/tests/attribute_mechanism_posterior.rs", "crates/antecedent/tests/gcm_bayesian_refit_reference.rs"]
+findings_resolved = [
+ "No defect found by reading: every replicate refits all selected mechanisms from the original assignments under the replicate's weights or counts and recomputes the attribution on that refit; a change, root-cause or structure-change target draws one weight vector per population from separately derived streams and the other targets draw one whole-table vector; the column set is checked to be identical across replicates; a failed replicate is failed mass under counts and an error under weights; the Student-t reference leaves path columns and non-finite columns as drawn and re-centres each scaled column, so sums across columns are kept.",
+ "Executing evidence for the weight-draw wiring is limited to the change route (closed-form comparison with regenerated weights); the other targets are covered by smoke assertions that a posterior with finite means and positive spread and a disclosed bootstrap exist.",
+]
+record_sha256 = "8b0572573f1883cfa2b13c9136b34212c2f007aaf8455c5ce21aed8355a03d92"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/checked_attribution/model_uncertainty.rs"
+items = ["fn attribute_replicate", "fn attribute_replicates", "fn draw_row_counts", "fn draw_row_weights", "fn mechanism_refit_path_column", "fn mechanism_refit_reference", "fn mechanism_refit_units", "fn model_bootstrap", "fn model_posterior", "fn whole_table_replicate"]
+sha256 = "e493dd55933ff7c8e690a80af98a3ee3dab3f248f0f0fe2b75a2c70bd0f4e8d3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/checked_attribution.rs"
+items = ["fn attribute_bootstrap_supported", "fn attribute_posterior_supported", "fn attribute_refit_covered", "fn disclose_model_bootstrap", "fn population_refit", "struct Replicates", "impl Replicates", "fn fitted_model_bootstrap_publishes_the_standard_error_of_the_published_quantity", "fn mechanism_refit_reference_matches_the_student_t_variance_and_keeps_sums"]
+sha256 = "04169b0a9074b0839953909a166e15bde97020785342a4922b5d7399efde4c82"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/attribute_mechanism_posterior.rs"
+items = ["fn ctx", "fn on_large_stack", "struct Stream", "impl Stream", "fn two_period_table", "fn two_node_dag", "fn change_target", "fn bayesian", "fn change_study", "fn refit_targets", "fn target_study", "fn shifted_series", "fn series_with_shift", "fn temporal_chain", "fn temporal_study", "fn a_change_attribution_has_a_posterior_over_the_mechanisms", "fn a_change_attribution_has_a_bootstrap_beside_its_posterior", "fn every_refit_target_has_a_posterior_and_a_bootstrap", "fn mechanism_change_detection_has_no_posterior_and_says_why", "fn a_temporal_dag_attribution_resamples_blocks_in_both_inference_modes"]
+sha256 = "93c5dc4cdb7523775fc60b5ff6035402add4b898621c606edf4d84e0f70b646c"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/gcm_bayesian_refit_reference.rs"
+items = ["const SEED", "const DRAWS", "fn two_period", "fn column_named", "fn change_attribution_draws_use_one_weight_vector_per_population_and_stay_coupled"]
+sha256 = "fb5556d1ad75a920dd26e7e622053c193d7026ad663893b54b91ac58b27837fd"

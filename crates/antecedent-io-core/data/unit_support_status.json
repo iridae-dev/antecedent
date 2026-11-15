@@ -2228,17 +2228,13 @@
     },
     {
       "id": "gcm.attribute.mechanism_refit",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "gcm.simulate.mechanism_refit",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "attribution.mechanism_change_detection",
@@ -2247,17 +2243,13 @@
     },
     {
       "id": "discovery.structure_posterior",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "gcm.model.mechanism_selection",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "attribution.unit_change",

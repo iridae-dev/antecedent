@@ -392,6 +392,9 @@
    "discovery.dbn_posterior",
    "discovery.graph_mcmc"
   ],
+  "discovery.structure_posterior": [
+   "discovery.structure_posterior"
+  ],
   "discovery.temporal": [
    "discovery.pcmci",
    "discovery.dbn_posterior"
@@ -546,6 +549,9 @@
   "external.trust_receipt": [
    "external.trust_receipt"
   ],
+  "gcm.attribute.mechanism_refit": [
+   "gcm.attribute.mechanism_refit"
+  ],
   "gcm.attribution.intrinsic_influence": [
    "gcm.attribution.intrinsic_influence"
   ],
@@ -554,6 +560,9 @@
   ],
   "gcm.model.intervention_programs": [
    "design.compiled_program_search"
+  ],
+  "gcm.simulate.mechanism_refit": [
+   "gcm.simulate.mechanism_refit"
   ],
   "graph_imputation.compiled_candidate": [
    "graph_imputation.compiled_candidate"
@@ -3747,6 +3756,91 @@
   },
   {
    "deviations": [
+    "The frequencies are a bootstrap distribution of the search over resamples of the whole data, not stability selection over half-size subsamples with a selection threshold and an error-control bound; no threshold is applied and no finite-sample error bound is claimed.",
+    "The resample follows the declared sampling design: rows with replacement for independent subjects, circular blocks (length the larger of the lag span and the cube root of the series length) for a dependent series, whole units with replacement for a panel; a clustered design on a single table, a dependent-series design on a table and an independent-subject design on one series are refused rather than resampled as rows.",
+    "A circular-block resample of a lagged search joins blocks at seams, so a lag window that straddles a seam pairs values that were not observed together; the block length keeps that share of windows small and the share is not corrected.",
+    "A resample on which the search fails is counted as failed mass and never redrawn; the table is published only when at least half the requested resamples and at least two returned a structure.",
+    "The coverage of the frequencies as an estimate of the search's sampling law is not measured."
+   ],
+   "digest": "3c0717c8aac0d99a1efb885713a498741f68b480e43266bc3c2aaddb83b3210d",
+   "id": "discovery.bootstrap_stability",
+   "review": "method_review",
+   "scope_limits": [],
+   "sources": [
+    {
+     "sections": [
+      "the nonparametric bootstrap of an arbitrary statistic by resampling the observed rows with replacement"
+     ],
+     "title": "Bootstrap methods: another look at the jackknife"
+    },
+    {
+     "sections": [
+      "resampling a stationary dependent series in circular blocks to keep its serial dependence"
+     ],
+     "title": "A circular block-resampling procedure for stationary data"
+    },
+    {
+     "sections": [
+      "selection frequencies of a procedure across subsamples as a measure of the stability of what it selects"
+     ],
+     "title": "Stability selection"
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "PC screening is a hard posterior-support restriction: any edge removed by the finite-depth, BH-adjusted PC screen has zero posterior probability.",
+    "The optional Bayes-factor and posterior-dependence soft weights are calculated only for a diagnostic note; they do not bias MCMC proposals despite the feature description.",
+    "The retained support is sampled using the Gaussian-BIC structure-MCMC pseudo-posterior and inherits its finite-chain and graph-size limits."
+   ],
+   "digest": "3758a4a4fd0ad4a28060ad3f57f5619138d00624c95ba7f650d989160941bd95",
+   "id": "discovery.ci_screened_posterior",
+   "review": "method_review",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Peter Spirtes",
+      "Clark Glymour"
+     ],
+     "doi": "10.1177/089443939100900106",
+     "doi_verified": true,
+     "sections": [
+      "PC skeleton used as the candidate-edge screen"
+     ],
+     "title": "An Algorithm for Fast Recovery of Sparse Causal Graphs",
+     "year": 1991
+    },
+    {
+     "authors": [
+      "David Madigan",
+      "Jeremy York",
+      "Denis Allard"
+     ],
+     "doi": "10.2307/1403615",
+     "doi_verified": true,
+     "sections": [
+      "MC^3 structure-MCMC restricted to the screened candidate edges"
+     ],
+     "title": "Bayesian Graphical Models for Discrete Data",
+     "year": 1995
+    },
+    {
+     "authors": [
+      "Gideon Schwarz"
+     ],
+     "doi": "10.1214/aos/1176344136",
+     "doi_verified": true,
+     "sections": [
+      "BIC penalty term used by the Gaussian score"
+     ],
+     "title": "Estimating the Dimension of a Model",
+     "year": 1978
+    }
+   ]
+  },
+  {
+   "deviations": [
     "The class posterior is not a separate sampler: it runs the exact, order-MCMC, structure-MCMC or CI-screened DAG posterior unchanged and sums the posterior mass of DAGs that share an essential graph, so every guarantee and limit of the wrapped sampler carries over and none is added.",
     "The essential graph of each DAG atom is computed by the skeleton, the DAG's unshielded colliders and Meek's rules R1 to R4 run to a fixed point, the construction GES already uses; the class of a score-equivalent Gaussian BIC posterior is therefore identified exactly, and orientation beyond the class is not read from the data.",
     "The per-edge Monte-Carlo errors, split R-hat and bulk ESS of the DAG indicators are dropped because they describe DAG edge bits, not class bits; the chain diagnostics of the DAG draws stay on the result and the Kish count is recomputed on the class weights.",
@@ -3825,6 +3919,119 @@
   },
   {
    "deviations": [
+    "The reported posterior is the exact normalization of a Gaussian-BIC approximation and simple graph prior, not an exact Bayesian marginal posterior.",
+    "Enumeration is hard-limited to at most 6 variables.",
+    "A Bernoulli(p) edge prior is applied independently to every ordered pair of variables (a present edge contributes ln p for its direction and ln(1 - p) for the reverse); the independent reference implements the same convention, so the check shows consistency with it, not that it is the only reasonable prior.",
+    "The local score is -n/2 (1 + ln 2 pi + ln(RSS / n)) - (k / 2) ln n with k = number of parents + 1 (intercept); the variance parameter adds the same constant to every graph and cancels on normalization.",
+    "When the Gram-derived residual sum is below 1e-4 of the outcome's centered sum of squares, or a parent is explained to 99.99 percent by the other parents, the residual sum is recomputed from the residuals with one corrected-semi-normal step."
+   ],
+   "digest": "299307101951fc4b20d26c257ff98d33783382faff156a3797cd0d3aadae29f1",
+   "id": "discovery.exact_enumeration",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: a review of the order-MCMC routing above six variables, the Laplace-BIC family, or constraint semantics beyond their effect on the support"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Gideon Schwarz"
+     ],
+     "doi": "10.1214/aos/1176344136",
+     "doi_verified": true,
+     "sections": [
+      "BIC penalty term used by the Gaussian score"
+     ],
+     "title": "Estimating the Dimension of a Model",
+     "year": 1978
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "The posterior is the exact normalization of a Gaussian-BIC approximation with the uniform or independent-Bernoulli edge prior and the declared constraints, not an exact Bayesian marginal posterior; the marginals are exact for that distribution.",
+    "Only edge marginals and the normalizing constant are computed; no graph atoms are produced, so the result cannot feed an effect mixture.",
+    "The recursion is evaluated in double precision with the log-domain subset sums scaled by the best DAG weight of each node set; its cancellation error is bounded by the number of terms, about 1e-12 at 12 variables, and is checked against an independent enumeration to 1e-9.",
+    "The size is limited to at most 12 variables: each marginal needs one 3^n pass."
+   ],
+   "digest": "20c7a9506cb4ca8aa08852fad3fd93ef9c5aa98f0943289a22f96291a9352cf8",
+   "id": "discovery.exact_marginals",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the samplers, tiers, lagged links, or other score families"
+   ],
+   "sources": [
+    {
+     "sections": [
+      "Dynamic programming over node subsets for posterior sums of a modular score over DAGs"
+     ],
+     "title": "Exact Bayesian Structure Discovery in Bayesian Networks",
+     "url": "https://www.jmlr.org/papers/volume5/koivisto04a/koivisto04a.pdf"
+    },
+    {
+     "sections": [
+      "Sum over all DAGs of a product of per-node factors by the sink recursion with inclusion-exclusion (Robinson's counting recursion); features as restricted factors"
+     ],
+     "title": "Computing Posterior Probabilities of Structural Features in Bayesian Networks",
+     "url": "https://arxiv.org/abs/1205.2630"
+    },
+    {
+     "authors": [
+      "Gideon Schwarz"
+     ],
+     "doi": "10.1214/aos/1176344136",
+     "doi_verified": true,
+     "sections": [
+      "BIC penalty term used by the Gaussian score"
+     ],
+     "title": "Estimating the Dimension of a Model",
+     "year": 1978
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "The exact posterior enumerates the maximal ancestral graphs of at most four variables: each pair is non-adjacent, directed either way or bidirected, and a candidate is kept when it is ancestral and every non-adjacent pair is m-separated by some set. The sampler (two to eight variables) starts at the empty graph, changes the link of one uniformly chosen pair to one of the three other types, rejects a proposal that is not ancestral, not maximal or not scorable, and accepts the rest with probability min(1, exp(BIC difference)); the proposal is symmetric, so the chain targets exp(BIC) under the uniform prior over the graphs it can reach, and it only reaches graphs connected to the empty graph through single-pair moves. Class weights are pooled visit frequencies; a visited class is completed through single-pair moves within the class up to 4000 graphs before its PAG marks are read, and the diagnostics note counts the classes the cap cut short. Convergence is only the chains' class-frequency agreement to a total variation of 0.15.",
+    "Each graph is fitted by alternating the exact generalised-least-squares update of the free coefficients given the residual covariance with one sweep of iterative conditional fitting of the residual covariance, to a relative log-likelihood change of 1e-10 or 500 sweeps; the first local optimum reached from the diagonal start is taken, and a graph whose fit is degenerate has no score and is excluded and counted.",
+    "The weights are exp(BIC) with a uniform prior over the graphs, the BIC approximation to the marginal likelihood; the free parameters counted are the coefficients, the variances and the bidirected covariances, and the intercepts are common to every graph.",
+    "Markov equivalence is read off the sets of m-separation statements, not from the characterisation by discriminating paths; the PAG of a class keeps an endpoint mark only where every graph of the class agrees and is a circle otherwise, the definition of the partial ancestral graph of a class. Selection variables are not modelled, so no undirected edges arise."
+   ],
+   "digest": "2a9c73af8710c39aaa823fc7146c66a0f7e4c815feaaa9ca35da56ee057b2234",
+   "id": "discovery.exact_pag_posterior",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: reviewed: pag_posterior_mcmc (the sampler used above four variables, its class completion cap and its convergence flag), selection variables, and the packing of the result into a GraphPosterior beyond the atoms and marks compared here"
+   ],
+   "sources": [
+    {
+     "sections": [
+      "maximal ancestral graphs and their m-separation",
+      "ancestral and maximal conditions",
+      "Markov equivalence of maximal ancestral graphs"
+     ],
+     "title": "Ancestral graph Markov models"
+    },
+    {
+     "sections": [
+      "residual iterative conditional fitting of the coefficients and the residual covariance"
+     ],
+     "title": "Iterative conditional fitting for Gaussian ancestral graph models"
+    },
+    {
+     "authors": [
+      "Gideon Schwarz"
+     ],
+     "doi": "10.1214/aos/1176344136",
+     "doi_verified": true,
+     "sections": [
+      "BIC penalty applied to the maximised Gaussian likelihood"
+     ],
+     "title": "Estimating the Dimension of a Model",
+     "year": 1978
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Both adjacency and Possible-D-Sep subset testing are bounded by max_cond_size, which defaults to 3.",
     "Possible-D-Sep expansion is limited to 10000 nodes and fails closed when exhausted.",
     "The static orientation stack omits Zhang R5-R7 and substitutes stricter LPCMCI-primed R9/R10 bodies for the corresponding unprimed static rules.",
@@ -3862,6 +4069,29 @@
      ],
      "title": "On the completeness of orientation rules for causal discovery in the presence of latent confounders and selection bias",
      "year": 2008
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Supports only the continuous linear-Gaussian BIC score rather than an arbitrary score-equivalent decomposable score.",
+    "Adds a greedy Reverse turning phase between forward Insert and backward Delete, which is not part of Chickering's original two-phase GES.",
+    "T/H subset enumeration defaults to a maximum of 12 and refuses an incomplete operator search when the required neighborhood is larger; optional PC screening can further restrict Insert and Reverse candidates."
+   ],
+   "digest": "1c279c806df0406dacbb0cbdd38e22c58646454529b22766106612591f1b4b02",
+   "id": "discovery.ges",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: a review of the Gaussian BIC local score itself (checked elsewhere against a closed form), of PC screening, of the other score families, or of finite-sample behavior"
+   ],
+   "sources": [
+    {
+     "sections": [
+      "Definitions 12 and 13: Insert and Delete operators",
+      "Theorems 15 and 17: validity conditions for Insert and Delete; the extra Reverse phase is a repository extension"
+     ],
+     "title": "Optimal Structure Identification With Greedy Search",
+     "url": "https://www.jmlr.org/papers/volume3/chickering02b/chickering02b.pdf"
     }
    ]
   },
@@ -3915,6 +4145,61 @@
      ],
      "title": "Causal Inference and Causal Explanation with Background Knowledge",
      "year": 2013
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "The chain state is a single DAG plus compatible topological order, with edge flips and order transpositions corrected by the DAG's number of topological orders; it does not implement Friedman and Koller's order score that sums over all compatible parent sets.",
+    "The target uses continuous Gaussian BIC rather than an exact modular Bayesian marginal likelihood.",
+    "Under a parent cap, an edge flip that would give a node at the cap one parent too many exchanges a uniformly chosen existing parent for the new one; the move is its own reverse from the other state, so the proposal stays symmetric and the Metropolis-Hastings ratio is unchanged.",
+    "Chains after the first start overdispersed (Gelman and Rubin): a uniformly random topological order compatible with the required edges, with each forward edge included at the prior inclusion rate (0.5 under the uniform prior) subject to the parent cap and the forbidden edges. The first chain starts at the required-edge graph as before.",
+    "Sampling is finite and empirical, the four-word adjacency representation limits the method to at most 16 variables (240 directed-edge bits), and the per-step topological-order correction is a 2^n-state dynamic program, so the cost of a step doubles with each variable."
+   ],
+   "digest": "8a7246a056e996d1193712b900a00f797a1d5bb37790c85faad1ef5fb180114a",
+   "id": "discovery.order_mcmc",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the diagnostics gate (disabled here), the temperature ladder design, tiers, lagged links, or graphs above five nodes"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Nir Friedman",
+      "Daphne Koller"
+     ],
+     "doi": "10.1023/A:1020249912095",
+     "doi_verified": true,
+     "sections": [
+      "order-MCMC over topological orders and compatible edge subsets"
+     ],
+     "title": "Being Bayesian About Network Structure. A Bayesian Approach to Structure Discovery in Bayesian Networks",
+     "year": 2003
+    },
+    {
+     "authors": [
+      "Andrew Gelman",
+      "Donald B. Rubin"
+     ],
+     "doi": "10.1214/ss/1177011136",
+     "doi_verified": true,
+     "sections": [
+      "overdispersed starting points for parallel chains"
+     ],
+     "title": "Inference from Iterative Simulation Using Multiple Sequences",
+     "year": 1992
+    },
+    {
+     "authors": [
+      "Gideon Schwarz"
+     ],
+     "doi": "10.1214/aos/1176344136",
+     "doi_verified": true,
+     "sections": [
+      "BIC penalty term used by the Gaussian score"
+     ],
+     "title": "Estimating the Dimension of a Model",
+     "year": 1978
     }
    ]
   },
@@ -4005,6 +4290,38 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
+  },
+  {
+   "deviations": [
+    "The initial adjacency search is bounded by max_cond_size, which defaults to 3, rather than searching every conditioning depth required by oracle RFCI.",
+    "Static RFCI applies Zhang's unprimed R9 and R10 (shared with static FCI); Zhang R5-R7 are omitted.",
+    "Discriminating-path search is limited to 64 paths of length at most 8 and fails closed when that budget is exceeded."
+   ],
+   "digest": "a4f1f23aef5d2846c2babc09891d0729ec06269dc4fe31527bea020dcf395f65",
+   "id": "discovery.rfci",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: a review of the default conditioning bound, of five or more nodes, where RFCI may keep extra adjacencies that FCI removes, of the Lemma 3.2 check beyond the exercised graphs, of the discriminating-path budget, or of finite-sample CI errors"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Diego Colombo",
+      "Marloes H. Maathuis",
+      "Markus Kalisch",
+      "Thomas S. Richardson"
+     ],
+     "doi": "10.1214/11-AOS940",
+     "doi_verified": true,
+     "sections": [
+      "RFCI algorithm",
+      "Lemma 3.1 (unshielded-triple local CI)",
+      "Lemma 3.2 (discriminating-path CI check)"
+     ],
+     "title": "Learning High-Dimensional Directed Acyclic Graphs with Latent and Selection Variables",
+     "year": 2012
+    }
+   ]
   },
   {
    "deviations": [
@@ -4150,6 +4467,76 @@
    ],
    "digest": "85e90337df47b1f9cee4c6cc109dd94b010dbe0e291a7c37c03af61d2872cf75",
    "id": "discovery.selective_reuse_unsupported_guarantees",
+   "review": "none",
+   "scope_limits": [],
+   "sources": []
+  },
+  {
+   "deviations": [
+    "Adds the paired parent-set resampling move (an exact Gibbs draw of two nodes' parent sets from their joint conditional, generalising the new-edge-reversal move of Grzegorczyk and Husmeier, 2008) and parallel tempering (replica exchange over a declared inverse-temperature ladder); both keep the BIC pseudo-posterior invariant.",
+    "Targets a continuous linear-Gaussian pseudo-posterior proportional to exp(Gaussian-BIC/2), rather than Madigan and York's exact discrete-data marginal posterior.",
+    "Uses finite add/delete/reverse MC3 chains and empirical sample frequencies; optional candidate-pair restrictions further limit posterior support.",
+    "The four-word adjacency representation limits the sampler to at most 16 variables (240 directed-edge bits)."
+   ],
+   "digest": "9f5e6009f6de2737998c27d039aaad72537ece3542417372d4bd18e878ffb018",
+   "id": "discovery.structure_mcmc",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the diagnostics gate (disabled here), the temperature ladder design, tiers, lagged links, or graphs above five nodes"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "David Madigan",
+      "Jeremy York",
+      "Denis Allard"
+     ],
+     "doi": "10.2307/1403615",
+     "doi_verified": true,
+     "sections": [
+      "MC^3: single-edge add/delete/reverse Metropolis proposals over DAG space"
+     ],
+     "title": "Bayesian Graphical Models for Discrete Data",
+     "year": 1995
+    },
+    {
+     "authors": [
+      "Gideon Schwarz"
+     ],
+     "doi": "10.1214/aos/1176344136",
+     "doi_verified": true,
+     "sections": [
+      "BIC penalty term used by the Gaussian score"
+     ],
+     "title": "Estimating the Dimension of a Model",
+     "year": 1978
+    }
+   ]
+  },
+  {
+   "covered_by": [
+    "discovery.exact_enumeration",
+    "discovery.exact_marginals",
+    "discovery.graph_mcmc",
+    "discovery.order_mcmc",
+    "discovery.structure_mcmc",
+    "discovery.ci_screened_posterior",
+    "discovery.exact_pag_posterior",
+    "discovery.class_posterior",
+    "discovery.dbn_posterior",
+    "discovery.bootstrap_stability",
+    "discovery.pc",
+    "discovery.fci",
+    "discovery.rfci",
+    "discovery.ges"
+   ],
+   "deviations": [
+    "A frequentist search publishes its structure and no interval, posterior or recovery statement; bootstrap_stability tabulates a bootstrap distribution of the search with no nominal level, not a posterior and not stability selection with an error bound (see discovery.bootstrap_stability).",
+    "A Bayesian structure posterior is a pseudo-posterior under the Gaussian BIC score and a declared graph prior; it is exact for the exact engines up to six variables (and for the bounded-lag template up to its enumeration budget), a Markov chain approximation above, and a routed fallback is labelled with the algorithm that produced it (order_mcmc_via_structure_mcmc, structure_mcmc, ci_screened_posterior, dbn_posterior).",
+    "The credible-set statement holds only for the exact DAG posterior collapsed onto equivalence classes and the bounded-lag template posterior within their measured conditions; no recovery or error-rate statement is made about one discovered graph, and no statement is made for the other posterior searches (order and structure MCMC, the CI-screened posterior, the PAG posteriors, exact edge marginals)."
+   ],
+   "digest": "b46fd9faec4aa38013c1c75ed1fa3cb73fa3c67fad3426ac5baa881333d4b407",
+   "id": "discovery.structure_posterior",
    "review": "none",
    "scope_limits": [],
    "sources": []
@@ -8698,6 +9085,56 @@
   },
   {
    "deviations": [
+    "The refit is a modular bootstrap pushforward of the fitted-model attribution: every selected mechanism is refit under the row weights or counts of the replicate and the attribution is recomputed on the refit. It is not a joint posterior over mechanisms and attribution, and the interval is for the fitted model's value, not for an identified causal quantity: misspecification and identification are not addressed.",
+    "Mechanism families are held at the ones selected on the original rows in every replicate; selection uncertainty is not in the interval (the whole-procedure interval of an intrinsic influence is a separate route).",
+    "The data references an attribution reads (feature means, parent means, the anomaly reference) stay at their observed values in every replicate.",
+    "Under Bayesian inference the draws of every mean-type column are not published as drawn: each deviation from the column mean is multiplied by sqrt((K + 1) / (K - 1)) * sqrt(nu / chi2_nu), nu = P (K - 1), with one chi-square variate per draw shared by every column and the column mean restored afterwards, so that the draws follow the Student-t reference posterior of a mean of K independently weighted units in each of P populations and a total and its components stay additive. This is the repository's own construction from the weighted-mean variance s^2 (K - 1) / (K (K + 1)) of Exp(1) weights; it is exact for a linear functional of the weighted means and is applied unchanged to nonlinear functionals of the refit (Shapley components, scores), where it is a calibration device, not a derived posterior. It is skipped for fewer than three units, for a column holding a non-finite value and for simulated-path columns.",
+    "For a change target K is the smaller of the two populations' unit counts and P is two; on a lag-aligned series K is the number of blocks of consecutive times, not the number of rows.",
+    "Under a replicate count the published uncertainty is the standard deviation of the recomputed quantity over the completed replicates as the standard error of a normal interval (no percentile interval); a replicate that fails is counted as failed mass and never redrawn, and under Bayesian inference a failed refit is an error.",
+    "Mechanism-change detection has no refit uncertainty (a two-sample test, not a smooth functional of the refit mechanisms); intrinsic influence keeps the nested refits its own engine returns, capped at 100 draws unless the draw count is set.",
+    "On a lag-aligned series the refit resamples (frequentist) or weights (Bayesian) blocks of consecutive times, with run-aware streams; a block that straddles a seam of the circular resample pairs times that were not observed together and that share of windows is not corrected."
+   ],
+   "digest": "8b0572573f1883cfa2b13c9136b34212c2f007aaf8455c5ce21aed8355a03d92",
+   "id": "gcm.attribute.mechanism_refit",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the attributions recomputed per refit, the Shapley estimators or the coalition payoffs (their own records), the mechanism-family selection (model"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Donald B. Rubin"
+     ],
+     "doi": "10.1214/aos/1176345338",
+     "doi_verified": true,
+     "sections": [
+      "Dirichlet(1,...,1) weights on the observed units as a posterior over the sampling distribution"
+     ],
+     "title": "The Bayesian Bootstrap",
+     "year": 1981
+    },
+    {
+     "sections": [
+      "the nonparametric bootstrap of an arbitrary statistic by resampling the observed rows with replacement, and its standard error"
+     ],
+     "title": "Bootstrap methods: another look at the jackknife"
+    },
+    {
+     "sections": [
+      "the block bootstrap of a statistic of a dependent stationary series"
+     ],
+     "title": "The jackknife and the bootstrap for general stationary observations"
+    },
+    {
+     "sections": [
+      "resampling a stationary dependent series in circular blocks to keep its serial dependence"
+     ],
+     "title": "A circular block-resampling procedure for stationary data"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "The coalition value is estimated by nested Monte Carlo with the unbiased analysis-of-variance form s2(inner means) - mean(inner sample variances)/inner. The naive variance of the inner means is biased upward by E[Var(Y | U_S)]/inner and would shrink every contribution by 1 - 1/inner; the estimator is not clipped at zero, so a small coalition value can be slightly negative. This is not the estimator analyzed in the paper, which works with exact conditional expectations.",
     "Only independent-noise (Markovian) structural models are supported. Independence of the exogenous noise terms is a caller declaration (or a structure without bidirected edges); the compiled model, a DAG, cannot certify it. Bidirected edges, latent common causes, undeclared independence, unfitted mechanisms and mechanisms with serially dependent noise are refused.",
     "Players are the noise terms of the target's ancestors and the target itself, in topological order. Exact Shapley enumerates all coalitions up to a fixed bound on the source count and permutation sampling is used above it.",
@@ -8762,6 +9199,48 @@
      ],
      "title": "Toward Falsifying Causal Graphs Using a Permutation-Based Test",
      "year": 2023
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "The interval is the refit uncertainty of the fitted model's simulated value, not of an identified causal estimand: misspecification, identification and the selection of mechanism families (held at the ones selected on the original rows) are outside it.",
+    "Every refit simulates on the query's own seed (common random numbers), so the Monte Carlo error of the simulation is an offset common to all refits and is not in the interval; it is negligible only when the simulated draws are many times the fitted rows.",
+    "A policy value publishes the paired mean difference (policy mean minus baseline mean) as its point and as the quantity whose bootstrap standard error is on the estimate; its policy and baseline means are listed beside it.",
+    "On a temporal rollout every refit additionally rolls out one path under a seed drawn per replicate; the simulated-path columns are draws of the predictive law (refit uncertainty plus innovation noise) and are excluded from the Student-t reference, while the mean columns are referred to it with K the number of blocks of consecutive times.",
+    "Under Bayesian inference the mean-type columns are referred to the Student-t reference posterior of a mean of K independently weighted units by the repository's own construction (see gcm.attribute.mechanism_refit); it is exact for a linear functional of weighted means and a calibration device for a nonlinear functional of the refit.",
+    "Under a replicate count the published uncertainty is the standard deviation over the completed replicates as the standard error of a normal interval; a failed replicate is failed mass and never redrawn, and under Bayesian inference a failed refit is an error. A standalone temporal rollout requires a TemporalDag and is refused otherwise."
+   ],
+   "digest": "97ff9b5ebc8fa86661390993d3e62296176bc60883b4ea2999139502aee202ac",
+   "id": "gcm.simulate.mechanism_refit",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the sampling of the fitted mechanisms or the intervention-program interpreter (model"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Donald B. Rubin"
+     ],
+     "doi": "10.1214/aos/1176345338",
+     "doi_verified": true,
+     "sections": [
+      "Dirichlet(1,...,1) weights on the observed units as a posterior over the sampling distribution"
+     ],
+     "title": "The Bayesian Bootstrap",
+     "year": 1981
+    },
+    {
+     "sections": [
+      "the nonparametric bootstrap of an arbitrary statistic by resampling the observed rows with replacement, and its standard error"
+     ],
+     "title": "Bootstrap methods: another look at the jackknife"
+    },
+    {
+     "sections": [
+      "resampling a stationary dependent series in circular blocks to keep its serial dependence"
+     ],
+     "title": "A circular block-resampling procedure for stationary data"
     }
    ]
   },
