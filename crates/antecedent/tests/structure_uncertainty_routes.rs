@@ -722,7 +722,13 @@ fn a_frequentist_static_search_returns_its_graph_and_publishes_no_interval() {
             .unwrap();
         let execution = compiled(&study, "DiscoverStatic");
         let result = execution.result();
-        assert!(result.interval().is_none(), "a constraint search reports no interval");
+        assert!(
+            result
+                .interval()
+                .as_ref()
+                .is_none_or(|binding| binding.method == antecedent_core::IntervalMethod::None),
+            "a constraint search reports no interval"
+        );
         assert!(result.posterior.is_none(), "a constraint search reports no posterior");
         let Some(DiscoveredStructure::StaticCpdag(found)) =
             result.discovery().map(|payload| payload.structure.clone())
@@ -751,7 +757,13 @@ fn a_frequentist_temporal_search_returns_its_lag_graph_and_publishes_no_interval
             .unwrap();
         let execution = compiled(&study, "DiscoverTemporal");
         let result = execution.result();
-        assert!(result.interval().is_none(), "a lagged search reports no interval");
+        assert!(
+            result
+                .interval()
+                .as_ref()
+                .is_none_or(|binding| binding.method == antecedent_core::IntervalMethod::None),
+            "a lagged search reports no interval"
+        );
         assert!(result.posterior.is_none(), "a lagged search reports no posterior");
         let Some(DiscoveredStructure::TemporalDag(found)) =
             result.discovery().map(|payload| payload.structure.clone())

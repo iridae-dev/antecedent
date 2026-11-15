@@ -1160,7 +1160,7 @@ mod tests {
                 )
                 .unwrap_err();
             assert!(
-                matches!(error, DiscoveryError::Unsupported { message } if message.contains("Bernoulli edge prior"))
+                matches!(error, DiscoveryError::Refused { code: "invalid_argument", message } if message.contains("Bernoulli edge prior"))
             );
         }
         assert!(GraphPrior::bernoulli_edges(0.5).unwrap().validate_edge_inclusion().is_ok());
@@ -1189,11 +1189,11 @@ mod tests {
         ];
         for result in results {
             assert!(
-                matches!(result, Err(DiscoveryError::Unsupported { message }) if message.contains("Bernoulli edge prior"))
+                matches!(result, Err(DiscoveryError::Refused { code: "invalid_argument", message }) if message.contains("Bernoulli edge prior"))
             );
         }
         assert!(matches!(crate::exact_dag_marginals(&data, &vars, &prior, family, &ctx),
-            Err(DiscoveryError::Unsupported { message }) if message.contains("Bernoulli edge prior")));
+            Err(DiscoveryError::Refused { code: "invalid_argument", message }) if message.contains("Bernoulli edge prior")));
     }
 
     #[test]
