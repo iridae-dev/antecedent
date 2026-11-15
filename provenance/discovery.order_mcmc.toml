@@ -44,7 +44,7 @@ record_sha256 = "8a7246a056e996d1193712b900a00f797a1d5bb37790c85faad1ef5fb180114
 role = "implementation"
 path = "crates/antecedent-discovery/src/order_mcmc.rs"
 items = ["const ORDER_DP_MAX_STATES", "fn default", "fn log_topological_order_count", "fn new", "fn order_dp_max_nodes", "fn run", "fn run_via_structure_mcmc", "fn schedule", "fn with_diagnostics_gate", "fn with_schedule", "struct OrderMcmc", "struct OrderWalker"]
-sha256 = "f1a9f387880c211d282c1243cd724caf4deceb0e0f566aa3e4e047456beab6c5"
+sha256 = "c2e9281aa1000a33143dc5d743bbb3091f58a1fe47c0c445e6cab91227ffc909"
 
 [[method_review.artifacts]]
 role = "assertion"

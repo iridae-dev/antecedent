@@ -39,7 +39,7 @@ record_sha256 = "c534e7a31eed31cde6cd9bcca57b27cab9671604d55d3b619152298f76a9571
 role = "implementation"
 path = "crates/antecedent-attribution/src/unit_change.rs"
 items = ["fn pooled_stderr", "fn unit_change", "fn unit_seed", "fn value", "struct UnitPayoff"]
-sha256 = "764e04b308972b726892d3526d0ee78ac26ea7bf4414e4ee948ca7e055741be1"
+sha256 = "a44d4ce8b0ed61fa5e985248f074dae06a78787c1c55ea56a6b73af1097fd88c"
 
 [[method_review.artifacts]]
 role = "assertion"

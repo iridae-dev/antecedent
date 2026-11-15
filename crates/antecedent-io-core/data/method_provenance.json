@@ -76,6 +76,10 @@
    "estimate.bayesian_temporal_white_innovation",
    "estimate.gcomp"
   ],
+  "bayesian.panel_did": [
+   "estimate.bayesian_panel_did",
+   "estimate.bayesian_staggered_event_study"
+  ],
   "bayesian.period_history_outcome_model": [
    "estimate.history_outcome_model"
   ],
@@ -86,21 +90,29 @@
    "estimate.randomized.bayesian",
    "estimate.randomized_ipow_modular"
   ],
+  "bayesian.randomized_superpopulation": [
+   "estimate.randomized.bayesian",
+   "estimate.randomized_ipow_modular"
+  ],
   "bayesian.sequential_crossfit_contrast": [
    "estimate.sequential_aipw_inference"
   ],
   "bayesian.sequential_regime_value": [
    "estimate.policy_value.bayesian_bootstrap"
   ],
-  "bayesian.staggered_heterogeneity_robust": [
-   "estimate.bayesian_panel_did",
-   "estimate.bayesian_staggered_event_study"
-  ],
   "bayesian.switchback_effect": [
    "estimate.switchback.bayesian"
   ],
   "bayesian.synthetic_control": [
    "estimate.bayesian_synthetic_control"
+  ],
+  "bayesian.temporal.glm_link_contrast": [
+   "estimate.bayesian_temporal_glm_link_contrast",
+   "estimate.temporal_glm_link_contrast"
+  ],
+  "bayesian.temporal.lagged_instrument": [
+   "estimate.bayesian_temporal_lagged_instrument",
+   "estimate.temporal_lagged_instrument"
   ],
   "bayesian.temporal_design.excursion.categorical": [
    "estimate.temporal_design_excursion"
@@ -134,87 +146,7 @@
    "estimate.temporal_regime_survival"
   ],
   "bayesian.temporal_local_ratio": [
-   "adaptive_inference.analysis_contract",
-   "adaptive_inference.procedure_matrix",
-   "choice_inference.contract",
-   "choice_inference.hierarchical_study_value",
-   "cohort_decision.declared_shift",
-   "cohort_decision.law_valued_request",
-   "cohort_decision.mean_contrast",
-   "composition.boundary",
-   "composition.bundle",
-   "composition.panel_experiment_update",
-   "composition.rollout_state",
-   "composition.source_evidence",
-   "composition.source_lineage",
-   "composition.source_projection",
-   "composition.structured_refusals",
-   "composition.verifiers",
-   "decision.admissibility",
-   "decision.contract",
-   "decision.functional_inverse",
-   "decision.functionals",
-   "decision.robust_verdicts",
-   "decision.sensitivity_composition",
-   "decision.structural_policy",
-   "decision.structural_robustness",
-   "decision.transported_decision_artifact",
-   "decision.transported_source",
-   "decision_evidence.adaptive_regime",
-   "decision_evidence.decision_classification",
-   "decision_evidence.derived_quantity",
-   "decision_evidence.joint_excursion",
-   "decision_evidence.static_regime",
-   "decision_reliability.combined_uncertainty",
-   "decision_reliability.derived_numerical_interval",
-   "decision_reliability.derived_uncertainty",
-   "decision_reliability.optimality_confidence_set",
-   "decision_reliability.producer_carrier",
-   "decision_reliability.ranking_probability_interval",
-   "decision_reliability.ranking_statement",
-   "decision_reliability.sampled_decision",
-   "decision_reliability.selection_aware_evaluation",
-   "decision_reliability.selection_corrected_interval",
-   "design.adaptive_policy_search",
-   "design.compiled_program_search",
-   "design.decision",
-   "design.effect_width_reduction",
-   "design.eig",
-   "design.evidence_obligations",
-   "design.evidence_plan",
-   "design.evsi",
-   "design.external_signal",
-   "design.identification_repair",
-   "design.model_distinguish",
-   "design.prior_signal_planning",
-   "design.proposal_receipt",
-   "design.ranking_artifact",
-   "design.repair_search_receipt",
-   "design.study_candidate",
-   "design.study_planning",
-   "estimate.bayesian_temporal_design_excursion",
-   "estimate.bayesian_temporal_regime_survival",
-   "estimate.joint_design",
-   "estimate.response.temporal.bayesian",
-   "estimate.temporal_design_excursion",
-   "estimate.temporal_regime_survival",
-   "estimate.temporal_sequential",
-   "inverse.cohort_forward_source",
-   "inverse.composed_forward_source",
-   "inverse.observational_scenarios",
-   "inverse.transported_forward_source",
-   "recalculation.design_specific",
-   "sequential_evaluation.policy_evaluation",
-   "transport.adaptive_trial_source",
-   "transport.assumption_range",
-   "transport.covariate_shift_cohort_effect",
-   "transport.period_shift_policy",
-   "transport.policy_evaluation",
-   "transport.surrogate_bridge_premise",
-   "transport.synthesis",
-   "transport.synthesis_borrowing",
-   "transport.synthesis_pooling",
-   "transport.synthesis_transported_prior"
+   "estimate.local_ratio_design"
   ],
   "categorical_treatment.compiled_candidate": [
    "categorical_treatment.compiled_candidate"
@@ -790,9 +722,6 @@
    "adaptive_inference.repeated_measures_weighting",
    "adaptive_inference.unsupported_guarantees"
   ],
-  "method.augmented_panel_did.temporal.frequentist": [
-   "estimate.augmented_panel_did"
-  ],
   "method.bayesian.static.bayesian": [
    "distribution.mapped_posterior_transfer",
    "estimate.bayesian_basis_gcomp",
@@ -846,9 +775,6 @@
    "validate.ppc_prior_sensitivity",
    "validate.target_native_refuters",
    "validate.temporal_mediation"
-  ],
-  "method.bayesian_staggered_event_study.temporal.bayesian": [
-   "estimate.bayesian_staggered_event_study"
   ],
   "method.categorical_treatment.static.frequentist": [
    "estimate.categorical_treatment"
@@ -1014,92 +940,14 @@
   "provider_callback.unsupported_claims": [
    "provider_callback.unsupported_claims"
   ],
+  "quasi.augmented_panel_supplied_nuisance": [
+   "estimate.augmented_panel_did"
+  ],
   "quasi.synthetic_control": [
-   "quasi.synthetic_control",
-   "estimate.bayesian_synthetic_control"
+   "quasi.synthetic_control"
   ],
   "quasi.temporal_local_ratio": [
-   "adaptive_inference.analysis_contract",
-   "adaptive_inference.procedure_matrix",
-   "choice_inference.contract",
-   "choice_inference.hierarchical_study_value",
-   "cohort_decision.declared_shift",
-   "cohort_decision.law_valued_request",
-   "cohort_decision.mean_contrast",
-   "composition.boundary",
-   "composition.bundle",
-   "composition.panel_experiment_update",
-   "composition.rollout_state",
-   "composition.source_evidence",
-   "composition.source_lineage",
-   "composition.source_projection",
-   "composition.structured_refusals",
-   "composition.verifiers",
-   "decision.admissibility",
-   "decision.contract",
-   "decision.functional_inverse",
-   "decision.functionals",
-   "decision.robust_verdicts",
-   "decision.sensitivity_composition",
-   "decision.structural_policy",
-   "decision.structural_robustness",
-   "decision.transported_decision_artifact",
-   "decision.transported_source",
-   "decision_evidence.adaptive_regime",
-   "decision_evidence.decision_classification",
-   "decision_evidence.derived_quantity",
-   "decision_evidence.joint_excursion",
-   "decision_evidence.static_regime",
-   "decision_reliability.combined_uncertainty",
-   "decision_reliability.derived_numerical_interval",
-   "decision_reliability.derived_uncertainty",
-   "decision_reliability.optimality_confidence_set",
-   "decision_reliability.producer_carrier",
-   "decision_reliability.ranking_probability_interval",
-   "decision_reliability.ranking_statement",
-   "decision_reliability.sampled_decision",
-   "decision_reliability.selection_aware_evaluation",
-   "decision_reliability.selection_corrected_interval",
-   "design.adaptive_policy_search",
-   "design.compiled_program_search",
-   "design.decision",
-   "design.effect_width_reduction",
-   "design.eig",
-   "design.evidence_obligations",
-   "design.evidence_plan",
-   "design.evsi",
-   "design.external_signal",
-   "design.identification_repair",
-   "design.model_distinguish",
-   "design.prior_signal_planning",
-   "design.proposal_receipt",
-   "design.ranking_artifact",
-   "design.repair_search_receipt",
-   "design.study_candidate",
-   "design.study_planning",
-   "estimate.bayesian_temporal_design_excursion",
-   "estimate.bayesian_temporal_regime_survival",
-   "estimate.joint_design",
-   "estimate.response.temporal.bayesian",
-   "estimate.temporal_design_excursion",
-   "estimate.temporal_regime_survival",
-   "estimate.temporal_sequential",
-   "inverse.cohort_forward_source",
-   "inverse.composed_forward_source",
-   "inverse.observational_scenarios",
-   "inverse.transported_forward_source",
-   "recalculation.design_specific",
-   "sequential_evaluation.policy_evaluation",
-   "transport.adaptive_trial_source",
-   "transport.assumption_range",
-   "transport.covariate_shift_cohort_effect",
-   "transport.period_shift_policy",
-   "transport.policy_evaluation",
-   "transport.surrogate_bridge_premise",
-   "transport.synthesis",
-   "transport.synthesis_borrowing",
-   "transport.synthesis_pooling",
-   "transport.synthesis_transported_prior"
+   "estimate.local_ratio_design"
   ],
   "recalculation.adjusted": [
    "recalculation.adjusted"
@@ -1208,6 +1056,14 @@
   ],
   "temporal.effect_constancy_consumers": [
    "temporal.effect_constancy_consumers"
+  ],
+  "temporal.glm_link_contrast": [
+   "estimate.bayesian_temporal_glm_link_contrast",
+   "estimate.temporal_glm_link_contrast"
+  ],
+  "temporal.lagged_instrument": [
+   "estimate.bayesian_temporal_lagged_instrument",
+   "estimate.temporal_lagged_instrument"
   ],
   "temporal.new_period_refresh": [
    "temporal.new_period_refresh"
@@ -1729,20 +1585,6 @@
   },
   {
    "deviations": [
-    "Categorical choices only, at most 4 options, 24 looks and 65535 units; the state is the vector of choice counts, bounded by the same live-state and work limits as the Bernoulli procedure law, and a larger procedure is refused rather than approximated.",
-    "The stopping rule is a posterior probability-best and expected-loss criterion on the Dirichlet posterior with a minimum enrolment; every element is declared and none is defaulted. The comparison band is the Bernoulli rules' threshold tolerance.",
-    "The law is of the declared procedure under a hypothesized truth or the declared Dirichlet prior predictive only. It is not a bound over other truths, a coverage statement or a calibration claim; those stay closed until a coverage record attests the cell."
-   ],
-   "digest": "4cd6af35d32d175fba2586d93db2daad6634191da4b187ff53e2fcccd088b92a",
-   "id": "adaptive_inference.choice_procedure_law",
-   "review": "method_review",
-   "scope_limits": [
-    "not covered by the method review: the Dirichlet posterior functionals (adaptive_inference"
-   ],
-   "sources": []
-  },
-  {
-   "deviations": [
     "The loss is the regret of choosing an arm in success probability; other losses are not offered.",
     "The rule's reliability (probability of a wrong stop, regret over the procedure) is a scientific refusal (estimator_inference_mismatch, adaptive_inference.no_stopping_reliability_procedure), not a calibration gap: a posterior threshold (probability best above c, or expected loss below c) is a statement about the posterior given the observed history, and it fixes no sampling error rate of the rule; the rule-level error rate depends on the unknown truth and on the assignment policy, so no construction from the posterior yields it. The expected loss and the probability of being best themselves are exact and are checked against closed forms."
    ],
@@ -1764,33 +1606,6 @@
      ],
      "title": "ON THE LIKELIHOOD THAT ONE UNKNOWN PROBABILITY EXCEEDS ANOTHER IN VIEW OF THE EVIDENCE OF TWO SAMPLES",
      "year": 1933
-    }
-   ]
-  },
-  {
-   "deviations": [
-    "Only the Dirichlet-multinomial likelihood of repeated categorical choices with prior shapes at least one; other priors and likelihoods, and hierarchical or random-coefficient choice models, are closed.",
-    "The probability that each option has the largest share and the expected loss are evaluated by composite Gauss-Legendre panels over the independent-gamma representation theta_k = G_k / S (G_k independent Gamma(alpha_k, 1), S independent of theta), with the window widened until each tail holds 1e-18 of the mass and the end panels graded toward zero; accuracy about 1e-9 against an independent reference. Larger shapes than the reference grid (250) were not compared.",
-    "The posterior is exact under the declared prior; it is not a frequentist statement and no coverage under optional stopping is claimed. Calibration of the reported probabilities is not measured."
-   ],
-   "digest": "2a998f2772443df9a36049069b11e1f2b1cf41672cdcca3a587fd129b4f5c528",
-   "id": "adaptive_inference.dirichlet_choice",
-   "review": "method_review",
-   "scope_limits": [
-    "not covered by the method review: the lifecycle layer in antecedent-design (a separate non-algorithm record), hierarchical preference models, or any frequentist coverage"
-   ],
-   "sources": [
-    {
-     "authors": [
-      "Eugene Lukacs"
-     ],
-     "doi": "10.1214/aoms/1177728549",
-     "doi_verified": true,
-     "sections": [
-      "independence of the sum and the ratios of independent gamma variables"
-     ],
-     "title": "A characterization of the gamma distribution",
-     "year": 1955
     }
    ]
   },
@@ -1860,33 +1675,6 @@
      ],
      "title": "Group sequential methods in the design and analysis of clinical trials",
      "year": 1977
-    }
-   ]
-  },
-  {
-   "deviations": [
-    "Respondent shares are Dirichlet(kappa pi) with a Dirichlet(a) population mean and a log-normal concentration kappa; the paper derives the compound distribution and its correlation structure and does not prescribe this prior or any posterior computation. Two or three options only, with every prior shape at least one.",
-    "Every reported quantity is deterministic quadrature of the posterior of (pi, kappa): Gauss-Legendre panels cut at the tie breakpoints of the best-option region, a zoomed box around the mass, and a quadrature error bound (largest change between a coarse and a fine rule) beyond which the posterior is refused rather than reported.",
-    "The population shares and heterogeneity describe the sampled population in the declared choice set. Stated choices do not identify behavioural or causal outcomes, and no coverage or calibration claim is made about any interval built from this posterior."
-   ],
-   "digest": "1ca98d9108c9a0d679cc90086c7e2084dad50f9262c80aa2b84ea07f52660a8d",
-   "id": "adaptive_inference.hierarchical_choice",
-   "review": "method_review",
-   "scope_limits": [
-    "not covered by the method review: the pooled posterior of one choice per respondent (adaptive_inference"
-   ],
-   "sources": [
-    {
-     "authors": [
-      "JAMES E. MOSIMANN"
-     ],
-     "doi": "10.1093/biomet/49.1-2.65",
-     "doi_verified": true,
-     "sections": [
-      "the compound multinomial (Dirichlet-multinomial) distribution of counts whose probabilities are Dirichlet"
-     ],
-     "title": "On the compound multinomial distribution, the multivariate β-distribution, and correlations among proportions",
-     "year": 1962
     }
    ]
   },
@@ -2308,42 +2096,6 @@
    ],
    "digest": "847d40b3eb16a8553340f9f20ab51cbbd77014c84774ddc7f34d2036b0903072",
    "id": "categorical_treatment.compiled_candidate",
-   "review": "none",
-   "scope_limits": [],
-   "sources": []
-  },
-  {
-   "covered_by": [
-    "adaptive_inference.dirichlet_choice",
-    "adaptive_inference.hierarchical_choice",
-    "adaptive_inference.choice_procedure_law",
-    "adaptive_inference.analysis_contract",
-    "adaptive_inference.procedure_matrix",
-    "design.evsi"
-   ],
-   "deviations": [
-    "Historical borrowing follows the power-prior idea (Ibrahim and Chen, Statistical Science 2000, doi 10.1214/ss/1009212673) and is applied to Dirichlet-multinomial counts: each retained source contributes discount times its counts to the prior shapes, with a fixed discount in [0, 1]; the paper treats regression models and an optionally random discount.",
-    "A source with different meaning or population is refused; a free-text rationale does not establish source-to-target transport. A same-frame native pooled posterior can be reused through its replayed artifact and independently retained identity, with the same base prior and bounded, replayed nested ancestry.",
-    "Pooled sources require integer counts and one normalized identity per independent respondent; overlap between respondents and sources, and between sources, is judged by the evidence ledger.",
-    "The per-source conflict diagnostic is a prior-predictive log evidence ratio against a vague prior versus the remaining discounted evidence and the current look, screened at ln 10; for fractional power-prior counts it is a generalized score, not a calibrated Bayes factor; calibration of the screen is not measured and a conflicting source is reported in the posterior and refused for stopping decisions or study ranking, never silently re-weighted.",
-    "Every route is point-only with calibration not_measured except the pooled-share interval (capability `choice_inference.interval_candidates`): the equal-tail credible interval from the explicit Beta marginal quantiles of the Dirichlet posterior, reported with its calibration status and never refused for the lack of a coverage record. The study value is the exact expected value of sample information over the Dirichlet-multinomial predictive (Monte Carlo with a standard error beyond 250 000 outcomes) under a linear per-option value, with no calibrated-uncertainty claim.",
-    "Stated choices do not identify behavioural or causal outcomes."
-   ],
-   "digest": "98f624417cb20257d4d0de2a5586a18de0efa63893be1d6e13f5359596fe266b",
-   "id": "choice_inference.contract",
-   "review": "none",
-   "scope_limits": [],
-   "sources": []
-  },
-  {
-   "deviations": [
-    "The existing hierarchical Dirichlet-multinomial posterior is refitted for each complete count vector of one prospective respondent making one or two choices; predictive masses use the multinomial coefficient and marginal-likelihood ratio.",
-    "The route checks posterior quadrature convergence and total predictive mass. Its reported convergence change is not a bound on marginal-likelihood error; pairwise rank ordering remains explicitly uncertain and no calibrated uncertainty is claimed.",
-    "Independent two-dimensional scipy quadrature and a three-option grid integral compute the one- and two-choice expected values. This numerical reference is not an independent scientific review or an attestation.",
-    "An importance-sampling expectation check is registered for calibration but has not been run."
-   ],
-   "digest": "5f3161833b7a3ca6941ff464426d79c8514b93c4444360ba4b458f48b3eb985c",
-   "id": "choice_inference.hierarchical_study_value",
    "review": "none",
    "scope_limits": [],
    "sources": []
@@ -3370,19 +3122,6 @@
   },
   {
    "deviations": [
-    "Finite discrete state and action histories use a prespecified complete deterministic action table; the g-formula integrates empirical full-history transitions under each adaptive policy, including treatment-affected states.",
-    "Source population, state and action identities, all policy rules, original episode data and assumptions remain in the native compiler recipe. The method requires sequential exchangeability, consistency, complete follow-up, isolation and observed support of every policy history.",
-    "A joint delete-subject jackknife retains failures and withholds covariance if any deletion loses support. Its derived normal interval is unsupported and uncalibrated; a distinct coverage experiment is registered without attesting its results.",
-    "An independent two-period hand calculation verifies the exact policy means and shared outcome covariance; it does not establish calibrated coverage or scientific authority."
-   ],
-   "digest": "5d66ddaca1cf13ac6ffeddd8b5674d7daa125ea2bbf59e929d5a513f0eb7098b",
-   "id": "decision_evidence.adaptive_regime",
-   "review": "none",
-   "scope_limits": [],
-   "sources": []
-  },
-  {
-   "deviations": [
     "Complete cluster randomization uses the existing multivariate Neyman estimator, retaining separate conservative arm covariance matrices. Fixed pretreatment adjustment is computed from retained cluster totals; only centered adjustment restores arm means to the original scale.",
     "Matched-pair assignment retains full treated and reference covariance over independent randomized pairs. The switchback route reuses the existing sequence sandwich with zero washout and a declared no-carryover premise; joint covariance is obtained by polarization.",
     "The compilation records source values, assignment design, exposure assumptions, intervention identities, and consistency declarations. Numerical execution does not grant a support or calibration to a derived nonlinear decision."
@@ -3418,98 +3157,6 @@
      ],
      "title": "A Generalization of Sampling Without Replacement from a Finite Universe",
      "year": 1952
-    }
-   ]
-  },
-  {
-   "deviations": [
-    "Classification compares the delta-method sampling interval at every vertex of the declared assumption box with the decision threshold, and the assumption range with the same threshold: robust when both sides agree everywhere, assumption-dependent when the preferred action changes inside the declared range, unresolved otherwise. It is a classification, not a probability.",
-    "Planning reuses the existing Normal-Normal FutureStudyProgram; the belief is centered on the current contrast with the delta-method variance, a declared planning model and not a calibrated posterior. Assumption-narrowing candidates re-run the classification and are best cases, not expectations.",
-    "Stage digests chain so that a decision-rule change reuses the derived quantity and an estimate-identity or premise change invalidates it."
-   ],
-   "digest": "598fab091e1e594cfeb27888ce9a70e07a813206bdab491b0b586c6b4279ebde",
-   "id": "decision_evidence.decision_classification",
-   "review": "none",
-   "scope_limits": [],
-   "sources": []
-  },
-  {
-   "deviations": [
-    "The delta method is applied to a contrast of functions of the joint arm-mean vector. Its variance uses the retained full covariance, including cross-arm covariance when present; independent-arm designs are a special case. The paper states the asymptotic result for an estimator vector; no finite-sample coverage of the resulting interval is claimed and calibration is reported as not measured.",
-    "The assumption range of a multilinear expression is its extreme over the vertices of the declared box (exact); for an expression that reads an input more than once the range is an interval-arithmetic outer enclosure, labeled inexact. Neither is a probability law, and no sampling interval is composed into it.",
-    "Nonlinear spillover sensitivity requires separate declared bounds on the bias of each arm mean. A bound on a component contrast alone is insufficient for a nonlinear function of arm means.",
-    "Centered fixed-coefficient pretreatment adjustment preserves each arm mean on the original scale; the covariate and coefficient must be fixed before assignment/outcomes as appropriate.",
-    "A derived quantity inherits no support: the precision or support of a component's marginal effect does not transfer to a nonlinear function of components."
-   ],
-   "digest": "5760f49df0fa1728dc252ec2cda68cbf56d4744d75da4a47077899befd2790d6",
-   "id": "decision_evidence.derived_quantity",
-   "review": "none",
-   "scope_limits": [],
-   "sources": [
-    {
-     "authors": [
-      "Gary W. Oehlert"
-     ],
-     "doi": "10.1080/00031305.1992.10475842",
-     "doi_verified": true,
-     "sections": [
-      "first-order variance of a differentiable function of asymptotically normal estimators"
-     ],
-     "title": "A Note on the Delta Method",
-     "year": 1992
-    }
-   ]
-  },
-  {
-   "deviations": [
-    "Joint outcome coordinates share the original unit-period pairs and the cluster ratio covariance. The lagged excursion includes carryover under the recorded assignment law and is not a sustained intervention effect.",
-    "The independent rational reference covers one lag-one, two-outcome design with equal assignment probabilities; it does not establish calibration or support.",
-    "The decision-evidence producer retains the native joint-design compiler excursion recipe and executed law."
-   ],
-   "digest": "d0a2eb688d74945f76fa7206523924299406b38956d358789497b0ff65c011db",
-   "id": "decision_evidence.joint_excursion",
-   "review": "none",
-   "scope_limits": [],
-   "sources": [
-    {
-     "authors": [
-      "Audrey Boruvka",
-      "Daniel Almirall",
-      "Katie Witkiewitz",
-      "Susan A. Murphy"
-     ],
-     "doi": "10.1080/01621459.2017.1305274",
-     "doi_verified": true,
-     "sections": [
-      "Sequentially randomized excursion effects and recorded assignment probabilities"
-     ],
-     "title": "Assessing Time-Varying Causal Effect Moderation in Mobile Health",
-     "year": 2018
-    }
-   ]
-  },
-  {
-   "deviations": [
-    "The existing observational static-regime g-formula, fitted inverse-probability weighting and doubly robust point functionals are evaluated separately for each outcome on the same complete recorded histories.",
-    "An explicitly selected whole-subject bootstrap uses the same refitting weights for every outcome and retains every failed slot; joint covariance is withheld if any refit fails. The default result is point-only. Sampling refits are not posterior draws, and the derived interval has no uncertainty support or measured calibration.",
-    "Sequential exchangeability, positivity, consistency, complete follow-up and isolation are declared assumptions; they are not inferred from numerical convergence."
-   ],
-   "digest": "fed94fcecb31eb33d268068f8b8ffa48d5069dafc147cdb1b0b55c0f770c6297",
-   "id": "decision_evidence.static_regime",
-   "review": "none",
-   "scope_limits": [],
-   "sources": [
-    {
-     "authors": [
-      "James Robins"
-     ],
-     "doi": "10.1016/0270-0255(86)90088-6",
-     "doi_verified": true,
-     "sections": [
-      "Sequential treatment regimes, g-computation and treatment weighting"
-     ],
-     "title": "A new approach to causal inference in mortality studies with a sustained exposure period — application to control of the healthy worker survivor effect",
-     "year": 1986
     }
    ]
   },
@@ -3788,31 +3435,6 @@
   },
   {
    "deviations": [
-    "Derivative-free elite-refit evolution strategy with a seeded uniform first generation, smoothed Gaussian refits, a coordinate pattern polish and a fixed evaluation budget. No derivative is estimated and no global-optimality certificate is claimed; an exhausted budget is reported as an incomplete result.",
-    "Policies are bounded families (open-loop schedule, threshold, piecewise-constant, clipped linear feedback and small complete trees) over a closed parameter box. Each is lowered to a value program that the temporal rollout executes, and the lowered program and the direct rule agree exactly.",
-    "Cumulative cost, cumulative exposure and realised per-step action constraints are checked on rollout paths as hard feasibility conditions with chance-constraint style reporting. The Wilson upper bound on the violation probability is an approximation; a finite sample never certifies a zero violation probability. No objective penalty stands in for feasibility.",
-    "Every proposal is evaluated on the same shared draws (common random numbers across policies and parameter draws), so policy values and paired contrasts share draws. The optimisation and held-out splits use independent noise.",
-    "The result is labelled a fitted-model optimisation unless an identified policy effect is requested and the response source states an identification basis; otherwise the request is refused. The selected policy's in-sample value is optimistic; a held-out value on independent draws or held-out units is reported, and a design with none is refused or flagged.",
-    "Independent evidence: a stationary-state treatment threshold with a closed-form optimum and a linear-quadratic feedback problem with a Riccati optimum and a closed-form best open-loop schedule, each simulated by a separate generator and recomputed by a standalone script."
-   ],
-   "digest": "6fce0a3d88174f9437e9dc41d2512eb88227a569b403eef49590c077e2e09f83",
-   "id": "design.adaptive_policy_search",
-   "review": "method_review",
-   "scope_limits": [
-    "not covered by the method review: piecewise-constant or tree families beyond their lowering, not the facade model-source binding, and not any claim of global optimality"
-   ],
-   "sources": [
-    {
-     "sections": [
-      "Section 4: continuous multi-extremal optimization by elite refitting of a Gaussian sampling law"
-     ],
-     "title": "The Cross-Entropy Method for Combinatorial and Continuous Optimization",
-     "url": "https://doi.org/10.1023/A:1010091220143"
-    }
-   ]
-  },
-  {
-   "deviations": [
     "Independent deterministic exhaustive finite-set comparison and bounded coordinate pattern search; the existing decision functional engine evaluates every mean/law objective and hard risk constraint.",
     "Operational bounds, scheduled control costs, budget and linear restrictions remain hard feasibility conditions. No objective penalty stands in for feasibility.",
     "Finite exhaustion certifies only the declared candidate set under its supplied retained law. Sampling-based selected-decision reliability is not measured; no population or continuous global optimum is implied.",
@@ -3885,18 +3507,6 @@
      "year": 2004
     }
    ]
-  },
-  {
-   "deviations": [
-    "The typed Python EffectWidth declaration preserves signed original se_before-se_after Gram arithmetic and prospective information for measurements/interventions/environments; it does not turn the SE reduction into a supported posterior interval width."
-   ],
-   "digest": "684a9402c0fd53d02f9cc7b288e6e48bdac5623f92c0062472d85f456cea96ca",
-   "id": "design.effect_width_reduction",
-   "review": "method_review",
-   "scope_limits": [
-    "not covered by the method review: a review of the other objectives, of the ranking and Monte Carlo machinery, or of the Python declaration that builds the context"
-   ],
-   "sources": []
   },
   {
    "deviations": [
@@ -4028,33 +3638,6 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
-  },
-  {
-   "deviations": [
-    "The typed Python ModelDistinction declaration supplies aligned likelihood rows for all declared distinct model ids and preserves heuristic_reliability_scaled_loglik_gap / monte_carlo labels; no posterior model probabilities or Bayes factors are introduced.",
-    "Scores heuristic candidate reliability times the mean absolute pairwise log-likelihood gap from one sampled draw; Box-Hill uses posterior model probabilities and predictive mean and variance terms to maximize expected symmetric information divergence."
-   ],
-   "digest": "ba196d5a11a0c5e09768b8bc0ac56933d3fe26f343cc6512856a0e5f553de2b1",
-   "id": "design.model_distinguish",
-   "review": "method_review",
-   "scope_limits": [
-    "not covered by the method review: the Box-Hill expected symmetric divergence (a documented departure), posterior model probabilities, or the Python typing layer"
-   ],
-   "sources": [
-    {
-     "authors": [
-      "G. E.P. Box",
-      "W. J. Hill"
-     ],
-     "doi": "10.1080/00401706.1967.10490441",
-     "doi_verified": true,
-     "sections": [
-      "Sequential design criterion for discriminating between rival models"
-     ],
-     "title": "Discrimination Among Mechanistic Models",
-     "year": 1967
-    }
-   ]
   },
   {
    "covered_by": [
@@ -5264,6 +4847,96 @@
      ],
      "title": "Bayesian Data Analysis",
      "year": 2013
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Uses the same independent-subject, fixed-lag Bernoulli probability-scale contrast as the frequentist temporal link model, with an explicit isotropic Gaussian coefficient prior and one local multivariate-normal Laplace approximation at the MAP.",
+    "Transforms every coefficient draw through both intervention regimes and averages rowwise probability differences, then summarizes those contrast draws. The posterior mean is not the maximum-likelihood contrast or a renamed ridge estimate. Empirical covariate-distribution uncertainty, multimodality and Laplace approximation error are not propagated.",
+    "The facade selects one earliest complete lag window per independent panel subject; a serially dependent single-series likelihood, unsupported links, and incompatible transferred/custom priors are refused. The static Bayesian/GLM references support the fitting algebra, not temporal identification, route admission or a calibration guarantee."
+   ],
+   "digest": "b76cfffb3b1ad71ad67a8a885a9ebb1c77eaa753385e1f1ac54eabc3e2b507f1",
+   "id": "estimate.bayesian_temporal_glm_link_contrast",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the panel facade that selects one earliest complete lag window per unit (crates/antecedent/src/analysis/execute/panel_link_path"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Andrew Gelman",
+      "John B. Carlin",
+      "Hal S. Stern",
+      "David B. Dunson",
+      "Aki Vehtari",
+      "Donald B. Rubin"
+     ],
+     "doi": "10.1201/b16018",
+     "doi_verified": true,
+     "sections": [
+      "Gaussian linear-model posterior algebra; normal approximation at the posterior mode"
+     ],
+     "title": "Bayesian Data Analysis",
+     "year": 2013
+    },
+    {
+     "authors": [
+      "P. McCullagh",
+      "J.A. Nelder"
+     ],
+     "doi": "10.1201/9780203753736",
+     "doi_verified": true,
+     "sections": [
+      "Binomial logit/probit likelihood and Fisher information; asymptotic inference for smooth functions of coefficients"
+     ],
+     "title": "Generalized Linear Models",
+     "year": 2019
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Repository-specific Gaussian reduced-form posterior: T=alpha+pi Z+v and Y=c+gamma Z+u, followed by draws of gamma/pi. Independent zero-mean normal priors are on (alpha,pi,c,gamma), not directly on the treatment effect. This is distinct from the static fixed-loading structural IV posterior.",
+    "The correlated reduced-form residual covariance is a plug-in estimate with a 1e-8 variance floor; covariance-estimation uncertainty is not propagated. The four-dimensional Gaussian coefficient posterior uses prior precision plus the stacked likelihood precision.",
+    "Shares the lag-aligned independent-row likelihood, first-stage-F refusal and declared IV premises of the Wald fit. Non-finite ratio draws refuse the fit rather than being discarded. Finite posterior sample moments do not establish existence of population ratio-posterior moments; no weak-IV-robustness claim is made."
+   ],
+   "digest": "c83af3d40c7eb9b984e02d6b34d8a2de241ba2e859c0be470c9c92d8465d0d08",
+   "id": "estimate.bayesian_temporal_lagged_instrument",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the identification of the lagged instrument (exclusion is the caller's premise), the facade's temporal IV path, or calibration; the existence of ratio moments is not examined"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Andrew Gelman",
+      "John B. Carlin",
+      "Hal S. Stern",
+      "David B. Dunson",
+      "Aki Vehtari",
+      "Donald B. Rubin"
+     ],
+     "doi": "10.1201/b16018",
+     "doi_verified": true,
+     "sections": [
+      "Gaussian linear-model posterior algebra; normal approximation at the posterior mode"
+     ],
+     "title": "Bayesian Data Analysis",
+     "year": 2013
+    },
+    {
+     "authors": [
+      "Joshua D. Angrist",
+      "Jörn-Steffen Pischke"
+     ],
+     "doi": "10.1515/9781400829828",
+     "doi_verified": true,
+     "sections": [
+      "Chapter 4: instrumental variables and just-identified linear IV estimation"
+     ],
+     "title": "Mostly Harmless Econometrics",
+     "year": 2009
     }
    ]
   },
@@ -6602,6 +6275,101 @@
   },
   {
    "deviations": [
+    "Bandwidth: a single plug-in step for the local quadratic jump (or slope change) of the linearized outcome Y - r T, r the ratio at the declared bandwidth; exact triangular-kernel boundary constants, residual variance from a local linear pilot, density from a pilot window, third derivative from a global quartic on each side. No iterated pilot bandwidths and no regularization term, so it is not the selector of the cited works; the selected bandwidth is capped at the declared one and at least eight rows are kept on each side.",
+    "The interval at the selected bandwidth is the robust bias-corrected HC0 delta-method interval of the fixed-bandwidth route (record estimate.local_polynomial_ratio) with the same bandwidth for estimation and bias correction; it does not account for the selection of the bandwidth on the same data. For the kink, the bandwidth minimizes the error of the local quadratic slope change while the reported estimate is the local quartic slope change.",
+    "Density test: a binned local linear log-density difference at the cutoff with its normal p-value, reported as a diagnostic; it does not gate the estimate. Covariate balance is the robust bias-corrected jump of each declared covariate at the reporting bandwidth.",
+    "Calendar time: the design is held fixed and the errors are redrawn, not the rows. The errors of the structural series Y - r T and of the treatment about a cubic trend on each side are modeled as AR(1); the coefficient and the marginal variance are the ones whose expected trend residuals match the observed lag-one ratio and sum of squares (exact for the trend design), not the raw residual autocorrelation. Innovations are redrawn in moving blocks of the rounded cube root of the smaller side's window rows within each side and recolored by one recursion through the cutoff; the ratio is refit in closed form through the estimator's linear row weights.",
+    "The calendar-time interval is the estimate plus or minus a Student-t quantile times the interquartile bootstrap standard error; the degrees of freedom are a Satterthwaite combination of the innovation variance, the prewhitening coefficient and the finite number of replicates. This reference is the repository's construction.",
+    "The calendar-time posterior puts flat-Dirichlet weights on consecutive non-overlapping blocks of the same innovations within each side, redraws each side's innovations in whole blocks from that weighted block distribution, draws each prewhitening coefficient from a normal approximation of its posterior, and refits the ratio; the reported point is the posterior median.",
+    "Dependence beyond a first-order autoregression is carried only within a block: a strongly persistent higher-order error is outside what the model reproduces. A first stage close to zero makes the ratio interval unreliable even when the 1.96 screen passes. Both are declared conditions of the supported rows, not properties the estimator verifies.",
+    "Continuity at the cutoff, no concurrent discontinuity at the cutoff date, exclusion and monotone compliance are declared assumptions, not tested."
+   ],
+   "digest": "4e42b8cbb686923ee0dbc45f283367093e03055882a43fe9507740b1a03ac65f",
+   "id": "estimate.local_ratio_design",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Sebastian Calonico",
+      "Matias D. Cattaneo",
+      "Rocio Titiunik"
+     ],
+     "doi": "10.3982/ECTA11757",
+     "doi_verified": true,
+     "sections": [
+      "robust bias-corrected interval, valid at an MSE-optimal bandwidth because the bias is estimated and its variance carried"
+     ],
+     "title": "Robust Nonparametric Confidence Intervals for Regression-Discontinuity Designs",
+     "year": 2014
+    },
+    {
+     "doi": "10.1093/restud/rdr043",
+     "doi_verified": false,
+     "sections": [
+      "plug-in bandwidth minimizing the asymptotic mean squared error of the boundary estimate from pilot variance, density and curvature estimates"
+     ],
+     "title": "Optimal Bandwidth Choice for the Regression Discontinuity Estimator"
+    },
+    {
+     "doi": "10.1016/j.jeconom.2007.05.005",
+     "doi_verified": false,
+     "sections": [
+      "binned local linear test of a discontinuity in the density of the running variable at the cutoff"
+     ],
+     "title": "Manipulation of the Running Variable in the Regression Discontinuity Design: A Density Test"
+    },
+    {
+     "authors": [
+      "David Card",
+      "David S. Lee",
+      "Zhuan Pei",
+      "Andrea Weber"
+     ],
+     "doi": "10.3982/ECTA11224",
+     "doi_verified": true,
+     "sections": [
+      "regression kink: ratio of the outcome slope change to the treatment slope change at the kink point"
+     ],
+     "title": "Inference on Causal Effects in a Generalized Regression Kink Design",
+     "year": 2015
+    },
+    {
+     "doi": "10.2307/2951574",
+     "doi_verified": false,
+     "sections": [
+      "prewhitening a dependent series by a low-order autoregression before estimating its long-run variance, and recoloring"
+     ],
+     "title": "An Improved Heteroskedasticity and Autocorrelation Consistent Covariance Matrix Estimator"
+    },
+    {
+     "authors": [
+      "Hans R. Kunsch"
+     ],
+     "doi": "10.1214/aos/1176347265",
+     "doi_verified": true,
+     "sections": [
+      "moving-block bootstrap of consecutive observations"
+     ],
+     "title": "The Jackknife and the Bootstrap for General Stationary Observations",
+     "year": 1989
+    },
+    {
+     "authors": [
+      "Donald B. Rubin"
+     ],
+     "doi": "10.1214/aos/1176345338",
+     "doi_verified": true,
+     "sections": [
+      "Dirichlet posterior weights on the observed support, here on blocks of innovations"
+     ],
+     "title": "The Bayesian Bootstrap",
+     "year": 1981
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Conditional period rewards are caller-supplied. When the query says they are fixed and known, the interval excludes all fitted, selected, or cross-fitted Q uncertainty. The caller attests that claim.",
     "The supported pointwise interval is for a short horizon of independent subjects under known sequential randomization. Longer horizons do not inherit it.",
     "This is not the marginal structural model and not the sequential doubly robust score."
@@ -7285,10 +7053,9 @@
   {
    "deviations": [
     "The implementing module is crates/antecedent-estimate/src/randomized_posterior.rs. It states: That interval is not a posterior.",
-    "Contrasts are linear in the arm means, so the unknown cross-arm dependence of (Y_i(0), Y_i(1)) plays no role and the finite-population contrast has an exact posterior too (a Beta-Binomial convolution for binary outcomes; a Student-t predictive sum for Gaussian outcomes).",
-    "The two laws answer different questions."
+    "The finite-population estimand is published under additive unit effects, Y_i(k) = Y_i(0) + delta_k, because the data never identify how a unit unobserved outcomes move with its observed one. The contrast is then the contrast of the arm means and shares the superpopulation law. This is the Neyman bound (the variance of the observed contrast of means is sum w_k^2 S_k^2 / n_k minus S_tau^2 / n, and additive effects set S_tau^2 to zero, its largest value), so the interval is conservative when unit effects vary. The earlier independent-imputation law, which scales each arm variance by 1 - n_k / n, is no longer published."
    ],
-   "digest": "f413603e4b0407551577533a7535371bc25449f7282f93be13d77a4de0f55c0d",
+   "digest": "528a3a6f71046d67b31b2733007691cda77d896f76fb59e9dd18eb5cd3508a3e",
    "id": "estimate.randomized.bayesian",
    "review": "method_review",
    "scope_limits": [
@@ -8231,6 +7998,62 @@
      ],
      "title": "Simple and Honest Confidence Intervals in Nonparametric Regression",
      "year": 2020
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "A decision-time empirical mean probability contrast under a Bernoulli logit or probit GLM. Intervention regime columns, including explicitly declared treatment-derived interactions, change together; lag columns remain observed. The link-scale treatment coefficient is not reported as the mean-scale causal contrast.",
+    "Uses unpenalized maximum likelihood and Fisher delta-method uncertainty conditional on the empirical covariate distribution. Separated fits are refused instead of silently introducing a ridge penalty. Identity and other unsupported links, missing lag columns and a single dependent series are refused.",
+    "The panel facade takes only the earliest full lag-window row from each independent subject, rather than treating pooled within-subject rows as independent. This sampling construction and temporal causal identification are additional repository contracts, not consequences of the static GLM reference. This record does not support a route or assert calibration."
+   ],
+   "digest": "aa6960eab89d60175f532e5da512f993caeb808eded97d363770edddb1c2fe24",
+   "id": "estimate.temporal_glm_link_contrast",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the underlying IRLS and Laplace solvers beyond their agreement with the references, the panel facade that selects one row per subject, dependent-series refusal, or coverage"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "P. McCullagh",
+      "J.A. Nelder"
+     ],
+     "doi": "10.1201/9780203753736",
+     "doi_verified": true,
+     "sections": [
+      "Binomial logit/probit likelihood and Fisher information; asymptotic inference for smooth functions of coefficients"
+     ],
+     "title": "Generalized Linear Models",
+     "year": 2019
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Just-identified single-instrument Wald ratio Cov(Y_t,Z_(t-lag))/Cov(T_t,Z_(t-lag)), with an intercept and homoskedastic standard error, after dropping the first lag rows. No exogenous adjustment covariates or multiple-instrument system is estimated.",
+    "Lag-aligned rows are treated as independent; there is no HAC or serial-dependence correction. Relevance, exclusion, exogeneity and the structural-effect interpretation must hold at every period; the time ordering supplies none of those premises.",
+    "The configured first-stage-F refusal is a numerical weak-instrument screen, not a weak-IV-robust confidence procedure. At least eight aligned finite rows are required. Exact zero residual variance can produce zero standard error and infinite first-stage F."
+   ],
+   "digest": "436039856b77591342b8e050fac191d322a88b932b38cdac45a119602af33065",
+   "id": "estimate.temporal_lagged_instrument",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: fit_lagged_instrument_posterior (the reduced-form ratio posterior of the same module, which is reviewed with the Bayesian lagged-instrument record), exclusion or exogeneity, serial dependence, or the facade route"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Joshua D. Angrist",
+      "Jörn-Steffen Pischke"
+     ],
+     "doi": "10.1515/9781400829828",
+     "doi_verified": true,
+     "sections": [
+      "Chapter 4: instrumental variables and just-identified linear IV estimation"
+     ],
+     "title": "Mostly Harmless Econometrics",
+     "year": 2009
     }
    ]
   },
@@ -11016,7 +10839,7 @@
     "Provider requests and priors depend on the full causal request (graph, query, regime, evidence, populations and treatment grid) and the individual external-study input. An unsupported treatment grid blocks their computation. Both executors share the same decision rule and reject non-finite utilities or net-benefit overflow before publishing a decision.",
     "Stage identities are BLAKE3 (derive-key mode, length-prefixed parts) over the caller's declared own-input bytes. The caller is responsible for the declared bytes representing the input; the planner cannot detect a change a caller did not declare."
    ],
-   "digest": "1eba61343203e5fd583aa329bb2d275fadd3a1062a4e4298e04570930c9d8278",
+   "digest": "f29c986049594761811fee2901366c5e77500de0c877e9ea843fa08d2d1d20ee",
    "id": "recalculation.selective",
    "review": "none",
    "scope_limits": [],
@@ -12285,63 +12108,6 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
-  },
-  {
-   "deviations": [
-    "The shared transport error is a declared variance, not an estimate: the premise that b_t has variance tau_t^2 and is common to all summaries of one transport is a modelling declaration. A transport with no declared uncertainty is refused rather than read as zero.",
-    "Pooling is generalized least squares under a declared covariance; the dependence between source and native estimates is the caller's declaration, with the evidence ledger deciding only whether the data overlap.",
-    "The result is a point and a model variance. No confidence interval, posterior coverage or calibration is claimed.",
-    "Hierarchical borrowing uses a moment-style normal model on summaries, not a full hierarchical posterior; the transported prior route treats a transported claim as the prior of a native likelihood and is point-and-variance only."
-   ],
-   "digest": "299d941d864c7aa4d09dad34940131b13e2153151df90eeed50e7804338b1c05",
-   "id": "transport.synthesis",
-   "review": "method_review",
-   "scope_limits": [
-    "not covered by the method review: random-effects (DerSimonian-Laird, REML) or the dependence envelope in synthesis"
-   ],
-   "sources": [
-    {
-     "authors": [
-      "Michael Borenstein",
-      "Larry V. Hedges",
-      "Julian P. T. Higgins",
-      "Hannah R. Rothstein"
-     ],
-     "doi": "10.1002/9780470743386",
-     "doi_verified": true,
-     "sections": [
-      "chapter 11: fixed-effect model, inverse-variance weights",
-      "chapter 13: random-effects model (hierarchical normal borrowing across exchangeable studies)"
-     ],
-     "title": "Introduction to Meta‐Analysis",
-     "year": 2009
-    },
-    {
-     "authors": [
-      "Donald B. Rubin"
-     ],
-     "doi": "10.3102/10769986006004377",
-     "doi_verified": true,
-     "sections": [
-      "normal hierarchical model for exchangeable study effects"
-     ],
-     "title": "Estimation in Parallel Randomized Experiments",
-     "year": 1981
-    },
-    {
-     "authors": [
-      "Judea Pearl",
-      "Elias Bareinboim"
-     ],
-     "doi": "10.1214/14-STS486",
-     "doi_verified": true,
-     "sections": [
-      "selection diagrams: a mechanism with no selection node into it is shared by the source and the target population"
-     ],
-     "title": "External Validity: From Do-Calculus to Transportability Across Populations",
-     "year": 2014
-    }
-   ]
   },
   {
    "deviations": [
