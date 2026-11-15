@@ -19,6 +19,9 @@
 //! higher-order error, because its fit extrapolates the lag-one autocorrelation alone.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+
 /// Highest autoregressive order of the error model.
 pub(super) const MAX_ORDER: usize = 4;
 
@@ -33,11 +36,49 @@ const BARTLETT_LAGS: usize = 300;
 
 /// Expected residual lag-`k` product sums of one side's trend, as weights on the error's
 /// autocovariances: `diagonals[k][h]` for `k` in `0..=MAX_ORDER`, `h` in `0..rows`.
+#[derive(Clone)]
 pub(super) struct LagMoments {
-    diagonals: Vec<Vec<f64>>,
+    diagonals: Arc<[Vec<f64>]>,
+}
+
+/// Designs kept by [`LagMoments::cached`] before the cache is emptied.
+const MOMENT_CACHE_CAPACITY: usize = 128;
+
+/// Exact bit pattern of a trend design: the row count, the basis and the inverse Gram matrix.
+type DesignKey = Vec<u64>;
+
+type MomentCache = Mutex<HashMap<DesignKey, LagMoments>>;
+
+fn design_key(basis: &[Vec<f64>], inverse: &[Vec<f64>]) -> DesignKey {
+    let size = |len: usize| u64::try_from(len).unwrap_or(u64::MAX);
+    let mut key = vec![size(basis.len()), size(inverse.len())];
+    key.extend(basis.iter().chain(inverse).flatten().map(|value| value.to_bits()));
+    key
 }
 
 impl LagMoments {
+    /// [`LagMoments::new`] memoized on the exact bits of `basis` and `inverse`.
+    ///
+    /// The moments are a pure function of the two matrices (no outcome enters), so a design
+    /// that repeats across replicates, as a declared bandwidth over a fixed time index does,
+    /// is built once. The key is the full bit pattern, so a hit is bit-identical to a fresh
+    /// build and a changed design always misses.
+    pub(super) fn cached(basis: &[Vec<f64>], inverse: &[Vec<f64>]) -> Self {
+        static CACHE: OnceLock<MomentCache> = OnceLock::new();
+        let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        let key = design_key(basis, inverse);
+        if let Some(found) = cache.lock().unwrap_or_else(PoisonError::into_inner).get(&key) {
+            return found.clone();
+        }
+        let built = Self::new(basis, inverse);
+        let mut guard = cache.lock().unwrap_or_else(PoisonError::into_inner);
+        if guard.len() >= MOMENT_CACHE_CAPACITY {
+            guard.clear();
+        }
+        guard.insert(key, built.clone());
+        built
+    }
+
     /// The moments of the trend with design rows `basis` and inverse Gram matrix `inverse`.
     pub(super) fn new(basis: &[Vec<f64>], inverse: &[Vec<f64>]) -> Self {
         let n = basis.len();
@@ -130,7 +171,7 @@ impl LagMoments {
             }
             diagonals.push(sums);
         }
-        Self { diagonals }
+        Self { diagonals: diagonals.into() }
     }
 
     /// Expected lag-`lag` product sum of the residuals of a unit-variance error with
@@ -441,4 +482,78 @@ pub(super) fn fit_error_model(
     }
     let phi = coefficients_from_partial(&partial);
     Some(FittedErrors { model: ArModel { phi, partial, covariance, factor }, innovations })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Cubic monomial rows over `n` equally spaced points in `[-1, 1]` and the inverse of
+    /// their Gram matrix, by Gauss-Jordan elimination.
+    fn design(n: usize, scale: f64) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
+        let basis: Vec<Vec<f64>> = (0..n)
+            .map(|i| {
+                let d = scale * (2.0 * i as f64 / (n as f64 - 1.0) - 1.0);
+                vec![1.0, d, d * d, d * d * d]
+            })
+            .collect();
+        let size = 4;
+        let mut aug = vec![vec![0.0; 2 * size]; size];
+        for (a, row) in aug.iter_mut().enumerate() {
+            for b in 0..size {
+                row[b] = basis.iter().map(|x| x[a] * x[b]).sum();
+            }
+            row[size + a] = 1.0;
+        }
+        for col in 0..size {
+            let pivot = (col..size)
+                .max_by(|&p, &q| aug[p][col].abs().total_cmp(&aug[q][col].abs()))
+                .expect("pivot");
+            aug.swap(col, pivot);
+            let lead = aug[col][col];
+            aug[col].iter_mut().for_each(|v| *v /= lead);
+            for r in 0..size {
+                if r != col {
+                    let factor = aug[r][col];
+                    let pivot_row = aug[col].clone();
+                    aug[r].iter_mut().zip(&pivot_row).for_each(|(v, p)| *v -= factor * p);
+                }
+            }
+        }
+        (basis, aug.into_iter().map(|row| row[size..].to_vec()).collect())
+    }
+
+    fn bits(moments: &LagMoments) -> Vec<Vec<u64>> {
+        moments.diagonals.iter().map(|d| d.iter().map(|v| v.to_bits()).collect()).collect()
+    }
+
+    #[test]
+    fn cached_moments_equal_a_fresh_build_bit_for_bit() {
+        let (basis, inverse) = design(17, 1.0);
+        let fresh = LagMoments::new(&basis, &inverse);
+        let first = LagMoments::cached(&basis, &inverse);
+        let second = LagMoments::cached(&basis, &inverse);
+        assert_eq!(bits(&fresh), bits(&first));
+        assert_eq!(bits(&fresh), bits(&second));
+    }
+
+    #[test]
+    fn a_changed_design_never_returns_a_stale_entry() {
+        let (basis, inverse) = design(19, 1.0);
+        let before = LagMoments::cached(&basis, &inverse);
+        // Rescaled design, one more row, and a one-ulp change of one entry each miss.
+        let (scaled_basis, scaled_inverse) = design(19, 0.5);
+        let mut nudged = basis.clone();
+        nudged[3][1] = f64::from_bits(nudged[3][1].to_bits() + 1);
+        let (longer_basis, longer_inverse) = design(20, 1.0);
+        for (b, g) in [
+            (&scaled_basis, &scaled_inverse),
+            (&nudged, &inverse),
+            (&longer_basis, &longer_inverse),
+        ] {
+            let fresh = LagMoments::new(b, g);
+            assert_eq!(bits(&LagMoments::cached(b, g)), bits(&fresh));
+        }
+        assert_eq!(bits(&LagMoments::cached(&basis, &inverse)), bits(&before));
+    }
 }
