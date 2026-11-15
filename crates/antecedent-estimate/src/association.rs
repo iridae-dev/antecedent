@@ -1279,41 +1279,114 @@ fn series_standard_error(influence: &[f64], lag: usize) -> f64 {
 /// fixed-b critical-value ratio at `b = (lag + 1) / support`: a Student-t ratio at the
 /// Satterthwaite degrees of freedom `1.5 support / (lag + 1)` understates that fixed-b tail
 /// (2.04 against 2.10 at `b = 0.05`).
+///
+/// The influence series is built at the estimated mean, so it is a residual series: its
+/// estimation step removes from the Bartlett variance the share `(2M - M) / support = M / support`
+/// of the long-run variance (`M` the bandwidth). The cross term of the residual with the
+/// estimated mean is `-2 (sum psi) (1/support) sum_{t,s} k_ts psi_t`, worth `-2M` times the
+/// long-run variance over `support`, and the squared mean error adds back `M` times it, because
+/// the Bartlett weights sum to `M`. At a bandwidth of one this is the `n / (n - 1)` of an
+/// independent sample, which the row route applies. The variance is divided by `1 - M / support`
+/// (the share capped at one half, past which the series is too short for the bandwidth).
 fn stratum_series_standard_error(influence: &[f64], lag: usize, support: usize) -> f64 {
     let bandwidth = lag + 1;
+    let share = (bandwidth as f64 / support.max(1) as f64).min(0.5);
     newey_west_variance(influence, lag).sqrt()
         * crate::temporal_block::kernel_bias_scale(&[influence], bandwidth)
         * crate::temporal_block::fixed_b_scale(bandwidth, support)
+        / (1.0 - share).sqrt()
 }
 
-/// Percentile interval of the bootstrap `values` at [`SPREAD_LEVEL`] with the bias correction of
-/// Efron (1987): the bootstrap distribution of a statistic that is biased in finite samples is
-/// centred on `estimate + bias`, so its raw percentiles sit `bias` too high (or low) around the
-/// truth. With `z0` the normal score of the share of draws below `estimate`, the interval takes
-/// the percentiles at `Phi(2 z0 + z_q)` for the two tail scores `z_q`; at `z0 = 0` it is the
-/// plain percentile interval.
-#[allow(
-    clippy::float_cmp,
-    reason = "a draw equal to the estimate is a tie of exactly equal values, counted half"
-)]
-fn bias_corrected_percentile_spread(values: Vec<f64>, estimate: f64) -> Option<(f64, f64)> {
-    if values.len() < MIN_REPLICATES || !estimate.is_finite() {
+/// Bias-corrected distance correlation of two series and its jackknife standard error.
+///
+/// The V-statistic [`distance_correlation`] is biased upward in finite samples (+0.023 at 100
+/// rows for a bivariate normal law of correlation 0.5, a quarter of its standard error), so an
+/// interval centred on it under-covers. The point here is the root of the unbiased squared
+/// distance correlation of Szekely and Rizzo (2014): with `a`, `b` the distance matrices,
+/// `N(a, b) = sum a b - 2 / (n - 2) sum_i a_i b_i + a.. b.. / ((n - 1) (n - 2))`
+/// (`a_i` a row sum, `a..` the total), `R = N(x, y) / sqrt(N(x, x) N(y, y))`, point
+/// `sqrt(max(R, 0))`. The standard error is the delete-one jackknife of that point, every
+/// leave-one-out numerator following from the full sums in `O(n)` each. `None` when a series has
+/// no spread, or fewer than five rows.
+fn unbiased_distance_correlation(x: &[f64], y: &[f64]) -> Option<(f64, f64)> {
+    let n = x.len();
+    if n < 5 || y.len() != n {
         return None;
     }
-    let mut sorted = values;
-    sorted.sort_by(f64::total_cmp);
-    let count = sorted.len() as f64;
-    let below = sorted.iter().filter(|v| **v < estimate).count() as f64;
-    let ties = sorted.iter().filter(|v| **v == estimate).count() as f64;
-    let share = ((below + 0.5 * ties) / count).clamp(1.0 / (count + 1.0), count / (count + 1.0));
-    let z0 = antecedent_kernels::norm_inv(share);
-    let tail = antecedent_kernels::norm_inv(f64::midpoint(1.0, SPREAD_LEVEL));
-    let lower = antecedent_kernels::norm_cdf(2.0 * z0 - tail);
-    let upper = antecedent_kernels::norm_cdf(2.0 * z0 + tail);
-    Some((
-        antecedent_stats::quantile_sorted(&sorted, lower, QuantileRule::ExchangeableRank),
-        antecedent_stats::quantile_sorted(&sorted, upper, QuantileRule::ExchangeableRank),
-    ))
+    let xy = distance_numerators(x, y);
+    let xx = distance_numerators(x, x);
+    let yy = distance_numerators(y, y);
+    let point = |cross: f64, left: f64, right: f64| -> Option<f64> {
+        (left > 0.0 && right > 0.0).then(|| (cross / (left * right).sqrt()).max(0.0).sqrt())
+    };
+    let estimate = point(xy.full, xx.full, yy.full)?;
+    let leave_out: Vec<f64> = (0..n)
+        .map(|k| point(xy.without[k], xx.without[k], yy.without[k]))
+        .collect::<Option<_>>()?;
+    let mean = leave_out.iter().sum::<f64>() / n as f64;
+    let spread: f64 = leave_out.iter().map(|v| (v - mean) * (v - mean)).sum();
+    let error = ((n as f64 - 1.0) / n as f64 * spread).sqrt();
+    (estimate.is_finite() && error.is_finite()).then_some((estimate, error))
+}
+
+/// The unbiased squared distance covariance numerator `N(u, v)` of all rows and of every
+/// leave-one-out sample.
+struct DistanceNumerators {
+    full: f64,
+    without: Vec<f64>,
+}
+
+/// `N(u, v) = sum a b - 2 / (n - 2) sum_i a_i b_i + a.. b.. / ((n - 1) (n - 2))` of the distance
+/// matrices `a`, `b` of `u`, `v`, and the same with row `k` removed, for every `k`.
+///
+/// Removing `k` subtracts `2 sum_j a_kj b_kj` from `sum a b`, `a_ik` from each other row sum, and
+/// `2 a_k.` from the total; the product sum falls by
+/// `a_k. b_k. + sum_i a_ik b_i. + sum_i b_ik a_i. - sum_i a_ik b_ik`.
+fn distance_numerators(u: &[f64], v: &[f64]) -> DistanceNumerators {
+    let n = u.len();
+    let (mut row_u, mut row_v) = (vec![0.0; n], vec![0.0; n]);
+    let mut cross = vec![0.0; n];
+    for i in 0..n {
+        for j in 0..n {
+            let (a, b) = ((u[i] - u[j]).abs(), (v[i] - v[j]).abs());
+            row_u[i] += a;
+            row_v[i] += b;
+            cross[i] += a * b;
+        }
+    }
+    let total_u: f64 = row_u.iter().sum();
+    let total_v: f64 = row_v.iter().sum();
+    let products: f64 = row_u.iter().zip(&row_v).map(|(a, b)| a * b).sum();
+    let sum_ab: f64 = cross.iter().sum();
+    let numerator = |m: f64, sum_ab: f64, products: f64, total_u: f64, total_v: f64| {
+        sum_ab - 2.0 * products / (m - 2.0) + total_u * total_v / ((m - 1.0) * (m - 2.0))
+    };
+    let full = numerator(n as f64, sum_ab, products, total_u, total_v);
+    let without = (0..n)
+        .map(|k| {
+            let (mut with_row_v, mut with_row_u) = (0.0, 0.0);
+            for i in 0..n {
+                let (a, b) = ((u[i] - u[k]).abs(), (v[i] - v[k]).abs());
+                with_row_v += a * row_v[i];
+                with_row_u += b * row_u[i];
+            }
+            let products_k = products - row_u[k] * row_v[k] - with_row_v - with_row_u + cross[k];
+            numerator(
+                n as f64 - 1.0,
+                sum_ab - 2.0 * cross[k],
+                products_k,
+                total_u - 2.0 * row_u[k],
+                total_v - 2.0 * row_v[k],
+            )
+        })
+        .collect();
+    DistanceNumerators { full, without }
+}
+
+/// Normal interval `estimate +- z error` at [`SPREAD_LEVEL`].
+fn normal_spread(estimate: f64, error: f64) -> (f64, f64) {
+    let z = antecedent_kernels::norm_inv(f64::midpoint(1.0, SPREAD_LEVEL));
+    (estimate - z * error, estimate + z * error)
 }
 
 /// Standard error of a coefficient of a model fitted to independent rows from its
@@ -2109,7 +2182,18 @@ impl AssociationEstimator {
             ));
         }
         let rows = prepared.rows;
-        let point = Self::statistics(prepared, &vec![1.0; rows])?;
+        let mut point = Self::statistics(prepared, &vec![1.0; rows])?;
+        if prepared.selection.analysis == AssociationAnalysis::DistanceCorrelation
+            && point[0].is_finite()
+        {
+            // The unbiased root of the squared distance correlation replaces the V-statistic.
+            if let Some((unbiased, _)) = Self::numeric_predictor(prepared)
+                .ok()
+                .and_then(|x| unbiased_distance_correlation(x, &prepared.y))
+            {
+                point[0] = unbiased;
+            }
+        }
         if point.iter().any(|value| !value.is_finite()) {
             return Err(refuse_invalid(
                 "a reported quantity is not defined on these rows (a constant column has no \
@@ -2246,9 +2330,13 @@ impl AssociationEstimator {
             }
             let estimate = term.estimate;
             if prepared.selection.analysis == AssociationAnalysis::DistanceCorrelation {
-                // The distance correlation is a non-negative V-statistic biased upward in
-                // finite samples, and so is its bootstrap law: correct the percentiles for it.
-                term.spread = bias_corrected_percentile_spread(values, term.estimate);
+                // The distance correlation is a degenerate-free U-statistic away from
+                // independence, so its jackknife error reads as a normal interval around the
+                // unbiased point; the bootstrap law of the V-statistic is biased upward.
+                term.spread = Self::numeric_predictor(prepared).ok().and_then(|x| {
+                    unbiased_distance_correlation(x, &prepared.y)
+                        .map(|(estimate, error)| normal_spread(estimate, error))
+                });
                 continue;
             }
             term.spread = studentized.or_else(|| {
@@ -2589,15 +2677,30 @@ mod tests {
     }
 
     #[test]
-    fn the_bias_corrected_spread_is_the_percentile_spread_when_draws_centre_on_the_estimate() {
-        let draws: Vec<f64> = (0..399).map(|i| f64::from(i) / 398.0).collect();
-        let plain = percentile_spread(draws.clone()).unwrap();
-        let corrected = bias_corrected_percentile_spread(draws.clone(), 0.5).unwrap();
-        assert!((plain.0 - corrected.0).abs() < 1e-6 && (plain.1 - corrected.1).abs() < 1e-6);
-        // Draws that sit above the estimate (an upward-biased statistic) move the interval down.
-        let shifted = bias_corrected_percentile_spread(draws, 0.4).unwrap();
-        assert!(shifted.0 < plain.0 && shifted.1 < plain.1, "{shifted:?} vs {plain:?}");
-        assert!(bias_corrected_percentile_spread(vec![0.0; 5], 0.0).is_none());
+    fn the_unbiased_distance_correlation_leave_out_numerators_match_a_direct_refit() {
+        let x: Vec<f64> = (0..30).map(|i| noise(i) * 3.0).collect();
+        let y: Vec<f64> = x.iter().enumerate().map(|(i, v)| v * 0.7 + noise(i + 100)).collect();
+        let (estimate, error) = unbiased_distance_correlation(&x, &y).unwrap();
+        assert!(estimate > 0.0 && estimate < 1.0 && error > 0.0, "{estimate} {error}");
+        let direct: Vec<f64> = (0..30)
+            .map(|k| {
+                let drop = |s: &[f64]| -> Vec<f64> {
+                    s.iter().enumerate().filter(|(i, _)| *i != k).map(|(_, v)| *v).collect()
+                };
+                let (xs, ys) = (drop(&x), drop(&y));
+                let (cross, left, right) = (
+                    distance_numerators(&xs, &ys).full,
+                    distance_numerators(&xs, &xs).full,
+                    distance_numerators(&ys, &ys).full,
+                );
+                (cross / (left * right).sqrt()).max(0.0).sqrt()
+            })
+            .collect();
+        let mean = direct.iter().sum::<f64>() / 30.0;
+        let spread: f64 = direct.iter().map(|v| (v - mean) * (v - mean)).sum();
+        let expected = (29.0 / 30.0 * spread).sqrt();
+        assert!((error - expected).abs() < 1e-9, "{error} vs {expected}");
+        assert!(unbiased_distance_correlation(&[1.0; 8], &y[..8]).is_none());
     }
 
     #[test]
@@ -2607,7 +2710,8 @@ mod tests {
         let (lag, support) = (3, 40);
         let expected = newey_west_variance(&psi, lag).sqrt()
             * crate::temporal_block::kernel_bias_scale(&[&psi], lag + 1)
-            * crate::temporal_block::fixed_b_scale(lag + 1, support);
+            * crate::temporal_block::fixed_b_scale(lag + 1, support)
+            / (1.0 - (lag as f64 + 1.0) / support as f64).sqrt();
         let error = stratum_series_standard_error(&psi, lag, support);
         assert!((error - expected).abs() < 1e-12, "{error} vs {expected}");
         assert!(
