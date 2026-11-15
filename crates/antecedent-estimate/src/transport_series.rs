@@ -160,9 +160,14 @@ pub fn trial_to_target_ipw_ewc_se(
 /// calibrated one; the ratio is the 95% one and serves every level, as the circular-block
 /// intervals' fixed-b ratio does.
 ///
+/// When every trial row falls in one block the block draws are the point estimate up to rounding
+/// and carry no shape: scaling their rounding noise would invent one. The draws are then the
+/// stratified quantiles of the same Student-t interval law, `centre + se * t_B((i + 1/2) / m)`,
+/// whose mean is the centre and whose 95% interval is exactly the cosine interval.
+///
 /// # Errors
 ///
-/// Uncertified inputs, fewer than two draws, or draws with no spread.
+/// Uncertified inputs, fewer than two draws, or a non-finite or zero error.
 pub fn scale_series_draws_to_ewc(
     draws: &mut [f64],
     (outcome, treatment, trial): (&[f64], &[bool], &[bool]),
@@ -184,8 +189,17 @@ pub fn scale_series_draws_to_ewc(
     let centre = draws.iter().sum::<f64>() / count as f64;
     let spread =
         (draws.iter().map(|draw| (draw - centre).powi(2)).sum::<f64>() / (count - 1) as f64).sqrt();
-    if !(spread.is_finite() && spread > 0.0 && se.is_finite()) {
+    if !(spread.is_finite() && se.is_finite() && se > 0.0) {
         return Err(EstimationError::data_msg("block-weight draws have no spread to calibrate"));
+    }
+    // Rounding in the weighted ratio leaves a relative spread near machine epsilon; a block draw
+    // law with any real variation sits many orders of magnitude above this floor.
+    if spread <= 1e-9 * centre.abs().max(se) {
+        for (index, draw) in draws.iter_mut().enumerate() {
+            let p = (index as f64 + 0.5) / count as f64;
+            *draw = centre + se * antecedent_stats::student_t_ppf(p, terms as f64);
+        }
+        return Ok(());
     }
     let z = antecedent_stats::normal_ppf(0.975);
     let scale = se * antecedent_stats::student_t_ppf(0.975, terms as f64) / z / spread;
@@ -247,5 +261,24 @@ mod tests {
         let z = antecedent_stats::normal_ppf(0.975);
         let expected = se * antecedent_stats::student_t_ppf(0.975, 25.0) / z;
         assert!((sd - expected).abs() < 1e-9 * expected.max(1.0));
+    }
+
+    /// Both trial rows in one block make every block draw the point estimate up to rounding; the
+    /// posterior is then the cosine interval's Student-t law at the estimate, not inflated noise.
+    #[test]
+    fn single_block_draws_take_the_cosine_interval_law() {
+        let y = [3.0, 1.0, 0.0, 0.0];
+        let a = [true, false, false, false];
+        let trial = [true, true, false, false];
+        let half = [0.5; 4];
+        let mut draws: Vec<f64> =
+            (0..2_000).map(|i| if i % 3 == 0 { 2.0 + 4.0 * f64::EPSILON } else { 2.0 }).collect();
+        scale_series_draws_to_ewc(&mut draws, (&y, &a, &trial), (&half, &half)).unwrap();
+        let (se, terms) = trial_to_target_ipw_ewc_se(&y, &a, &trial, &half, &half, 2.0).unwrap();
+        let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+        assert!((mean - 2.0).abs() < 1e-9, "{mean}");
+        let half_width = se * antecedent_stats::student_t_ppf(0.975, terms as f64);
+        let inside = draws.iter().filter(|d| (**d - 2.0).abs() <= half_width).count();
+        assert_eq!(inside, 1_900);
     }
 }

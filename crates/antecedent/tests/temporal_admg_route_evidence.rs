@@ -688,7 +688,8 @@ fn temporal_admg_transport_explicit() {
                 (posterior.summaries.mean[0] - bayesian_pin["expected_mean"].as_f64().unwrap())
                     .abs()
                     < bayesian_pin["mean_tolerance"].as_f64().unwrap(),
-                "{coordinate}"
+                "{coordinate}: {}",
+                posterior.summaries.mean[0]
             );
         } else {
             let transported = result.transport().expect("transport");
