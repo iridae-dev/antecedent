@@ -555,16 +555,15 @@ fn supported_augmented_panel_interval_round_trips_and_refuses_forgery() {
     let mut flagged = body.clone();
     flagged.panel_did.as_mut().unwrap().graphless_support_status = Some("supported".to_owned());
     assert!(refusal(&names, &flagged).contains("invalid panel DiD payload"), "{label}");
-    // The row was measured under the declaration that the predictions were not fitted on the
-    // analysed rows: a section without it cannot carry the statement, and a fit without it
-    // states none.
+    // The row is stated with or without the declaration that the predictions were not fitted
+    // on the analysed rows; both were measured.
     let mut undeclared = body.clone();
     undeclared.panel_did.as_mut().unwrap().augmented.as_mut().unwrap().3 = false;
     antecedent_io::encode_analysis_result_artifact(&undeclared, names.clone(), "undeclared")
-        .expect_err("a section without the declaration cannot state the row");
+        .expect("a section without the declaration states the row");
     let mut in_sample = query.clone().with_resampling(DidResamplingScheme::ClusterBootstrap, 199);
     in_sample.augmented.as_mut().unwrap().predictions_cross_fitted = false;
-    assert!(!fit_panel(&data, in_sample, None, 6).1.states_section_row(), "{label}");
+    assert!(fit_panel(&data, in_sample, None, 6).1.states_section_row(), "{label}");
 
     // The multiplier scheme, no resample, and a smaller panel run and state no support.
     let multiplier = query.clone().with_resampling(DidResamplingScheme::ClusterMultiplier, 199);

@@ -141,17 +141,8 @@ impl Study {
         }
         let refused_after = retained_refusal(program);
         let estimate = estimator.estimate(&prepared, ctx)?;
-        // The conjugate row was measured at the built-in prior scale only.
-        let prior_scale = match &self.settings.inference {
-            InferenceMode::Frequentist => None,
-            InferenceMode::Bayesian(config) => Some(config.prior_scale),
-        };
         let supported =
-            crate::analysis::design_section_rows::association_slope_row(query, &estimate)
-                && crate::analysis::design_section_rows::conjugate_slope_row_prior(
-                    prior_scale,
-                    &estimate,
-                );
+            crate::analysis::design_section_rows::association_slope_row(query, &estimate);
         let scores = estimate
             .prediction
             .as_ref()

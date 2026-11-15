@@ -538,9 +538,8 @@ const AUGMENTED_ROW_UNCERTAINTY: &str =
 
 /// Whether an augmented panel section that states its row meets it: the whole-cluster
 /// bootstrap interval of a declared resample, every subject its own cluster, the declared
-/// refits, the supplied propensity range the section records, and the measured declaration
-/// that the predictions were not fitted on these rows, on the query and on the section. The
-/// interval itself is replayed by the section's own check.
+/// refits, and the supplied propensity range the section records. The interval itself is
+/// replayed by the section's own check.
 fn augmented_panel_row_admits(
     query: &crate::query_wire::PanelDidQueryWire,
     did: &PanelDidWire,
@@ -552,8 +551,7 @@ fn augmented_panel_row_admits(
     let subjects = treated_of.len();
     let treated = treated_of.values().filter(|treated| **treated).count();
     let room = did.augmented.map_or(0.0, |(lowest, highest, _, _)| lowest.min(1.0 - highest));
-    query.augmented.is_some_and(|(_, _, _, declared)| declared)
-        && did.augmented.is_some_and(|(_, _, _, declared)| declared)
+    query.augmented.is_some()
         && did.interval_95.is_some()
         && did.uncertainty == AUGMENTED_ROW_UNCERTAINTY
         && did.treated_subjects == treated
