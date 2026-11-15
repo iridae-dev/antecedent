@@ -179,10 +179,12 @@ impl super::super::Study {
                 self.execute_class_attribution(data, physical, ctx)
             }
             // The Frequentist mechanism-refit row bootstrap lives on the sealed
-            // attribution operation; a requested replicate count on an explicit static
-            // DAG runs that operation so the interval does not depend on the entry.
+            // attribution operation; a requested replicate count on a supplied or accepted
+            // static DAG runs that operation, so the interval depends on neither the entry
+            // nor whether the structure was supplied or accepted (an accepted graph is the
+            // structure's provenance, not a different graph).
             TabularCall::Anomaly(_) | TabularCall::ChangeAttribution(_)
-                if self.structure_source == crate::support::StructureSource::Explicit
+                if self.fixed_structure()
                     && self.settings.inference.is_frequentist()
                     && self.settings.bootstrap_replicates > 0
                     && self.graph.as_dag().is_some() =>
