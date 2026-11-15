@@ -57,7 +57,7 @@ sha256 = "7aa0dcc3449bafa0ded6cf3a93cfd160835c7230cc92e30dcd761993fbb2d4fd"
 role = "assertion"
 path = "crates/antecedent/tests/decision_evidence_workflow.rs"
 items = ["fn pinned_expression", "fn pinned_numbers", "fn the_margin_interval_equals_the_independent_delta_method_truth"]
-sha256 = "f9be3916f915de2942cf63a1adc530b8b5ad3ab7be4a41ce0991000ef74add5e"
+sha256 = "bad826e2b6e736f02a41f37ba7f1c42bdf5334218039e4642d4f6150f679c136"
 
 [[method_review.artifacts]]
 role = "reference"
