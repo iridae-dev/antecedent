@@ -26,8 +26,10 @@
 //! * Centred on the original, the check cannot see an influence that is linear in which rows are
 //!   present: under circular subset windows a mean-type statistic has a replicate mean equal to
 //!   the original whatever the outlier, while the replicate spread (the standardiser) grows with
-//!   it. Subset stability is therefore weakly powered against one influential observation; the
-//!   `standardised_bias` fields report the effect size so that is visible.
+//!   it. The mean-type statistic is therefore weakly powered against one influential
+//!   observation; subset stability adds the separation of the refits around the original (see
+//!   `reference::subset_separation`), which sees the two groups of refits such an observation
+//!   leaves. The `standardised_bias` fields report the effect size.
 //! * Nothing here is a calibration claim. The clean-case rejection rate and the power against
 //!   planted violations are separate measurements.
 //!
@@ -48,6 +50,11 @@ pub enum JointStatisticKind {
     /// `replicate_reference_tail` (the replicate covariance is itself estimated), used by the
     /// replicate refuters of [`super::run_target_plan`].
     MahalanobisHotelling,
+    /// [`Self::MahalanobisHotelling`] combined with the separation of the refits around the
+    /// original (`subset_separation`): the tail is the smaller of the Hotelling tail and the
+    /// separation yardstick. Used by subset stability, whose deciding-unit failure leaves the
+    /// replicate mean at the original and shows only as two groups of refits.
+    MahalanobisHotellingWithSeparation,
     /// Squared Mahalanobis shift under the baseline posterior covariance (no reference law;
     /// compared with a declared tolerance).
     PosteriorShift,
@@ -66,6 +73,7 @@ impl JointStatisticKind {
         match self {
             Self::MahalanobisChiSquare => "mahalanobis_chi_square",
             Self::MahalanobisHotelling => "mahalanobis_hotelling",
+            Self::MahalanobisHotellingWithSeparation => "mahalanobis_hotelling_with_separation",
             Self::PosteriorShift => "posterior_shift",
             Self::PredictiveTail => "predictive_tail",
             Self::MaxStandardizedDiscrepancy => "max_standardized_discrepancy",
