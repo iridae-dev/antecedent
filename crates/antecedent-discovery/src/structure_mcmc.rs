@@ -217,7 +217,7 @@ impl StructureMcmc {
         let (n_chains, n_warmup, n_draws, thin) = schedule.as_usize();
         let n_params = pairs.len();
 
-        let (traces, sample_masks, rejected, scores) =
+        let (traces, sample_masks, rejected, scores, chains_moved) =
             run_parallel_mask_chains(ctx, n_chains, n_draws, n_params, |chain, inner| {
                 let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
                 let target = SharedTarget(std::rc::Rc::new(std::cell::RefCell::new(
@@ -243,7 +243,7 @@ impl StructureMcmc {
                     &mut replicas,
                     &ladder,
                 )?;
-                Ok((run.traces, run.samples, run.rejected, run.scores))
+                Ok((run.traces, run.samples, run.rejected, run.scores, run.moved))
             })?;
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
@@ -257,6 +257,7 @@ impl StructureMcmc {
             sample_masks: &sample_masks,
             rejected,
             n_params,
+            chains_moved,
             param_edges: &pairs,
             require_gate: self.require_diagnostics_gate,
             refuse_msg: "structure MCMC diagnostics gate refused posterior",
@@ -811,7 +812,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(23);
         let (draws, thin) = (10_000usize, 10usize);
         let ladder = [1.0, 0.5];
-        let (_, samples, _, _) =
+        let (_, samples, _, _, _) =
             run_parallel_mask_chains(&ctx, 4, draws, pairs.len(), |chain, inner| {
                 let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
                 let mut replicas: Vec<_> = ladder
@@ -835,7 +836,7 @@ mod tests {
                     n_params: pairs.len(),
                 };
                 let run = run_tempered_mask_chain(&plan, inner, &mut rng, &mut replicas, &ladder)?;
-                Ok((run.traces, run.samples, run.rejected, run.scores))
+                Ok((run.traces, run.samples, run.rejected, run.scores, run.moved))
             })
             .unwrap();
         crate::test_tables::assert_rooted_forest_law(
@@ -1229,7 +1230,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(31);
         let (draws, thin) = (400usize, 5usize);
         let ladder = [1.0, 0.5];
-        let (_, samples, _, _) =
+        let (_, samples, _, _, _) =
             run_parallel_mask_chains(&ctx, 2, draws, pairs.len(), |chain, inner| {
                 let mut rng = inner.rng.stream_for(StreamDomain::McmcStructure, chain as u64);
                 let mut replicas: Vec<_> = ladder
@@ -1253,7 +1254,7 @@ mod tests {
                     n_params: pairs.len(),
                 };
                 let run = run_tempered_mask_chain(&plan, inner, &mut rng, &mut replicas, &ladder)?;
-                Ok((run.traces, run.samples, run.rejected, run.scores))
+                Ok((run.traces, run.samples, run.rejected, run.scores, run.moved))
             })
             .unwrap();
         let mut wide = false;
