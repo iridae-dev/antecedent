@@ -2025,13 +2025,14 @@ target = "mechanism_selection"
 graph_class = "unlisted"
 design_time_model = "per-node mechanism on a fitted graphical causal model; splits=shuffled|time_ordered|clustered"
 inference = "unlisted"
-uncertainty = "none: held-out candidate scores and selection provenance; no interval on a causal target"
+uncertainty = "none: held-out candidate scores and selection provenance; no interval, standard error or probability (the record names every field it publishes and the selection is deterministic on the data: crates/antecedent-model/tests/mechanism_selection_point_only.rs)"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "capability"
 capability_record = "gcm.model.mechanism_selection"
 owning_module = "crates/antecedent-model/src/registry/selection.rs"
 notes = "Compiled path: StudyBuilder::mechanisms(MechanismProgram) on an Attribute or Simulate study fits the program inside the GcmAttributeDag / GcmSimulateDag route; the candidate set and selection rule are bound into the lowered statistical program (slot label gcm.registry.standard.best_score or gcm.registry.declared.<digest>), and every result publishes the per-node selection record (AttributionPayload.mechanisms, SimulationPayload.mechanisms). Python FittedGcm keeps its MechanismProgram and reuses its fit by row digest. The selection is part of the compiled program identity (caller-wrapped mechanisms are named as gcm.registry.wrapped.<digest> and never refitted). The route publishes a selection record and no interval, so it is supported as a point-only unit (capability record gcm.model.mechanism_selection; independent checks crates/antecedent-model/tests/mechanism_selection.rs::basis_families_recover_the_family_that_suits_each_known_truth and registry_family_selection_reference.rs). Selection uncertainty is target-specific: it enters a result only through the whole-procedure interval of an intrinsic influence, which re-selects inside every refit; the posteriors and bootstraps of the other attribution and simulation targets hold the selected families fixed and say so. Facade crates/antecedent/src/gcm.rs fit_gcm_with and registry_from_candidates; Python FittedGcm.mechanism_selection. Held-out family selection, constraints, and tree-ensemble families exist (parity/gcm.toml evidence_kind=implementation_exists). A selected fit is not a causal identification claim and does not publish mechanism-fit uncertainty as a supported interval on a response or effect. Additive tree noise is homoscedastic Gaussian. gcm.attribution.intrinsic_influence reports mechanism-fit uncertainty as a separate component."
+counterpart_quadrants = ["static.frequentist", "static.bayesian", "temporal.frequentist", "temporal.bayesian"]
 
 [[route]]
 id = "gcm.attribution.intrinsic_influence"
@@ -2671,28 +2672,32 @@ id = "attribution.mechanism_change_detection"
 target = "MechanismChange"
 graph_class = "Dag"
 design_time_model = "supplied static Dag; off-axis (no geometric cell)"
-inference = "unlisted"
-uncertainty = "frequentist: qualitative detection (changed flag, raw and adjusted p-value), no numeric magnitude, no interval and no measured error rate; Bayesian with a declared change prior: posterior probability of a change, with a coverage harness of its credible set over the change indicator held to at least nominal from 75 rows per population (fitted_model_calibration: mechanism_change_posterior_probability_credible_set_coverage)"
+inference = "Frequentist"
+uncertainty = "frequentist: qualitative detection (changed flag, raw and adjusted p-value), no numeric magnitude and no interval; the raw p-values reject a true null at their level and the Benjamini-Hochberg adjusted p-values hold the family-wise rate at most at theirs, with power against a planted shift (crates/antecedent-attribution/tests/mechanism_change_size.rs); Bayesian with a declared change prior: posterior probability of a change, with a coverage harness of its credible set over the change indicator held to at least nominal from 75 rows per population (fitted_model_calibration: mechanism_change_posterior_probability_credible_set_coverage)"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "capability"
 capability_record = "attribution.mechanism_change_detection"
 owning_module = "crates/antecedent/src/analysis/execute/checked_attribution.rs"
 notes = "Retained compiler path: sealed by the static-query sealer as a checked attribution operation on a supplied or accepted static Dag (route cell GcmDag), fit and detected at estimate (likelihood-ratio method) with a stamped lowered identity, contract and claim. Declared off-axis in crates/antecedent/src/support/bridge.rs; kind_support admits a Dag for preparation only. Not n_a. Methods in parity/attribution.toml: attribution.mechanism_change_detection, attribution.mechanism_change_kernel, attribution.mechanism_change_change_point. Cross-fit baseline is for residual detection, not a supported causal mechanism-fit interval. On a TemporalDag the test runs on the lag-aligned unfolding with a block-permutation null (likelihood-ratio statistic), and under Bayesian inference reads as the posterior probability of a change under MechanismChangeQuery::with_change_prior. Support unit: capability record attribution.mechanism_change_detection (independent check crates/antecedent-attribution/tests/mechanism_change_detection_reference.rs::detection_statistics_and_family_correction_match_the_reference; route test crates/antecedent/tests/attribute_mechanism_posterior.rs::an_attribute_mechanism_change_has_a_block_null_for_every_statistic_and_a_declared_posterior). The result states where a published interval stands against these conditions (diagnostic gcm.model.interval_scope: measured_conditions, or not_measured with the reason)."
+counterpart_method = "Attribute"
+counterpart_design = "static"
 
 [[route]]
 id = "attribution.unit_change"
 target = "UnitChange"
 graph_class = "Dag"
 design_time_model = "supplied static Dag; off-axis (no geometric cell)"
-inference = "unlisted"
-uncertainty = "none: the fitted model's point answer (per-unit Shapley contributions of the outcome parents); the component standard error is the permutation-sampling error about that answer"
+inference = "Frequentist"
+uncertainty = "none: the fitted model's point answer (per-unit Shapley contributions of the outcome parents); the component standard error is the permutation-sampling error about that answer: the standard error of a mean over independent per-unit permutation draws. Measured against the spread of the estimate across permutation seeds and the coverage of the exact Shapley value of a game with interactions (crates/antecedent-attribution/tests/unit_change_mc_error.rs)"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "capability"
 capability_record = "attribution.unit_change"
 owning_module = "crates/antecedent/src/analysis/execute/checked_attribution.rs"
 notes = "Retained compiler path: sealed as a checked attribution operation on a supplied or accepted static Dag (route cell GcmDag), with a stamped lowered identity, contract and claim; the engine is crates/antecedent-attribution/src/unit_change.rs. Declared off-axis; kind_support admits a Dag for preparation only. Not n_a. parity/attribution.toml attribution.unit_change is an internal_known_truth Shapley attribution, not a geometric or graphless interval support. Support unit: capability record attribution.unit_change, point only (independent check crates/antecedent-attribution/tests/unit_change_reference.rs::linear_mechanism_unit_contributions_are_slope_times_deviation_from_the_mean; route test crates/antecedent/tests/structure_compiler_routes.rs::mechanism_and_unit_change_run_on_the_retained_path)."
+counterpart_method = "Attribute"
+counterpart_design = "static"
 
 [[route]]
 id = "discovery.static"
@@ -2743,13 +2748,59 @@ target = "Simulate"
 graph_class = "Dag"
 design_time_model = "supplied or accepted static Dag; targets=interventional_sample,policy_value,unit_effects,noise_sample,noise_replay,counterfactual,temporal_rollout,temporal_counterfactual"
 inference = "Frequentist"
-uncertainty = "draws-only simulation: Monte Carlo error of the fitted model's own draws (policy value), no interval about the population; unit effects are model-based after abduction. A replicate count publishes the row-bootstrap standard error of the paired mean difference and Bayesian inference a row-weight (block-weight for a rollout) posterior of every quantity, referred to its Student-t reference. Coverage harnesses for a policy value from 250 rows with at least 50 simulated draws per row (200 replicates, or 1,000 posterior draws) and for the per-step means of a temporal rollout from 25 blocks (fitted_model_calibration: simulate_*). Interventional samples, unit effects, counterfactuals, temporal counterfactuals and the simulated paths of a rollout have none; a study that sets no draw count runs 100 refits and is outside the measured scope"
+uncertainty = "draws-only simulation: Monte Carlo error of the fitted model's own draws (policy value), whose standard error matches the spread of the estimate across independent seeds and whose interval holds the exact expectation of the fitted model at its nominal share (crates/antecedent/tests/policy_value_error_calibration.rs), no interval about the population; unit effects are model-based after abduction. A replicate count publishes the row-bootstrap standard error of the paired mean difference and Bayesian inference a row-weight (block-weight for a rollout) posterior of every quantity, referred to its Student-t reference. Coverage harnesses for a policy value from 250 rows with at least 50 simulated draws per row (200 replicates, or 1,000 posterior draws) and for the per-step means of a temporal rollout from 25 blocks (fitted_model_calibration: simulate_*). Interventional samples, unit effects, counterfactuals, temporal counterfactuals and the simulated paths of a rollout have none; a study that sets no draw count runs 100 refits and is outside the measured scope"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "capability"
 capability_record = "gcm.simulate.mechanism_refit"
 owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
 notes = "CausalQuery::Simulate (append-only tag 28); route cell GcmSimulateDag (FunctionalKind::Simulation); seeded draws (the query's seed), admission lease sized by rows, nodes and draws, cancellation, stamped lowered identity, contract and claim; payload SimulationPayload. Caller-wrapped mechanisms run as a named prefit (gcm.registry.wrapped.<digest>), never refitted. sample_do, policy_value, counterfactual_ite, sample_with_noise, replay_noise, noise_table_from_columns, counterfactual_policy, sample_temporal_policy and counterfactual_temporal_policy are hidden engines; every Python simulation, replay, counterfactual-policy, temporal-policy and PreparedPolicy value runs this route. On a TemporalDag a temporal rollout steps the fitted dynamics forward from the last rows of the series (lagged nodes read the rollout history), with the block-weight posterior or block-count bootstrap of the dynamics over the per-step means. Support unit: capability record gcm.simulate.mechanism_refit (independent checks crates/antecedent-model/tests/intervention_programs.rs and program_expression_reference.rs; route test crates/antecedent/tests/attribute_mechanism_posterior.rs::every_simulation_target_carries_refit_uncertainty_in_both_modes). No support-matrix cell. The result states where a published interval stands against these conditions (diagnostic gcm.model.interval_scope: measured_conditions, or not_measured with the reason)."
+counterpart_design = "static"
+
+[[route]]
+id = "gcm.simulate.bayesian"
+target = "Simulate"
+graph_class = "Dag"
+design_time_model = "supplied or accepted static Dag; targets=interventional_sample,policy_value,unit_effects,noise_sample,noise_replay,counterfactual,temporal_rollout,temporal_counterfactual"
+inference = "Bayesian"
+uncertainty = "row-weight posterior over the mechanisms: Exp(1) (Dirichlet) row-weight refits of every simulated quantity, each draw referred to the Student-t reference of a mean of the weighted rows. Coverage harnesses for a policy value from 250 rows with at least 50 simulated draws per row and 1,000 posterior draws (fitted_model_calibration: simulate_policy_value_dag_bayesian_dirichlet_coverage and intervention_program_shift_dag_bayesian_dirichlet_coverage). Interventional samples, unit effects and counterfactuals have none"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "capability"
+capability_record = "gcm.simulate.mechanism_refit"
+owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
+notes = "Bayesian counterpart of gcm.simulate on a supplied or accepted static Dag. CausalQuery::Simulate (append-only tag 28); route cell GcmSimulateDag (FunctionalKind::Simulation); seeded draws (the query's seed), admission lease sized by rows, nodes and draws, cancellation, stamped lowered identity, contract and claim; payload SimulationPayload. Caller-wrapped mechanisms run as a named prefit (gcm.registry.wrapped.<digest>), never refitted. sample_do, policy_value, counterfactual_ite, sample_with_noise, replay_noise, noise_table_from_columns, counterfactual_policy, sample_temporal_policy and counterfactual_temporal_policy are hidden engines; every Python simulation, replay, counterfactual-policy, temporal-policy and PreparedPolicy value runs this route. On a TemporalDag a temporal rollout steps the fitted dynamics forward from the last rows of the series (lagged nodes read the rollout history), with the block-weight posterior or block-count bootstrap of the dynamics over the per-step means. Support unit: capability record gcm.simulate.mechanism_refit (independent checks crates/antecedent-model/tests/intervention_programs.rs and program_expression_reference.rs; route test crates/antecedent/tests/attribute_mechanism_posterior.rs::every_simulation_target_carries_refit_uncertainty_in_both_modes). No support-matrix cell. The result states where a published interval stands against these conditions (diagnostic gcm.model.interval_scope: measured_conditions, or not_measured with the reason)."
+counterpart_design = "static"
+
+[[route]]
+id = "gcm.simulate.temporal.frequentist"
+target = "Simulate"
+graph_class = "TemporalDag"
+design_time_model = "supplied or accepted static Dag; targets=interventional_sample,policy_value,unit_effects,noise_sample,noise_replay,counterfactual,temporal_rollout,temporal_counterfactual"
+inference = "Frequentist"
+uncertainty = "circular-block mechanism-refit bootstrap of the per-step means of a temporal rollout of the fitted dynamics. Coverage is measured for the Bayesian block-weight reading of the same rollout (fitted_model_calibration: simulate_temporal_rollout_bayesian_block_weights_coverage); the simulated paths of a rollout and a temporal counterfactual publish no interval"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "capability"
+capability_record = "gcm.simulate.mechanism_refit"
+owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
+notes = "Frequentist temporal rollout of gcm.simulate on a TemporalDag unfolded to its lag-aligned static graph. CausalQuery::Simulate (append-only tag 28); route cell GcmSimulateDag (FunctionalKind::Simulation); seeded draws (the query's seed), admission lease sized by rows, nodes and draws, cancellation, stamped lowered identity, contract and claim; payload SimulationPayload. Caller-wrapped mechanisms run as a named prefit (gcm.registry.wrapped.<digest>), never refitted. sample_do, policy_value, counterfactual_ite, sample_with_noise, replay_noise, noise_table_from_columns, counterfactual_policy, sample_temporal_policy and counterfactual_temporal_policy are hidden engines; every Python simulation, replay, counterfactual-policy, temporal-policy and PreparedPolicy value runs this route. On a TemporalDag a temporal rollout steps the fitted dynamics forward from the last rows of the series (lagged nodes read the rollout history), with the block-weight posterior or block-count bootstrap of the dynamics over the per-step means. Support unit: capability record gcm.simulate.mechanism_refit (independent checks crates/antecedent-model/tests/intervention_programs.rs and program_expression_reference.rs; route test crates/antecedent/tests/attribute_mechanism_posterior.rs::every_simulation_target_carries_refit_uncertainty_in_both_modes). No support-matrix cell. The result states where a published interval stands against these conditions (diagnostic gcm.model.interval_scope: measured_conditions, or not_measured with the reason)."
+counterpart_design = "temporal"
+
+[[route]]
+id = "gcm.simulate.temporal.bayesian"
+target = "Simulate"
+graph_class = "TemporalDag"
+design_time_model = "supplied or accepted static Dag; targets=interventional_sample,policy_value,unit_effects,noise_sample,noise_replay,counterfactual,temporal_rollout,temporal_counterfactual"
+inference = "Bayesian"
+uncertainty = "block-weight posterior over the mechanisms of the dynamics, the per-step means of a temporal rollout as the posterior. Coverage harness of the per-step means from 25 blocks (fitted_model_calibration: simulate_temporal_rollout_bayesian_block_weights_coverage); the simulated paths of a rollout and a temporal counterfactual have none"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "capability"
+capability_record = "gcm.simulate.mechanism_refit"
+owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
+notes = "Bayesian temporal rollout of gcm.simulate on a TemporalDag unfolded to its lag-aligned static graph. CausalQuery::Simulate (append-only tag 28); route cell GcmSimulateDag (FunctionalKind::Simulation); seeded draws (the query's seed), admission lease sized by rows, nodes and draws, cancellation, stamped lowered identity, contract and claim; payload SimulationPayload. Caller-wrapped mechanisms run as a named prefit (gcm.registry.wrapped.<digest>), never refitted. sample_do, policy_value, counterfactual_ite, sample_with_noise, replay_noise, noise_table_from_columns, counterfactual_policy, sample_temporal_policy and counterfactual_temporal_policy are hidden engines; every Python simulation, replay, counterfactual-policy, temporal-policy and PreparedPolicy value runs this route. On a TemporalDag a temporal rollout steps the fitted dynamics forward from the last rows of the series (lagged nodes read the rollout history), with the block-weight posterior or block-count bootstrap of the dynamics over the per-step means. Support unit: capability record gcm.simulate.mechanism_refit (independent checks crates/antecedent-model/tests/intervention_programs.rs and program_expression_reference.rs; route test crates/antecedent/tests/attribute_mechanism_posterior.rs::every_simulation_target_carries_refit_uncertainty_in_both_modes). No support-matrix cell. The result states where a published interval stands against these conditions (diagnostic gcm.model.interval_scope: measured_conditions, or not_measured with the reason)."
+counterpart_design = "temporal"
 
 [[route]]
 id = "temporal_design.excursion.two_arm"
@@ -8025,10 +8076,10 @@ status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
 coordinates = 9
-uncertainty = "none"
+uncertainty = "enclosure"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=|"]
+uncertainty_basis = "asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_cpdag_counterfactual_publishes_the_exact_set_of_completion_values_and_no_interval"
+uncertainty_by_structure = ["explicit=enclosure|asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_cpdag_counterfactual_publishes_the_exact_set_of_completion_values_and_no_interval", "accepted=enclosure|asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_cpdag_counterfactual_publishes_the_exact_set_of_completion_values_and_no_interval", "graph_posterior=|"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
@@ -8137,10 +8188,10 @@ status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["none"]
 coordinates = 3
-uncertainty = "none"
+uncertainty = "enclosure"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
+uncertainty_basis = "asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval"
+uncertainty_by_structure = ["explicit=enclosure|asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval", "accepted=enclosure|asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval", "graph_posterior=design_aware_resampling|estimator_records|estimator:functional.effect:Frequentist:static:graph_posterior"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
@@ -11721,10 +11772,10 @@ status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
 coordinates = 9
-uncertainty = "none"
+uncertainty = "enclosure"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval"
+uncertainty_by_structure = ["explicit=enclosure|asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval", "accepted=enclosure|asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
@@ -11889,10 +11940,10 @@ status = "supported"
 structures = ["explicit", "accepted", "graph_posterior"]
 validations = ["cheap", "full", "none"]
 coordinates = 9
-uncertainty = "none"
+uncertainty = "enclosure"
 uncertainty_structure = "explicit"
-uncertainty_basis = "point_only_cell|cell:interval_none"
-uncertainty_by_structure = ["explicit=none|point_only_cell|cell:interval_none", "accepted=none|point_only_cell|cell:interval_none", "graph_posterior=none|point_only_cell|cell:interval_none"]
+uncertainty_basis = "asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval"
+uncertainty_by_structure = ["explicit=enclosure|asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval", "accepted=enclosure|asserted_identified_set|test:crates/antecedent/tests/cross_world_class_truth.rs::a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval", "graph_posterior=none|point_only_cell|cell:interval_none"]
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
@@ -17771,13 +17822,13 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
-uncertainty_basis = "declared_and_corroborated"
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent-model/tests/mechanism_selection_point_only.rs::a_selection_record_publishes_no_interval_standard_error_or_probability"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent-model/src/registry/selection.rs"
 implementation = ["crates/antecedent-model/src/registry/selection.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/structure_compiler_routes.rs::wrapped_mechanisms_name_themselves_in_the_program"]
+evidence = ["crates/antecedent-model/tests/mechanism_selection_point_only.rs::a_selection_record_publishes_no_interval_standard_error_or_probability", "crates/antecedent/tests/structure_compiler_routes.rs::wrapped_mechanisms_name_themselves_in_the_program"]
 artifact_consumer = ["crates/antecedent-io-core/src/mechanism_wire.rs::mechanisms_from_wire", "crates/antecedent/tests/structure_compiler_routes.rs::wrapped_mechanisms_name_themselves_in_the_program"]
 
 [[method]]
@@ -18967,13 +19018,13 @@ design = "static"
 estimator = "unlisted"
 identifier = []
 lowering = []
-inference = "unlisted"
+inference = "frequentist"
 design_time_model = "supplied static Dag; off-axis (no geometric cell)"
 status = "capability"
 structures = []
 validations = []
 coordinates = 0
-uncertainty = "none"
+uncertainty = "analytic"
 uncertainty_structure = "none"
 uncertainty_basis = "declared_and_corroborated"
 uncertainty_by_structure = []
@@ -18981,7 +19032,7 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_attribution.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_attribution.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/attribute_mechanism_posterior.rs::mechanism_change_detection_has_no_posterior_and_says_why"]
+evidence = ["crates/antecedent/tests/attribute_mechanism_posterior.rs::mechanism_change_detection_has_no_posterior_and_says_why", "crates/antecedent-attribution/tests/mechanism_change_size.rs::the_raw_p_values_reject_a_true_null_at_their_level", "crates/antecedent-attribution/tests/mechanism_change_size.rs::the_adjusted_p_values_hold_the_family_wise_rate_at_most_at_their_level"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
 
 [[method]]
@@ -18995,13 +19046,13 @@ design = "static"
 estimator = "unlisted"
 identifier = []
 lowering = []
-inference = "unlisted"
+inference = "frequentist"
 design_time_model = "supplied static Dag; off-axis (no geometric cell)"
 status = "capability"
 structures = []
 validations = []
 coordinates = 0
-uncertainty = "none"
+uncertainty = "analytic"
 uncertainty_structure = "none"
 uncertainty_basis = "declared_and_corroborated"
 uncertainty_by_structure = []
@@ -19009,11 +19060,11 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_attribution.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_attribution.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/structure_compiler_routes.rs::mechanism_and_unit_change_run_on_the_retained_path"]
+evidence = ["crates/antecedent/tests/structure_compiler_routes.rs::mechanism_and_unit_change_run_on_the_retained_path", "crates/antecedent-attribution/tests/unit_change_mc_error.rs::the_published_permutation_error_matches_the_spread_of_the_estimate_across_seeds"]
 artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
 
 [[method]]
-id = "method.discovery.static"
+id = "method.discovery.static.frequentist"
 kind = "route_method"
 route = "discovery.static"
 child = ""
@@ -19023,7 +19074,7 @@ design = "static"
 estimator = "unlisted"
 identifier = []
 lowering = []
-inference = "both"
+inference = "frequentist"
 design_time_model = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
 status = "capability"
 structures = []
@@ -19031,17 +19082,45 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/structure_uncertainty_routes.rs::a_frequentist_static_search_returns_its_graph_and_publishes_no_interval"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
+implementation = ["crates/antecedent/src/analysis/execute/structural_route.rs"]
+provenance = []
+evidence = ["crates/antecedent-discovery/tests/static_discovery_oracle.rs::fci_and_ges_match_causal_learn_across_motifs_and_all_permutations", "crates/antecedent/tests/structure_uncertainty_routes.rs::a_frequentist_static_search_returns_its_graph_and_publishes_no_interval"]
+artifact_consumer = ["crates/antecedent/src/analysis/structure_route.rs::accept_discovered", "crates/antecedent/tests/structure_compiler_routes.rs::discovered_provenance_reaches_the_downstream_contract_and_program"]
+
+[[method]]
+id = "method.discovery.static.bayesian"
+kind = "route_method"
+route = "discovery.static"
+child = ""
+target = "Discover"
+graph_class = "Dag,Cpdag,Pag"
+design = "static"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "bayesian"
+design_time_model = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
+status = "capability"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "posterior"
+uncertainty_structure = "none"
 uncertainty_basis = "declared_and_corroborated"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
 implementation = ["crates/antecedent/src/analysis/execute/structural_route.rs"]
 provenance = []
-evidence = ["crates/antecedent-discovery/tests/static_discovery_oracle.rs::fci_and_ges_match_causal_learn_across_motifs_and_all_permutations", "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs::graph_mcmc_marginals_against_exact_exhaustive_targets"]
+evidence = ["crates/antecedent-discovery/tests/graph_mcmc_oracle.rs::graph_mcmc_marginals_against_exact_exhaustive_targets"]
 artifact_consumer = ["crates/antecedent/src/analysis/structure_route.rs::accept_discovered", "crates/antecedent/tests/structure_compiler_routes.rs::discovered_provenance_reaches_the_downstream_contract_and_program"]
 
 [[method]]
-id = "method.discovery.temporal"
+id = "method.discovery.temporal.frequentist"
 kind = "route_method"
 route = "discovery.temporal"
 child = ""
@@ -19051,7 +19130,7 @@ design = "temporal"
 estimator = "unlisted"
 identifier = []
 lowering = []
-inference = "both"
+inference = "frequentist"
 design_time_model = "series, panel units, event or multi-environment data; methods=pcmci,pcmci_plus,lpcmci,jpcmci_plus,rpcmci (frequentist) and dbn_posterior (Bayesian); bootstrap_stability over pcmci, pcmci_plus, lpcmci, jpcmci_plus or rpcmci (circular blocks of one series, whole units of a panel, every environment's series in blocks)"
 status = "capability"
 structures = []
@@ -19059,13 +19138,41 @@ validations = []
 coordinates = 0
 uncertainty = "none"
 uncertainty_structure = "none"
+uncertainty_basis = "asserted_no_interval|test:crates/antecedent/tests/structure_uncertainty_routes.rs::a_frequentist_temporal_search_returns_its_lag_graph_and_publishes_no_interval"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
+implementation = ["crates/antecedent/src/analysis/execute/structural_route.rs"]
+provenance = []
+evidence = ["crates/antecedent-discovery/tests/discovery_pcmci_lag1.rs::discovery_pcmci_lag1_exact_parents", "crates/antecedent/tests/structure_uncertainty_routes.rs::a_frequentist_temporal_search_returns_its_lag_graph_and_publishes_no_interval"]
+artifact_consumer = ["crates/antecedent/src/analysis/structure_route.rs::accept_discovered", "crates/antecedent/tests/structure_compiler_routes.rs::discovered_provenance_reaches_the_downstream_contract_and_program"]
+
+[[method]]
+id = "method.discovery.temporal.bayesian"
+kind = "route_method"
+route = "discovery.temporal"
+child = ""
+target = "Discover"
+graph_class = "TemporalDag,TemporalCpdag,TemporalPag"
+design = "temporal"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "bayesian"
+design_time_model = "series, panel units, event or multi-environment data; methods=pcmci,pcmci_plus,lpcmci,jpcmci_plus,rpcmci (frequentist) and dbn_posterior (Bayesian); bootstrap_stability over pcmci, pcmci_plus, lpcmci, jpcmci_plus or rpcmci (circular blocks of one series, whole units of a panel, every environment's series in blocks)"
+status = "capability"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "posterior"
+uncertainty_structure = "none"
 uncertainty_basis = "declared_and_corroborated"
 uncertainty_by_structure = []
 decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
 implementation = ["crates/antecedent/src/analysis/execute/structural_route.rs"]
 provenance = []
-evidence = ["crates/antecedent-discovery/tests/discovery_pcmci_lag1.rs::discovery_pcmci_lag1_exact_parents", "crates/antecedent/tests/dbn_posterior_atom_identity.rs::lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effects", "crates/antecedent/tests/dbn_posterior_atom_identity.rs::repeated_dbn_atoms_contribute_their_combined_mass_once"]
+evidence = ["crates/antecedent/tests/dbn_posterior_atom_identity.rs::lag_distinct_dbn_atoms_with_the_same_contemporaneous_key_keep_distinct_effects", "crates/antecedent/tests/dbn_posterior_atom_identity.rs::repeated_dbn_atoms_contribute_their_combined_mass_once"]
 artifact_consumer = ["crates/antecedent/src/analysis/structure_route.rs::accept_discovered", "crates/antecedent/tests/structure_compiler_routes.rs::discovered_provenance_reaches_the_downstream_contract_and_program"]
 
 [[method]]
@@ -19113,7 +19220,7 @@ status = "capability"
 structures = []
 validations = []
 coordinates = 0
-uncertainty = "none"
+uncertainty = "design_aware_resampling"
 uncertainty_structure = "none"
 uncertainty_basis = "declared_and_corroborated"
 uncertainty_by_structure = []
@@ -19121,7 +19228,91 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
 implementation = ["crates/antecedent/src/analysis/execute/structural_route.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/structure_compiler_routes.rs::attribution_and_simulation_equal_their_engines", "crates/antecedent/tests/attribute_mechanism_posterior.rs::every_simulation_target_carries_refit_uncertainty_in_both_modes"]
+evidence = ["crates/antecedent/tests/structure_compiler_routes.rs::attribution_and_simulation_equal_their_engines", "crates/antecedent/tests/attribute_mechanism_posterior.rs::every_simulation_target_carries_refit_uncertainty_in_both_modes", "crates/antecedent/tests/policy_value_error_calibration.rs::the_published_simulation_error_matches_the_spread_of_the_estimate_across_seeds"]
+artifact_consumer = ["crates/antecedent-io-core/src/policy_program_artifact.rs", "crates/antecedent/tests/policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits"]
+
+[[method]]
+id = "method.gcm.simulate.bayesian"
+kind = "route_method"
+route = "gcm.simulate.bayesian"
+child = ""
+target = "Simulate"
+graph_class = "Dag"
+design = "static"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "bayesian"
+design_time_model = "supplied or accepted static Dag; targets=interventional_sample,policy_value,unit_effects,noise_sample,noise_replay,counterfactual,temporal_rollout,temporal_counterfactual"
+status = "capability"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "posterior"
+uncertainty_structure = "none"
+uncertainty_basis = "declared_and_corroborated"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
+implementation = ["crates/antecedent/src/analysis/execute/structural_route.rs"]
+provenance = []
+evidence = ["crates/antecedent/tests/attribute_mechanism_posterior.rs::every_simulation_target_carries_refit_uncertainty_in_both_modes"]
+artifact_consumer = ["crates/antecedent-io-core/src/policy_program_artifact.rs", "crates/antecedent/tests/policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits"]
+
+[[method]]
+id = "method.gcm.simulate.temporal.frequentist"
+kind = "route_method"
+route = "gcm.simulate.temporal.frequentist"
+child = ""
+target = "Simulate"
+graph_class = "TemporalDag"
+design = "temporal"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "frequentist"
+design_time_model = "supplied or accepted static Dag; targets=interventional_sample,policy_value,unit_effects,noise_sample,noise_replay,counterfactual,temporal_rollout,temporal_counterfactual"
+status = "capability"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "design_aware_resampling"
+uncertainty_structure = "none"
+uncertainty_basis = "declared_and_corroborated"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
+implementation = ["crates/antecedent/src/analysis/execute/structural_route.rs"]
+provenance = []
+evidence = ["crates/antecedent/tests/attribute_mechanism_posterior.rs::a_temporal_rollout_steps_the_fitted_dynamics_and_carries_block_refit_uncertainty"]
+artifact_consumer = ["crates/antecedent-io-core/src/policy_program_artifact.rs", "crates/antecedent/tests/policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits"]
+
+[[method]]
+id = "method.gcm.simulate.temporal.bayesian"
+kind = "route_method"
+route = "gcm.simulate.temporal.bayesian"
+child = ""
+target = "Simulate"
+graph_class = "TemporalDag"
+design = "temporal"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "bayesian"
+design_time_model = "supplied or accepted static Dag; targets=interventional_sample,policy_value,unit_effects,noise_sample,noise_replay,counterfactual,temporal_rollout,temporal_counterfactual"
+status = "capability"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "posterior"
+uncertainty_structure = "none"
+uncertainty_basis = "declared_and_corroborated"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent/src/analysis/execute/structural_route.rs"
+implementation = ["crates/antecedent/src/analysis/execute/structural_route.rs"]
+provenance = []
+evidence = ["crates/antecedent/tests/attribute_mechanism_posterior.rs::a_temporal_rollout_steps_the_fitted_dynamics_and_carries_block_refit_uncertainty"]
 artifact_consumer = ["crates/antecedent-io-core/src/policy_program_artifact.rs", "crates/antecedent/tests/policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits"]
 
 [[method]]

@@ -1669,3 +1669,7 @@ name = "temporal_wider_range_calibration"
 
 [[test]]
 name = "graphless_wider_range_calibration"
+
+[[test]]
+name = "policy_value_error_calibration"
+required-features = ["calibration-internal"]

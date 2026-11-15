@@ -144,12 +144,17 @@ DECLARED_KIND = {
     "bayesian.continuous_dose_policy": "posterior",
     "randomized.quantile": "analytic",
     "bayesian.randomized_quantile": "posterior",
-    "attribution.mechanism_change_detection": "none",
-    "attribution.unit_change": "none",
+    # p-values are tail probabilities of a null law; the unit-change error is the standard error of
+    # a mean of independent permutation draws.
+    "attribution.mechanism_change_detection": "analytic",
+    "attribution.unit_change": "analytic",
     "discovery.static": "none",
     "discovery.temporal": "none",
     "gcm.attribute": "design_aware_resampling",
-    "gcm.simulate": "none",
+    "gcm.simulate": "design_aware_resampling",
+    "gcm.simulate.bayesian": "posterior",
+    "gcm.simulate.temporal.frequentist": "design_aware_resampling",
+    "gcm.simulate.temporal.bayesian": "posterior",
     "measurement.static.frequentist": "analytic",
     "measurement.static.bayesian": "posterior",
     "measurement.temporal.frequentist": "analytic",
@@ -305,6 +310,31 @@ def no_interval_test(ev: Evidence, tokens: list[str]) -> str:
     return ""
 
 
+# A route that enumerates the completions of an equivalence class publishes the identified set
+# of their values and no sampling interval. A test stands behind that statement when its body
+# asserts that the result carries no interval and reads the identified set it publishes.
+IDENTIFIED_SET = re.compile(r"\bidentified_set\b")
+IDENTIFIED_SET_ASSERTED = "asserted_identified_set"
+
+
+def asserts_identified_set(span: str) -> bool:
+    """Whether a test body asserts an identified set published without a sampling interval."""
+    return asserts_no_interval(span) and bool(IDENTIFIED_SET.search(span))
+
+
+def identified_set_test(ev: Evidence, tokens: list[str]) -> str:
+    """The first named test among `tokens` whose own body asserts an identified set and no
+    sampling interval, or ''."""
+    for token in tokens:
+        path, _, name = token.partition("::")
+        if not name or not path.endswith(".rs") or ev.fixture_findings(token):
+            continue
+        for found, block in split_tests(path, ev.text(path)):
+            if found == name and asserts_identified_set(block):
+                return token
+    return ""
+
+
 # Sibling coordinates of an estimator whose cells carry no record of their own: the Bayesian
 # cells that publish the linear-mechanism point on each identified completion.
 DECLARED_NOT_MEASURED = {
@@ -365,6 +395,7 @@ EVIDENCE_OVERRIDE = {
         + "bayesian_randomized_routes.rs::the_bayesian_dose_grid_route_replays_to_the_conjugate_reference_through_a_fresh_consumer"
     ],
     "gcm.model.mechanism_selection": [
+        "crates/antecedent-model/tests/mechanism_selection_point_only.rs::a_selection_record_publishes_no_interval_standard_error_or_probability",
         T + "structure_compiler_routes.rs::wrapped_mechanisms_name_themselves_in_the_program"
     ],
     "gcm.attribution.intrinsic_influence": [
@@ -402,10 +433,13 @@ EVIDENCE_OVERRIDE = {
     ],
     "attribution.mechanism_change_detection": [
         T
-        + "attribute_mechanism_posterior.rs::mechanism_change_detection_has_no_posterior_and_says_why"
+        + "attribute_mechanism_posterior.rs::mechanism_change_detection_has_no_posterior_and_says_why",
+        "crates/antecedent-attribution/tests/mechanism_change_size.rs::the_raw_p_values_reject_a_true_null_at_their_level",
+        "crates/antecedent-attribution/tests/mechanism_change_size.rs::the_adjusted_p_values_hold_the_family_wise_rate_at_most_at_their_level",
     ],
     "attribution.unit_change": [
-        T + "structure_compiler_routes.rs::mechanism_and_unit_change_run_on_the_retained_path"
+        T + "structure_compiler_routes.rs::mechanism_and_unit_change_run_on_the_retained_path",
+        "crates/antecedent-attribution/tests/unit_change_mc_error.rs::the_published_permutation_error_matches_the_spread_of_the_estimate_across_seeds",
     ],
     "gcm.attribute": [
         T + "structure_compiler_routes.rs::attribution_and_simulation_equal_their_engines"
@@ -414,6 +448,20 @@ EVIDENCE_OVERRIDE = {
         T + "structure_compiler_routes.rs::attribution_and_simulation_equal_their_engines",
         T
         + "attribute_mechanism_posterior.rs::every_simulation_target_carries_refit_uncertainty_in_both_modes",
+        T
+        + "policy_value_error_calibration.rs::the_published_simulation_error_matches_the_spread_of_the_estimate_across_seeds",
+    ],
+    "gcm.simulate.bayesian": [
+        T
+        + "attribute_mechanism_posterior.rs::every_simulation_target_carries_refit_uncertainty_in_both_modes",
+    ],
+    "gcm.simulate.temporal.frequentist": [
+        T
+        + "attribute_mechanism_posterior.rs::a_temporal_rollout_steps_the_fitted_dynamics_and_carries_block_refit_uncertainty",
+    ],
+    "gcm.simulate.temporal.bayesian": [
+        T
+        + "attribute_mechanism_posterior.rs::a_temporal_rollout_steps_the_fitted_dynamics_and_carries_block_refit_uncertainty",
     ],
     "measurement.transport.pooled_differential": [
         "python/tests/test_pooled_differential_transport.py::test_heterogeneity_widens_and_a_target_sample_narrows_the_interval"
@@ -484,6 +532,18 @@ CONSUMER_OVERRIDE = {
         + "checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused",
     ],
     "gcm.simulate": [
+        "crates/antecedent-io-core/src/policy_program_artifact.rs",
+        T + "policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits",
+    ],
+    "gcm.simulate.bayesian": [
+        "crates/antecedent-io-core/src/policy_program_artifact.rs",
+        T + "policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits",
+    ],
+    "gcm.simulate.temporal.frequentist": [
+        "crates/antecedent-io-core/src/policy_program_artifact.rs",
+        T + "policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits",
+    ],
+    "gcm.simulate.temporal.bayesian": [
         "crates/antecedent-io-core/src/policy_program_artifact.rs",
         T + "policy_python_parity.rs::a_discrete_parent_policy_has_portable_rust_python_bits",
     ],
@@ -831,10 +891,14 @@ def supported_methods(src: Sources) -> list[dict]:
                 basis = "construction_fixture"
                 sources_ = [f"test:{construction_fixture(src, members, kinds)}"]
             elif all(c.get("interval") == ["none"] for c in members):
-                asserted = no_interval_test(ev, cell_tests(members, estimator))
-                kinds = {"none"}
+                tests = cell_tests(members, estimator)
+                asserted = no_interval_test(ev, tests)
+                identified = identified_set_test(ev, tests)
+                kinds = {"enclosure"} if identified else {"none"}
                 basis, sources_ = (
-                    ("asserted_no_interval", [f"test:{asserted}"])
+                    (IDENTIFIED_SET_ASSERTED, [f"test:{identified}"])
+                    if identified
+                    else ("asserted_no_interval", [f"test:{asserted}"])
                     if asserted
                     else ("point_only_cell", ["cell:interval_none"])
                 )
@@ -1061,7 +1125,7 @@ def route_methods(src: Sources, supported: list[dict] | None = None) -> list[dic
                 basis = f"asserted_no_interval|test:{asserted}"
         info = src.estimators.get(estimator)
         override = CONSUMER_OVERRIDE.get(rid, [])
-        methods.append(
+        record = (
             {
                 "id": f"method.{rid}",
                 "kind": "route_method",
@@ -1098,7 +1162,53 @@ def route_methods(src: Sources, supported: list[dict] | None = None) -> list[dic
                 ),
             }
         )
+        methods.extend(by_side(record, by_route.get(rid, []), route, ev))
     return methods
+
+
+# A route whose inference side is declared by the method it runs publishes a different
+# uncertainty on each side: its record is split into one record per side, each kept to the
+# fixtures of the children of that side.
+SIDE_KIND = {
+    "discovery.static": {"frequentist": "none", "bayesian": "posterior"},
+    "discovery.temporal": {"frequentist": "none", "bayesian": "posterior"},
+}
+
+
+def by_side(record: dict, children: list[dict], route: dict, ev: Evidence) -> list[dict]:
+    sides = SIDE_KIND.get(record["route"])
+    if not sides:
+        return [record]
+    out = []
+    for side, kind in sides.items():
+        evidence: list[str] = []
+        if route.get("retained_route_test"):
+            evidence.append(route["retained_route_test"])
+        for child in children:
+            if child["id"].endswith(f".{side}"):
+                evidence += [
+                    t for t in ev.tokens(child["fixtures"]) if TOKEN.match(t) and t not in evidence
+                ]
+        evidence += [
+            t for t in EVIDENCE_OVERRIDE.get(record["route"], []) if t not in evidence
+        ]
+        evidence = [t for t in evidence if ev.fixture_findings(t) == []][:4]
+        basis = "declared_and_corroborated"
+        if kind == "none":
+            asserted = no_interval_test(ev, evidence)
+            if asserted:
+                basis = f"asserted_no_interval|test:{asserted}"
+        out.append(
+            record
+            | {
+                "id": f"{record['id']}.{side}",
+                "inference": side,
+                "uncertainty": kind,
+                "uncertainty_basis": basis,
+                "evidence": evidence,
+            }
+        )
+    return out
 
 
 def children_covered(methods: list[dict], child: dict) -> bool:
@@ -1319,6 +1429,28 @@ def verify_uncertainty(src: Sources, m: dict, methods: list[dict] | None = None)
         if no_interval_test(ev, [token]) != token:
             return [f"{mid}: {token} does not assert that the result carries no interval"]
         return []
+    if label == IDENTIFIED_SET_ASSERTED:
+        token = detail.removeprefix("test:")
+        if kind != "enclosure" or m["kind"] != "supported_estimator":
+            return [f"{mid}: an identified-set assertion stands behind an enclosure only"]
+        cited = cell_tests(
+            [
+                cell
+                for cell in src.cells
+                if cell["query"] == m["target"]
+                and cell["graph_class"] == m["graph_class"]
+                and m["estimator"] in cell["estimators"]
+                and cell["inference"].lower() == m["inference"]
+            ],
+            m["estimator"],
+        )
+        if token not in cited:
+            return [f"{mid}: {token} is not a test the record cites for this method"]
+        if identified_set_test(ev, [token]) != token:
+            return [
+                f"{mid}: {token} does not assert an identified set published without a sampling interval"
+            ]
+        return []
     if m["kind"] == "supported_estimator":
         if label not in (
             "construction_fixture",
@@ -1376,7 +1508,7 @@ def verify_uncertainty(src: Sources, m: dict, methods: list[dict] | None = None)
     declared = (
         FACADE_KIND.get(f"{m['owning_module']}|{m['design']}.{m['inference']}")
         if m["kind"] == "facade_method"
-        else DECLARED_KIND.get(m["route"])
+        else SIDE_KIND.get(m["route"], {}).get(m["inference"], DECLARED_KIND.get(m["route"]))
     )
     if declared != kind:
         return [f"{mid}: no declared procedure for {m['child'] or m['route']}"]

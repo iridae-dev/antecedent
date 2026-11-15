@@ -711,3 +711,61 @@ fn discovery_builder_retains_typed_refusal_until_replaced() {
         .discovery(DiscoverySpec::pc(static_params(), "parcorr"), three());
     assert!(builder.build().is_ok());
 }
+
+#[test]
+fn a_frequentist_static_search_returns_its_graph_and_publishes_no_interval() {
+    on_large_stack("static-point-discovery", || {
+        let data = pure_chain_table(1000, 5);
+        let study = Study::tabular(data.clone())
+            .discovery(DiscoverySpec::pc(static_params(), "parcorr"), three())
+            .build()
+            .unwrap();
+        let execution = compiled(&study, "DiscoverStatic");
+        let result = execution.result();
+        assert!(result.interval().is_none(), "a constraint search reports no interval");
+        assert!(result.posterior.is_none(), "a constraint search reports no posterior");
+        let Some(DiscoveredStructure::StaticCpdag(found)) =
+            result.discovery().map(|payload| payload.structure.clone())
+        else {
+            panic!("PC returns a static CPDAG");
+        };
+        // The route returns the graph the engine returns on the same rows: on the chain
+        // `z -> t -> y` the two strong pairs are kept and `z - y` is dropped.
+        let direct =
+            antecedent::discovery::discover_pc(&data, &three(), &static_params(), &ctx()).unwrap();
+        assert_eq!(
+            Canonical::from_cpdag(&found.evidence.graph),
+            Canonical::from_cpdag(&direct.evidence.graph)
+        );
+    });
+}
+
+#[test]
+fn a_frequentist_temporal_search_returns_its_lag_graph_and_publishes_no_interval() {
+    on_large_stack("temporal-point-discovery", || {
+        let series = lag1_series(600, 11);
+        let vars = vec![v(0), v(1)];
+        let study = Study::series(series.clone())
+            .discovery(DiscoverySpec::pcmci(temporal_params(1), "parcorr"), vars.clone())
+            .build()
+            .unwrap();
+        let execution = compiled(&study, "DiscoverTemporal");
+        let result = execution.result();
+        assert!(result.interval().is_none(), "a lagged search reports no interval");
+        assert!(result.posterior.is_none(), "a lagged search reports no posterior");
+        let Some(DiscoveredStructure::TemporalDag(found)) =
+            result.discovery().map(|payload| payload.structure.clone())
+        else {
+            panic!("PCMCI returns a temporal DAG");
+        };
+        // The route returns the graph the engine returns on the same series: the lagged link
+        // x[t-1] -> y[t] the series is generated from.
+        let direct =
+            antecedent::discovery::discover_pcmci(&series, &vars, &temporal_params(1), &ctx())
+                .unwrap();
+        assert_eq!(
+            Canonical::from_temporal_dag(&found.evidence.graph),
+            Canonical::from_temporal_dag(&direct.evidence.graph)
+        );
+    });
+}

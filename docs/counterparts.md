@@ -96,6 +96,7 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `ResponseCurve` | supported | supported | supported | supported |
 | `ResponseJacobian` | supported | supported | supported | supported |
 | `SemiElasticity` | supported | supported | supported | supported |
+| `Simulate` | not supported | not supported | not supported | not supported |
 | `SustainedEffect` | n/a (theory) | n/a (theory) | supported | supported |
 | `SyntheticControl` | n/a (theory) | n/a (theory) | not supported | not supported |
 | `TemporalConditionalPulse` | n/a (theory) | n/a (theory) | supported | supported |
@@ -109,6 +110,7 @@ reduced claim, the failed attempt and the next attempt are recorded beside it. A
 | `iv_bounds` | not supported | not supported | n/a (theory) | n/a (theory) |
 | `local_polynomial_ratio` | not supported | not supported | not supported | not supported |
 | `longitudinal_regime` | not supported | not supported | not supported | not supported |
+| `mechanism_selection` | not supported | not supported | not supported | not supported |
 | `policy_value` | not supported | not supported | not supported | not supported |
 | `randomized_effect` | not supported | not supported | not supported | not supported |
 | `survival` | not supported | not supported | not supported | not supported |

@@ -24,8 +24,8 @@ use antecedent::{
     AcceptedGraph, BayesianConfig, CellStatus, InferenceMode, IntoGraphInput, RefuteSuite, Study,
 };
 use antecedent_core::{
-    CausalQuery, CounterfactualQuery, ExecutionContext, Intervention, NestedCounterfactualQuery,
-    Value, VariableId,
+    CausalQuery, CounterfactualQuery, ExecutionContext, IntervalMethod, Intervention,
+    NestedCounterfactualQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, Cpdag, DenseNodeId, Pag, TemporalAdmg};
@@ -613,6 +613,179 @@ fn a_counterfactual_on_a_pag_is_refused_under_cheap_and_full_validation() {
                 let error = b.build().unwrap_err().to_string();
                 assert!(error.starts_with("not_supported:"), "{error}");
                 assert!(error.contains("placebo treatment permutes the treatment"), "{error}");
+            }
+        }
+    }
+}
+
+/// The scalar value of every identified completion a class result examined.
+fn completion_values(result: &antecedent::StudyResult) -> Vec<f64> {
+    let mixture =
+        result.structural_response.as_ref().expect("a class result keeps its completions");
+    mixture
+        .atoms
+        .iter()
+        .filter_map(|atom| match atom.value {
+            Some(ResponseValue::Scalar(value)) => Some(value),
+            _ => None,
+        })
+        .collect()
+}
+
+fn range(values: &[f64]) -> (f64, f64) {
+    (
+        values.iter().copied().fold(f64::INFINITY, f64::min),
+        values.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+    )
+}
+
+/// A frequentist class result publishes no sampling interval: the interval binding is the
+/// `None` method and the identified set carries no sampling interval beside it.
+fn assert_identified_set_without_sampling_interval(
+    result: &antecedent::StudyResult,
+    values: &[f64],
+    label: &str,
+) {
+    assert_eq!(
+        result.interval().as_ref().map(|binding| binding.method),
+        Some(IntervalMethod::None),
+        "{label}: a class result reports no sampling interval"
+    );
+    assert!(result.posterior.is_none(), "{label}");
+    let mixture = result.structural_response.as_ref().expect(label);
+    assert!(mixture.identified_set_interval.is_none(), "{label}: no sampling interval on the set");
+    let set = mixture.identified_set.as_ref().expect(label);
+    let (low, high) = range(values);
+    assert!((set.lower[0] - low).abs() < 1e-6, "{label}: lower {:?} vs {low}", set.lower);
+    assert!((set.upper[0] - high).abs() < 1e-6, "{label}: upper {:?} vs {high}", set.upper);
+}
+
+/// The CPDAG of a noiseless line `x - y`: the completion `x -> y` has slope 2 and `y -> x` has
+/// slope 0, so the completions disagree. The published identified set is exactly the set of the
+/// completions' values, contains the generating graph's value, and no sampling interval is
+/// published beside it.
+#[test]
+fn a_cpdag_counterfactual_publishes_the_exact_set_of_completion_values_and_no_interval() {
+    let pin = pin();
+    let ctx = ExecutionContext::for_tests(5);
+    let slope = pin["line"]["slope"].as_f64().unwrap();
+    for accepted in [false, true] {
+        let label = format!("accepted={accepted}");
+        let study = builder(
+            line_table(&pin),
+            cpdag(2, &[], &[(0, 1)]),
+            accepted,
+            counterfactual(0, 1),
+            false,
+            RefuteSuite::None,
+        )
+        .build()
+        .unwrap();
+        let result = study.run(&ctx).unwrap();
+        let mut values = completion_values(&result);
+        values.sort_by(f64::total_cmp);
+        assert_eq!(values.len(), 2, "{label}");
+        assert!(values[0].abs() < 1e-6 && (values[1] - slope).abs() < 1e-6, "{label}: {values:?}");
+        assert_identified_set_without_sampling_interval(&result, &values, &label);
+        assert_eq!(
+            result.interval().as_ref().map(|binding| binding.method),
+            Some(IntervalMethod::None),
+            "{label}: the identified set carries no sampling interval"
+        );
+        // The generating graph is `x -> y`: its value is in the set.
+        let mixture = result.structural_response.as_ref().unwrap();
+        let set = mixture.identified_set.as_ref().unwrap();
+        assert!(set.lower[0] <= slope + 1e-6 && slope <= set.upper[0] + 1e-6, "{label}");
+    }
+}
+
+/// The complete CPDAG on `x, m, y` has six DAG completions, one per order. On the noiseless
+/// factorial design `m = x + u`, `y = x + 2 m` the natural direct effect of `x` on `y` (the
+/// path-specific effect along the edges that avoid `m`) is the coefficient of the edge
+/// `x -> y` where the completion has it and 0 where `y` precedes `x`: 1 when `y` has both `x`
+/// and `m` as parents, 3 when `y` has `x` alone (`y = 3 x + 2 u` with `u` orthogonal to `x`),
+/// and 0 otherwise. The generating graph `x -> m -> y`, `x -> y` has value 1.
+#[test]
+fn a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval() {
+    let ctx = ExecutionContext::for_tests(5);
+    let (mut x, mut u) = (Vec::new(), Vec::new());
+    for _ in 0..10 {
+        for a in [-1.0_f64, 0.0, 1.0] {
+            for b in [-1.0_f64, 0.0, 1.0] {
+                x.push(a);
+                u.push(b);
+            }
+        }
+    }
+    let m: Vec<f64> = x.iter().zip(&u).map(|(a, b)| a + b).collect();
+    let y: Vec<f64> = x.iter().zip(&m).map(|(a, b)| a + 2.0 * b).collect();
+    for accepted in [false, true] {
+        let label = format!("accepted={accepted}");
+        let data = TabularData::from_f64_columns([
+            ("x", x.as_slice()),
+            ("m", m.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap();
+        let study = builder(
+            data,
+            cpdag(3, &[], &[(0, 1), (1, 2), (0, 2)]),
+            accepted,
+            nested(0, 1, 2),
+            false,
+            RefuteSuite::None,
+        )
+        .build()
+        .unwrap();
+        let result = study.run(&ctx).unwrap();
+        let mut values = completion_values(&result);
+        values.sort_by(f64::total_cmp);
+        assert_eq!(values.len(), 6, "{label}: {values:?}");
+        let want = [0.0, 0.0, 0.0, 1.0, 1.0, 3.0];
+        for (got, want) in values.iter().zip(want) {
+            assert!((got - want).abs() < 1e-6, "{label}: {values:?}");
+        }
+        assert_identified_set_without_sampling_interval(&result, &values, &label);
+        assert_eq!(
+            result.interval().as_ref().map(|binding| binding.method),
+            Some(IntervalMethod::None),
+            "{label}: the identified set carries no sampling interval"
+        );
+        let set = result.structural_response.as_ref().unwrap().identified_set.as_ref().unwrap();
+        assert!(set.lower[0] <= 1.0 + 1e-6 && 1.0 <= set.upper[0] + 1e-6, "{label}");
+    }
+}
+
+/// A PAG whose every maximal-ancestral-graph completion identifies the query publishes one
+/// functional: the set of the completions' values is that single value, equal to the exact
+/// functional of the count table, and no sampling interval is published. A completion that leaves
+/// the query unidentified refuses it instead
+/// (`class_cross_world_effects_that_are_not_identified_are_refused_with_the_typed_witness`), so a
+/// PAG whose identified completions disagree cannot occur for these queries.
+#[test]
+fn a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval() {
+    let pin = pin();
+    let ctx = ExecutionContext::for_tests(5);
+    for case in cases(&pin).into_iter().filter(|c| c.class == "Pag") {
+        for accepted in [false, true] {
+            let label = format!("{} accepted={accepted}", case.query_name);
+            let (b, _) = (case.build)(accepted, false, RefuteSuite::None);
+            let result = b.build().unwrap().run(&ctx).unwrap();
+            assert!((result.effect() - case.truth).abs() <= 1e-9, "{label}");
+            assert_eq!(
+                result.interval().as_ref().map(|binding| binding.method),
+                Some(IntervalMethod::None),
+                "{label}: a class result reports no sampling interval"
+            );
+            assert!(result.posterior.is_none(), "{label}");
+            if let Some(mixture) = result.structural_response.as_ref() {
+                assert!(mixture.identified_set_interval.is_none(), "{label}");
+                if let Some(set) = mixture.identified_set.as_ref() {
+                    assert!((set.upper[0] - set.lower[0]).abs() <= 1e-9, "{label}: one value");
+                }
+                for value in completion_values(&result) {
+                    assert!((value - case.truth).abs() <= 1e-9, "{label}: completion {value}");
+                }
             }
         }
     }

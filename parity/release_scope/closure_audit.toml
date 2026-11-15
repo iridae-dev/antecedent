@@ -6,7 +6,7 @@
 schema = 1
 missing_attempts = 0
 missing_consumers = 0
-adjusted_claims = 43
+adjusted_claims = 39
 unresolved_mandatorys = 0
 families = 28
 
@@ -419,23 +419,7 @@ reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "supported.Counterfactual.Cpdag#static.frequentist"
-method = "Counterfactual"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
 id = "supported.Counterfactual.Dag#static.frequentist"
-method = "Counterfactual"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.Counterfactual.Pag#static.frequentist"
 method = "Counterfactual"
 side = "static.frequentist"
 status = "supported"
@@ -483,23 +467,7 @@ reason = "the route publishes a point value and no interval (point_only_cell)"
 next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
 
 [[adjusted_claim]]
-id = "supported.NestedCounterfactualEffect.Cpdag#static.frequentist"
-method = "NestedCounterfactualEffect"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
 id = "supported.NestedCounterfactualEffect.Dag#static.frequentist"
-method = "NestedCounterfactualEffect"
-side = "static.frequentist"
-status = "supported"
-reason = "the route publishes a point value and no interval (point_only_cell)"
-next_attempt = "measure the whole-procedure coverage of this interval and record its boundary"
-
-[[adjusted_claim]]
-id = "supported.NestedCounterfactualEffect.Pag#static.frequentist"
 method = "NestedCounterfactualEffect"
 side = "static.frequentist"
 status = "supported"
