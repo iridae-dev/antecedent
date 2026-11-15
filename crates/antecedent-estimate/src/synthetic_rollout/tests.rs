@@ -442,3 +442,88 @@ fn single_interval_selections_equal_the_matching_entries_of_the_full_fit() {
     assert!(overall.periods.iter().all(|entry| entry.interval.is_none()));
     assert_eq!(select(ConformalIntervals::All), full);
 }
+
+/// A random least-squares problem: `k` donors over `n` periods on a common level, and a
+/// target that is a mixture of the donors plus noise.
+fn random_problem(seed: u64, k: usize, n: usize) -> (Vec<f64>, Vec<Vec<f64>>) {
+    let mut rng = FixtureRng::new(seed);
+    let level = 50.0 * normal(&mut rng);
+    let donors: Vec<Vec<f64>> =
+        (0..k).map(|_| (0..n).map(|_| level + normal(&mut rng)).collect()).collect();
+    let raw: Vec<f64> = (0..k).map(|_| rng.uniform() + 0.05).collect();
+    let total: f64 = raw.iter().sum();
+    let target = (0..n)
+        .map(|t| {
+            donors.iter().zip(&raw).map(|(d, w)| d[t] * w / total).sum::<f64>()
+                + 0.3 * normal(&mut rng)
+        })
+        .collect();
+    (target, donors)
+}
+
+fn relative_gap(left: &[f64], right: &[f64]) -> f64 {
+    let scale = right.iter().fold(1e-300_f64, |m, x| m.max(x.abs()));
+    left.iter().zip(right).fold(0.0_f64, |m, (a, b)| m.max((a - b).abs())) / scale
+}
+
+#[test]
+fn gram_gradient_equals_the_per_row_gradient() {
+    for (seed, k, n) in [(1_u64, 2, 30), (2, 5, 60), (3, 12, 40), (4, 7, 200)] {
+        let (target, donors) = random_problem(seed, k, n);
+        let problem = super::normalize_problem(&target, &donors).unwrap();
+        let (gram, moment) = super::gram_of(&problem.donors, &problem.target, k, n);
+        let mut rng = FixtureRng::new(seed + 100);
+        for _ in 0..5 {
+            let weights: Vec<f64> = (0..k).map(|_| rng.uniform()).collect();
+            let rowwise = super::rowwise_gradient(&problem, &weights);
+            let analytic = super::gram_gradient(&gram, &moment, 1.0, &weights);
+            assert!(relative_gap(&analytic, &rowwise) < 1e-12, "k={k} n={n}");
+        }
+    }
+}
+
+#[test]
+fn gram_solver_reaches_the_per_row_weights_within_the_optimizer_tolerance() {
+    for (seed, k, n) in [(11_u64, 2, 30), (12, 6, 80), (13, 10, 50), (14, 4, 25)] {
+        let (target, donors) = random_problem(seed, k, n);
+        let gram = super::fit_simplex(&target, &donors, None).unwrap();
+        let rowwise = super::fit_simplex_rowwise_with_limit(
+            &target,
+            &donors,
+            None,
+            super::SIMPLEX_ITERATIONS,
+        )
+        .unwrap();
+        assert!(relative_gap(&gram, &rowwise) < 1e-7, "k={k} n={n}: {gram:?} vs {rowwise:?}");
+        assert!((gram.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+    }
+    let target = [1.0, 0.00008];
+    let donors = vec![vec![1.0, 0.0], vec![1.0, 0.0001]];
+    let gram = super::fit_simplex(&target, &donors, None).unwrap();
+    let rowwise =
+        super::fit_simplex_rowwise_with_limit(&target, &donors, None, super::SIMPLEX_ITERATIONS)
+            .unwrap();
+    assert!(relative_gap(&gram, &rowwise) < 1e-7);
+}
+
+#[test]
+fn candidate_refit_equals_a_fresh_gram_computation() {
+    for (seed, k, n, from) in [(21_u64, 3, 40, 39), (22, 8, 60, 55), (23, 5, 30, 29)] {
+        let (target, donors) = random_problem(seed, k, n);
+        let refit = super::ShiftedTargetFit::new(&target, &donors, from).unwrap();
+        let warm = super::fit_simplex(&target, &donors, None).unwrap();
+        for theta in [-3.0, -0.4, 0.0, 0.7, 5.0, 40.0] {
+            let adjusted = super::shifted_target(&target, from, theta);
+            let (moment, factor, _) = refit.shifted_moment(theta).unwrap();
+            let fresh = super::normalize_problem(&adjusted, &donors).unwrap();
+            let (gram, fresh_moment) = super::gram_of(&fresh.donors, &fresh.target, k, n);
+            let scaled_gram: Vec<f64> = refit.gram.iter().map(|g| g * factor).collect();
+            let scaled_moment: Vec<f64> = moment.iter().map(|m| m * factor).collect();
+            assert!(relative_gap(&scaled_gram, &gram) < 1e-10, "gram theta={theta}");
+            assert!(relative_gap(&scaled_moment, &fresh_moment) < 1e-10, "moment theta={theta}");
+            let updated = refit.fit(theta, Some(&warm), super::SIMPLEX_ITERATIONS).unwrap();
+            let direct = super::fit_simplex(&adjusted, &donors, Some(&warm)).unwrap();
+            assert!(relative_gap(&updated, &direct) < 1e-7, "weights theta={theta}");
+        }
+    }
+}
