@@ -1017,7 +1017,27 @@ fn bootstrapped(
     } else {
         ContinuousMethodKind::RegressionCalibration
     };
-    let functional_id = format!("{}.{}", spec.link.coefficient_name(), method.as_str());
+    // An explicit polynomial extrapolant of a linear model's exactly rational path does not
+    // return the structural coefficient: its target is the polynomial extrapolation limit
+    // `theta = beta * r * sum_g w_g / (1 + (1 - r) lambda_g)`, with `r = Var(X) / Var(W)` the
+    // reliability ratio, `lambda_g` the grid including `0`, and `w_g` the weights
+    // `a(-1)' (X'X)^-1 X'` of the least-squares polynomial evaluated at `lambda = -1`
+    // (`sum_g w_g = 1`). The record names that target; nothing computed differs.
+    let functional_id = match (&spec.method, spec.link) {
+        (
+            CorrectionMethod::Simex {
+                extrapolant: extrapolant @ (SimexExtrapolant::Linear | SimexExtrapolant::Quadratic),
+                ..
+            },
+            OutcomeLink::Identity,
+        ) => format!(
+            "{}.{}.{}_extrapolation_limit",
+            spec.link.coefficient_name(),
+            method.as_str(),
+            extrapolant.as_str()
+        ),
+        _ => format!("{}.{}", spec.link.coefficient_name(), method.as_str()),
+    };
     let record = build_record(RecordParts {
         model,
         functional_id: &functional_id,

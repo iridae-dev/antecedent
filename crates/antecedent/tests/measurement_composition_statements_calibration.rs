@@ -26,7 +26,7 @@ mod common;
 
 use antecedent::analysis::continuous_measurement::{
     ContinuousCorrectionSpec, CorrectionMethod, DEFAULT_BOOTSTRAP_REPLICATES, ErrorLocation,
-    OutcomeLink,
+    OutcomeLink, SimexExtrapolant,
 };
 use antecedent::analysis::joint_law_propagation::{
     LinearDependence, MomentInput, PropagationClaim, PropagationDraws, ValueFunctional,
@@ -342,6 +342,20 @@ impl ContinuousWorld {
 /// Regression calibration or default-grid SIMEX of one world, with the error variance 0.25
 /// declared exactly and the route's default bootstrap replicate count.
 fn continuous_replicate(seed: u64, world: ContinuousWorld, simex: bool) -> Option<Reading> {
+    let method = if simex {
+        CorrectionMethod::default_simex()
+    } else {
+        CorrectionMethod::RegressionCalibration
+    };
+    continuous_replicate_with(seed, world, method)
+}
+
+/// [`continuous_replicate`] with the correction method stated.
+fn continuous_replicate_with(
+    seed: u64,
+    world: ContinuousWorld,
+    method: CorrectionMethod,
+) -> Option<Reading> {
     let n = grid_n(500);
     let mut normal = gaussian(seed);
     let mut next = uniform(seed, 5);
@@ -383,11 +397,7 @@ fn continuous_replicate(seed: u64, world: ContinuousWorld, simex: bool) -> Optio
             ContinuousWorld::Logistic => OutcomeLink::Logit,
             _ => OutcomeLink::Identity,
         },
-        method: if simex {
-            CorrectionMethod::default_simex()
-        } else {
-            CorrectionMethod::RegressionCalibration
-        },
+        method,
         bootstrap_replicates: DEFAULT_BOOTSTRAP_REPLICATES,
         seed,
     };
@@ -537,6 +547,125 @@ fn measurement_simex_linear_wald_l95() {
         ContinuousWorld::LinearTreatment.truth(),
         0x4D26_0000,
         |seed| continuous_replicate(seed, ContinuousWorld::LinearTreatment, true),
+    );
+}
+
+/// The SIMEX grid of the default method, `lambda = 0` included.
+const SIMEX_GRID: [f64; 5] = [0.0, 0.5, 1.0, 1.5, 2.0];
+
+/// Weights `w_g = a(-1)' (X'X)^-1 X'` of the least-squares polynomial with `width` coefficients
+/// on `grid`, evaluated at `lambda = -1`: the fitted value there is `sum_g w_g path(lambda_g)`.
+fn extrapolation_weights(grid: &[f64], width: usize) -> Vec<f64> {
+    let basis = |l: f64| {
+        (0..width).map(|k| l.powi(i32::try_from(k).expect("a small power"))).collect::<Vec<_>>()
+    };
+    let mut gram = vec![vec![0.0; width + 1]; width];
+    for &l in grid {
+        let row = basis(l);
+        for a in 0..width {
+            for b in 0..width {
+                gram[a][b] += row[a] * row[b];
+            }
+        }
+    }
+    for (a, v) in basis(-1.0).into_iter().enumerate() {
+        gram[a][width] = v;
+    }
+    // Gauss-Jordan with partial pivoting on `[X'X | a(-1)]`.
+    for col in 0..width {
+        let pivot = (col..width)
+            .max_by(|&i, &j| gram[i][col].abs().total_cmp(&gram[j][col].abs()))
+            .expect("a non-empty column range");
+        gram.swap(col, pivot);
+        let lead = gram[col][col];
+        for k in col..=width {
+            gram[col][k] /= lead;
+        }
+        for row in 0..width {
+            if row != col {
+                let factor = gram[row][col];
+                for k in col..=width {
+                    gram[row][k] -= factor * gram[col][k];
+                }
+            }
+        }
+    }
+    let v: Vec<f64> = (0..width).map(|a| gram[a][width]).collect();
+    grid.iter().map(|&l| basis(l).iter().zip(&v).map(|(b, v)| b * v).sum()).collect()
+}
+
+/// The limit of the polynomial SIMEX estimator on the linear world.
+///
+/// With reliability ratio `r = Var(X) / Var(W)` and error variance `s`, the population slope
+/// after adding `lambda s` more error is `beta r / (1 + (1 - r) lambda)`; the polynomial fit is
+/// linear in the path, so its value at `lambda = -1` has the limit
+/// `theta = beta r sum_g w_g / (1 + (1 - r) lambda_g)`. The remeasurement average over `B`
+/// draws is unbiased for the path at each `lambda`, so this is also the limit of the
+/// estimator's expectation to first order.
+fn polynomial_extrapolation_limit(extrapolant: SimexExtrapolant) -> f64 {
+    let quadratic = extrapolation_weights(&SIMEX_GRID, 3);
+    for (got, want) in quadratic.iter().zip([3.0, -0.4, -1.8, -1.2, 1.4]) {
+        assert!((got - want).abs() < 1e-9, "quadratic weights {quadratic:?}");
+    }
+    let width = match extrapolant {
+        SimexExtrapolant::Linear => 2,
+        _ => 3,
+    };
+    let weights = extrapolation_weights(&SIMEX_GRID, width);
+    // `X ~ N(0, 1)` and `W = X + N(0, 0.25)`.
+    let reliability = 1.0 / 1.25;
+    let truth = ContinuousWorld::LinearTreatment.truth();
+    truth
+        * reliability
+        * weights
+            .iter()
+            .zip(SIMEX_GRID)
+            .map(|(w, l)| w / (1.0 + (1.0 - reliability) * l))
+            .sum::<f64>()
+}
+
+fn explicit_simex(extrapolant: SimexExtrapolant) -> CorrectionMethod {
+    CorrectionMethod::Simex { lambdas: SIMEX_GRID[1..].to_vec(), replicates: 50, extrapolant }
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn measurement_simex_linear_quadratic_extrapolation_limit_wald_l95() {
+    // Scored against the quadratic extrapolation limit (1.9413 at reliability 0.8), the
+    // published target of an explicit quadratic extrapolant, not the generating coefficient.
+    measure(
+        "measurement_simex_linear_quadratic_extrapolation_limit_wald_l95",
+        "linear_outcome_classical_error_variance_0_25_declared_exactly_explicit_quadratic_simex_extrapolation_limit",
+        WALD,
+        polynomial_extrapolation_limit(SimexExtrapolant::Quadratic),
+        0x4D28_0000,
+        |seed| {
+            continuous_replicate_with(
+                seed,
+                ContinuousWorld::LinearTreatment,
+                explicit_simex(SimexExtrapolant::Quadratic),
+            )
+        },
+    );
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn measurement_simex_linear_linear_extrapolation_limit_wald_l95() {
+    // Scored against the linear extrapolation limit (1.8075 at reliability 0.8).
+    measure(
+        "measurement_simex_linear_linear_extrapolation_limit_wald_l95",
+        "linear_outcome_classical_error_variance_0_25_declared_exactly_explicit_linear_simex_extrapolation_limit",
+        WALD,
+        polynomial_extrapolation_limit(SimexExtrapolant::Linear),
+        0x4D29_0000,
+        |seed| {
+            continuous_replicate_with(
+                seed,
+                ContinuousWorld::LinearTreatment,
+                explicit_simex(SimexExtrapolant::Linear),
+            )
+        },
     );
 }
 
