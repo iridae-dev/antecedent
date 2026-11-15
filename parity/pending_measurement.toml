@@ -13,12 +13,6 @@
 schema = 1
 
 [[pending]]
-row = "P07.dose_grid.static.frequentist"
-facet = "suite.smoothed_dose_calibration"
-owed = "band_coverage"
-axes = ["design_inference", "uncertainty"]
-
-[[pending]]
 row = "P12.counterfactual.static.frequentist"
 facet = "suite.calibration_counterfactual"
 owed = "interval_coverage"

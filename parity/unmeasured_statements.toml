@@ -8,71 +8,11 @@ schema = 1
 
 [[statement]]
 route = "gcm.attribute"
-statement = "frequentist bootstrap error for paths"
-
-[[statement]]
-route = "gcm.attribute"
-statement = "frequentist bootstrap error for feature relevance"
-
-[[statement]]
-route = "gcm.attribute"
 statement = "frequentist bootstrap error for anomaly"
-
-[[statement]]
-route = "gcm.attribute"
-statement = "frequentist bootstrap error for unit change"
-
-[[statement]]
-route = "gcm.attribute"
-statement = "structure change"
-
-[[statement]]
-route = "gcm.attribute"
-statement = "robust estimator"
-
-[[statement]]
-route = "gcm.attribute.bayesian"
-statement = "unit-change posterior"
-
-[[statement]]
-route = "gcm.attribute.bayesian"
-statement = "structure-change posterior"
-
-[[statement]]
-route = "gcm.attribute.bayesian"
-statement = "anomaly posterior with an empirical reference"
-
-[[statement]]
-route = "gcm.attribute.temporal.bayesian"
-statement = "temporal mechanism components"
-
-[[statement]]
-route = "gcm.attribute.temporal.bayesian"
-statement = "temporal intrinsic influence"
-
-[[statement]]
-route = "gcm.simulate"
-statement = "interventional sample with replicates or a posterior"
-
-[[statement]]
-route = "gcm.simulate"
-statement = "unit effects with replicates or a posterior"
 
 [[statement]]
 route = "gcm.simulate"
 statement = "counterfactual with replicates or a posterior"
-
-[[statement]]
-route = "gcm.simulate"
-statement = "temporal counterfactual with replicates or a posterior"
-
-[[statement]]
-route = "discovery.static"
-statement = "order MCMC posterior"
-
-[[statement]]
-route = "discovery.static"
-statement = "structure MCMC posterior"
 
 [[statement]]
 route = "discovery.static"
@@ -80,15 +20,7 @@ statement = "CI-screened posterior"
 
 [[statement]]
 route = "discovery.static"
-statement = "PAG posterior"
-
-[[statement]]
-route = "discovery.static"
 statement = "exact edge marginals"
-
-[[statement]]
-route = "discovery.temporal"
-statement = "class-collapsed DBN posterior"
 
 [[statement]]
 route = "temporal_design.excursion.multi_arm"
@@ -237,14 +169,6 @@ statement = "Bernoulli arms"
 [[statement]]
 route = "interference.cluster_bayesian_bootstrap"
 statement = "twenty-five to forty-nine clusters per arm"
-
-[[statement]]
-route = "graphless.dose_grid.randomized_dose.local_quadratic"
-statement = "bias-aware interval"
-
-[[statement]]
-route = "graphless.dose_grid.randomized_dose.local_quadratic"
-statement = "simultaneous band"
 
 [[statement]]
 route = "association.descriptive.static"
