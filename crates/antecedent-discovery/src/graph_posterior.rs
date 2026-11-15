@@ -73,7 +73,12 @@ impl GraphPrior {
     /// `p` outside `(0, 1)`.
     pub fn bernoulli_edges(p: f64) -> Result<Self, DiscoveryError> {
         if !(p > 0.0 && p < 1.0) {
-            return Err(DiscoveryError::unsupported("Bernoulli edge prior requires p in (0, 1)"));
+            return Err(DiscoveryError::Refused {
+                code: antecedent_core::reason_code!("invalid_argument"),
+                message: "structure_posterior.edge_prior_probability: the Bernoulli edge prior \
+                          requires p in (0, 1)"
+                    .to_owned(),
+            });
         }
         Ok(Self {
             constraints: DiscoveryConstraints {
@@ -90,7 +95,12 @@ impl GraphPrior {
     /// Validate the public edge-inclusion field with the constructor's probability contract.
     pub(crate) fn validate_edge_inclusion(&self) -> Result<(), DiscoveryError> {
         if self.edge_inclusion.is_some_and(|p| !(p > 0.0 && p < 1.0)) {
-            return Err(DiscoveryError::unsupported("Bernoulli edge prior requires p in (0, 1)"));
+            return Err(DiscoveryError::Refused {
+                code: antecedent_core::reason_code!("invalid_argument"),
+                message: "structure_posterior.edge_prior_probability: the Bernoulli edge prior \
+                          requires p in (0, 1)"
+                    .to_owned(),
+            });
         }
         Ok(())
     }

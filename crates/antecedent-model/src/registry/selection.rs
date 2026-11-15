@@ -150,9 +150,18 @@ pub(super) fn resolve_candidates(
     let Some(constraint) = constraint else {
         return Ok(registry_list.to_vec());
     };
-    let invalid = |message: String| ModelError::InvalidSelection { message };
+    let invalid = |detail: &'static str, message: String| ModelError::InvalidSelection {
+        message: format!(
+            "{}{}: {detail}: {message}",
+            antecedent_core::reason_code::PREFIX,
+            antecedent_core::reason_code!("invalid_argument")
+        ),
+    };
     if constraint.allowed.as_ref().is_some_and(|a| a.is_empty()) {
-        return Err(invalid(format!("variable {variable}: the allowed family list is empty")));
+        return Err(invalid(
+            "mechanism_selection.constraint_contradictory",
+            format!("variable {variable}: the allowed family list is empty"),
+        ));
     }
     let mut set: Vec<MechanismFamily> = Vec::new();
     let base: &[MechanismFamily] = constraint.allowed.as_deref().unwrap_or(registry_list);
@@ -163,17 +172,20 @@ pub(super) fn resolve_candidates(
     }
     if let Some(required) = constraint.required {
         if constraint.excluded.contains(&required) {
-            return Err(invalid(format!(
-                "variable {variable}: required family {} is also excluded",
-                required.id()
-            )));
+            return Err(invalid(
+                "mechanism_selection.constraint_contradictory",
+                format!("variable {variable}: required family {} is also excluded", required.id()),
+            ));
         }
         if !set.contains(&required) {
             if constraint.allowed.is_some() {
-                return Err(invalid(format!(
-                    "variable {variable}: required family {} is not in the allowed list",
-                    required.id()
-                )));
+                return Err(invalid(
+                    "mechanism_selection.constraint_contradictory",
+                    format!(
+                        "variable {variable}: required family {} is not in the allowed list",
+                        required.id()
+                    ),
+                ));
             }
             set.push(required);
         }
@@ -185,12 +197,15 @@ pub(super) fn resolve_candidates(
     if let Some(required) = constraint.required
         && !fits_node(&required)
     {
-        return Err(invalid(format!(
-            "variable {variable} is typed {} but required family {} models a {} outcome",
-            if categorical_node { "categorical" } else { "continuous" },
-            required.id(),
-            if categorical_node { "continuous" } else { "categorical" },
-        )));
+        return Err(invalid(
+            "mechanism_selection.family_outcome_mismatch",
+            format!(
+                "variable {variable} is typed {} but required family {} models a {} outcome",
+                if categorical_node { "categorical" } else { "continuous" },
+                required.id(),
+                if categorical_node { "continuous" } else { "categorical" },
+            ),
+        ));
     }
     // An outcome-agnostic candidate list (`allowed`) names families of both outcome
     // types; the ones that cannot model this node are not its candidates. The
@@ -198,7 +213,10 @@ pub(super) fn resolve_candidates(
     // dropped unrecorded.
     set.retain(fits_node);
     if set.is_empty() {
-        return Err(invalid(format!("variable {variable}: no candidate family remains")));
+        return Err(invalid(
+            "mechanism_selection.constraint_contradictory",
+            format!("variable {variable}: no candidate family remains"),
+        ));
     }
     Ok(set)
 }

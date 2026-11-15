@@ -16325,3 +16325,57 @@ id = "joint_response.reading_law_unavailable"
 family = "joint_response"
 codes = ["uncertainty_representation_insufficient"]
 meaning = "The result retains no finite covariance, draws or weights from which the requested interval is built, or too few draws to resolve the level."
+
+[[detail]]
+id = "attribute_refit.noise_blocks_unsupported"
+family = "attribute_refit"
+codes = ["route_not_supported"]
+meaning = "A fitted-model attribution (attribute or simulate target) declares noise blocks, which only the anomaly and change targets support."
+
+[[detail]]
+id = "simulate_refit.temporal_rollout_required"
+family = "simulate_refit"
+codes = ["option_not_applicable"]
+meaning = "A simulation on a TemporalDag is not a TemporalRollout target; the unfolded graph would sample the lagged copies as exogenous columns."
+
+[[detail]]
+id = "mechanism_change.population_too_small"
+family = "mechanism_change"
+codes = ["invalid_argument"]
+meaning = "The baseline or the comparison population has fewer than 10 rows, too few to support a calibrated residual distribution."
+
+[[detail]]
+id = "mechanism_change.parent_covariate_shift"
+family = "mechanism_change"
+codes = ["invalid_argument"]
+meaning = "The target's parent covariates differ materially between the two populations, so a residual two-sample test is not calibrated and the comparison is refused."
+
+[[detail]]
+id = "unit_change.outcome_without_parents"
+family = "unit_change"
+codes = ["route_not_supported"]
+meaning = "The outcome has no parents in the compiled model, so there is no input to allocate a unit's change to."
+
+[[detail]]
+id = "mechanism_selection.constraint_contradictory"
+family = "mechanism_selection"
+codes = ["invalid_argument"]
+meaning = "A node's family constraint is contradictory: an empty allowed list, a required family that is excluded or outside the allowed list, or no candidate left."
+
+[[detail]]
+id = "mechanism_selection.family_outcome_mismatch"
+family = "mechanism_selection"
+codes = ["invalid_argument"]
+meaning = "A node's required family models an outcome of a different type than the node's typing."
+
+[[detail]]
+id = "structure_posterior.edge_prior_probability"
+family = "structure_posterior"
+codes = ["invalid_argument"]
+meaning = "The Bernoulli edge prior's inclusion probability is not strictly inside (0, 1)."
+
+[[detail]]
+id = "synthetic_control_panel.observed_window_option"
+family = "synthetic_control_panel"
+codes = ["option_not_applicable"]
+meaning = "An observed-window synthetic control is combined with an option that reads a balanced panel (synthetic difference in differences, unit randomization, a rollout, or the Bayesian posterior)."

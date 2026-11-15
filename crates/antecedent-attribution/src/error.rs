@@ -133,6 +133,20 @@ impl AttributionError {
     pub const fn invalid_input(message: &'static str) -> Self {
         Self::InvalidInput { message }
     }
+
+    /// A typed refusal: the registered reason code, the namespaced detail and the message,
+    /// rendered `reason=<code>: <detail>: <message>`.
+    #[must_use]
+    pub fn refused(
+        code: &'static str,
+        detail: &'static str,
+        message: impl std::fmt::Display,
+    ) -> Self {
+        Self::Message(format!(
+            "{}{code}: {detail}: {message}",
+            antecedent_core::reason_code::PREFIX
+        ))
+    }
 }
 
 impl<E> From<antecedent_core::execution::MapExecutionError<E>> for AttributionError

@@ -527,9 +527,10 @@ fn refuse_observed_window_options(
     };
     Err(crate::compile_reason!(
         "option_not_applicable",
-        "reading an unbalanced panel over the treated unit's observed window supports the \
-         simplex and augmented synthetic control point fit; {option} reads a balanced panel. Next \
-         attempt: drop the observed-window option and supply a balanced panel, or drop {option}"
+        "synthetic_control_panel.observed_window_option: reading an unbalanced panel over the \
+         treated unit's observed window supports the simplex and augmented synthetic control \
+         point fit; {option} reads a balanced panel. Next attempt: drop the observed-window \
+         option and supply a balanced panel, or drop {option}"
     ))
 }
 
