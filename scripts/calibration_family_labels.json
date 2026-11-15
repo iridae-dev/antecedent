@@ -2130,22 +2130,22 @@
     },
     {
       "path": "crates/antecedent/tests/refuter_error_rates_calibration.rs",
-      "sha256": "28e732edd3ecb423b0cbd1dcb4188d6a494bbf0b8ef6c5da9bacd26e354113ef",
+      "sha256": "b02e0c71be1501703da31c78e58bc040822089df1206eb53e0098fad880fb40f",
       "labelled_calls": [
         {
-          "line": 741,
+          "line": 752,
           "call": ".labelled(",
           "argument": "kind.as_str()"
         }
       ],
       "constructor_calls": [
         {
-          "line": 737,
+          "line": 748,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test: self.test, dgp: self.dgp, interval: kind.as_str() },\n                    REPORTED_LEVEL,"
         },
         {
-          "line": 785,
+          "line": 796,
           "call": "CoverageTally::new(",
           "argument": "format!(\"{} [{}]\", self.test, kind.as_str()), REPORTED_LEVEL"
         }
