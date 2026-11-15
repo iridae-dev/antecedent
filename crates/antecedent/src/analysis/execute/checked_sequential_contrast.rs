@@ -10,7 +10,7 @@
 //! interference are declared, not derived.
 //!
 //! A fit of the design the support rows were measured on (the always-treat against never-treat
-//! contrast, exactly five folds with none above a fifth of the rows, enough rows, every fitted
+//! contrast, at least five folds with none above a fifth of the rows, enough rows, every fitted
 //! regime-action probability at or above 0.05) states its row in a coded diagnostic: the Wald
 //! interval's own, the posterior's the design-posterior diagnostic. Every other
 //! fit runs and states no support. The runtime calibration slot stays `not_measured`.

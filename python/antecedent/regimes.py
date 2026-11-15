@@ -506,7 +506,7 @@ class SequentialContrastEstimate:
     """Cross-fit contrast of two regimes with its scores.
 
     ``supported`` is ``True`` only when the normal interval meets the sequential-contrast support
-    row: the always-treat against never-treat contrast, exactly five folds with none above a
+    row: the always-treat against never-treat contrast, at least five folds with none above a
     fifth of the rows, at least 200 subjects and every fitted regime-action probability at least
     0.05. A posterior states its row in the result's diagnostics instead. Every other fit is
     unsupported.
