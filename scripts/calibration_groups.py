@@ -81,6 +81,10 @@ GATE_REGISTRY = ROOT / "parity" / "calibration_gates.toml"
 # no threads column and are read as whole-machine runs.
 TIMINGS = ROOT / "target" / "calibration-timings.tsv"
 PILOT_TIMINGS = ROOT / "target" / "calibration-pilot-timings.tsv"
+# Optional per-task duration estimates, `label<TAB>seconds` rows (scripts/calibration_estimates.py
+# writes them): they order and size the work of a run that has no measured or pilot timing, and
+# are never evidence of anything. Named by `--estimates` or this variable; no file is read by default.
+ESTIMATES_ENV = "ANTECEDENT_CALIBRATION_ESTIMATES"
 PILOT_LOG_DIR = ROOT / "target" / "calibration-pilot-records"
 PILOT_NSIM = 8
 CORES = os.cpu_count() or 1
@@ -748,13 +752,37 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
     return 0
 
 
+def estimated_durations() -> dict[str, float]:
+    """Task label -> estimated seconds from the file named by ANTECEDENT_CALIBRATION_ESTIMATES
+    (`label<TAB>seconds`; blank and `#` lines skipped); empty when the variable is unset.
+
+    The lowest-priority source of `last_durations`: a recorded run or a pilot of the same label
+    replaces it. A named file that is missing or malformed is an error, not a silent gate order."""
+    named = os.environ.get(ESTIMATES_ENV)
+    if not named:
+        return {}
+    path = Path(named)
+    if not path.is_file():
+        raise SystemExit(f"{ESTIMATES_ENV}={named}: no such file")
+    out: dict[str, float] = {}
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        label, _, seconds = line.rpartition("\t")
+        try:
+            out[label] = float(seconds)
+        except ValueError:
+            raise SystemExit(f"{named}:{number}: want `label<TAB>seconds`") from None
+    return out
+
+
 def last_durations() -> dict[str, float]:
     """The most recent recorded wall time of each task label (target/calibration-timings.tsv),
     falling back to the latest pilot of the label at any commit, projected to the first pass.
 
     These order and size the work; they are never a budget claim, so a pilot from an earlier
     commit is close enough where no full run has timed the task."""
-    out: dict[str, float] = {}
+    out: dict[str, float] = estimated_durations()
     if PILOT_TIMINGS.is_file():
         for line in PILOT_TIMINGS.read_text(encoding="utf-8").splitlines():
             parts = line.split("\t")
@@ -811,6 +839,28 @@ def tail_threads(tasks: list[tuple[Group, int | None]], jobs: int, threads: int)
         seconds = durations.get(label)
         if seconds is not None and seconds > share:
             out[label] = min(CORES, max(threads, min(MAX_TAIL_THREADS, math.ceil(seconds / share))))
+    return out
+
+
+def shard_counts(tasks: list[tuple[Group, int | None]], jobs: int) -> dict[str, int]:
+    """Replicate shards for the tasks that would otherwise set the wall time.
+
+    As for `tail_threads`, a task whose recorded single-threaded duration exceeds the share
+    (total work over `jobs`) finishes after everything else; split into `ceil(duration /
+    share)` shards (at most `jobs`) it runs on that many cores and the run approaches
+    total work over cores (scripts/calibration_shards.py: the merged result is the one run's).
+    Tasks without a recorded duration are not sharded."""
+    durations = last_durations()
+    timed = [durations[task_label(g, p)] for g, p in tasks if task_label(g, p) in durations]
+    if not timed or jobs <= 1:
+        return {}
+    share = sum(timed) / jobs
+    out: dict[str, int] = {}
+    for group, point in tasks:
+        label = task_label(group, point)
+        seconds = durations.get(label)
+        if seconds is not None and seconds > share:
+            out[label] = min(jobs, math.ceil(seconds / share))
     return out
 
 
@@ -909,7 +959,7 @@ def _measurement_env(strip_prefix: bool = False) -> dict[str, str]:
     }
 
 
-def run(selection: Selection, total: int, jobs: int) -> int:
+def run(selection: Selection, total: int, jobs: int, shard: bool = False) -> int:
     """Measure the selected groups: one Nix build of their test binaries, then every
     (group, grid point) task longest first, `jobs` at a time (scripts/calibration_runner.py)."""
     import calibration_decision as decision
@@ -929,8 +979,10 @@ def run(selection: Selection, total: int, jobs: int) -> int:
     done: list[int] = []
     failed: list[str] = []
     ordered = longest_first([(group, point) for group in groups for point in group.points])
-    widened = tail_threads(ordered, jobs, threads)
-    tasks = [Task(group.spec, point, widened.get(task_label(group, point), threads))
+    sharded = shard_counts(ordered, jobs) if shard else {}
+    widened = tail_threads([t for t in ordered if task_label(*t) not in sharded], jobs, threads)
+    tasks = [Task(group.spec, point, widened.get(task_label(group, point), threads),
+                  shards=sharded.get(task_label(group, point), 1))
              for group, point in ordered]
 
     def finished(task: Task, result: dict) -> None:
@@ -1012,6 +1064,19 @@ def main() -> int:
         # task's own parallelism. `--jobs N` gives each job ceil(cores / N)
         # threads (threads_per_job).
         p.add_argument("--jobs", type=int, default=CORES)
+        p.add_argument(
+            "--estimates",
+            metavar="TSV",
+            help=f"per-task duration estimates (`label<TAB>seconds`, see calibration_estimates.py) "
+            f"for ordering a run with no recorded timings; sets {ESTIMATES_ENV}",
+        )
+        p.add_argument(
+            "--shards",
+            action="store_true",
+            help="split each task longer than total work / jobs into replicate shards that run in "
+            "parallel and merge into the one run's result (calibration_shards.py); needs durations "
+            "from a recorded run, a pilot or --estimates",
+        )
     args = parser.parse_args()
     if args.jobs < 1:
         raise SystemExit("--jobs must be at least 1")
@@ -1019,6 +1084,8 @@ def main() -> int:
         raise SystemExit("--replicates must be at least 400 for measured calibration")
     if args.only and not args.owed:
         raise SystemExit("--only requires --owed")
+    if args.estimates:
+        os.environ[ESTIMATES_ENV] = str(Path(args.estimates).resolve())
     FIRST_NSIM = args.replicates
     RECHECK_NSIM = max(2000, FIRST_NSIM + 1)
     groups = gate_groups()
@@ -1031,7 +1098,7 @@ def main() -> int:
         return 0
     if args.command == "pilot":
         return pilot(selection, len(groups), args.jobs)
-    return run(selection, len(groups), args.jobs)
+    return run(selection, len(groups), args.jobs, shard=args.shards)
 
 
 if __name__ == "__main__":
