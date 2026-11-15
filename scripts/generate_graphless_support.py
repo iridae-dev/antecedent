@@ -50,6 +50,16 @@ BOOLEAN_REQUIREMENTS = (
 )
 
 
+
+def rust_f64(value: object) -> str:
+    """A Rust f64 literal; integral values of five or more digits get `_` separators."""
+    text = repr(float(value))
+    whole, dot, frac = text.partition(".")
+    if dot and frac == "0" and whole.lstrip("-").isdigit() and len(whole.lstrip("-")) >= 5:
+        sign = "-" if whole.startswith("-") else ""
+        return f"{sign}{int(whole.lstrip('-')):_}.0"
+    return text
+
 def citation_source(citation: str) -> tuple[str, str] | None:
     """(defining file relative to the repository, function) of a `path::function` citation.
 
@@ -156,11 +166,11 @@ def rust(rows: list[dict]) -> str:
         )
         lines.extend(f"        {field}: {row.get(field, 0)}," for field in INTEGER_LIMITS)
         lines.extend(
-            f"        {field}: {float(row.get(field, 0.0))},"
+            f"        {field}: {rust_f64(row.get(field, 0.0))},"
             for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS)
         )
         lines.append(f"        max_covariates: {row.get('max_covariates', 0)},")
-        lines.append(f"        min_probability: {float(row.get('min_probability', 0.0))},")
+        lines.append(f"        min_probability: {rust_f64(row.get('min_probability', 0.0))},")
         lines.append(
             f"        all_reported_intervals: {str(row.get('all_reported_intervals', False)).lower()},"
         )

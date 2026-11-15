@@ -1,7 +1,7 @@
 //! Synthetic control with intervals: conformal inference for one treated unit, placebo variance
 //! for a staggered multi-unit rollout, and the Bayesian posterior of the multi-unit average.
 //!
-//! A frequentist fit whose section a synthetic_control support row admits states `supported`;
+//! A frequentist fit whose section a `synthetic_control` support row admits states `supported`;
 //! every other is unsupported, and every section's calibration is `not_measured`. The Bayesian
 //! multi-unit posterior runs the simplex donor-weight posterior of each adopting unit against
 //! the never-treated donors and averages the per-unit draws with post-period weights; treating
@@ -88,7 +88,7 @@ fn estimation(error: antecedent_estimate::EstimationError) -> CausalError {
     CausalError::Estimate(error)
 }
 
-/// State support on a frequentist synthetic rollout whose section a synthetic_control support
+/// State support on a frequentist synthetic rollout whose section a `synthetic_control` support
 /// row admits, and replace the unsupported note with the scope of that row. The section is
 /// read in its artifact form, so the loader recomputes the same answer.
 fn synthetic_rollout_state_support(result: &mut StudyResult) {

@@ -88,7 +88,7 @@ fn finite_population_two_arm_has_the_law_of_the_arm_mean_contrast() {
     let reference = &superpopulation.contrasts[0];
     assert_eq!(c.mean.to_bits(), reference.mean.to_bits());
     assert_eq!(c.standard_deviation.to_bits(), reference.standard_deviation.to_bits());
-    assert_eq!(c.interval, reference.interval);
+    assert_eq!(c.interval.map(f64::to_bits), reference.interval.map(f64::to_bits));
     assert_eq!(c.probability_positive.to_bits(), reference.probability_positive.to_bits());
 }
 
@@ -168,7 +168,7 @@ fn gaussian_arms_superpopulation_and_finite_population() {
     // The finite-population contrast under additive unit effects has the same law.
     let (c, reference) = (&fp.contrasts[0], &sp.contrasts[0]);
     assert_eq!(c.estimand, RandomizedEstimand::FinitePopulation);
-    assert_eq!(c.interval, reference.interval);
+    assert_eq!(c.interval.map(f64::to_bits), reference.interval.map(f64::to_bits));
     assert_eq!(c.mean.to_bits(), reference.mean.to_bits());
     assert_eq!(c.standard_deviation.to_bits(), reference.standard_deviation.to_bits());
 }

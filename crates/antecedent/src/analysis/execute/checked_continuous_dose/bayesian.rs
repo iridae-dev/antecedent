@@ -78,6 +78,7 @@ fn numeric(data: &TabularData, id: antecedent_core::VariableId) -> Result<Vec<f6
 
 impl CheckedContinuousDoseOperation {
     /// Execute the retained design as the posterior of the fixed group-dose policy value.
+    #[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
     pub(super) fn execute_bayesian(
         &self,
         data: &TabularData,

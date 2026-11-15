@@ -358,6 +358,10 @@ pub fn run_target_plan(
     Ok(run)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the replicate loop, the joint statistic, its reference and the subset separation stay together"
+)]
 fn replicate_check(
     kind: TargetRefuterKind,
     expectation: RefuterExpectation,

@@ -100,7 +100,7 @@ fn measure(test: &'static str, functional_key: &str, functional: DoseFunctional,
             ScopeFacts {
                 row_count: n as u64,
                 replicates_ok: None,
-                posterior_draws: Some(DRAWS as u32),
+                posterior_draws: Some(u32::try_from(DRAWS).expect("draw count fits u32")),
                 unidentified_mass: 0.0,
             },
             "not_applicable",

@@ -1374,10 +1374,8 @@ impl CoverageTally {
     /// `emit` would have written on the first run. Call once after every
     /// replicate has been recorded, alongside the info-only tally's own report.
     pub fn persist(&self) {
+        // A shard's `finish` only writes its tally state; an unsharded run persists the same way.
         self.finish();
-        if sharding() {
-            return;
-        }
     }
 
     ///

@@ -72,7 +72,7 @@ use crate::rd::{RdWorkspace, SharpRegressionDiscontinuity};
 use crate::se::AnalyticSeKind;
 
 #[path = "../../antecedent/tests/common/calibration.rs"]
-mod calibration;
+pub(crate) mod calibration;
 #[path = "../../antecedent/tests/common/estimator_level.rs"]
 mod estimator_level;
 #[path = "../../antecedent/tests/common/static_dgp.rs"]

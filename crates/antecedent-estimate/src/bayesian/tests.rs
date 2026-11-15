@@ -1042,8 +1042,8 @@ fn pulse_graph() -> antecedent_graph::TemporalDag {
     g
 }
 
-#[path = "../../../antecedent/tests/common/calibration.rs"]
-mod calibration;
+// The shared calibration harness is compiled once per crate, in `calibration_coverage`.
+use crate::calibration_coverage::calibration;
 
 /// Equal-tailed posterior interval of the effect column at `level`, read at the
 /// rounded order-statistic index; `None` (a miss) with fewer than two finite draws.
@@ -1100,12 +1100,12 @@ fn bayesian_pulse_conjugate_nominal_90_coverage() {
             inner: BayesianGComputationAte {
                 backend: BayesianBackendKind::ConjugateGaussian,
                 n_draws: 240,
-                seed: 21 + u64::from(s),
+                seed: 21 + s,
                 prior_scale: 8.0,
                 ..BayesianGComputationAte::new()
             },
         };
-        let data = noisy_lag1_pulse_series(n, 9_000 + u64::from(s));
+        let data = noisy_lag1_pulse_series(n, 9_000 + s);
         let prep = temporal
             .prepare(
                 &data,
@@ -1162,12 +1162,12 @@ fn bayesian_sustained_single_step_conjugate_nominal_90_coverage() {
             inner: BayesianGComputationAte {
                 backend: BayesianBackendKind::ConjugateGaussian,
                 n_draws: 240,
-                seed: 22 + u64::from(s),
+                seed: 22 + s,
                 prior_scale: 8.0,
                 ..BayesianGComputationAte::new()
             },
         };
-        let data = noisy_lag1_pulse_series(n, 11_000 + u64::from(s));
+        let data = noisy_lag1_pulse_series(n, 11_000 + s);
         let prep = temporal
             .prepare(
                 &data,
@@ -1221,11 +1221,11 @@ fn bayesian_sustained_multi_step_conjugate_nominal_90_coverage() {
         let bayes = BayesianGComputationAte {
             backend: BayesianBackendKind::ConjugateGaussian,
             n_draws: 240,
-            seed: 23 + u64::from(s),
+            seed: 23 + s,
             prior_scale: 8.0,
             ..BayesianGComputationAte::new()
         };
-        let data = noisy_lag1_pulse_series(n, 13_000 + u64::from(s));
+        let data = noisy_lag1_pulse_series(n, 13_000 + s);
         let (_, posterior) = estimate_sustained_window(
             &crate::temporal_sequential::SequentialProblem {
                 data: &data,
@@ -1358,7 +1358,7 @@ fn bayesian_panel_hierarchical_nominal_90_coverage() {
             inner: BayesianGComputationAte {
                 backend: BayesianBackendKind::ConjugateGaussian,
                 n_draws: 200,
-                seed: 23 + u64::from(s),
+                seed: 23 + s,
                 prior_scale: 8.0,
                 ..BayesianGComputationAte::new()
             },
@@ -1366,7 +1366,7 @@ fn bayesian_panel_hierarchical_nominal_90_coverage() {
         // Unit `u` draws from `seed + 19·u`; a stride of 1000 keeps every
         // replicate's units disjoint (a unit stride of 1 reused series
         // across replicates, so they were not independent datasets).
-        let panel = unit_effect_lag1_panel(n_units, t_len, 13_000 + 1_000 * u64::from(s));
+        let panel = unit_effect_lag1_panel(n_units, t_len, 13_000 + 1_000 * s);
         let (prep, cluster_ids, _) = temporal
             .prepare_panel(
                 &panel,

@@ -667,7 +667,7 @@ impl Whitening {
         (0..d)
             .map(|row| {
                 self.center[row]
-                    + self.lower[row * d..row * d + row + 1]
+                    + self.lower[row * d..=row * d + row]
                         .iter()
                         .zip(z)
                         .map(|(l, z)| l * z)
@@ -759,6 +759,12 @@ fn sample_model_mixture(
         for iteration in 0..sampler.warmup + sampler.draws {
             check_cancelled(ctx)?;
             let (next_model, next_z) = if n > 1 && rng.next_f64() < SPECIFICATION_MOVE_PROBABILITY {
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    clippy::cast_precision_loss,
+                    reason = "a uniform draw in [0, 1) times a small specification count is a non-negative index"
+                )]
                 let other = ((rng.next_f64() * (n - 1) as f64) as usize).min(n - 2);
                 (if other >= model { other + 1 } else { other }, z.clone())
             } else {
@@ -1585,7 +1591,13 @@ mod tests {
         assert_eq!(samples.len(), 4 * 6_000 * 3);
         let mut counts = [0.0_f64; 3];
         for row in samples.chunks_exact(3) {
-            counts[(row[2] * 3.0) as usize] += 1.0;
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "the stored specification coordinate is a uniform in [0, 1)"
+            )]
+            let slot = (row[2] * 3.0) as usize;
+            counts[slot] += 1.0;
         }
         let total: f64 = counts.iter().sum();
         for (count, weight) in counts.iter().zip(weights) {

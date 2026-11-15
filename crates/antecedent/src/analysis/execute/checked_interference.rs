@@ -227,6 +227,7 @@ impl CheckedInterferenceOperation {
         )
     }
 
+    #[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
     pub(crate) fn execute(
         &self,
         data: &TabularData,

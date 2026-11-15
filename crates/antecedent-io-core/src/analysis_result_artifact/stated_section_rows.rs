@@ -631,7 +631,7 @@ pub(super) fn validate_history_match_section(
     let Some(restated) = earlier.history_match.as_mut() else {
         return earlier_check(result);
     };
-    restated.uncertainty = HISTORY_MATCH_NORMAL_UNCERTAINTY.to_owned();
+    HISTORY_MATCH_NORMAL_UNCERTAINTY.clone_into(&mut restated.uncertainty);
     let stated = (fit.serial_standard_error, fit.interval_lower, fit.interval_upper);
     if let (Some(standard_error), Some(_), Some(_)) = stated {
         let normal = antecedent_stats::NORMAL_Q975 * standard_error;

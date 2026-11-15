@@ -78,6 +78,10 @@ fn complete_sample<'a>(
 
 /// Every attempted full fit participates. Any failed fit fails this regular-design
 /// suite; it is not silently removed from the sampling covariance or error rate.
+#[allow(
+    clippy::too_many_lines,
+    reason = "each metric's assertion is stated next to its computation"
+)]
 pub fn assess(design: MetricDesign<'_>, attempts: usize, results: &[Option<FitMetrics>]) {
     let fits = complete_sample(design, attempts, results);
     let r = attempts as f64;

@@ -103,6 +103,7 @@ pub(super) fn require_scope(
 impl CheckedSurvivalOperation {
     /// Execute the retained design as the posterior of the survival and restricted-mean
     /// contrast under the declared piecewise-exponential model.
+    #[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
     pub(super) fn execute_bayesian(
         &self,
         data: &TabularData,

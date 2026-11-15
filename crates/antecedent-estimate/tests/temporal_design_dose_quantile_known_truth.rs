@@ -415,7 +415,7 @@ fn weighted_median_posterior_matches_the_exact_dirichlet_law() {
     let n = DRAWS as f64;
     for (j, law) in laws.iter().enumerate() {
         let draws = &posterior.draws[j];
-        for (value, probability) in law.iter() {
+        for (value, probability) in *law {
             let share = draws.iter().filter(|x| exactly(**x, *value)).count() as f64 / n;
             let slack = 5.0 * (probability * (1.0 - probability) / n).sqrt();
             assert!((share - probability).abs() <= slack, "coordinate {j} at {value}: {share}");

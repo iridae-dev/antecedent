@@ -153,6 +153,7 @@ const SWITCHBACK_ROW_MIN_PERIODS: usize = 12;
 
 impl super::CheckedRandomizedOperation {
     /// Execute the retained switchback design as a Bayesian posterior on complete outcomes.
+    #[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
     pub(super) fn execute_bayesian_switchback(
         &self,
         data: &TabularData,

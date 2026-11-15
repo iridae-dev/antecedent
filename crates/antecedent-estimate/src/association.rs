@@ -31,7 +31,7 @@
 //! of [`SPREAD_LEVEL`] is the interval of its own reference distribution:
 //!
 //! * a coefficient of a model fitted to independent rows is the root sum of squares of its
-//!   influence values with the residuals divided by `1 - leverage` (MacKinnon and White 1985),
+//!   influence values with the residuals divided by `1 - leverage` (`MacKinnon` and White 1985),
 //!   times the ratio of the Student-t to the normal quantile at the Satterthwaite-effective
 //!   number of rows of those values;
 //! * a series quantity is the Bartlett Newey-West error of its influence series, with the
@@ -2167,6 +2167,10 @@ impl AssociationEstimator {
     /// A declared design the data cannot honour, a Bayesian request that also asks for
     /// replicates, a fit that is degenerate (a collinear design, a separated outcome), a
     /// constant column of a correlation, too few draws, or cancellation.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one dispatch over the association analyses and their error constructions"
+    )]
     pub fn estimate(
         &self,
         prepared: &PreparedAssociation,

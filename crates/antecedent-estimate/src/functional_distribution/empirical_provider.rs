@@ -126,13 +126,14 @@ impl EncodedColumns {
         if let Some(keys) = cache.get(ids) {
             return Ok(Arc::clone(keys));
         }
-        if u32::try_from(cells).map_or(true, |cells| cells >= NO_KEY) {
+        if u32::try_from(cells).map_or(true, |cells| cells == NO_KEY) {
             return Err(EstimationError::data_msg("too many joint cells to key a CPT"));
         }
         let rows = cols.iter().map(|column| column.codes.len()).min().unwrap_or(self.n);
         let mut keys = vec![0_u32; rows];
         for column in cols {
-            let radix = column.levels.len() as u32;
+            let radix = u32::try_from(column.levels.len())
+                .map_err(|_| EstimationError::data_msg("too many joint cells to key a CPT"))?;
             for (key, &code) in keys.iter_mut().zip(&column.codes) {
                 *key = if *key == NO_KEY || code == DiscreteColumn::MISSING {
                     NO_KEY
@@ -555,8 +556,10 @@ fn construct_cpt_entries(
     // Count (vars, cond) joint and cond marginal among complete cases. The table is bounded
     // above, so counts are held densely under the rows' mixed-radix key: every cell
     // accumulates its rows in row order.
-    let cond_cells: usize = cond_radices.iter().map(|&radix| radix as usize).product();
-    let var_cells: usize = var_radices.iter().map(|&radix| radix as usize).product();
+    // Both products are bounded by the million-cell budget checked above.
+    let as_cells = |radix: u64| usize::try_from(radix).unwrap_or(usize::MAX);
+    let cond_cells: usize = cond_radices.iter().map(|&radix| as_cells(radix)).product();
+    let var_cells: usize = var_radices.iter().map(|&radix| as_cells(radix)).product();
     let mut joint = vec![0.0_f64; var_cells * cond_cells];
     let mut marg = vec![0.0_f64; cond_cells];
     let mut total = 0.0;

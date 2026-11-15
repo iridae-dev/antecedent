@@ -845,6 +845,7 @@ impl super::Study {
 
     /// Re-run every contributing atom on shared resampled tables and read the spread of the
     /// draw-wise mixture of their values.
+    #[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
     fn shared_row_replicates(
         &self,
         data: &TabularData,
@@ -906,11 +907,10 @@ impl super::Study {
             .collect();
         if let Some(selection) = &selection {
             for (_, study, graph) in &quiet {
-                match answer_on_atom(study, graph, data, kind, physical, ctx) {
-                    Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
-                        return Err(error);
-                    }
-                    _ => {}
+                if let Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) =
+                    answer_on_atom(study, graph, data, kind, physical, ctx)
+                {
+                    return Err(error);
                 }
             }
             selection.seal();

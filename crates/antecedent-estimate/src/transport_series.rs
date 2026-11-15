@@ -191,8 +191,8 @@ mod tests {
     fn alternating_series(rows: usize, run: usize) -> (Vec<f64>, Vec<bool>, Vec<bool>) {
         let (mut y, mut a, mut trial) = (Vec::new(), Vec::new(), Vec::new());
         for t in 0..rows {
-            let in_trial = t % 2 == 1;
-            let arm = (t / run) % 2 == 0;
+            let in_trial = !t.is_multiple_of(2);
+            let arm = (t / run).is_multiple_of(2);
             trial.push(in_trial);
             a.push(in_trial && arm);
             y.push(if in_trial { f64::from(u8::from(arm)) + 0.01 * (t % 7) as f64 } else { 0.0 });

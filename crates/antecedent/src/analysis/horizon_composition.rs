@@ -307,6 +307,7 @@ pub struct HorizonCompositionInterval {
     clippy::result_large_err,
     reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
 )]
+#[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
 pub fn horizon_composition_interval(
     response: &CausalResponse,
     dose_index: usize,

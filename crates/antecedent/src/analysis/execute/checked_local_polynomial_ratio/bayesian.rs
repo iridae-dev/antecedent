@@ -194,6 +194,7 @@ fn local_ratio_diagnostics(
 
 impl super::CheckedLocalPolynomialRatioOperation {
     /// Execute the retained design as a Bayesian posterior of the local ratio.
+    #[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
     pub(super) fn execute_bayesian(
         &self,
         data: &TabularData,

@@ -63,7 +63,8 @@ use crate::util::refuse;
 
 // The import list is the one name resolution was recorded against. These two names are no
 // longer called here; the binding keeps them referenced.
-const _: (fn(f64) -> f64, fn(&mut [f64]) -> Option<()>) = (ln_gamma, normalize);
+type RetainedNames = (fn(f64) -> f64, fn(&mut [f64]) -> Option<()>);
+const _: RetainedNames = (ln_gamma, normalize);
 
 /// Likelihood label of the binary-outcome posterior, for evidence records.
 pub const BERNOULLI_ARM_LIKELIHOOD: &str = "independent_bernoulli_arms_beta_prior";

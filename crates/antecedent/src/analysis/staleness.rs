@@ -287,6 +287,7 @@ fn count(
 ///
 /// Malformed JSON, an unknown field, a field of the wrong type, or a policy that does not
 /// validate.
+#[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
 pub fn staleness_policy_from_json(text: &str) -> Result<StalenessPolicy, CausalError> {
     const FIELDS: [&str; 28] = [
         "alpha",

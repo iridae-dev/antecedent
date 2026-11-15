@@ -392,6 +392,7 @@ impl super::CheckedRandomizedOperation {
     }
 
     /// Execute the retained design as a Bayesian posterior on complete, finite outcomes.
+    #[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
     pub(super) fn execute_bayesian(
         &self,
         data: &TabularData,
@@ -669,6 +670,7 @@ impl super::CheckedRandomizedOperation {
 
 impl super::CheckedRandomizedOperation {
     /// Bayesian-bootstrap posterior of the complier (or treated-on-treated) effect.
+    #[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
     fn execute_bayesian_complier(
         &self,
         data: &TabularData,

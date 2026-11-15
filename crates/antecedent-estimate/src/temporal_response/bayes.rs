@@ -709,7 +709,7 @@ pub(super) fn retained_joint_trajectory_draws(
 ) -> Option<CredibleDraws> {
     let n_draws = columns.first()?.len();
     (horizon_count > 0
-        && columns.len() % horizon_count == 0
+        && columns.len().is_multiple_of(horizon_count)
         && n_draws >= 2
         && columns.iter().all(|column| column.len() == n_draws))
     .then(|| CredibleDraws::columns(n_draws, columns))

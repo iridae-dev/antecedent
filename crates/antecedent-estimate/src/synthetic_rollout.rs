@@ -148,6 +148,10 @@ fn fit_simplex(target: &[f64], donors: &[Vec<f64>], start: Option<&[f64]>) -> Re
     fit_simplex_with_limit(target, donors, start, SIMPLEX_ITERATIONS)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the accelerated projected-gradient loop keeps its restart and momentum steps together"
+)]
 fn fit_simplex_with_limit(
     target: &[f64],
     donors: &[Vec<f64>],

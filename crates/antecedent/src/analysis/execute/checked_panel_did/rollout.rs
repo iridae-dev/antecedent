@@ -12,7 +12,7 @@
 //!
 //! Uncertainty is a whole-procedure resample of the inference clusters (whole subjects under a
 //! declared independent-subject design; a dependent single series is refused). A fit whose
-//! published section a difference_in_differences support row admits states `supported`; every
+//! published section a `difference_in_differences` support row admits states `supported`; every
 //! other is unsupported, and every section's calibration is `not_measured`.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -889,6 +889,7 @@ impl<'a> TrialColumns<'a> {
 
 /// Dirichlet Bayesian bootstrap of the trial-to-target IPW contrast over the observed trial rows
 /// (or whole clusters, or blocks of one series).
+#[allow(clippy::too_many_lines, reason = "the route's steps read in order in one place")]
 pub(super) fn bayesian_transport_estimate(
     cfg: &BayesianConfig,
     (transport_id, dependence): (&TransportIdentification, &TrialDependence),

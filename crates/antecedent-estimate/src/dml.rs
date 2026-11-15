@@ -1607,9 +1607,9 @@ mod tests {
     }
 }
 
+// The shared calibration harness is compiled once per crate, in `calibration_coverage`.
 #[cfg(test)]
-#[path = "../../antecedent/tests/common/calibration.rs"]
-mod calibration_harness;
+pub(crate) use crate::calibration_coverage::calibration as calibration_harness;
 
 thread_local! { static AIPW_SCORE_BUILDS:std::cell::Cell<u64>=const {std::cell::Cell::new(0)}; }
 /// Observe actual successful AIPW score table constructions, including nested scopes.

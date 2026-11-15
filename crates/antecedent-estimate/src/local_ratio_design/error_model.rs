@@ -370,8 +370,10 @@ fn partial_covariance(
             .collect()
     };
     let (rho, _) = autocorrelations(partial, 2 * BARTLETT_LAGS);
+    // Lags are at most a few dozen, far inside `isize`.
+    let signed = |value: usize| isize::try_from(value).unwrap_or(isize::MAX);
     let at = |lag: usize, other: isize| -> f64 {
-        let index = (lag as isize + other).unsigned_abs();
+        let index = (signed(lag) + other).unsigned_abs();
         rho.get(index).copied().unwrap_or(0.0)
     };
     let mut bartlett = vec![vec![0.0; p]; p];
@@ -380,8 +382,8 @@ fn partial_covariance(
             let (i, j) = (i + 1, j + 1);
             *cell = (1..BARTLETT_LAGS)
                 .map(|h| {
-                    let left = at(h, i as isize) + at(h, -(i as isize)) - 2.0 * rho[i] * rho[h];
-                    let right = at(h, j as isize) + at(h, -(j as isize)) - 2.0 * rho[j] * rho[h];
+                    let left = at(h, signed(i)) + at(h, -signed(i)) - 2.0 * rho[i] * rho[h];
+                    let right = at(h, signed(j)) + at(h, -signed(j)) - 2.0 * rho[j] * rho[h];
                     left * right
                 })
                 .sum();

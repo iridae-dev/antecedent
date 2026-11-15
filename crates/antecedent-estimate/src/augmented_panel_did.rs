@@ -213,7 +213,7 @@ pub fn resample_interval_95(
     }
     let critical = antecedent_stats::special::student_t_ppf(0.975, f64::from(replicates_ok - 1));
     let half = critical * standard_error;
-    half.is_finite().then(|| [point - half, point + half])
+    half.is_finite().then_some([point - half, point + half])
 }
 
 #[cfg(test)]

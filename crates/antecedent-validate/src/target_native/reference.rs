@@ -242,6 +242,7 @@ mod tests {
 
     /// Thirty circular-window refits (80 percent of a 100-period series) of a three-coordinate
     /// target with no deciding period.
+    #[allow(clippy::unreadable_literal, reason = "refit values copied as measured")]
     const CLEAN_REFITS: &[f64] = &[
         0.791696, 0.582906, 0.00580361, 0.786842, 0.612423, 0.00554714, 0.7966, 0.649485,
         0.00518934, 0.76738, 0.576477, 0.00451624, 0.823012, 0.756871, 0.0311789, 0.80622,
@@ -256,9 +257,11 @@ mod tests {
         0.00512518, 0.81188, 0.746865, 0.0285001, 0.758523, 0.589389, 0.00255864, 0.765712,
         0.637441, 0.00620369,
     ];
+    #[allow(clippy::unreadable_literal, reason = "refit values copied as measured")]
     const CLEAN_ORIGINAL: [f64; 3] = [0.823002, 0.705772, 0.00800196];
     /// The same series with one period planted at 40 (and its outcome raised by 60): the refits
     /// that keep it sit near 30, those that drop it near 0.7, the original (25) between them.
+    #[allow(clippy::unreadable_literal, reason = "refit values copied as measured")]
     const PLANTED_REFITS: &[f64] = &[
         30.5994, 29.9539, 0.0419792, 0.786842, 0.612423, 0.00554714, 33.747, 32.5021, 0.0331808,
         32.1424, 31.4457, 0.0468436, 30.4484, 29.6505, 0.0296071, 33.7738, 32.6987, 0.0309709,
@@ -271,6 +274,7 @@ mod tests {
         33.2225, 32.1604, 0.0293121, 0.713299, 0.550099, 0.0015609, 0.835792, 0.689634, 0.00512518,
         29.0579, 28.2665, 0.0230903, 26.9007, 25.7468, 0.012757, 29.7308, 29.1015, 0.0361879,
     ];
+    #[allow(clippy::unreadable_literal, reason = "refit values copied as measured")]
     const PLANTED_ORIGINAL: [f64; 3] = [25.1151, 24.4067, 0.0426127];
 
     #[test]
@@ -278,10 +282,11 @@ mod tests {
         let separation = subset_separation(&PLANTED_ORIGINAL, PLANTED_REFITS, 3);
         assert!(separation > 12.0, "{separation}");
         let tail = separation_tail(separation, 0.05);
-        assert!(tail < 0.05 && tail < 0.2, "{tail}");
+        assert!(tail < 0.05, "{tail}");
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the tail below the threshold is exactly one")]
     fn refits_without_a_deciding_unit_are_not_separated() {
         let separation = subset_separation(&CLEAN_ORIGINAL, CLEAN_REFITS, 3);
         assert!(separation < SEPARATION_THRESHOLD / 4.0, "{separation}");
@@ -324,6 +329,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "degenerate inputs return exact sentinels")]
     fn separation_degenerate_inputs_are_handled() {
         assert_eq!(subset_separation(&[0.0], &[0.0, 1.0, 2.0], 1), 0.0);
         assert_eq!(separation_tail(f64::NAN, 0.05), 1.0);
