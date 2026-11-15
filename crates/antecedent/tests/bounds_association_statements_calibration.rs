@@ -555,7 +555,8 @@ fn association_static_pearson_correlation_bootstrap_spread_interval() {
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn association_static_distance_correlation_bootstrap_spread_interval() {
-    // The distance correlation has no analytic error: its only interval is the spread.
+    // The distance correlation has no analytic error: its only interval is the spread, the
+    // normal interval of the jackknife error around the unbiased point.
     measure_analysis(
         "association_static_distance_correlation_bootstrap_spread_interval",
         "bivariate_normal_known_correlation",
@@ -565,7 +566,7 @@ fn association_static_distance_correlation_bootstrap_spread_interval() {
             functional: "distance_correlation",
             replicates: REPLICATES,
             source: Source::Spread,
-            interval: "percentile_spread",
+            interval: "jackknife_normal_spread",
             ..PEARSON
         },
         TABLE_ROWS,
