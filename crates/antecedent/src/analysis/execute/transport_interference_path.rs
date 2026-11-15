@@ -592,24 +592,21 @@ pub(super) fn frequentist_transport_estimate(
 ) -> Result<(EffectEstimate, Diagnostic), CausalError> {
     let TrialColumns { outcomes, treatment, trial, selection, propensity, weights } = *columns;
     let weighted = if weights.is_some() { " weighted" } else { "" };
+    let mut series_terms = None;
     let (se, se_kind) = match (dependence, weights) {
         (TrialDependence::Independent, None) => (
             trial_to_target_ipw_se(outcomes, treatment, trial, selection, propensity, ipw)
                 .map_err(CausalError::from)?,
             antecedent_estimate::AnalyticSeKind::default(),
         ),
-        (TrialDependence::SizedSeries(lag), None) => (
-            antecedent_estimate::trial_to_target_ipw_hac_se_fixed_b(
-                outcomes,
-                treatment,
-                trial,
-                selection,
-                propensity,
-                (ipw, *lag),
+        (TrialDependence::SizedSeries(lag), None) => {
+            let (se, terms) = antecedent_estimate::trial_to_target_ipw_ewc_se(
+                outcomes, treatment, trial, selection, propensity, ipw,
             )
-            .map_err(CausalError::from)?,
-            antecedent_estimate::AnalyticSeKind::NeweyWest { lag: *lag },
-        ),
+            .map_err(CausalError::from)?;
+            series_terms = Some(terms);
+            (se, antecedent_estimate::AnalyticSeKind::NeweyWest { lag: *lag })
+        }
         (TrialDependence::Series(lag), None) => (
             antecedent_estimate::trial_to_target_ipw_hac_se(
                 outcomes,
@@ -646,9 +643,11 @@ pub(super) fn frequentist_transport_estimate(
         ),
         TrialDependence::SizedSeries(lag) => format!(
             "binary trial-to-target IPW on the consecutive times of one series; the SE is the \
-             Newey-West long-run variance of the per-row influence at lag {lag} (sized on that \
-             influence), scaled by the fixed-b ratio of the bandwidth, unsupported and \
-             not_measured; inner ResponseCurve names treatment/outcome only"
+             equal-weighted cosine long-run variance of the per-row influence on {} terms, \
+             referred to Student-t on that many degrees of freedom (the series-block length of \
+             the Bayesian route is {lag}), unsupported and not_measured; inner ResponseCurve \
+             names treatment/outcome only",
+            series_terms.unwrap_or_default()
         ),
         TrialDependence::Clusters(_) => format!(
             "binary trial-to-target{weighted} IPW on {}; the SE is the cluster sandwich of the \
@@ -659,6 +658,11 @@ pub(super) fn frequentist_transport_estimate(
     };
     let mut estimate = EffectEstimate::new(ipw, se, assumptions, OverlapPolicy::ExplicitOverride)
         .with_se_kind(se_kind);
+    if let Some(terms) = series_terms {
+        // The cosine variance on `B` terms is chi-square on `B` degrees of freedom, so the
+        // studentized contrast is Student-t on `B`.
+        estimate.uncertainty.analytic.reference_df = Some(terms as f64);
+    }
     if let TrialDependence::Clusters(labels) = dependence {
         // The cluster sandwich is referred to a Student-t law with one fewer degree of freedom
         // than the clusters it sums over, the small-cluster reference of a cluster-robust error.
@@ -918,18 +922,15 @@ pub(super) fn bayesian_transport_estimate(
     }
     .map_err(CausalError::from)?;
     let mut draws = draws;
-    if let (TrialDependence::SizedSeries(block), None) = (dependence, weights) {
-        // Draws that weight `B` consecutive blocks by Dirichlet(1, ..., 1) have `(B-1)/(B+1)`
-        // of the batch-means variance of the estimate, whose studentized error is Student-t
-        // on `B - 1` degrees of freedom: the deviations are scaled to that reference.
-        let block = (*block).clamp(1, outcomes.len().max(1));
-        let scale =
-            antecedent_estimate::block_weight_reference_scale(outcomes.len().div_ceil(block))
-                .map_err(CausalError::from)?;
-        let centre = draws.iter().sum::<f64>() / draws.len() as f64;
-        for draw in &mut draws {
-            *draw = centre + (*draw - centre) * scale;
-        }
+    if let (TrialDependence::SizedSeries(_), None) = (dependence, weights) {
+        // The block draws keep their shape; their spread is brought to the equal-weighted
+        // cosine interval of the frequentist route, whose Student-t reference is exact.
+        antecedent_estimate::scale_series_draws_to_ewc(
+            &mut draws,
+            (outcomes, treatment, trial),
+            (selection, propensity),
+        )
+        .map_err(CausalError::from)?;
     }
     let unit = match dependence {
         TrialDependence::Independent => "observed trial rows",
@@ -986,6 +987,16 @@ pub(super) fn bayesian_transport_estimate(
         preparation: None,
     };
     let estimate = effect_from_posterior(&posterior)?;
+    let posterior_message = match dependence {
+        TrialDependence::SizedSeries(block) if weights.is_none() => format!(
+            "Dirichlet trial-row-law posterior of binary trial-to-target IPW over blocks of {block} \
+             consecutive rows ({} blocks), spread calibrated to the equal-weighted cosine \
+             interval on {} terms; supplied probabilities and target sample size held fixed",
+            outcomes.len().div_ceil((*block).clamp(1, outcomes.len().max(1))),
+            antecedent_estimate::series_ewc_terms(outcomes.len())
+        ),
+        _ => "Dirichlet trial-row-law posterior of binary trial-to-target IPW; supplied probabilities and target sample size held fixed".to_owned(),
+    };
     Ok((
         estimate,
         posterior,
@@ -993,7 +1004,7 @@ pub(super) fn bayesian_transport_estimate(
             "estimate.transport.trial_bayesian_bootstrap",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "Dirichlet trial-row-law posterior of binary trial-to-target IPW; supplied probabilities and target sample size held fixed",
+            posterior_message,
         ),
     ))
 }

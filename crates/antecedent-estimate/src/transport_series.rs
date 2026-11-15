@@ -5,15 +5,15 @@
 //! held over runs of rows). Three pieces turn the independent-row constructions into series
 //! ones:
 //!
-//! * [`trial_to_target_series_block_length`]: the lag of the Newey-West error and the block
-//!   length of the block bootstrap, sized on the influence itself;
-//! * [`trial_to_target_ipw_hac_se_fixed_b`]: the Newey-West error carrying the fixed-b
-//!   reference of its bandwidth;
-//! * [`block_weight_reference_scale`]: the Student-t reference of block-weight draws.
+//! * [`trial_to_target_series_block_length`]: the block length of the block bootstrap, sized
+//!   on the influence itself;
+//! * [`trial_to_target_ipw_ewc_se`]: the equal-weighted cosine long-run variance of the
+//!   influence, whose studentized error is Student-t at an exact degrees of freedom;
+//! * [`scale_series_draws_to_ewc`]: the block-weight draws brought to that same spread.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::{ipw_influence, trial_to_target_ipw_hac_se, validate_trial_to_target_inputs};
+use super::{ipw_influence, validate_trial_to_target_inputs};
 use crate::EstimationError;
 
 /// The per-row influence of the ratio-of-means IPW contrast at its own point estimate, with
@@ -54,7 +54,7 @@ fn influence_at_point(
 ///
 /// # Errors
 ///
-/// As [`trial_to_target_ipw_hac_se`].
+/// Uncertified inputs, as [`crate::trial_to_target_ipw_se`].
 pub fn trial_to_target_series_block_length(
     outcome: &[f64],
     treatment: &[bool],
@@ -72,74 +72,121 @@ pub fn trial_to_target_series_block_length(
     Ok(crate::dependence_block_length(1, influence.len(), &[&influence]))
 }
 
-/// [`trial_to_target_ipw_hac_se`] scaled by the Kiefer-Vogelsang fixed-b ratio of its
-/// bandwidth, so that `estimate +/- z * SE` is the fixed-b interval of the Bartlett
-/// long-run variance at `lag` over the `n` rows.
+/// Cosine terms of the equal-weighted cosine variance over `rows` rows: `floor(0.4 rows^(2/3))`,
+/// the rule of Lazarus, Lewis, Stock and Watson (2018) that minimizes the size distortion of a
+/// 5% test, at least two and below the row count.
+#[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "0.4 n^(2/3) of a series length is a non-negative count far below usize::MAX"
+)]
+pub fn series_ewc_terms(rows: usize) -> usize {
+    let terms = (0.4 * (rows as f64).powf(2.0 / 3.0)).floor() as usize;
+    terms.clamp(2, rows.saturating_sub(1).max(2))
+}
+
+/// Equal-weighted cosine standard error of the contrast from its per-row `influence`.
 ///
-/// The Newey-West variance at a bandwidth that is a fraction `b = lag / n` of the series
-/// is not consistent: its studentized error is not standard normal but the fixed-b law,
-/// whose critical values exceed the normal ones by the polynomial of `b`
-/// ([`crate::circular_fixed_b_scale`] is the circular counterpart). Dividing the fixed-b
-/// critical value by the normal one and folding it into the SE keeps the published
-/// `z * SE` construction.
+/// With `Lambda_j = sqrt(2/n) sum_t x_t cos(pi j (t + 1/2) / n)` the long-run variance is
+/// estimated by the mean of `Lambda_j^2` over `B` terms; the projections on distinct cosines are
+/// asymptotically independent normals, so `B * variance / truth` is chi-square on `B` degrees of
+/// freedom and the studentized contrast is exactly Student-t on `B`, whatever the bandwidth
+/// would have been. No lag is chosen, and the finite-sample reference is exact rather than a
+/// fixed-b approximation. The standard error is `sqrt(n * variance) / target_n`.
+fn ewc_standard_error(influence: &[f64], target_n: usize) -> (f64, usize) {
+    let n = influence.len();
+    let terms = series_ewc_terms(n);
+    let nf = n as f64;
+    let mut sum_sq = 0.0;
+    for j in 1..=terms {
+        let omega = std::f64::consts::PI * j as f64 / nf;
+        let projection: f64 = influence
+            .iter()
+            .enumerate()
+            .map(|(t, value)| value * (omega * (t as f64 + 0.5)).cos())
+            .sum();
+        sum_sq += 2.0 / nf * projection * projection;
+    }
+    let variance = sum_sq / terms as f64;
+    ((nf * variance).sqrt() / target_n as f64, terms)
+}
+
+/// Standard error of the trial-to-target IPW contrast on one series from the equal-weighted
+/// cosine long-run variance of its influence, with the Student-t degrees of freedom (the number
+/// of cosine terms) its interval is referred to.
 ///
 /// # Errors
 ///
-/// As [`trial_to_target_ipw_hac_se`].
-pub fn trial_to_target_ipw_hac_se_fixed_b(
+/// As [`trial_to_target_ipw_se`](crate::trial_to_target_ipw_se).
+pub fn trial_to_target_ipw_ewc_se(
     outcome: &[f64],
     treatment: &[bool],
     trial: &[bool],
     selection_probability: &[f64],
     treatment_probability: &[f64],
-    (ipw, lag): (f64, usize),
-) -> Result<f64, EstimationError> {
-    let se = trial_to_target_ipw_hac_se(
+    ipw: f64,
+) -> Result<(f64, usize), EstimationError> {
+    let target_n = validate_trial_to_target_inputs(
         outcome,
         treatment,
         trial,
         selection_probability,
         treatment_probability,
-        (ipw, lag),
     )?;
-    Ok(se * crate::temporal_block::fixed_b_scale(lag, outcome.len()))
+    if !ipw.is_finite() {
+        return Err(EstimationError::data_msg("transport IPW estimate must be finite"));
+    }
+    let influence =
+        ipw_influence(outcome, treatment, trial, selection_probability, treatment_probability, ipw);
+    Ok(ewc_standard_error(&influence, target_n))
 }
 
-/// Ratio that turns the spread of block-weight draws over `blocks` blocks into the 95%
-/// Student-t interval of the block-mean estimate.
-///
-/// Draws that weight `B` consecutive blocks by `Dirichlet(1, ..., 1)` have variance
-/// `(B - 1)/(B + 1)` of the batch-means variance of the estimate, whose studentized error is
-/// Student-t on `B - 1` degrees of freedom, so deviations from the draw centre are scaled by
-/// `t_{B-1} / z * sqrt((B + 1)/(B - 1))`. The ratio is the 95% one and serves every level
-/// of the published interval, as the fixed-b ratio of the circular-block intervals does.
+/// Bring block-weight `draws` of the contrast to the 95% interval of the equal-weighted cosine
+/// construction: deviations from the draw mean are scaled so that their 97.5% normal quantile is
+/// `t_{B,0.975} * se`, with `se` and `B` those of [`trial_to_target_ipw_ewc_se`] at the
+/// contrast's own point estimate. The block draws keep their shape and the posterior spread is the
+/// calibrated one; the ratio is the 95% one and serves every level, as the circular-block
+/// intervals' fixed-b ratio does.
 ///
 /// # Errors
 ///
-/// Fewer than three blocks, where the Student-t reference has no variance.
-pub fn block_weight_reference_scale(blocks: usize) -> Result<f64, EstimationError> {
-    if blocks < 3 {
-        return Err(EstimationError::data_msg(
-            "block-weight draws over fewer than three blocks carry no interval; use a longer \
-             series or a shorter block",
-        ));
+/// Uncertified inputs, fewer than two draws, or draws with no spread.
+pub fn scale_series_draws_to_ewc(
+    draws: &mut [f64],
+    (outcome, treatment, trial): (&[f64], &[bool], &[bool]),
+    (selection_probability, treatment_probability): (&[f64], &[f64]),
+) -> Result<(), EstimationError> {
+    let influence = influence_at_point(
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+    )?;
+    let target_n = trial.iter().filter(|&&source| !source).count();
+    let (se, terms) = ewc_standard_error(&influence, target_n);
+    let count = draws.len();
+    if count < 2 {
+        return Err(EstimationError::data_msg("block-weight draws need at least two draws"));
     }
-    let b = blocks as f64;
+    let centre = draws.iter().sum::<f64>() / count as f64;
+    let spread =
+        (draws.iter().map(|draw| (draw - centre).powi(2)).sum::<f64>() / (count - 1) as f64).sqrt();
+    if !(spread.is_finite() && spread > 0.0 && se.is_finite()) {
+        return Err(EstimationError::data_msg("block-weight draws have no spread to calibrate"));
+    }
     let z = antecedent_stats::normal_ppf(0.975);
-    Ok(antecedent_stats::student_t_ppf(0.975, b - 1.0) / z * ((b + 1.0) / (b - 1.0)).sqrt())
+    let scale = se * antecedent_stats::student_t_ppf(0.975, terms as f64) / z / spread;
+    for draw in draws {
+        *draw = centre + (*draw - centre) * scale;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn block_weight_scale_exceeds_one_and_shrinks_with_blocks() {
-        let few = block_weight_reference_scale(5).unwrap();
-        let many = block_weight_reference_scale(200).unwrap();
-        assert!(few > many && many > 1.0 && few > 1.5);
-        assert!(block_weight_reference_scale(2).is_err());
-    }
 
     fn alternating_series(rows: usize, run: usize) -> (Vec<f64>, Vec<bool>, Vec<bool>) {
         let (mut y, mut a, mut trial) = (Vec::new(), Vec::new(), Vec::new());
@@ -154,15 +201,31 @@ mod tests {
     }
 
     #[test]
-    fn series_length_covers_the_arm_runs_and_fixed_b_widens_the_error() {
+    fn terms_follow_the_two_thirds_rule() {
+        assert_eq!(series_ewc_terms(500), 25);
+        assert_eq!(series_ewc_terms(1000), 40);
+        assert_eq!(series_ewc_terms(2000), 63);
+        assert_eq!(series_ewc_terms(4), 2);
+    }
+
+    #[test]
+    fn ewc_error_is_positive_and_draws_take_its_spread() {
         let rows = 500;
         let (y, a, trial) = alternating_series(rows, 10);
         let half = vec![0.5; rows];
         let block = trial_to_target_series_block_length(&y, &a, &trial, &half, &half).unwrap();
-        assert!(block >= 8, "block {block} is below the n^(1/3) rule");
-        let plain = trial_to_target_ipw_hac_se(&y, &a, &trial, &half, &half, (1.0, block)).unwrap();
-        let scaled =
-            trial_to_target_ipw_hac_se_fixed_b(&y, &a, &trial, &half, &half, (1.0, block)).unwrap();
-        assert!(scaled > plain);
+        assert!(block >= 8);
+        let target_n = rows / 2;
+        let ipw = y.iter().zip(&a).filter(|(_, arm)| **arm).map(|(v, _)| 2.0 * v).sum::<f64>()
+            / target_n as f64;
+        let (se, terms) = trial_to_target_ipw_ewc_se(&y, &a, &trial, &half, &half, ipw).unwrap();
+        assert!(se > 0.0 && terms == 25);
+        let mut draws: Vec<f64> = (0..200).map(|i| f64::from(i) * 0.001).collect();
+        scale_series_draws_to_ewc(&mut draws, (&y, &a, &trial), (&half, &half)).unwrap();
+        let centre = draws.iter().sum::<f64>() / 200.0;
+        let sd = (draws.iter().map(|d| (d - centre).powi(2)).sum::<f64>() / 199.0).sqrt();
+        let z = antecedent_stats::normal_ppf(0.975);
+        let expected = se * antecedent_stats::student_t_ppf(0.975, 25.0) / z;
+        assert!((sd - expected).abs() < 1e-9 * expected.max(1.0));
     }
 }
