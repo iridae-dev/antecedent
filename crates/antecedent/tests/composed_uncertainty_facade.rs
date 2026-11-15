@@ -538,6 +538,10 @@ fn a_transported_spread_needs_all_three_pieces_and_their_dependence() {
 /// population moments of the aligned row combinations under one joint law, and no value at
 /// all when the pieces are declared independent or their dependence is unknown.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the pinned reference, each propagation and its exact comparisons for the transported composition"
+)]
 fn a_transported_composition_equals_the_independent_moment_truth() {
     use antecedent::analysis::joint_law_propagation::propagate;
     use antecedent_contract::{

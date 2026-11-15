@@ -149,7 +149,7 @@ fn assert_supported_row(
             .iter_mut()
             .find(|slot| slot.0 == *name)
             .unwrap_or_else(|| panic!("{label}: field {name}"));
-        slot.1 = (*value).to_owned();
+        (*value).clone_into(&mut slot.1);
         assert!(refused(&wire).contains("does not admit"), "{label}: forged {name}={value}");
     }
     let mut unclaimed = body;

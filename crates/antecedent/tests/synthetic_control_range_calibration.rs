@@ -90,7 +90,7 @@ fn simulate(
         for (j, value) in donors.iter().enumerate() {
             y.push(*value);
             units.push(Arc::<str>::from(format!("d{j:02}")));
-            periods.push(t as i64);
+            periods.push(i64::try_from(t).expect("the index fits in i64"));
         }
         let mut treated: f64 =
             WEIGHTS.iter().map(|(j, w)| w * donors[*j]).sum::<f64>() + NOISE_SD * z();
@@ -99,7 +99,7 @@ fn simulate(
         }
         y.push(treated);
         units.push(Arc::<str>::from("treated"));
-        periods.push(t as i64);
+        periods.push(i64::try_from(t).expect("the index fits in i64"));
     }
     let data = TabularData::from_f64_columns([("y", y.as_slice())])
         .expect("the simulated outcome is finite and aligned");
@@ -160,7 +160,7 @@ impl Path {
 fn predictive_replicate(post: usize, path: Path, seed: u64) -> Option<Published> {
     let pre = grid_n(BASE_PRE_PERIODS);
     let (data, units, periods) = simulate(pre, post, seed, false);
-    let intervention = pre as i64 + 1;
+    let intervention = i64::try_from(pre).expect("the index fits in i64") + 1;
     let query = SyntheticControlQuery::new(
         VariableId::from_raw(0),
         units,
@@ -187,7 +187,7 @@ fn predictive_replicate(post: usize, path: Path, seed: u64) -> Option<Published>
                 .interval?
         }
         Path::Period(k) => {
-            let period = intervention + k as i64;
+            let period = intervention + i64::try_from(k).expect("the index fits in i64");
             rollout
                 .effects
                 .iter()
@@ -305,7 +305,7 @@ impl ConformalSet {
 fn conformal_replicate(post: usize, set: ConformalSet, seed: u64) -> Option<Published> {
     let pre = set.pre_periods(post);
     let (data, units, periods) = simulate(pre, post, seed, matches!(set, ConformalSet::Constant));
-    let intervention = pre as i64 + 1;
+    let intervention = i64::try_from(pre).expect("the index fits in i64") + 1;
     let query = SyntheticControlQuery::new(
         VariableId::from_raw(0),
         units,
@@ -320,7 +320,7 @@ fn conformal_replicate(post: usize, set: ConformalSet, seed: u64) -> Option<Publ
     let interval = match set {
         ConformalSet::Constant => rollout.overall()?.interval.unwrap_or(NO_SET),
         ConformalSet::Period(k) => {
-            let period = intervention + k as i64;
+            let period = intervention + i64::try_from(k).expect("the index fits in i64");
             rollout
                 .effects
                 .iter()

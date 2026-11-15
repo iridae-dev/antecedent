@@ -256,6 +256,10 @@ fn history_query(caliper: Option<f64>) -> HistoryMatchQuery {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one scenario kept in one body: the brute-force reference, the run and the artifact round trip of the period history match"
+)]
 fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
     let data = history_table();
     let ctx = ExecutionContext::for_tests(44);

@@ -91,7 +91,7 @@ fn simulate(pre: usize, seed: u64, constant: bool) -> (TabularData, Vec<Arc<str>
         for (j, value) in donors.iter().enumerate() {
             y.push(*value);
             units.push(Arc::<str>::from(format!("d{j:02}")));
-            periods.push(t as i64);
+            periods.push(i64::try_from(t).expect("the index fits in i64"));
         }
         let mut treated: f64 =
             WEIGHTS.iter().map(|(j, w)| w * donors[*j]).sum::<f64>() + NOISE_SD * z();
@@ -100,7 +100,7 @@ fn simulate(pre: usize, seed: u64, constant: bool) -> (TabularData, Vec<Arc<str>
         }
         y.push(treated);
         units.push(Arc::<str>::from("treated"));
-        periods.push(t as i64);
+        periods.push(i64::try_from(t).expect("the index fits in i64"));
     }
     let data = TabularData::from_f64_columns([("y", y.as_slice())])
         .expect("the simulated outcome is finite and aligned");
@@ -122,7 +122,7 @@ struct Replicate {
 /// publish (non-converged chains); a design that cannot be built panics.
 fn run(pre: usize, conformal: bool, seed: u64) -> Option<Replicate> {
     let (data, units, periods) = simulate(pre, seed, false);
-    let intervention = pre as i64 + 1;
+    let intervention = i64::try_from(pre).expect("the index fits in i64") + 1;
     let mut query = SyntheticControlQuery::new(
         VariableId::from_raw(0),
         units,
@@ -159,7 +159,7 @@ fn run(pre: usize, conformal: bool, seed: u64) -> Option<Replicate> {
             .and_then(|effect| pair(effect.interval));
         period_intervals = (0..POST_PERIODS)
             .map(|k| {
-                let period = intervention + k as i64;
+                let period = intervention + i64::try_from(k).expect("the index fits in i64");
                 rollout
                     .effects
                     .iter()
@@ -343,7 +343,7 @@ impl ConformalSet {
 fn conformal_replicate(set: ConformalSet, seed: u64) -> Option<Published> {
     let pre = set.pre_periods();
     let (data, units, periods) = simulate(pre, seed, matches!(set, ConformalSet::Constant));
-    let intervention = pre as i64 + 1;
+    let intervention = i64::try_from(pre).expect("the index fits in i64") + 1;
     let query = SyntheticControlQuery::new(
         VariableId::from_raw(0),
         units,
@@ -358,7 +358,7 @@ fn conformal_replicate(set: ConformalSet, seed: u64) -> Option<Published> {
     let interval = match set {
         ConformalSet::Constant => rollout.overall()?.interval.unwrap_or(NO_SET),
         ConformalSet::Period(k) => {
-            let period = intervention + k as i64;
+            let period = intervention + i64::try_from(k).expect("the index fits in i64");
             rollout
                 .effects
                 .iter()
@@ -464,7 +464,7 @@ fn placebo_replicate(seed: u64) -> Option<Published> {
         // Every unit's level is a draw from one law, uniform on (0, 3), whether it adopts or not.
         let unit_level = 3.0 * normal_cdf(z());
         for (t, common) in factor.iter().enumerate() {
-            let period = t as i64 + 1;
+            let period = i64::try_from(t).expect("the index fits in i64") + 1;
             let effect = if adoption.is_some_and(|a| period >= a) { ROLLOUT_EFFECT } else { 0.0 };
             y.push(unit_level + common + effect + NOISE_SD * z());
             units.push(Arc::clone(label));

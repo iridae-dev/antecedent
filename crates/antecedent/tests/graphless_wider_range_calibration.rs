@@ -272,7 +272,7 @@ fn simulate(
         for (j, value) in donors.iter().enumerate() {
             y.push(*value);
             units.push(Arc::<str>::from(format!("d{j:02}")));
-            periods.push(t as i64);
+            periods.push(i64::try_from(t).expect("the index fits in i64"));
         }
         let mut treated: f64 =
             WEIGHTS.iter().map(|(j, w)| w * donors[*j]).sum::<f64>() + NOISE_SD * z();
@@ -282,7 +282,7 @@ fn simulate(
         }
         y.push(treated);
         units.push(Arc::<str>::from("treated"));
-        periods.push(t as i64);
+        periods.push(i64::try_from(t).expect("the index fits in i64"));
     }
     let data = TabularData::from_f64_columns([("y", y.as_slice())])
         .expect("the simulated outcome is finite and aligned");
@@ -295,7 +295,7 @@ fn sc_query(units: Vec<Arc<str>>, periods: Vec<i64>, pre: usize) -> SyntheticCon
         units,
         periods,
         Arc::<str>::from("treated"),
-        pre as i64 + 1,
+        i64::try_from(pre).expect("the index fits in i64") + 1,
     )
 }
 
@@ -382,7 +382,7 @@ fn bayesian_replicate(panel: Panel, pre: usize, scored: Bayesian, seed: u64) -> 
         .ok()?;
     let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
     let reported = constructions(&study.inspect().ok()?, &result);
-    let intervention = pre as i64 + 1;
+    let intervention = i64::try_from(pre).expect("the index fits in i64") + 1;
     let interval = if let Bayesian::Posterior = scored {
         let fit = result.posterior.as_ref()?;
         let column = fit.effect_column()?;
@@ -391,7 +391,7 @@ fn bayesian_replicate(panel: Panel, pre: usize, scored: Bayesian, seed: u64) -> 
         let rollout = result.quasi_rollout()?;
         assert_eq!(rollout.design.as_ref(), "posterior_predictive_synthetic_control");
         let period = |k: usize| {
-            let period = intervention + k as i64;
+            let period = intervention + i64::try_from(k).expect("the index fits in i64");
             rollout.effects.iter().find(|effect| {
                 effect.kind == DesignEffectKind::Period && effect.period == Some(period)
             })
@@ -464,13 +464,13 @@ fn conformal_replicate(
     seed: u64,
 ) -> Option<Published> {
     let (data, units, periods) = simulate(panel, pre, seed, matches!(set, ConformalSet::Constant));
-    let intervention = pre as i64 + 1;
+    let intervention = i64::try_from(pre).expect("the index fits in i64") + 1;
     let query = sc_query(units, periods, pre).with_conformal_intervals();
     let study = Study::tabular(data).query(query).build().ok()?;
     let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
     let rollout = result.quasi_rollout()?;
     let period = |k: usize| {
-        let period = intervention + k as i64;
+        let period = intervention + i64::try_from(k).expect("the index fits in i64");
         rollout
             .effects
             .iter()

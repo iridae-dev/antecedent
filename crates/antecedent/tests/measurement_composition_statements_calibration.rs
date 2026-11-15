@@ -753,7 +753,7 @@ fn temporal_reading(
             se_kind: fit.uncertainty.to_string(),
             dependence: "cluster".into(),
             posterior: String::new(),
-            functional: format!("{}|{name}", functional_label(&fit.functional.to_string())),
+            functional: format!("{}|{name}", functional_label(fit.functional.as_ref())),
             identification: "point".into(),
             reported_level: REPORTED_LEVEL,
         },
@@ -822,6 +822,10 @@ fn recorded_outcome(next: &mut impl FnMut() -> f64, risk: f64) -> f64 {
 
 /// The frequentist interval of one coordinate of `panel` on a misclassified binary outcome
 /// with an independent validation sample.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one replicate kept in one body: the misclassified panel draw, the fit and the reading of one coordinate"
+)]
 fn temporal_panel_replicate(seed: u64, panel: Panel, coordinate: Coordinate) -> Option<Reading> {
     let units = grid_n(200);
     let m = grid_n(200) as u64;
@@ -836,7 +840,7 @@ fn temporal_panel_replicate(seed: u64, panel: Panel, coordinate: Coordinate) -> 
                 for t in 0..PERIODS {
                     let arm = category_of(next(), ARM_PROBABILITIES);
                     labels.push(label.clone());
-                    periods.push(t as i64);
+                    periods.push(i64::try_from(t).expect("the index fits in i64"));
                     arm_of.push(arm);
                     probabilities.push(ARM_PROBABILITIES.to_vec());
                     recorded.push(recorded_outcome(&mut next, ARM_RISKS[arm]));
@@ -862,7 +866,7 @@ fn temporal_panel_replicate(seed: u64, panel: Panel, coordinate: Coordinate) -> 
                 for t in 0..PERIODS {
                     let (a, b) = (next() < 0.5, next() < 0.4);
                     labels.push(label.clone());
-                    periods.push(t as i64);
+                    periods.push(i64::try_from(t).expect("the index fits in i64"));
                     first.push(a);
                     second.push(b);
                     recorded.push(recorded_outcome(&mut next, factorial_risk(a, b)));
@@ -889,7 +893,7 @@ fn temporal_panel_replicate(seed: u64, panel: Panel, coordinate: Coordinate) -> 
                     let pair = [next() < 0.5, next() < 0.5];
                     for member in 0..2 {
                         labels.push(format!("u{c}_{member}").into());
-                        periods.push(t as i64);
+                        periods.push(i64::try_from(t).expect("the index fits in i64"));
                         clusters.push(cluster.clone());
                         treated.push(pair[member]);
                         recorded.push(recorded_outcome(

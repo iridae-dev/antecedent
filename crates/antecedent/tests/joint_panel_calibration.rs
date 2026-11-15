@@ -755,13 +755,17 @@ fn score_contrast(
 /// Normal(0, 0.5^2) and a second class's `log k` is Normal(`log k` of class zero, 0.5^2);
 /// `rho` is uniform on (-1, 1); the innovation and group standard deviations are half-Normal
 /// with scale 2. For the time-varying fit the specification is uniform over no change, each
-/// change period and each smoothing penalty, with a change a Normal(0, path_prior_sd^2)
+/// change period and each smoothing penalty, with a change a Normal(0, `path_prior_sd^2`)
 /// offset and a smooth path a Gaussian random walk over the knots whose step variance is
 /// `path_prior_sd^2 / penalty`. No prior component is improper or data dependent.
 fn prior_law(cell: Cell, varying: bool, seed: u64) -> (Law, Option<TemporalModelChoice>) {
     let prior = PanelPrior::default();
     assert!(prior.lag.is_empty(), "the drawn simplexes are Dirichlet(1, 1, 1)");
-    assert_eq!(prior.family.geometric_decay, [1.0, 1.0], "the drawn decay is Beta(1, 1)");
+    assert_eq!(
+        prior.family.geometric_decay.map(f64::to_bits),
+        [1.0_f64, 1.0].map(f64::to_bits),
+        "the drawn decay is Beta(1, 1)"
+    );
     let mut normal = gaussian(stream_seed(seed, 901));
     let mut unit = uniform(stream_seed(seed, 902), 17);
     let c = prior.coefficient_sd;
@@ -869,7 +873,7 @@ fn calibration_reading(cell: Cell, varying: bool, seed: u64) -> Reading {
             let total: usize = fit.selection_counts.iter().map(|(_, count)| *count).sum();
             let mut order: Vec<&(TemporalModelChoice, usize)> =
                 fit.selection_counts.iter().collect();
-            order.sort_by(|a, b| b.1.cmp(&a.1));
+            order.sort_by_key(|entry| std::cmp::Reverse(entry.1));
             let (mut cumulative, mut hit) = (0_usize, false);
             for entry in order {
                 cumulative += entry.1;
@@ -1256,13 +1260,13 @@ fn identity_bridge(target: &antecedent_contract::ScientificQuantity) -> BridgeCo
 
 /// Fit one Bayesian panel posterior and declare the experiment over its terminal contrast.
 fn experiment_source(cell: Cell, path: Path, seed: u64) -> Source {
+    const SOURCE_ATTEMPTS: u64 = 6;
     let groups = path.groups();
     let functional = JointPanelResponseFunctional::TerminalMean;
     // The source posterior must pass its declared diagnostics before an experiment can update
     // it. One fit serves every replicate, so it gets generous effort, and a posterior that
     // misses the thresholds is refitted on a fresh panel a bounded number of times, with the
     // diagnostics printed, before the test fails.
-    const SOURCE_ATTEMPTS: u64 = 6;
     let mut source = None;
     for attempt in 0..SOURCE_ATTEMPTS {
         let attempt_seed = seed + 7_919 * attempt;
@@ -1422,7 +1426,7 @@ fn measure_update_weights(test: &'static str, cell: Cell, path: Path, seed: u64)
         let weights: Option<Vec<f64>> = updated
             .numerical_law_source(&source.ledger)
             .ok()
-            .and_then(|law| law.metadata().weights.as_ref().map(|w| w.iter().copied().collect()));
+            .and_then(|law| law.metadata().weights.clone());
         Ok((weights.and_then(|weights| weighted_interval(&source.states, &order, &weights)), truth))
     });
     for reading in readings {
@@ -1570,9 +1574,7 @@ fn measure_future_sample_standard_error(test: &'static str, cell: Cell, path: Pa
         .weights
         .as_ref()
         .expect("posterior weights")
-        .iter()
-        .copied()
-        .collect();
+        .clone();
     let total: f64 = weights.iter().sum();
     let threshold = source.states.iter().zip(&weights).map(|(s, w)| s * w / total).sum::<f64>();
     let observation_variance = NEXT_SAMPLE as f64 * (OBSERVATION_SD_RATIO * source.sd).powi(2);
@@ -1717,6 +1719,10 @@ fn response_target() -> ScientificTarget {
 }
 
 /// Scored reading of the prepared response contrast in one inference mode.
+#[allow(
+    clippy::option_option,
+    reason = "a deliberate tri-state: no reading when the study refuses, then an interval that may be absent"
+)]
 fn response_reading(mode: Mode, n: usize, seed: u64) -> Option<Option<(f64, f64)>> {
     let data = response_data(n, seed);
     let ctx = ExecutionContext::for_tests(grid_seed(seed));

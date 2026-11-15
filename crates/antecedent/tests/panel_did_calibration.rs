@@ -163,6 +163,11 @@ fn staggered(
     let count = units;
     let (mut y, mut units, mut periods, mut cohorts) = (vec![], vec![], vec![], vec![]);
     for i in 0..count {
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a uniform draw on [0, 1) scaled by 3 is a nonnegative cohort index below 3"
+        )]
         let cohort = COHORTS[((rng.next_f64() * 3.0) as usize).min(2)];
         let label: Arc<str> = Arc::from(format!("c{cohort}_{i:05}"));
         let alpha = standard_normal(rng);

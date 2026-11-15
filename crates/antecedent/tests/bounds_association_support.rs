@@ -175,7 +175,7 @@ fn bounds_row_round_trips(label: &str, bayesian: bool, resamples: u32, method: &
         "{label}: level"
     );
     assert!(
-        refused(&names, &forge(&|section| section.uncertainty = "another_method".to_owned())),
+        refused(&names, &forge(&|section| "another_method".clone_into(&mut section.uncertainty))),
         "{label}: method"
     );
     assert!(refused(&names, &forge(&|section| section.rows_dropped = 1)), "{label}: dropped");

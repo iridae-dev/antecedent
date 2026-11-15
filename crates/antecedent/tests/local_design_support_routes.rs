@@ -84,24 +84,19 @@ fn query(
     }
 }
 
-fn selected() -> Option<LocalRatioOptions> {
-    Some(LocalRatioOptions {
+fn selected() -> LocalRatioOptions {
+    LocalRatioOptions {
         bandwidth_rule: LocalBandwidthRule::MseOptimal,
         ..LocalRatioOptions::default()
-    })
+    }
 }
 
-fn in_time(replicates: u32) -> Option<LocalRatioOptions> {
-    Some(LocalRatioOptions {
-        temporal_replicates: Some(replicates),
-        ..LocalRatioOptions::default()
-    })
+fn in_time(replicates: u32) -> LocalRatioOptions {
+    LocalRatioOptions { temporal_replicates: Some(replicates), ..LocalRatioOptions::default() }
 }
 
-fn bayes(prior_scale: f64, draws: usize) -> Option<InferenceMode> {
-    Some(InferenceMode::Bayesian(
-        BayesianConfig::conjugate().prior_scale(prior_scale).n_draws(draws),
-    ))
+fn bayes(prior_scale: f64, draws: usize) -> InferenceMode {
+    InferenceMode::Bayesian(BayesianConfig::conjugate().prior_scale(prior_scale).n_draws(draws))
 }
 
 fn run(
@@ -274,7 +269,7 @@ fn model_rows(seed: u64, n: usize, kink: bool) -> Sample {
 fn assert_supported_design(
     label: &str,
     sample: &Sample,
-    query: LocalPolynomialRatioQuery,
+    query: &LocalPolynomialRatioQuery,
 ) -> (Vec<String>, AnalysisResultWire) {
     let (prepared, result, ctx, _) = run(sample, query.clone(), None, 31);
     retained_graphless::assert_retained_graphless_program(label, &prepared, &result, &ctx);
@@ -320,7 +315,7 @@ fn supported_design_layer_local_ratio_round_trips_and_refuses_forgery() {
     let (names, body) = assert_supported_design(
         "design-layer-fuzzy-mse",
         &fuzzy,
-        query(0.0, 0.5, false, selected()),
+        &query(0.0, 0.5, false, Some(selected())),
     );
     let mut thin = body.clone();
     set_diagnostic(&mut thin, "rows_left", 100.0);
@@ -344,12 +339,16 @@ fn supported_design_layer_local_ratio_round_trips_and_refuses_forgery() {
     // The kink at the MSE-optimal bandwidth and the fuzzy jump at a declared bandwidth with
     // the density test each have their own row.
     let kink = kink_rows(42, 4_800);
-    assert_supported_design("design-layer-kink-mse", &kink, query(0.0, 1.0, true, selected()));
+    assert_supported_design(
+        "design-layer-kink-mse",
+        &kink,
+        &query(0.0, 1.0, true, Some(selected())),
+    );
     let declared = Some(LocalRatioOptions { density_test: true, ..LocalRatioOptions::default() });
     let (_, body) = assert_supported_design(
         "design-layer-fuzzy-declared",
         &fuzzy_rows(43, 2_400),
-        query(0.0, 0.5, false, declared.clone()),
+        &query(0.0, 0.5, false, declared.clone()),
     );
     assert_eq!(
         body.quasi_rollout.as_ref().unwrap().uncertainty,
@@ -358,7 +357,8 @@ fn supported_design_layer_local_ratio_round_trips_and_refuses_forgery() {
 
     // The same routes outside their rows run and state no support: 560 rows are fewer than
     // the selected-bandwidth row was measured at, and the declared-bandwidth kink has no row.
-    let (_, small, _, _) = run(&fuzzy_rows(44, 560), query(0.0, 0.5, false, selected()), None, 31);
+    let (_, small, _, _) =
+        run(&fuzzy_rows(44, 560), query(0.0, 0.5, false, Some(selected())), None, 31);
     assert!(!supported(&small));
     assert!(small.quasi_rollout().unwrap().overall().unwrap().interval.is_some());
     let (_, unmeasured, _, _) = run(&kink, query(0.0, 1.0, true, declared), None, 31);
@@ -467,7 +467,8 @@ fn a_kink_in_time_interval_matches_the_analytic_serial_standard_error() {
     }
     let serial_sd = serial_variance.sqrt() / (3.0 / bandwidth);
 
-    let (_, result, _, _) = run(&sample, query(cutoff, bandwidth, true, in_time(199)), None, 5);
+    let (_, result, _, _) =
+        run(&sample, query(cutoff, bandwidth, true, Some(in_time(199))), None, 5);
     let (estimate, se, [lower, upper]) = time_interval(&result);
     assert!(
         (estimate - reference).abs() < 1e-7 * (1.0 + reference.abs()),
@@ -490,8 +491,12 @@ fn a_kink_in_time_interval_matches_the_analytic_serial_standard_error() {
     assert!(critical > Z && critical < 2.23, "{critical}");
     assert!((estimate - 2.0).abs() < 4.0 * serial_sd, "{estimate}");
 
-    let (_, posterior, _, _) =
-        run(&sample, query(cutoff, bandwidth, true, in_time(199)), bayes(100.0, 500), 5);
+    let (_, posterior, _, _) = run(
+        &sample,
+        query(cutoff, bandwidth, true, Some(in_time(199))),
+        Some(bayes(100.0, 500)),
+        5,
+    );
     let rollout = posterior.quasi_rollout().unwrap();
     let posterior_sd = rollout.diagnostic("posterior_sd").unwrap();
     // The posterior redraws the same fitted error model with the coefficient's posterior
@@ -510,7 +515,7 @@ fn supported_temporal_local_ratio_round_trips_and_refuses_forgery() {
     // A sharp jump in time at the measured replicate count.
     let (jump, cutoff, bandwidth) = time_jump(25, 2_000, 0.0);
     let (prepared, result, ctx, _) =
-        run(&jump, query(cutoff, bandwidth, false, in_time(199)), None, 7);
+        run(&jump, query(cutoff, bandwidth, false, Some(in_time(199))), None, 7);
     retained_graphless::assert_retained_graphless_program(
         "temporal-jump-supported",
         &prepared,
@@ -548,7 +553,7 @@ fn supported_temporal_local_ratio_round_trips_and_refuses_forgery() {
     // A kink in time with a first stage far from zero.
     let (kink, cutoff, bandwidth) = time_kink(25, 4_000);
     let (prepared, result, ctx, _) =
-        run(&kink, query(cutoff, bandwidth, true, in_time(199)), None, 7);
+        run(&kink, query(cutoff, bandwidth, true, Some(in_time(199))), None, 7);
     retained_graphless::assert_retained_graphless_program(
         "temporal-kink-supported",
         &prepared,
@@ -565,14 +570,15 @@ fn supported_temporal_local_ratio_round_trips_and_refuses_forgery() {
     // Outside the rows the route runs and states no support: fewer replicates, a jump whose
     // first stage has error, and a window below the measured rows.
     let (jump, cutoff, bandwidth) = time_jump(25, 2_000, 0.0);
-    let (_, fewer, _, _) = run(&jump, query(cutoff, bandwidth, false, in_time(99)), None, 7);
+    let (_, fewer, _, _) = run(&jump, query(cutoff, bandwidth, false, Some(in_time(99))), None, 7);
     assert!(!supported(&fewer));
     let (noisy, cutoff, bandwidth) = time_jump(25, 2_000, 0.05);
-    let (_, fuzzy, _, _) = run(&noisy, query(cutoff, bandwidth, false, in_time(199)), None, 7);
+    let (_, fuzzy, _, _) =
+        run(&noisy, query(cutoff, bandwidth, false, Some(in_time(199))), None, 7);
     assert!(!supported(&fuzzy));
     assert!(fuzzy.quasi_rollout().unwrap().overall().unwrap().interval.is_some());
     let (short, cutoff, bandwidth) = time_jump(25, 600, 0.0);
-    let (_, thin, _, _) = run(&short, query(cutoff, bandwidth, false, in_time(199)), None, 7);
+    let (_, thin, _, _) = run(&short, query(cutoff, bandwidth, false, Some(in_time(199))), None, 7);
     assert!(!supported(&thin));
 }
 
@@ -583,8 +589,12 @@ fn supported_bayesian_temporal_local_ratio_round_trips_and_refuses_forgery() {
         let (sample, cutoff, bandwidth) =
             if kink { time_kink(25, 4_000) } else { time_jump(25, 2_000, 0.0) };
         let truth = if kink { 2.0 } else { 1.0 };
-        let (prepared, result, ctx, _) =
-            run(&sample, query(cutoff, bandwidth, kink, in_time(199)), bayes(100.0, 500), 9);
+        let (prepared, result, ctx, _) = run(
+            &sample,
+            query(cutoff, bandwidth, kink, Some(in_time(199))),
+            Some(bayes(100.0, 500)),
+            9,
+        );
         retained_graphless::assert_retained_graphless_program(label, &prepared, &result, &ctx);
         assert!(supported(&result), "{label}");
         assert!(
@@ -617,8 +627,12 @@ fn supported_bayesian_temporal_local_ratio_round_trips_and_refuses_forgery() {
             .unwrap();
 
         // 400 draws are fewer than the row was measured at.
-        let (_, fewer, _, _) =
-            run(&sample, query(cutoff, bandwidth, kink, in_time(199)), bayes(100.0, 400), 9);
+        let (_, fewer, _, _) = run(
+            &sample,
+            query(cutoff, bandwidth, kink, Some(in_time(199))),
+            Some(bayes(100.0, 400)),
+            9,
+        );
         assert!(!supported(&fewer), "{label}");
     }
 }
@@ -652,7 +666,7 @@ fn field<'a>(fields: &'a [(String, String)], name: &str) -> &'a str {
 fn assert_supported_posterior(label: &str, kink: bool, design: &str) {
     let sample = model_rows(if kink { 52 } else { 51 }, 800, kink);
     let (prepared, result, ctx, _) =
-        run(&sample, query(0.0, 0.8, kink, None), bayes(100.0, 2_000), 13);
+        run(&sample, query(0.0, 0.8, kink, None), Some(bayes(100.0, 2_000)), 13);
     retained_graphless::assert_retained_graphless_program(label, &prepared, &result, &ctx);
     let fields = stated_row(&result).unwrap_or_else(|| panic!("{label}: no row stated"));
     assert_eq!(field(&fields, "family"), "local_polynomial_ratio", "{label}");
@@ -690,7 +704,7 @@ fn assert_supported_posterior(label: &str, kink: bool, design: &str) {
             .iter_mut()
             .find(|(key, _)| key == name)
             .unwrap_or_else(|| panic!("{label}: no {name}"));
-        entry.1 = value.to_owned();
+        value.clone_into(&mut entry.1);
         refusal(&names, &forged)
     };
     for (name, value) in [
@@ -707,14 +721,19 @@ fn assert_supported_posterior(label: &str, kink: bool, design: &str) {
 
     // Outside the row the route runs, publishes its interval and states nothing.
     for (what, sample, query, inference) in [
-        ("another prior scale", &sample, query(0.0, 0.8, kink, None), bayes(10.0, 2_000)),
-        ("fewer draws", &sample, query(0.0, 0.8, kink, None), bayes(100.0, 1_000)),
-        ("a selected bandwidth", &sample, query(0.0, 0.8, kink, selected()), bayes(100.0, 2_000)),
+        ("another prior scale", &sample, query(0.0, 0.8, kink, None), Some(bayes(10.0, 2_000))),
+        ("fewer draws", &sample, query(0.0, 0.8, kink, None), Some(bayes(100.0, 1_000))),
+        (
+            "a selected bandwidth",
+            &sample,
+            query(0.0, 0.8, kink, Some(selected())),
+            Some(bayes(100.0, 2_000)),
+        ),
         (
             "a thinner window",
             &model_rows(53, 160, kink),
             query(0.0, 0.8, kink, None),
-            bayes(100.0, 2_000),
+            Some(bayes(100.0, 2_000)),
         ),
     ] {
         // A refusal (a selected window too thin for the posterior) states nothing either.

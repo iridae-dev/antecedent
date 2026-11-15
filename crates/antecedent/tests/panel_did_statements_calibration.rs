@@ -120,6 +120,11 @@ fn staggered(
     let count = units;
     let (mut y, mut units, mut periods, mut cohorts) = (vec![], vec![], vec![], vec![]);
     for i in 0..count {
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a uniform draw on [0, 1) scaled by 3 is a nonnegative cohort index below 3"
+        )]
         let cohort = COHORTS[((rng.next_f64() * 3.0) as usize).min(2)];
         let label: Arc<str> = Arc::from(format!("c{cohort}_{i:05}"));
         let alpha = standard_normal(rng);
@@ -207,7 +212,7 @@ fn rollout_effect_truth(effect: &DesignEffect, overall: f64) -> Option<f64> {
         },
         DesignEffectKind::GroupTime => {
             let event = effect.period? - effect.group?;
-            (event >= 0).then(|| 3.0 * event as f64)
+            (event >= 0).then_some(3.0 * event as f64)
         }
         DesignEffectKind::PreTrend => Some(0.0),
         _ => None,
@@ -290,7 +295,7 @@ fn rollout_targets(
 /// per target. A replicate that does not publish a target is a skip of that target.
 fn measure_targets(
     test: &'static str,
-    spec: HeterogeneityRobustDid,
+    spec: &HeterogeneityRobustDid,
     seed_base: u64,
     overall: f64,
     targets: &[Target],
@@ -337,7 +342,7 @@ fn aggregated_spec(aggregation: DidAggregation) -> HeterogeneityRobustDid {
 fn rollout_dynamic_aggregation_intervals_and_band() {
     measure_targets(
         "rollout_dynamic_aggregation_intervals_and_band",
-        aggregated_spec(DidAggregation::Dynamic),
+        &aggregated_spec(DidAggregation::Dynamic),
         910_000,
         4.5,
         &[
@@ -358,7 +363,7 @@ fn rollout_dynamic_aggregation_intervals_and_band() {
 fn rollout_group_aggregation_intervals_and_band() {
     measure_targets(
         "rollout_group_aggregation_intervals_and_band",
-        aggregated_spec(DidAggregation::Group),
+        &aggregated_spec(DidAggregation::Group),
         920_000,
         3.0,
         &[
@@ -377,7 +382,7 @@ fn rollout_group_aggregation_intervals_and_band() {
 fn rollout_calendar_aggregation_intervals_and_band() {
     measure_targets(
         "rollout_calendar_aggregation_intervals_and_band",
-        aggregated_spec(DidAggregation::Calendar),
+        &aggregated_spec(DidAggregation::Calendar),
         930_000,
         3.0,
         &[
@@ -398,7 +403,7 @@ fn rollout_calendar_aggregation_intervals_and_band() {
 fn rollout_group_time_and_pre_trend_simultaneous_bands() {
     measure_targets(
         "rollout_group_time_and_pre_trend_simultaneous_bands",
-        aggregated_spec(DidAggregation::Simple),
+        &aggregated_spec(DidAggregation::Simple),
         940_000,
         ROLLOUT_TRUTH,
         &[
@@ -422,6 +427,11 @@ fn staggered_unbalanced(
     let count = units;
     let (mut y, mut units, mut periods, mut cohorts) = (vec![], vec![], vec![], vec![]);
     for i in 0..count {
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a uniform draw on [0, 1) scaled by 3 is a nonnegative cohort index below 3"
+        )]
         let cohort = COHORTS[((rng.next_f64() * 3.0) as usize).min(2)];
         let label: Arc<str> = Arc::from(format!("c{cohort}_{i:05}"));
         let alpha = standard_normal(rng);

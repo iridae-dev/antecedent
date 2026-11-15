@@ -56,12 +56,12 @@ impl Rng {
 }
 
 /// Bayesian inference with `draws` posterior draws, at `prior_scale` when one is declared.
-fn bayes(prior_scale: Option<f64>, draws: usize) -> Option<InferenceMode> {
+fn bayes(prior_scale: Option<f64>, draws: usize) -> InferenceMode {
     let config = BayesianConfig::conjugate().n_draws(draws);
-    Some(InferenceMode::Bayesian(match prior_scale {
+    InferenceMode::Bayesian(match prior_scale {
         Some(scale) => config.prior_scale(scale),
         None => config,
-    }))
+    })
 }
 
 fn fit_panel(
@@ -156,7 +156,7 @@ fn forged_posterior_row(
         .iter_mut()
         .find(|(key, _)| key == name)
         .unwrap_or_else(|| panic!("the stated row has no {name}"));
-    entry.1 = value.to_owned();
+    value.clone_into(&mut entry.1);
     refusal(names, &forged)
 }
 
@@ -459,7 +459,7 @@ fn supported_staggered_rollout_posterior_round_trips_and_refuses_forgery() {
             DidAggregation::Simple,
         )
     };
-    let (prepared, result, ctx) = fit_panel(&panel.0, query(), bayes(None, 2_000), 4);
+    let (prepared, result, ctx) = fit_panel(&panel.0, query(), Some(bayes(None, 2_000)), 4);
     assert!(states_posterior_row(&result), "{label}");
     let overall = result.quasi_rollout().unwrap().overall().unwrap().estimate;
     assert!((overall - 3.5).abs() < 0.6, "{label}: {overall}");
@@ -473,14 +473,14 @@ fn supported_staggered_rollout_posterior_round_trips_and_refuses_forgery() {
     assert!(forged_posterior_row(&names, &body, "method", other).contains(NO_POSTERIOR_ROW));
 
     // Fewer draws, and another comparison group, run and state no row.
-    assert!(!states_posterior_row(&fit_panel(&panel.0, query(), bayes(None, 800), 4).1));
+    assert!(!states_posterior_row(&fit_panel(&panel.0, query(), Some(bayes(None, 800)), 4).1));
     let never = staggered_query(
         &panel,
         RolloutDidEstimator::CallawaySantAnna,
         DidComparisonGroup::NeverTreated,
         DidAggregation::Simple,
     );
-    assert!(!states_posterior_row(&fit_panel(&panel.0, never, bayes(None, 2_000), 4).1));
+    assert!(!states_posterior_row(&fit_panel(&panel.0, never, Some(bayes(None, 2_000)), 4).1));
 }
 
 #[test]
@@ -585,7 +585,8 @@ fn supported_augmented_panel_interval_round_trips_and_refuses_forgery() {
 fn supported_two_period_posterior_round_trips_and_refuses_forgery() {
     let label = "two-period posterior";
     let (data, query) = two_period(51, 30);
-    let (prepared, result, ctx) = fit_panel(&data, query.clone(), bayes(Some(100.0), 2_000), 7);
+    let (prepared, result, ctx) =
+        fit_panel(&data, query.clone(), Some(bayes(Some(100.0), 2_000)), 7);
     assert!(states_posterior_row(&result), "{label}");
     let posterior = result.posterior.as_ref().unwrap();
     let column = posterior.effect_column().unwrap();
@@ -599,10 +600,12 @@ fn supported_two_period_posterior_round_trips_and_refuses_forgery() {
     assert!(forged_posterior_row(&names, &body, "method", other).contains(NO_POSTERIOR_ROW));
 
     // Another prior scale, fewer draws and fewer subjects run and state no row.
-    assert!(!states_posterior_row(&fit_panel(&data, query.clone(), bayes(Some(10.0), 2_000), 7).1));
-    assert!(!states_posterior_row(&fit_panel(&data, query, bayes(Some(100.0), 500), 7).1));
+    assert!(!states_posterior_row(
+        &fit_panel(&data, query.clone(), Some(bayes(Some(10.0), 2_000)), 7).1
+    ));
+    assert!(!states_posterior_row(&fit_panel(&data, query, Some(bayes(Some(100.0), 500)), 7).1));
     let (small, query) = two_period(52, 12);
-    assert!(!states_posterior_row(&fit_panel(&small, query, bayes(Some(100.0), 2_000), 7).1));
+    assert!(!states_posterior_row(&fit_panel(&small, query, Some(bayes(Some(100.0), 2_000)), 7).1));
 }
 
 // ------------------------------------------------------------------ synthetic control
@@ -664,7 +667,7 @@ fn supported_placebo_interval_round_trips_and_refuses_forgery() {
 fn supported_synthetic_posterior_round_trips_and_refuses_forgery() {
     let label = "synthetic control posterior";
     let (data, query) = one_treated(81, 30);
-    let (prepared, result, ctx) = fit_synthetic(&data, query.clone(), bayes(None, 2_000), 10);
+    let (prepared, result, ctx) = fit_synthetic(&data, query.clone(), Some(bayes(None, 2_000)), 10);
     assert!(states_posterior_row(&result), "{label}");
     let posterior = result.posterior.as_ref().unwrap();
     let column = posterior.effect_column().unwrap();
@@ -679,7 +682,7 @@ fn supported_synthetic_posterior_round_trips_and_refuses_forgery() {
     // Fewer draws, and a shorter pre-period, run and state no row; the supported fit's
     // statement beside the smaller posterior is refused, because the loader counts the draws
     // in the stored posterior.
-    let (few_prepared, few, few_ctx) = fit_synthetic(&data, query, bayes(None, 800), 10);
+    let (few_prepared, few, few_ctx) = fit_synthetic(&data, query, Some(bayes(None, 800)), 10);
     assert!(!states_posterior_row(&few));
     let (_, few_body) = artifact(&few_prepared, &few, &few_ctx, label);
     let mut thinned = body.clone();
@@ -687,7 +690,7 @@ fn supported_synthetic_posterior_round_trips_and_refuses_forgery() {
     antecedent_io::encode_analysis_result_artifact(&thinned, names.clone(), "thinned-posterior")
         .expect_err("a row stated on fewer draws than it was measured with is refused");
     let (short, query) = one_treated(82, 20);
-    assert!(!states_posterior_row(&fit_synthetic(&short, query, bayes(None, 2_000), 10).1));
+    assert!(!states_posterior_row(&fit_synthetic(&short, query, Some(bayes(None, 2_000)), 10).1));
 }
 
 #[test]
@@ -695,7 +698,7 @@ fn supported_predictive_path_round_trips_and_refuses_forgery() {
     let label = "synthetic control predictive path";
     let (data, query) = one_treated(91, 30);
     let query = query.with_conformal_intervals();
-    let (prepared, result, ctx) = fit_synthetic(&data, query, bayes(None, 2_000), 11);
+    let (prepared, result, ctx) = fit_synthetic(&data, query, Some(bayes(None, 2_000)), 11);
     assert!(states_posterior_row(&result), "{label}");
     let rollout = result.quasi_rollout().unwrap();
     assert_eq!(rollout.design.as_ref(), "posterior_predictive_synthetic_control");
@@ -719,5 +722,5 @@ fn supported_predictive_path_round_trips_and_refuses_forgery() {
     // A shorter pre-period runs and states no row.
     let (short, query) = one_treated(92, 20);
     let query = query.with_conformal_intervals();
-    assert!(!states_posterior_row(&fit_synthetic(&short, query, bayes(None, 2_000), 11).1));
+    assert!(!states_posterior_row(&fit_synthetic(&short, query, Some(bayes(None, 2_000)), 11).1));
 }

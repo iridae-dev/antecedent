@@ -888,7 +888,7 @@ fn temporal_replicate(
             let truth = next() < 0.3 + if treated { 0.25 } else { 0.0 };
             let observed = if truth { next() < sensitivity } else { next() >= specificity };
             labels.push(label.clone());
-            periods.push(t as i64);
+            periods.push(i64::try_from(t).expect("the index fits in i64"));
             assignment.push(treated);
             recorded.push(f64::from(u8::from(observed)));
         }
@@ -940,7 +940,7 @@ fn temporal_replicate(
             se_kind: fit.uncertainty.to_string(),
             dependence: "cluster".into(),
             posterior: String::new(),
-            functional: format!("{}|{name}", functional_label(&fit.functional.to_string())),
+            functional: format!("{}|{name}", functional_label(fit.functional.as_ref())),
             identification: "point".into(),
             reported_level: REPORTED_LEVEL,
         },

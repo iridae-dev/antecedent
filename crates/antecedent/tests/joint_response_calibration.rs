@@ -223,11 +223,15 @@ fn native_reading(
 /// `data` draws one data set into the template and returns a realized truth when the target
 /// is a finite-population quantity.
 #[allow(clippy::too_many_arguments, reason = "one call states a whole measured cell")]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "each call states its two targets as an array literal"
+)]
 fn native_cell(
     test: &'static str,
     dgp: &'static str,
     index: u64,
-    (template, bayesian, contrast): Fixture,
+    (template, bayesian, contrast): &Fixture,
     truth: f64,
     data: fn(&mut JointDesignRecipe, &mut CausalRng) -> Option<f64>,
     frequentist: impl Fn(u64) -> JointDesignInference + Sync,
@@ -240,7 +244,7 @@ fn native_cell(
         let ctx = ExecutionContext::for_tests(grid_seed(70_000 + replicate));
         match PreparedNativeJointDesign::compile(recipe, &ctx) {
             Ok(prepared) => [frequentist(replicate), bayesian.clone()]
-                .map(|inference| native_reading(&prepared, inference, &contrast, truth, &ctx)),
+                .map(|inference| native_reading(&prepared, inference, contrast, truth, &ctx)),
             Err(error) => [0, 1].map(|_| Reading::Refused(format!("compile: {error}"))),
         }
     });
@@ -344,7 +348,7 @@ fn joint_response_switchback_contrast_l95() {
         "joint_response_switchback_contrast_l95",
         "switchback_data",
         0,
-        switchback_fixture(32 * scale()),
+        &switchback_fixture(32 * scale()),
         4.0,
         switchback_data,
         plain,
@@ -422,7 +426,7 @@ fn joint_response_structural_iv_contrast_l95() {
         "joint_response_structural_iv_contrast_l95",
         "structural_iv_data",
         1,
-        structural_iv_fixture(4 * scale()),
+        &structural_iv_fixture(4 * scale()),
         9.0,
         structural_iv_data,
         plain,
@@ -499,7 +503,7 @@ fn joint_response_cohort_did_contrast_l95() {
         "joint_response_cohort_did_contrast_l95",
         "cohort_did_data",
         2,
-        cohort_did_fixture(4 * scale()),
+        &cohort_did_fixture(4 * scale()),
         4.0,
         cohort_did_data,
         plain,
@@ -592,7 +596,9 @@ fn joint_response_synthetic_rollout_contrast_l95() {
         "joint_response_synthetic_rollout_contrast_l95",
         "synthetic_rollout_data",
         3,
-        synthetic_rollout_fixture(40 * scale() as i64),
+        &synthetic_rollout_fixture(
+            40 * i64::try_from(scale()).expect("the grid scale fits in i64"),
+        ),
         4.0,
         synthetic_rollout_data,
         |_| {
@@ -711,7 +717,7 @@ fn joint_response_continuous_longitudinal_contrast_l95() {
         "joint_response_continuous_longitudinal_contrast_l95",
         "continuous_longitudinal_data",
         4,
-        continuous_longitudinal_fixture(3 * scale()),
+        &continuous_longitudinal_fixture(3 * scale()),
         5.4,
         continuous_longitudinal_data,
         |replicate| JointDesignInference::GaussianLongitudinalBootstrap {
@@ -759,6 +765,10 @@ fn weighted_geo_fixture(geos: usize) -> Fixture {
 
 /// The whole census of potential responses is drawn first; its realized weighted contrast,
 /// not its expectation, is the target. Each geo is then assigned by a fair coin.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "every data generator shares the fn-pointer signature of `native_cell`, and this one always draws a realized target"
+)]
 fn weighted_geo_data(recipe: &mut JointDesignRecipe, rng: &mut CausalRng) -> Option<f64> {
     let JointDesignRecipe::Randomized { units, .. } = recipe else {
         unreachable!("randomized template")
@@ -786,7 +796,7 @@ fn joint_response_weighted_geo_contrast_l95() {
         "joint_response_weighted_geo_contrast_l95",
         "weighted_geo_data",
         5,
-        weighted_geo_fixture(8 * scale()),
+        &weighted_geo_fixture(8 * scale()),
         3.0,
         weighted_geo_data,
         plain,
@@ -848,7 +858,7 @@ fn joint_response_factorial_contrast_l95() {
         "joint_response_factorial_contrast_l95",
         "factorial_data",
         6,
-        factorial_fixture(128 * scale()),
+        &factorial_fixture(128 * scale()),
         1.0,
         factorial_data,
         plain,
@@ -921,7 +931,7 @@ fn joint_response_finite_longitudinal_contrast_l95() {
         "joint_response_finite_longitudinal_contrast_l95",
         "finite_longitudinal_data",
         7,
-        finite_longitudinal_fixture(512 * scale()),
+        &finite_longitudinal_fixture(512 * scale()),
         0.375,
         finite_longitudinal_data,
         plain,
@@ -979,7 +989,7 @@ fn joint_response_local_complier_effect_l95() {
         "joint_response_local_complier_effect_l95",
         "local_complier_data",
         8,
-        local_complier_fixture(800 * scale()),
+        &local_complier_fixture(800 * scale()),
         3.0,
         local_complier_data,
         plain,
@@ -1981,7 +1991,10 @@ fn population_reference_region_is_the_bonferroni_region_of_each_mode() {
             .collect::<Vec<_>>();
         values.sort_by(f64::total_cmp);
         assert_eq!(values.len(), 2048);
-        assert_eq!(reading.bounds[component], [values[12], values[2035]]);
+        assert_eq!(
+            reading.bounds[component].map(f64::to_bits),
+            [values[12], values[2035]].map(f64::to_bits)
+        );
     }
     assert_eq!(&*reading.basis.interval_method, "bonferroni_equal_tailed_posterior");
     assert_eq!(reading.basis.posterior_draws, Some(2048));

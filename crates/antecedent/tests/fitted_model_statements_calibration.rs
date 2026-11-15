@@ -506,8 +506,8 @@ fn pair_columns(rows: usize, seed: u64, intercept: impl Fn(usize) -> f64) -> [Ve
 }
 
 /// `x ~ N(0, 1)`, `y = c + 2x + 0.7e` with the intercept `c` of each row.
-fn pair_rows(columns: [Vec<f64>; 2]) -> TabularData {
-    table(&["x", "y"], &columns)
+fn pair_rows(columns: &[Vec<f64>; 2]) -> TabularData {
+    table(&["x", "y"], columns)
 }
 
 /// `x ~ N(0, 1)` throughout; `y = 1 + 2x + 0.7e` in the first `pop` rows and `y = 3 + 0.7e`,
@@ -540,8 +540,8 @@ fn chain_columns(rows: usize, seed: u64) -> [Vec<f64>; 3] {
 }
 
 /// `z ~ N(0, 1)`, `t = 0.8z + e`, `y = 1.5t + 0.6z + e'`.
-fn chain_rows(columns: [Vec<f64>; 3]) -> TabularData {
-    table(&["z", "t", "y"], &columns)
+fn chain_rows(columns: &[Vec<f64>; 3]) -> TabularData {
+    table(&["z", "t", "y"], columns)
 }
 
 /// `z -> t -> y`, `z -> y`.
@@ -596,7 +596,7 @@ fn attribute_whole_table(
         let rows = grid_n(ROWS);
         let columns = pair_columns(rows, seed, |_| CENTER);
         let truth = truths(&columns[0], &columns[1]);
-        let builder = Study::tabular(pair_rows(columns))
+        let builder = Study::tabular(pair_rows(&columns))
             .graph(dag(2, &[(0, 1)]))
             .query(CausalQuery::Attribute(AttributeQuery::new(target())));
         let (study, result) =
@@ -850,7 +850,7 @@ fn attribute_distribution_change_robust_dag_frequentist_bootstrap_coverage() {
             change: populations(pop),
             estimator: ChangeEstimator::Robust { max_rows: 10_000, n_samples: 2_000, seed: 3 },
         };
-        let builder = Study::tabular(pair_rows(columns))
+        let builder = Study::tabular(pair_rows(&columns))
             .graph(dag(2, &[(0, 1)]))
             .query(CausalQuery::Attribute(AttributeQuery::new(target)));
         let (study, result) =
@@ -1108,7 +1108,7 @@ fn simulate(
         let columns = chain_columns(rows, seed);
         let (target, truth) = design(seed, &columns);
         let functional = format!("simulate.{}", target.as_str());
-        let builder = Study::tabular(chain_rows(columns))
+        let builder = Study::tabular(chain_rows(&columns))
             .graph(chain_dag())
             .query(CausalQuery::Simulate(SimulateQuery::new(target)));
         let (study, result) =

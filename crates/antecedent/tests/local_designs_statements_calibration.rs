@@ -504,7 +504,7 @@ fn measure_posterior(
         let intervals = result
             .posterior
             .as_ref()
-            .and_then(|posterior| posterior.effect_column())
+            .and_then(antecedent::CausalPosterior::effect_column)
             .map(|column| posterior_pair(&result, column));
         Some((reported, intervals))
     });

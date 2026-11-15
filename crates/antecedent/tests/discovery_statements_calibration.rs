@@ -159,8 +159,8 @@ fn payload_scope(rows: usize, draws: Option<u32>) -> ScopeFacts {
 }
 
 /// Retained draws of a sampled posterior under `schedule`.
-fn draws(schedule: GraphMcmcSchedule) -> Option<u32> {
-    Some(schedule.n_chains * schedule.n_draws / schedule.thin)
+fn draws(schedule: GraphMcmcSchedule) -> u32 {
+    schedule.n_chains * schedule.n_draws / schedule.thin
 }
 
 /// Hold every tally to at least nominal coverage of `target`, printing every line before
@@ -257,12 +257,11 @@ fn pooled_structures(posterior: &GraphPosterior) -> Option<(Vec<StructureKey>, V
                 None => 0,
             },
         );
-        match keys.iter().position(|seen| *seen == key) {
-            Some(at) => mass[at] += weight,
-            None => {
-                keys.push(key);
-                mass.push(weight);
-            }
+        if let Some(at) = keys.iter().position(|seen| *seen == key) {
+            mass[at] += weight;
+        } else {
+            keys.push(key);
+            mass.push(weight);
         }
     }
     Some((keys, mass))
@@ -457,7 +456,7 @@ fn prior_dag_rows(rows: usize, seed: u64) -> (TabularData, Links) {
         order.push(next);
     }
     let mut g = gaussian(stream_seed(seed, 0x1A93));
-    let mut columns = vec![Vec::with_capacity(rows); 3];
+    let mut columns = (0..3).map(|_| Vec::with_capacity(rows)).collect::<Vec<_>>();
     for _ in 0..rows {
         let mut value = [0.0_f64; 3];
         for &node in &order {
@@ -535,7 +534,7 @@ fn discovery_static_order_mcmc_class_posterior_credible_set_coverage() {
             "order_mcmc.equivalence_classes.gaussian_bic.mcmc_4x1000",
             "discover.class_posterior",
         ),
-        scope: payload_scope(search_rows(), draws(DAG_SCHEDULE)),
+        scope: payload_scope(search_rows(), Some(draws(DAG_SCHEDULE))),
         seed_base: 0xD15_0001,
         truth: (chain_class(), 0, 0),
     };
@@ -569,7 +568,7 @@ fn discovery_static_order_mcmc_laplace_dag_posterior_credible_set_coverage() {
             "order_mcmc.laplace_bic.mcmc_4x1000",
             "discover.dag_posterior",
         ),
-        scope: payload_scope(rows, draws(DAG_SCHEDULE)),
+        scope: payload_scope(rows, Some(draws(DAG_SCHEDULE))),
         seed_base: 0xD15_0002,
         truth: (set_edge(0, 2, 0, 1, true), 0, 0),
     };
@@ -604,7 +603,7 @@ fn discovery_static_structure_mcmc_class_posterior_credible_set_coverage() {
             "structure_mcmc.equivalence_classes.gaussian_bic.mcmc_4x1000",
             "discover.class_posterior",
         ),
-        scope: payload_scope(search_rows(), draws(DAG_SCHEDULE)),
+        scope: payload_scope(search_rows(), Some(draws(DAG_SCHEDULE))),
         seed_base: 0xD15_0003,
         truth: (chain_class(), 0, 0),
     };
@@ -638,7 +637,7 @@ fn discovery_static_ci_screened_class_posterior_credible_set_coverage() {
             "ci_screened_posterior.parcorr_0_05.equivalence_classes.gaussian_bic.mcmc_4x1000",
             "discover.class_posterior",
         ),
-        scope: payload_scope(search_rows(), draws(DAG_SCHEDULE)),
+        scope: payload_scope(search_rows(), Some(draws(DAG_SCHEDULE))),
         seed_base: 0xD15_0004,
         truth: (chain_class(), 0, 0),
     };
@@ -753,7 +752,7 @@ fn discovery_static_pag_mcmc_posterior_collider_credible_set_coverage() {
             "discovery.pag_mcmc",
             "pag_mcmc.gaussian_mag_bic.mcmc_4x2000",
         ),
-        scope: payload_scope(search_rows(), draws(PAG_SCHEDULE)),
+        scope: payload_scope(search_rows(), Some(draws(PAG_SCHEDULE))),
         seed_base: 0xD15_0007,
         truth: collider_pag(),
     };
@@ -874,7 +873,7 @@ fn discovery_temporal_dbn_class_posterior_lagged_edge_credible_set_coverage() {
         test: TEST,
         dgp: "lag_chain_series",
         construction: template_class_construction(),
-        scope: payload_scope(steps, draws(TEMPLATE_SCHEDULE)),
+        scope: payload_scope(steps, Some(draws(TEMPLATE_SCHEDULE))),
         seed_base: 0xD15_0009,
         // Bit `(lag - 1) * n^2 + from * n + to` of the lag mask with two variables.
         truth: (0, 0, 1 << 1),
@@ -896,7 +895,7 @@ fn discovery_temporal_dbn_class_posterior_contemporaneous_edge_credible_set_cove
         test: TEST,
         dgp: "contemporaneous_pair_series",
         construction: template_class_construction(),
-        scope: payload_scope(steps, draws(TEMPLATE_SCHEDULE)),
+        scope: payload_scope(steps, Some(draws(TEMPLATE_SCHEDULE))),
         seed_base: 0xD15_000A,
         truth: (pair_class(), 0, 0),
     };

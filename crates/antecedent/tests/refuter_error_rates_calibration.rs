@@ -444,7 +444,6 @@ impl SeriesData {
     /// Coefficients of the treatment read `lead` periods ahead at lags 0 and 1 in
     /// `outcome ~ 1 + T_{t+lead} + T_{t+lead-1} (+ extra_t)`, over `times`.
     fn effects(
-        &self,
         times: &[usize],
         lead: usize,
         treatment: &[f64],
@@ -488,7 +487,7 @@ struct SeriesRefit {
 impl SeriesRefit {
     fn new(data: SeriesData, defect: Defect) -> Option<Self> {
         let times = periods(data.len(), 0);
-        let mut original = data.effects(&times, 0, &data.treatment, &data.outcome, None)?;
+        let mut original = SeriesData::effects(&times, 0, &data.treatment, &data.outcome, None)?;
         for value in &mut original {
             *value += defect.original_shift;
         }
@@ -522,15 +521,15 @@ impl TargetRefit for SeriesRefit {
         let fitted = match perturbation {
             TargetPerturbation::PlaceboTreatment { .. } => {
                 let shifted = circular_shift(&d.treatment, d.placebo_offset(rng));
-                d.effects(&times, 0, &shifted, &d.outcome, None)
+                SeriesData::effects(&times, 0, &shifted, &d.outcome, None)
             }
             TargetPerturbation::PlaceboOutcome { .. } => {
                 let shifted = circular_shift(&d.outcome, d.placebo_offset(rng));
-                d.effects(&times, 0, &d.treatment, &shifted, None)
+                SeriesData::effects(&times, 0, &d.treatment, &shifted, None)
             }
             TargetPerturbation::RandomCommonCause { .. } => {
                 let cause = normals(n, rng);
-                d.effects(&times, 0, &d.treatment, &d.outcome, Some(&cause))
+                SeriesData::effects(&times, 0, &d.treatment, &d.outcome, Some(&cause))
             }
             TargetPerturbation::Subset { fraction, .. } => {
                 // A circular window of design rows, each keeping its own lag history: the
@@ -543,16 +542,16 @@ impl TargetRefit for SeriesRefit {
                 let len = (fraction * m as f64) as usize;
                 let start = unbiased_index(rng, m);
                 let window: Vec<usize> = (0..len).map(|j| times[(start + j) % m]).collect();
-                d.effects(&window, 0, &d.treatment, &d.outcome, None)
+                SeriesData::effects(&window, 0, &d.treatment, &d.outcome, None)
             }
             TargetPerturbation::Bootstrap { .. } => {
                 let resampled = block_resample(&times, rng);
-                d.effects(&resampled, 0, &d.treatment, &d.outcome, None)
+                SeriesData::effects(&resampled, 0, &d.treatment, &d.outcome, None)
             }
             TargetPerturbation::PreTrend { lead, .. } => {
                 let lead = usize::try_from(lead).expect("lead fits usize");
                 let resampled = block_resample(&periods(n, lead), rng);
-                d.effects(&resampled, lead, &d.treatment, &d.outcome, None)
+                SeriesData::effects(&resampled, lead, &d.treatment, &d.outcome, None)
             }
             _ => return Err(unsupported("the series design declares no such construction")),
         };
@@ -850,8 +849,13 @@ fn series_verdicts(n: usize, seed: u64, defect: Defect, kinds: &[TargetRefuterKi
     plan_verdicts(&refit, kinds, &config, seed ^ 0x5EED_0002)
 }
 
-fn predictive_verdicts(temporal: bool, n: usize, seed: u64, misreport_sds: f64) -> Verdicts {
-    Some(vec![predictive_verdict(temporal, n, seed, misreport_sds)])
+fn predictive_verdicts(
+    temporal: bool,
+    n: usize,
+    seed: u64,
+    misreport_sds: f64,
+) -> Vec<Option<bool>> {
+    vec![predictive_verdict(temporal, n, seed, misreport_sds)]
 }
 
 use TargetRefuterKind as K;
@@ -956,7 +960,7 @@ fn measure_predictive(
     (
         n,
         map_replicates(n_sim(), |rep| {
-            predictive_verdicts(temporal, n, grid_seed(seed_base + rep), misreport_sds)
+            Some(predictive_verdicts(temporal, n, grid_seed(seed_base + rep), misreport_sds))
         }),
     )
 }

@@ -1388,6 +1388,8 @@ impl SupportRowCase {
 /// sequences, a smaller probability, fewer draws or replicates, or another method is refused;
 /// and the same route below the row runs and states no support.
 fn assert_support_row_round_trips_and_refuses_forgery(label: &'static str, case: &SupportRowCase) {
+    type Forgery =
+        fn(&mut antecedent_io::analysis_result_artifact::TemporalDesignWire, &SupportRowCase);
     let ctx = ExecutionContext::for_tests(11);
     let (data, query) = support_row_panel(case.design, case.units.0);
     let mut builder = Study::tabular(data.clone())
@@ -1426,11 +1428,9 @@ fn assert_support_row_round_trips_and_refuses_forgery(label: &'static str, case:
     assert!(body.diagnostics.iter().any(|diagnostic| diagnostic.code == DESIGN_ROW), "{label}");
     assert!(!wire.supported && wire.calibration == "not_measured", "{label}");
     assert_eq!(wire.lower, fit.lower.to_vec(), "{label}");
-    type Forgery =
-        fn(&mut antecedent_io::analysis_result_artifact::TemporalDesignWire, &SupportRowCase);
     let forgeries: [(&str, Forgery); 5] = [
         ("sequences", |wire, case| wire.clusters = case.min_blocks - 1),
-        ("method", |wire, _| wire.uncertainty = "another_method".to_owned()),
+        ("method", |wire, _| "another_method".clone_into(&mut wire.uncertainty)),
         ("probability", |wire, case| {
             if let (Some(_), Some(floor)) = (wire.minimum_probability, case.min_probability) {
                 wire.minimum_probability = Some(floor - 0.05);
@@ -1873,7 +1873,7 @@ fn corrected_row(posterior: bool) -> SupportRowCase {
 
 /// The corrected route states support only inside the measured validation conditions: a
 /// validation margin below 100 units, or a validated Youden index below 0.6, runs unsupported.
-fn assert_validation_conditions_gate_the_corrected_row(inference: InferenceMode) {
+fn assert_validation_conditions_gate_the_corrected_row(inference: &InferenceMode) {
     let ctx = ExecutionContext::for_tests(11);
     for validation in [[89, 10, 85, 15], [90, 10, 84, 15], [70, 30, 70, 30]] {
         let (data, query) = misclassified_panel(200, validation);
@@ -1890,7 +1890,7 @@ fn supported_misclassified_two_arm_interval_round_trips_and_refuses_forgery() {
         "supported_misclassified_two_arm_interval",
         &corrected_row(false),
     );
-    assert_validation_conditions_gate_the_corrected_row(InferenceMode::Frequentist);
+    assert_validation_conditions_gate_the_corrected_row(&InferenceMode::Frequentist);
 }
 
 #[test]
@@ -1899,5 +1899,5 @@ fn supported_misclassified_two_arm_posterior_round_trips_and_refuses_forgery() {
         "supported_misclassified_two_arm_posterior",
         &corrected_row(true),
     );
-    assert_validation_conditions_gate_the_corrected_row(bayesian(1000));
+    assert_validation_conditions_gate_the_corrected_row(&bayesian(1000));
 }

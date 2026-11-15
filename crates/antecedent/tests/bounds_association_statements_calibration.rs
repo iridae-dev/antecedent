@@ -227,7 +227,7 @@ struct Analysis {
     requested: AssociationFunctional,
     scale: AssociationOutcome,
     /// The analysis the selection rule must pick.
-    analysis: &'static str,
+    picked: &'static str,
     /// Index of the scored term among `terms` published ones.
     term: usize,
     terms: usize,
@@ -280,7 +280,7 @@ fn analysis_interval(n: usize, seed: u64, design: Analysis) -> Option<([f64; 2],
         (prepared, result)
     };
     let payload = result.association()?;
-    assert_eq!(payload.estimate.selection.analysis.as_str(), design.analysis);
+    assert_eq!(payload.estimate.selection.analysis.as_str(), design.picked);
     assert_eq!(payload.estimate.terms.len(), design.terms, "the published terms");
     let term = &payload.estimate.terms[design.term];
     let band = match design.source {
@@ -352,7 +352,7 @@ const STRATUM: Analysis = Analysis {
     sample: two_group_known_mean,
     requested: AssociationFunctional::Conditional,
     scale: AssociationOutcome::Continuous,
-    analysis: "stratified_mean",
+    picked: "stratified_mean",
     term: 1,
     terms: 2,
     source: Source::StandardError,
@@ -366,7 +366,7 @@ const LOGISTIC: Analysis = Analysis {
     sample: logistic_line_known_slope,
     requested: AssociationFunctional::Coefficients,
     scale: AssociationOutcome::Binary,
-    analysis: "logistic_regression",
+    picked: "logistic_regression",
     functional: "logistic_regression_slope",
     ..STRATUM
 };
@@ -375,7 +375,7 @@ const LOGISTIC: Analysis = Analysis {
 const POISSON: Analysis = Analysis {
     sample: poisson_line_known_slope,
     scale: AssociationOutcome::Count,
-    analysis: "poisson_regression",
+    picked: "poisson_regression",
     functional: "poisson_regression_slope",
     ..LOGISTIC
 };
@@ -384,7 +384,7 @@ const POISSON: Analysis = Analysis {
 const PEARSON: Analysis = Analysis {
     sample: bivariate_normal_known_correlation,
     requested: AssociationFunctional::Measure(AssociationMeasure::Pearson),
-    analysis: "pearson_correlation",
+    picked: "pearson_correlation",
     term: 0,
     terms: 1,
     functional: "pearson_correlation",
@@ -431,7 +431,7 @@ fn association_static_stratum_probability_interval() {
         Analysis {
             sample: two_group_known_probability,
             scale: AssociationOutcome::Binary,
-            analysis: "stratified_probability",
+            picked: "stratified_probability",
             functional: "stratum_probability",
             ..STRATUM
         },
@@ -562,7 +562,7 @@ fn association_static_distance_correlation_bootstrap_spread_interval() {
         "bivariate_normal_known_correlation",
         Analysis {
             requested: AssociationFunctional::Measure(AssociationMeasure::Distance),
-            analysis: "distance_correlation",
+            picked: "distance_correlation",
             functional: "distance_correlation",
             replicates: REPLICATES,
             source: Source::Spread,
@@ -603,7 +603,7 @@ fn bayesian_association_static_bootstrap_stratum_probability_credible_interval()
             bayesian: true,
             sample: two_group_known_probability,
             scale: AssociationOutcome::Binary,
-            analysis: "stratified_probability",
+            picked: "stratified_probability",
             functional: "stratum_probability",
             source: Source::Posterior,
             interval: "posterior_equal_tailed",
