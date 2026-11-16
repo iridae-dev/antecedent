@@ -254,6 +254,7 @@ impl ExposureMeasurement {
 
     /// Digest of the declaration (its kind, error structure and every recorded value).
     #[must_use]
+    #[allow(clippy::too_many_lines, reason = "one declaration resolved into per-unit likelihoods")]
     pub fn identity(&self) -> String {
         let flags = |v: &[bool]| v.iter().map(|&b| f64::from(u8::from(b))).collect::<Vec<f64>>();
         let pair = |p: &RatePair| {
@@ -391,6 +392,11 @@ impl Stream {
         (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
     }
 
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "a uniform draw in [0, 1) scaled by n is a nonnegative index below n"
+    )]
     fn below(&mut self, n: usize) -> usize {
         ((self.next() * n as f64) as usize).min(n.saturating_sub(1))
     }
@@ -687,6 +693,7 @@ fn standardised_rows(data: &ImputationData<'_>) -> Vec<f64> {
     clippy::too_many_arguments,
     reason = "the likelihood, the conditioning columns, the fixed prior and the fit rows are the inputs of one posterior"
 )]
+#[allow(clippy::float_cmp, reason = "a 0/1 outcome is detected by exact comparison")]
 fn posterior(
     likelihood: &[f64],
     y: &[f64],
@@ -854,6 +861,8 @@ fn latent_likelihood(fit: &LatentClassFit, codings: &[u8], coding_count: usize) 
 }
 
 impl<'a> Prepared<'a> {
+    #[allow(clippy::too_many_lines, reason = "one EM fit of the exposure and outcome models")]
+    #[allow(clippy::float_cmp, reason = "a 0/1 outcome is detected by exact comparison")]
     fn new(declaration: &'a ExposureMeasurement, y: &[f64]) -> Result<Self, MeasurementError> {
         let n = y.len();
         if declaration.units() != n {
@@ -984,6 +993,16 @@ impl<'a> Prepared<'a> {
     /// The likelihood of every unit's record under each level: at the point parameters when
     /// `draw` is `None`, otherwise at parameters redrawn from their uncertainty (`rows` are the
     /// bootstrap units a latent-class model is refitted on).
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one imputation draw: refit, redraw and impute in sequence"
+    )]
+    #[allow(
+        clippy::float_cmp,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "0/1 outcomes compared exactly; a uniform draw scaled to a positive seed"
+    )]
     fn likelihood(
         &self,
         y: &[f64],

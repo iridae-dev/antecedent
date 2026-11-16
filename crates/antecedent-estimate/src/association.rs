@@ -1113,6 +1113,7 @@ impl AssociationEstimator {
     /// 0/1 outcome holding another value, a count that is negative or fractional), too few
     /// complete rows, a design the data cannot honour, or an analysis the weights or the row count
     /// do not allow.
+    #[allow(clippy::too_many_lines, reason = "one association plan, stated field by field")]
     pub fn prepare(
         &self,
         storage: &OwnedColumnarStorage,
@@ -2145,6 +2146,7 @@ impl AssociationEstimator {
         clippy::cast_sign_loss,
         reason = "outcome values are validated 0/1 indicators or non-negative integers"
     )]
+    #[allow(clippy::too_many_lines, reason = "one conjugate cell per stratum, stated step by step")]
     fn count_conjugate(
         prepared: &PreparedAssociation,
         prior: Option<&PriorSet>,

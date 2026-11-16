@@ -30,6 +30,10 @@ use std::sync::Arc;
 
 /// Existing estimator configuration. PLR and trimmed score reuse are explicitly unsupported.
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "a session holds one estimator configuration; boxing would only move the allocation"
+)]
 pub enum DrEstimator {
     /// DML AIPW marginal score contract.
     Dml(DmlAte),

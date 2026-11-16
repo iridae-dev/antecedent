@@ -23,7 +23,7 @@ use antecedent::discovery::{
 };
 use antecedent::{CompiledExecution, DiscoveredStructure, DiscoverySpec, Study};
 use antecedent_core::{CausalRng, DiscoveryMethod, ExecutionContext, VariableId};
-use antecedent_data::{SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData};
+use antecedent_data::{SamplingRegularity, TabularData, TimeIndex, TimeSeriesData};
 
 fn v(raw: u32) -> VariableId {
     VariableId::from_raw(raw)
@@ -282,10 +282,10 @@ fn pooled_exact_marginals_are_the_means_of_the_per_imputation_marginals() {
         )
         .unwrap();
         for cell in 0..9 {
-            let mean = (parts[0].edge_marginals[cell] + parts[1].edge_marginals[cell]) / 2.0;
+            let mean = f64::midpoint(parts[0].edge_marginals[cell], parts[1].edge_marginals[cell]);
             assert!((pooled.edge_marginals[cell] - mean).abs() <= 1e-12, "cell {cell}");
         }
-        let hand = ((parts[0].log_evidence.exp() + parts[1].log_evidence.exp()) / 2.0).ln();
+        let hand = f64::midpoint(parts[0].log_evidence.exp(), parts[1].log_evidence.exp()).ln();
         assert!((pooled.log_evidence - hand).abs() <= 1e-9 * hand.abs().max(1.0));
         assert!(
             antecedent::discovery::discover_pooled_exact_dag_marginals(

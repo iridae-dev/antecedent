@@ -345,19 +345,16 @@ pub fn select_coordinates_by_name(
     let mut mean = vec![0.0; n];
     let mut v0 = vec![0.0; n * n];
     for (i, pick) in picks.iter().enumerate() {
-        match pick {
-            Some(a) => {
-                mean[i] = source_mean[*a];
-                for (j, other) in picks.iter().enumerate() {
-                    if let Some(b) = other {
-                        v0[i * n + j] = source_v0[a * m + b];
-                    }
+        if let Some(a) = pick {
+            mean[i] = source_mean[*a];
+            for (j, other) in picks.iter().enumerate() {
+                if let Some(b) = other {
+                    v0[i * n + j] = source_v0[a * m + b];
                 }
             }
-            None => {
-                mean[i] = fill.mean[i];
-                v0[i * n + i] = fill.variance[i];
-            }
+        } else {
+            mean[i] = fill.mean[i];
+            v0[i * n + i] = fill.variance[i];
         }
     }
     let variance: Vec<f64> = (0..n).map(|i| v0[i * n + i]).collect();

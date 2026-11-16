@@ -1053,6 +1053,10 @@ fn setting<'py>(
         .ok_or_else(|| crate::value_err(format!("{algorithm} needs the setting {key:?}")))
 }
 
+/// A discovery search as a function of the searched variables.
+type SearchBuilder =
+    Box<dyn Fn(&[antecedent::prelude::VariableId]) -> PyResult<DiscoverySpec> + Send>;
+
 /// Any posterior search pooled across imputations: the search runs, through the compiled
 /// route, on every completed table (a table for the static searches, a series or panel for the
 /// DBN posterior) and the posteriors are mixed with equal weight. `settings` carries the
@@ -1093,125 +1097,124 @@ fn discover_pooled_posterior(
     let prior = PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty };
     let get = |key: &str| setting(settings, key, algorithm);
     // The search, as a function of the searched variables.
-    let build: Box<dyn Fn(&[antecedent::prelude::VariableId]) -> PyResult<DiscoverySpec> + Send> =
-        match algorithm {
-            "exact_dag_posterior" => {
-                let prior = prior.clone();
-                let names = names.clone();
-                Box::new(move |variables| {
-                    let params = prior.clone().params_over(&names, variables)?;
-                    Ok(DiscoverySpec::exact_dag_posterior(params))
-                })
-            }
-            "order_mcmc" | "structure_mcmc" => {
-                let schedule = schedule_from_args(
-                    get("n_chains")?.extract()?,
-                    get("n_warmup")?.extract()?,
-                    get("n_draws")?.extract()?,
-                    get("thin")?.extract()?,
-                )?;
-                let max_parents: Option<usize> = settings
-                    .get_item("max_parents")?
-                    .filter(|value| !value.is_none())
-                    .map(|value| value.extract())
-                    .transpose()?;
-                let order = algorithm == "order_mcmc";
-                let (gate, family) = if order {
-                    (
-                        get("require_diagnostics_gate")?.extract::<bool>()?,
-                        score_family_of(&get("noise")?.extract::<String>()?)?,
-                    )
+    let build: SearchBuilder = match algorithm {
+        "exact_dag_posterior" => {
+            let prior = prior.clone();
+            let names = names.clone();
+            Box::new(move |variables| {
+                let params = prior.clone().params_over(&names, variables)?;
+                Ok(DiscoverySpec::exact_dag_posterior(params))
+            })
+        }
+        "order_mcmc" | "structure_mcmc" => {
+            let schedule = schedule_from_args(
+                get("n_chains")?.extract()?,
+                get("n_warmup")?.extract()?,
+                get("n_draws")?.extract()?,
+                get("thin")?.extract()?,
+            )?;
+            let max_parents: Option<usize> = settings
+                .get_item("max_parents")?
+                .filter(|value| !value.is_none())
+                .map(|value| value.extract())
+                .transpose()?;
+            let order = algorithm == "order_mcmc";
+            let (gate, family) = if order {
+                (
+                    get("require_diagnostics_gate")?.extract::<bool>()?,
+                    score_family_of(&get("noise")?.extract::<String>()?)?,
+                )
+            } else {
+                (false, antecedent::state::GraphScoreFamily::GaussianBic)
+            };
+            let prior = prior.clone();
+            let names = names.clone();
+            Box::new(move |variables| {
+                let mut params = bayesian_params_capped(max_parents);
+                params.score_family = family;
+                prior.clone().apply(&mut params, &names, variables)?;
+                Ok(if order {
+                    DiscoverySpec::order_mcmc(params, schedule, gate)
                 } else {
-                    (false, antecedent::state::GraphScoreFamily::GaussianBic)
-                };
-                let prior = prior.clone();
-                let names = names.clone();
-                Box::new(move |variables| {
-                    let mut params = bayesian_params_capped(max_parents);
-                    params.score_family = family;
-                    prior.clone().apply(&mut params, &names, variables)?;
-                    Ok(if order {
-                        DiscoverySpec::order_mcmc(params, schedule, gate)
-                    } else {
-                        DiscoverySpec::structure_mcmc(params, schedule)
-                    })
+                    DiscoverySpec::structure_mcmc(params, schedule)
                 })
-            }
-            "ci_screened_posterior" => {
-                let max_cond_size: usize = get("max_cond_size")?.extract()?;
-                crate::bridge::check_count(
-                    "max_cond_size",
-                    max_cond_size as u64,
-                    crate::bridge::MAX_CONDITIONING,
-                )?;
-                let soft = parse_soft_weight(&get("soft_weight")?.extract::<String>()?)?;
-                let ci_name: String = settings
-                    .get_item("ci")?
-                    .filter(|value| !value.is_none())
-                    .map(|value| value.extract())
-                    .transpose()?
-                    .unwrap_or_else(|| "parcorr".to_owned());
-                let ci_label = ci_name.to_ascii_lowercase();
-                let ci_impl = if ci_name.eq_ignore_ascii_case("parcorr") {
-                    std::sync::Arc::new(PartialCorrelation)
-                        as std::sync::Arc<
-                            dyn antecedent::inference::ConditionalIndependence + Send + Sync,
-                        >
-                } else {
-                    resolve_ci(&ci_name, None).map_err(py_err)?
-                };
-                let screen = StaticDiscoverParams {
-                    alpha: get("alpha")?.extract()?,
-                    max_cond_size,
-                    fdr: get("fdr")?
-                        .extract::<bool>()?
-                        .then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
-                    ci: ci_impl,
-                    screen_pc: false,
-                    max_subset: None,
-                    knowledge: antecedent::discovery::BackgroundKnowledge::default(),
-                };
-                let schedule = schedule_from_args(
-                    get("n_chains")?.extract()?,
-                    get("n_warmup")?.extract()?,
-                    get("n_draws")?.extract()?,
-                    get("thin")?.extract()?,
-                )?;
-                let prior = prior.clone();
-                let names = names.clone();
-                Box::new(move |variables| {
-                    let params = prior.clone().params_over(&names, variables)?;
-                    Ok(DiscoverySpec::ci_screened_posterior(
-                        params,
-                        screen.clone(),
-                        schedule,
-                        soft,
-                        ci_label.clone(),
-                    ))
-                })
-            }
-            "dbn_posterior" => {
-                let max_lag: u32 = get("max_lag")?.extract()?;
-                let force_mcmc: bool = get("force_mcmc")?.extract()?;
-                let schedule = schedule_from_args(
-                    get("n_chains")?.extract()?,
-                    get("n_warmup")?.extract()?,
-                    get("n_draws")?.extract()?,
-                    1,
-                )?;
-                let prior = prior.clone();
-                let names = names.clone();
-                Box::new(move |variables| {
-                    let params = prior.clone().params_over(&names, variables)?;
-                    Ok(DiscoverySpec::dbn_posterior(params, max_lag, force_mcmc, schedule))
-                })
-            }
-            other => {
-                return Err(crate::value_err(format!(
-                    "{other:?} is not a posterior search that pools across imputations"
-                )));
-            }
-        };
+            })
+        }
+        "ci_screened_posterior" => {
+            let max_cond_size: usize = get("max_cond_size")?.extract()?;
+            crate::bridge::check_count(
+                "max_cond_size",
+                max_cond_size as u64,
+                crate::bridge::MAX_CONDITIONING,
+            )?;
+            let soft = parse_soft_weight(&get("soft_weight")?.extract::<String>()?)?;
+            let ci_name: String = settings
+                .get_item("ci")?
+                .filter(|value| !value.is_none())
+                .map(|value| value.extract())
+                .transpose()?
+                .unwrap_or_else(|| "parcorr".to_owned());
+            let ci_label = ci_name.to_ascii_lowercase();
+            let ci_impl = if ci_name.eq_ignore_ascii_case("parcorr") {
+                std::sync::Arc::new(PartialCorrelation)
+                    as std::sync::Arc<
+                        dyn antecedent::inference::ConditionalIndependence + Send + Sync,
+                    >
+            } else {
+                resolve_ci(&ci_name, None).map_err(py_err)?
+            };
+            let screen = StaticDiscoverParams {
+                alpha: get("alpha")?.extract()?,
+                max_cond_size,
+                fdr: get("fdr")?
+                    .extract::<bool>()?
+                    .then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+                ci: ci_impl,
+                screen_pc: false,
+                max_subset: None,
+                knowledge: antecedent::discovery::BackgroundKnowledge::default(),
+            };
+            let schedule = schedule_from_args(
+                get("n_chains")?.extract()?,
+                get("n_warmup")?.extract()?,
+                get("n_draws")?.extract()?,
+                get("thin")?.extract()?,
+            )?;
+            let prior = prior.clone();
+            let names = names.clone();
+            Box::new(move |variables| {
+                let params = prior.clone().params_over(&names, variables)?;
+                Ok(DiscoverySpec::ci_screened_posterior(
+                    params,
+                    screen.clone(),
+                    schedule,
+                    soft,
+                    ci_label.clone(),
+                ))
+            })
+        }
+        "dbn_posterior" => {
+            let max_lag: u32 = get("max_lag")?.extract()?;
+            let force_mcmc: bool = get("force_mcmc")?.extract()?;
+            let schedule = schedule_from_args(
+                get("n_chains")?.extract()?,
+                get("n_warmup")?.extract()?,
+                get("n_draws")?.extract()?,
+                1,
+            )?;
+            let prior = prior.clone();
+            let names = names.clone();
+            Box::new(move |variables| {
+                let params = prior.clone().params_over(&names, variables)?;
+                Ok(DiscoverySpec::dbn_posterior(params, max_lag, force_mcmc, schedule))
+            })
+        }
+        other => {
+            return Err(crate::value_err(format!(
+                "{other:?} is not a posterior search that pools across imputations"
+            )));
+        }
+    };
     let temporal = algorithm == "dbn_posterior";
     let mut tabular = Vec::new();
     let mut ingested = Vec::new();

@@ -11,7 +11,9 @@
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
-    reason = "bounded simulation sizes and small indices"
+    clippy::float_cmp,
+    dead_code,
+    reason = "bounded simulation sizes and small indices; 0/1 indicators compared exactly; shared by several test binaries, each of which uses a subset"
 )]
 
 use antecedent::estimate::measurement::{
@@ -102,10 +104,10 @@ fn expit(v: f64) -> f64 {
 fn differential_truth() -> f64 {
     let steps = 4000;
     let (lo, hi) = (-8.0_f64, 8.0_f64);
-    let h = (hi - lo) / steps as f64;
+    let h = (hi - lo) / f64::from(steps);
     (0..=steps)
         .map(|k| {
-            let z = lo + k as f64 * h;
+            let z = lo + f64::from(k) * h;
             let weight = if k == 0 || k == steps { 0.5 } else { 1.0 };
             let density = (-0.5 * z * z).exp() / (std::f64::consts::TAU).sqrt();
             weight * density * (expit(-0.5 + 1.0 + 0.4 * z) - expit(-0.5 + 0.4 * z)) * h
@@ -128,6 +130,7 @@ fn poisson(next: &mut impl FnMut() -> f64, mean: f64) -> f64 {
 /// # Panics
 /// Never for the fixed rates and shapes used here.
 #[must_use]
+#[allow(clippy::too_many_lines, reason = "one planted scenario per declaration")]
 pub fn plant(scenario: Scenario, n: usize, seed: u64) -> Planted {
     let mut normal = gaussian(seed);
     let mut next = uniform(seed, 1);

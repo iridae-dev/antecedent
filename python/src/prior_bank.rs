@@ -1597,7 +1597,7 @@ fn rename_composed_coordinates_py(
         other => return Err(crate::value_err(format!("unknown prior mapping `{other}`"))),
     };
     antecedent::inference::rename_coordinates(&names, mapping)
-        .map(|renamed| renamed.iter().map(|n| n.to_string()).collect())
+        .map(|renamed| renamed.iter().map(std::string::ToString::to_string).collect())
         .map_err(pyvalue)
 }
 

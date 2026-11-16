@@ -102,6 +102,11 @@ fn saturating_u32(value: usize) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX)
 }
 
+/// Per-edge inclusion probabilities of a structure prior.
+type EdgeProbabilities = Arc<[(VariableId, VariableId, f64)]>;
+/// Soft tier order of a structure prior, earliest tier first.
+type TierOrder = Arc<[Arc<[VariableId]>]>;
+
 /// The per-edge factors of a graph prior as the query's declared structure prior, or `None` for
 /// a prior with neither a global edge probability, a per-edge map nor soft tiers.
 ///
@@ -109,14 +114,11 @@ fn saturating_u32(value: usize) -> u32 {
 /// Because the query is built from the very parameters the engines run, the declared prior and
 /// the executed prior cannot differ.
 fn structure_prior_of(prior: &crate::discovery::GraphPrior) -> Option<StructurePriorSpec> {
-    let (edges, default_edge): (Arc<[(VariableId, VariableId, f64)]>, Option<f64>) =
-        match &prior.edge_priors {
-            Some(map) => (Arc::clone(&map.edges), map.default),
-            None => (Arc::from(Vec::new()), None),
-        };
-    let (soft_tiers, soft_tier_log_penalty): (Arc<[Arc<[VariableId]>]>, Option<f64>) = match &prior
-        .soft_tiers
-    {
+    let (edges, default_edge): (EdgeProbabilities, Option<f64>) = match &prior.edge_priors {
+        Some(map) => (Arc::clone(&map.edges), map.default),
+        None => (Arc::from(Vec::new()), None),
+    };
+    let (soft_tiers, soft_tier_log_penalty): (TierOrder, Option<f64>) = match &prior.soft_tiers {
         Some(soft) if !soft.tiers.is_empty() => (Arc::clone(&soft.tiers), Some(soft.log_penalty)),
         _ => (Arc::from(Vec::new()), None),
     };

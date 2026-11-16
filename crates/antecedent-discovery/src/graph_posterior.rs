@@ -918,7 +918,12 @@ impl GraphPosterior {
     /// No posterior, a posterior over another variable count, over atoms that are not DAGs, a
     /// mixture of lagged and static posteriors or of different lag windows, or a posterior with
     /// latent-confounder lag masks.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one pooling pass over DAG and lagged template posteriors"
+    )]
     pub fn pooled_over_imputations(posteriors: &[Self]) -> Result<Self, DiscoveryError> {
+        type Key = (AdjacencyMask, Option<AdjacencyMask>);
         let first = posteriors.first().ok_or_else(|| {
             DiscoveryError::unsupported("pooling over imputations needs at least one posterior")
         })?;
@@ -951,7 +956,6 @@ impl GraphPosterior {
         }
         let count = posteriors.len() as f64;
         let share = 1.0 / count;
-        type Key = (AdjacencyMask, Option<AdjacencyMask>);
         let mut slot: std::collections::HashMap<Key, usize> = std::collections::HashMap::new();
         let mut atoms: Vec<AdjacencyMask> = Vec::new();
         let mut lags: Vec<AdjacencyMask> = Vec::new();

@@ -49,7 +49,7 @@ fn data_and_graph() -> (TabularData, Dag, Vec<f64>, Vec<f64>, Vec<f64>) {
         .unwrap();
     }
     let schema = b.build().unwrap();
-    let t: Vec<f64> = (0..ROWS).map(|i| ((i * 7) % 3 == 0) as u8 as f64).collect();
+    let t: Vec<f64> = (0..ROWS).map(|i| f64::from(u8::from((i * 7) % 3 == 0))).collect();
     let z: Vec<f64> = (0..ROWS).map(|i| (i as f64 * 0.37).sin() + 0.01 * i as f64).collect();
     let y: Vec<f64> = (0..ROWS)
         .map(|i| 1.0 + 2.0 * t[i] + 0.8 * z[i] + 0.2 * ((i as f64 * 12.9898).sin()))

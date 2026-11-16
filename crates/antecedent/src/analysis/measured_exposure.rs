@@ -380,10 +380,10 @@ pub fn consume_exposure_draws(
     if meta.quantities.is_empty() || !named {
         return Err(input(format!("the artifact does not hold draws of `{exposure}`")));
     }
-    if let Some(expected) = expected_declaration_identity {
-        if parts[2] != expected {
-            return Err(input("the artifact's declaration identity differs from the expected one"));
-        }
+    if let Some(expected) = expected_declaration_identity
+        && parts[2] != expected
+    {
+        return Err(input("the artifact's declaration identity differs from the expected one"));
     }
     let kind: &'static str = match parts[1] {
         "misclassified_exposure" => "misclassified_exposure",

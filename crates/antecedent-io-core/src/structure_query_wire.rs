@@ -1400,6 +1400,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines, reason = "one decoder arm per discovery method")]
     fn the_structure_and_model_queries_round_trip() {
         round_trip(&CausalQuery::Discover(DiscoverQuery::new(
             vec![v(0), v(1), v(2)],

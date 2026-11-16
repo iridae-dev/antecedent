@@ -388,8 +388,8 @@ mod composed {
         };
         let sources = [source("a", [0.2, 1.0, 1.8], 1.0), source("b", [0.5, 0.6, 2.2], 0.5)];
         let rows = 40;
-        let effects: Vec<f64> = (0..rows).map(|i| 0.6 + 0.01 * i as f64).collect();
-        let distances: Vec<f64> = (0..rows).map(|i| i as f64 / rows as f64).collect();
+        let effects: Vec<f64> = (0..rows).map(|i| 0.6 + 0.01 * f64::from(i)).collect();
+        let distances: Vec<f64> = (0..rows).map(|i| f64::from(i) / f64::from(rows)).collect();
         let kernel = TransportKernel::new(KernelFamily::Gaussian, 1.0).unwrap();
         let target = WeightedTarget::from_kernel(effects, &distances, kernel).unwrap();
         let baseline = gaussian([0.0; 3], [100.0; 3]);
