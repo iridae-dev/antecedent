@@ -200,7 +200,7 @@ pub use query::{
     AttributeQuery, AttributeTarget, ChangeEstimator, ChangeMeasure, DiscoverQuery,
     DiscoveredClass, DiscoveryInference, DiscoveryMethod, InfluenceAllocation,
     IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration, ScreenWeight, SearchBounds,
-    SearchSchedule, SimulateQuery, SimulationTarget,
+    SearchSchedule, SimulateQuery, SimulationTarget, StructurePriorSpec,
 };
 pub use query::{
     AttritionShiftBound, DidAggregation, DidBasePeriod, DidComparisonGroup, DidNuisanceMethod,

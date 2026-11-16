@@ -1263,6 +1263,7 @@ class _PreparedEngine(Generic[ResultT]):
         query: _PreparedQuery,
         graph: Dag | Sequence[tuple[str, str]] | Any | None = None,
         discovery: Any | None = None,
+        imputations: Sequence[Any] | None = None,
         inference: Frequentist | Bayesian | TransportInference | None = None,
         identifier: str | Identifier | None = None,
         estimator: str | Estimator | Any | None = None,
@@ -1323,6 +1324,10 @@ class _PreparedEngine(Generic[ResultT]):
         TemporalMediation prepare on a ``TemporalDag`` or lagged edge list; a
         Frequentist ``TemporalMediationEffect`` with ``bootstrap=None`` follows the
         same ``latency`` tier for its shared circular-block replicates.
+        ``imputations`` is a sequence of completed tables (series for ``DbnPosterior``) beside a
+        posterior-search ``discovery=``: the search is pooled across them in the engine and the
+        study mixes over the pooled posterior (see :mod:`antecedent.discovery`).
+
         ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
         ``GraphPosterior`` compiles the supported graph-posterior cells
         (AverageEffect / ConditionalEffect / ResponseCurve / one-coordinate
@@ -1436,6 +1441,17 @@ class _PreparedEngine(Generic[ResultT]):
                 "on_refusal='describe' runs a descriptive fallback on a refused tabular study; "
                 "this query is bound to its own design or evidence and has no such fallback",
                 reason_code="option_not_applicable",
+            )
+        if imputations is not None:
+            from .discovery import pool_search_over_imputations
+            from .execution import Execution as _Execution
+
+            if discovery is None or graph is not None:
+                raise CausalValueError(
+                    "imputations pool a posterior search: pass discovery=<search> and no graph="
+                )
+            discovery = pool_search_over_imputations(
+                discovery, imputations, execution=_Execution(seed=seed, threads=threads)
             )
         if isinstance(query, PolicyProgramValue):
             from ._prepared_policy import PreparedPolicyAnalysis

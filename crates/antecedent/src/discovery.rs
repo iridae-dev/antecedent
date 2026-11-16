@@ -617,6 +617,202 @@ pub fn discover_exact_dag_marginals(
     )?)
 }
 
+/// Exact DAG posterior pooled across imputations: the exact posterior of every completed table
+/// (structure searched afresh on each), mixed with equal weight.
+///
+/// Every table must hold the same variables in the same order. The pooled mass of a graph is
+/// the mean of its per-imputation masses; the posterior is tagged
+/// `pooled_imputations(exact_dag_posterior)` and its diagnostics state the method.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table, or posteriors that do not pool.
+pub fn discover_pooled_exact_dag_posterior(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    let posteriors = tables
+        .iter()
+        .map(|table| discover_exact_dag_posterior(table, variables, params, ctx))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(GraphPosterior::pooled_over_imputations(&posteriors)?)
+}
+
+/// Exact DAG edge marginals pooled across imputations: the means of the per-imputation
+/// marginals, and the log of the mean of the per-imputation normalizers.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table, or marginals that do not pool.
+pub fn discover_pooled_exact_dag_marginals(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<ExactDagMarginals, CausalError> {
+    let parts = tables
+        .iter()
+        .map(|table| discover_exact_dag_marginals(table, variables, params, ctx))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ExactDagMarginals::pooled_over_imputations(&parts)?)
+}
+
+/// Exact DAG posterior pooled across imputations: the exact posterior of every completed table
+/// (structure searched afresh on each), mixed with equal weight.
+///
+/// Every table must hold the same variables in the same order. The pooled mass of a graph is
+/// the mean of its per-imputation masses; the posterior is tagged
+/// `pooled_imputations(exact_dag_posterior)` and its diagnostics state the method.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table, or posteriors that do not pool.
+pub fn discover_pooled_exact_dag_posterior(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    let posteriors = tables
+        .iter()
+        .map(|table| discover_exact_dag_posterior(table, variables, params, ctx))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(GraphPosterior::pooled_over_imputations(&posteriors)?)
+}
+
+/// Exact DAG edge marginals pooled across imputations: the means of the per-imputation
+/// marginals, and the log of the mean of the per-imputation normalizers.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table, or marginals that do not pool.
+pub fn discover_pooled_exact_dag_marginals(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    ctx: &ExecutionContext,
+) -> Result<ExactDagMarginals, CausalError> {
+    let parts = tables
+        .iter()
+        .map(|table| discover_exact_dag_marginals(table, variables, params, ctx))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ExactDagMarginals::pooled_over_imputations(&parts)?)
+}
+
+/// The posterior pooled across imputations: the equal-weight mixture of the per-imputation
+/// posteriors (draw sets, for a sampled search), whichever search produced them.
+///
+/// The pooled posterior states the method in its algorithm tag and diagnostics notes and keeps
+/// each imputation's Monte-Carlo diagnostics; see [`GraphPosterior::pooled_over_imputations`].
+///
+/// # Errors
+///
+/// No posterior, or posteriors that do not pool.
+pub fn pool_posteriors_over_imputations(
+    posteriors: &[GraphPosterior],
+) -> Result<GraphPosterior, CausalError> {
+    Ok(GraphPosterior::pooled_over_imputations(posteriors)?)
+}
+
+/// Order MCMC pooled across imputations: the chains run on every completed table.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table (including the diagnostics gate), or posteriors
+/// that do not pool.
+pub fn discover_pooled_order_mcmc(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    schedule: &GraphMcmcSchedule,
+    require_diagnostics_gate: bool,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    let posteriors = tables
+        .iter()
+        .map(|table| {
+            discover_order_mcmc(table, variables, params, schedule, require_diagnostics_gate, ctx)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    pool_posteriors_over_imputations(&posteriors)
+}
+
+/// Structure MCMC pooled across imputations.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table, or posteriors that do not pool.
+pub fn discover_pooled_structure_mcmc(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    schedule: &GraphMcmcSchedule,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    let posteriors = tables
+        .iter()
+        .map(|table| discover_structure_mcmc(table, variables, params, schedule, ctx))
+        .collect::<Result<Vec<_>, _>>()?;
+    pool_posteriors_over_imputations(&posteriors)
+}
+
+/// CI-screened posterior pooled across imputations: the screen and the chains run on every
+/// completed table.
+///
+/// # Errors
+///
+/// No table, a discovery failure on any table, or posteriors that do not pool.
+pub fn discover_pooled_ci_screened_posterior(
+    tables: &[TabularData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    screen: &StaticDiscoverParams,
+    schedule: &GraphMcmcSchedule,
+    soft_weight: CiSoftWeight,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    let posteriors = tables
+        .iter()
+        .map(|table| {
+            discover_ci_screened_posterior(
+                table,
+                variables,
+                params,
+                screen,
+                schedule,
+                soft_weight,
+                ctx,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    pool_posteriors_over_imputations(&posteriors)
+}
+
+/// Bounded-lag DBN template posterior pooled across completed series.
+///
+/// # Errors
+///
+/// No series, a discovery failure on any series, or posteriors that do not pool.
+pub fn discover_pooled_dbn_posterior(
+    series: &[TimeSeriesData],
+    variables: &[VariableId],
+    params: &BayesianDiscoverParams,
+    max_lag: u32,
+    force_mcmc: bool,
+    schedule: &GraphMcmcSchedule,
+    ctx: &ExecutionContext,
+) -> Result<GraphPosterior, CausalError> {
+    let posteriors = series
+        .iter()
+        .map(|one| {
+            discover_dbn_posterior(one, variables, params, max_lag, force_mcmc, schedule, ctx)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    pool_posteriors_over_imputations(&posteriors)
+}
+
 /// Order MCMC DAG posterior (Gaussian BIC).
 ///
 /// # Errors

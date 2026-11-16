@@ -343,8 +343,11 @@ fn run_rpcmci(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, Causal
 fn run_exact_dag_posterior(
     search: &Search<'_>,
 ) -> Result<Option<DiscoveredStructure>, CausalError> {
-    let (DiscoveryMethod::ExactDagPosterior, SearchParams::Bayesian(b), DiscoverData::Tabular(d)) =
-        (&search.spec.method, &search.spec.search, search.data)
+    let (
+        DiscoveryMethod::ExactDagPosterior { .. },
+        SearchParams::Bayesian(b),
+        DiscoverData::Tabular(d),
+    ) = (&search.spec.method, &search.spec.search, search.data)
     else {
         return Ok(None);
     };
@@ -382,8 +385,11 @@ fn run_pag_mcmc(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, Caus
 fn run_exact_dag_marginals(
     search: &Search<'_>,
 ) -> Result<Option<DiscoveredStructure>, CausalError> {
-    let (DiscoveryMethod::ExactDagMarginals, SearchParams::Bayesian(b), DiscoverData::Tabular(d)) =
-        (&search.spec.method, &search.spec.search, search.data)
+    let (
+        DiscoveryMethod::ExactDagMarginals { .. },
+        SearchParams::Bayesian(b),
+        DiscoverData::Tabular(d),
+    ) = (&search.spec.method, &search.spec.search, search.data)
     else {
         return Ok(None);
     };
@@ -393,7 +399,7 @@ fn run_exact_dag_marginals(
 
 fn run_order_mcmc(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalError> {
     let (
-        DiscoveryMethod::OrderMcmc { diagnostics_gate },
+        DiscoveryMethod::OrderMcmc { diagnostics_gate, .. },
         SearchParams::Bayesian(b),
         DiscoverData::Tabular(d),
     ) = (&search.spec.method, &search.spec.search, search.data)
@@ -412,8 +418,11 @@ fn run_order_mcmc(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, Ca
 }
 
 fn run_structure_mcmc(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalError> {
-    let (DiscoveryMethod::StructureMcmc, SearchParams::Bayesian(b), DiscoverData::Tabular(d)) =
-        (&search.spec.method, &search.spec.search, search.data)
+    let (
+        DiscoveryMethod::StructureMcmc { .. },
+        SearchParams::Bayesian(b),
+        DiscoverData::Tabular(d),
+    ) = (&search.spec.method, &search.spec.search, search.data)
     else {
         return Ok(None);
     };
@@ -431,7 +440,7 @@ fn run_ci_screened_posterior(
     search: &Search<'_>,
 ) -> Result<Option<DiscoveredStructure>, CausalError> {
     let (
-        DiscoveryMethod::CiScreenedPosterior { weight },
+        DiscoveryMethod::CiScreenedPosterior { weight, .. },
         SearchParams::Screened { bayesian, screen },
         DiscoverData::Tabular(d),
     ) = (&search.spec.method, &search.spec.search, search.data)
@@ -464,6 +473,7 @@ fn run_screened_exact_marginals(
             max_variables,
             in_probability,
             out_probability,
+            ..
         },
         SearchParams::Screened { bayesian, screen },
         DiscoverData::Tabular(d),
@@ -487,7 +497,7 @@ fn run_screened_exact_marginals(
 
 fn run_dbn_posterior(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalError> {
     use crate::discovery as engine;
-    let (DiscoveryMethod::DbnPosterior { force_mcmc }, SearchParams::Bayesian(b)) =
+    let (DiscoveryMethod::DbnPosterior { force_mcmc, .. }, SearchParams::Bayesian(b)) =
         (&search.spec.method, &search.spec.search)
     else {
         return Ok(None);

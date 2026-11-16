@@ -20,6 +20,11 @@ fn bounds_label(query: &DiscoverQuery) -> String {
     )
 }
 
+/// The statement of the per-edge prior and soft tiers the search declared, if it declared any.
+fn prior_statement(query: &DiscoverQuery) -> Option<Arc<str>> {
+    query.method.structure_prior().map(|prior| Arc::from(prior.statement()))
+}
+
 /// Canonical digest of a discovery query.
 fn query_digest(query: &DiscoverQuery) -> [u8; 32] {
     use antecedent_core::CanonicalEncode;
@@ -80,6 +85,7 @@ pub fn accept_discovered(
         claim: *claim.claim_id.as_bytes(),
         review: Arc::from(if pending == 0 { "accepted" } else { "accepted_after_review" }),
         resolved_marks: pending,
+        structure_prior: prior_statement(&payload.query),
     };
     Ok(accepted.with_provenance(Arc::new(provenance)))
 }
@@ -236,6 +242,7 @@ pub fn accept_discovered_posterior(
         claim: *claim.claim_id.as_bytes(),
         review: Arc::from("posterior"),
         resolved_marks: 0,
+        structure_prior: prior_statement(&payload.query),
     };
     Ok(AcceptedPosterior {
         posterior: posterior.clone(),

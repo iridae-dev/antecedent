@@ -373,6 +373,7 @@ _EXPECTED_STAGE_ALL = {
         "discovery_to_dag",
         "graph_posterior_map_dag",
         "graph_posterior_map_edges",
+        "pool_search_over_imputations",
         "run_static_discovery",
         "run_temporal_discovery",
         "two_regime_half_split",

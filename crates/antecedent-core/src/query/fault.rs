@@ -753,6 +753,11 @@ pub enum DiscoverFault {
     /// Refused: a sampled structure posterior needs an MCMC schedule
     #[error("a sampled structure posterior needs an MCMC schedule")]
     PosteriorNeedsSchedule,
+    /// Refused: a structure prior lists probabilities in (0, 1) over searched variables only, no self or repeated edge, and a soft-tier penalty exactly when tiers are listed
+    #[error(
+        "a structure prior lists probabilities in (0, 1) over searched variables only, no self or repeated edge, and a soft-tier penalty exactly when tiers are listed"
+    )]
+    StructurePrior,
 }
 
 /// Why a simulation declaration on a fitted structural model is refused,

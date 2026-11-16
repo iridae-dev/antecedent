@@ -377,6 +377,28 @@ static route other than the average effect, synthetic control and survival, and 
 has no `weights` argument. See
 [the guide](guides/sampling-weights.md).
 
+## Carry measurement uncertainty into the structure
+
+Pass the completed tables of a measurement or missing-data model as `imputations=` beside a
+posterior-search `discovery=` (`ExactDagPosterior`, `OrderMcmc`, `StructureMcmc`,
+`CiScreenedPosterior`, or `DbnPosterior` over completed series):
+
+```python
+result = antecedent.analyze(
+    tables[0],
+    discovery=antecedent.discovery.StructureMcmc(),
+    imputations=tables,
+    query=antecedent.AverageEffect(treatment="t", outcome="y"),
+    inference=antecedent.Bayesian(backend="conjugate"),
+)
+```
+
+The engine searches every table, pools the posteriors as an equal-weight mixture (a graph only some
+imputations support keeps the share of them that do), keeps each imputation's Monte-Carlo
+diagnostics in the pooled posterior, and the effect is mixed over the pooled posterior. The same
+pooling is `search.run(imputations=...)`. `imputations=` cannot be combined with `graph=`, and above
+six variables the exact search pools edge marginals only, which a study cannot mix over.
+
 ## Read identification details
 
 `identify(...)` returns an `Identification` whose `statement`, `verdict`,

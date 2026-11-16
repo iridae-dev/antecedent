@@ -86,8 +86,8 @@ fn posterior_algorithm(
     match (method, schedule) {
         (DiscoveryMethod::ClassPosterior { base }, schedule) => posterior_algorithm(base, schedule),
         (
-            DiscoveryMethod::ExactDagPosterior
-            | DiscoveryMethod::ExactDagMarginals
+            DiscoveryMethod::ExactDagPosterior { .. }
+            | DiscoveryMethod::ExactDagMarginals { .. }
             | DiscoveryMethod::ScreenedExactMarginals { .. },
             _,
         ) => (PosteriorAlgorithm::Enumeration, 0),
@@ -139,8 +139,16 @@ fn lower_search(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError>
             )
         }
         DiscoveryInference::Bayesian => {
-            let prior = Prior::new(format!("discovery.structural_prior.{id}"))
-                .map_err(declaration_error)?;
+            // A declared per-edge prior and soft tiers are part of what the posterior is a
+            // posterior under, so the prior's name states them; a search without one keeps
+            // the name it always had.
+            let prior_name = match query.method.structure_prior() {
+                Some(declared) => {
+                    format!("discovery.structural_prior.{id}[{}]", declared.statement())
+                }
+                None => format!("discovery.structural_prior.{id}"),
+            };
+            let prior = Prior::new(prior_name).map_err(declaration_error)?;
             let likelihood = LikelihoodModel::new(
                 study
                     .discovery

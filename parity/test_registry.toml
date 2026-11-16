@@ -876,6 +876,13 @@ path = "crates/antecedent/tests/structure_compiler_routes.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "structure-prior-routes"
+crate = "antecedent"
+cargo_target = "structure_prior_routes"
+path = "crates/antecedent/tests/structure_prior_routes.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "compiled-structure-routes-python"
 crate = "python"
 cargo_target = "script"

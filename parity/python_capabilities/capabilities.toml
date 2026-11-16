@@ -11471,6 +11471,26 @@ test = "python/tests/test_structure_prior.py::test_the_screened_route_refuses_wh
 assertion_scopes = ["test_the_screened_route_refuses_what_the_exact_route_cannot_hold"]
 dimensions = ["refusal"]
 assertion_contract = "A set size above the exact ceiling, no focus variable, an edge probability of one and an unknown focus variable are each refused."
+[[capability.evidence]]
+test = "python/tests/test_structure_prior.py::test_a_per_edge_prior_through_analyze_is_the_engine_posterior_and_moves_the_effect"
+assertion_scopes = ["test_a_per_edge_prior_through_analyze_is_the_engine_posterior_and_moves_the_effect"]
+dimensions = ["success", "controls"]
+assertion_contract = "A per-edge prior handed to analyze through an unrun ExactDagPosterior gives the engine posterior, equal to the uniform posterior reweighted by hand, the same effect as the engine posterior supplied, and moves the effect toward the regression slope."
+[[capability.evidence]]
+test = "python/tests/test_structure_prior.py::test_pooling_over_imputations_is_the_hand_mixture_of_the_per_imputation_posteriors"
+assertion_scopes = ["test_pooling_over_imputations_is_the_hand_mixture_of_the_per_imputation_posteriors"]
+dimensions = ["success", "controls"]
+assertion_contract = "The exact posterior pooled across three imputations equals the hand mixture graph by graph, its marginals are the means, it is tagged pooled_imputations and analyze mixes over it as over the same atoms supplied by hand."
+[[capability.evidence]]
+test = "python/tests/test_structure_prior.py::test_every_posterior_search_pools_and_analyze_takes_the_imputations"
+assertion_scopes = ["test_every_posterior_search_pools_and_analyze_takes_the_imputations"]
+dimensions = ["success", "branch"]
+assertion_contract = "Structure and order MCMC pool across imputations into a pooled_imputations posterior, and analyze given imputations beside discovery equals the effect on the pooled posterior."
+[[capability.evidence]]
+test = "python/tests/test_structure_prior.py::test_pooling_refuses_what_it_cannot_state"
+assertion_scopes = ["test_pooling_refuses_what_it_cannot_state"]
+dimensions = ["refusal"]
+assertion_contract = "Imputations over different variables, data beside imputations, no imputation, one table instead of a sequence and no input at all are each refused."
 
 [[capability]]
 id = "analysis.association.AssociationPayload"

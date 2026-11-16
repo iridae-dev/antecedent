@@ -637,6 +637,9 @@ impl PyFittedGcm {
             out.insert("discovered_class".to_owned(), provenance.discovered_class.to_string());
             out.insert("review".to_owned(), provenance.review.to_string());
             out.insert("resolved_marks".to_owned(), provenance.resolved_marks.to_string());
+            if let Some(statement) = &provenance.structure_prior {
+                out.insert("structure_prior".to_owned(), statement.to_string());
+            }
             out
         })
     }

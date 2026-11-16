@@ -14593,3 +14593,18 @@ target = "measured_exposure_calibration"
 tests = ["measured_exposure_repeat_codings_rubin_l95"]
 ignored = true
 grid = true
+[[group]]
+label = "antecedent-discovery: pooled_marginals_are_reliable_under_regression_imputation_of_a_hidden_column"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::pooled_marginals_are_reliable_under_regression_imputation_of_a_hidden_column"]
+ignored = true
+grid = false
+
+[[group]]
+label = "antecedent-discovery: pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors"]
+ignored = true
+grid = false

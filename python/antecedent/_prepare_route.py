@@ -134,6 +134,17 @@ _RESPONSE_ESTIMATORS = {
 }
 
 
+def _structure_prior_option(discovery: Any) -> dict[str, Any]:
+    """The prepare option that carries the per-edge prior of a posterior search still to run.
+
+    A posterior that was already run carries its prior in its atoms; a search handed to a
+    study runs inside it, so the study reads the prior the configuration declares.
+    """
+    prior = discovery.prior if isinstance(discovery, (ExactDagPosterior, DbnPosterior)) else None
+    kwargs = {} if prior is None else prior._native_kwargs()
+    return {"structure_prior": kwargs} if kwargs else {}
+
+
 def _check_response_strategy(
     query: Any,
     *,
@@ -586,6 +597,7 @@ class _PrepareRoute:
         from .population import coerce_target_population
 
         options = dict(self.options)
+        options.update(_structure_prior_option(discovery))
         population = coerce_target_population(getattr(query, "target_population", None))
         if population is not None:
             options["target_population"] = population
@@ -617,6 +629,8 @@ class _PrepareRoute:
         shared: dict[str, Any] = dict(self._common())
         if isinstance(discovery, GraphPosterior):
             shared["posterior"] = discovery
+        elif _structure_prior_option(discovery):
+            shared["options"] = {**dict(self.options), **_structure_prior_option(discovery)}
         dbn: dict[str, Any] = {"frame": self.frame} if temporal else {}
         dbn |= (
             {}

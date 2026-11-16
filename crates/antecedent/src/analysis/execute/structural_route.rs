@@ -268,7 +268,7 @@ fn discovery_posterior_scope(
     let rows = data.rows();
     let statement = match &query.method {
         DiscoveryMethod::ClassPosterior { base }
-            if matches!(**base, DiscoveryMethod::ExactDagPosterior)
+            if matches!(**base, DiscoveryMethod::ExactDagPosterior { prior: None })
                 && matches!(data, DiscoverData::Tabular(_))
                 && variables <= 3
                 && rows >= 75 =>
@@ -279,7 +279,7 @@ fn discovery_posterior_scope(
                  nominal coverage",
             )
         }
-        DiscoveryMethod::DbnPosterior { .. }
+        DiscoveryMethod::DbnPosterior { prior: None, .. }
             if matches!(data, DiscoverData::Series(_))
                 && variables <= 2
                 && query.bounds.max_lag == 1

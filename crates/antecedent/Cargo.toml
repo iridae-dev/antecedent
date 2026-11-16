@@ -1046,6 +1046,10 @@ name = "structure_uncertainty_routes"
 path = "tests/structure_uncertainty_routes.rs"
 
 [[test]]
+name = "structure_prior_routes"
+path = "tests/structure_prior_routes.rs"
+
+[[test]]
 name = "quasi_rollout_routes"
 path = "tests/quasi_rollout_routes.rs"
 

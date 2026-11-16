@@ -369,6 +369,32 @@ impl PyGraphPosterior {
         })
     }
 
+    /// The equal-weight mixture over imputations of each imputation's structure posterior.
+    ///
+    /// The posteriors must be over the same variables in the same order, with DAG atoms. The
+    /// pooled mass of a graph is the mean of its per-imputation masses.
+    #[classmethod]
+    fn pool(
+        _cls: &Bound<'_, pyo3::types::PyType>,
+        posteriors: Vec<PyRef<'_, PyGraphPosterior>>,
+    ) -> PyResult<Self> {
+        let first = posteriors
+            .first()
+            .ok_or_else(|| crate::value_err("pooling needs at least one posterior"))?;
+        let names = first.names.clone();
+        let mut inner = Vec::with_capacity(posteriors.len());
+        for posterior in &posteriors {
+            if posterior.names != names {
+                return Err(crate::value_err(
+                    "the imputations' posteriors must be over the same variables in the same order",
+                ));
+            }
+            inner.push(posterior.to_rust()?);
+        }
+        let pooled = RustGraphPosterior::pooled_over_imputations(&inner).map_err(py_msg)?;
+        Ok(Self::from_rust(names, pooled))
+    }
+
     /// Pack typed graphs into a posterior. Every atom must share one class.
     /// ADMG atoms must be bow-free: this encoding cannot retain a directed and
     /// bidirected edge on the same pair. An explicit ADMG graph retains bows.
@@ -617,8 +643,8 @@ fn bayesian_params_capped(max_parents: Option<usize>) -> BayesianDiscoverParams 
 /// `edge_priors` lists `(from, to, probability)`; `edge_prior_default` is the probability of the
 /// unlisted edges. `soft_tiers` lists variable names, earliest tier first, and
 /// `soft_tier_penalty` is the log-penalty charged to a present edge against that order.
-#[derive(Default)]
-struct PriorArgs {
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PriorArgs {
     edge_priors: Option<Vec<(String, String, f64)>>,
     edge_prior_default: Option<f64>,
     soft_tiers: Option<Vec<Vec<String>>>,
@@ -626,6 +652,45 @@ struct PriorArgs {
 }
 
 impl PriorArgs {
+    /// Read the arguments from the mapping a `StructurePrior` forwards with a prepared study.
+    pub(crate) fn from_dict(dict: &Bound<'_, PyDict>) -> PyResult<Self> {
+        const KEYS: &[&str] =
+            &["edge_priors", "edge_prior_default", "soft_tiers", "soft_tier_penalty"];
+        for (key, _) in dict.iter() {
+            let key: String = key.extract()?;
+            if !KEYS.contains(&key.as_str()) {
+                return Err(crate::value_err(format!(
+                    "unknown structure prior member {key:?}; expected one of {KEYS:?}"
+                )));
+            }
+        }
+        let item = |key: &str| -> PyResult<Option<Bound<'_, PyAny>>> {
+            Ok(dict.get_item(key)?.filter(|value| !value.is_none()))
+        };
+        Ok(Self {
+            edge_priors: item("edge_priors")?.map(|value| value.extract()).transpose()?,
+            edge_prior_default: item("edge_prior_default")?
+                .map(|value| value.extract())
+                .transpose()?,
+            soft_tiers: item("soft_tiers")?.map(|value| value.extract()).transpose()?,
+            soft_tier_penalty: item("soft_tier_penalty")?
+                .map(|value| value.extract())
+                .transpose()?,
+        })
+    }
+
+    /// The default Bayesian parameters under these prior arguments, for a search over the
+    /// variables `names` of a table or series (`variables[i]` is the variable of `names[i]`).
+    pub(crate) fn params_over(
+        self,
+        names: &[String],
+        variables: &[antecedent::prelude::VariableId],
+    ) -> PyResult<BayesianDiscoverParams> {
+        let mut params = bayesian_params();
+        self.apply(&mut params, names, variables)?;
+        Ok(params)
+    }
+
     /// Set the per-edge map and soft tiers on `params`, resolving names against `names`
     /// (`variables[i]` is the variable of `names[i]`).
     fn apply(
@@ -873,6 +938,318 @@ fn discover_exact_dag_marginals(
             },
         )?;
         Ok((marginals.edge_marginals.to_vec(), marginals.log_evidence))
+    })
+}
+
+/// The completed tables of an imputed run as native column batches over one variable list.
+fn imputed_tables(
+    names: &[String],
+    tables: Vec<Vec<NumericColumn<'_>>>,
+) -> PyResult<Vec<crate::ColumnBatch>> {
+    if tables.is_empty() {
+        return Err(crate::value_err("imputations needs at least one completed table"));
+    }
+    tables.into_iter().map(|columns| numeric_columns_to_batch(names, &columns)).collect()
+}
+
+/// Exact DAG posterior (at most six variables) pooled across imputations: the equal-weight mixture of the
+/// per-imputation exact posteriors, tagged `pooled_imputations(...)`.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    tables,
+    *,
+    seed=1,
+    threads=None,
+    edge_priors=None,
+    edge_prior_default=None,
+    soft_tiers=None,
+    soft_tier_penalty=None,
+))]
+fn discover_pooled_exact_dag_posterior(
+    py: Python<'_>,
+    names: Vec<String>,
+    tables: Vec<Vec<NumericColumn<'_>>>,
+    seed: u64,
+    threads: Option<u32>,
+    edge_priors: Option<Vec<(String, String, f64)>>,
+    edge_prior_default: Option<f64>,
+    soft_tiers: Option<Vec<Vec<String>>>,
+    soft_tier_penalty: Option<f64>,
+) -> PyResult<PyGraphPosterior> {
+    let batches = imputed_tables(&names, tables)?;
+    detach_catch(py, move || {
+        let loaded = batches.iter().map(tabular_from_batch).collect::<PyResult<Vec<_>>>()?;
+        let variables = loaded[0].1.clone();
+        let data: Vec<_> = loaded.into_iter().map(|(table, _)| table).collect();
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let mut params = bayesian_params();
+        PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty }.apply(
+            &mut params,
+            &names,
+            &variables,
+        )?;
+        let pooled = antecedent::discovery::discover_pooled_exact_dag_posterior(
+            &data, &variables, &params, &ctx,
+        )
+        .map_err(py_err)?;
+        Ok(PyGraphPosterior::from_rust(names, pooled))
+    })
+}
+
+/// Exact DAG edge marginals (seven to fifteen variables) pooled across imputations: the means of the per-imputation
+/// marginals and the log of the mean of the per-imputation normalizers.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    tables,
+    *,
+    seed=1,
+    threads=None,
+    edge_priors=None,
+    edge_prior_default=None,
+    soft_tiers=None,
+    soft_tier_penalty=None,
+))]
+fn discover_pooled_exact_dag_marginals(
+    py: Python<'_>,
+    names: Vec<String>,
+    tables: Vec<Vec<NumericColumn<'_>>>,
+    seed: u64,
+    threads: Option<u32>,
+    edge_priors: Option<Vec<(String, String, f64)>>,
+    edge_prior_default: Option<f64>,
+    soft_tiers: Option<Vec<Vec<String>>>,
+    soft_tier_penalty: Option<f64>,
+) -> PyResult<(Vec<f64>, f64)> {
+    let batches = imputed_tables(&names, tables)?;
+    detach_catch(py, move || {
+        let loaded = batches.iter().map(tabular_from_batch).collect::<PyResult<Vec<_>>>()?;
+        let variables = loaded[0].1.clone();
+        let data: Vec<_> = loaded.into_iter().map(|(table, _)| table).collect();
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let mut params = bayesian_params();
+        PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty }.apply(
+            &mut params,
+            &names,
+            &variables,
+        )?;
+        let pooled = antecedent::discovery::discover_pooled_exact_dag_marginals(
+            &data, &variables, &params, &ctx,
+        )
+        .map_err(py_err)?;
+        Ok((pooled.edge_marginals.to_vec(), pooled.log_evidence))
+    })
+}
+
+fn setting<'py>(
+    settings: &Bound<'py, PyDict>,
+    key: &str,
+    algorithm: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    settings
+        .get_item(key)?
+        .filter(|value| !value.is_none())
+        .ok_or_else(|| crate::value_err(format!("{algorithm} needs the setting {key:?}")))
+}
+
+/// Any posterior search pooled across imputations: the search runs, through the compiled
+/// route, on every completed table (a table for the static searches, a series or panel for the
+/// DBN posterior) and the posteriors are mixed with equal weight. `settings` carries the
+/// search's own options (the fields of its configuration); the per-imputation Monte-Carlo
+/// diagnostics stay in the pooled posterior's diagnostics.
+#[pyfunction]
+#[pyo3(signature = (
+    algorithm,
+    names,
+    tables,
+    settings,
+    *,
+    seed=1,
+    threads=None,
+    unit_lengths=None,
+    edge_priors=None,
+    edge_prior_default=None,
+    soft_tiers=None,
+    soft_tier_penalty=None,
+))]
+fn discover_pooled_posterior(
+    py: Python<'_>,
+    algorithm: &str,
+    names: Vec<String>,
+    tables: Vec<Vec<NumericColumn<'_>>>,
+    settings: &Bound<'_, PyDict>,
+    seed: u64,
+    threads: Option<u32>,
+    unit_lengths: Option<Vec<usize>>,
+    edge_priors: Option<Vec<(String, String, f64)>>,
+    edge_prior_default: Option<f64>,
+    soft_tiers: Option<Vec<Vec<String>>>,
+    soft_tier_penalty: Option<f64>,
+) -> PyResult<PyGraphPosterior> {
+    if tables.is_empty() {
+        return Err(crate::value_err("imputations needs at least one completed table"));
+    }
+    let prior = PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty };
+    let get = |key: &str| setting(settings, key, algorithm);
+    // The search, as a function of the searched variables.
+    let build: Box<dyn Fn(&[antecedent::prelude::VariableId]) -> PyResult<DiscoverySpec> + Send> =
+        match algorithm {
+            "exact_dag_posterior" => {
+                let prior = prior.clone();
+                let names = names.clone();
+                Box::new(move |variables| {
+                    let params = prior.clone().params_over(&names, variables)?;
+                    Ok(DiscoverySpec::exact_dag_posterior(params))
+                })
+            }
+            "order_mcmc" | "structure_mcmc" => {
+                let schedule = schedule_from_args(
+                    get("n_chains")?.extract()?,
+                    get("n_warmup")?.extract()?,
+                    get("n_draws")?.extract()?,
+                    get("thin")?.extract()?,
+                )?;
+                let max_parents: Option<usize> = settings
+                    .get_item("max_parents")?
+                    .filter(|value| !value.is_none())
+                    .map(|value| value.extract())
+                    .transpose()?;
+                let order = algorithm == "order_mcmc";
+                let (gate, family) = if order {
+                    (
+                        get("require_diagnostics_gate")?.extract::<bool>()?,
+                        score_family_of(&get("noise")?.extract::<String>()?)?,
+                    )
+                } else {
+                    (false, antecedent::state::GraphScoreFamily::GaussianBic)
+                };
+                let prior = prior.clone();
+                let names = names.clone();
+                Box::new(move |variables| {
+                    let mut params = bayesian_params_capped(max_parents);
+                    params.score_family = family;
+                    prior.clone().apply(&mut params, &names, variables)?;
+                    Ok(if order {
+                        DiscoverySpec::order_mcmc(params, schedule, gate)
+                    } else {
+                        DiscoverySpec::structure_mcmc(params, schedule)
+                    })
+                })
+            }
+            "ci_screened_posterior" => {
+                let max_cond_size: usize = get("max_cond_size")?.extract()?;
+                crate::bridge::check_count(
+                    "max_cond_size",
+                    max_cond_size as u64,
+                    crate::bridge::MAX_CONDITIONING,
+                )?;
+                let soft = parse_soft_weight(&get("soft_weight")?.extract::<String>()?)?;
+                let ci_name: String = settings
+                    .get_item("ci")?
+                    .filter(|value| !value.is_none())
+                    .map(|value| value.extract())
+                    .transpose()?
+                    .unwrap_or_else(|| "parcorr".to_owned());
+                let ci_label = ci_name.to_ascii_lowercase();
+                let ci_impl = if ci_name.eq_ignore_ascii_case("parcorr") {
+                    std::sync::Arc::new(PartialCorrelation)
+                        as std::sync::Arc<
+                            dyn antecedent::inference::ConditionalIndependence + Send + Sync,
+                        >
+                } else {
+                    resolve_ci(&ci_name, None).map_err(py_err)?
+                };
+                let screen = StaticDiscoverParams {
+                    alpha: get("alpha")?.extract()?,
+                    max_cond_size,
+                    fdr: get("fdr")?
+                        .extract::<bool>()?
+                        .then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+                    ci: ci_impl,
+                    screen_pc: false,
+                    max_subset: None,
+                    knowledge: antecedent::discovery::BackgroundKnowledge::default(),
+                };
+                let schedule = schedule_from_args(
+                    get("n_chains")?.extract()?,
+                    get("n_warmup")?.extract()?,
+                    get("n_draws")?.extract()?,
+                    get("thin")?.extract()?,
+                )?;
+                let prior = prior.clone();
+                let names = names.clone();
+                Box::new(move |variables| {
+                    let params = prior.clone().params_over(&names, variables)?;
+                    Ok(DiscoverySpec::ci_screened_posterior(
+                        params,
+                        screen.clone(),
+                        schedule,
+                        soft,
+                        ci_label.clone(),
+                    ))
+                })
+            }
+            "dbn_posterior" => {
+                let max_lag: u32 = get("max_lag")?.extract()?;
+                let force_mcmc: bool = get("force_mcmc")?.extract()?;
+                let schedule = schedule_from_args(
+                    get("n_chains")?.extract()?,
+                    get("n_warmup")?.extract()?,
+                    get("n_draws")?.extract()?,
+                    1,
+                )?;
+                let prior = prior.clone();
+                let names = names.clone();
+                Box::new(move |variables| {
+                    let params = prior.clone().params_over(&names, variables)?;
+                    Ok(DiscoverySpec::dbn_posterior(params, max_lag, force_mcmc, schedule))
+                })
+            }
+            other => {
+                return Err(crate::value_err(format!(
+                    "{other:?} is not a posterior search that pools across imputations"
+                )));
+            }
+        };
+    let temporal = algorithm == "dbn_posterior";
+    let mut tabular = Vec::new();
+    let mut ingested = Vec::new();
+    for columns in tables {
+        if temporal {
+            ingested.push(crate::columns_to_ingested(&names, &columns, unit_lengths.as_deref())?);
+        } else {
+            tabular.push(numeric_columns_to_batch(&names, &columns)?);
+        }
+    }
+    detach_catch(py, move || {
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let mut inputs: Vec<(DiscoverInput, Vec<antecedent::prelude::VariableId>)> = Vec::new();
+        for batch in &tabular {
+            let (data, variables) = tabular_from_batch(batch)?;
+            inputs.push((DiscoverInput::Tabular(data), variables));
+        }
+        for columns in ingested {
+            inputs.push(match columns {
+                crate::IngestedColumns::Panel(batches) => {
+                    let (units, variables) =
+                        crate::discovery_api::panel_units_from_unit_batches(&batches)?;
+                    (DiscoverInput::Panel(units), variables)
+                }
+                crate::IngestedColumns::Series(batch) => {
+                    let (series, variables) = series_from_batch(&batch)?;
+                    (DiscoverInput::Series(series), variables)
+                }
+            });
+        }
+        let mut posteriors = Vec::with_capacity(inputs.len());
+        for (input, variables) in inputs {
+            let spec = build(&variables)?;
+            let (post, _route) = compiled_search(spec, input, &variables, &ctx, posterior_of)?;
+            posteriors.push(post);
+        }
+        let pooled = RustGraphPosterior::pooled_over_imputations(&posteriors).map_err(py_msg)?;
+        Ok(PyGraphPosterior::from_rust(names, pooled))
     })
 }
 
@@ -1300,6 +1677,9 @@ fn discover_dbn_posterior(
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyGraphPosterior>()?;
     m.add_function(wrap_pyfunction!(discover_exact_dag_posterior, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_pooled_exact_dag_posterior, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_pooled_exact_dag_marginals, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_pooled_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(discover_exact_dag_marginals, m)?)?;
     m.add_function(wrap_pyfunction!(discover_exact_pag_posterior, m)?)?;
     m.add_function(wrap_pyfunction!(discover_pag_mcmc, m)?)?;

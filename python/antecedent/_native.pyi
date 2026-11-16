@@ -1375,6 +1375,8 @@ class GraphPosterior:
     def to_weighted_samples(self) -> dict[str, object]: ...
     def edge_marginal_matrix(self) -> list[list[float]]: ...
     @classmethod
+    def pool(cls, posteriors: Sequence[GraphPosterior]) -> GraphPosterior: ...
+    @classmethod
     def from_atoms(
         cls,
         names: list[str],
@@ -3864,6 +3866,42 @@ def discover_rpcmci(
     max_cond_size: int = 2,
 ) -> RpcmciDiscoverySummary: ...
 def two_regime_half_split(series_len: int) -> list[int]: ...
+def discover_pooled_posterior(
+    algorithm: str,
+    names: list[str],
+    tables: Sequence[Sequence[NDArray[np.float64]]],
+    settings: Mapping[str, Any],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    unit_lengths: list[int] | None = None,
+    edge_priors: list[list[Any]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
+) -> GraphPosterior: ...
+def discover_pooled_exact_dag_posterior(
+    names: list[str],
+    tables: Sequence[Sequence[NDArray[np.float64]]],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    edge_priors: list[list[Any]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
+) -> GraphPosterior: ...
+def discover_pooled_exact_dag_marginals(
+    names: list[str],
+    tables: Sequence[Sequence[NDArray[np.float64]]],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    edge_priors: list[list[Any]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
+) -> tuple[list[float], float]: ...
 def discover_exact_dag_posterior(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],

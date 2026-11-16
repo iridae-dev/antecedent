@@ -22,6 +22,10 @@ pub(super) struct PrepareRequest {
     pub(super) seed: u64,
     /// Prepare-time thread budget; `None` is the resolver's default.
     pub(super) threads: Option<u32>,
+    /// The structure posterior a graph-posterior route searched under a declared per-edge
+    /// prior, accepted with its provenance, for the study to read it with the prior stated.
+    pub(super) accepted_posterior:
+        std::cell::Cell<Option<antecedent::analysis::structure_route::AcceptedPosterior>>,
 }
 
 impl PrepareRequest {
@@ -32,7 +36,13 @@ impl PrepareRequest {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<Self> {
-        Ok(Self { names, opts: PrepareOptions::parse(options)?, seed, threads })
+        Ok(Self {
+            names,
+            opts: PrepareOptions::parse(options)?,
+            seed,
+            threads,
+            accepted_posterior: std::cell::Cell::new(None),
+        })
     }
 
     /// Refuse a transferred prior on a route that cannot hydrate one.

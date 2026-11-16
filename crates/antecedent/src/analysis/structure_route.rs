@@ -28,7 +28,7 @@ use antecedent_core::{
     AttributeQuery, AttributeTarget, CanonicalWriter, CausalQuery, CausalRng, ChangeEstimator,
     ChangeMeasure, DiscoverQuery, DiscoveryMethod, ExecutionContext, InfluenceAllocation,
     MechanismChangeTest, NoiseDeclaration, ScreenWeight, SearchBounds, SearchSchedule,
-    SimulateQuery, SimulationTarget, VariableId,
+    SimulateQuery, SimulationTarget, StructurePriorSpec, VariableId,
 };
 use antecedent_data::{
     MissingPolicy, MultiEnvironmentData, PanelData, PanelUnit, TableView, TabularData,
@@ -100,6 +100,34 @@ pub struct DiscoverySpec {
 
 fn saturating_u32(value: usize) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX)
+}
+
+/// The per-edge factors of a graph prior as the query's declared structure prior, or `None` for
+/// a prior with neither a global edge probability, a per-edge map nor soft tiers.
+///
+/// Hard background constraints are not part of it: they enter through the configuration digest.
+/// Because the query is built from the very parameters the engines run, the declared prior and
+/// the executed prior cannot differ.
+fn structure_prior_of(prior: &crate::discovery::GraphPrior) -> Option<StructurePriorSpec> {
+    let (edges, default_edge): (Arc<[(VariableId, VariableId, f64)]>, Option<f64>) =
+        match &prior.edge_priors {
+            Some(map) => (Arc::clone(&map.edges), map.default),
+            None => (Arc::from(Vec::new()), None),
+        };
+    let (soft_tiers, soft_tier_log_penalty): (Arc<[Arc<[VariableId]>]>, Option<f64>) = match &prior
+        .soft_tiers
+    {
+        Some(soft) if !soft.tiers.is_empty() => (Arc::clone(&soft.tiers), Some(soft.log_penalty)),
+        _ => (Arc::from(Vec::new()), None),
+    };
+    let spec = StructurePriorSpec {
+        edge_inclusion: prior.edge_inclusion,
+        edges,
+        default_edge,
+        soft_tiers,
+        soft_tier_log_penalty,
+    };
+    (!spec.is_empty()).then_some(spec)
 }
 
 impl DiscoverySpec {
@@ -231,7 +259,12 @@ impl DiscoverySpec {
     /// Exact DAG posterior by enumeration.
     #[must_use]
     pub fn exact_dag_posterior(params: BayesianDiscoverParams) -> Self {
-        Self::new(DiscoveryMethod::ExactDagPosterior, SearchParams::Bayesian(params), "none")
+        let prior = structure_prior_of(&params.prior);
+        Self::new(
+            DiscoveryMethod::ExactDagPosterior { prior },
+            SearchParams::Bayesian(params),
+            "none",
+        )
     }
 
     /// Exact posterior over PAG classes of the Gaussian maximal ancestral graphs of at most four
@@ -253,7 +286,12 @@ impl DiscoverySpec {
     /// Exact DAG posterior edge marginals.
     #[must_use]
     pub fn exact_dag_marginals(params: BayesianDiscoverParams) -> Self {
-        Self::new(DiscoveryMethod::ExactDagMarginals, SearchParams::Bayesian(params), "none")
+        let prior = structure_prior_of(&params.prior);
+        Self::new(
+            DiscoveryMethod::ExactDagMarginals { prior },
+            SearchParams::Bayesian(params),
+            "none",
+        )
     }
 
     /// Order MCMC DAG posterior.
@@ -263,8 +301,9 @@ impl DiscoverySpec {
         schedule: GraphMcmcSchedule,
         diagnostics_gate: bool,
     ) -> Self {
+        let prior = structure_prior_of(&params.prior);
         let mut spec = Self::new(
-            DiscoveryMethod::OrderMcmc { diagnostics_gate },
+            DiscoveryMethod::OrderMcmc { diagnostics_gate, prior },
             SearchParams::Bayesian(params),
             "none",
         );
@@ -275,8 +314,12 @@ impl DiscoverySpec {
     /// Structure MCMC DAG posterior.
     #[must_use]
     pub fn structure_mcmc(params: BayesianDiscoverParams, schedule: GraphMcmcSchedule) -> Self {
-        let mut spec =
-            Self::new(DiscoveryMethod::StructureMcmc, SearchParams::Bayesian(params), "none");
+        let prior = structure_prior_of(&params.prior);
+        let mut spec = Self::new(
+            DiscoveryMethod::StructureMcmc { prior },
+            SearchParams::Bayesian(params),
+            "none",
+        );
         spec.schedule = Some(schedule);
         spec
     }
@@ -295,8 +338,9 @@ impl DiscoverySpec {
             CiSoftWeight::BayesFactor => ScreenWeight::BayesFactor,
             CiSoftWeight::PosteriorDependence => ScreenWeight::PosteriorDependence,
         };
+        let prior = structure_prior_of(&params.prior);
         let mut spec = Self::new(
-            DiscoveryMethod::CiScreenedPosterior { weight },
+            DiscoveryMethod::CiScreenedPosterior { weight, prior },
             SearchParams::Screened { bayesian: params, screen },
             ci_label,
         );
@@ -317,12 +361,14 @@ impl DiscoverySpec {
         out_probability: f64,
         ci_label: impl Into<Arc<str>>,
     ) -> Self {
+        let prior = structure_prior_of(&params.prior);
         Self::new(
             DiscoveryMethod::ScreenedExactMarginals {
                 focus: focus.into(),
                 max_variables,
                 in_probability,
                 out_probability,
+                prior,
             },
             SearchParams::Screened { bayesian: params, screen },
             ci_label,
@@ -337,8 +383,9 @@ impl DiscoverySpec {
         force_mcmc: bool,
         schedule: GraphMcmcSchedule,
     ) -> Self {
+        let prior = structure_prior_of(&params.prior);
         let mut spec = Self::new(
-            DiscoveryMethod::DbnPosterior { force_mcmc },
+            DiscoveryMethod::DbnPosterior { force_mcmc, prior },
             SearchParams::Bayesian(params),
             "none",
         );
@@ -507,10 +554,10 @@ impl DiscoverySpec {
         fn uses_dag_bic(method: &DiscoveryMethod) -> bool {
             match method {
                 DiscoveryMethod::Ges { .. }
-                | DiscoveryMethod::ExactDagPosterior
-                | DiscoveryMethod::ExactDagMarginals
+                | DiscoveryMethod::ExactDagPosterior { .. }
+                | DiscoveryMethod::ExactDagMarginals { .. }
                 | DiscoveryMethod::OrderMcmc { .. }
-                | DiscoveryMethod::StructureMcmc
+                | DiscoveryMethod::StructureMcmc { .. }
                 | DiscoveryMethod::CiScreenedPosterior { .. }
                 | DiscoveryMethod::ScreenedExactMarginals { .. }
                 | DiscoveryMethod::DbnPosterior { .. } => true,

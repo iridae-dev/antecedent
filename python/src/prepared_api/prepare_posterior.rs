@@ -70,7 +70,7 @@ impl PyPreparedAnalysis {
                     &req.opts,
                 )?);
                 let ctx = req.opts.ctx(seed, threads);
-                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                let gp = exact_dag_posterior(supplied, &data, &req, &ctx)?;
                 finish_static_graph_posterior(data, req, gp, query, spec, None, &ctx)
             })
         })
@@ -126,7 +126,7 @@ impl PyPreparedAnalysis {
                     &req.opts,
                 )?;
                 let ctx = req.opts.ctx(seed, threads);
-                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                let gp = exact_dag_posterior(supplied, &data, &req, &ctx)?;
                 finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
             })
         })
@@ -306,7 +306,7 @@ impl PyPreparedAnalysis {
             };
             req.off_gil(py, move |req| {
                 let ctx = req.opts.ctx(seed, threads);
-                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                let gp = exact_dag_posterior(supplied, &data, &req, &ctx)?;
                 finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
             })
         })
@@ -380,7 +380,7 @@ impl PyPreparedAnalysis {
                     treatment_probability: column(&treatment_probability)?,
                 };
                 let ctx = req.opts.ctx(seed, threads);
-                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                let gp = exact_dag_posterior(supplied, &data, &req, &ctx)?;
                 req.refuse_prior("a graph-posterior mixture")?;
                 let builder = antecedent::Study::tabular(data)
                     .graph_posterior(gp)
@@ -439,7 +439,7 @@ impl PyPreparedAnalysis {
                     &req.opts,
                 );
                 let ctx = req.opts.ctx(seed, threads);
-                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                let gp = exact_dag_posterior(supplied, &data, &req, &ctx)?;
                 finish_static_graph_posterior(data, req, gp, query, None, response_options, &ctx)
             })
         })
@@ -496,7 +496,7 @@ impl PyPreparedAnalysis {
                 )?;
                 let query = response_query(functional, &req.opts);
                 let ctx = req.opts.ctx(seed, threads);
-                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                let gp = exact_dag_posterior(supplied, &data, &req, &ctx)?;
                 finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
             })
         })
@@ -579,7 +579,8 @@ impl PyPreparedAnalysis {
                 )?;
                 let ctx = req.opts.ctx(seed, threads);
                 let gp = dbn_posterior(
-                    supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
+                    supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &req,
+                    &ctx,
                 )?;
                 finish_series_graph_posterior(series, req, gp, SeriesGraphQuery::Temporal(q), &ctx)
             })
@@ -657,7 +658,8 @@ impl PyPreparedAnalysis {
                 )?;
                 let ctx = req.opts.ctx(seed, threads);
                 let gp = dbn_posterior(
-                    supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
+                    supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &req,
+                    &ctx,
                 )?;
                 finish_series_graph_posterior(series, req, gp, SeriesGraphQuery::Mediation(q), &ctx)
             })
@@ -762,7 +764,8 @@ impl PyPreparedAnalysis {
                 }
                 let ctx = req.opts.ctx(seed, threads);
                 let gp = dbn_posterior(
-                    supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
+                    supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &req,
+                    &ctx,
                 )?;
                 finish_series_graph_posterior(
                     series,
