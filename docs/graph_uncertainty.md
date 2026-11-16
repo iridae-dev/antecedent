@@ -270,11 +270,16 @@ the prior.
 corrected measurements), search each completed table and pool: the pooled mass of a graph is the
 mean of its per-imputation masses, and the pooled edge marginals are the means of the
 per-imputation marginals, so the data's uncertainty widens the structure uncertainty.
-`ExactDagPosterior(...).run(imputations=[table_1, ..., table_K])` returns the pooled posterior
-(a `GraphPosterior` tagged `pooled_imputations(exact_dag_posterior)`, or pooled `ExactDagMarginals`
-above six variables), computed in Rust by `discover_pooled_exact_dag_posterior` and
-`discover_pooled_exact_dag_marginals`. It is an ordinary graph posterior downstream. Monte-Carlo
-errors of a sampled posterior are not propagated through the mixture.
+`run(imputations=[table_1, ..., table_K])` on `ExactDagPosterior`, `OrderMcmc`, `StructureMcmc`,
+`CiScreenedPosterior` and `DbnPosterior` (completed series) searches each table in the engine and
+returns the equal-weight mixture of the per-imputation posteriors (draw sets, for a sampled search).
+The posterior is tagged `pooled_imputations(<search>)`; its diagnostics state the method and keep
+each imputation's convergence, effective sample size, largest R-hat and Monte-Carlo error, and the
+pooled edge errors combine the independent runs. Above six variables the exact search pools its
+marginals (means, and the log of the mean normalizer). `analyze(..., discovery=<search>,
+imputations=[...])` runs the pooled search and mixes the effect over the pooled posterior, so a
+measurement stage's completed tables reach structure uncertainty without a manual step. In Rust the
+same are `discover_pooled_*` and `pool_posteriors_over_imputations`.
 
 ## Uncertainty over a discovered structure
 

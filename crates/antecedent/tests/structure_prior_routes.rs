@@ -298,3 +298,57 @@ fn pooled_exact_marginals_are_the_means_of_the_per_imputation_marginals() {
         );
     });
 }
+
+/// The pooled posterior of a sampled search is the equal-weight mixture of the per-imputation
+/// draw sets, graph by graph, and the per-imputation diagnostics are kept.
+#[test]
+fn pooled_sampled_posteriors_are_the_mixture_of_the_per_imputation_draw_sets() {
+    on_large_stack("pooled-samplers", || {
+        let params = BayesianDiscoverParams::default();
+        let schedule = antecedent::discovery::GraphMcmcSchedule {
+            n_chains: 2,
+            n_warmup: 100,
+            n_draws: 300,
+            thin: 1,
+        };
+        let tables: Vec<TabularData> =
+            [31_u64, 32, 33].iter().map(|&seed| chain_table(150, seed)).collect();
+        let singles: Vec<GraphPosterior> = tables
+            .iter()
+            .map(|table| {
+                antecedent::discovery::discover_structure_mcmc(
+                    table,
+                    &three(),
+                    &params,
+                    &schedule,
+                    &ctx(),
+                )
+                .unwrap()
+            })
+            .collect();
+        let pooled = antecedent::discovery::discover_pooled_structure_mcmc(
+            &tables,
+            &three(),
+            &params,
+            &schedule,
+            &ctx(),
+        )
+        .unwrap();
+        let mut by_graph: HashMap<AdjacencyMask, f64> = HashMap::new();
+        for posterior in &singles {
+            let total: f64 = posterior.weights().iter().sum();
+            for (atom, weight) in posterior.atoms().iter().zip(posterior.weights().iter()) {
+                *by_graph.entry(atom.clone()).or_insert(0.0) += weight / total / 3.0;
+            }
+        }
+        assert_eq!(pooled.n_graphs(), by_graph.len());
+        let mass: f64 = pooled.weights().iter().sum();
+        for (atom, weight) in pooled.atoms().iter().zip(pooled.weights().iter()) {
+            assert!((weight / mass - by_graph[atom]).abs() <= 1e-12);
+        }
+        assert!(pooled.algorithm().is_some_and(|a| a.starts_with("pooled_imputations")));
+        let notes = &pooled.diagnostics().notes;
+        assert_eq!(notes.iter().filter(|note| note.starts_with("imputation ")).count(), 3);
+        assert!(notes.iter().any(|note| note.contains("equal_weight_mixture_of_per_imputation")));
+    });
+}

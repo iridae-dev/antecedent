@@ -897,19 +897,27 @@ impl GraphPosterior {
 
 impl GraphPosterior {
     /// The posterior pooled across imputations of the data: the equal-weight mixture over the
-    /// imputations of each imputation's own structure posterior.
+    /// imputations of each imputation's own structure posterior (its draw set, for a sampled
+    /// posterior).
     ///
     /// Structure is selected afresh on every imputed table, so the pooled mass of a graph is
-    /// `(1/K) * sum_k w_k(graph)`, and the pooled edge marginals are the means of the
-    /// per-imputation marginals. The mixture is what widens the structure uncertainty by the
-    /// uncertainty in the data itself: a graph that only some imputations support keeps the
-    /// share of them that do. Every posterior must be over the same variables, in the same
-    /// order, with DAG atoms and no lag template.
+    /// `(1/K) * sum_k w_k(graph)`, and the pooled edge marginals (and, for a bounded-lag
+    /// template posterior, the lagged marginals) are the means of the per-imputation ones. The
+    /// mixture is what widens the structure uncertainty by the uncertainty in the data itself.
+    ///
+    /// The Monte-Carlo accounting of each run is kept, not dropped: the diagnostics notes state,
+    /// per imputation, whether it converged, its effective sample size, its largest split R-hat
+    /// and edge Monte-Carlo error and its rejected proposals; the pooled edge errors combine the
+    /// independent runs (`sqrt(sum mcse_k^2) / K`) and the pooled effective sample size is
+    /// `K^2 / sum (1 / ess_k)`, the equal-weight mixture's. Every posterior must be over the
+    /// same variables, in the same order, with DAG atoms; lagged template posteriors must share
+    /// one maximum lag.
     ///
     /// # Errors
     ///
-    /// No posterior, a posterior over another variable count, over atoms that are not DAGs, or
-    /// a lagged template posterior.
+    /// No posterior, a posterior over another variable count, over atoms that are not DAGs, a
+    /// mixture of lagged and static posteriors or of different lag windows, or a posterior with
+    /// latent-confounder lag masks.
     pub fn pooled_over_imputations(posteriors: &[Self]) -> Result<Self, DiscoveryError> {
         let first = posteriors.first().ok_or_else(|| {
             DiscoveryError::unsupported("pooling over imputations needs at least one posterior")
@@ -926,25 +934,39 @@ impl GraphPosterior {
                     "only posteriors over DAG atoms pool across imputations",
                 ));
             }
-            if posterior.max_lag.is_some()
-                || posterior.lag_masks.is_some()
-                || posterior.lag_bidirected_masks.is_some()
+            if posterior.max_lag != first.max_lag
+                || posterior.lag_masks.is_some() != first.lag_masks.is_some()
+                || posterior.lagged_edge_marginals.is_some()
+                    != first.lagged_edge_marginals.is_some()
             {
                 return Err(DiscoveryError::unsupported(
-                    "a lagged template posterior does not pool across imputations",
+                    "the imputations' posteriors do not share one lag template",
+                ));
+            }
+            if posterior.lag_bidirected_masks.is_some() {
+                return Err(DiscoveryError::unsupported(
+                    "a posterior with latent-confounder lag masks does not pool across imputations",
                 ));
             }
         }
-        let share = 1.0 / posteriors.len() as f64;
-        let mut slot: std::collections::HashMap<AdjacencyMask, usize> =
-            std::collections::HashMap::new();
+        let count = posteriors.len() as f64;
+        let share = 1.0 / count;
+        type Key = (AdjacencyMask, Option<AdjacencyMask>);
+        let mut slot: std::collections::HashMap<Key, usize> = std::collections::HashMap::new();
         let mut atoms: Vec<AdjacencyMask> = Vec::new();
+        let mut lags: Vec<AdjacencyMask> = Vec::new();
         let mut mass: Vec<f64> = Vec::new();
         for posterior in posteriors {
             let total: f64 = posterior.weights.iter().sum();
-            for (atom, &weight) in posterior.atoms.iter().zip(posterior.weights.iter()) {
-                let at = *slot.entry(atom.clone()).or_insert_with(|| {
+            for (index, (atom, &weight)) in
+                posterior.atoms.iter().zip(posterior.weights.iter()).enumerate()
+            {
+                let lag = posterior.lag_masks.as_ref().map(|masks| masks[index].clone());
+                let at = *slot.entry((atom.clone(), lag.clone())).or_insert_with(|| {
                     atoms.push(atom.clone());
+                    if let Some(lag) = lag {
+                        lags.push(lag);
+                    }
                     mass.push(0.0);
                     atoms.len() - 1
                 });
@@ -953,19 +975,57 @@ impl GraphPosterior {
         }
         let total: f64 = mass.iter().sum();
         let weights: Vec<f64> = mass.iter().map(|m| m / total).collect();
-        let square: f64 = weights.iter().map(|w| w * w).sum();
-        let ess = if square > 0.0 { 1.0 / square } else { 1.0 };
         let (edge, orientation) = accumulate_marginals(n, &weights, &atoms);
+        // Mean of per-imputation vectors (marginals), and the independent-run combination of
+        // per-imputation Monte-Carlo errors.
+        let mean_of = |pick: &dyn Fn(&Self) -> Option<&Arc<[f64]>>| -> Option<Vec<f64>> {
+            let first_cells = pick(first)?;
+            let mut out = vec![0.0; first_cells.len()];
+            for posterior in posteriors {
+                for (cell, value) in out.iter_mut().zip(pick(posterior)?.iter()) {
+                    *cell += share * value;
+                }
+            }
+            Some(out)
+        };
+        let combined_error = |pick: &dyn Fn(&Self) -> Option<&Arc<[f64]>>| -> Option<Vec<f64>> {
+            let first_cells = pick(first)?;
+            let mut out = vec![0.0; first_cells.len()];
+            for posterior in posteriors {
+                for (cell, value) in out.iter_mut().zip(pick(posterior)?.iter()) {
+                    *cell += value * value;
+                }
+            }
+            Some(out.into_iter().map(|sum| sum.sqrt() / count).collect())
+        };
+        let ess = count * count / posteriors.iter().map(|p| 1.0 / p.ess).sum::<f64>();
         let mut diagnostics = first.diagnostics.clone();
         diagnostics.converged = posteriors.iter().all(|p| p.diagnostics.converged);
+        let largest = |cells: Option<&Arc<[f64]>>| -> String {
+            cells.map_or_else(
+                || "none".to_owned(),
+                |cells| format!("{:.4}", cells.iter().copied().fold(0.0_f64, f64::max)),
+            )
+        };
         diagnostics.notes.push(Arc::from(format!(
             "pooled_over_imputations imputations={} \
-             method=equal_weight_mixture_of_per_imputation_posteriors atoms={}",
+             method=equal_weight_mixture_of_per_imputation_draw_sets atoms={}",
             posteriors.len(),
             atoms.len()
         )));
+        for (index, posterior) in posteriors.iter().enumerate() {
+            diagnostics.notes.push(Arc::from(format!(
+                "imputation {index}: converged={} ess={:.2} max_edge_rhat={} max_edge_mcse={} \
+                 rejected_invalid={}",
+                posterior.diagnostics.converged,
+                posterior.ess,
+                largest(posterior.edge_rhat.as_ref()),
+                largest(posterior.edge_mcse.as_ref()),
+                posterior.rejected_invalid
+            )));
+        }
         let rejected_invalid = posteriors.iter().map(|p| p.rejected_invalid).sum();
-        let pooled = Self::from_atoms(
+        let mut pooled = Self::from_atoms(
             n,
             weights,
             atoms,
@@ -973,6 +1033,20 @@ impl GraphPosterior {
             orientation,
             SamplingSummary { ess, diagnostics, rejected_invalid },
         )?;
+        if let Some(mcse) = combined_error(&|p| p.edge_mcse.as_ref()) {
+            pooled = pooled.with_edge_mcse(mcse)?;
+        }
+        if let (Some(max_lag), Some(lagged)) =
+            (first.max_lag, mean_of(&|p| p.lagged_edge_marginals.as_ref()))
+        {
+            pooled = pooled.with_lagged_marginals(max_lag, lagged)?;
+            if let Some(mcse) = combined_error(&|p| p.lagged_edge_mcse.as_ref()) {
+                pooled = pooled.with_lagged_edge_mcse(mcse)?;
+            }
+        }
+        if first.lag_masks.is_some() {
+            pooled = pooled.with_lag_masks(lags)?;
+        }
         let shared = first
             .algorithm
             .as_ref()

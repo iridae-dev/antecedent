@@ -2334,3 +2334,10 @@ evidence_assertion = "pooled_exact_marginals_are_the_means_of_the_per_imputation
 kind = "known_truth"
 fixtures = []
 why = "The exact marginals pooled across imputations are the means of the per-imputation marginals, and the pooled normalizer is the log of the mean of the per-imputation normalizers."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/structure_prior_routes.rs"
+evidence_assertion = "pooled_sampled_posteriors_are_the_mixture_of_the_per_imputation_draw_sets"
+kind = "posterior"
+fixtures = []
+why = "The structure-MCMC posterior pooled across imputations equals the hand-computed equal-weight mixture of the per-imputation draw sets graph by graph, is tagged with the pooling method, and keeps each imputation's diagnostics."

@@ -114,6 +114,9 @@ from ._native import (
     discover_pooled_exact_dag_posterior as _discover_pooled_exact_dag_posterior,
 )
 from ._native import (
+    discover_pooled_posterior as _discover_pooled_posterior,
+)
+from ._native import (
     discover_rfci as _discover_rfci,
 )
 from ._native import (
@@ -152,6 +155,7 @@ _NATIVE_WITHOUT_CANCEL = frozenset(
         "discover_exact_dag_marginals",
         "discover_pooled_exact_dag_posterior",
         "discover_pooled_exact_dag_marginals",
+        "discover_pooled_posterior",
         "discover_order_mcmc",
         "discover_structure_mcmc",
         "discover_ci_screened_posterior",
@@ -1471,7 +1475,9 @@ def _prior_wire(prior: StructurePrior | None) -> dict[str, Any]:
     return {} if prior is None else {"prior": prior._wire()}
 
 
-def _imputed_tables(imputations: Any) -> list[tuple[list[str], list[Any]]]:
+def _imputed_tables(
+    imputations: Any, *, temporal: bool = False
+) -> list[tuple[list[str], list[Any], list[int] | None]]:
     """Coerce a sequence of completed tables, checking they state one set of variables."""
     if isinstance(imputations, (str, bytes, Mapping)) or hasattr(imputations, "to_numpy"):
         raise CausalTypeError(
@@ -1485,15 +1491,83 @@ def _imputed_tables(imputations: Any) -> list[tuple[list[str], list[Any]]]:
         ) from error
     if not tables:
         raise CausalValueError("imputations needs at least one completed table")
-    coerced = [coerce_data(table) for table in tables]
+    coerced: list[tuple[list[str], list[Any], list[int] | None]] = []
+    for table in tables:
+        if temporal:
+            names, cols, lengths = coerce_temporal_data(table)
+            coerced.append((names, cols, None if lengths is None else list(lengths)))
+        else:
+            names, cols = coerce_data(table)
+            coerced.append((names, cols, None))
     names = coerced[0][0]
-    for index, (other, _) in enumerate(coerced[1:], start=1):
+    for index, (other, _, lengths) in enumerate(coerced[1:], start=1):
         if other != names:
             raise CausalValueError(
                 f"imputation {index} names variables {other} but imputation 0 names {names}; "
                 "every imputation must state the same variables in the same order"
             )
+        if lengths != coerced[0][2]:
+            raise CausalValueError(f"imputation {index} states other panel units than imputation 0")
     return coerced
+
+
+def _run_pooled_search(
+    search: Any,
+    algorithm: str,
+    settings: dict[str, Any],
+    data: Any,
+    imputations: Any,
+    execution: Execution | None,
+    *,
+    temporal: bool = False,
+) -> GraphPosterior:
+    """Run ``search`` on every completed table in the engine and pool the posteriors.
+
+    The pooled posterior is the equal-weight mixture of the per-imputation draw sets; the engine
+    records the method and each imputation's Monte-Carlo diagnostics on it.
+    """
+    if data is not None:
+        raise CausalValueError("give data or imputations, not both")
+    if imputations is None:
+        raise CausalValueError("run needs data, or imputations= (a sequence of completed tables)")
+    tables = _imputed_tables(imputations, temporal=temporal)
+    extra: dict[str, Any] = {}
+    if tables[0][2] is not None:
+        extra["unit_lengths"] = tables[0][2]
+    return _run_native(
+        execution,
+        _discover_pooled_posterior,
+        algorithm,
+        tables[0][0],
+        [cols for _, cols, _ in tables],
+        {key: value for key, value in settings.items() if value is not None},
+        **extra,
+        **_prior_kwargs(search.prior),
+    )
+
+
+def pool_search_over_imputations(
+    search: Any, imputations: Sequence[Any], *, execution: Execution | None = None
+) -> GraphPosterior:
+    """Run the posterior search ``search`` over completed tables and return the pooled posterior.
+
+    The result is an ordinary graph posterior (the equal-weight mixture of the per-imputation
+    posteriors, computed in the engine) that a study takes as ``discovery=``.
+    """
+    runner = getattr(search, "run", None)
+    if not isinstance(search, _POOLING_SEARCHES) or runner is None:
+        raise CausalTypeError(
+            "imputations pool a posterior search (ExactDagPosterior, OrderMcmc, StructureMcmc, "
+            f"CiScreenedPosterior or DbnPosterior); got {type(search).__name__}"
+        )
+    pooled = runner(imputations=imputations, execution=execution)
+    if not isinstance(pooled, GraphPosterior):
+        raise CausalUnsupportedError(
+            "the pooled posterior lists no graphs above six variables, so a study cannot mix over "
+            "it; use OrderMcmc or StructureMcmc",
+            reason_code="option_not_applicable",
+        )
+    return pooled
 
 
 @dataclass(frozen=True)
@@ -1603,7 +1677,7 @@ class ExactDagPosterior:
             )
         tables = _imputed_tables(imputations)
         names = tables[0][0]
-        columns = [cols for _, cols in tables]
+        columns = [cols for _, cols, _ in tables]
         if len(names) <= EXACT_ENUMERATION_MAX_VARIABLES:
             return _run_native(
                 execution,
@@ -1755,13 +1829,41 @@ class OrderMcmc:
             **_prior_wire(self.prior),
         }
 
-    def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
+    def run(
+        self,
+        data: Any = None,
+        *,
+        execution: Execution | None = None,
+        imputations: Sequence[Any] | None = None,
+    ) -> GraphPosterior:
         """Run the posterior on the data and return a :class:`GraphPosterior`.
 
         Read ``weights`` and ``edge_marginals`` (or ``edge_marginal_matrix()``) first, then the
         convergence diagnostics where the method reports them. ``execution`` sets the seed and
         threads.
+
+        ``imputations`` (instead of ``data``) is a sequence of completed tables, one per
+        imputation: the search runs on each in the engine and the result is the equal-weight
+        mixture of the per-imputation draw sets; each imputation's Monte-Carlo diagnostics
+        are kept in the pooled posterior's diagnostics.
         """
+        if imputations is not None or data is None:
+            return _run_pooled_search(
+                self,
+                "order_mcmc",
+                {
+                    "n_chains": self.n_chains,
+                    "n_warmup": self.n_warmup,
+                    "n_draws": self.n_draws,
+                    "thin": self.thin,
+                    "require_diagnostics_gate": self.require_diagnostics_gate,
+                    "max_parents": self.max_parents,
+                    "noise": self.noise,
+                },
+                data,
+                imputations,
+                execution,
+            )
         names, cols = coerce_data(data)
         return _run_native(
             execution,
@@ -1812,13 +1914,39 @@ class StructureMcmc:
             **_prior_wire(self.prior),
         }
 
-    def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
+    def run(
+        self,
+        data: Any = None,
+        *,
+        execution: Execution | None = None,
+        imputations: Sequence[Any] | None = None,
+    ) -> GraphPosterior:
         """Run the posterior on the data and return a :class:`GraphPosterior`.
 
         Read ``weights`` and ``edge_marginals`` (or ``edge_marginal_matrix()``) first, then the
         convergence diagnostics where the method reports them. ``execution`` sets the seed and
         threads.
+
+        ``imputations`` (instead of ``data``) is a sequence of completed tables, one per
+        imputation: the search runs on each in the engine and the result is the equal-weight
+        mixture of the per-imputation draw sets; each imputation's Monte-Carlo diagnostics
+        are kept in the pooled posterior's diagnostics.
         """
+        if imputations is not None or data is None:
+            return _run_pooled_search(
+                self,
+                "structure_mcmc",
+                {
+                    "n_chains": self.n_chains,
+                    "n_warmup": self.n_warmup,
+                    "n_draws": self.n_draws,
+                    "thin": self.thin,
+                    "max_parents": self.max_parents,
+                },
+                data,
+                imputations,
+                execution,
+            )
         names, cols = coerce_data(data)
         return _run_native(
             execution,
@@ -1889,13 +2017,43 @@ class CiScreenedPosterior:
             **_prior_wire(self.prior),
         }
 
-    def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
+    def run(
+        self,
+        data: Any = None,
+        *,
+        execution: Execution | None = None,
+        imputations: Sequence[Any] | None = None,
+    ) -> GraphPosterior:
         """Run the posterior on the data and return a :class:`GraphPosterior`.
 
         Read ``weights`` and ``edge_marginals`` (or ``edge_marginal_matrix()``) first, then the
         convergence diagnostics where the method reports them. ``execution`` sets the seed and
         threads.
+
+        ``imputations`` (instead of ``data``) is a sequence of completed tables, one per
+        imputation: the search runs on each in the engine and the result is the equal-weight
+        mixture of the per-imputation draw sets; each imputation's Monte-Carlo diagnostics
+        are kept in the pooled posterior's diagnostics.
         """
+        if imputations is not None or data is None:
+            return _run_pooled_search(
+                self,
+                "ci_screened_posterior",
+                {
+                    "alpha": self.alpha,
+                    "fdr": self.fdr,
+                    "ci": self.ci,
+                    "max_cond_size": self.max_cond_size,
+                    "soft_weight": self.soft_weight,
+                    "n_chains": self.n_chains,
+                    "n_warmup": self.n_warmup,
+                    "n_draws": self.n_draws,
+                    "thin": self.thin,
+                },
+                data,
+                imputations,
+                execution,
+            )
         names, cols = coerce_data(data)
         return _run_native(
             execution,
@@ -1953,13 +2111,39 @@ class DbnPosterior:
             **_prior_wire(self.prior),
         }
 
-    def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
+    def run(
+        self,
+        data: Any = None,
+        *,
+        execution: Execution | None = None,
+        imputations: Sequence[Any] | None = None,
+    ) -> GraphPosterior:
         """Run the posterior on the data and return a :class:`GraphPosterior`.
 
         Read ``weights`` and ``edge_marginals`` (or ``edge_marginal_matrix()``) first, then the
         convergence diagnostics where the method reports them. ``execution`` sets the seed and
         threads.
+
+        ``imputations`` (instead of ``data``) is a sequence of completed series (or panels over
+        the same units), one per imputation: the posterior runs on each in the engine and the
+        result is the equal-weight mixture of the per-imputation template posteriors.
         """
+        if imputations is not None or data is None:
+            return _run_pooled_search(
+                self,
+                "dbn_posterior",
+                {
+                    "max_lag": self.max_lag,
+                    "force_mcmc": self.force_mcmc,
+                    "n_chains": self.n_chains,
+                    "n_warmup": self.n_warmup,
+                    "n_draws": self.n_draws,
+                },
+                data,
+                imputations,
+                execution,
+                temporal=True,
+            )
         names, cols, unit_lengths = coerce_temporal_data(data)
         return _run_native(
             execution,
@@ -2546,6 +2730,8 @@ def graph_posterior_map_dag(post: GraphPosterior) -> Dag:
     return Dag.from_edges(names, edges)
 
 
+_POOLING_SEARCHES = (ExactDagPosterior, OrderMcmc, StructureMcmc, CiScreenedPosterior, DbnPosterior)
+
 __all__ = [
     "BackgroundKnowledge",
     "BootstrapStability",
@@ -2586,6 +2772,7 @@ __all__ = [
     "discovery_to_dag",
     "graph_posterior_map_dag",
     "graph_posterior_map_edges",
+    "pool_search_over_imputations",
     "run_static_discovery",
     "run_temporal_discovery",
     "two_regime_half_split",

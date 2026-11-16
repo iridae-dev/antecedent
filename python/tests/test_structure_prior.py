@@ -379,3 +379,37 @@ def test_pooling_refuses_what_it_cannot_state() -> None:
         search.run(imputations=data)
     with pytest.raises(CausalValueError):
         search.run()
+
+
+def test_every_posterior_search_pools_and_analyze_takes_the_imputations() -> None:
+    tables = [_pair(rows=300, seed=seed) for seed in (1, 2, 3)]
+    sampled = StructureMcmc(n_chains=2, n_warmup=100, n_draws=300).run(imputations=tables)
+    assert sampled.algorithm is not None
+    assert sampled.algorithm.startswith("pooled_imputations")
+    assert sum(sampled.weights) == pytest.approx(1.0, abs=1e-9)
+    ordered = OrderMcmc(n_chains=2, n_warmup=100, n_draws=300, require_diagnostics_gate=False).run(
+        imputations=tables
+    )
+    assert ordered.algorithm is not None
+    assert ordered.algorithm.startswith("pooled_imputations")
+
+    # The completed tables flow into the study with no manual step: the study searches each,
+    # pools, and mixes the effect over the pooled posterior.
+    through_analyze = require_success(
+        antecedent.analyze(
+            tables[0],
+            discovery=ExactDagPosterior(),
+            imputations=tables,
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Bayesian(backend="conjugate", n_draws=256, prior_scale=1.0e6),
+            refute=False,
+            execution=antecedent.Execution(seed=1),
+        )
+    )
+    assert through_analyze.posterior is not None
+    by_hand = _effect(tables[0], ExactDagPosterior().run(imputations=tables))
+    got = (
+        float(through_analyze.posterior.effect_mean),
+        float(through_analyze.posterior.unidentified_mass),
+    )
+    assert got == pytest.approx(by_hand, abs=1e-9)

@@ -158,6 +158,7 @@ def analyze(
         | None
     ) = None,
     discovery: Any | None = None,
+    imputations: Sequence[Any] | None = None,
     inference: Frequentist | Bayesian | TransportInference | None = None,
     identifier: str | Identifier | None = None,
     estimator: str | Estimator | EstimatorConfigLike | None = None,
@@ -266,6 +267,7 @@ def analyze(
         | None
     ) = None,
     discovery: Any | None = None,
+    imputations: Sequence[Any] | None = None,
     inference: Frequentist | Bayesian | TransportInference | None = None,
     identifier: str | Identifier | None = None,
     estimator: str | Estimator | EstimatorConfigLike | None = None,
@@ -374,6 +376,7 @@ def analyze(
         | None
     ) = None,
     discovery: Any | None = None,
+    imputations: Sequence[Any] | None = None,
     inference: Frequentist | Bayesian | TransportInference | None = None,
     identifier: str | Identifier | None = None,
     estimator: str | Estimator | EstimatorConfigLike | None = None,
@@ -729,6 +732,7 @@ def analyze(
             query=query,
             graph=graph,
             discovery=discovery,
+            imputations=imputations,
             inference=inference,
             identifier=identifier,
             estimator=estimator,
