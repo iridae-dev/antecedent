@@ -2396,4 +2396,4 @@ evidence_test = "crates/antecedent/tests/graph_posterior_weighted_target.rs"
 evidence_assertion = "the_bayesian_route_equals_the_hand_mixture_of_per_structure_posteriors"
 kind = "known_truth"
 fixtures = []
-why = "Under Bayesian inference a structure posterior studied for a kernel-weighted target has the posterior mean of the hand mixture of the single-structure posteriors over the answered mass (the model-based effect with treatment interactions centred at the weighted covariate means), and the mass of a structure the target cannot be estimated in is reported as unevaluable."
+why = "Under Bayesian inference a structure posterior studied for a kernel-weighted target has the posterior mean of the hand mixture over the answered mass of the single-structure posteriors, with a structure that has no directed path from the treatment to the outcome a point mass at exactly zero (the model-based effect with treatment interactions centred at the weighted covariate means), and the mass of a structure the target cannot be estimated in is reported as unevaluable."

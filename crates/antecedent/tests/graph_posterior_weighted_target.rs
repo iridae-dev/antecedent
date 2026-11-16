@@ -284,14 +284,38 @@ fn the_bayesian_route_equals_the_hand_mixture_of_per_structure_posteriors() {
     let published = result.posterior.as_ref().expect("a Bayesian mixture posterior");
     assert!((published.unevaluable_mass - MASSES[2]).abs() < 1e-9);
 
+    // The structure without a path contributes a point mass at exactly zero.
     let answered = MASSES[0] + MASSES[1];
     let mean_a = single_bayesian_mean(&structures()[0]);
-    let mean_b = single_bayesian_mean(&structures()[1]);
-    let hand = (MASSES[0] * mean_a + MASSES[1] * mean_b) / answered;
+    let hand = MASSES[0] * mean_a / answered;
     let effect = result.estimate().as_effect().unwrap();
     assert!(
         (effect.ate - hand).abs() < 1e-3,
-        "route {} against the hand mixture {hand} of {mean_a} and {mean_b}",
+        "route {} against the hand mixture {hand} of {mean_a} and a point mass at zero",
         effect.ate
     );
+}
+
+#[test]
+fn bayesian_refuters_refuse_a_declared_target_with_a_reason() {
+    for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
+        let outcome = Study::tabular(data())
+            .graph_posterior(posterior())
+            .inference(bayesian())
+            .refute(suite)
+            .weighted_target(target())
+            .query(query())
+            .build()
+            .and_then(|study| study.run(&ctx()));
+        let error = outcome.expect_err("a refuter cannot re-estimate a weighted target");
+        assert!(error.to_string().contains("weighted target"), "{error}");
+    }
+    // The same refuters run for all rows.
+    Study::tabular(data())
+        .graph_posterior(posterior())
+        .inference(bayesian())
+        .refute(RefuteSuite::Cheap)
+        .query(query())
+        .build()
+        .unwrap();
 }

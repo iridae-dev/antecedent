@@ -655,6 +655,23 @@ fn graph_posterior_frequentist_diagnostics(
     diagnostics
 }
 
+/// Replace the effect column of `posterior` by a point mass at zero and re-summarize it.
+fn point_mass_at_zero(posterior: &mut CausalPosterior) -> Result<(), CausalError> {
+    let column = posterior.effect_column().ok_or_else(|| CausalError::Compile {
+        message: "Bayesian posterior missing its effect column".into(),
+    })?;
+    let n = posterior.draws.n_draws;
+    let mut values = posterior.draws.values.to_vec();
+    values[column * n..(column + 1) * n].fill(0.0);
+    posterior.draws = antecedent_prob::PosteriorDraws::from_column_major(
+        posterior.draws.schema.clone(),
+        n,
+        values,
+    )?;
+    posterior.summaries = posterior.draws.summarize();
+    Ok(())
+}
+
 /// A recorded declaration of one upstream stage a result consumed.
 fn stage_assumption(
     id: &str,
@@ -711,6 +728,20 @@ impl super::super::Study {
         };
         let est = bayesian_gcomp(&cfg, ctx);
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
+        let targeted = !conditional
+            && !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved);
+        if targeted && !matches!(self.settings.refute, RefuteSuite::None) {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "the Bayesian refuters refit each structure on perturbed rows (placebo \
+                 treatments, a random common cause, row subsets) with the all-rows population, \
+                 so none of them re-estimates the effect on a declared weighted target: the \
+                 target's weights belong to the analysed rows and do not follow a perturbed \
+                 table. Next attempt: declare refute=none for the targeted effect and refute \
+                 the same structures for all rows, or use the frequentist mixture"
+            ));
+        }
+        let zero_keys = targeted.then(|| atoms_without_directed_path(gp, query));
 
         let (identified, identify_cached) =
             self.graph_posterior_identification_for_bayesian(gp, query, physical, ctx)?;
@@ -734,7 +765,7 @@ impl super::super::Study {
             &graphs,
             &kept,
             &mut prepared,
-            anchor,
+            (anchor, zero_keys.as_ref()),
             ctx,
         )?;
         let mix = mix_graph_posterior_bayesian_envelope(
@@ -978,7 +1009,10 @@ impl super::super::Study {
         graphs: &WeightedGraphSamples,
         kept: &[(u64, IdentifiedEstimand, IdentificationResult)],
         prepared: &mut std::collections::HashMap<u64, PreparedBayesianProblem>,
-        anchor: BayesianGraphPosteriorPriorAnchor,
+        (anchor, zero_keys): (
+            BayesianGraphPosteriorPriorAnchor,
+            Option<&std::collections::HashSet<u64>>,
+        ),
         ctx: &ExecutionContext,
     ) -> Result<GraphPosteriorBayesianFits, CausalError> {
         let anchor_key = anchor.key;
@@ -1000,8 +1034,22 @@ impl super::super::Study {
                 })
             })
             .collect::<Result<Vec<_>, CausalError>>()?;
-        let fitted =
+        let mut fitted =
             super::super::BayesianGraphPosteriorAtomFits::fit(est.clone(), anchor, inputs, ctx)?;
+        // Under a declared target a structure with no directed path from the treatment to the
+        // outcome has the effect exactly zero on every population: its draws are a point mass
+        // at zero, not the near-zero posterior of a model fitted under that structure.
+        if let Some(zero) = zero_keys {
+            for (atom, column) in fitted.atoms.iter_mut().zip(fitted.draw_columns.iter_mut()) {
+                if zero.contains(&atom.key) {
+                    point_mass_at_zero(&mut atom.posterior)?;
+                    *column = GraphEffectDraws {
+                        graph_key: atom.key,
+                        effect_draws: Arc::from(vec![0.0; atom.posterior.draws.n_draws]),
+                    };
+                }
+            }
+        }
         if fitted.prior_anchor.key != anchor_key {
             return Err(CausalError::Compile {
                 message: "Bayesian graph-posterior fit changed its original prior anchor".into(),
