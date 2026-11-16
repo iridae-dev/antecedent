@@ -7932,3 +7932,39 @@ routes = [
   { route = "antecedent.measurement_exposure.repeat_codings_latent_class", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.measurement_exposure.RepeatCodingFit.prevalence_standard_error", stage = "uncertainty", status = "supported", claim = "interval" },
 ]
+
+[[record]]
+id = "measurement.measured_exposure_effect"
+status = "supported"
+refusals = [
+  { code = "measurement_not_identified", detail = "measurement_model.youden_too_small" },
+  { code = "route_not_supported", detail = "measurement_model.binary_outcome_continuous_error" },
+  { code = "measurement_not_identified", detail = "measurement_model.insufficient_replicates" },
+  { code = "measurement_not_identified", detail = "measurement_model.bootstrap_unstable" },
+]
+routes = [
+  { route = "antecedent_estimate.measurement.impute_exposure", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent_estimate.measurement.pool_measured_effect", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.measured_exposure.PreparedMeasuredExposure.estimate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent_estimate.measurement.MeasuredEffect.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.exposure_measurement.ExposureMeasurement.realize", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.prepare.measurement", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.exposure_measurement.PreparedMeasuredAnalysis.estimate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.exposure_measurement.MeasuredAnalysis.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "estimate.outcome_nuisance_prior"
+status = "supported"
+refusals = [
+  { code = "quantity_semantics_mismatch", detail = "mapped_posterior_transfer.coefficient_map" },
+]
+routes = [
+  { route = "antecedent_estimate.DmlAte.outcome_prior", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent_estimate.AipwAte.outcome_prior", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.estimators.DML.prior_from", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.estimators.Aipw.prior_from", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent_estimate.DmlAte.outcome_prior_partially_linear", stage = "evaluate", status = "closed", reason_code = "route_not_supported", claim = "interval" },
+  { route = "antecedent_estimate.AipwAte.outcome_prior_bootstrap", stage = "evaluate", status = "closed", reason_code = "route_not_supported", claim = "interval" },
+  { route = "antecedent.estimators.DML.composed_prior", stage = "evaluate", status = "closed", reason_code = "quantity_semantics_mismatch", claim = "interval" },
+]

@@ -59,6 +59,7 @@ if TYPE_CHECKING:
     from ._batch import BatchResult, PreparedBatch
     from ._prepared_identification import PreparedIdentification
     from .cyclic import CyclicResult, PreparedCyclicFamily, PreparedCyclicSystem
+    from .exposure_measurement import MeasuredAnalysis, PreparedMeasuredAnalysis
     from .validation import TargetRefutation, TargetRefutationSpec
 
 CyclicStudyT = TypeVar("CyclicStudyT", "PreparedCyclicFamily", "PreparedCyclicSystem")
@@ -616,6 +617,9 @@ def prepare(
     quantity_population: str = "target",
     quantity_transform: str = "identity",
     dose_units: str | None = None,
+    measurement: Any = None,
+    measurement_draws: int = 30,
+    measurement_seed: int | None = None,
 ) -> PreparedAnalysis[Any]:
     """Validate a causal question against data and a structure, and identify it, without fitting.
 
@@ -715,6 +719,21 @@ def prepare(
     * ``dose_units`` -- unit label of the dose of a static :class:`~antecedent.ResponseCurve`;
       nonempty, at most 256 bytes, and requires ``outcome_units``.
 
+    Measured exposure:
+
+    * ``measurement`` -- a declaration from :mod:`antecedent.exposure_measurement`
+      (:class:`~antecedent.exposure_measurement.MisclassifiedExposure`,
+      :class:`~antecedent.exposure_measurement.SoftExposure`,
+      :class:`~antecedent.exposure_measurement.DetectedExposure` or
+      :class:`~antecedent.exposure_measurement.RepeatCodedExposure`) on the query's treatment.
+      The exposure is imputed ``measurement_draws`` times from its declared measurement, the
+      outcome and the covariates, one study is prepared per completed table, and
+      :func:`estimate` pools the effects by Rubin's rules. Returns a
+      :class:`~antecedent.exposure_measurement.PreparedMeasuredAnalysis`; its outcome's value is a
+      :class:`~antecedent.exposure_measurement.MeasuredAnalysis`.
+    * ``measurement_draws`` -- the number of imputations, at least 2. Default 30.
+    * ``measurement_seed`` -- the seed of the imputations; default the execution's seed.
+
     Other:
 
     * ``execution`` -- an :class:`~antecedent.Execution` holding the seed, threads, resource
@@ -756,6 +775,45 @@ def prepare(
     policy = Execution() if execution is None else execution
     if not isinstance(policy, Execution):
         raise CausalTypeError("execution must be an Execution declaration")
+    if measurement is not None:
+        from .exposure_measurement import prepare_measured
+
+        return cast(
+            "PreparedAnalysis[Any]",
+            prepare_measured(
+                data,
+                measurement=measurement,
+                draws=measurement_draws,
+                seed=measurement_seed,
+                execution=policy,
+                query=query,
+                graph=graph,
+                discovery=discovery,
+                inference=inference,
+                identifier=identifier,
+                estimator=estimator,
+                estimator_config=estimator_config,
+                refute=refute,
+                class_prior=class_prior,
+                max_completions=max_completions,
+                participant=participant,
+                missing=missing,
+                population_registry=population_registry,
+                validators=validators,
+                regimes=regimes,
+                provider=provider,
+                sampling_design=sampling_design,
+                accept_discovered=accept_discovered,
+                data_diagnostics=data_diagnostics,
+                retain_joint_horizons=retain_joint_horizons,
+                on_refusal=on_refusal,
+                evidence_candidates=evidence_candidates,
+                outcome_units=outcome_units,
+                quantity_population=quantity_population,
+                quantity_transform=quantity_transform,
+                dose_units=dose_units,
+            ),
+        )
     from ._table_file import coerce_table_source
 
     data = coerce_table_source(data)
@@ -999,6 +1057,10 @@ def estimate(study: PreparedBatch) -> Outcome[BatchResult]: ...
 
 
 @overload
+def estimate(study: PreparedMeasuredAnalysis) -> Outcome[MeasuredAnalysis]: ...
+
+
+@overload
 def estimate(study: PreparedCyclicFamily | PreparedCyclicSystem) -> Outcome[CyclicResult]: ...
 
 
@@ -1029,9 +1091,12 @@ def estimate(study: Any) -> Outcome[Any]:
             response result (``reason_code="option_not_applicable"``).
     """
     from ._batch import PreparedBatch, estimate_many
+    from .exposure_measurement import PreparedMeasuredAnalysis
 
     if isinstance(study, PreparedBatch):
         return estimate_many(study)
+    if isinstance(study, PreparedMeasuredAnalysis):
+        return study.estimate()
     if not isinstance(study, PreparedAnalysis):
         if _is_cyclic_preparation(study):
             return study.execute()
@@ -1450,9 +1515,12 @@ def rebind(study: Any, *, data: Any) -> Any:
         outcome = antecedent.estimate(this_week)
     """
     from ._batch import PreparedBatch, rebind_many
+    from .exposure_measurement import PreparedMeasuredAnalysis
 
     if isinstance(study, PreparedBatch):
         return rebind_many(study, data=data)
+    if isinstance(study, PreparedMeasuredAnalysis):
+        return study.rebind(data=data)
     if not isinstance(study, PreparedAnalysis):
         if _is_cyclic_preparation(study):
             return study.rebind(data)
@@ -1588,9 +1656,12 @@ def reconfigure(study: Any, **declarations: Any) -> Any:
         bayesian = antecedent.reconfigure(study, inference=antecedent.Bayesian())
     """
     from ._batch import PreparedBatch, reconfigure_many
+    from .exposure_measurement import PreparedMeasuredAnalysis
 
     if isinstance(study, PreparedBatch):
         return reconfigure_many(study, **declarations)
+    if isinstance(study, PreparedMeasuredAnalysis):
+        return study.reconfigure(**declarations)
     if not isinstance(study, PreparedAnalysis):
         if _is_cyclic_preparation(study):
             if "data" in declarations:

@@ -35,6 +35,7 @@ pub mod categorical;
 pub mod continuous;
 pub mod exposure_routes;
 pub mod linear;
+pub mod measured_exposure;
 pub mod posterior;
 
 use antecedent_core::ExecutionContext;
@@ -64,6 +65,10 @@ pub use exposure_routes::{
 pub use linear::{
     CorrectedLinearEffect, LinearMeasuredData, correct_classical_linear_effect,
     correct_repeated_linear_effect,
+};
+pub use measured_exposure::{
+    DetectionFunctionDeclaration, ExposureDraws, ExposureErrorDeclaration, ExposureMeasurement,
+    ImputationData, MeasuredEffect, RatePair, impute_exposure, pool_measured_effect,
 };
 pub use posterior::{
     CorrectedPosteriorLinearEffect, PosteriorCombination, PosteriorLinearData,

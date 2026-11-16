@@ -8,6 +8,7 @@ pub mod driven_dgp;
 pub mod estimator_level;
 pub mod fixtures;
 pub mod lagged_ols;
+pub mod measured_exposure_dgp;
 pub mod panel_dgp;
 pub mod persistent_dgp;
 pub mod reported;

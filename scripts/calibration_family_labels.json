@@ -114,11 +114,11 @@
     },
     {
       "path": "crates/antecedent-estimate/src/dml.rs",
-      "sha256": "6a6c8db40877e1dcca74d8221f173407fc34e2ff3784d26107ef7f1fd59df64a",
+      "sha256": "8d8c5799cb050536bf7c404128fbd5afab28611fcca61ade4b0484f78fdb7f51",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 1705,
+          "line": 1708,
           "call": "CoverageTally::new(",
           "argument": "format!(\"learner_ate_known_truth_coverage {name}\"),\n                level,"
         }
@@ -261,7 +261,7 @@
     },
     {
       "path": "crates/antecedent-estimate/tests/conjugate_prior_calibration.rs",
-      "sha256": "ec4a0a87888da987e8efaa2ef0ec40662c5423fb1cab3f6986d8e0153fda3376",
+      "sha256": "2ad76d771c19fa04c8abc73012e0aea1631882557e4754766a0d87dc10560ba4",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1654,6 +1654,19 @@
         }
       ],
       "review": "Seven source-fixed local-ratio designs (declared-bandwidth kink with diagnostics, temporal fuzzy jump, kink and step at the selected bandwidth, and their Bayesian counterparts) with a closed-form ratio truth and one declared 0.95 level; the design axes and test names are literal."
+    },
+    {
+      "path": "crates/antecedent/tests/measured_exposure_calibration.rs",
+      "sha256": "c664e6e06424fca10502dce8a93209f995590979eb10fb235f7221ab97ba1757",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 81,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: \"rubin_t_interval\" },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Five source-fixed designs of the measured-exposure route (shared and outcome-differential misclassification, calibrated soft probabilities, covariate-dependent detection, repeat codings of a latent facet), each scoring the Rubin pooled 0.95 interval of the planted exposure effect against its closed-form truth; every estimator, functional, dependence and interval label is a literal at the test's call site and no label depends on a simulated outcome."
     },
     {
       "path": "crates/antecedent/tests/measurement_composition_calibration.rs",

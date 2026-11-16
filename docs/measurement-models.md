@@ -198,7 +198,9 @@ intervention on the recorded indicator.
 
 Four corrections have their own entry points in `antecedent.measurement_exposure`
 (Rust `antecedent_estimate::measurement::exposure_routes`, numerics in
-`antecedent_stats::measurement_error`). They take their declarations as
+`antecedent_stats::measurement_error`); they are the numerical core of the composed
+declarations described under [exposure measurement in the analysis](#exposure-measurement-in-the-analysis).
+The entry points take their declarations as
 arguments rather than through a prepared model, report a corrected value with
 a variance split into named parts, an uncalibrated standard error and a Wald
 interval with a `not_measured` calibration slot, and refuse what they cannot
@@ -252,6 +254,86 @@ outer product of per-unit scores in a softmax parametrization, carried to the
 probabilities by the delta method and reported when invertible. The per-unit
 posterior of a level can be passed to the soft-exposure correction as the
 exposure probability.
+
+## Exposure measurement in the analysis
+
+The four corrections above are also measurement declarations on the exposure variable of an
+effect query. `prepare` and `analyze` take `measurement=` and carry the declaration through the
+whole estimate, with the uncertainty of the measurement propagated by multiple imputation:
+
+```python
+import antecedent as ant
+from antecedent import exposure_measurement as em
+from antecedent import measurement_exposure as mx
+
+outcome = ant.analyze(
+    data,                                    # "x" is the recorded, misclassified exposure
+    graph=[("z", "x"), ("z", "y"), ("x", "y")],
+    query=ant.AverageEffect(treatment="x", outcome="y"),
+    measurement=em.MisclassifiedExposure(
+        "x",
+        mx.ExposureError.by_outcome(                   # rates may differ by outcome level
+            cases=mx.ValidationCounts(90, 10, 80, 20),
+            controls=mx.ValidationCounts(70, 30, 190, 10),
+        ),
+        covariates=("z",),
+    ),
+    measurement_draws=40,
+)
+result = outcome.value                       # a MeasuredAnalysis
+result.effect, result.interval(0.95)         # pooled effect of the true exposure, Rubin interval
+result.variance_components                   # within, between (exposure uncertainty), total
+result.naive_effect                          # the recorded column taken at face value
+result.exposure.export()                     # the draws, as a posterior artifact
+```
+
+| Declaration | Reads | Latent level | Parameter uncertainty redrawn per imputation |
+|---|---|---|---|
+| `MisclassifiedExposure(variable, error, ...)` | the recorded 0/1 column | present or absent | sensitivity and specificity, from validation counts (Beta posterior) or declared variances; one pair, or one per outcome level (a 0/1 outcome) |
+| `SoftExposure(variable, probability, ...)` | a column of per-unit probabilities | present or absent | none beyond the imputation model; the probabilities are taken as calibrated given the covariates |
+| `DetectedExposure(variable, detection_covariate, detection, ...)` | the recorded detection and the covariate that drives it | present or absent | the logistic function's parameters (with their covariance) and the false-positive rate; a partially declared monotone function identifies bounds only and is refused |
+| `RepeatCodedExposure(variable, codings, ...)` | several coding columns | a binary or ordinal facet | the latent class response laws, refitted on a row bootstrap |
+
+The declaration gives each unit a likelihood of what was recorded under every latent level. The
+level is then imputed `measurement_draws` times from its posterior given that likelihood, the
+outcome and the covariates: a softmax exposure model (in the covariates, or the supplied
+probabilities) and an outcome model (Gaussian, or logistic for a 0/1 outcome) are fitted by EM on
+a row bootstrap, so the draws carry the uncertainty of the imputation models as well as of the
+measurement. Imputing from the recorded value alone would attenuate the effect; the outcome and
+the covariates the analysis adjusts for are part of the imputation, and `covariates=` names them
+(by default the other variables of the graph). One study is prepared per completed table with the
+declared graph, estimator and inference, and `estimate` pools the per-draw effects by Rubin's
+rules: the total variance is the mean within-draw variance plus `(1 + 1/m)` times the
+between-draw variance, and the interval is a `t` interval with Rubin's degrees of freedom. The
+interval carries the calibration status `not_measured`. The imputation outcome model must contain
+the relations the analysis relies on; a Gaussian or logistic outcome model is the declared
+assumption, and the draws are proper only when it is right.
+
+`prepare` returns a `PreparedMeasuredAnalysis` (`rebind`, `reconfigure` and `estimate` work as
+for a prepared study). The draws are an uncertain column: `ExposureDraws.export()` writes them as
+a posterior artifact (one quantity per unit, one draw per imputation, the declaration and data
+identities in its identification field), `consume_exposure_draws` reads them back, and
+`ExposureDraws.completed_tables(data)` hands each draw to any stage that takes a table, such as
+discovery, whose results are then combined as multiple-imputation results.
+
+In Rust the same route is `StudyBuilder::measured_exposure` (declaration
+`antecedent_estimate::measurement::ExposureMeasurement`, imputation `impute_exposure`, pooling
+`pool_measured_effect`): it imputes the draws, `PreparedMeasuredExposure::estimate` runs the
+caller's ordinary study on every completed table and pools, and `export_draws` /
+`consume_exposure_draws` write and read the posterior artifact. The Python surface binds that
+layer and runs its own study lifecycle on the completed columns.
+
+A partially declared monotone detection function gives sharp bounds on the prevalence
+(`detection_dependent_prevalence`), and those bounds are not carried to the effect: they come from
+the extremes of the envelope applied to every unit at once, while the effect of a unit-level
+exposure depends on which units are exposed, which is not monotone in the detection function in
+general, so the effect at the envelope's endpoints does not bound the effect over the envelope.
+Declare the function fully to take the exposure into an analysis.
+
+Refused: an error that differs by outcome level with a continuous outcome
+(`route_not_supported`), a Youden index (or mean net detection) at or below its floor
+(`measurement_not_identified`), a partially declared detection function (above), a declaration on a
+variable other than the query's treatment, and a query that reports no scalar effect.
 
 ## Python surface
 

@@ -198,6 +198,7 @@ mod learned_continuous;
 pub mod learned_joint_scope;
 mod learned_trial;
 pub mod matching_posterior_refusal;
+pub mod measured_exposure;
 pub mod measurement_model;
 pub mod mechanism_composition;
 pub mod mechanism_discrepancy;
