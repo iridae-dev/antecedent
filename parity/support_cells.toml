@@ -4421,7 +4421,7 @@ graph_class = "Dag"
 structure = "graph_posterior"
 inference = "Frequentist"
 validation = "none"
-estimators = ["linear.adjustment.ate", "aipw"]
+estimators = ["linear.adjustment.ate"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -4429,7 +4429,6 @@ evidence_test = "crates/antecedent/src/analysis/execute/tests.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass" },
-  { estimator = "aipw", test = "crates/antecedent/tests/graph_posterior_weighted_target.rs", assertion = "the_route_equals_the_hand_mixture_over_the_answered_mass" },
 ]
 interval = ["analytic"]
 limitations = "Frozen analytic DGP with disagreeing identified atoms (effects 3 and 2 at weights 0.5 and 0.3) plus a valid reverse-causal atom's 0.2 unidentified weight. StructuralAggregationPolicy is GraphDependentAtoms: estimate.ate and Frequentist SE are withheld, structural_response publishes the identified set, and per-atom values are retained. Unidentified mass is not redistributed. Staged prepared and fresh results are equal; prepared execution consumes cached per-atom identification. Same-estimand joint-IF SE calibration (truth 3) is in crates/antecedent/tests/static_mixture_calibration.rs. Under the interactive latency tier at most 16 identified atoms are fitted (the highest-posterior-weight atoms, estimate.envelope.interactive_subsample); subsampled-out mass is reported separately, not as unidentified mass, and the result is GraphDependent."
@@ -4441,7 +4440,7 @@ graph_class = "Dag"
 structure = "graph_posterior"
 inference = "Frequentist"
 validation = "cheap"
-estimators = ["linear.adjustment.ate", "aipw"]
+estimators = ["linear.adjustment.ate"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -4449,7 +4448,6 @@ evidence_test = "crates/antecedent/src/analysis/execute/tests.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass" },
-  { estimator = "aipw", test = "crates/antecedent/tests/graph_posterior_weighted_target.rs", assertion = "the_cheap_and_placebo_suites_run_for_a_target_too" },
 ]
 limitations = "Same disagreeing mixture pin as none: scalar ate withheld under GraphDependentAtoms, identified set on structural_response, 0.2 unidentified mass retained, and prepared cache consumption. Cheap runs per-atom refuters (refute.envelope.class_posterior) against each atom's own estimate; outer scalar mix is skipped. Same-estimand joint-IF calibration (truth 3) is in crates/antecedent/tests/static_mixture_calibration.rs. Under the interactive latency tier at most 16 identified atoms are fitted (estimate.envelope.interactive_subsample); subsampled-out mass is reported separately. Historical coverage results mentioned above do not establish coverage for this validation mode and structure; no matching coverage record is bound to this cell."
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior", "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior"]
@@ -4460,7 +4458,7 @@ graph_class = "Dag"
 structure = "graph_posterior"
 inference = "Frequentist"
 validation = "full"
-estimators = ["linear.adjustment.ate", "aipw"]
+estimators = ["linear.adjustment.ate"]
 staged = true
 evidence_kind = "internal_known_truth"
 known_truth_fixture = "conformance/bayesian/known_truth_mixtures"
@@ -4468,7 +4466,6 @@ evidence_test = "crates/antecedent/src/analysis/execute/tests.rs"
 evidence_assertion = "graph_posterior_ate_known_truth_mixture_frequentist"
 checked_execution = [
   { estimator = "linear.adjustment.ate", test = "crates/antecedent/tests/checked_graph_posterior_effect_route_evidence.rs", assertion = "frequentist_dag_graph_posterior_effect_is_sealed_and_preserves_graph_mass" },
-  { estimator = "aipw", test = "crates/antecedent/tests/graph_posterior_weighted_target.rs", assertion = "every_refuter_re_estimates_the_targeted_effect_under_frequentist_inference" },
 ]
 limitations = "Same disagreeing mixture pin as none: scalar ate withheld under GraphDependentAtoms, identified set on structural_response, 0.2 unidentified mass retained, and prepared cache consumption. Full runs per-atom refuters (refute.envelope.class_posterior) against each atom's own estimate; outer scalar mix is skipped. Same-estimand joint-IF calibration (truth 3) is in crates/antecedent/tests/static_mixture_calibration.rs. Under the interactive latency tier at most 16 identified atoms are fitted (estimate.envelope.interactive_subsample); subsampled-out mass is reported separately. Historical coverage results mentioned above do not establish coverage for this validation mode and structure; no matching coverage record is bound to this cell."
 calibration = ["cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_graph_posterior.v2_validation_full.v2_structure_graph_posterior", "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_graph_posterior.v2_validation_full.v2_structure_graph_posterior"]

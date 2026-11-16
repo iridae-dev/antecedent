@@ -1675,7 +1675,28 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                         crate::support::supported_route_estimator(cell).or(carry.declared.estimator)
                     };
                     if let Some(est) = estimator {
-                        let status = crate::support::classify_estimator(cell, est);
+                        let mut status = crate::support::classify_estimator(cell, est);
+                        // A targeted structure posterior runs the requested estimator on
+                        // every atom: its support composes the posterior mixture (this cell)
+                        // with that estimator's support on one fixed DAG.
+                        if status == CellStatus::NotSupported
+                            && structure == StructureSource::GraphPosterior
+                            && matches!(
+                                query,
+                                CausalQuery::AverageEffect(q)
+                                    if matches!(q.target_population, antecedent_core::TargetPopulation::CustomDistribution(_))
+                            )
+                            && let Some(fixed) = crate::support::support_cell_named_for_data(
+                                query,
+                                matrix_class,
+                                StructureSource::Explicit,
+                                &carry.settings.inference,
+                                carry.settings.refute,
+                                false,
+                            )
+                        {
+                            status = crate::support::classify_estimator(fixed, est);
+                        }
                         if status == CellStatus::NotSupported {
                             missing_evidence.push(format!("estimator_evidence:{}", est.as_str()));
                         }
