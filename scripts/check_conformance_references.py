@@ -61,6 +61,7 @@ GENERATORS = (
     "conformance/bayesian/prior_bank_ess/reference.py",
     "conformance/bayesian/prior_bank_power_mixture/reference.py",
     "conformance/bayesian/prior_conjugate_moment_match/reference.py",
+    "conformance/bayesian/conjugate_count_posteriors/reference.py",
     "conformance/estimate/bayesian_structural_transport/reference.py",
     "conformance/validate/riesz_sensitivity/reference.py",
     "conformance/attribution/distribution_change_y_shift/reference.py",

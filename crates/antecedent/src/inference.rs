@@ -1063,6 +1063,14 @@ pub use antecedent_prob::BayesLikelihood;
 pub use antecedent_prob::ConflictSummary;
 /// Probability / inference errors.
 pub use antecedent_prob::ProbError;
+/// Power-prior discount chosen from out-of-sample fit, with a selection-aware interval.
+pub use antecedent_prob::{
+    AlphaCriterion, AlphaSelectionOptions, AlphaSensitivityRow, BetaSource, GammaSource,
+    LinearTarget, SelectedAlphaReport, default_alpha_grid, select_beta_power_prior,
+    select_gamma_power_prior, select_linear_power_prior,
+};
+/// Conjugate Beta-Binomial and Gamma-Poisson count posteriors.
+pub use antecedent_prob::{BetaBinomialPosterior, GammaPoissonPosterior};
 /// Conjugate moment-matching converters: Gaussian summary → Beta / Gamma.
 pub use antecedent_prob::{BetaHyperparameters, GammaHyperparameters};
 /// External prior bank: power-prior / mixture composition.

@@ -237,6 +237,8 @@ BAYESIAN_EVIDENCE = {
     "bayes.prior_bank.transport": "crates/antecedent-prob/src/transport.rs",
     "bayes.prior_bank.ess_accounting": "crates/antecedent-prob/src/external_prior.rs",
     "bayes.prior_bank.conjugate_moment_match": "crates/antecedent-prob/src/conjugate_moment_match.rs",
+    "bayes.prior_bank.conjugate_counts": "crates/antecedent-prob/src/conjugate_counts.rs",
+    "bayes.prior_bank.power_prior_alpha": "crates/antecedent-prob/src/power_prior_alpha.rs",
 }
 
 BAYESIAN_EXIT_ARTIFACTS = [
@@ -254,6 +256,7 @@ BAYESIAN_EXIT_ARTIFACTS = [
     "conformance/bayesian/prior_bank_alpha_sensitivity/expected.json",
     "conformance/bayesian/prior_bank_ess/expected.json",
     "conformance/bayesian/prior_conjugate_moment_match/expected.json",
+    "conformance/bayesian/conjugate_count_posteriors/expected.json",
     "conformance/validate/bayesian_checks/expected.json",
     "conformance/validate/bayesian_checks/diagnostics_oracle.json",
     "conformance/validate/bayesian_checks/independent_ips.json",

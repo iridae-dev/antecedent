@@ -45,6 +45,20 @@ pub enum PriorSpecIdentityWire {
         /// Row-major `p × p` correlation entries.
         matrix: PayloadDigestWire,
     },
+    /// Beta prior on a proportion.
+    Beta {
+        /// Shape `α` bits.
+        alpha_bits: u64,
+        /// Shape `β` bits.
+        beta_bits: u64,
+    },
+    /// Gamma prior on a Poisson rate.
+    Gamma {
+        /// Shape bits.
+        shape_bits: u64,
+        /// Rate bits.
+        rate_bits: u64,
+    },
 }
 
 /// Transferred-prior mapping.
@@ -405,4 +419,56 @@ pub struct ResponseOptionsWire {
 /// CBOR encode failure.
 pub fn inference_binding_digest(wire: &InferenceBindingWire) -> Result<SemanticDigest, IoError> {
     digest_wire(IdentityDomain::InferenceBinding, wire)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A prior set built only from the original specs serializes name-keyed, with no trace
+    /// of the count-model variants: its identity does not move when variants are appended.
+    #[test]
+    fn existing_prior_specs_keep_their_wire_form() {
+        let wire = PriorSetIdentityWire {
+            specs: vec![
+                PriorSpecIdentityWire::ResidualInvGamma {
+                    shape_bits: 1.5f64.to_bits(),
+                    scale_bits: 2.5f64.to_bits(),
+                },
+                PriorSpecIdentityWire::KnownResidualVariance(2.0f64.to_bits()),
+            ],
+            contrast: None,
+            categorical: Vec::new(),
+            restrictions: Vec::new(),
+        };
+        assert_eq!(
+            serde_json::to_string(&wire).unwrap(),
+            "{\"specs\":[{\"residual_inv_gamma\":{\"shape_bits\":4609434218613702656,\
+             \"scale_bits\":4612811918334230528}},{\"known_residual_variance\":\
+             4611686018427387904}],\"contrast\":null,\"categorical\":[],\"restrictions\":[]}"
+        );
+    }
+
+    #[test]
+    fn count_prior_specs_have_distinct_name_keyed_forms() {
+        let beta = PriorSpecIdentityWire::Beta {
+            alpha_bits: 2.0f64.to_bits(),
+            beta_bits: 3.0f64.to_bits(),
+        };
+        let gamma = PriorSpecIdentityWire::Gamma {
+            shape_bits: 2.0f64.to_bits(),
+            rate_bits: 3.0f64.to_bits(),
+        };
+        let beta_json = serde_json::to_string(&beta).unwrap();
+        assert_eq!(
+            beta_json,
+            "{\"beta\":{\"alpha_bits\":4611686018427387904,\"beta_bits\":4613937818241073152}}"
+        );
+        assert_eq!(
+            serde_json::to_string(&gamma).unwrap(),
+            "{\"gamma\":{\"shape_bits\":4611686018427387904,\"rate_bits\":4613937818241073152}}"
+        );
+        let back: PriorSpecIdentityWire = serde_json::from_str(&beta_json).unwrap();
+        assert_eq!(back, beta);
+    }
 }

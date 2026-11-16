@@ -306,6 +306,7 @@ fn fit_hmc_impl_inner(
     workspace: &mut LaplaceWorkspace,
     ctx: Option<&ExecutionContext>,
 ) -> Result<BayesFitResult, ProbError> {
+    prior.reject_count_priors()?;
     // Quote the complete sampler and absolute-scale preprocessing before the
     // Gaussian resolver can allocate or run an OLS fit.
     admit_hmc_work(design, prior, fit_opts, hmc, ctx)?;

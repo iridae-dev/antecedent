@@ -171,8 +171,8 @@ pub use response::{
     gaussian_local_quadratic_weighted, silverman_bandwidth, silverman_normal_reference_factor,
 };
 pub use special::{
-    NORMAL_Q975, chi_square_sf, gamma_q, gauss_hermite_standard_normal, gauss_legendre, ln_gamma,
-    normal_ppf, student_t_ppf, student_t_sf,
+    NORMAL_Q975, chi_square_sf, gamma_q, gauss_hermite_standard_normal, gauss_legendre, ln_beta,
+    ln_gamma, normal_ppf, regularized_incomplete_beta, student_t_ppf, student_t_sf,
 };
 pub use synthesis::{
     BetweenStudyMethod, CovarianceCheck, DEPENDENCE_ENVELOPE_LABEL, DependenceEnvelope,

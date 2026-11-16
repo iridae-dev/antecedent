@@ -744,6 +744,9 @@ fn merge_baseline_residuals(prior: &mut PriorSet, baseline: &PriorSet) {
             }
             // The hydrated coefficient block (and its correlation) replaces the baseline's.
             PriorSpec::GaussianCoefficients(_) | PriorSpec::CoefficientCorrelation(_) => {}
+            // A count-model prior has no place on a Gaussian target prior; the fit refuses
+            // a baseline that carries one, so it is never copied across.
+            PriorSpec::Beta(_) | PriorSpec::Gamma(_) => {}
         }
     }
 }

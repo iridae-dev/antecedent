@@ -697,6 +697,13 @@ fn source_prior_wire(
                 antecedent_prob::PriorSpec::CoefficientCorrelation(c) => {
                     Wire::Correlation { dim: c.dim(), matrix: c.matrix().to_vec() }
                 }
+                // A count-model prior is not a regression source prior; the declaration
+                // carries no bound form for it, so it is refused rather than dropped.
+                antecedent_prob::PriorSpec::Beta(_) | antecedent_prob::PriorSpec::Gamma(_) => {
+                    return Err(RecalcRunError::Request(
+                        RecalcRequestCode::BayesianPriorSourceUnsupported,
+                    ));
+                }
             })
         })
         .collect()

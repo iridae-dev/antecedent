@@ -14324,3 +14324,67 @@ target = "local_designs_statements_calibration"
 tests = ["bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio_under_ar2_errors"]
 ignored = true
 grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: beta_binomial_posterior_covers_under_the_stated_prior"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["beta_binomial_posterior_covers_under_the_stated_prior"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: gamma_poisson_posterior_covers_under_the_stated_prior"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["gamma_poisson_posterior_covers_under_the_stated_prior"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: beta_binomial_misspecified_prior_matches_its_exact_coverage"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["beta_binomial_misspecified_prior_matches_its_exact_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: gamma_poisson_misspecified_prior_matches_its_exact_coverage"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["gamma_poisson_misspecified_prior_matches_its_exact_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: selected_alpha_covers_when_the_source_matches"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["selected_alpha_covers_when_the_source_matches"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: selected_alpha_covers_under_a_clear_source_conflict"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["selected_alpha_covers_under_a_clear_source_conflict"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: selected_alpha_is_not_beaten_by_full_trust_at_moderate_discrepancy"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["selected_alpha_is_not_beaten_by_full_trust_at_moderate_discrepancy"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: selected_alpha_beta_binomial_covers_across_discrepancy"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["selected_alpha_beta_binomial_covers_across_discrepancy"]
+ignored = true
+grid = true

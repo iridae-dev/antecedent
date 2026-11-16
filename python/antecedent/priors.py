@@ -9,6 +9,9 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from ._artifact_protocol import container_bytes
 from ._native import (
+    beta_binomial_posterior as _beta_binomial_posterior,
+)
+from ._native import (
     beta_from_mean_and_ess as _beta_from_mean_and_ess,
 )
 from ._native import (
@@ -27,10 +30,16 @@ from ._native import (
     encode_prior_source_meta as _encode_meta,
 )
 from ._native import (
+    exceedance_posterior as _exceedance_posterior,
+)
+from ._native import (
     gamma_from_mean_and_ess as _gamma_from_mean_and_ess,
 )
 from ._native import (
     gamma_from_moments as _gamma_from_moments,
+)
+from ._native import (
+    gamma_poisson_posterior as _gamma_poisson_posterior,
 )
 from ._native import (
     mapped_posterior_transfer as _mapped_posterior_transfer,
@@ -40,6 +49,15 @@ from ._native import (
 )
 from ._native import (
     prior_catalog_rank as _rank,
+)
+from ._native import (
+    select_beta_power_prior_alpha as _select_alpha_beta,
+)
+from ._native import (
+    select_gamma_power_prior_alpha as _select_alpha_gamma,
+)
+from ._native import (
+    select_linear_power_prior_alpha as _select_alpha_linear,
 )
 
 if TYPE_CHECKING:
@@ -294,11 +312,10 @@ class BetaHyperparameters:
       prior-strength ``ess`` exactly; there is no ``variance`` parameter,
       because ``mean`` and ``ess`` alone determine ``alpha`` and ``beta``.
 
-    This is a **standalone converter, not a coefficient prior** — no
-    inference backend in this library consumes a Beta prior over a bounded
-    proportion (they all take a Gaussian coefficient design-matrix prior),
-    so it is not accepted by ``compose_external_priors`` or
-    ``Bayesian(prior_from=...)``.
+    A Beta prior is the prior of the Beta-Binomial backend
+    (:func:`beta_binomial_posterior`, :func:`exceedance_posterior`). It is
+    not a coefficient prior, so it is not accepted by
+    ``compose_external_priors`` or ``Bayesian(prior_from=...)``.
 
     ESS convention: ``ess = alpha + beta - 2``, chosen so the flat reference
     prior ``Beta(1, 1)`` maps to ``ess = 0`` — which is what makes
@@ -347,8 +364,10 @@ class GammaHyperparameters:
     * :func:`gamma_from_mean_and_ess` matches ``mean`` and a caller-declared
       prior-strength ``ess`` exactly; no ``variance`` parameter.
 
-    Like :class:`BetaHyperparameters`, this is a standalone converter, not a
-    coefficient prior accepted elsewhere in this library.
+    Like :class:`BetaHyperparameters`, this is a count-model prior: it is the
+    prior of the Gamma-Poisson backend (:func:`gamma_poisson_posterior`), not a
+    coefficient prior accepted by ``compose_external_priors`` or
+    ``Bayesian(prior_from=...)``.
 
     ESS convention: ``ess = shape - 1``, chosen so the reference exponential
     prior ``Gamma(shape=1, ...)`` maps to ``ess = 0``. Some references
@@ -1050,7 +1069,395 @@ class PriorCatalog:
         return [CompatibilityReport.from_dict(r) for r in ranked]
 
 
+@dataclass(frozen=True)
+class PredictiveCounts:
+    """Posterior predictive distribution of a future count.
+
+    ``pmf[j]`` is the probability of count ``j`` (for a Beta-Binomial, ``j``
+    successes in the future trials; for a Gamma-Poisson, count ``j`` over the
+    future exposure).
+    """
+
+    mean: float
+    variance: float
+    pmf: tuple[float, ...]
+
+
+@dataclass(frozen=True)
+class BetaBinomialPosterior:
+    """Closed-form posterior of a proportion in one cell.
+
+    ``Beta(alpha, beta)`` is the *posterior* (prior plus data). ``lower`` and
+    ``upper`` bound the equal-tailed credible interval at ``level``: a
+    posterior statement under the declared prior, not a frequentist
+    confidence interval. ``log_marginal_likelihood`` is ``ln p(successes |
+    trials, prior)`` for the binomial count.
+    """
+
+    alpha: float
+    beta: float
+    successes: int
+    trials: int
+    mean: float
+    variance: float
+    lower: float
+    upper: float
+    level: float
+    log_marginal_likelihood: float
+    predictive: PredictiveCounts | None = None
+
+
+@dataclass(frozen=True)
+class GammaPoissonPosterior:
+    """Closed-form posterior of a Poisson rate in one cell.
+
+    ``Gamma(shape, rate)`` is the *posterior*: prior shape plus the total
+    count, prior rate plus the total exposure. ``lower`` and ``upper`` bound the
+    equal-tailed credible interval at ``level`` (a posterior statement under the
+    declared prior). ``log_marginal_likelihood`` is ``ln p(counts | prior)``.
+    """
+
+    shape: float
+    rate: float
+    total_count: int
+    exposure: float
+    mean: float
+    variance: float
+    lower: float
+    upper: float
+    level: float
+    log_marginal_likelihood: float
+    predictive: PredictiveCounts | None = None
+
+
+def _predictive(d: Mapping[str, Any] | None) -> PredictiveCounts | None:
+    if d is None:
+        return None
+    return PredictiveCounts(
+        mean=float(d["mean"]),
+        variance=float(d["variance"]),
+        pmf=tuple(float(p) for p in d["pmf"]),
+    )
+
+
+def _beta_from_native(d: Mapping[str, Any]) -> BetaBinomialPosterior:
+    return BetaBinomialPosterior(
+        alpha=float(d["alpha"]),
+        beta=float(d["beta"]),
+        successes=int(d["successes"]),
+        trials=int(d["trials"]),
+        mean=float(d["mean"]),
+        variance=float(d["variance"]),
+        lower=float(d["lower"]),
+        upper=float(d["upper"]),
+        level=float(d["level"]),
+        log_marginal_likelihood=float(d["log_marginal_likelihood"]),
+        predictive=_predictive(d.get("predictive")),
+    )
+
+
+def beta_binomial_posterior(
+    successes: int,
+    trials: int,
+    *,
+    prior: BetaHyperparameters,
+    level: float = 0.95,
+    predictive_trials: int | None = None,
+) -> BetaBinomialPosterior:
+    """Posterior of a proportion after ``successes`` in ``trials`` trials.
+
+    Closed form: ``Beta(prior.alpha + successes, prior.beta + trials -
+    successes)``. A prior is an assumption; it never upgrades identification, so
+    the proportion is a statement about the cell's observed-data distribution.
+
+    Raises
+    ------
+    ValueError
+        ``successes > trials``, an invalid prior, or ``level`` outside ``(0, 1)``.
+    """
+    return _beta_from_native(
+        _beta_binomial_posterior(
+            int(successes),
+            int(trials),
+            float(prior.alpha),
+            float(prior.beta),
+            level=float(level),
+            predictive_trials=predictive_trials,
+        )
+    )
+
+
+def exceedance_posterior(
+    outcomes: Sequence[float],
+    threshold: float,
+    *,
+    prior: BetaHyperparameters,
+    level: float = 0.95,
+    predictive_trials: int | None = None,
+) -> BetaBinomialPosterior:
+    """Posterior of the exceedance probability ``P(Y > threshold)`` within one cell.
+
+    ``outcomes`` are the outcomes of the units in the cell; a success is an
+    outcome strictly above ``threshold``. The exceedance probability is a
+    binomial proportion with a ``Beta`` prior, so its posterior, credible
+    interval and predictive distribution are exact.
+
+    Raises
+    ------
+    ValueError
+        No outcomes, a non-finite outcome or threshold, an invalid prior, or
+        ``level`` outside ``(0, 1)``.
+    """
+    return _beta_from_native(
+        _exceedance_posterior(
+            [float(y) for y in outcomes],
+            float(threshold),
+            float(prior.alpha),
+            float(prior.beta),
+            level=float(level),
+            predictive_trials=predictive_trials,
+        )
+    )
+
+
+def gamma_poisson_posterior(
+    counts: Sequence[int],
+    *,
+    prior: GammaHyperparameters,
+    exposures: Sequence[float] | None = None,
+    level: float = 0.95,
+    predictive_exposure: float | None = None,
+) -> GammaPoissonPosterior:
+    """Posterior of a Poisson rate from per-unit counts within one cell.
+
+    Closed form: ``Gamma(prior.shape + sum(counts), prior.rate + sum(exposures))``
+    with unit exposures when ``exposures`` is omitted. The rate is per unit of
+    exposure.
+
+    Raises
+    ------
+    ValueError
+        No counts, a negative count, a non-positive exposure, an invalid prior,
+        or ``level`` outside ``(0, 1)``.
+    """
+    d = _gamma_poisson_posterior(
+        [int(c) for c in counts],
+        float(prior.shape),
+        float(prior.rate),
+        exposures=None if exposures is None else [float(t) for t in exposures],
+        level=float(level),
+        predictive_exposure=predictive_exposure,
+    )
+    return GammaPoissonPosterior(
+        shape=float(d["shape"]),
+        rate=float(d["rate"]),
+        total_count=int(d["total_count"]),
+        exposure=float(d["exposure"]),
+        mean=float(d["mean"]),
+        variance=float(d["variance"]),
+        lower=float(d["lower"]),
+        upper=float(d["upper"]),
+        level=float(d["level"]),
+        log_marginal_likelihood=float(d["log_marginal_likelihood"]),
+        predictive=_predictive(d.get("predictive")),
+    )
+
+
+@dataclass(frozen=True)
+class AlphaSensitivity:
+    """The target estimate at one fixed power-prior discount ``alpha``.
+
+    ``score`` is the selection criterion on the original data (log marginal
+    likelihood, or the K-fold log predictive density); ``estimate`` is the
+    posterior mean and ``lower`` / ``upper`` the equal-tailed credible interval
+    at that ``alpha``.
+    """
+
+    alpha: float
+    score: float
+    estimate: float
+    lower: float
+    upper: float
+
+
+@dataclass(frozen=True)
+class SelectedAlpha:
+    """A power-prior discount chosen from out-of-sample fit, and its estimate.
+
+    ``selected_alpha`` maximizes the criterion over the grid. ``interval`` is
+    the interval of the whole select-then-estimate procedure: the selection is
+    rerun on every bootstrap resample, so the spread of the chosen ``alpha``
+    widens it. ``conditional_interval`` treats ``selected_alpha`` as fixed in
+    advance and is narrower; do not report it as the uncertainty of the
+    estimate. ``sensitivity`` gives the estimate at every grid ``alpha``.
+
+    No data-driven discount covers uniformly across every source/target
+    discrepancy; the coverage of ``interval`` is measured by repeated
+    sampling over a stated range of discrepancies, not assumed.
+    """
+
+    criterion: Literal["empirical_bayes", "cross_validated"]
+    selected_alpha: float
+    estimate: float
+    level: float
+    interval: tuple[float, float]
+    conditional_interval: tuple[float, float]
+    sensitivity: tuple[AlphaSensitivity, ...]
+    bootstrap_alpha_counts: tuple[int, ...]
+    n_bootstrap: int
+
+
+def _selected_from_native(d: Mapping[str, Any]) -> SelectedAlpha:
+    return SelectedAlpha(
+        criterion=d["criterion"],
+        selected_alpha=float(d["selected_alpha"]),
+        estimate=float(d["estimate"]),
+        level=float(d["level"]),
+        interval=(float(d["interval"][0]), float(d["interval"][1])),
+        conditional_interval=(
+            float(d["conditional_interval"][0]),
+            float(d["conditional_interval"][1]),
+        ),
+        sensitivity=tuple(
+            AlphaSensitivity(
+                alpha=float(r["alpha"]),
+                score=float(r["score"]),
+                estimate=float(r["estimate"]),
+                lower=float(r["lower"]),
+                upper=float(r["upper"]),
+            )
+            for r in d["sensitivity"]
+        ),
+        bootstrap_alpha_counts=tuple(int(c) for c in d["bootstrap_alpha_counts"]),
+        n_bootstrap=int(d["n_bootstrap"]),
+    )
+
+
+def select_alpha_beta_binomial(
+    source_successes: int,
+    source_trials: int,
+    outcomes: Sequence[bool],
+    *,
+    base: BetaHyperparameters,
+    criterion: Literal["empirical_bayes", "cross_validated"] = "empirical_bayes",
+    folds: int = 5,
+    grid: Sequence[float] | None = None,
+    level: float = 0.95,
+    n_bootstrap: int = 200,
+    seed: int = 0,
+) -> SelectedAlpha:
+    """Choose the power-prior discount of a source proportion from target fit.
+
+    The power prior is ``Beta(base.alpha + a * k0, base.beta + a * (n0 - k0))``
+    for source counts ``k0`` of ``n0`` and discount ``a`` in ``[0, 1]``;
+    ``outcomes`` are the target trials. ``criterion`` is ``"empirical_bayes"``
+    (maximize the marginal likelihood) or ``"cross_validated"`` (maximize the
+    ``folds``-fold log predictive density). ``grid`` defaults to 21 equally
+    spaced points on ``[0, 1]``. A hand-set discount needs no selection: build
+    the prior directly and call :func:`beta_binomial_posterior`.
+    """
+    return _selected_from_native(
+        _select_alpha_beta(
+            int(source_successes),
+            int(source_trials),
+            [bool(o) for o in outcomes],
+            float(base.alpha),
+            float(base.beta),
+            criterion=criterion,
+            folds=int(folds),
+            grid=None if grid is None else [float(g) for g in grid],
+            level=float(level),
+            n_bootstrap=int(n_bootstrap),
+            seed=int(seed),
+        )
+    )
+
+
+def select_alpha_gamma_poisson(
+    source_total_count: int,
+    source_exposure: float,
+    counts: Sequence[int],
+    *,
+    base: GammaHyperparameters,
+    criterion: Literal["empirical_bayes", "cross_validated"] = "empirical_bayes",
+    folds: int = 5,
+    grid: Sequence[float] | None = None,
+    level: float = 0.95,
+    n_bootstrap: int = 200,
+    seed: int = 0,
+) -> SelectedAlpha:
+    """Choose the power-prior discount of a source rate from target fit.
+
+    The power prior is ``Gamma(base.shape + a * S0, base.rate + a * E0)`` for a
+    source total count ``S0`` over total exposure ``E0``; ``counts`` are the
+    target observations over unit exposure. See
+    :func:`select_alpha_beta_binomial` for the criteria and the interval.
+    """
+    return _selected_from_native(
+        _select_alpha_gamma(
+            int(source_total_count),
+            float(source_exposure),
+            [int(c) for c in counts],
+            float(base.shape),
+            float(base.rate),
+            criterion=criterion,
+            folds=int(folds),
+            grid=None if grid is None else [float(g) for g in grid],
+            level=float(level),
+            n_bootstrap=int(n_bootstrap),
+            seed=int(seed),
+        )
+    )
+
+
+def select_alpha_linear(
+    sources: Sequence[ExternalPriorSourceSpec],
+    baseline_mean: Sequence[float],
+    baseline_variance: Sequence[float],
+    x: Sequence[Sequence[float]],
+    y: Sequence[float],
+    functional: Sequence[float],
+    *,
+    known_residual_variance: float | None = None,
+    criterion: Literal["empirical_bayes", "cross_validated"] = "empirical_bayes",
+    folds: int = 5,
+    grid: Sequence[float] | None = None,
+    level: float = 0.95,
+    n_bootstrap: int = 200,
+    seed: int = 0,
+) -> SelectedAlpha:
+    """Choose the power-prior discount of external Gaussian sources.
+
+    Every source takes the same discount from the grid (the power path of
+    :func:`compose_external_priors`; each source's own ``alpha`` is ignored and
+    a source with a ``mixture_weight`` is refused). ``x`` is the target design
+    (one row per unit), ``y`` the outcomes and ``functional`` the weights ``c``
+    of the reported linear functional ``c'beta``. The residual variance is
+    known when ``known_residual_variance`` is given, else Inv-Gamma with the
+    library's weakly informative default.
+    """
+    return _selected_from_native(
+        _select_alpha_linear(
+            [{**s.to_dict(), "alpha": 1.0} for s in sources],
+            [float(m) for m in baseline_mean],
+            [float(v) for v in baseline_variance],
+            [[float(v) for v in row] for row in x],
+            [float(v) for v in y],
+            [float(c) for c in functional],
+            known_residual_variance=known_residual_variance,
+            criterion=criterion,
+            folds=int(folds),
+            grid=None if grid is None else [float(g) for g in grid],
+            level=float(level),
+            n_bootstrap=int(n_bootstrap),
+            seed=int(seed),
+        )
+    )
+
+
 __all__ = [
+    "AlphaSensitivity",
+    "BetaBinomialPosterior",
     "BetaHyperparameters",
     "CompatibilityReport",
     "ComposedPrior",
@@ -1060,18 +1467,27 @@ __all__ = [
     "ExternalPriorSourceSpec",
     "ExternalPriorWeight",
     "GammaHyperparameters",
+    "GammaPoissonPosterior",
     "MappedPosteriorPrior",
     "POPULATION_TAG_KEY",
     "PriorCatalog",
     "PriorMapping",
     "PriorSource",
+    "PredictiveCounts",
     "PriorSourceMeta",
+    "SelectedAlpha",
     "TransportPolicy",
+    "beta_binomial_posterior",
     "beta_from_mean_and_ess",
     "beta_from_moments",
     "compose_external_priors",
+    "exceedance_posterior",
     "gamma_from_mean_and_ess",
     "gamma_from_moments",
+    "gamma_poisson_posterior",
     "mapped_posterior_transfer",
     "populations_from_prior_sources",
+    "select_alpha_beta_binomial",
+    "select_alpha_gamma_poisson",
+    "select_alpha_linear",
 ]

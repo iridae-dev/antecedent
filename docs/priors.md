@@ -272,8 +272,8 @@ interchangeable:**
 
 ## Conjugate moment-matching (Beta / Gamma)
 
-Everything above stays in Gaussian-coefficient terms — `PriorSet` /
-`PriorSpec` speak Gaussian coefficients only, and every inference backend in
+Everything above stays in Gaussian-coefficient terms — the regression priors in
+`PriorSet` are Gaussian coefficients, and every regression backend in
 `antecedent-prob` (conjugate, Laplace, HMC) consumes exactly that shape plus
 a residual-variance model. A Gaussian summary cannot itself express a prior
 over a **bounded proportion** or a **non-negative rate**, so
@@ -301,12 +301,10 @@ reach for the one that matches what you actually know:
   what you actually know is a target mean and how much you want the prior
   to weigh (in sample-size terms), not a variance.
 
-These are **standalone converters, not `PriorSpec` variants** — no backend
-in this crate consumes a Beta or Gamma prior (all four take a
-Gaussian coefficient design-matrix prior), so adding a `PriorSpec::Beta` /
-`::Gamma` would create a type the library accepts but nothing can use.
-Callers get plain hyperparameter structs to hand to their own conjugate
-update (Beta-Binomial, Gamma-Poisson) or record as an assumption.
+The hyperparameters are the priors of the conjugate count backends below, carried
+as `PriorSpec::Beta` and `PriorSpec::Gamma`. The Gaussian regression backends
+(conjugate, Laplace, HMC) take a Gaussian coefficient design-matrix prior and
+**refuse** a prior set that carries a Beta or Gamma rather than ignoring it.
 
 Out-of-support input is **rejected, never silently clamped**: `from_moments`
 requires `mean` strictly inside `(0, 1)` for Beta (`mean > 0` for Gamma),
@@ -345,6 +343,74 @@ See `conformance/bayesian/prior_conjugate_moment_match/` for pinned analytic
 scenarios covering both constructors (moment round trip, a moment match
 with negative `ess`, `from_mean_and_ess(mean, 0.0)`, and each rejected
 input).
+
+## Beta-Binomial and Gamma-Poisson within a cell
+
+Two closed-form backends answer a query about one cell (`antecedent_prob::conjugate_counts`;
+Python `antecedent.priors.beta_binomial_posterior`, `exceedance_posterior`,
+`gamma_poisson_posterior`):
+
+- **Exceedance probability.** `P(Y > threshold)` within the cell is a binomial
+  proportion: a trial is an outcome in the cell and a success is an outcome
+  *strictly* above the threshold. With a `Beta(a, b)` prior ([`PriorSpec::Beta`]) and
+  `k` successes in `n` trials the posterior is `Beta(a + k, b + n - k)`.
+- **Poisson rate.** With a `Gamma(shape a, rate b)` prior ([`PriorSpec::Gamma`]) and
+  counts `yᵢ` over exposures `tᵢ` (unit exposures by default) the posterior is
+  `Gamma(a + Σyᵢ, b + Σtᵢ)`.
+
+Each posterior reports its mean and variance, CDF, exact quantiles, the equal-tailed
+credible interval, the log marginal likelihood of the data, and the posterior
+predictive (beta-binomial for future trials, negative binomial for a future count).
+The credible interval is a posterior statement under the declared prior, not a
+frequentist confidence interval; its repeated-sampling coverage is measured for
+priors drawn from the stated prior and for a misspecified prior (where it is below
+nominal by an exactly computable amount). A prior is an assumption and never
+upgrades identification: the proportion or rate describes the cell's observed-data
+distribution, nothing causal beyond what the cell's own identification supports.
+
+Appending `Beta` and `Gamma` to `PriorSpec` does not change the identity digest, the
+joint-response artifact encoding or any other serialized form of an existing prior:
+the wire forms are name-keyed, the new variants have new names, and a set built only
+from the original specs serializes exactly as before.
+
+## Choosing the power-prior discount from out-of-sample fit
+
+A power prior discounts a source by `α ∈ [0, 1]`. A hand-set `α` (the
+`ExternalPriorWeight` path above) is unchanged. Instead of setting it, ask the target
+data how well the source predicts them:
+
+- **`empirical_bayes`**: the `α` on a grid that maximizes the marginal likelihood of
+  the target data.
+- **`cross_validated`**: the `α` that maximizes the `K`-fold log predictive density of
+  held-out target rows. For a conjugate model the held-out block density is the ratio of
+  marginal likelihoods of all rows and of the training rows, so no fold is sampled.
+
+Three conjugate targets are supported: a Gaussian linear model whose prior composes
+external Gaussian sources on the power path (known or Inv-Gamma residual variance,
+`select_alpha_linear`), a Beta-Binomial proportion with source counts
+(`select_alpha_beta_binomial`) and a Gamma-Poisson rate with source counts
+(`select_alpha_gamma_poisson`). Every source takes the same `α` from the grid; a source
+with a mixture weight is refused.
+
+The result reports the chosen `α`, the estimate, and a **sensitivity table**: the
+criterion's score, the estimate and the credible interval at every grid `α`.
+
+### The interval accounts for the selection
+
+`α` is chosen from the data, so a posterior interval at the chosen `α` treats it as
+fixed in advance and is too narrow whenever the data cannot pin `α` down. The reported
+`interval` is the interval of the whole select-then-estimate procedure: the selection is
+rerun on every bootstrap resample of the target rows, the posterior of the functional
+given the original data at each resample's chosen `α` is one component of an equal-weight
+mixture, and the interval is the mixture's quantiles. The narrower `conditional_interval`
+at the chosen `α` is reported beside it and is not the uncertainty of the estimate.
+
+No data-driven discount covers uniformly across every source/target discrepancy: a
+source far more precise than the target and wrong by a fraction of the target's standard
+error cannot be told from a correct one. The coverage of the interval is measured by
+repeated sampling at a matching source and at a clear conflict, and at moderate
+discrepancies the procedure is only compared with trusting the source outright; those
+measurements bound what is claimed.
 
 ## Supported transport policies
 

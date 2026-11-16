@@ -260,6 +260,59 @@
       "review": "Error-rate tallies named from the caller's fixed test, covariance-kind/direction loop and sample size; each is a non-rejection rate at the source-fixed 1 - 0.05 level, never chosen from outcomes."
     },
     {
+      "path": "crates/antecedent-estimate/tests/conjugate_prior_calibration.rs",
+      "sha256": "fdd0a4846e4e921a8507ee39933cbf4720e315cdd351a78ce7dcab0899ca9bc6",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 123,
+          "call": "CoverageTally::new(",
+          "argument": "\"beta_binomial_stated_prior\", LEVEL"
+        },
+        {
+          "line": 136,
+          "call": "CoverageTally::new(",
+          "argument": "\"gamma_poisson_stated_prior\", LEVEL"
+        },
+        {
+          "line": 192,
+          "call": "CoverageTally::new(",
+          "argument": "\"beta_binomial_misspecified_prior\", exact"
+        },
+        {
+          "line": 210,
+          "call": "CoverageTally::new(",
+          "argument": "\"gamma_poisson_misspecified_prior\", exact"
+        },
+        {
+          "line": 293,
+          "call": "CoverageTally::new(",
+          "argument": "format!(\"selected_alpha_d{discrepancy}\"), LEVEL"
+        },
+        {
+          "line": 294,
+          "call": "CoverageTally::new(",
+          "argument": "format!(\"full_trust_d{discrepancy}\"), LEVEL"
+        },
+        {
+          "line": 295,
+          "call": "CoverageTally::new(",
+          "argument": "format!(\"target_only_d{discrepancy}\"), LEVEL"
+        },
+        {
+          "line": 380,
+          "call": "CoverageTally::new(",
+          "argument": "format!(\"selected_alpha_beta_theta{truth}\"), LEVEL"
+        },
+        {
+          "line": 381,
+          "call": "CoverageTally::new(",
+          "argument": "format!(\"full_trust_beta_theta{truth}\"), LEVEL"
+        }
+      ],
+      "review": "Eight source-fixed conjugate-prior designs (stated and misspecified Beta-Binomial and Gamma-Poisson priors; the select-then-estimate power-prior discount at source displacements of 0, 1, 2 and 8 target standard errors and at two Beta-Binomial truths): each tally name is a literal design name joined to a displacement or truth taken from the design's fixed constant list, scored at the reported 0.95 level against a closed-form truth; no name, displacement or level is chosen from outcomes."
+    },
+    {
       "path": "crates/antecedent-estimate/tests/count_fitted_posterior_calibration.rs",
       "sha256": "ac5a4df11ec462484e0f4f69fa20b749e1d9cf443a422e570e1881e941058375",
       "labelled_calls": [],

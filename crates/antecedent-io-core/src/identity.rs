@@ -1089,6 +1089,14 @@ pub fn prior_set_identity(prior: &antecedent_prob::PriorSet) -> PriorSetIdentity
                         ),
                     }
                 }
+                PriorSpec::Beta(beta) => PriorSpecIdentityWire::Beta {
+                    alpha_bits: beta.alpha.to_bits(),
+                    beta_bits: beta.beta.to_bits(),
+                },
+                PriorSpec::Gamma(gamma) => PriorSpecIdentityWire::Gamma {
+                    shape_bits: gamma.shape.to_bits(),
+                    rate_bits: gamma.rate.to_bits(),
+                },
             })
             .collect(),
         contrast: prior.contrast.map(|contrast| {

@@ -1,6 +1,8 @@
 //! Conjugate moment-matching converters: Gaussian summary → Beta / Gamma.
 //!
-//! [`crate::prior::PriorSpec`] speaks Gaussian coefficients only. A Gaussian
+//! [`crate::prior::PriorSpec`] carries Gaussian coefficient priors for regression
+//! and, for counts, [`crate::prior::PriorSpec::Beta`] and
+//! [`crate::prior::PriorSpec::Gamma`]. A Gaussian
 //! *summary* — a mean and a variance, however it was obtained (a composed
 //! prior's moments, a posterior artifact's moments, a domain expert's
 //! elicited belief) — cannot itself express a prior over a **bounded
@@ -33,18 +35,17 @@
 //! *returned*, `Beta(6, 6)`, has no relationship to `0.3`. The two-
 //! constructor split below replaces that signature.
 //!
-//! ## Scope: hyperparameters, not a new inference path
+//! ## Scope: hyperparameters, consumed by the conjugate count backends
 //!
-//! No backend in this crate ([`crate::conjugate`], [`crate::laplace`],
-//! [`crate::hmc`], [`crate::gaussian_target`]) accepts anything but a
+//! The Gaussian regression backends ([`crate::conjugate`], [`crate::laplace`],
+//! [`crate::hmc`], [`crate::gaussian_target`]) accept only a
 //! [`crate::prior::GaussianCoefficientPrior`] design-matrix prior plus a
-//! residual-variance model ([`crate::prior::GaussianVarianceModel`]). A Beta
-//! prior on a bounded proportion does not fit that shape, so this module is
-//! deliberately **not** wired into [`crate::prior::PriorSpec`]: adding a
-//! variant there would create a type the library accepts syntactically but
-//! no backend can consume. Callers get plain hyperparameter structs to hand
-//! to their own conjugate update (Beta-Binomial, Gamma-Poisson) or to record
-//! as a [`antecedent_core::PriorAssumption`].
+//! residual-variance model ([`crate::prior::GaussianVarianceModel`]) and refuse a
+//! prior set that carries a Beta or Gamma. The hyperparameters built here are the
+//! priors of [`crate::conjugate_counts::BetaBinomialPosterior`] (a proportion,
+//! such as the probability that an outcome in a cell exceeds a threshold) and
+//! [`crate::conjugate_counts::GammaPoissonPosterior`] (a Poisson rate), through
+//! [`crate::prior::PriorSpec::Beta`] and [`crate::prior::PriorSpec::Gamma`].
 //!
 //! ## No silent clamping
 //!
@@ -228,6 +229,23 @@ impl BetaHyperparameters {
     pub fn ess(&self) -> f64 {
         self.alpha + self.beta - 2.0
     }
+
+    /// Validate finite, strictly positive shapes.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite or non-positive `α` or `β`.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
+    pub fn validate(self) -> Result<(), ProbError> {
+        if !(self.alpha > 0.0 && self.alpha.is_finite() && self.beta > 0.0 && self.beta.is_finite())
+        {
+            return Err(ProbError::InvalidPrior { message: "Beta shapes must be finite and > 0" });
+        }
+        Ok(())
+    }
 }
 
 /// `Gamma(shape, rate)` conjugate hyperparameters.
@@ -340,6 +358,25 @@ impl GammaHyperparameters {
     #[must_use]
     pub fn ess(&self) -> f64 {
         self.shape - 1.0
+    }
+
+    /// Validate finite, strictly positive shape and rate.
+    ///
+    /// # Errors
+    ///
+    /// A non-finite or non-positive shape or rate.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
+    )]
+    pub fn validate(self) -> Result<(), ProbError> {
+        if !(self.shape > 0.0 && self.shape.is_finite() && self.rate > 0.0 && self.rate.is_finite())
+        {
+            return Err(ProbError::InvalidPrior {
+                message: "Gamma shape and rate must be finite and > 0",
+            });
+        }
+        Ok(())
     }
 }
 

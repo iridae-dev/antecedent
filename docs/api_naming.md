@@ -267,6 +267,8 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | d-separation | `Dag::is_d_separated` | `Dag.d_separated(x, y, z=…)` |
 | Latent projection | `latent_project` | `Dag.latent_project(observed)` |
 | External prior bank | `antecedent-prob::conjugate_moment_match` / `compose_external_priors` | `antecedent.priors.beta_from_moments` / `compose_external_priors` / `PriorCatalog` |
+| Conjugate count posteriors | `antecedent-prob::conjugate_counts` (`PriorSpec::Beta` / `PriorSpec::Gamma`) | `antecedent.priors.beta_binomial_posterior` / `exceedance_posterior` / `gamma_poisson_posterior` |
+| Power-prior discount from out-of-sample fit | `antecedent-prob::power_prior_alpha` | `antecedent.priors.select_alpha_linear` / `select_alpha_beta_binomial` / `select_alpha_gamma_poisson` |
 | Safe consumption shape | withheld leftover / partial ID | `outcome.answer` (`kind` such as `point` / `bounds` / `partial` / `unavailable` / `refused`); the specialized `outcome.value.effect` / `.posterior` / `.response` are also readable and are not misuse-proof |
 | Primary scalar effect | `result.effect()` | `result.effect` (`.ate` alias) |
 | Rich result display | `Debug` / `Display` impls | `AnalysisResult.__repr__` / `_repr_html_` (amber callout when `unidentified_mass > 0`); HTML also on `Identification`, graphs, `CausalResponseView`, `ReviewRequired`; `ValidationView` supports `len()` / iteration / indexing / `.failed` / `.to_columns()`; `PosteriorView` supports `__array__` / `.interval()` |
