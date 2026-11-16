@@ -12,6 +12,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::cast_possible_truncation, reason = "small graph node counts")]
 #![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,
@@ -263,7 +264,7 @@ fn target() -> WeightedTargetDeclaration {
     .unwrap()
 }
 
-fn effect(study: Study) -> (f64, Vec<String>) {
+fn effect(study: &Study) -> (f64, Vec<String>) {
     let result = study.run(&ctx()).unwrap();
     let effect = result.estimate().as_effect().unwrap();
     let ids = effect
@@ -290,7 +291,7 @@ fn the_selection_is_recorded_and_a_diffuse_prior_leaves_the_weighted_estimate_un
             .query(AverageEffectQuery::binary_ate(v(1), v(2)))
     };
     let (plain, plain_ids) =
-        effect(build().estimator(AipwAte::new().with_bootstrap_replicates(0)).build().unwrap());
+        effect(&build().estimator(AipwAte::new().with_bootstrap_replicates(0)).build().unwrap());
     assert!(plain_ids.iter().all(|id| !id.starts_with("power_prior_alpha_selected")));
 
     // Sources so diffuse that any discount leaves the regression where the data put it.
@@ -299,7 +300,7 @@ fn the_selection_is_recorded_and_a_diffuse_prior_leaves_the_weighted_estimate_un
         source("diffuse-b", [1.0, 1.0], [1e12, 1e12]),
     ]);
     let (regularized, ids) = effect(
-        build()
+        &build()
             .estimator(AipwAte::new().with_bootstrap_replicates(0))
             .outcome_prior_selection(diffuse)
             .build()

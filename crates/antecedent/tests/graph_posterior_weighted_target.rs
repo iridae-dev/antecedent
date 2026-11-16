@@ -16,6 +16,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::cast_possible_truncation, reason = "small graph node counts")]
 #![allow(
     clippy::float_cmp,
     clippy::cast_precision_loss,

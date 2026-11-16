@@ -377,6 +377,7 @@ impl StructureProvenance {
     /// prior and, when pooled, the pooling over imputations and what produced them.
     #[must_use]
     pub fn statement(&self) -> String {
+        use std::fmt::Write as _;
         let mut text = format!(
             "structure posterior: method {} ({} inference, {} class, bounds {}, review {})",
             self.method, self.inference, self.discovered_class, self.search_bounds, self.review
@@ -386,12 +387,13 @@ impl StructureProvenance {
             text.push_str(prior);
         }
         if let Some(pooling) = &self.pooling {
-            text.push_str(&format!(
+            let _ = write!(
+                text,
                 "; pooled over {} imputations by {} from {}",
                 pooling.imputations, pooling.method, pooling.source
-            ));
+            );
         }
-        text.push_str(&format!("; provenance digest {}", digest_hex(&self.digest())));
+        let _ = write!(text, "; provenance digest {}", digest_hex(&self.digest()));
         text
     }
 

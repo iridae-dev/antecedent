@@ -1313,7 +1313,9 @@ fn discover_pooled_posterior(
         // declared structure prior, the pooling and the tables it ran on.
         let accepted = match searched {
             Some((spec, variables)) if completed_tables.len() == posteriors.len() => {
-                let query = spec.query(variables).map_err(|error| py_err(error.into()))?;
+                let query = spec
+                    .query(variables)
+                    .map_err(|error| py_err(antecedent::CausalError::from(error)))?;
                 antecedent::analysis::structure_route::AcceptedPosterior::pooled(
                     &query,
                     pooled.clone(),

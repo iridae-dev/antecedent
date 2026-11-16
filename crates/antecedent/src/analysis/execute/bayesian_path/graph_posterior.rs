@@ -711,6 +711,10 @@ impl super::super::Study {
     ///
     /// `InferenceMode::Frequentist`, or any per-graph identification/estimation
     /// infrastructure failure (envelope aggregation, missing effect column, …).
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one Bayesian graph-posterior execution across its targeted and default forms"
+    )]
     pub(in crate::analysis) fn execute_graph_posterior_bayesian(
         &self,
         data: &TabularData,
@@ -862,6 +866,7 @@ impl super::super::Study {
 
     /// Prepare every identified atom's design once, resolve the shared prior anchor on the
     /// first atom, then Interactive-subsample and keep the atoms that still contribute draws.
+    #[allow(clippy::too_many_lines, reason = "one preparation pass over the posterior's atoms")]
     fn prepare_graph_posterior_bayesian_atoms(
         &self,
         data: &TabularData,
@@ -1334,6 +1339,10 @@ impl super::super::Study {
 
     /// Per-atom linear-adjustment estimates for the atoms the Interactive subsample kept,
     /// with each atom's weighted SE item and row-aligned influence function.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one per-atom estimation and mixture for the declared target"
+    )]
     fn estimate_graph_posterior_frequentist_atoms(
         route: &GraphPosteriorFrequentistRoute<'_>,
         identified: &super::super::super::prepared::CachedGraphPosteriorIdentification,

@@ -92,6 +92,7 @@ struct TargetedRefit {
 }
 
 impl EffectRefit for TargetedRefit {
+    #[allow(clippy::float_cmp, reason = "a 0/1 treatment column is detected by exact comparison")]
     fn refit(
         &self,
         data: &TabularData,
@@ -123,9 +124,11 @@ impl EffectRefit for TargetedRefit {
         let mut estimand = self.estimand.clone();
         if !extra_contemporaneous.is_empty() {
             let mut adjustment: Vec<VariableId> = estimand.adjustment_set.to_vec();
-            adjustment.extend(
-                extra_contemporaneous.iter().copied().filter(|id| !adjustment.contains(id)),
-            );
+            for id in extra_contemporaneous.iter().copied() {
+                if !adjustment.contains(&id) {
+                    adjustment.push(id);
+                }
+            }
             estimand.adjustment_set = Arc::from(adjustment);
         }
         // A placebo treatment is continuous noise, which a binary-treatment estimator cannot

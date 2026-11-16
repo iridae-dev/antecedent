@@ -279,6 +279,10 @@ impl BayesianGComputationAte {
     /// As [`Self::prepare`], and a custom target without its registered weights, with weights
     /// that depend on a variable outside the adjustment set, with all-zero weights on the
     /// complete rows, or under a link other than Gaussian identity.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one preparation that centres the interactions on the declared population"
+    )]
     pub fn prepare_for_population(
         &self,
         data: &TabularData,
@@ -326,14 +330,13 @@ impl BayesianGComputationAte {
             let selection = query
                 .target_population
                 .resolve(data.row_count(), None, registry)
-                .map_err(|error| EstimationError::data_msg(&error.to_string()))?;
+                .map_err(|error| EstimationError::data_msg(error.to_string()))?;
             selection.weights
         } else {
             None
         };
         let reference_arm = match &query.target_population {
-            TargetPopulation::AllObserved => None,
-            TargetPopulation::CustomDistribution(_) => None,
+            TargetPopulation::AllObserved | TargetPopulation::CustomDistribution(_) => None,
             TargetPopulation::Treated => Some(ReferenceArm::Active),
             TargetPopulation::Untreated => Some(ReferenceArm::Control),
             _ => {
