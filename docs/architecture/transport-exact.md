@@ -1,5 +1,11 @@
 # Checked single-source transport and exact execution
 
+This page describes how single-source transport is identified, checked and executed exactly:
+the typed rule for each branch of the published algorithm, the exact-law providers, the prepared
+lifecycle and the statistical tables. It is for a contributor to `antecedent-identify` and a
+reviewer tracing a transport result to its theorem. [Transport coverage](transport-coverage.md)
+gives the scope of every transport query.
+
 The scientific reference is Bareinboim and Pearl, *A General Algorithm for
 Deciding Transportability of Experimental Results*,
 [arXiv:1312.7485v1](https://arxiv.org/abs/1312.7485v1), Figure 5 and its s-hedge

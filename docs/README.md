@@ -1,6 +1,8 @@
 # Documentation sources
 
-These Markdown sources build the Antecedent documentation site with MkDocs.
+These Markdown sources build the Antecedent documentation site with MkDocs. This page is for
+anyone editing them: which text is generated, where a new page belongs, and how to preview and
+check the site.
 
 Generated pages are `support-matrix.md`, `graphless-support-matrix.md`,
 `counterparts.md`, `examples.md` and `conformance/`, and several other pages hold
@@ -26,9 +28,11 @@ python -m pip install -r requirements-docs.txt
 python scripts/generate_example_catalog.py --check
 python scripts/generate_doc_release_links.py --check
 python scripts/check_docs_experience.py
+python scripts/example_coverage.py --check
+python scripts/run_doc_examples.py
 python scripts/render_notebooks.py
 mkdocs build --strict
 mkdocs serve
 ```
 
-The build splits generated release inventories into virtual reference appendices while retaining generator-owned source markers. Notebook HTML is built into `target/doc-notebook-previews`, never committed into source notebooks. Re-run rendering after changing a notebook or package.
+The build splits generated release inventories into virtual reference appendices while retaining generator-owned source markers. Notebook HTML is built into `target/doc-notebook-previews`, never committed into source notebooks. Re-run rendering after changing a notebook or package. `development.md` ("Documentation preview and checks") explains each command and how published pages pin links to repository sources.

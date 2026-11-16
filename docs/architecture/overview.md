@@ -1,5 +1,10 @@
 # Architecture overview
 
+This page orients a new contributor or reviewer: the rules every change must keep, which crate
+owns what, and how a study moves from declaration through compilation and planning to an executed
+result. It assumes you have read [How Antecedent works](../concepts/how-antecedent-works.md), the
+practitioner introduction; [Where to look next](#where-to-look-next) lists the deeper pages.
+
 Antecedent is organized around meaning preservation, not around a collection
 of estimators. Scientific semantics flow into causal compilation, statistical
 realization, physical execution, and then a claim or artifact. A later layer
@@ -16,7 +21,8 @@ flowchart TD
     S --> C --> R --> E --> A
 ```
 
-[How Antecedent works](../concepts/how-antecedent-works.md) is the practitioner introduction. This page records the corresponding engineering rules and crate ownership; see also [compiler layers](compiler-layers.md).
+[Compiler layers](compiler-layers.md) defines the six internal layers that realize this flow and the
+types each layer owns.
 
 ## Invariants
 
@@ -46,6 +52,7 @@ antecedent-graph         DAG/ADMG/CPDAG/PAG, separation, overlays, temporal unfo
 antecedent-expr          arena-backed causal-functional IR
 antecedent-stats         regression, covariance, resampling, CI tests, faer LA backend
 antecedent-learn         prediction contract: DesignView, LearnerFactory, FittedPredictor
+antecedent-learn-burn    optional Burn neural learner behind antecedent-learn (feature ml-neural)
 antecedent-prob          posteriors, priors, graph samples, inference backends
 antecedent-discovery     PC/FCI/GES/LiNGAM/NOTEARS, PCMCI family, Bayesian DAG engines
 antecedent-identify      adjustment, IV, front-door, mediation, ID/IDC, envelopes
@@ -59,6 +66,8 @@ antecedent-design        EIG / VoI / experiment ranking (computation only; depen
 antecedent-state         incremental caches, invalidation, sufficient statistics
 antecedent-io            estimator-bound artifacts; re-exports antecedent-io-core
 antecedent               facade: Study planner + re-exports
+antecedent-py            Python extension (python/, not published to crates.io); depends only on the facade
+antecedent-test-support  test-only helpers; a dev-dependency, never a production dependency
 ```
 
 Dependency edges point downward (no cycles). Facade (`antecedent`) sits on top.
@@ -108,12 +117,22 @@ data (+ optional discovery)
   → StudyResult (+ plans, provenance, diagnostics)
 ```
 
-Compilation produces an inspectable **logical** plan (semantics) and **physical**
-plan (layouts, kernels, batching, parallelism, memory). Physical choices must not
-change logical semantics.
+### Compile, plan, execute
+
+In the Rust facade a study is declared with the `Study` builder (`Study::tabular(data).graph(..).query(..).build()`)
+and then moves through three steps, each of which takes the caller's `ExecutionContext`:
+
+| Step | Entry point | Product |
+| --- | --- | --- |
+| Compile | `Study::compile` (`Study::plan` is the same call, named for plan inspection) | A `PhysicalExecutionPlan`. Compilation first builds the **logical** plan (`LogicalAnalysisPlan`: the query, the resolved graph, the identification route) and then lowers it to the **physical** plan (layouts, kernels, batching, parallelism, memory quote). |
+| Prepare | `Study::prepare` | A `PreparedStudy`: the compiled and identified program bound to the data, retained so that later operations reuse it. `Study::prepare_deferred` compiles and identifies without fitting. In Python this is `prepare(...)`, which returns a `PreparedAnalysis`. |
+| Execute | `Study::run` (compile and run in one call) | A `StudyResult` with the answer, its uncertainty, the plans, provenance and diagnostics. In Python, `analyze(...)`. |
+
+Physical choices must not change logical semantics. Execution refuses a physical plan that carries
+no lowered program, so a plan cannot be assembled from a logical record alone.
 
 `run()` auto-accepts only when the graph is fully specified for the query;
-otherwise compilation returns `ReviewRequired`.
+otherwise compilation returns `CausalError::ReviewRequired`.
 
 ## Execution model
 
@@ -151,17 +170,28 @@ ordinary observer exceptions retain their print-and-continue contract.
 
 ## Where to look next
 
+Architecture pages:
+
 | Topic | Location |
 |-------|----------|
+| The six compiler layers and the types each owns | [compiler-layers.md](compiler-layers.md) |
+| Every crate dependency edge, and the edges that are refused | [compiler-crate-graph.md](compiler-crate-graph.md) |
+| Where threads are created and what bounds them | [thread-inventory.md](thread-inventory.md) |
+| Identity and coupling rules for claims and artifacts | [identity-contract.md](identity-contract.md) |
+| Counterfactual query scope | [counterfactual-coverage.md](counterfactual-coverage.md) |
+| Transport query scope | [transport-coverage.md](transport-coverage.md) |
+| Exact transport derivation | [transport-exact.md](transport-exact.md) |
+| Multi-source transport and the retained grid | [transport-meta-grid.md](transport-meta-grid.md) |
+| Smoothed dose-response transport derivation | [smoothed-dose-response-transport.md](smoothed-dose-response-transport.md) |
+| Composition identities | [composition-identities.md](composition-identities.md) |
+
+Related references:
+
+| Topic | Location |
+|-------|----------|
+| Gates, records and the release procedure | [development.md](../development.md) |
 | Artifact wire format | [artifacts.md](../artifacts.md) |
 | Hot-path benches / budgets | [hot_paths.md](../hot_paths.md) |
 | Capability inventories | [parity/](https://github.com/iridae-dev/antecedent/blob/v3.0.0/parity/README.md) |
 | ADRs | [adr/](https://github.com/iridae-dev/antecedent/blob/v3.0.0/adr/README.md) |
 | Conformance fixtures | [conformance/](../conformance/README.md) |
-| Identity and coupling rules for claims and artifacts | [identity-contract.md](identity-contract.md) |
-| Counterfactual query scope | [counterfactual-coverage.md](counterfactual-coverage.md) |
-| Transport query scope | [transport-coverage.md](transport-coverage.md) |
-
-The [multi-source transport and retained-grid architecture](transport-meta-grid.md)
-describes the μsID theorem scope, provider aliases, common prepared lifecycle,
-pointwise inference, and independent durable-claim verification.

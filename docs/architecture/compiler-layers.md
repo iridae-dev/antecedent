@@ -1,5 +1,11 @@
 # Compiler layers
 
+This page maps the compiler's internal types and functions to the six layers a study passes
+through, with the file and crate that owns each. Read it before adding an internal type or
+changing what `Study::compile`, `Study::prepare` or execution retain; the
+[architecture overview](overview.md) introduces the flow and the
+[compiler crate graph](compiler-crate-graph.md) says which crate a new type belongs in.
+
 The six layers are ownership boundaries inside the existing compiler. They are
 not new crates and not a second public workflow. `PreparedStudy` and Python
 `PreparedAnalysis` stay the practitioner handle. `antecedent-expr` stays the
@@ -105,7 +111,7 @@ Logical compile writes a route record. It does not build an
 | `CachedTemporalClassPosteriorIdentification`, `CachedTemporalClassPosteriorAtomIdentification` | `crates/antecedent/src/analysis/identification_cache/temporal_class.rs` | 2 | `antecedent` | |
 | `PreparedExecution`, `ExecutionKind` | `crates/antecedent/src/analysis/prepared/execution.rs` | 3 | `antecedent` | Always a named sealed operation: a route-cell or checked operation, the estimator-family operation that retains only the lowered program, or the fresh-run operation of `Study::execute` and one-shot `run`. |
 | `CheckedProgramBinding` | `crates/antecedent/src/analysis/prepared/execution.rs` | 2 | `antecedent` | One of AIPW, front-door, IV, linear, `FunctionalProgram`, functional-response members, distribution program, or nested counterfactual. |
-| `RetainedOperation`, `PreparedStudy::retained_operation` | `crates/antecedent/src/analysis/prepared/info.rs` | 3 | `antecedent` | One variant per `PreparedExecution` variant, matched exhaustively: the operation's public inspection record, the checked lowering or functional program it retains, or its name. It replaces the per-route `checked_*` and `has_checked_*_operation` accessors. |
+| `RetainedOperation`, `PreparedStudy::retained_operation` | `crates/antecedent/src/analysis/prepared/info.rs` | 3 | `antecedent` | One variant per `PreparedExecution` variant, matched exhaustively: the operation's public inspection record, the checked lowering or functional program it retains, or its name. |
 | `PlanView`, `PreparedStudy::plan_view`, `Study::plan_view`, `PhysicalExecutionPlan::plan_view` | `crates/antecedent/src/planner/plan_view.rs` | 1 to 6 | `antecedent` | See [The plan view](#the-plan-view). |
 
 `PreparedExecution` variants, all in `crates/antecedent/src/analysis/prepared/execution.rs`, crate `antecedent`, layer 3 (each retains a checked operation and calls estimators on the estimate click): `FunctionalEffect`, `PathSpecificEffect`, `AdmgResponseCurve`, `AdmgGraphPosteriorResponse`, `CheckedLinear`, `CheckedGlmAdjustment`, `CheckedRd`, `CheckedPropensity`, `CheckedConditional`, `BayesianConditional`, `GraphPosteriorEffect`, `ClassGraphPosteriorEffect`, `BayesianGraphPosteriorAte`, `StaticClassEffect`, `CheckedAipw`, `Counterfactual`, `NestedCounterfactual`, `DerivativeResponse`, `CellAipwResponse`, `StaticDagResponse`, `StaticMediation`, `BayesianStaticMediation`, `Attribution`, `TemporalDagResponse`, `TemporalDagEffect`, `BayesianTemporalDagEffect`, `TemporalMediation`, `Interference`, `Randomized`, `PolicyValue`, `ContinuousDoseResponse`, `PanelDid`, `SyntheticControl`, `LocalPolynomialRatio`, `Survival`, `LongitudinalRegime`, `TemporalClassEffect`, `Distribution`, `BayesianGcomp`, `BayesianBasisAte`, `BayesianBasisCate`, `BayesianRobustAte`, `StaticResponseCurve`, `FrontDoorLinear`, `Iv`, `UnknownTieredAverage`, `BayesianClassConditional`, `TemporalClassResponse`, `TemporalGraphPosteriorResponse`, `TemporalClassMediation`, `BayesianTemporalClassEffect`, `TemporalGraphPosteriorEffect`, `StaticClassResponse`, `GraphPosteriorResponse`, `BayesianSpecialist`, `TransportTrial`.

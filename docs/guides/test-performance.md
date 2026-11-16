@@ -1,5 +1,9 @@
 # Antecedent test performance
 
+This page is for contributors: it lists the test selections of `scripts/test.sh`, the lanes they
+belong to, and how to keep the local edit-build-test loop and CI short. You need `cargo-nextest`
+and, for the Python modes, `uv` (see [Local commands](#local-commands)).
+
 Pick the narrowest command that covers your edit. During development, use
 `bash scripts/test.sh dev` with a package and test target, or
 `bash scripts/test.sh python-test` for Python-only edits. Use
@@ -20,7 +24,7 @@ for another, and an empty selection fails.
 | (none), `all` | The development-machine run: `engineering`, then the owed `scientific` assertions, then the owed `calibration` measurements; stops at the first failure. See [Earning and checking the records](scientific-verification.md#earning-and-checking-the-records). |
 | `rust-calibration-acceptance` | Only those retained acceptance assertions; no calibration is performed. |
 | `integration` | Integration targets, without library unit tests. |
-| `scientific` | Only the owed scientific assertions (cited by the evidence registries or listed in `parity/scientific_tests.toml`), one nextest run per crate and one pytest batch, each batch recorded when it finishes (`scripts/scientific_records.py run`). `--only PATTERN` limits it to matching owed rows; `--all` (manual) reruns every one. No engineering run. |
+| `scientific` | Only the owed scientific assertions (cited by the evidence registries or listed in `parity/scientific_tests.toml`). Scientific assertions are Rust tests; each owed test target is built once and its passes are recorded as it finishes (`scripts/scientific_records.py run`). `--only PATTERN` limits it to matching owed rows; `--all` (manual) reruns every one. No engineering run. |
 | `calibration` | Only the owed coverage records (`scripts/measure_calibration.sh --owed`); `--only PATTERN` narrows by group, record id/test or route; `--all` (manual) measures every group. |
 | `scripts` | Discovered script unit tests in their locked environment; skips, empty discovery and failures fail. |
 | `python`, `python-test` | pytest without scientific, measured-record acceptance and calibration-simulation assertions (with or without sync and native rebuild). |
@@ -55,7 +59,7 @@ ordinary test is in the software lane, so none falls between lanes.
 | Lane | Command | Contents |
 | --- | --- | --- |
 | Engineering | `bash scripts/test.sh engineering` (Rust tests through `rust`, pytest through `python`, script tests through `scripts`) | Every non-ignored workspace test except the registered scientific assertions and the registered calibration tests. |
-| Scientific evidence | `bash scripts/test.sh scientific` | Only the assertions that `parity/*.toml` claims cite as known-truth or external-oracle evidence (`scientific` role), in Rust and Python. Discovery proves each cited test exists and is not ignored; only the scientific lane runs them, on a development machine. |
+| Scientific evidence | `bash scripts/test.sh scientific` | Only the assertions that `parity/*.toml` claims cite as known-truth or external-oracle evidence (`scientific` role). Discovery proves each cited test exists and is not ignored; only the scientific lane runs them, on a development machine. |
 | Calibration acceptance | `bash scripts/test.sh rust-calibration-acceptance`; `bash scripts/test.sh python-calibration-acceptance` | Tests registered under `calibration_acceptance_assertions` in `parity/test_registry.toml`, or marked `requires_calibration`. They read attesting coverage records and fail while those records are owed. |
 | Calibration measurement | `bash scripts/test.sh calibration` (`scripts/measure_calibration.sh --owed`) | `#[ignore]`d replicate-heavy coverage, precision and measurement diagnostics. No ordinary lane runs them. |
 | Slow correctness | `bash scripts/test.sh slow` | `#[ignore]`d exhaustive enumerations and heavy acceptance fits that are too slow for the ordinary lanes (for example `mag_id_bruteforce::exhaustive_four_observed_two_latent` and the ring-with-triangles sampler references in `graph_posterior_wide`). Selected by exact name from `parity/slow_correctness_tests.toml`, which gives each a reason and an expected runtime. Manual or nightly; not part of ordinary CI. |

@@ -1,5 +1,10 @@
 # Transport coverage
 
+This page states, for each transport query and graph family, the evidence it requires, whether
+identification is checked, whether it executes, and what uncertainty it reports or refuses. It is
+for a reviewer checking the scope of a transport claim and a contributor extending it; the
+practitioner summary is the [transport scope guide](../guides/transport-scope.md).
+
 This table distinguishes a checked identification result from an executable
 provider and from interval support. The support registry and
 `parity/transport_stages.toml` remain authoritative for their existing cells.

@@ -1,5 +1,10 @@
 # Identity and coupling contract
 
+This page defines the identities a scientific claim or artifact must carry, what each one means,
+what invalidates it, and how results that share data, units or draws must stay coupled. Read it
+before adding a route that produces or consumes a claim or artifact.
+[Composition identities](composition-identities.md) lists the identity types the code implements.
+
 This contract applies to new scientific claims and artifacts. A digest of one field never substitutes for another. Each supported route must name the subset it consumes and carry those values through its public producer and independent consumer. Existing wire formats keep their identities.
 
 | Identity | Required meaning | Invalidation |
