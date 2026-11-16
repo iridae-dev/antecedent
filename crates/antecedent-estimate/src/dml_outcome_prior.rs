@@ -57,8 +57,8 @@ pub struct OutcomePriorSource {
 /// A Gaussian coefficient prior on the conjugate scale `V0` whose coordinates may be named.
 ///
 /// Named coordinates map by name onto the outcome-regression columns: a column with a
-/// coordinate of its name takes that coordinate, a column without one keeps the weakly
-/// informative baseline, and a coordinate with no column (the treatment coefficient of a
+/// coordinate of its name takes that coordinate, a column without one takes the outcome
+/// regression's own baseline prior (the one an unnamed prior resolves against), and a coordinate with no column (the treatment coefficient of a
 /// Bayesian g-computation design, which the per-arm regression does not carry) is dropped. An
 /// unnamed prior is positional over a design of the same width.
 #[derive(Clone, Debug, PartialEq)]
@@ -349,9 +349,16 @@ impl NamedOutcomePrior {
             }
             return Ok(self.prior.clone());
         };
-        let selection =
-            antecedent_prob::select_coordinates_by_name(&self.prior, names, design_names)
-                .map_err(|error| unmapped(error.to_string()))?;
+        // Columns the prior has no coordinate for take the outcome regression's own baseline,
+        // the one an unnamed prior resolves against.
+        let baseline = PriorSet::weakly_informative(design_names.len());
+        let selection = antecedent_prob::select_coordinates_by_name(
+            &self.prior,
+            names,
+            design_names,
+            &baseline,
+        )
+        .map_err(|error| unmapped(error.to_string()))?;
         if selection.mapped.is_empty() {
             let source_list = names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
             return Err(unmapped(format!(

@@ -1522,6 +1522,8 @@ fn select_linear_power_prior_alpha_py<'py>(
         .ok_or_else(|| crate::value_err("composed prior has no Gaussian coefficients"))?;
     d.set_item("composed_mean", coefficients.mean.to_vec())?;
     d.set_item("composed_variance", coefficients.variance.to_vec())?;
+    // The Rust `select_linear_prior` result, in the shape of a composition: Python wraps it.
+    d.set_item("composed", composed_to_dict(py, &composed)?)?;
     Ok(d)
 }
 

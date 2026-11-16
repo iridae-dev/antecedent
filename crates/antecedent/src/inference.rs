@@ -567,6 +567,16 @@ fn resolve_unscaled_prior(
                 message: "conflict re-shrink requires the original composition baseline; recompose the prior",
             });
         }
+        let target = coef_names_for_problem(prep);
+        // A named prior whose coordinates are not the design columns in order is re-indexed by
+        // name; the columns it has no coordinate for take the analysis's declared baseline, the
+        // isotropic `prior_scale` prior an unnamed fit resolves against.
+        let reindex = ext
+            .composed
+            .coefficient_names
+            .as_ref()
+            .filter(|names| ***names != *target)
+            .map(Arc::clone);
         if let (Some(policy), Some(ctx)) = (&ext.conflict_policy, ctx) {
             let baseline = ext.baseline.as_ref().ok_or(CausalError::Unsupported {
                 message: "conflict re-shrink requires the original composition baseline; recompose the prior",
@@ -576,24 +586,22 @@ fn resolve_unscaled_prior(
                 seed: ctx.rng.master_seed(),
                 ..PriorPredictiveCheck::new()
             };
-            let (composed, summary) =
+            let (composed, summary) = if let Some(names) = &reindex {
+                // The shrink is per source and every source is evaluated over the whole design,
+                // so each source and the baseline are first mapped onto the design by name.
+                let fill = declared_design_baseline(cfg, target.len());
+                let (sources, baseline) = project_external_sources(ext, names, &target, &fill)?;
+                compose_with_conflict_policy(&sources, &baseline, policy, prep, ctx, &ppc)
+                    .map_err(CausalError::from)?
+            } else {
                 compose_with_conflict_policy(&ext.sources, baseline, policy, prep, ctx, &ppc)
-                    .map_err(CausalError::from)?;
+                    .map_err(CausalError::from)?
+            };
             return Ok((Some(composed.prior), Some(summary)));
         }
-        if let Some(names) = &ext.composed.coefficient_names {
-            let target = coef_names_for_problem(prep);
-            if **names != *target {
-                if ext.conflict_policy.is_some() {
-                    return Err(CausalError::Unsupported {
-                        message: "conflict re-shrink composes the sources positionally over the \
-                                  design, but this composed prior is named and its coordinates \
-                                  differ from the design columns; compose without a conflict \
-                                  policy, or compose over the design's own columns",
-                    });
-                }
-                return Ok((Some(map_named_composed(&ext.composed, names, &target)?), None));
-            }
+        if let Some(names) = &reindex {
+            let fill = declared_design_baseline(cfg, target.len());
+            return Ok((Some(map_named_composed(&ext.composed, names, &target, &fill)?), None));
         }
         return Ok((Some(ext.composed.prior.clone()), None));
     }
@@ -634,8 +642,9 @@ fn resolve_unscaled_prior(
 /// Map a named composed prior onto the design columns of a problem by coordinate name.
 ///
 /// Source coordinates the design lacks are dropped (a marginal of a Gaussian prior), design
-/// columns the source lacks keep the weakly informative baseline, and the mapping is recorded
-/// as a prior restriction. Only a composed prior none of whose coordinates names a design
+/// columns the source lacks take the matching coordinate of `baseline` (the analysis's declared
+/// baseline prior over the design columns), and the mapping, with which coordinates came from the
+/// source and which from the baseline, is recorded as a prior restriction. Only a composed prior none of whose coordinates names a design
 /// column is refused.
 ///
 /// # Errors
@@ -646,9 +655,11 @@ pub fn map_named_composed(
     composed: &ComposedPrior,
     names: &[Arc<str>],
     target: &[Arc<str>],
+    baseline: &PriorSet,
 ) -> Result<PriorSet, CausalError> {
-    let selection = antecedent_prob::select_coordinates_by_name(&composed.prior, names, target)
-        .map_err(CausalError::from)?;
+    let selection =
+        antecedent_prob::select_coordinates_by_name(&composed.prior, names, target, baseline)
+            .map_err(CausalError::from)?;
     if selection.mapped.is_empty() {
         let list =
             |items: &[Arc<str>]| items.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
@@ -663,6 +674,67 @@ pub fn map_named_composed(
         });
     }
     Ok(selection.prior)
+}
+
+/// The declared baseline prior over `ncols` design columns: the isotropic `prior_scale` prior the
+/// fit resolves against when no prior is supplied.
+#[must_use]
+pub fn declared_design_baseline(cfg: &BayesianConfig, ncols: usize) -> PriorSet {
+    let mut baseline = PriorSet::new();
+    baseline.push(antecedent_prob::PriorSpec::GaussianCoefficients(
+        antecedent_prob::GaussianCoefficientPrior::isotropic(ncols, cfg.prior_scale),
+    ));
+    baseline
+}
+
+/// Map every source of an external composition, and its composition baseline, onto the design
+/// columns `target` by coordinate name, so the conflict re-shrink (a per-source, per-coordinate
+/// computation over the whole design) applies to the mapped coordinates.
+///
+/// Source coordinates the design lacks are dropped. A source with no coordinate for some design
+/// column cannot be evaluated over the whole design by the prior-predictive check, and is
+/// refused with the columns it lacks; the baseline takes `fill` on columns it lacks.
+///
+/// # Errors
+///
+/// A source missing a design column, or a mapping failure.
+pub fn project_external_sources(
+    ext: &ExternalComposeSpec,
+    names: &[Arc<str>],
+    target: &[Arc<str>],
+    fill: &PriorSet,
+) -> Result<(Vec<ExternalPriorSource>, PriorSet), CausalError> {
+    let missing: Vec<&str> = target
+        .iter()
+        .filter(|column| !names.iter().any(|name| name == *column))
+        .map(AsRef::as_ref)
+        .collect();
+    if !missing.is_empty() {
+        return Err(CausalError::Compile {
+            message: format!(
+                "conflict re-shrink evaluates each source over the whole design, but the named \
+                 sources have no coordinate for the design columns [{}]; name those coordinates \
+                 on every source, or compose without a conflict policy",
+                missing.join(", ")
+            ),
+        });
+    }
+    let sources = ext
+        .sources
+        .iter()
+        .map(|source| {
+            antecedent_prob::select_coordinates_by_name(&source.prior, names, target, fill)
+                .map(|selection| ExternalPriorSource { prior: selection.prior, ..source.clone() })
+                .map_err(CausalError::from)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let original = ext.baseline.as_ref().ok_or(CausalError::Unsupported {
+        message: "conflict re-shrink requires the original composition baseline; recompose the prior",
+    })?;
+    let baseline = antecedent_prob::select_coordinates_by_name(original, names, target, fill)
+        .map_err(CausalError::from)?
+        .prior;
+    Ok((sources, baseline))
 }
 
 /// Whether the external composition's sources apply positionally over `prep`'s design: an

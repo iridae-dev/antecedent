@@ -268,8 +268,8 @@ pub struct NamedCoordinateSelection {
     pub prior: PriorSet,
     /// Target columns that took a coordinate of the source prior.
     pub mapped: Vec<Arc<str>>,
-    /// Target columns the source has no coordinate for; they keep the weakly informative
-    /// baseline (mean 0, scale 10).
+    /// Target columns the source has no coordinate for; they take the declared baseline prior
+    /// of the analysis for that column.
     pub defaulted: Vec<Arc<str>>,
     /// Source coordinates the target has no column for; they are dropped from the prior.
     pub dropped: Vec<Arc<str>>,
@@ -279,8 +279,10 @@ pub struct NamedCoordinateSelection {
 /// columns `target` by name.
 ///
 /// A target column with a source coordinate of the same name takes that coordinate's mean,
-/// variance and correlation with the other taken coordinates; a column without one keeps the
-/// weakly informative baseline, independent of the rest. Source coordinates with no target
+/// variance and correlation with the other taken coordinates; a column without one takes the
+/// analysis's own declared `baseline` prior for that column (never an invented default),
+/// independent of the rest. The baseline must be a Gaussian prior with one coordinate per target
+/// column. Source coordinates with no target
 /// column are dropped (marginalizing a Gaussian prior is exact). When the names equal the target
 /// columns in order the prior is returned unchanged, so a positional use is bit-identical.
 /// Whether enough coordinates mapped is the caller's decision (`mapped` is empty when none
@@ -294,6 +296,7 @@ pub fn select_coordinates_by_name(
     prior: &PriorSet,
     names: &[Arc<str>],
     target: &[Arc<str>],
+    baseline: &PriorSet,
 ) -> Result<NamedCoordinateSelection, ProbError> {
     let coef = prior.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
         message: "the prior has no Gaussian coefficient block to map by name",
@@ -328,7 +331,14 @@ pub fn select_coordinates_by_name(
     if names == target {
         return Ok(NamedCoordinateSelection { prior: prior.clone(), mapped, defaulted, dropped });
     }
-    let baseline = GaussianCoefficientPrior::isotropic(1, 10.0);
+    let fill = baseline.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
+        message: "the target's declared baseline prior has no Gaussian coefficient block",
+    })?;
+    if fill.len() != target.len() {
+        return Err(ProbError::Shape {
+            message: "the target's declared baseline prior must have one coordinate per target column",
+        });
+    }
     let n = target.len();
     let (source_mean, source_v0) = dense_scale(prior)?;
     let m = coef.len();
@@ -345,8 +355,8 @@ pub fn select_coordinates_by_name(
                 }
             }
             None => {
-                mean[i] = baseline.mean[0];
-                v0[i * n + i] = baseline.variance[0];
+                mean[i] = fill.mean[i];
+                v0[i * n + i] = fill.variance[i];
             }
         }
     }
@@ -380,8 +390,8 @@ pub fn select_coordinates_by_name(
         id: Arc::from("external_prior_name_mapping"),
         description: Arc::from(format!(
             "the composed prior's named coordinates were mapped onto the target columns by name: \
-             mapped [{}]; target columns without a coordinate kept the weakly informative \
-             baseline [{}]; source coordinates with no target column were dropped [{}]",
+             from the source [{}]; from the analysis's declared baseline prior (the source has no \
+             coordinate for them) [{}]; source coordinates with no target column were dropped [{}]",
             listing(&mapped),
             listing(&defaulted),
             listing(&dropped)
@@ -1360,15 +1370,21 @@ mod tests {
             mean: Arc::from(vec![2.0, 9.0, 1.0]),
             variance: Arc::from(vec![0.5, 4.0, 0.25]),
         }));
-        let selection = select_coordinates_by_name(&prior, &names, &target).unwrap();
+        let mut declared = PriorSet::new();
+        declared.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+            mean: Arc::from(vec![0.0, 0.0, 3.0]),
+            variance: Arc::from(vec![9.0, 9.0, 16.0]),
+        }));
+        let selection = select_coordinates_by_name(&prior, &names, &target, &declared).unwrap();
         let coef = selection.prior.gaussian_coefficients().unwrap();
-        assert_eq!(coef.mean.as_ref(), &[1.0, 2.0, 0.0]);
-        assert_eq!(coef.variance.as_ref(), &[0.25, 0.5, 100.0]);
+        // The unmatched column takes the declared baseline's own coordinate.
+        assert_eq!(coef.mean.as_ref(), &[1.0, 2.0, 3.0]);
+        assert_eq!(coef.variance.as_ref(), &[0.25, 0.5, 16.0]);
         assert_eq!(selection.mapped.len(), 2);
         assert_eq!(&*selection.defaulted[0], "c");
         assert_eq!(&*selection.dropped[0], "extra");
         // Names equal to the target in order return the prior unchanged.
-        let same = select_coordinates_by_name(&prior, &names, &names).unwrap();
+        let same = select_coordinates_by_name(&prior, &names, &names, &declared).unwrap();
         assert_eq!(same.prior, prior);
     }
 

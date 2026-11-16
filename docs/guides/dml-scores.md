@@ -141,7 +141,7 @@ nuisances), and a trimmed, ATT/ATC, quantile or exceedance fit, a penalized prop
 retarget refuses `score_table_unavailable`. `DRLearner` and `CausalForest` take no prior. A
 `ComposedPrior` is accepted when its coordinates are named
 (`ExternalPriorSourceSpec(coefficient_names=...)`): a column of the outcome regression takes the
-coordinate of its name, a column with no coordinate keeps the weakly informative baseline, and a
+coordinate of its name, a column with no coordinate takes the outcome regression's own baseline prior, and a
 coordinate with no column (the treatment coefficient) is dropped, all recorded as prior
 assumptions. A kernel- or row-weighted target composition and a prior at a data-selected
 power-prior discount map the same way. A `PriorMapping.named_parameters` renames coordinates; an

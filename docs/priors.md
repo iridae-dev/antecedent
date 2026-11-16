@@ -431,9 +431,13 @@ The names survive the power-prior composition, a kernel- or row-weighted target 
 selected discount, and map by name (`antecedent_prob::select_coordinates_by_name`) onto the
 coefficient columns of the target: the design columns of `Bayesian(prior_from=...)`
 (`intercept`, `coef_<treatment>`, `coef_<covariate>`) and the outcome-regression columns of
-`DML(prior_from=...)` / `Aipw(prior_from=...)`. A column with no coordinate keeps the weakly
-informative baseline, a coordinate with no column is dropped, and the mapping is a prior
-restriction in the identity. Only a prior none of whose names is a column is refused
+`DML(prior_from=...)` / `Aipw(prior_from=...)`. A column with no coordinate takes the analysis's own declared baseline prior for that column
+(the `prior_scale` prior of a Bayesian fit, the weakly informative prior of the outcome
+regression), a coordinate with no column is dropped, and the mapping, with which coordinates came
+from the source and which from the baseline, is a prior restriction in the identity. A conflict
+policy applies per mapped coordinate: each source and the baseline are mapped onto the design by
+name first; a source with no coordinate for a design column cannot be evaluated over the design and
+is refused with the missing columns. Only a prior none of whose names is a column is refused
 (`quantity_semantics_mismatch`). `ComposedPrior.with_coefficient_mapping(PriorMapping...)`
 renames coordinates; an unnamed prior stays positional.
 

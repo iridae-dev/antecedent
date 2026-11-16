@@ -236,7 +236,13 @@ fn a_named_prior_equal_to_the_design_is_used_unchanged() {
     )
     .unwrap();
     let design = names(&["intercept", "coef_t", "coef_z"]);
-    let mapped = antecedent::inference::map_named_composed(&composed, &design, &design).unwrap();
+    let mapped = antecedent::inference::map_named_composed(
+        &composed,
+        &design,
+        &design,
+        &gaussian(vec![0.0; 3], vec![100.0; 3]),
+    )
+    .unwrap();
     assert_eq!(mapped, composed.prior);
 }
 
@@ -249,8 +255,13 @@ fn the_name_mapping_is_recorded_as_a_prior_restriction() {
     .unwrap();
     let source_names = names(&["intercept", "coef_t", "coef_z", "extra"]);
     let design = names(&["intercept", "coef_t", "coef_z", "coef_w"]);
-    let mapped =
-        antecedent::inference::map_named_composed(&composed, &source_names, &design).unwrap();
+    let mapped = antecedent::inference::map_named_composed(
+        &composed,
+        &source_names,
+        &design,
+        &gaussian(vec![0.0; 4], vec![9.0; 4]),
+    )
+    .unwrap();
     let restriction = mapped
         .restrictions
         .iter()
@@ -258,4 +269,82 @@ fn the_name_mapping_is_recorded_as_a_prior_restriction() {
         .expect("the mapping is a restriction");
     assert!(restriction.description.contains("[coef_w]"), "{}", restriction.description);
     assert!(restriction.description.contains("[extra]"), "{}", restriction.description);
+}
+
+mod conflict {
+    use antecedent::inference::{
+        ExternalComposeSpec, declared_design_baseline, project_external_sources,
+    };
+    use antecedent::validate::{ConflictPolicy, ConflictSignals, apply_conflict_and_compose};
+
+    use super::*;
+
+    fn named_spec(conflict: Option<ConflictPolicy>) -> ExternalComposeSpec {
+        let sources = Arc::<[ExternalPriorSource]>::from(vec![
+            source("a", vec![0.9, 7.0, 0.8, 1.7], vec![0.3, 3.0, 0.5, 0.4], 1.0),
+            source("b", vec![1.1, 7.0, 1.2, 2.3], vec![0.4, 3.0, 0.6, 0.5], 0.5),
+        ]);
+        let baseline = gaussian(vec![0.0; 4], vec![100.0; 4]);
+        let composed = compose_external_priors(&sources, &baseline)
+            .unwrap()
+            .with_coefficient_names(names(&["coef_z", "extra", "intercept", "coef_t"]))
+            .unwrap();
+        ExternalComposeSpec {
+            sources,
+            composed,
+            conflict_policy: conflict,
+            baseline: Some(baseline),
+        }
+    }
+
+    /// The conflict re-shrink is per source and per coordinate, so mapping each source onto the
+    /// design by name first gives exactly the result of the positional sources in design order.
+    #[test]
+    fn the_conflict_shrink_of_a_reindexed_prior_equals_the_positional_result() {
+        let policy = ConflictPolicy::try_new(0.05, 1.0).unwrap();
+        let spec = named_spec(Some(policy));
+        let design = names(&["intercept", "coef_t", "coef_z"]);
+        let fill = declared_design_baseline(&BayesianConfig::conjugate(), 3);
+        let (projected, baseline) = project_external_sources(
+            &spec,
+            spec.composed.coefficient_names.as_ref().unwrap(),
+            &design,
+            &fill,
+        )
+        .unwrap();
+        // Hand-reordered positional sources: (intercept, coef_t, coef_z) from (z, extra, i, t).
+        let manual = vec![
+            source("a", vec![0.8, 1.7, 0.9], vec![0.5, 0.4, 0.3], 1.0),
+            source("b", vec![1.2, 2.3, 1.1], vec![0.6, 0.5, 0.4], 0.5),
+        ];
+        for (p, m) in projected.iter().zip(&manual) {
+            assert_eq!(p.prior.gaussian_coefficients(), m.prior.gaussian_coefficients());
+        }
+        let signals = [
+            ConflictSignals { p_value: Some(0.001), kl: Some(2.0) },
+            ConflictSignals { p_value: Some(0.5), kl: Some(0.0) },
+        ];
+        let manual_baseline = gaussian(vec![0.0; 3], vec![100.0; 3]);
+        let (a, sa) = apply_conflict_and_compose(&projected, &baseline, &policy, &signals).unwrap();
+        let (b, sb) =
+            apply_conflict_and_compose(&manual, &manual_baseline, &policy, &signals).unwrap();
+        assert_eq!(sa.alphas_applied, sb.alphas_applied);
+        assert!(sa.alphas_applied[0] < sa.alphas_requested[0], "the conflicting source shrinks");
+        assert_eq!(a.prior.gaussian_coefficients(), b.prior.gaussian_coefficients());
+    }
+
+    #[test]
+    fn a_source_lacking_a_design_column_cannot_be_shrunk_over_the_design_and_says_so() {
+        let spec = named_spec(None);
+        let design = names(&["intercept", "coef_t", "coef_z", "coef_w"]);
+        let fill = declared_design_baseline(&BayesianConfig::conjugate(), 4);
+        let refused = project_external_sources(
+            &spec,
+            spec.composed.coefficient_names.as_ref().unwrap(),
+            &design,
+            &fill,
+        )
+        .unwrap_err();
+        assert!(refused.to_string().contains("[coef_w]"), "{refused}");
+    }
 }

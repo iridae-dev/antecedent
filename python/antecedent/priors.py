@@ -430,7 +430,7 @@ class ComposedPrior:
         if self.conflict_kl_values:
             d["conflict_kl_values"] = list(self.conflict_kl_values)
         ids = list(self.assumption_ids)
-        if self.alpha_selection is not None:
+        if self.alpha_selection is not None and self.alpha_selection.provenance_id() not in ids:
             ids.append(self.alpha_selection.provenance_id())
         if ids:
             d["assumption_ids"] = ids
@@ -1886,13 +1886,31 @@ def select_alpha_prior_linear(
     intervals, the sensitivity table), and the criterion, selected alpha, level and which
     selection-valid interval the report states enter the prior's identity.
     """
-    selection = select_alpha_linear(
-        sources, baseline_mean, baseline_variance, x, y, functional, **options
+    srcs = list(sources)
+    raw = _select_alpha_linear(
+        [{**src.to_dict(), "alpha": 1.0} for src in srcs],
+        [float(m) for m in baseline_mean],
+        [float(v) for v in baseline_variance],
+        [[float(v) for v in row] for row in x],
+        [float(v) for v in y],
+        [float(c) for c in functional],
+        **{
+            key: ([float(g) for g in value] if key == "grid" and value is not None else value)
+            for key, value in options.items()
+        },
     )
+    selection = _selected_from_native(raw)
+    # The prior is the native `select_linear_prior` result, not a recomposition: Python only
+    # wraps it, with the sources at the selected discount.
     weight = ExternalPriorWeight(alpha=selection.selected_alpha)
-    composed = compose_external_priors(
-        [replace(s, weight=weight) for s in sources],
-        baseline=(list(baseline_mean), list(baseline_variance)),
+    composed = _composed_prior_from_native(
+        raw["composed"],
+        [replace(src, weight=weight) for src in srcs],
+        baseline_mean=[float(m) for m in baseline_mean],
+        baseline_variance=[float(v) for v in baseline_variance],
+        conflict=None,
+        transport=None,
+        coefficient_names=_shared_coefficient_names(srcs),
     )
     return replace(composed, alpha_selection=selection)
 
