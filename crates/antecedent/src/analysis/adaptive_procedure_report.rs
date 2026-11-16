@@ -13,7 +13,7 @@
 //!   the order-dependent weighted estimator.
 //! * [`AdaptiveProcedure::report`]: one paradigm's statement. Each paradigm
 //!   has a validity premise the declared procedure must meet; when it does
-//!   not the request is refused with `not_supported` and the premise's
+//!   not the request is refused with `adaptive_assumption_violated` and the premise's
 //!   `adaptive_inference.*` detail, and nothing is computed.
 //!
 //! Every result is labelled `derived_not_measured`: the numbers are exact (or
@@ -410,7 +410,7 @@ impl AdaptiveProcedure {
     /// One paradigm's derived statement.
     ///
     /// # Errors
-    /// `not_supported` with the premise's detail when the declared
+    /// `adaptive_assumption_violated` with the premise's detail when the declared
     /// procedure does not meet the paradigm's premise; otherwise the shape,
     /// limit, positivity or cancellation refusal of the derivation.
     #[allow(
@@ -839,7 +839,7 @@ impl RepeatedMeasuresProcedure {
     /// One statement about the procedure.
     ///
     /// # Errors
-    /// `not_supported` with the premise's detail (a fixed-sample analysis
+    /// `adaptive_assumption_violated` with the premise's detail (a fixed-sample analysis
     /// after adaptive assignment, an independence assumption for dependent
     /// measurements, an undeclared paradigm, a cell transfer), or the
     /// derivation's shape, limit, positivity or cancellation refusal.

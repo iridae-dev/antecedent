@@ -93,8 +93,8 @@ class CausalTypeError(CausalValidateError, TypeError):
     additive, not a replacement for the builtin type). Raised by the
     coercion helpers in ``_coerce.py`` and the equivalent checks in
     ``estimation.py`` / ``discovery.py`` / ``accepted_graph.py`` where a
-    caller-supplied argument (``graph=``, ``query=``, ``refute=``,
-    ``latency=``, a discovery config, ...) is the wrong Python type.
+    caller-supplied argument (``graph=``, ``query=``, ``refute=``, a
+    discovery config, ...) is the wrong Python type.
 
     ``reason_code`` is an optional registered runtime-refusal code, checked
     like :class:`CausalUnsupportedError`'s.

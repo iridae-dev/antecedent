@@ -31,6 +31,11 @@ class FactorialDesign:
     probability_b: float | Sequence[float]
 
     def probability_vectors(self, n: int) -> tuple[np.ndarray, np.ndarray]:
+        """The assignment probabilities of factors A and B for ``n`` rows, one value per row.
+
+        A scalar probability is repeated. Raises :class:`~antecedent.errors.CausalValueError`
+        for a vector of the wrong length or a probability not strictly between zero and one.
+        """
         return (
             _probability_vector(self.probability_a, n, "probability_a"),
             _probability_vector(self.probability_b, n, "probability_b"),

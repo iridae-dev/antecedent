@@ -19,7 +19,7 @@ What this is, and is not:
   declared Bayes models states whether its numbers were written down or fitted to a sample
   (``basis="sample_fitted"`` -> ``"point_only_sample_fitted"``). No interval and no calibration is
   made: :meth:`ObservationClaim.interval` and :meth:`ObservationClaim.calibrated_probability`
-  raise ``not_supported``.
+  raise ``uncertainty_representation_insufficient``.
 * **Operation is part of the identity.** Conditioning, intervention and the paired comparison of
   the same variables and levels on the same model have three different identities.
 * **A recorded value is not the construct it measures.** :class:`Recorded` values go in

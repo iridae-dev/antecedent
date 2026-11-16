@@ -1,9 +1,16 @@
-"""Discover-then-fit GCM composition helpers.
+"""Graphical causal models fitted on a discovered structure, and attribution on them.
 
-Attribution never discovers structure internally (ADR 0012/0015). These helpers
-compose a compiled ``discover_*`` route → its review gate → ``fit_gcm_accepted`` /
-``attribute_*``: the structure is accepted from the discovery's own route, so every
-attribution on the fitted model states the discovery's provenance in its ``contract``.
+Attribution never discovers structure on its own. The ``*_discovered`` helpers run one
+tabular discovery (:class:`~antecedent.discovery.PC`, :class:`~antecedent.discovery.GES`,
+:class:`~antecedent.discovery.LiNGAM` or :class:`~antecedent.discovery.NOTEARS`), accept its
+structure as a DAG through the review gate, fit the graphical causal model on it, and run one
+attribution. The structure is accepted from the discovery's own route, so every attribution on
+the fitted model states the discovery's provenance in its ``contract``. A PAG from
+:class:`~antecedent.discovery.FCI` or :class:`~antecedent.discovery.RFCI`, or a CPDAG with
+unoriented edges, is not a DAG and raises ``ValueError``; orientations are never invented.
+
+The module also re-exports graph falsification (:func:`evaluate_graph`) and intrinsic
+influence (:func:`intrinsic_influence`, :func:`fitted_intrinsic_influence`).
 """
 
 from __future__ import annotations
@@ -78,12 +85,11 @@ def attribute_paths_discovered(
     max_len: int = 16,
     execution: Execution | None = None,
 ):
-    """``fit_gcm_discovered`` then ``FittedGcm.attribute_paths``. Returns ``(result, graph_edges)``.
+    """:func:`fit_gcm_discovered`, then the fitted model's ``attribute_paths``.
 
-    Calls the fitted model's own ``attribute_paths`` instead of the
-    module-level ``attribute_paths(names, columns, edges, ...)`` native
-    function, which would otherwise silently re-fit the GCM from scratch —
-    ``fit_gcm_discovered`` already paid for one fit; this reuses it.
+    Attributes the effect of ``sources`` on ``outcome`` to the causal paths between them,
+    enumerating at most ``max_paths`` paths of at most ``max_len`` edges. The model is fitted
+    once and reused. Returns ``(result, graph_edges)``.
     """
     fitted, edges = fit_gcm_discovered(data, discovery=discovery, execution=execution)
     result = fitted.attribute_paths(
@@ -104,10 +110,11 @@ def anomaly_attribution_discovered(
     max_units: int = 0,
     execution: Execution | None = None,
 ):
-    """``fit_gcm_discovered`` then ``FittedGcm.anomaly_attribution``. Returns ``(result, graph_edges)``.
+    """:func:`fit_gcm_discovered`, then the fitted model's ``anomaly_attribution``.
 
-    See :func:`attribute_paths_discovered` for why this calls the fitted
-    model's own method rather than the module-level free function.
+    Attributes the values of ``outcomes`` in each unit to upstream causes; ``max_units``
+    bounds the units attributed (``0``, the default, attributes every row). Returns
+    ``(result, graph_edges)``.
     """
     fitted, edges = fit_gcm_discovered(data, discovery=discovery, execution=execution)
     result = fitted.anomaly_attribution(list(outcomes), max_units=max_units)
@@ -126,10 +133,12 @@ def attribute_distribution_change_discovered(
     n_samples: int = 500,
     execution: Execution | None = None,
 ):
-    """Compose discover → DAG → ``FittedGcm.attribute_distribution_change``.
+    """:func:`fit_gcm_discovered`, then the fitted model's ``attribute_distribution_change``.
 
-    See :func:`attribute_paths_discovered` for why this calls the fitted
-    model's own method rather than the module-level free function.
+    Attributes the change in the distribution of ``outcome`` between the baseline rows
+    ``[baseline_start, baseline_end)`` and the comparison rows
+    ``[comparison_start, comparison_end)`` to the causal mechanisms, by Monte Carlo Shapley
+    allocation with ``n_samples`` samples. Returns ``(result, graph_edges)``.
     """
     fitted, edges = fit_gcm_discovered(data, discovery=discovery, execution=execution)
     result = fitted.attribute_distribution_change(

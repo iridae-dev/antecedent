@@ -1,6 +1,18 @@
-"""Point estimation utilities for explicitly scoped quasi-experimental designs.
+"""Quasi-experimental designs: difference in differences, synthetic control, discontinuities.
 
-These utilities do not add a support-matrix support or interval guarantee.
+Each query names a design whose identifying assumption replaces randomization:
+:class:`DifferenceInDifferences`, :class:`PanelDifferenceInDifferences`,
+:class:`StaggeredAdoption`, :class:`StaggeredRollout`, :class:`CovariateAdjustedDiD` and
+:class:`AugmentedPanelDiD` (parallel untreated trends); :class:`SyntheticControl` and
+:class:`SyntheticDifferenceInDifferences` (weighted donors reproduce the untreated path);
+:class:`SharpRegressionDiscontinuity`, :class:`FuzzyRegressionDiscontinuity` and
+:class:`RegressionKink` (continuity at a cutoff); :class:`PeriodHistoryMatch`; and
+:class:`IvBounds` (partial identification). Pass a query to :func:`antecedent.analyze`.
+
+Every result states its ``assumptions``, what its ``uncertainty`` covers and its
+``support_status``. The direct utilities :func:`estimate_did`,
+:func:`estimate_group_time_att` and :func:`estimate_categorical_did` add no support or interval
+guarantee.
 """
 
 from __future__ import annotations
@@ -241,6 +253,20 @@ class StaggeredAdoption:
 
 @dataclass(frozen=True, slots=True)
 class GroupTimeATT:
+    """One group-time average treatment effect on the treated, ``ATT(g, t)``.
+
+    The effect at ``period`` on subjects first treated in ``cohort``, against the never-treated
+    controls.
+
+    Fields:
+
+    * ``cohort`` / ``period`` / ``event_time`` -- the adoption cohort, the calendar period, and
+      ``period - cohort``.
+    * ``estimate`` and ``standard_error`` -- the ATT and its pointwise cluster-robust standard
+      error.
+    * ``treated_subjects``, ``control_subjects`` and ``clusters`` -- the support behind the cell.
+    """
+
     cohort: int
     period: int
     event_time: int
@@ -253,6 +279,19 @@ class GroupTimeATT:
 
 @dataclass(frozen=True, slots=True)
 class StaggeredAdoptionEstimate:
+    """Group-time effects of a balanced staggered-adoption panel.
+
+    Returned by :func:`estimate_group_time_att`. Point estimates with pointwise standard errors;
+    no p-values or confidence intervals, and pre-trends are not tested.
+
+    * ``effects`` -- one :class:`GroupTimeATT` per cohort and period.
+    * ``control_group`` -- the comparison group (never-treated, cohort ``0``).
+
+    ``uncertainty``, ``design``, ``assumptions``, ``support_status`` and ``diagnostics`` are fixed
+    labels: what the reported uncertainty covers, the design, the identifying premises, the
+    support standing and what was and was not checked.
+    """
+
     effects: tuple[GroupTimeATT, ...]
     control_group: str = "never_treated_cohort_0"
     uncertainty: str = "cluster_robust_se_only_pointwise_cr1_unsupported"
@@ -278,6 +317,12 @@ class StaggeredAdoptionEstimate:
 
 @dataclass(frozen=True, slots=True)
 class StaggeredEventTimeEffect:
+    """One cohort and event time of a staggered-adoption event study.
+
+    Fields as :class:`GroupTimeATT`, plus ``interval_95``: the supported pointwise interval of a
+    post-adoption cell, or ``None``.
+    """
+
     cohort: int
     period: int
     event_time: int
@@ -618,6 +663,26 @@ class ObservedWindowSupport:
 
 @dataclass(frozen=True, slots=True)
 class SyntheticControlEstimate:
+    """The effect on one treated unit from a synthetic control built from donor units.
+
+    The result of a :class:`SyntheticControl` query. Read ``estimate`` (the average post-period
+    gap between the treated unit and its synthetic control), then ``pre_treatment_rmse`` (how
+    well the donors reproduce the treated unit before the intervention) and ``donor_weights``.
+
+    * ``placebo_effects`` and ``placebo_rank_p_value`` -- in-space placebos; the rank assumes
+      exchangeable donors and is not calibrated.
+    * ``effective_donors``, ``n_donors``, ``n_pre_periods`` and ``n_post_periods`` -- the
+      support of the fit.
+    * ``randomization_*`` -- the assignment test, when one was requested.
+    * ``unadjusted_effect``, ``outcome_model_correction`` and ``augmentation_ridge`` -- the parts
+      of an augmented (outcome-model corrected) synthetic control, when used.
+    * ``observed_window`` -- the :class:`ObservedWindowSupport` of an unbalanced panel.
+
+    ``uncertainty``, ``design``, ``assumptions``, ``support_status`` and ``diagnostics`` are fixed
+    labels: what the reported uncertainty covers, the design, the identifying premises, the
+    support standing and what was and was not checked.
+    """
+
     estimate: float
     pre_treatment_rmse: float
     donor_weights: tuple[tuple[str, float], ...]
@@ -695,6 +760,18 @@ class SyntheticDifferenceInDifferences:
 
 @dataclass(frozen=True, slots=True)
 class SyntheticDifferenceInDifferencesEstimate:
+    """The effect on a treated unit by synthetic difference in differences (unit and time weights).
+
+    The result of a :class:`SyntheticDifferenceInDifferences` query. Read ``estimate``, then
+    ``pre_treatment_rmse``, ``donor_weights`` and ``time_weights`` (both simplex-constrained).
+    ``randomization_*`` holds the exact uniform-unit assignment test when it was requested. A point
+    estimate: no interval or calibrated inference.
+
+    ``uncertainty``, ``design``, ``assumptions``, ``support_status`` and ``diagnostics`` are fixed
+    labels: what the reported uncertainty covers, the design, the identifying premises, the
+    support standing and what was and was not checked.
+    """
+
     estimate: float
     pre_treatment_rmse: float
     donor_weights: tuple[tuple[str, float], ...]
@@ -765,6 +842,24 @@ class AugmentedPanelDiD:
 
 @dataclass(frozen=True, slots=True)
 class AugmentedPanelDiDEstimate:
+    """A panel ATT from caller-supplied propensity and untreated-change predictions (doubly robust).
+
+    The result of an :class:`AugmentedPanelDiD` query. Consistent when either the propensity
+    model or the untreated-change model is correct.
+
+    * ``estimate`` -- the ATT.
+    * ``treated_subjects`` / ``control_subjects`` / ``clusters`` -- the support.
+    * ``propensity_min`` / ``propensity_max`` and ``effective_control_sample_size`` -- overlap
+      diagnostics.
+    * ``nuisance_predictions_cross_fitted`` -- the caller's declaration; it is not verified.
+    * ``interval_95`` and ``standard_error`` -- present only when whole-cluster ``resampling`` was
+      declared (calibration ``not_measured``, nuisance predictions held fixed).
+
+    ``uncertainty``, ``design``, ``assumptions``, ``support_status`` and ``diagnostics`` are fixed
+    labels: what the reported uncertainty covers, the design, the identifying premises, the
+    support standing and what was and was not checked.
+    """
+
     estimate: float
     treated_subjects: int
     control_subjects: int
@@ -1052,6 +1147,23 @@ class IvBoundsEstimate:
 
 @dataclass(frozen=True, slots=True)
 class LocalPolynomialRatioEstimate:
+    """A fuzzy regression-discontinuity or kink effect: a ratio of two local-polynomial estimates.
+
+    ``estimate`` is ``reduced_form_discontinuity / first_stage_discontinuity`` at the cutoff (jumps
+    in level, or in slope for a kink),
+    read as a local complier effect under the exclusion and monotonicity assumptions.
+
+    * ``standard_error``, ``ci_lower`` and ``ci_upper`` -- the delta-method standard error and
+      interval described by ``uncertainty`` (fixed bandwidth).
+    * ``reduced_form_standard_error`` and ``first_stage_standard_error`` -- the two components.
+    * ``observations_left`` / ``observations_right`` -- rows within the bandwidth on each side.
+    * ``cutoff``, ``bandwidth`` and ``kink`` -- the design actually used.
+
+    ``uncertainty``, ``design``, ``assumptions``, ``support_status`` and ``diagnostics`` are fixed
+    labels: what the reported uncertainty covers, the design, the identifying premises, the
+    support standing and what was and was not checked.
+    """
+
     estimate: float
     reduced_form_discontinuity: float
     first_stage_discontinuity: float

@@ -1,6 +1,6 @@
 """Transport a response into a target population.
 
-Day-1 surface::
+Ask an ordinary question in a target population::
 
     query = antecedent.transport.Transport(
         antecedent.ResponseCurve("price", "sales", grid=[8, 9, 10, 11, 12]),

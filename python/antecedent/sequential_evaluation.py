@@ -17,13 +17,15 @@ every observation enters a Bayes belief update through a typed measurement model
         ),
         terminal_utility=(0.0, 0.0),
     )
+    # A history is a tuple of (action index, observation symbol) pairs; with ``model=`` the
+    # actions taken may be named by label. Action 0 is "inspect".
     policy = se.Policy.deterministic("inspect_then_act_v1", {
         (): "inspect",
-        (("inspect", 1),): "repair",
-        (("inspect", 0),): "ship",
-    })
+        ((0, 1),): "repair",                   # inspected, alarm symbol 1
+        ((0, 0),): "ship",                     # inspected, no alarm
+    }, model=model)
     evaluation = se.evaluate(model, policy)
-    evaluation.value                      # 1.5, exact given the declared model
+    evaluation.value                      # the policy value, exact given the declared model
 
 What is supplied and what is refused:
 
@@ -48,10 +50,11 @@ A reweighted static score table (:class:`ReweightedStaticScores`) and a policy l
 data under evaluation (:class:`LearnedFromEvaluationData`) are refused by name
 (``route_not_supported``), a value for another population or period is refused naming the missing
 selection-diagram and invariance contract (``transport_missing_evidence``), and
-:func:`request_interval` always raises ``not_supported``. Rust owns every number and
-refusal; this module builds declarations and raises :class:`SequentialEvaluationRefusal`
-(a :class:`~antecedent.errors.CausalUnsupportedError`) with the registered ``reason_code`` and
-the ``detail`` slot.
+:func:`request_interval` always raises ``uncertainty_representation_insufficient``: an exact
+value has no sampling uncertainty and the rollout error is an uncalibrated diagnostic. Rust owns
+every number and refusal; this module builds declarations and raises
+:class:`SequentialEvaluationRefusal` (a :class:`~antecedent.errors.CausalUnsupportedError`) with
+the registered ``reason_code`` and the ``detail`` slot.
 """
 
 from __future__ import annotations
@@ -1010,7 +1013,13 @@ def check_request(
 
 
 def request_interval() -> None:
-    """Always raises ``not_supported``: no interval is supported for a policy value."""
+    """Always raises ``uncertainty_representation_insufficient``.
+
+    No interval, posterior or coverage statement is supported for an exact or rollout policy
+    value: the exact value has no sampling uncertainty and the rollout error stays an
+    uncalibrated diagnostic. The interval of a logged-trajectory estimate is reported on the
+    result of :func:`evaluate_off_policy`.
+    """
     raise_refusal(_native.sequential_request_interval(), SequentialEvaluationRefusal)
 
 

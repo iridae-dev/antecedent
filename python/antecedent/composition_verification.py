@@ -34,7 +34,10 @@ What each class means:
 
 A calibration record held at one coordinate is never carried to another: a claim that inherits a
 record from an upstream object that no longer holds it, or a transported claim retargeted to
-another population, is refused with ``not_supported``. The module measures no coverage and
+another population, loses it: :attr:`ClaimClassification.calibration` reports ``lost`` and a
+``calibration`` withdrawal is recorded, but :meth:`CompositionVerification.require_valid` does not
+refuse on calibration alone (calibration annotates, it never refuses). The module measures no
+coverage and
 reports no interval or posterior; a calibration declaration names a record identity and a
 coordinate that the producer supplies.
 
@@ -709,8 +712,10 @@ class CompositionVerification(ScientificResult):
         Raises:
             CompositionVerificationRefusal: ``claim_revalidation_required`` for a claim to be
                 recomputed; ``claim_support_withdrawn`` for a withdrawn support, trust, retired
-                input or unexecutable stage; ``not_supported`` for calibration inherited from
-                an object that no longer holds it or established at another coordinate.
+                input or unexecutable stage; ``invalid_argument`` for an unknown claim. A
+                calibration inherited from an object that no longer holds it, or established at
+                another coordinate, is reported on the claim (its ``calibration`` standing and a
+                ``calibration`` withdrawal) and does not refuse.
         """
         raise_refusal(self._handle.require_valid(_name(key, "key")), CompositionVerificationRefusal)
         return self.classify(key)

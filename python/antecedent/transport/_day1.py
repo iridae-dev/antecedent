@@ -1,4 +1,4 @@
-"""Day-1 transport query, evidence constructor, and verb compile helpers."""
+"""The transport query, its evidence constructor, and the verb compile helpers."""
 
 from __future__ import annotations
 

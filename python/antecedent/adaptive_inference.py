@@ -32,10 +32,13 @@ What it decides, and what it does not:
   and group-sequential boundaries (:class:`GroupSequential`). The procedure matrix
   (:func:`procedure_matrix`) says which paradigms each assignment x outcome x monitoring x
   stopping cell is supported for; a guarantee for two components never supports their pairing.
-* **Intervals only where measured.** :meth:`AdaptiveInferenceSession.interval` (an unqualified
-  request) raises ``not_supported``. :meth:`AdaptiveInferenceSession.measured_interval`
-  returns the interval of one result for the procedure cells whose whole-procedure coverage was
-  measured, with its calibration status, and refuses every other procedure.
+* **Intervals belong to a named result.** :meth:`AdaptiveInferenceSession.interval` (an
+  unqualified request for the whole procedure) raises ``quantity_semantics_mismatch``: it names no
+  scientific quantity. :meth:`AdaptiveInferenceSession.measured_interval` returns the interval of
+  one named result with its calibration status: bound to the attesting coverage record for the
+  procedure cells whose whole-procedure coverage was measured, and annotated
+  ``outside_measured_scope`` or ``not_measured`` for every other procedure (annotated, not
+  refused).
 * **A participant-level family.** :class:`ParticipantProcedure` declares three or four arms,
   participant-level randomization, three or six binary responses per participant (a
   beta-binomial count with a declared or jointly estimated intra-participant correlation), historical informative
@@ -160,7 +163,7 @@ class AdaptiveInferenceRefusal(StructuredRefusal):
 
     A :class:`~antecedent.errors.CausalUnsupportedError` with a registered ``reason_code`` (for
     example ``adaptive_contract_incomplete``, ``adaptive_design_ignored``,
-    ``adaptive_assumption_violated``, ``not_supported``) and an ``adaptive_inference.*``
+    ``adaptive_assumption_violated``, ``route_not_supported``) and an ``adaptive_inference.*``
     ``detail``. When a contract is refused for several defects, :attr:`refusals` lists every
     ``(code, detail)`` pair and this refusal is the first.
     """
@@ -858,9 +861,9 @@ class AdaptiveInferenceSession:
         """Run the paradigm a request names.
 
         Raises:
-            AdaptiveInferenceRefusal: ``not_supported`` for a paradigm the cell has no route
-                for, ``adaptive_assumption_violated`` for noncompliance, outcome-dependent delay
-                or a probability below the floor, ``cancelled_no_claim`` on cancellation.
+            AdaptiveInferenceRefusal: ``route_not_supported`` for a paradigm the cell has no
+                route for, ``adaptive_assumption_violated`` for noncompliance, outcome-dependent
+                delay or a probability below the floor, ``cancelled_no_claim`` on cancellation.
         """
         execution = resolve_execution(execution)
         wire = _unwrap(self._handle.analyse(_request_json(request), cancel=execution.cancel))
@@ -889,8 +892,13 @@ class AdaptiveInferenceSession:
     def interval(self) -> None:
         """Ask for an interval or coverage statement for the whole procedure.
 
+        A coverage statement belongs to one procedure cell and one named result, so an interval
+        of the whole procedure names no scientific quantity. Ask for a result's interval with
+        :meth:`measured_interval`.
+
         Raises:
-            AdaptiveInferenceRefusal: always ``not_supported``.
+            AdaptiveInferenceRefusal: always ``quantity_semantics_mismatch``
+                (``adaptive_inference.interval_names_no_quantity``).
         """
         _raise_if(self._handle.interval())
 
@@ -905,14 +913,17 @@ class AdaptiveInferenceSession:
         confidence sequences (arm mean or contrast, valid at every look) and fixed randomization
         with group-sequential monitoring (repeated confidence interval).
 
+        A procedure, prior, threshold, exploration mass, outcome structure or look schedule
+        outside the measured cells still reports its interval; its calibration is annotated
+        ``outside_measured_scope`` or ``not_measured`` instead of being refused.
+
         Returns:
-            A :class:`antecedent.MeasuredInference` carrying the scalar, its interval and the
-            governing record.
+            A :class:`antecedent.MeasuredInference` carrying the scalar, its interval, its
+            calibration status and the governing record.
 
         Raises:
-            AdaptiveInferenceRefusal: ``not_supported`` for any other procedure, prior,
-                threshold, exploration mass or look schedule, or for evidence that is absent or no
-                longer attesting.
+            AdaptiveInferenceRefusal: ``route_not_supported`` for a result the contract cannot
+                produce or an interval of a kind the replayed result does not carry.
         """
         execution = resolve_execution(execution)
         from ._measured_inference import MeasuredInference
@@ -1089,8 +1100,8 @@ def consume_adaptive_monitoring_contract_artifact(
         AdaptiveInferenceRefusal: ``adaptive_inference.wrong_contract`` for another identity,
             ``adaptive_inference.report_replay_mismatch`` for a stored value that does not replay,
             the contract's own refusal for a missing or inconsistent element, and
-            ``adaptive_design_ignored`` or ``not_supported`` for a paradigm the design may not
-            use.
+            ``adaptive_design_ignored`` or ``route_not_supported`` for a paradigm the design may
+            not use.
     """
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
@@ -1682,8 +1693,8 @@ class AdaptiveProcedure:
 
     Declare it directly (:meth:`declare`) or from a prepared contract
     (:meth:`AdaptiveInferenceSession.procedure`). A paradigm whose validity premise the procedure
-    does not meet raises :class:`AdaptiveInferenceRefusal` with ``not_supported`` and the
-    premise's ``adaptive_inference.*`` detail.
+    does not meet raises :class:`AdaptiveInferenceRefusal` with ``adaptive_assumption_violated``
+    and the premise's ``adaptive_inference.*`` detail.
     """
 
     def __init__(self, handle: Any) -> None:
@@ -1769,8 +1780,9 @@ class AdaptiveProcedure:
         """One paradigm's derived statement.
 
         Raises:
-            AdaptiveInferenceRefusal: ``not_supported`` when the procedure does not meet the
-                paradigm's premise (its detail names which), or the derivation's own refusal.
+            AdaptiveInferenceRefusal: ``adaptive_assumption_violated`` when the procedure does
+                not meet the paradigm's premise (its detail names which), or the derivation's own
+                refusal.
         """
         execution = resolve_execution(execution)
         wire = getattr(request, "_wire", None)
@@ -2192,8 +2204,8 @@ class RepeatedMeasuresProcedure:
         """The whole-procedure simulation under the paradigm of the declared analysis.
 
         Raises:
-            AdaptiveInferenceRefusal: ``not_supported`` with the premise's detail when the
-                declared analysis does not meet its paradigm's premise.
+            AdaptiveInferenceRefusal: ``adaptive_assumption_violated`` with the premise's detail
+                when the declared analysis does not meet its paradigm's premise.
         """
         execution = resolve_execution(execution)
         wire = {
@@ -2254,9 +2266,9 @@ class RepeatedMeasuresProcedure:
         the declared ones. The result is unsupported and its calibration is not_measured.
 
         Raises:
-            AdaptiveInferenceRefusal: ``not_supported`` for an assignment that depends on an
-                unobserved quantity (``adaptive_inference.selection_not_ignorable``) or a contrast
-                arm with no completed unit (``adaptive_inference.arm_not_observed``);
+            AdaptiveInferenceRefusal: ``adaptive_assumption_violated`` for an assignment that
+                depends on an unobserved quantity (``adaptive_inference.selection_not_ignorable``)
+                or a contrast arm with no completed unit (``adaptive_inference.arm_not_observed``);
                 ``invalid_argument`` for malformed units, priors or level.
         """
         wire = {
