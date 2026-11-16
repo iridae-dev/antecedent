@@ -26,6 +26,7 @@ import pytest
 from antecedent import _reason_details as reason_details
 from antecedent import measurement_exposure as mx
 from antecedent.errors import CausalValueError
+from antecedent.execution import Execution
 from antecedent.measurement_models import BinaryRates, MeasurementModelRefusal
 
 from _refusal import assert_registered_refusal
@@ -167,8 +168,12 @@ def test_supplied_draws_are_combined_by_rubins_rules():
 
 def test_generated_imputations_are_reproducible_from_the_seed():
     y, q, z = soft_data(120)
-    first = mx.soft_exposure_effect(y, q, z, method="multiple_imputation", draw_count=8, seed=5)
-    again = mx.soft_exposure_effect(y, q, z, method="multiple_imputation", draw_count=8, seed=5)
+    first = mx.soft_exposure_effect(
+        y, q, z, method="multiple_imputation", draw_count=8, execution=Execution(seed=5)
+    )
+    again = mx.soft_exposure_effect(
+        y, q, z, method="multiple_imputation", draw_count=8, execution=Execution(seed=5)
+    )
     assert first.coefficient == again.coefficient
     assert first.imputations == 8
 

@@ -11,11 +11,11 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
-from antecedent import transport
 from antecedent.errors import CausalUnsupportedError
 from antecedent.outcomes import require_success
 from antecedent.population import target_kernel, target_row_weights
 from antecedent.priors import TransportKernel
+from antecedent.transport import advanced as transport
 
 
 def _identification() -> transport.TransportIdentification:

@@ -439,6 +439,8 @@ SNAPSHOT: dict[str, set[str]] = {
         "inverse_query",
         "latent_class",
         "measurement_models",
+        "measurement_exposure",
+        "exposure_measurement",
         "mechanism_composition",
         "mechanism_discrepancy",
         "mnar_sensitivity",
@@ -718,6 +720,8 @@ SNAPSHOT: dict[str, set[str]] = {
     "estimators.Overlap": {"clip", "trim"},
     "estimators.Aipw": {
         "bootstrap",
+        "mapping",
+        "prior_from",
         "cluster",
         "other_levels",
         "cluster_dml",

@@ -54,6 +54,7 @@ import numpy as np
 from . import _native
 from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution
 from .measurement_models import (
     BinaryRates,
     MeasurementInterval,
@@ -325,6 +326,12 @@ class SoftExposureEffect:
     data_identity: str
 
 
+def _execution_seed(execution: Execution | None) -> int:
+    if execution is not None and not isinstance(execution, Execution):
+        raise CausalTypeError("execution must be an Execution declaration")
+    return (Execution() if execution is None else execution).seed
+
+
 def soft_exposure_effect(
     outcome: object,
     probability: object,
@@ -333,7 +340,7 @@ def soft_exposure_effect(
     method: Literal["posterior_mean", "multiple_imputation", "supplied_draws"] = "posterior_mean",
     draws: object = None,
     draw_count: int = 30,
-    seed: int = 0,
+    execution: Execution | None = None,
     level: float = 0.95,
 ) -> SoftExposureEffect:
     """Fit a linear outcome model on a per-unit probability that the exposure is present.
@@ -355,7 +362,7 @@ def soft_exposure_effect(
         method_wire = {
             "kind": "multiple_imputation",
             "draw_count": _count(draw_count, "draw_count", minimum=2),
-            "seed": _count(seed, "seed"),
+            "seed": _execution_seed(execution),
         }
     elif method == "supplied_draws":
         array = np.asarray(draws, dtype=np.float64)
@@ -706,7 +713,7 @@ def repeat_codings_latent_class(
     max_iterations: int = 2000,
     tolerance: float = 1e-10,
     min_separation: float = 0.05,
-    seed: int = 1,
+    execution: Execution | None = None,
 ) -> RepeatCodingFit:
     """Fit repeat codings of a binary or ordinal facet as replicates of one latent level.
 
@@ -737,7 +744,7 @@ def repeat_codings_latent_class(
         "max_iterations": _count(max_iterations, "max_iterations", minimum=1),
         "tolerance": _number(tolerance, "tolerance"),
         "min_separation": _number(min_separation, "min_separation"),
-        "seed": _count(seed, "seed"),
+        "seed": _execution_seed(execution),
     }
     if lowest_level is not None:
         declaration["lowest_level"] = _vector(lowest_level, "lowest_level")

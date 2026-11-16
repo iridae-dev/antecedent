@@ -55,16 +55,16 @@ def ols_exposure_coefficient(y, x, z):
 
 
 def analyse(data, measurement, draws=12, seed=3):
-    return require_success(
-        ant.analyze(
-            data,
-            graph=GRAPH,
-            query=QUERY,
-            measurement=measurement,
-            measurement_draws=draws,
-            measurement_seed=seed,
-        )
+    outcome = ant.analyze(
+        data,
+        graph=GRAPH,
+        query=QUERY,
+        measurement=measurement,
+        measurement_draws=draws,
+        execution=ant.Execution(seed=seed),
     )
+    require_success(outcome)
+    return outcome
 
 
 def assert_recovers(result, truth, naive_gap=0.15):
@@ -261,7 +261,7 @@ def test_prepare_and_estimate_equal_analyze_and_carry_the_declaration():
         query=QUERY,
         measurement=declaration,
         measurement_draws=6,
-        measurement_seed=3,
+        execution=ant.Execution(seed=3),
     )
     assert isinstance(study, em.PreparedMeasuredAnalysis)
     assert study.refusal is None and len(study.studies) == 6
@@ -305,7 +305,9 @@ def test_the_exposure_draws_export_as_a_posterior_artifact_and_read_back():
     declaration = em.MisclassifiedExposure(
         "x", mx.ExposureError.shared(BinaryRates(0.85, 0.9, 1e-4, 1e-4)), covariates=("z",)
     )
-    draws = declaration.realize(data, outcome="y", covariates=("z",), draws=5, seed=2)
+    draws = declaration.realize(
+        data, outcome="y", covariates=("z",), draws=5, execution=ant.Execution(seed=2)
+    )
     assert draws.draws.shape == (5, 400) and set(np.unique(draws.draws)) <= {0.0, 1.0}
     assert np.all((draws.probability >= 0) & (draws.probability <= 1))
     artifact = draws.export()
@@ -324,8 +326,12 @@ def test_the_exposure_draws_export_as_a_posterior_artifact_and_read_back():
     assert len(tables) == 5 and np.array_equal(tables[2]["x"], draws.column(2))
     assert np.array_equal(tables[2]["y"], y)
     # A different seed gives different draws; the same seed reproduces them.
-    same = declaration.realize(data, outcome="y", covariates=("z",), draws=5, seed=2)
-    other = declaration.realize(data, outcome="y", covariates=("z",), draws=5, seed=3)
+    same = declaration.realize(
+        data, outcome="y", covariates=("z",), draws=5, execution=ant.Execution(seed=2)
+    )
+    other = declaration.realize(
+        data, outcome="y", covariates=("z",), draws=5, execution=ant.Execution(seed=3)
+    )
     assert np.array_equal(same.draws, draws.draws) and not np.array_equal(other.draws, draws.draws)
 
 

@@ -199,7 +199,12 @@ def test_ci_screened_and_dbn_posteriors_carry_the_prior() -> None:
     assert "prior" not in CiScreenedPosterior()._wire()
     assert "prior" not in DbnPosterior()._wire()
     data = _two_chains()
-    sparse = CiScreenedPosterior(prior=StructurePrior(default_edge_probability=0.02)).run(data)
+    sparse = CiScreenedPosterior(
+        prior=StructurePrior(default_edge_probability=0.02),
+        n_chains=4,
+        n_warmup=1500,
+        n_draws=6000,
+    ).run(data)
     assert sparse.n_vars == len(data)
 
 

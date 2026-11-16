@@ -75,6 +75,7 @@ from . import _native
 from ._artifact_protocol import container_bytes
 from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution
 from .measurement_exposure import (
     ExposureError,
     LogisticDetection,
@@ -204,7 +205,7 @@ class ExposureDraws:
     draws: np.ndarray
     declaration_identity: str
     data_identity: str
-    seed: int
+    stream: int
     notes: tuple[str, ...] = ()
 
     @classmethod
@@ -220,7 +221,7 @@ class ExposureDraws:
             draws=np.asarray(wire["draws"], dtype=np.float64).reshape(m, n),
             declaration_identity=str(wire["declaration_identity"]),
             data_identity=str(wire["data_identity"]),
-            seed=int(wire["seed"]),
+            stream=int(wire["seed"]),
             notes=notes,
         )
 
@@ -234,7 +235,7 @@ class ExposureDraws:
             "draws": [float(v) for v in self.draws.reshape(-1)],
             "declaration_identity": self.declaration_identity,
             "data_identity": self.data_identity,
-            "seed": self.seed,
+            "seed": self.stream,
         }
 
     @property
@@ -250,7 +251,7 @@ class ExposureDraws:
     @property
     def identity(self) -> str:
         """Digest of the declaration, the data it read and the seed."""
-        return f"{self.declaration_identity}:{self.data_identity}:{self.seed}"
+        return f"{self.declaration_identity}:{self.data_identity}:{self.stream}"
 
     def column(self, draw: int) -> np.ndarray:
         """The exposure column of imputation ``draw``."""
@@ -332,9 +333,15 @@ class ExposureMeasurement:
         outcome: str,
         covariates: Sequence[str] = (),
         draws: int = 30,
-        seed: int = 1,
+        execution: Execution | None = None,
     ) -> ExposureDraws:
-        """Impute the exposure ``draws`` times and return the draws with their per-unit posterior."""
+        """Impute the exposure ``draws`` times and return the draws with their per-unit posterior.
+
+        The imputation randomness is the ``execution``'s seed (default ``Execution()``).
+        """
+        if execution is not None and not isinstance(execution, Execution):
+            raise CausalTypeError("execution must be an Execution declaration")
+        seed = (Execution() if execution is None else execution).seed
         if isinstance(draws, bool) or not isinstance(draws, int) or draws < 2:
             raise CausalValueError("draws must be an integer of at least 2")
         columns = _table_columns(data)
@@ -827,7 +834,6 @@ class PreparedMeasuredAnalysis:
     data: Any
     execution: Any
     draws: int
-    seed: int
     structure: Mapping[str, str] | None = None
 
     @property
@@ -882,7 +888,6 @@ class PreparedMeasuredAnalysis:
             data,
             measurement=self.measurement,
             draws=self.draws,
-            seed=self.seed,
             execution=self.execution,
             **self.declarations,
         )
@@ -894,7 +899,6 @@ class PreparedMeasuredAnalysis:
             self.data,
             measurement=self.measurement,
             draws=self.draws,
-            seed=self.seed,
             execution=self.execution,
             **merged,
         )
@@ -909,7 +913,6 @@ def prepare_measured(
     *,
     measurement: ExposureMeasurement,
     draws: int = 30,
-    seed: int | None = None,
     execution: Any = None,
     query: Any,
     **declarations: Any,
@@ -932,8 +935,6 @@ def prepare_measured(
         )
     if not isinstance(outcome, str):
         raise CausalValueError("a measured exposure needs a query with a single named outcome")
-    if seed is None:
-        seed = int(getattr(execution, "seed", 1))
     columns = _table_columns(data)
     covariates = (
         _graph_covariates(declarations.get("graph"), {treatment, outcome})
@@ -942,7 +943,7 @@ def prepare_measured(
     )
     covariates = tuple(c for c in covariates if c in columns)
     exposure = measurement.realize(
-        data, outcome=outcome, covariates=covariates, draws=draws, seed=seed
+        data, outcome=outcome, covariates=covariates, draws=draws, execution=execution
     )
     tables = exposure.completed_tables(data)
     structure: Mapping[str, str] | None = None
@@ -969,6 +970,5 @@ def prepare_measured(
         data=data,
         execution=execution,
         draws=draws,
-        seed=seed,
         structure=structure,
     )

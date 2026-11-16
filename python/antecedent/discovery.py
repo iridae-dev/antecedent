@@ -1434,7 +1434,7 @@ class StructurePrior:
         """The native search's prior arguments (only those this prior sets)."""
         out: dict[str, Any] = {}
         if self.edge_probabilities:
-            out["edge_priors"] = [list(edge) for edge in self.edge_probabilities]
+            out["edge_priors"] = [tuple(edge) for edge in self.edge_probabilities]
         if self.default_edge_probability is not None:
             out["edge_prior_default"] = self.default_edge_probability
         if self.soft_tiers:

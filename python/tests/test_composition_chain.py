@@ -146,7 +146,6 @@ def test_the_chain_recovers_the_closed_form_population_effect_and_names_every_st
         query=ant.AverageEffect(treatment="x", outcome="y", target_population=target),
         measurement=declaration,
         measurement_draws=DRAWS,
-        measurement_seed=31,
         discovery=ExactDagPosterior(prior=structure_prior()),
         estimator=Aipw(prior_from=prior_selection(), bootstrap=0),
         refute=False,

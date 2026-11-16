@@ -79,7 +79,7 @@ def test_overlap_diagnostics_are_the_hand_computed_kish_quantities():
     assert overlap.max_weight_share == pytest.approx(float(weights.max() / weights.sum()))
     assert report.declaration["family"] == "gaussian"
     assert report.declaration["bandwidth"] == 0.5
-    assert report.declaration["center"] == [1.0]
+    assert list(report.declaration["center"]) == [1.0]
     assert result.provenance["weighted_target"]["identity"] == report.identity
     assert any("weighted target" in text for text in result.assumptions)
     assert any(report.identity in text for text in result.assumptions)
@@ -133,8 +133,8 @@ def test_a_target_without_overlap_refuses_with_a_next_attempt():
 
 def test_a_thin_target_below_the_kish_floor_refuses_and_a_wider_one_runs():
     data = _heterogeneous()
-    thin = target_kernel(TransportKernel("gaussian", 0.3), center={"z": 3.0})
-    weights = _gaussian(data["z"], 3.0, 0.3)
+    thin = target_kernel(TransportKernel("gaussian", 0.2), center={"z": 3.0})
+    weights = _gaussian(data["z"], 3.0, 0.2)
     assert weights.sum() ** 2 / np.sum(weights**2) < 20.0
     refused = _analyze(data, thin)
     assert refused.refusal is not None

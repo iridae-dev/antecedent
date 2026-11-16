@@ -67,6 +67,24 @@ ALLOWLIST: dict[str, str] = {
     "antecedent.graph_falsification.GraphFalsification:permutation_seed": "declared permutation seed",
     "antecedent.graph_falsification.evaluate_graph:permutation_seed": "declared permutation seed",
     "antecedent.latent_class.LatentClassEffects:seed": "seed recorded on the result",
+    "antecedent.priors.SelectAlpha:seed": (
+        "the cross-validation fold seed of power-prior alpha selection, recorded in provenance"
+    ),
+    "antecedent.priors.select_alpha_beta_binomial:seed": (
+        "the cross-validation fold seed of power-prior alpha selection, recorded in provenance"
+    ),
+    "antecedent.priors.select_alpha_gamma_poisson:seed": (
+        "the cross-validation fold seed of power-prior alpha selection, recorded in provenance"
+    ),
+    "antecedent.priors.select_alpha_linear:seed": (
+        "the cross-validation fold seed of power-prior alpha selection, recorded in provenance"
+    ),
+    "antecedent.priors.select_alpha_prior_beta_binomial:seed": (
+        "the cross-validation fold seed of power-prior alpha selection, recorded in provenance"
+    ),
+    "antecedent.priors.select_alpha_prior_gamma_poisson:seed": (
+        "the cross-validation fold seed of power-prior alpha selection, recorded in provenance"
+    ),
     "antecedent.measurement_models.ContinuousErrorData:seed": "declared seed of the error data",
     "antecedent.measurement_models.ContinuousMeasurementEstimate:seed": "seed recorded on the result",
     "antecedent.missing.ImputationSpec:seed": "declared imputation seed",

@@ -133,7 +133,7 @@ class PriorMapping:
         if self.source_quantity is not None:
             m["source_quantity"] = self.source_quantity
         if self.pairs:
-            m["pairs"] = [list(p) for p in self.pairs]
+            m["pairs"] = [tuple(p) for p in self.pairs]
         return m
 
 
@@ -399,11 +399,13 @@ class ComposedPrior:
         try:
             renamed = tuple(
                 _rename_composed_coordinates(
-                    list(names), mapping.kind, [list(pair) for pair in mapping.pairs]
+                    list(names), mapping.kind, [tuple(pair) for pair in mapping.pairs]
                 )
             )
         except ValueError as error:
             raise CausalValueError(str(error), reason_code="quantity_semantics_mismatch") from error
+        if renamed == tuple(names):
+            return self
         return replace(self, coefficient_names=renamed)
 
     def to_native_dict(self) -> dict[str, Any]:
@@ -1864,7 +1866,7 @@ class ComposedCountPrior:
         if self.source_ids:
             # The native side states the composition in the prior's identity.
             out["sources"] = [
-                [i, float(a)] for i, a in zip(self.source_ids, self.alphas_applied, strict=True)
+                (i, float(a)) for i, a in zip(self.source_ids, self.alphas_applied, strict=True)
             ]
         return out
 
