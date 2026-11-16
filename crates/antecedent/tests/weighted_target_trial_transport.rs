@@ -295,7 +295,7 @@ mod compiled {
                 effect.ate,
                 effect.se_analytic()
             );
-            assert!(format!("{:?}", effect.assumptions).contains("weighted_target_population"));
+            assert!(format!("{result:?}").contains("weighted_target_population"));
         }
     }
 
@@ -333,7 +333,7 @@ mod compiled {
     fn a_weighted_target_without_overlap_refuses_before_estimation() {
         let fx = super::fixture(6_000, 37);
         let z = z_of(&fx);
-        let error = study(&fx, &z, Some(declaration(0.2, 7.0))).err().expect("refused at build");
+        let error = study(&fx, &z, Some(declaration(0.2, 7.0))).expect_err("refused at build");
         assert!(error.to_string().contains("transport_target_overlap_failed"), "{error}");
     }
 

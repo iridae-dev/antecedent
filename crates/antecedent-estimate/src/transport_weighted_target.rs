@@ -60,6 +60,10 @@ pub struct WeightedTargetTransportEstimate {
     clippy::too_many_arguments,
     reason = "the seven inputs of `trial_to_target_effect`, the weights and the floor"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one weighted transport contrast with its two overlap gates and both standard errors"
+)]
 pub fn trial_to_weighted_target_effect(
     identification: &TransportIdentification,
     outcome: &[f64],

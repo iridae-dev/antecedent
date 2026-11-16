@@ -26,7 +26,7 @@ use antecedent_prob::{
 use crate::error::CausalError;
 
 fn invalid(message: &'static str) -> CausalError {
-    CausalError::Probability(TransportError::InvalidWeights { message }.into())
+    CausalError::from(ProbError::from(TransportError::InvalidWeights { message }))
 }
 
 /// How the weights of a target are given.
@@ -179,7 +179,7 @@ impl WeightedTargetDeclaration {
                 let distances: Vec<f64> = squared.iter().map(|s| s.sqrt()).collect();
                 Ok(kernel
                     .weights(&distances)
-                    .map_err(|error| CausalError::Probability(ProbError::from(error)))?)
+                    .map_err(|error| CausalError::from(ProbError::from(error)))?)
             }
         }
     }
@@ -202,11 +202,11 @@ impl WeightedTargetDeclaration {
                     ProbError::Refused {
                         code: code @ "transport_target_overlap_failed",
                         message,
-                    } => CausalError::Probability(ProbError::Refused {
+                    } => CausalError::from(ProbError::Refused {
                         code,
                         message: format!("weighted_target.overlap_failed: {message}"),
                     }),
-                    other => CausalError::Probability(other),
+                    other => CausalError::from(other),
                 },
             )?;
         let report = self.report(self.identity(&weights), overlap, None);
@@ -284,12 +284,12 @@ impl WeightedTargetDeclaration {
         let gate = |rows: &[f64]| {
             check_weights_overlap(rows, self.min_ess_fraction).map_err(|error| match error {
                 ProbError::Refused { code: code @ "transport_target_overlap_failed", message } => {
-                    CausalError::Probability(ProbError::Refused {
+                    CausalError::from(ProbError::Refused {
                         code,
                         message: format!("weighted_target.overlap_failed: {message}"),
                     })
                 }
-                other => CausalError::Probability(other),
+                other => CausalError::from(other),
             })
         };
         let overlap = gate(&target_rows)?;

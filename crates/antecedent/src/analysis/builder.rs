@@ -1416,7 +1416,7 @@ impl StudyBuilder {
                 *query = query
                     .clone()
                     .with_weighted_target(target)
-                    .map_err(|error| CausalError::Compile { message: error.to_string().into() })?;
+                    .map_err(|error| CausalError::Compile { message: error.to_string() })?;
             }
             self.declared.weighted_transport =
                 Some(Arc::new(super::weighted_target::WeightedTransportWeights {

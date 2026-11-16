@@ -99,6 +99,10 @@ impl super::Study {
     /// formula, with the estimand tagged by the target rather than by the atom's rule so atoms
     /// that identify the one target by different formulas agree. `None` when the formula is not
     /// certified or the query names no treatment/outcome pair.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one Bayesian transport posterior with its optional target weighting"
+    )]
     pub(crate) fn transport_posterior_atom(
         query: &antecedent_core::TransportQuery,
         identified: &TransportIdentification,
@@ -127,6 +131,10 @@ impl super::Study {
     /// A posterior of class atoms or with DBN lag structure, no atom whose formula sID
     /// certifies, no atom whose certified formula the weighting can evaluate, invalid
     /// probability columns, or a cancelled run.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one Bayesian transport posterior with its optional target weighting"
+    )]
     pub(super) fn execute_transport_graph_posterior(
         &self,
         data: &TabularData,

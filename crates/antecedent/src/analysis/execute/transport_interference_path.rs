@@ -178,6 +178,10 @@ impl super::Study {
     /// The identification the one-shot interference route records: the fixed-network
     /// Gaussian model for a Bayesian study, the known assignment mechanism otherwise.
     /// Execution and the route lowering share this one builder.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one identified transport execution across its weighted and unweighted forms"
+    )]
     pub(crate) fn interference_route_identification(
         query: &antecedent_core::InterferenceQuery,
         bayesian: bool,
@@ -193,6 +197,10 @@ impl super::Study {
 
     /// Binary trial-to-target IPW (or its Bayesian bootstrap) from an
     /// already-certified transport formula and frozen design columns.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one identified transport execution across its weighted and unweighted forms"
+    )]
     pub(super) fn execute_transport_identified(
         &self,
         data: &TabularData,
