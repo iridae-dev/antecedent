@@ -4,6 +4,11 @@ A retailer wants to manage prices and replenishment over 12 weeks. Setting every
 
 This tutorial compares a fixed price, a conditional discount and an adaptive pricing-and-ordering rule. The policies are supplied by the researcher; Antecedent evaluates them. A rule that sells more need not earn more, and successful execution does not itself identify the effect of deploying the rule.
 
+- **You will learn** the difference between assigning a value and transforming a generated one, how to write conditional and history-dependent rules as expressions, how dependency checks refuse a circular or history-less rule, how a counterfactual replay differs from a forward forecast, and how to export, verify and reuse a policy program.
+- **Before you start:** [installation](../start/installation.md) and [interventions and worlds](../concepts/interventions-and-worlds.md). The example needs NumPy. [One feedback system, three questions](feedback-three-questions.md) is a shorter introduction to asking different interventions of one model.
+- **Time:** the example runs in under a second locally; allow up to a minute.
+- **Run it:** `python examples/python/programmable_policies.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/programmable_policies.ipynb). The complete script is embedded [below](#run-the-complete-example).
+
 ## The task
 
 Follow 24 synthetic stores for 12 weeks. Each week has opening inventory, a generated price, demand, sales and a replenishment order. Orders arrive one week after placement. Sales cannot exceed available inventory, and unmet demand is lost rather than backlogged.
@@ -136,9 +141,28 @@ The runnable example produces these mean 12-week results per store, rounded here
 
 The adaptive rule removes stockouts and sells more, but its margins and inventory costs leave contribution below the baseline. Programmability makes the proposed rule evaluable; it does not make the rule desirable. A service-level objective could value these outcomes differently.
 
-The script also prints the contribution change for individual stores and checks that the mean of their paired changes equals the difference in aggregate means. Those are model-based counterfactual differences for the specified stores, not observed treatment effects or uncertainty intervals.
+The script also prints the contribution change for the first three stores (`unit_changes_first_three`) and checks that the mean of their paired changes equals the difference in aggregate means. Those are model-based counterfactual differences for the specified stores, not observed treatment effects or uncertainty intervals.
 
-## 5. Use custom batch logic when an expression is not enough
+## 5. Export the program, verify it, and reuse its compilation
+
+The adaptive policy and shared accounting rules have a portable encoding:
+
+```python
+artifact = encode_policy_program(NAMES, policies["adaptive"])
+identity = policy_program_identity(NAMES, policies["adaptive"])
+verified = consume_policy_program(
+    artifact, expected_identity=identity, supplied=NAMES,
+)
+restored = decode_policy_program(NAMES, artifact)
+```
+
+The consumer checks the program against an independently retained identity. Decoding supplies executable declarations, which the example replays over the same factual panel. Changing the price rule changes the identity, and attempting to consume that changed artifact with the original expected identity refuses.
+
+The artifact contains the program, including its modes, expressions and lags. It does not contain the fitted model, factual panel, contribution result or history. The consumer supplies variable names in the declared order and must retain those other inputs to reproduce the scientific calculation. Callback recovery is checked separately through its records and source, in the next step.
+
+For repeated single-period execution, `prepare_policy(model, [conditional])` retains the compiled program and route support. It agrees with one-shot sampling. Rebinding it to a model fitted on refreshed observations resolves the model binding again without recompiling the expression. The example's receipt checks `program_compilations == 1` and `model_bindings == 2`. It has fitted two models; it has not compiled the policy twice.
+
+## 6. Use custom batch logic when an expression is not enough
 
 The conditional discount can also be a NumPy callback:
 
@@ -158,41 +182,22 @@ An ordinary Python function is a runtime binding. Exporting it refuses with `pol
 
 This callback demonstration uses the single-period conditional rule. The history-dependent rollout above uses closed-form expressions throughout. The example does not assume a temporal callback interface where this public route provides none. For output declarations, source restrictions and dependency pins, see the [batch callback guide](../guides/intervention-programs.md#batch-callbacks).
 
-## 6. Export the program, verify it, and reuse its compilation
-
-The adaptive policy and shared accounting rules have a portable encoding:
-
-```python
-artifact = encode_policy_program(NAMES, policies["adaptive"])
-identity = policy_program_identity(NAMES, policies["adaptive"])
-verified = consume_policy_program(
-    artifact, expected_identity=identity, supplied=NAMES,
-)
-restored = decode_policy_program(NAMES, artifact)
-```
-
-The consumer checks the program against an independently retained identity. Decoding supplies executable declarations, which the example replays over the same factual panel. Changing the price rule changes the identity, and attempting to consume that changed artifact with the original expected identity refuses.
-
-The artifact contains the program, including its modes, expressions and lags. It does not contain the fitted model, factual panel, contribution result or history. The consumer supplies variable names in the declared order and must retain those other inputs to reproduce the scientific calculation. Callback recovery is checked separately through its records and source.
-
-For repeated single-period execution, `prepare_policy(model, [conditional])` retains the compiled program and route support. It agrees with one-shot sampling. Rebinding it to a model fitted on refreshed observations resolves the model binding again without recompiling the expression. The example's receipt checks `program_compilations == 1` and `model_bindings == 2`. It has fitted two models; it has not compiled the policy twice.
-
 ## What this established
 
 The three policies have explicit operational meanings, and one executor carries those meanings into forward simulation, history-dependent rollout and counterfactual replay. Independent arithmetic checks the results; dependency validation prevents circular rules; portable identities and callback recovery make the implementation inspectable and reusable.
+
+## What this did not establish
 
 The scientific question remains distinct from successful execution. For the conditional rule, `policy_support` supports simulation and counterfactual execution, while the identification decision refuses with `policy_route_not_supported`. The current identification route requires a hard level and does not accept this generated-value transformation as an observationally identified intervention. That is a boundary of the route, not a claim that conditional policies are inherently unidentifiable.
 
 The temporal comparison additionally depends on the declared stock-flow equations, delivery delay, histories, fitted mechanism form and the counterfactual interpretation of the disturbances. Its result answers what this model says about the proposed policies. Establishing the deployed policy's effect needs a compatible identification argument and evidence; the program's ability to execute cannot supply them by itself.
 
+## Where to go next
+
 [Joint interventions](joint-interventions.md) develops the distinction between calculating a whole program and identifying it. [Beyond the marketing mix](beyond-marketing-mix.md) and [the smallest defensible test](synthetic-users-launch.md) carry related scientific questions into evidence, decisions and the next experiment.
 
 ## Run the complete example
 
-```bash
-python examples/python/programmable_policies.py
-```
-
-The script is self-contained, runs offline, and needs no dependencies beyond Antecedent and NumPy. All reported numerical results above come from its synthetic fixture. The complete program also exercises missing history, circular dependencies, callback output validation, identity mismatch and callback recovery from source.
+The script is self-contained, runs offline, and needs no dependencies beyond Antecedent and NumPy. All reported numerical results above come from its synthetic fixture. The complete program also exercises missing history, circular dependencies, callback output validation, identity mismatch and callback recovery from source. It prints one JSON report: the four worlds' results under `worlds`, the route support under `support`, the refusal codes it met, the program identities, the reuse receipt and the callback record.
 
 <!-- example: examples/python/programmable_policies.py -->

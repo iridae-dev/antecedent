@@ -4,11 +4,12 @@ A retention service wants to know how many more weekly sessions a reminder messa
 
 Antecedent supplies the causal computation and its contracts. Your application supplies planning, permissions and the policy for acting on an answer. The tutorial keeps that line visible: every decision in the code below belongs to the host, and every field the host reads comes from Antecedent.
 
-**The setting.** The users are simulated, so the effect can be checked. The reminder is assigned at random, prior activity is a precision covariate, and the true effect of the reminder on weekly sessions is 2 in this model. That is a fixture truth of the simulated model, not a claim about any real service. Run the whole example with:
+**The setting.** The users are simulated, so the effect can be checked. The reminder is assigned at random, prior activity is a precision covariate, and the true effect of the reminder on weekly sessions is 2 in this model. That is a fixture truth of the simulated model, not a claim about any real service.
 
-```bash
-python examples/python/application_component.py
-```
+- **You will learn** how a host application prepares a request, reads the plan before running it, tells an answer from a typed refusal and from an operational failure, applies its own acceptance policy, branches a study onto new data, and hands a result to a consumer that holds only bytes and an identity.
+- **Before you start:** [installation](../start/installation.md), [a first analysis](../start/first-analysis.md) and [reading a result](../start/reading-a-result.md). [Refusals](../concepts/refusals.md) explains the refusal categories used here.
+- **Time:** the example runs in under a minute.
+- **Run it:** `python examples/python/application_component.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/application_component.ipynb). The complete script is embedded [below](#complete-runnable-source).
 
 ## What the host declares and what Antecedent computes
 
@@ -69,6 +70,8 @@ def read_plan(study):
         "program": view.identity,
     }
 ```
+
+For the first request the example prints the plan as one JSON line and asserts that `stage` is `prepared` and `support_status` is `supported`.
 
 `support_status` is the support-matrix status of the selected route. A `supported` route is one the support matrix supports for this combination of question, graph class, structure, inference and validation. A route that is not supported refuses in a release build with `not_supported`; a development build runs it and records `would_refuse`. Successful execution does not upgrade the scientific claim. `program` is the identity of the compiled program, and every result of the program carries it. This is what lets a host log, compare and cache by what was asked, not by when it ran.
 
@@ -213,7 +216,13 @@ Antecedent contains no agent logic: no planner, no prompt, no memory, no tool lo
 
 ## What this established
 
-You have a host that submits a prepared request, reads the plan, distinguishes an answer from a typed refusal and an operational failure, applies a policy of its own to the status, support and calibration fields, keeps the earlier result when new data arrive and hands a result to a consumer that loads it against the identity it expects, without the study behind it. In the simulated model, the recovered effect matches the known effect of 2 within sampling error, and the structure that cannot identify it is refused with a registered code. None of this shows that a declared graph is true, and the request asked for no interval, so nothing here bears on interval coverage.
+You have a host that submits a prepared request, reads the plan, distinguishes an answer from a typed refusal and an operational failure, applies a policy of its own to the status, support and calibration fields, keeps the earlier result when new data arrive and hands a result to a consumer that loads it against the identity it expects, without the study behind it. In the simulated model, the recovered effect matches the known effect of 2 within sampling error, and the structure that cannot identify it is refused with a registered code.
+
+## What this did not establish
+
+None of this shows that a declared graph is true: a `supported` status is conditional on the structure the caller declared. The request asked for no interval, so nothing here bears on interval coverage. The acceptance policy is an example of where a host's rule goes, not a recommended rule.
+
+## Where to go next
 
 The next questions are about the host's environment. To keep results current as data change, see [retained refresh and state publication](../guides/retained-refresh.md) and [staleness and drift diagnostics](../guides/staleness.md). To connect this analysis to a decision or another component's output, see [connect scientific components and bring in outside results](../guides/build/scientific-interfaces.md).
 

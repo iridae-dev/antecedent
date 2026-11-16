@@ -4,6 +4,11 @@ A retailer wants to allocate advertising across search, social and video. A mark
 
 The investigation uses one synthetic geographic panel and one retained response model. You declare the scientific question, inspect its evidence requirements before fitting, and carry its quantities into later computations. The known generating mechanism provides an independent numerical check. Its numbers describe this simulation, not a retailer in the world.
 
+- **You will learn** how to fit one response model and reuse it for every later step, how to compare spending programs on shared draws, how to read what the panel does and does not identify, how a mapped experimental summary updates the retained law, and how a stated utility drives both a decision and the ranking of further studies.
+- **Before you start:** [installation](../start/installation.md). Work through [compare a coordinated intervention program](joint-interventions.md) and [from a new experiment to the next study](experiment-to-next-study.md) first; this tutorial combines their steps on a larger model.
+- **Time:** the example runs in about 20 seconds locally; allow up to a minute.
+- **Run it:** `python examples/python/beyond_marketing_mix.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/beyond_marketing_mix.ipynb). The complete script is embedded [below](#the-complete-example).
+
 ## The task
 
 Four geographic markets have 72 observed weeks and two weeks of recorded advertising history. Managers spend more when an observed demand indicator is high. Search, social and video have three-period carryover and a saturating response; search and video also interact. Markets have different intercepts, and revenue has seasonal variation and Gaussian noise.
@@ -22,13 +27,7 @@ Compare constant spending programs over the next 24 weeks. The outcome is the **
 
 Geographic variation here means different fitted market intercepts. The example does not estimate a separate channel coefficient for every market. The demand indicator is observed; no hidden confounder is simulated. Even with that convenient setup, this panel declaration supplies no accepted identification proof for a complete spending program.
 
-Run the maintained example from a checkout with the Python extension installed:
-
-```bash
-python examples/python/beyond_marketing_mix.py
-```
-
-It generates its own observations, needs no additional dependencies or credentials, and runs offline. It prints the compiled question, fitted diagnostics and final decision and study ranking. Sampling, export and replay make this a longer example than the introductory joint-intervention tutorial; the catalog gives the measured local runtime and a planning allowance (about 20 seconds locally; allow up to one minute).
+The example generates its own observations, needs no additional dependencies or credentials, and runs offline. It prints the compiled question, the fit diagnostics, the fitted curves and, at the end, one JSON summary with the selected program, the contrast before and after the experiment, the decision, the study ranking and the two refusals it met.
 
 ## 1. Fit a marketing response
 
@@ -83,8 +82,7 @@ result = require_success(branch.estimate(execution=EXECUTION))
 ranked = result.search_declared_programs(
     controls=controls, budget=144.0, execution=EXECUTION
 )
-assert ranked["exhaustive"]
-assert not ranked["global_certificate"]
+assert ranked["exhaustive"] and not ranked["global_certificate"]
 assert prepared.inspect()["fits_performed"] == 1
 ```
 
@@ -108,7 +106,7 @@ The script asserts that arithmetic to `1e-12`, then checks the selected program'
 
 We have a fitted allocation winner. What would make its incremental effect causal?
 
-Spending follows anticipated demand. The declared model adjusts for the observed demand indicator, but an adjustment term does not itself prove that the fitted temporal mechanism evaluates an identified whole-program functional. Inspection reports `identified=False`. The whole-program randomization attempt reports that no known assignment contract was supplied, and names the missing evidence.
+Spending follows anticipated demand. The declared model adjusts for the observed demand indicator, but an adjustment term does not itself prove that the fitted temporal mechanism evaluates an identified whole-program functional. The selected result's report has `identified` set to `False`, and the script asserts it. Among the attempts the preparation inspection lists, the whole-program randomization attempt reports that no known assignment contract was supplied, and names the missing evidence.
 
 The next step is concrete: obtain known, positive-probability assignments of complete programs to independent units with matching histories and pretreatment context, or supply an accepted unrolled graph and an identification proof whose functional the computation reproduces. Weekly randomization alone does not identify a sustained trajectory. The smaller [joint-intervention tutorial](joint-interventions.md) executes that distinction and shows the corresponding design declarations.
 
@@ -188,12 +186,20 @@ The example exports the fitted panel and experimental update, checks the update 
 
 That is the scope of the Python demonstration. It checks the exported update against the current ledger (`verify_current`) and replays the original panel fit historically. It does not claim standalone historical replay of the exported panel update or an exported decision through a Python helper for a different design family. The [replay tutorial](replay-and-current-decisions.md) demonstrates a separate mixed-evidence workflow with a decision artifact.
 
-The final reuse receipt is `fits_performed == 1`. Program changes, experimental conditioning, utility changes and further-study ranking have built on the retained fit. Historical reproducibility and current permission to use evidence remain separate questions.
-
-<!-- example: examples/python/beyond_marketing_mix.py -->
+The final reuse receipt is `fits_performed == 1`, printed as `reuse_receipt` in the summary beside `bridge_refusal` and `withdrawal_refusal`, the messages of the two refusals. Program changes, experimental conditioning, utility changes and further-study ranking have built on the retained fit. Historical reproducibility and current permission to use evidence remain separate questions.
 
 ## What this established
 
-A marketing response model supported a spending proposal with carryover, saturation, interaction and geographic variation. Inspecting its identification requirements exposed what the observational fit did not establish. A mapped experimental summary changed the retained law, a stated business utility determined an action, and that same decision supplied the objective for ranking further evidence. None of this identified the effect of a whole spending program: the selected allocation remains a model-conditional proposal until a design such as whole-program randomization supplies that evidence.
+A marketing response model supported a spending proposal with carryover, saturation, interaction and geographic variation. Inspecting its identification requirements exposed what the observational fit did not establish. A mapped experimental summary changed the retained law, a stated business utility determined an action, and that same decision supplied the objective for ranking further evidence.
 
-The investigation continued from marketing mix analysis into causal evidence and scientific decisions while retaining the qualifications of each result. The next question is: *what evidence would most improve tomorrow's decision?*
+## What this did not establish
+
+None of this identified the effect of a whole spending program: the selected allocation remains a model-conditional proposal until a design such as whole-program randomization supplies that evidence. The posterior describes uncertainty about the fitted mean response, not future revenue shocks, and the experiment was simulated as summaries centered on the generating truth.
+
+## Where to go next
+
+The investigation continued from marketing mix analysis into causal evidence and scientific decisions while retaining the qualifications of each result. The next question is: *what evidence would most improve tomorrow's decision?* The [experimental-update guide](../guides/joint-program-designs.md) covers the design declarations that would identify a whole program, and [design ranking](../design-ranking.md) covers valuing studies in general.
+
+## The complete example
+
+<!-- example: examples/python/beyond_marketing_mix.py -->

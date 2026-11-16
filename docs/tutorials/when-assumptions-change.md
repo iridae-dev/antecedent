@@ -4,6 +4,11 @@ Every estimate Antecedent returns is conditional on a causal structure someone d
 
 Nothing in the first analysis is at fault. Its arithmetic stays correct and reproducible throughout. What changes is whether the number may still be read as a causal effect.
 
+- **You will learn** how to check a retained claim against new data with the staleness diagnostic, a whole-graph check and a resampled search, what each check can and cannot detect, how to put competing causal readings to the same question, and how a refusal turns into a plan for the study that would answer it.
+- **Before you start:** [installation](../start/installation.md), [a first analysis](../start/first-analysis.md) and [estimate an effect from observational data](observational-study.md). Conditional independence and adjustment for a common cause are assumed; the [glossary](../concepts/glossary.md) defines the other terms.
+- **Time:** the example runs in under a minute.
+- **Run it:** `python examples/python/when_assumptions_change.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/when_assumptions_change.ipynb). The complete script is embedded [below](#the-complete-example).
+
 ## The task
 
 A subscription business wants to know how much weekly engagement changes cancellations. It has five measured columns per customer, all standardized scores: `price`, `tenure`, `engagement`, `support` (contacts with the support team) and `cancellation`.
@@ -16,7 +21,7 @@ The data are simulated, so the truth is known. One unit of engagement lowers the
 | Three readings of the new link that appears in April | That April's table contradicts two independencies the January graph asserts |
 | Two candidate studies, with their costs and sample sizes | Which candidate study would identify the effect |
 
-The simulated truth is a property of the stated mechanism. It is there so each step can be checked, not as a claim about any real business.
+The simulated truth is a property of the stated mechanism. It is there so each step can be checked, not as a claim about any real business. Each table has 4,000 customers. The figures quoted below are what the example prints with its fixed seeds; its assertions check the direction and rough size of each one, and those bounds are stated where they matter.
 
 ## January: discover, review, estimate
 
@@ -31,7 +36,7 @@ study = ant.prepare(january, graph=accepted, query=ant.AverageEffect("engagement
 first = require_success(ant.estimate(study))    # -0.79
 ```
 
-The estimate is -0.79 against a simulated -0.8. The graph says price is the only common cause of engagement and cancellation, and that holds in January.
+The estimate is -0.79 against a simulated -0.8; the example asserts it is within 0.1. The graph says price is the only common cause of engagement and cancellation, and that holds in January.
 
 ## April: the same analysis, a different number
 
@@ -39,7 +44,7 @@ The estimate is -0.79 against a simulated -0.8. The graph says price is the only
 rerun = require_success(ant.estimate(ant.rebind(study, data=april)))    # -0.36
 ```
 
-Rebinding repeats January's analysis on April's rows: the same graph, the same adjustment set. It returns -0.36. More than half the effect appears to have gone.
+Rebinding repeats January's analysis on April's rows: the same graph, the same adjustment set. It returns -0.36, and the example asserts a move of more than 0.3. More than half the effect appears to have gone.
 
 It has not. The simulated effect is still -0.8. The estimate moved because customers on the failing integration are both more engaged and more likely to cancel, and nothing in the adjustment set accounts for them. No error is raised, because no computation failed. An estimate cannot report that its own graph is out of date.
 
@@ -95,7 +100,7 @@ stability.run(january, execution=EXEC).edges    # engagement, support joined in 
 stability.run(april, execution=EXEC).edges      # joined in 99%
 ```
 
-An edge that appears in 2.5% of January resamples and 99% of April ones is not something sampling variation explains. The frequencies are a bootstrap distribution of the search, not a probability that the edge exists.
+The example asserts a frequency below 5% in January and above 90% in April. An edge that appears in 2.5% of January resamples and 99% of April ones is not something sampling variation explains. The frequencies are a bootstrap distribution of the search, not a probability that the edge exists.
 
 ## Discover again, allowing for what is not measured
 
@@ -201,16 +206,22 @@ Keep only `price`, `engagement` and `cancellation` and neither is available. The
 
 The estimate is as wrong as before and no check contradicts it. What the staleness report can do is say so: its `not_evaluated` entry reads "the plan's graph implies no conditional independence among its columns, so the data cannot contradict it". A `reuse` with that entry beside it is a weaker statement than a `reuse` without. This is the ordinary case, not a contrived one: a table that holds a treatment, an outcome and the confounders someone thought of carries no test of whether they thought of all of them.
 
-<!-- example: examples/python/when_assumptions_change.py -->
-
 ## Who moves between the steps
 
-None of these steps triggered the next. The staleness diagnostic recommended identifying again and did not launch discovery. Discovery did not replace the accepted graph. The evidence plan did not run a study. A host application made each call, chose which reading to put the question to, and kept the record the example prints at its end. Antecedent supplies each computation and its limits; when to run them and what to do with the result stay with the application and the people behind it.
+None of these steps triggered the next. The staleness diagnostic recommended identifying again and did not launch discovery. Discovery did not replace the accepted graph. The evidence plan did not run a study. A host application made each call, chose which reading to put the question to, and kept the record the example prints at its end: one line per step, with the month, the step and what came back. Antecedent supplies each computation and its limits; when to run them and what to do with the result stay with the application and the people behind it.
 
 ## What this established
 
 A January estimate, reproduced exactly on April's data, was no longer justified as a causal effect. April covered the same ranges as January; two independencies the graph implies failed, and the staleness diagnostic asked to identify again; a resampled search showed the failure was not noise; and a search allowing hidden causes withdrew the direction January relied on. Of three readings of the new data, one was discarded, one gave an estimate that was wrong, and one refused. The refusal named an experiment as sufficient and more observational rows as not, and in the simulation that is how it turned out.
 
+## What this did not establish
+
 It did not show that January's graph was wrong in January. It did not identify the unmeasured cause. And it was able to notice the change only because that cause left traces among the other measured columns. With three columns the same change contradicted nothing, and the most a check could do was say it had nothing to test. That limit is the reason the assumptions are stated beside every estimate, and the reason an experiment is worth its cost when the answer matters.
 
+## Where to go next
+
 For keeping several structures in play with weights, see [graph uncertainty](../graph_uncertainty.md). For the refusal and the description that can accompany it, see [when the effect is not identified](../guides/fallback.md). To value a study against a decision, continue with [from a new experiment to the next study](experiment-to-next-study.md).
+
+## The complete example
+
+<!-- example: examples/python/when_assumptions_change.py -->

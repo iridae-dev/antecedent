@@ -6,6 +6,11 @@ This tutorial follows one investigation through three stages. Antecedent helps p
 
 The worked example is fully synthetic. It preserves a protocol before generating observations, analyzes a randomized interface comparison, selects and analyzes an independent factorial follow-up, and produces an evidence-linked claim table, a supported abstract and the citations behind every number. The final results include an inconclusive component effect: a useful investigation need not end with every hypothesis confirmed.
 
+- **You will learn** how to plan a randomized study and inspect the assumptions behind the plan, analyze it at the level that was randomized, check which follow-up designs would identify an unresolved component effect, rank them by value net of cost, and tie each proposed claim in a paper to the result and method records that support it.
+- **Before you start:** [installation](../start/installation.md) and [a first analysis](../start/first-analysis.md). Statistical power and confidence intervals for a difference in means are assumed. [Stop, continue or run longer](decide-under-uncertainty.md) introduces the value of a further study.
+- **Time:** the example runs in under a second locally; allow up to a minute.
+- **Run it:** `python examples/python/research_from_day_zero.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/research_from_day_zero.ipynb). The complete script is embedded [below](#run-the-complete-example).
+
 ## The research question
 
 The proposed explanation interface adds two things: explanatory information and a prompt encouraging users to review the recommendation. The initial study compares that complete interface with a baseline. Participants complete 20 tasks containing incorrect AI recommendations and 20 containing correct recommendations.
@@ -83,12 +88,14 @@ assignment = CompleteRandomization(treated=64)
 design = ExperimentDesign(
     assignment,
     realized_assignment=assigned.tolist(),
-    assignment_units=participant_ids,
-    outcome_units=participant_ids,
+    assignment_units=ids,
+    outcome_units=ids,
+    treatment_arms=("baseline", "explanation_interface"),
 )
 prepared = ant.prepare(
-    participant_data,
+    rows,  # one accuracy summary per participant
     query=RandomizedEffect("accuracy", design),
+    execution=ant.Execution(seed=SEED),
 )
 assert prepared.inspect().stage == "prepared"
 result = require_success(ant.estimate(prepared))
@@ -229,14 +236,16 @@ Before recruitment, Antecedent made the study's assumptions and resource require
 
 The investigator still chooses the questions, models, measures and interpretation. The tutorial's application code supplies protocol snapshots and the explicit claim manifest. Together, those pieces keep the research connected from the first plan to the claims in the paper.
 
-## Run the complete example
+## What this did not establish
 
-```bash
-python examples/python/research_from_day_zero.py
-```
+The first study did not separate explanatory content from the review prompt. The follow-up identified the content contrast, and its interval includes zero. Nothing here identified the effect of voluntary inspection, measured trust or understanding, or extended the results beyond the recruited cohort and tasks. The protocol identities show which specification was retained, not that it was registered with an outside party, and every number comes from a synthetic generator.
+
+## Where to go next
+
+For details, see [experimental planning](../guides/power-and-sample-size.md), [randomized and factorial designs](../guides/designs/randomized-experiments.md), [study ranking](../design-ranking.md), [the evidence ledger](../evidence-ledger.md), [citing the methods behind a study](../guides/citing-a-study.md) and [results as claims](../concepts/results-are-claims.md). [The smallest defensible test](synthetic-users-launch.md) follows a complementary investigation centered on a launch decision.
+
+## Run the complete example
 
 The example runs offline with Antecedent and NumPy, needs no credentials or real participant data, and completes in under a second locally. It keeps the hidden generating mechanism separate from the estimator inputs, checks its arithmetic independently and prints the research record as JSON.
 
 <!-- example: examples/python/research_from_day_zero.py -->
-
-For details, see [experimental planning](../guides/power-and-sample-size.md), [randomized and factorial designs](../guides/designs/randomized-experiments.md), [study ranking](../design-ranking.md), [the evidence ledger](../evidence-ledger.md), [citing the methods behind a study](../guides/citing-a-study.md) and [results as claims](../concepts/results-are-claims.md). [The smallest defensible test](synthetic-users-launch.md) follows a complementary investigation centered on a launch decision.

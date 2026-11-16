@@ -353,7 +353,8 @@ def rank_followups(prior_source):
 # %% [markdown]
 # ## Beginning: design the study your claim needs
 #
-# Plan the sample size, freeze the protocol before any data exist, then analyze the pilot.
+# Plan the sample size, freeze the protocol before any data exist, then analyze the first
+# study.
 # Look at the participant-level variance check and the identification summary.
 
 # %%
@@ -376,7 +377,7 @@ assert math.isclose(pilot_fit.variance_upper_bound, variance, abs_tol=1e-12)
 assert abs(pilot_fit.effect - 0.08) <= 4 * math.sqrt(variance)
 
 # %% [markdown]
-# ## Secondary outcomes and the pilot's limits
+# ## Secondary outcomes and the first study's limits
 #
 # Time per task and accuracy on correct-AI tasks are analyzed with the same design. The
 # correct-AI interval includes losses, so no noninferiority claim is available.
