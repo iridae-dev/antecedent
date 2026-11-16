@@ -183,6 +183,10 @@ SEED_ZERO = (
     "gcm_estimand_api.rs::interventional_mean",
     "gcm_estimand_api.rs::population_do_contrast",
     "gcm_estimand_api.rs::simultaneous_counterfactual",
+    # Power-prior discount selection: the seed of the cross-validated fold split.
+    "prior_bank.rs::select_beta_power_prior_alpha_py",
+    "prior_bank.rs::select_gamma_power_prior_alpha_py",
+    "prior_bank.rs::select_linear_power_prior_alpha_py",
 )
 
 SEED_OPTIONAL = (

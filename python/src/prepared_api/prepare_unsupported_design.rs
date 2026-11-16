@@ -231,7 +231,9 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-            req.refuse_design("association")?;
+            // The association route consumes a count prior (conjugate cells); any other
+            // transferred prior and any target population are refused as before.
+            req.refuse_design_except_count("association")?;
             let functional = association_functional(&functional, folds, threshold)?;
             let scale = match outcome_scale.as_deref() {
                 None | Some("schema") => antecedent::query::AssociationOutcome::Schema,

@@ -75,7 +75,9 @@ def _preparation_declarations(**values: Any) -> Mapping[str, Any]:
         {
             name: value
             for name, value in bound.arguments.items()
-            if name not in {"data", "execution"}
+            # A measurement declaration is dispatched before preparation (prepare_measured).
+            if name
+            not in {"data", "execution", "measurement", "measurement_draws", "imputations"}
         }
     )
 
@@ -619,7 +621,7 @@ def prepare(
     dose_units: str | None = None,
     measurement: Any = None,
     measurement_draws: int = 30,
-    measurement_seed: int | None = None,
+    imputations: Sequence[Any] | None = None,
 ) -> PreparedAnalysis[Any]:
     """Validate a causal question against data and a structure, and identify it, without fitting.
 
@@ -732,7 +734,12 @@ def prepare(
       :class:`~antecedent.exposure_measurement.PreparedMeasuredAnalysis`; its outcome's value is a
       :class:`~antecedent.exposure_measurement.MeasuredAnalysis`.
     * ``measurement_draws`` -- the number of imputations, at least 2. Default 30.
-    * ``measurement_seed`` -- the seed of the imputations; default the execution's seed.
+    * ``imputations`` -- a sequence of completed tables (series for ``DbnPosterior``) beside a
+      posterior-search ``discovery=`` (``ExactDagPosterior``, ``OrderMcmc``, ``StructureMcmc``,
+      ``CiScreenedPosterior``, ``DbnPosterior``): the engine searches each table, pools the
+      posteriors once and the study mixes the effect over the pooled posterior. Without it, a
+      posterior search in ``discovery=`` is run once on ``data``.
+    * The imputations draw from the ``execution``'s seed.
 
     Other:
 
@@ -784,7 +791,6 @@ def prepare(
                 data,
                 measurement=measurement,
                 draws=measurement_draws,
-                seed=measurement_seed,
                 execution=policy,
                 query=query,
                 graph=graph,
@@ -852,6 +858,24 @@ def prepare(
             )
         if not isinstance(query, ResponseCurve):
             raise CausalValueError("dose_units requires a static ResponseCurve query")
+    if discovery is not None and graph is None:
+        from .discovery import _POOLING_SEARCHES, pool_search_over_imputations
+
+        if isinstance(discovery, _POOLING_SEARCHES):
+            # The posterior search runs in the engine (on every completed table when imputations
+            # are given, pooled once); the study takes its executed posterior.
+            if imputations is not None:
+                discovery = pool_search_over_imputations(discovery, imputations, execution=policy)
+            else:
+                discovery = discovery.run(data, execution=policy)
+        elif imputations is not None:
+            raise CausalValueError(
+                "imputations pool a posterior search: pass discovery=<search> and no graph="
+            )
+    elif imputations is not None:
+        raise CausalValueError(
+            "imputations pool a posterior search: pass discovery=<search> and no graph="
+        )
     if discovery is not None and callable(getattr(discovery, "run", None)):
         raise CausalTypeError(
             "preparation requires an executed discovery result; run discovery.discover first"

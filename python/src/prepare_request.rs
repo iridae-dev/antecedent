@@ -61,6 +61,12 @@ impl PrepareRequest {
         self.refuse_population(route)
     }
 
+    /// [`Self::refuse_design`] for a route that consumes a count prior.
+    pub(super) fn refuse_design_except_count(&self, route: &str) -> PyResult<()> {
+        self.opts.refuse_prior_transfer_except_count(route, true)?;
+        self.refuse_population(route)
+    }
+
     /// Refuse a selection in the options that contradicts the one named as an argument.
     pub(super) fn refuse_conflicting_selection(
         &self,

@@ -466,12 +466,22 @@ impl PrepareOptions {
 
     /// Refuse prior transfer on a route whose executor cannot hydrate a prior.
     pub(crate) fn refuse_prior_transfer(&self, route: &str) -> PyResult<()> {
+        self.refuse_prior_transfer_except_count(route, false)
+    }
+
+    /// As [`Self::refuse_prior_transfer`], except that a route consuming a count prior
+    /// (the conjugate association cells) accepts one.
+    pub(crate) fn refuse_prior_transfer_except_count(
+        &self,
+        route: &str,
+        accepts_count: bool,
+    ) -> PyResult<()> {
         let spec = &self.inference;
         let named: Vec<&str> = [
             ("prior_artifact", spec.prior_artifact.is_some()),
             ("prior_mapping", spec.prior_mapping.is_some()),
             ("composed_prior", spec.composed_prior.is_some()),
-            ("count_prior", spec.count_prior.is_some()),
+            ("count_prior", spec.count_prior.is_some() && !accepts_count),
         ]
         .into_iter()
         .filter_map(|(name, set)| set.then_some(name))

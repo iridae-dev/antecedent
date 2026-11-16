@@ -261,8 +261,8 @@ fn draws_of(map: &Map<String, Json>) -> PyResult<ExposureDraws> {
 
 /// Write exposure draws as the library's posterior artifact.
 #[pyfunction]
-fn measured_exposure_export(draws_json_text: &str, exposure: &str) -> PyResult<Vec<u8>> {
-    let value = parse(draws_json_text, "exposure draws")?;
+fn measured_exposure_export(draws_json: &str, exposure: &str) -> PyResult<Vec<u8>> {
+    let value = parse(draws_json, "exposure draws")?;
     let draws = draws_of(object(&value, "exposure draws")?)?;
     if draws.draws.len() != draws.rows * draws.draw_count {
         return Err(crate::value_err("draws must hold draw_count x rows values"));

@@ -103,6 +103,8 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "source_sampling_weights",
             "prior_artifact",
             "prior_mapping",
+            "composed_prior",
+            "alpha_selection",
         ],
     ),
     (
@@ -167,6 +169,8 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "source_sampling_weights",
             "prior_artifact",
             "prior_mapping",
+            "composed_prior",
+            "alpha_selection",
         ],
     ),
     (
