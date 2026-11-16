@@ -442,6 +442,10 @@ name = "cluster_dml_calibration"
 path = "tests/cluster_dml_calibration.rs"
 
 [[test]]
+name = "dml_outcome_prior_calibration"
+path = "tests/dml_outcome_prior_calibration.rs"
+
+[[test]]
 name = "compiler_consistency"
 path = "tests/compiler_consistency.rs"
 

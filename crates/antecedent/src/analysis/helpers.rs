@@ -325,6 +325,13 @@ pub(crate) fn maybe_build_functional_scores(
     ) {
         return Ok(None);
     }
+    if est.outcome_prior.is_some() {
+        return Err(crate::unsupported_reason!(
+            "route_not_supported",
+            "an outcome-nuisance prior covers the mean average effect; functional scores are \
+             built from the unregularized outcome nuisance"
+        ));
+    }
     let method = estimand.method.as_ref();
     if !(method.contains("adjustment")
         || method.contains("backdoor")

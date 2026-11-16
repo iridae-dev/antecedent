@@ -1163,6 +1163,12 @@ impl Study {
             Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => *config.clone(),
             _ => AipwAte::new(),
         };
+        if est.outcome_prior.is_some() {
+            // The frozen score builders fit the unregularized outcome nuisance; a
+            // prior-regularized fit keeps no score table, so a retarget refuses with
+            // `score_table_unavailable` instead of reweighting scores of another construction.
+            return Ok(None);
+        }
         if let Some(design) = self.declared.sampling_design {
             est.inference.sampling_design =
                 antecedent_estimate::util::SamplingDeclaration::Declared(design);

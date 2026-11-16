@@ -94,6 +94,10 @@ pub struct PreparedPropensityProblem {
     pub sampling_weights: Option<crate::sampling_weights::RetainedSamplingWeights>,
     /// Preparation receipt for the finite table this problem was read from.
     pub preparation: antecedent_data::materialize::PreparationReceipt,
+    /// Names of the design columns (`intercept`, then `coef_<covariate>` per adjustment
+    /// variable), which an outcome-nuisance prior maps its coefficients onto. `None` for a
+    /// problem built without a schema.
+    pub design_names: Option<Arc<[Arc<str>]>>,
 }
 
 impl PreparedPropensityProblem {
@@ -603,7 +607,25 @@ pub(crate) fn prepare_propensity_problem_with_levels(
         propensity: crate::propensity::PropensityNuisance::default(),
         sampling_weights,
         preparation,
+        design_names: Some(design_column_names(data.schema(), &estimand.adjustment_set)),
     }))
+}
+
+/// Design-column names of a `[1 | Z…]` outcome design, in the convention of the Bayesian
+/// coefficient names (`intercept`, `coef_<covariate>`).
+fn design_column_names(
+    schema: &antecedent_core::CausalSchema,
+    adjustment_set: &[VariableId],
+) -> Arc<[Arc<str>]> {
+    let mut names: Vec<Arc<str>> = Vec::with_capacity(1 + adjustment_set.len());
+    names.push(Arc::from("intercept"));
+    for &id in adjustment_set {
+        names.push(schema.get(id).ok().map_or_else(
+            || Arc::from(format!("coef_var_{}", id.raw())),
+            |variable| Arc::from(format!("coef_{}", variable.name)),
+        ));
+    }
+    Arc::from(names)
 }
 
 pub(crate) fn clip_of(overlap: OverlapPolicy) -> Option<f64> {

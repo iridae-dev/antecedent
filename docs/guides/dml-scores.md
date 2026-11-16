@@ -111,6 +111,41 @@ For each summarized row the product reports the score at the posterior mode, its
 
 `product.export()` embeds the design the product was fitted on; `nuisance_scores.load_artifact(bytes(product.export()))` refits from it and refuses any edited, truncated or resealed artifact with `CausalSerializationError`. `temporal_treatment_score` is the temporal counterpart for a `TemporalDag` study.
 
+## A prior on the outcome nuisance
+
+`DML(prior_from=result.posterior.artifact)` and `Aipw(bootstrap=0, prior_from=...)` regularize the per-arm outcome regressions of
+the AIPW score with the coefficient summaries of a fitted posterior. In every cross-fit fold
+each arm's outcome model is the posterior mode of the linear regression under the Gaussian
+coefficient prior,
+`(X'X + V0^-1)^-1 (X'y + V0^-1 m)`, fitted on that fold's training rows of the arm, instead
+of the `outcome` learner. A dense source (draws retained) carries its coefficient correlation
+into `V0`; a source that records no residual variance is converted to the conjugate scale with
+the training rows' own residual variance. The doubly robust correction, the cross-fitting, the
+propensity nuisance and the influence-function interval are those of the unregularized score,
+so the prior shapes the efficiency of the estimate and never its identification: a correct
+propensity keeps the estimate consistent under any prior, however wrong. The prior (source
+digest, mapping and every hydration restriction) is recorded in the result's assumptions as
+`aipw_outcome_nuisance_prior`, and the score table's provenance names it.
+
+The per-arm outcome regression has the columns `intercept` and `coef_<covariate>` per
+adjustment variable, with no treatment coefficient. `mapping=None` binds an artifact whose
+coefficients are exactly those columns (names equal when the source names them);
+`PriorMapping.named_parameters([...])` pairs a source that also carries other coefficients
+(a treatment coefficient, for example) with the outcome columns, and design columns left
+unpaired keep the weakly informative default. A prior whose coordinates do not map, or an
+effect-functional mapping, refuses `quantity_semantics_mismatch` naming the declaration that
+would map it. `Aipw` takes the prior on its cross-fitted untrimmed all-observed mean ATE under
+IID analytic inference only: `bootstrap=0` is required (the bootstrap refits the unregularized
+nuisances), and a trimmed, ATT/ATC, quantile or exceedance fit, a penalized propensity,
+`cluster_dml` or a declared `se` refuses `route_not_supported`; it keeps no score table, so a
+retarget refuses `score_table_unavailable`. `DRLearner` and `CausalForest` take no prior. A
+`ComposedPrior` is refused: it carries only positional means and variances over a Bayesian
+design that includes the treatment coefficient and no coefficient names, so its coordinates
+cannot be verified against the outcome columns. The partially linear score, whole-cluster cross-fitting, caller-supplied learner
+factories and the population-linear interval refuse a prior (`route_not_supported`); a
+prior-regularized fit keeps no cached nuisance bundle and is not replayable through the
+recalculation session.
+
 ## What is refused
 
 - A partially linear DML fit, a trimmed DML fit, a DR-Learner or CausalForest fit under a
@@ -131,6 +166,12 @@ For a retarget of a single adjusted fit (a GLM adjustment fit rather than a DML 
 covariance against raw sums, a hand calculation of the table formulas on a fixed nuisance
 bundle (`mu0 = 1`, `mu1 = 3`, `e = 0.5`), seeded replay, partially linear and trimmed fits
 keeping no table, and the DR-Learner and CausalForest tables.
+`crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs`: the per-fold posterior
+mode of the arm regressions against an independent 2 x 2 solve, the AIPW point and per-arm
+scores against a hand-computed doubly robust estimate from the published out-of-fold
+propensity, consistency under a badly misspecified prior with a correct propensity, a very wide
+prior against the unpenalized fit, and the refusals. `crates/antecedent/tests/dml_outcome_prior_calibration.rs`
+measures the interval's coverage under a weak, an informative and a misspecified prior.
 `crates/antecedent/tests/dml_scores_retarget.rs`: retarget after estimate with the
 independent sums for points and the cross-plan covariance, the prepare-time table equal to
 the estimate's, the typed refusals, and DR-Learner / CausalForest.

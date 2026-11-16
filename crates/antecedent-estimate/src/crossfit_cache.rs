@@ -1056,6 +1056,7 @@ mod tests {
             sampling_weights: None,
             preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(2)
                 .unwrap(),
+            design_names: None,
         }
     }
 

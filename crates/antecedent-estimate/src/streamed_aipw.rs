@@ -231,6 +231,7 @@ impl AipwAte {
             && self.cluster_dml.is_none()
             && self.other_levels == OtherLevels::Refuse
             && self.sampling_weights.is_none()
+            && self.outcome_prior.is_none()
             && trim_of(self.overlap).is_none()
     }
 

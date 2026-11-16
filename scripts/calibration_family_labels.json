@@ -114,11 +114,11 @@
     },
     {
       "path": "crates/antecedent-estimate/src/dml.rs",
-      "sha256": "4081c91c8b2554df93a24b13376f5c6a59ec737d5957322687906a85db4e4e15",
+      "sha256": "6a6c8db40877e1dcca74d8221f173407fc34e2ff3784d26107ef7f1fd59df64a",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 1564,
+          "line": 1705,
           "call": "CoverageTally::new(",
           "argument": "format!(\"learner_ate_known_truth_coverage {name}\"),\n                level,"
         }
@@ -1240,6 +1240,19 @@
         }
       ],
       "review": "Ten source-fixed structure-search designs (order-MCMC, structure-MCMC, CI-screened, ancestral-graph class, exact edge-marginal and bounded-lag template posteriors) on fixed linear laws with a known true structure class or a prior-drawn indicator, one literal test-named credible-set tally at the declared level each; no outcome selects a search, structure or level."
+    },
+    {
+      "path": "crates/antecedent/tests/dml_outcome_prior_calibration.rs",
+      "sha256": "8dbe8d4e4403c708526baa295d7558801f90d1e9f5cb2cdcf758d5bb27fa0c1b",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 144,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Three fixed prior-strength constructions (weak, informative, misspecified) with a literal functional label; no labels selected using calibration outcomes."
     },
     {
       "path": "crates/antecedent/tests/dose_grid_statements_calibration.rs",

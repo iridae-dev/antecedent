@@ -73,6 +73,7 @@ use crate::adjustment::EffectEstimate;
 use crate::arm::TreatmentArm;
 use crate::bootstrap_wave::retained_index_slots;
 use crate::cluster_dml_aipw::ClusterDml;
+use crate::dml_outcome_prior::OutcomePriorSource;
 use crate::error::EstimationError;
 use crate::inference::InferenceSpec;
 use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
@@ -182,6 +183,13 @@ pub struct AipwAte {
     /// error is the linearization of that weighted mean. Trimmed, ATT/ATC, penalized and
     /// cluster-DML constructions refuse them.
     pub sampling_weights: Option<SamplingWeights>,
+    /// A Gaussian coefficient prior on the per-arm outcome-regression nuisance of the
+    /// cross-fitted ATE route. A fit under it takes its own branch: each fold's per-arm
+    /// outcome model is the posterior mode under the prior, scored by the same doubly robust
+    /// correction, and no cached nuisance bundle is read or kept. It covers the untrimmed
+    /// all-observed mean ATE under IID analytic inference with no bootstrap; every other
+    /// configuration refuses. `None` runs the established route unchanged.
+    pub outcome_prior: Option<OutcomePriorSource>,
 }
 
 /// Physical table indices of row identities, refusing an identity the address space cannot hold.
@@ -240,7 +248,17 @@ impl AipwAte {
             cluster_dml: None,
             other_levels: OtherLevels::default(),
             sampling_weights: None,
+            outcome_prior: None,
         }
+    }
+
+    /// Regularize the per-arm outcome-regression nuisance of the cross-fitted ATE with a
+    /// coefficient prior (see [`Self::outcome_prior`]). The prior shapes efficiency and never
+    /// identification.
+    #[must_use]
+    pub fn with_outcome_prior(mut self, prior: OutcomePriorSource) -> Self {
+        self.outcome_prior = Some(prior);
+        self
     }
 
     crate::inference::with_bootstrap_interval!(inference);
@@ -376,6 +394,15 @@ impl AipwAte {
         }
         if self.sampling_weights.is_some() {
             Self::require_weighted_scope(query)?;
+        }
+        if self.outcome_prior.is_some()
+            && query.outcome_functional != antecedent_core::OutcomeFunctional::Mean
+        {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "an outcome-nuisance prior covers the mean average effect; a quantile or \
+                 exceedance functional is estimated from the unregularized scores",
+            ));
         }
         if let Some(source) = self.inference.source_cluster_ids.as_deref() {
             crate::se::require_source_labels(
@@ -727,6 +754,14 @@ impl AipwAte {
         treatment: &dyn antecedent_learn::LearnerFactory,
     ) -> Result<EffectEstimate, EstimationError> {
         self.require_point_route(problem)?;
+        if self.outcome_prior.is_some() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "an outcome-nuisance prior regularizes the built-in per-arm outcome regression; \
+                 caller-supplied learner factories replace that regression, so declare either \
+                 the prior or the factories",
+            ));
+        }
         if self.inference.bootstrap_replicates != 0
             || self.inference.bootstrap_interval.is_some()
             || !matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic)
@@ -771,6 +806,14 @@ impl AipwAte {
         assumptions: AssumptionSet,
         level: f64,
     ) -> Result<crate::population_aipw::PopulationAipwInterval, EstimationError> {
+        if self.outcome_prior.is_some() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "the population linear interval corrects an unpenalized arm-linear outcome fit \
+                 and does not cover a prior-regularized outcome nuisance; use the cross-fitted \
+                 influence-function interval",
+            ));
+        }
         if self.cluster_dml.is_some()
             || self.inference.cluster_ids.is_some()
             || self.inference.source_cluster_ids.is_some()
@@ -812,6 +855,14 @@ impl AipwAte {
         assumptions: AssumptionSet,
         level: f64,
     ) -> Result<crate::population_atc::PopulationAtcInterval, EstimationError> {
+        if self.outcome_prior.is_some() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "the population linear interval corrects an unpenalized arm-linear outcome fit \
+                 and does not cover a prior-regularized outcome nuisance; use the cross-fitted \
+                 influence-function interval",
+            ));
+        }
         if self.cluster_dml.is_some()
             || self.inference.cluster_ids.is_some()
             || self.inference.source_cluster_ids.is_some()
@@ -883,6 +934,61 @@ impl AipwAte {
         Ok(point.with_bootstrap_outcome(boot))
     }
 
+    /// The cross-fitted ATE under an outcome-nuisance prior: the configuration is checked
+    /// against the one route the prior covers, then the cross-fitted AIPW score runs with the
+    /// prior-regularized per-arm outcome regressions and the unpenalized logistic propensity.
+    fn fit_with_outcome_prior(
+        &self,
+        prior: &OutcomePriorSource,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
+        self.require_prior_scope(problem)?;
+        crate::DmlAte::new()
+            .with_folds(crate::crossfit_aipw::DEFAULT_AIPW_FOLDS)
+            .with_overlap(problem.overlap)
+            .with_outcome_prior(prior.clone())
+            .fit(problem, ctx, assumptions)
+    }
+
+    /// Refuse every configuration an outcome-nuisance prior does not cover.
+    fn require_prior_scope(
+        &self,
+        problem: &PreparedPropensityProblem,
+    ) -> Result<(), EstimationError> {
+        if problem.propensity != self.propensity {
+            return Err(EstimationError::data_msg(
+                "AIPW propensity nuisance differs from the one the problem was prepared with",
+            ));
+        }
+        if self.inference.bootstrap_replicates != 0
+            || self.inference.bootstrap_interval.is_some()
+            || !matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic)
+            || self.inference.cluster_ids.is_some()
+            || self.inference.source_cluster_ids.is_some()
+            || self.inference.multiway_ids.is_some()
+            || self.inference.panel_times.is_some()
+            || !matches!(
+                self.inference.sampling_design,
+                crate::util::SamplingDeclaration::Undeclared
+            )
+            || self.cluster_dml.is_some()
+            || !self.propensity.is_default()
+            || self.glm_options != GlmOptions::default()
+            || !matches!(problem.target_population, TargetPopulation::AllObserved)
+            || trim_of(problem.overlap).is_some()
+        {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "an outcome-nuisance prior covers the untrimmed all-observed cross-fitted mean \
+                 ATE with IID analytic inference, no bootstrap and default built-in nuisance \
+                 options; declare bootstrap_replicates = 0 and drop the other options",
+            ));
+        }
+        Ok(())
+    }
+
     /// One point fit: check the route, then dispatch to the custom-population, cross-fitted or
     /// full-sample stages.
     fn fit_point(
@@ -892,6 +998,9 @@ impl AipwAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        if let Some(prior) = &self.outcome_prior {
+            return self.fit_with_outcome_prior(prior, problem, ctx, assumptions);
+        }
         self.require_point_route(problem)?;
         if matches!(problem.target_population, TargetPopulation::CustomDistribution(_)) {
             return self.fit_custom(problem, ctx, assumptions);

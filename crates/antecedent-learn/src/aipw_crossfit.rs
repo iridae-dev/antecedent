@@ -212,6 +212,55 @@ pub fn cross_fit_aipw_nuisances(
     )
 }
 
+/// Per-arm outcome models fitted by `outcome` and a propensity learner resolved from
+/// `treatment`, cross-fitted like [`cross_fit_aipw_nuisances`].
+///
+/// The outcome factory sees the full design (intercept included). Every other step, including
+/// the propensity resolution, the weight checks and the fold schedule, is that of
+/// [`cross_fit_aipw_nuisances`].
+///
+/// # Errors
+///
+/// As [`cross_fit_aipw_nuisances`].
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the checked cross-fit inputs are independent parts of the operation"
+)]
+pub fn cross_fit_aipw_nuisances_with_outcome_factory(
+    outcome: &dyn LearnerFactory,
+    treatment: LearnerSpec,
+    design: ColumnMajorDesign<'_>,
+    y: &[f64],
+    t: &[f64],
+    (folds, fold_ids): (usize, Vec<u16>),
+    ctx: &ExecutionContext,
+    weights: Option<&[f64]>,
+    admit_boundary_saturation: bool,
+) -> Result<AipwPredictions, AipwCrossFitError> {
+    let treat_factory = resolve_propensity_for(
+        treatment,
+        PredictionTask::BinaryProbability,
+        admit_boundary_saturation,
+    )?;
+    if weights.is_some() {
+        require_weight_capable(treat_factory.as_ref(), treatment)?;
+    }
+    let ColumnMajorDesign { values, nrows, ncols } = design;
+    let x_outcome = DesignView::from_column_major(values, nrows, ncols)?;
+    let x_treat = design_for_spec(treatment, design)?;
+    cross_fit_aipw_with_factories(
+        outcome,
+        treat_factory.as_ref(),
+        x_outcome,
+        x_treat,
+        y,
+        t,
+        (folds, fold_ids),
+        ctx,
+        weights,
+    )
+}
+
 /// Cross-fit AIPW nuisances using caller-supplied learner factories.
 ///
 /// The designs must have the same unselected physical rows as `y`, `t`, and the fold

@@ -758,6 +758,50 @@ pub fn decode_prior_hydrate_source(
     }))
 }
 
+/// Decode a posterior artifact into the outcome-nuisance prior of a cross-fitted AIPW
+/// estimate ([`antecedent_estimate::DmlAte::with_outcome_prior`]).
+///
+/// The artifact's coefficient moments (and, when its draws were retained, the dense coefficient
+/// covariance) are kept; mapping them onto the design columns of the outcome regression happens
+/// when the problem is prepared. `mapping` is the declared mapping; `None` takes the mapping the
+/// artifact declares, else the identical coefficient subspace. The source identity is the
+/// content digest of the artifact bytes.
+///
+/// # Errors
+///
+/// Migration or decode failures, or a mapping that has no coordinate in the outcome regression
+/// (an effect-functional mapping).
+pub fn outcome_prior_source_from_artifact(
+    bytes: &[u8],
+    mapping: Option<&PriorMapping>,
+) -> Result<antecedent_estimate::OutcomePriorSource, CausalError> {
+    let declaration = if mapping.is_some() {
+        MappingDeclaration::CallerSupplied
+    } else {
+        MappingDeclaration::FromArtifact
+    };
+    let source = decode_prior_source(bytes, declaration)?;
+    let mapping = match mapping {
+        Some(declared) => hydrate_mapping_from_io(declared),
+        None => {
+            source.declared_mapping.clone().unwrap_or(HydrateMapping::IdenticalCoefficientSubspace)
+        }
+    };
+    let quantities = wire_quantities_to_kinds(&source.wire.quantities);
+    let covariance =
+        coefficient_covariance_from_draws(&quantities, &source.draws, source.wire.n_draws as usize)
+            .map_err(CausalError::from)?;
+    antecedent_estimate::OutcomePriorSource::new(
+        quantities,
+        source.wire.mean.clone(),
+        source.wire.sd.clone(),
+        covariance,
+        mapping,
+        format!("blake3:{}", antecedent_core::identity::blake3_hex(bytes)),
+    )
+    .map_err(CausalError::from)
+}
+
 /// Hydrate a [`PriorSet`] from an already decoded posterior under a [`HydrateMapping`].
 ///
 /// Identical-subspace hydration reads the coefficient covariance from the artifact's draws and

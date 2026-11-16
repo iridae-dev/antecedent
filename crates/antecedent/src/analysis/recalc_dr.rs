@@ -63,6 +63,7 @@ impl DrEstimator {
                     && config.overlap.validate().is_ok()
                     && continuous(config.outcome)
                     && treatment(config.treatment)
+                    && config.outcome_prior.is_none()
                     && config.score == DmlScore::Aipw
                     && !matches!(
                         config.overlap,

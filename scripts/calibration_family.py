@@ -105,6 +105,7 @@ SOURCE_REVIEW = {
     "calibration_posterior_draws.rs": "Source-fixed posterior draw-count/row-count design cases and confidence.",
     "class_posterior_calibration.rs": "Fixed class-posterior procedures and declared source test configurations.",
     "cluster_dml_calibration.rs": "Fixed whole-cluster DML procedure configurations/targets; no empirical label selection.",
+    "dml_outcome_prior_calibration.rs": "Three fixed prior-strength constructions (weak, informative, misspecified) with a literal functional label; no labels selected using calibration outcomes.",
     "calibration_bind.rs": "Shared immutable construction/record-key binding, no calibration outcomes choose hypotheses.",
     "reported.rs": "Shared per-test reporting wrapper; one source-fixed test execution context, no empirical hypothesis selection.",
     "cross_world_interval_calibration.rs": "Fixed cross-world interval/query cases and static record identifiers.",
