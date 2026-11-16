@@ -230,8 +230,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "antecedent-discovery__order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps"
 passed = 1
-calibration_sha = "935d928b7b2812a14ef79ee21833c3955d133949"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 996864, family_digest = "9b46d5c68b8af5b31b5d0d5dcb41253c48bca61cdb324e8e79b1e4bbecbd2f5b", family_grid_points = 3, family_groups = 1298, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -253,13 +253,14 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "antecedent-discovery__order_mcmc_marginals_match_the_exact_posterior_at_twelve_variables"
 passed = 1
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1316352, family_digest = "c083662f0121c5998414dfd4e32c7e82744ccb943160fc44fb915fc0c3523726", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
 ], validation_domain = "coverage_measurement" }
 coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/pipeline.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/ids.rs", "crates/antecedent-core/src/numerical_admission.rs", "crates/antecedent-core/src/row_mask.rs", "crates/antecedent-core/src/schema.rs", "crates/antecedent-data/src/buffer.rs", "crates/antecedent-data/src/column.rs", "crates/antecedent-data/src/dataset.rs", "crates/antecedent-data/src/storage.rs", "crates/antecedent-data/src/table.rs", "crates/antecedent-data/src/vector_vars.rs", "crates/antecedent-discovery/src/adjacency_mask.rs", "crates/antecedent-discovery/src/constraints.rs", "crates/antecedent-discovery/src/exact_marginals.rs", "crates/antecedent-discovery/src/graph_mcmc.rs", "crates/antecedent-discovery/src/graph_posterior.rs", "crates/antecedent-discovery/src/graph_posterior_calibration.rs", "crates/antecedent-discovery/src/graph_posterior_constraints.rs", "crates/antecedent-discovery/src/graph_posterior_diagnostics.rs", "crates/antecedent-discovery/src/graph_score.rs", "crates/antecedent-discovery/src/indexing.rs", "crates/antecedent-discovery/src/order_mcmc.rs", "crates/antecedent-discovery/src/pc.rs", "crates/antecedent-discovery/src/test_tables.rs", "crates/antecedent-graph/src/error.rs", "crates/antecedent-kernels/src/cholesky.rs", "crates/antecedent-kernels/src/gram.rs", "crates/antecedent-kernels/src/numeric.rs", "crates/antecedent-kernels/src/posterior_reduce.rs", "crates/antecedent-kernels/src/scalar.rs", "crates/antecedent-kernels/src/special.rs", "crates/antecedent-prob/src/mcmc_stats.rs", "crates/antecedent-state/src/graph_score.rs", "crates/antecedent-stats/src/special.rs"]
 
 [[gate]]
 group = "antecedent-discovery__pc_null_fpr_near_alpha"
@@ -1126,8 +1127,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "decision_reliability_calibration__winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased"
 passed = 1
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1316352, family_digest = "c083662f0121c5998414dfd4e32c7e82744ccb943160fc44fb915fc0c3523726", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2140,8 +2141,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "smoothed_dose_calibration__smoothed_dose_transport_grid_points"
 passed = 1
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1316352, family_digest = "c083662f0121c5998414dfd4e32c7e82744ccb943160fc44fb915fc0c3523726", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },

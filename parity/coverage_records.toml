@@ -236784,6 +236784,60 @@ fingerprint = "343175ea232b3608c3574d25c5d591daf50df83f6ff6b7c2d2a9ae8c735fc145"
 dependency_manifest = "faa618da2cc255608f64a9a34ec52cc4f69e20fa0be80cf29544401d02f3fb2c"
 
 [[record]]
+id = "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_simex_logistic_wald_l95.v2_validation_not_applicable"
+query = "MeasurementCorrectedFunctional"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "measurement.classical_continuous_error.simex"
+interval_method = "delta_method_wald"
+se_kind = "whole_procedure_bootstrap"
+dependence = "declared_non_differential"
+posterior = ""
+functional = "logit_coefficient.simex|error_in_treatment"
+identification = "point"
+nominal = 0.95
+n_min = 250
+n_max = 1000
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9235
+mcse = 0.005943389184631948
+replicates = 2000
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1847, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 4.869557681794169e-07, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "ae6b33e790a9316eaf6f235f5fb18146", 32 = "c600d81a6d39cb1a909c5fa380a661e1", 100 = "215ce44e7b4d5db8ace018779e91d31f", 320 = "9ed5875bc1b3b23423c4b76b904fb1d2" }, p1 = { 10 = "638d574d3e890518deafb1f868bfba79", 32 = "c57b8c9d426de0624fcaacfd16624121", 100 = "faece7e250e47bf9b1c235c97c1aaf2f", 320 = "048aa3216ccef44fe41a6caab1b46b82" }, p2 = { 10 = "5eac6cf1f615b4f6ffc59c26050202b3", 32 = "03a31a72d4cefea3bb7c3a5f5df0fa5b", 100 = "a9536687539909395a46b7056aeb7b4e", 320 = "650086f9fe287f578dbfb9a812ad26d5", 1000 = "e6e9fb88db92842e3ef62aee536d9b1f" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 380, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 1.0, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 250, n_max = 250, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 384, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.4289039716624938, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 500, n_max = 500, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1847, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 4.869557681794169e-07, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }, point = 2, n_min = 1000, n_max = 1000, observed = 0.9235, mcse = 0.005943389184631948, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/measurement_composition_statements_calibration.rs::logistic_outcome_classical_error_variance_0_25_declared_exactly_default_simex_logit_coefficient_1"
+test = "crates/antecedent/tests/measurement_composition_statements_calibration.rs::measurement_simex_logistic_wald_l95"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
 id = "cov.measurement_corrected_functional.dag.frequentist.equal_tailed_simulation_interval.l95.measurement_pooled_differential_heterogeneous_l95.v2_validation_not_applicable"
 query = "MeasurementCorrectedFunctional"
 graph_class = "Dag"
@@ -257198,6 +257252,60 @@ test = "crates/antecedent/tests/panel_did_calibration.rs::bayesian_rollout_boots
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "e718843e48fac24537949668eb71742cdb261bdcf7f86fbe10bdf6a8765c7727"
 dependency_manifest = "8f77414e100ddaca6ca8a659c840d5afedcbed2b75b691e5e6a88a0a1d1d84ca"
+
+[[record]]
+id = "cov.panel_did.randomized_trial.bayesian.posterior_quantile.l95.bayesian_rollout_bootstrap_credible_interval_upper_units.v2_validation_not_applicable"
+query = "PanelDid"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Bayesian"
+estimator = "bayesian.panel_did"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "iid"
+posterior = "conjugate_gaussian.gaussian_identity.prior_scale=10"
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 720
+n_max = 1440
+replicates_min = 0
+posterior_draws_min = 2000
+unidentified_mass_max = 0.0
+observed = 0.9325
+mcse = 0.0125442965127583
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 373, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.1452978133652831, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "d84884e5e18c0da65f3e7dd5a983d83e", 32 = "ce9b009731034ea0158a6bf8ffd78498", 100 = "b240d0b76411dcc7c5b64e33b6b5b46a", 320 = "6f2fd0d06a2f1daf8c52b819b1eb3bf7" }, p1 = { 10 = "c3edd0507b08f9f05a3ffa2379b13ae9", 32 = "6d14e410d34485fdda85fadd7113120a", 100 = "e0775d9fb1c7dfeccb94dae3fbca9b7f", 320 = "f2f2787d8ac5fb78e8093468541a0f14" }, p2 = { 10 = "b1b330d5aec3f30157d2334d011ba2c7", 32 = "0ad10221c6aa17d600779f75ab4c6328", 100 = "e5c0512185f2284e9ead19d81b5526b2", 320 = "9f7f05db9d2c0e1f3f244129c3a281d9", 1000 = "f34bdf0911f04c8f469d5d31bbbeb587" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 373, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.1452978133652831, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 720, n_max = 720, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 385, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.29985629817680337, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 1080, n_max = 1080, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1892, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.437838721155412, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }, point = 2, n_min = 1440, n_max = 1440, observed = 0.946, mcse = 0.005053909377897473, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::staggered_three_cohort_heterogeneous_effects_known_simple_aggregate"
+test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::bayesian_rollout_bootstrap_credible_interval_upper_units"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
 
 [[record]]
 id = "cov.panel_did.randomized_trial.bayesian.posterior_quantile.l95.bayesian_two_period_posterior_interval.v2_validation_not_applicable"
@@ -438499,6 +438607,169 @@ fingerprint = "e7b5aa5d803a95c13ae41c82cca95b31323bec1f6b04a96a97153e927784f41b"
 dependency_manifest = "f9dce9cbedcfabf0e67e0256237aeb141fa5ce5a821c3a43b513645e90374cae"
 
 [[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_twenty_donors.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 840
+n_max = 3360
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.945
+mcse = 0.011399013115178002
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 378, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.708171849973396, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "3bae9c5269872a59b7ec9ed962f7c1af", 32 = "3eb02a0aadfe2f562d634a0cffef9b26", 100 = "f98770da754ee9b5813ec7240f3a7081", 320 = "ef204cb9c87122c49d409942c1814cdc" }, p1 = { 10 = "6bfab489901c4b4b37c592f7f43c8dca", 32 = "53243680215600a3500b8d707d88ed3b", 100 = "1e99b53c2c4cbbe1479ede672df72dfb", 320 = "900d6dc54ff5e73187590d9383067437" }, p2 = { 10 = "045575f35cee3b7c594298051266adb3", 32 = "f46d091f8bfbc24645c1accbd376f6ba", 100 = "1647525ed05e5cb2d9e3a29c388afa5b", 320 = "16d27353d84a2565e840f46ff409ed9d" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 384, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.4289039716624938, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 840, n_max = 840, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 384, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.4289039716624938, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 1680, n_max = 1680, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 378, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.708171849973396, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 3360, n_max = 3360, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::conformal_synthetic_control_constant_effect_set_twenty_donors"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_unaligned_pre_periods.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 572
+n_max = 1188
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9425
+mcse = 0.01163977555625537
+replicates = 400
+boundary = false
+role = "one_sided"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 377, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.27538266480591894, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+one_sided = { side = "upper", target = "the known effect, conservatively at a permutation count that is not a multiple of twenty" }
+probe = { p0 = { 10 = "e5663e64950368a56c293fa0803db83a", 32 = "d315b59ac455d2cc570aded5a9e9c4ca", 100 = "23756cbaee242af79939e251db145dd1", 320 = "76e4b85fd1d76bb7bb74edcfb6f9e812" }, p1 = { 10 = "662f240fe9b157de328e86dd0526babb", 32 = "fcfd60fbc53af08b9fab6f7f14b10224", 100 = "17e68fe1e23cd7b2176eb1cef89f1f7d", 320 = "75bfb1cef2e1edc0bc2454ad81cd392b" }, p2 = { 10 = "0a45e462d4f5eac3ed14f10650829089", 32 = "81bde81bb3e950178aad57cc9b5ee8a2", 100 = "11bf6b20b3edbb604e179922275fcf3f", 320 = "f7b7afb884659452f538b79772aa7efc" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 386, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9386381002497294, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 572, n_max = 572, observed = 0.965, mcse = 0.009188987974744557, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 377, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.27538266480591894, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 748, n_max = 748, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 383, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.7855480141687531, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 1188, n_max = 1188, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::conformal_synthetic_control_constant_effect_set_unaligned_pre_periods"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_upper_pre_periods.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 2640
+n_max = 7040
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9375
+mcse = 0.012103072956898178
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "4b9f3c09406f467ef9877c1b6a282dea", 32 = "00743c0cf01babeb8e5d880a18ffe741", 100 = "39293d8c38888c66202e3bdb03ddc9d0", 320 = "557a25be115b277cfd0cec18661b96f2" }, p1 = { 10 = "48d9eb020f44394762c435121e126868", 32 = "c7aec1b4d287c3495413da1f0e42fdfb", 100 = "63e7119c646c349bdf34e64faaf6b55b", 320 = "58826c56ee4471492b11fb9ee996400f" }, p2 = { 10 = "00720c121eec423846e10e2804d3db43", 32 = "7e3332d42fe152e46400518895910ea8", 100 = "374fa24fd5c63ec8fbc9356d1fdcee4c", 320 = "152df95081a3d0771e34ad73cc3de7cb" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 381, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.9359398985824383, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 2640, n_max = 2640, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 377, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.5507653296118379, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 4400, n_max = 4400, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 7040, n_max = 7040, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::conformal_synthetic_control_constant_effect_set_upper_pre_periods"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
 id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set.v2_validation_not_applicable"
 query = "SyntheticControl"
 graph_class = "RandomizedTrial"
@@ -438555,6 +438826,169 @@ fingerprint = "e7b5aa5d803a95c13ae41c82cca95b31323bec1f6b04a96a97153e927784f41b"
 dependency_manifest = "f31922f532dc1a466b937bce7e78c922b3b392e2af4aa26891803c37b7f501db"
 
 [[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_twenty_donors.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 924
+n_max = 3444
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.94
+mcse = 0.011874342087037922
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 376, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.41461049048963466, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "13a1d919e6e6b45c7bce16f2bf9c797b", 32 = "6d5916fcfbba5f050b52d8f83b36da66", 100 = "5f83a60a6d0998b0e6abbf7d7ee06046", 320 = "cefb473bb1c8c6468a5b3aa77939dd92" }, p1 = { 10 = "8db986934793f37ff6a1c3bd6a525439", 32 = "28e2088368fdb0c216de86e77192404c", 100 = "798f4b3391e9eeca0c68f1404822d305", 320 = "f611c8aa473048f3f2bc127bbf30a9c1" }, p2 = { 10 = "9f29bbe2080f41b584adbbd0abc87d07", 32 = "0f6c19a8e754a372d4c290bf772d0134", 100 = "e44b6e214333d21d1f65f806376e3e92", 320 = "6a02d6ff2bb536823ad299d0b99f34f9" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 378, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.708171849973396, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 924, n_max = 924, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 376, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.41461049048963466, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 1764, n_max = 1764, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 377, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.5507653296118379, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 3444, n_max = 3444, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::conformal_synthetic_control_first_period_set_twenty_donors"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_unaligned_pre_periods.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 572
+n_max = 1188
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9475
+mcse = 0.01115165346484547
+replicates = 400
+boundary = false
+role = "one_sided"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 379, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.4408879375338961, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+one_sided = { side = "upper", target = "the known effect, conservatively at a permutation count that is not a multiple of twenty" }
+probe = { p0 = { 10 = "d9394d75f4d59c3b8fdab34b99b9fd9a", 32 = "ae76aa29bf53371678d531929ae45f5b", 100 = "28117c5d139ed6b35d71e828ab246a96", 320 = "73d56434592939defd44b464471fe82a" }, p1 = { 10 = "febc632baef04fb58c27b654d4676cb3", 32 = "509e36fcd90d17468aaa274856f6905d", 100 = "91f44b66dafd6655a0f238cce9266190", 320 = "77edbc94f8d3fb0e725b172d00d25a00" }, p2 = { 10 = "bc83ab7c2934963f042018e1f78ba969", 32 = "ecbf02cc5c08e253aded1048491c7766", 100 = "7e196189cc164eef76676041f5a7e6e9", 320 = "6d6dea44c2162686fe0c998503d78f4f" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 384, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.8500718509115983, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 572, n_max = 572, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 384, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.8500718509115983, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 748, n_max = 748, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 379, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.4408879375338961, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 1188, n_max = 1188, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::conformal_synthetic_control_first_period_set_unaligned_pre_periods"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_upper_pre_periods.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 2684
+n_max = 7084
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.94
+mcse = 0.011874342087037922
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 376, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.41461049048963466, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "abaa1318218908e0f6b71a33f185387f", 32 = "6379c413db27f13fa089bbcc307395af", 100 = "05fbb095b41512c390afcfca65d11354", 320 = "fec3729a3422a5580863fd2a6def0ce2" }, p1 = { 10 = "c8aa7b6fcf827f6c20892f03f246cd40", 32 = "9e935776997dd61cba6443587d9cc648", 100 = "b46fb58dc224559ff5ac7e595901a3a6", 320 = "af39c95d7f8a941031530d97ce3301ec" }, p2 = { 10 = "c6087a618d591c1a9116a8bc1f5295bc", 32 = "6e1e5cb2b0744d0b11a07d6b576aa9ae", 100 = "0698a356e8f868d5884732795a4d2310", 320 = "f3c0c9a111472e1424487792789b1388" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 383, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.5823228776017932, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 2684, n_max = 2684, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 376, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.41461049048963466, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 4444, n_max = 4444, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 378, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.708171849973396, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 7084, n_max = 7084, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::conformal_synthetic_control_first_period_set_upper_pre_periods"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
 id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set.v2_validation_not_applicable"
 query = "SyntheticControl"
 graph_class = "RandomizedTrial"
@@ -438609,6 +439043,331 @@ test = "crates/antecedent/tests/synthetic_control_calibration.rs::conformal_synt
 calibration_sha = "38eb34a498fbfa79842f1163306b276716e09da5"
 fingerprint = "e7b5aa5d803a95c13ae41c82cca95b31323bec1f6b04a96a97153e927784f41b"
 dependency_manifest = "59b361997a5c9cdc82c3b93dc4f69ca74cc2dfd89628c4d6258185a97b484d8b"
+
+[[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set_twenty_donors.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 924
+n_max = 3444
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.941
+mcse = 0.005268728499363013
+replicates = 2000
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1882, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.07770877211840713, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "1feade68f6922503e2523b2f44753219", 32 = "b32f7870de5013a7760dbb7fdb4fc5b9", 100 = "0ee37279f42c3dd17600fef365129ea9", 320 = "980e71fc3885771daf09df9832471575" }, p1 = { 10 = "3fcd2d2be32afa2b0276229a066f77cb", 32 = "4f74329a02180938f83c0b91e6181851", 100 = "2991755e1848e423cccd3b80edb96d44", 320 = "67ca3878ce532e0b6fe392d3a6ed6b49", 1000 = "af4a9761dab2815c9df5c44cee1180af" }, p2 = { 10 = "34183f1eee075021ae141e39cfd5390f", 32 = "b41a017407a31a5fef539f2ac953d9b9", 100 = "15dc0c007d9881a6d6fd3c92c169e46b", 320 = "e96c0913381baaf0ccf6b3d3cb76951c" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 385, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.29985629817680337, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 924, n_max = 924, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1882, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.07770877211840713, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }, point = 1, n_min = 1764, n_max = 1764, observed = 0.941, mcse = 0.005268728499363013, replicates = 2000, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 387, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.12272379950054128, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 3444, n_max = 3444, observed = 0.9675, mcse = 0.008866192813152663, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::conformal_synthetic_control_last_period_set_twenty_donors"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set_unaligned_pre_periods.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 572
+n_max = 1188
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9525
+mcse = 0.010635289135702893
+replicates = 400
+boundary = false
+role = "one_sided"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 381, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.6229329457388194, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+one_sided = { side = "upper", target = "the known effect, conservatively at a permutation count that is not a multiple of twenty" }
+probe = { p0 = { 10 = "15467cf5c18f89b35cca1f2aed4ce514", 32 = "f71a0ef8644009131bd9e5667e3386f2", 100 = "b44b55a311dcfe2e6be5fbef1e88d39f", 320 = "a57b29b58945e61fef55fecef36f4521" }, p1 = { 10 = "d89ce7f516590f0a402e6056d6723b22", 32 = "4d670ffb6a089e03cee113b66d8d325e", 100 = "d296e4a1f081fc00352475014d0944ef", 320 = "9b7e3c3db8a1b9ab3852d585edf66fa0" }, p2 = { 10 = "7bc0291db89ebf3a4fcbaecea471669a", 32 = "0d7fe493ac002d2907d163a322ea692f", 100 = "30628bb7fd79c2ea503b0a2c7ac49a97", 320 = "1f2b35382354886236fbe5341a5a8d3c" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 381, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.6229329457388194, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 572, n_max = 572, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 385, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9010205427812055, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 748, n_max = 748, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 383, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.7855480141687531, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 1188, n_max = 1188, observed = 0.9575, mcse = 0.010086345968684594, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::conformal_synthetic_control_last_period_set_unaligned_pre_periods"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set_upper_pre_periods.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 2684
+n_max = 7084
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9425
+mcse = 0.01163977555625537
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 377, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.5507653296118379, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "79761cd342c08236566e88a6dcb4b1f9", 32 = "2783a09fb62427d51ae9757ce70c4b9b", 100 = "f075002c3ba5f8a745432f9712151492", 320 = "cdb475ee86f860d4df895683e8e6ecad" }, p1 = { 10 = "9a1e5572732e424dc0f70b6fea05e85d", 32 = "8bc825f5e7274673e3394990b934c340", 100 = "df6492859e2515b53ca7522c30916fe9", 320 = "fc66549f66c3712ae50743aee4a8c769" }, p2 = { 10 = "f4d0a24044fd4bebea65270c302916a9", 32 = "a8c7561f68d1c42a9c996be2d7d26398", 100 = "72b9c3be7ec804e9c7f4594575c544b1", 320 = "5aae6c40a1324fe1fff42be85c658b33" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 377, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.5507653296118379, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 2684, n_max = 2684, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 382, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.7541341085223611, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 4444, n_max = 4444, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 379, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.8817758750677922, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 7084, n_max = 7084, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/graphless_wider_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/graphless_wider_range_calibration.rs::conformal_synthetic_control_last_period_set_upper_pre_periods"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_three_post_periods_constant_effect_set.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 440
+n_max = 1760
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9375
+mcse = 0.012103072956898178
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "ae92f18ba827f25362bad2cd3304c332", 32 = "b84266c2615797d0e9afcb67d1361ba2", 100 = "19d03fd3730279d08d0025d4620f1f2e", 320 = "4437cb389d2cb5984edb362703b407f9" }, p1 = { 10 = "335b058f549ccfe5fe488e69548e073a", 32 = "8ef9183f09202698f84ac2885e5dd2c0", 100 = "fa024d26305f7a240a5a6ba333f83317", 320 = "9b09863b2187551ed417bb31235b07a3" }, p2 = { 10 = "d21cd60baa1654dc7c382b12520e35a6", 32 = "4052b90559b6278d28c3474cb089d4b9", 100 = "c903c028db68c64ad81e6b00d50cddc3", 320 = "3d3f37782b1a8e297303d2173afc9204" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 384, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.4289039716624938, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 440, n_max = 440, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 377, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.5507653296118379, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 880, n_max = 880, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 1760, n_max = 1760, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/synthetic_control_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/synthetic_control_range_calibration.rs::conformal_synthetic_control_three_post_periods_constant_effect_set"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_three_post_periods_first_period_set.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 462
+n_max = 1782
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9325
+mcse = 0.0125442965127583
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 373, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.1452978133652831, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "6c5c8dc660bb53dcc22ff4641ebe306b", 32 = "b6475e6cf037e0bb56840a76a230698b", 100 = "8cdc0ccb13c7b459a57f70b5e59d1184", 320 = "67f011b4b510c03b36a3704ec81ed6ea" }, p1 = { 10 = "bc4f967949ddf2b8ff8d6a7ed8056a62", 32 = "ca049c79d091a5728225530db093350d", 100 = "6d9b3f9d44ffa3467674a9a0a281e664", 320 = "cb4bb6490ee4979098afa125b38c94da", 1000 = "0dc6a7b269ebbc5c8d80556205d6af51" }, p2 = { 10 = "5f32625fb1623586377726c8fb650746", 32 = "7c091407698f4085231f2f70a4faca41", 100 = "82d49453c61a539e920d43653f12d7a7", 320 = "04dd47ffed2e082779dabc2724b38213" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 385, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.29985629817680337, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 462, n_max = 462, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1896, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.7095607712003886, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }, point = 1, n_min = 902, n_max = 902, observed = 0.948, mcse = 0.0049646752159632785, replicates = 2000, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 373, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.1452978133652831, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 1782, n_max = 1782, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/synthetic_control_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/synthetic_control_range_calibration.rs::conformal_synthetic_control_three_post_periods_first_period_set"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+
+[[record]]
+id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_three_post_periods_last_period_set.v2_validation_not_applicable"
+query = "SyntheticControl"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "quasi.synthetic_control_conformal"
+interval_method = "conformal"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = ""
+identification = "point"
+nominal = 0.95
+n_min = 462
+n_max = 1782
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.935
+mcse = 0.012326293035621046
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 374, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.2129385210937826, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "14135b8a4ba54a0af010446a1dd21476", 32 = "d1a4a52ce5436e46fb17951be6739320", 100 = "d0bc4f0f66ce6113fd0a7ec9ce18f3d5", 320 = "bc8b51cb93111114efa1aacbd45c5860" }, p1 = { 10 = "97c1d8af511a94bb1b7985a4beac29d6", 32 = "8c8c4682b7bd762beb912301c624aba1", 100 = "3085076b68dceef33e002e516f892881", 320 = "6517b5560c116abd49244f5baddae926" }, p2 = { 10 = "5dcea50f3362e5e9f397b75bb3ff2af0", 32 = "e69b82f5bc690ccfea2e844a6ee2a9ea", 100 = "ca284697ac9986aa60ec97613a78c01c", 320 = "f9fb0862f3a8bca0c66f952536bf8803" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 378, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.708171849973396, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 462, n_max = 462, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 374, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.2129385210937826, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 902, n_max = 902, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 379, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.8817758750677922, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 1782, n_max = 1782, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/synthetic_control_range_calibration.rs::convex_donor_panel_iid_noise"
+test = "crates/antecedent/tests/synthetic_control_range_calibration.rs::conformal_synthetic_control_three_post_periods_last_period_set"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
 
 [[record]]
 id = "cov.synthetic_control.randomized_trial.frequentist.placebo_variance.l95.multi_unit_synthetic_placebo_variance_interval.v2_validation_not_applicable"
@@ -457369,6 +458128,60 @@ test = "crates/antecedent/tests/temporal_design_calibration.rs::temporal_design_
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 fingerprint = "f47b951e0615e2416a4e2a92fea8650a8f18fd2977d3e5397f4e1a0350333c92"
 dependency_manifest = "8cf94b5313f15052859976228727de97600b08cfa156040af65f881c16d9a911"
+
+[[record]]
+id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_regime_survival_longer_horizon_bootstrap_interval.v2_validation_not_applicable.survival_difference"
+query = "TemporalDesign"
+graph_class = "RandomizedTrial"
+structure = "design"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "temporal_design.regime_survival"
+interval_method = "percentile_bootstrap"
+se_kind = "percentile"
+dependence = "cluster"
+posterior = ""
+functional = "temporal_design.regime_survival"
+identification = "point"
+nominal = 0.95
+n_min = 4133
+n_max = 17101
+replicates_min = 99
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9375
+mcse = 0.012103072956898178
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "cbbdb02ca4d6af98f275e533d43cdc09", 32 = "1dad8a997968aa243d98cc7900e1e9f6", 100 = "bcd01de892fb6e61020ee2eb643d1097", 320 = "398d725567b4b06d9c333ef42ffa9d4f" }, p1 = { 10 = "5baa22bfbb7e9a67037269c09eb0706d", 32 = "55f214683841db7ae585ac2d7b924500", 100 = "e2b2733806b5e8bfbc451317fdb9d108", 320 = "9c648c244d5bc57cde60381be16d696a" }, p2 = { 10 = "4fe83f2df5d20335298efef01339fa85", 32 = "eb4d0b45fa173cc77ca3bf5a09fcd25a", 100 = "f04ff57673e1fe580914ff949af47fb8", 320 = "7fb0ab746c8b6cad0ebfd817c5f78f9a" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 379, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.8817758750677922, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 4133, n_max = 4328, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 8325, n_max = 8633, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 386, family_alpha = 0.05, family_cells = 1316352, family_digest = "d2694625bdc3a865f0117c9c8a811b8465f41af28c79597df10ba9b8c9713411", family_grid_points = 3, family_groups = 1714, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.19795891443758915, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 16729, n_max = 17101, observed = 0.965, mcse = 0.009188987974744557, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/temporal_design_statements_calibration.rs::time_varying_confounding_logistic_hazard_known_four_period_survival_difference"
+test = "crates/antecedent/tests/temporal_design_statements_calibration.rs::temporal_design_regime_survival_longer_horizon_bootstrap_interval"
+calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
 
 [[record]]
 id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_frequentist_contrast_l95.v2_validation_not_applicable"
