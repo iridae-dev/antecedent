@@ -1950,7 +1950,10 @@ class _PreparedEngine(Generic[ResultT]):
         )
         prepared._identifier_bindings = identifier_bindings
         prepared._treatment_labels = treatment_labels
-        prepared._weighted_target_names = None if weighted_target is None else tuple(names)
+        transport_target = isinstance(query, TransportQuery) and query.target is not None
+        prepared._weighted_target_names = (
+            tuple(names) if weighted_target is not None or transport_target else None
+        )
         if on_stage is not None and not native.streams_stages():
             raise CausalUnsupportedError(
                 "on_stage streams identify, estimate_point, uncertainty and validate for one "

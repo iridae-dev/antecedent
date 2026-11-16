@@ -221,6 +221,9 @@ pub(crate) struct StudyDeclarations {
     /// The resolved weighted target population, when one was declared. Its weights are the
     /// registered custom distribution the query names, which carries the identity.
     pub(crate) weighted_target: Option<Arc<crate::analysis::weighted_target::WeightedTargetReport>>,
+    /// The weights of a weighted target of a trial-to-target transport study.
+    pub(crate) weighted_transport:
+        Option<Arc<crate::analysis::weighted_target::WeightedTransportWeights>>,
     /// Digests of the participant labels bound to the rows of the data.
     pub(crate) participants: Option<antecedent_io::ParticipantBindingWire>,
     /// Declared handling of missing values, when the caller declared one.

@@ -82,6 +82,11 @@ class TransportQuery:
     trial: str | None = None
     selection_probability: str | None = None
     treatment_probability: str | None = None
+    #: A weighted target population (:func:`antecedent.population.target_kernel` or
+    #: :func:`antecedent.population.target_row_weights`) over covariate columns of the analysed
+    #: table. The target is then the non-participant rows reweighted by it, behind the overlap
+    #: gates of the weighted target; ``None`` keeps the labelled target population.
+    target: object | None = None
     kind: Literal["transport"] = field(default="transport", init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -98,6 +103,16 @@ class TransportQuery:
                 raise CausalValueError("source_experiments disagree with the evidence catalog")
             if not explicit:
                 coerce_fields(self, source_experiments=tuple(derived))
+        if self.target is not None:
+            from ...population import WeightedPopulation
+
+            if not isinstance(self.target, WeightedPopulation):
+                raise CausalTypeError("target= takes target_kernel(...) or target_row_weights(...)")
+            if self.trial is None:
+                raise CausalValueError(
+                    "a weighted target reads the trial columns: pass trial=, "
+                    "selection_probability= and treatment_probability="
+                )
         columns = (self.trial, self.selection_probability, self.treatment_probability)
         if any(column is not None for column in columns):
             if any(column is None for column in columns):

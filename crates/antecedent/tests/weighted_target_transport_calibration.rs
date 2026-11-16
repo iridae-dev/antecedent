@@ -5,7 +5,7 @@
 //! centre `c` and bandwidth `h` within the target population, whose effect has the closed form
 //! `1 + (1 + c / h^2) / (1 + 1 / h^2)`. Each replicate transports the trial contrast with the
 //! true selection and treatment probabilities and scores the delta-method interval
-//! `ipw ± z·se` against that closed form.
+//! `ate ± z·se` the compiled transport query publishes against that closed form.
 //!
 //! One test per overlap regime. The moderate regime keeps the Kish ESS fraction of the target
 //! weights well above the floor; the thin regime sits in the tail of the target, where the
@@ -20,82 +20,88 @@ mod common;
 use std::sync::Arc;
 
 use antecedent::inference::{KernelFamily, TransportKernel};
-use antecedent::{WeightedTargetDeclaration, transport_trial_to_weighted_target};
-use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
-use antecedent_data::TabularData;
-use antecedent_identify::{
-    PopulationFactor, TransportCertificate, TransportFormula, TransportIdentification,
+use antecedent::{RefuteSuite, Study, TransportTrialSpec, WeightedTargetDeclaration};
+use antecedent_core::{
+    CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional, ResponseQuery,
+    StreamDomain, TransportQuery, VariableId,
 };
+use antecedent_data::TabularData;
+use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
 use common::calibration::{
     Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, grid_seed,
     map_replicates, n_sim,
 };
 
-const INTERVAL: &str = "trial_ipw_delta_wald";
+const INTERVAL: &str = "analytic_wald";
 const DGP: &str = "planted_effect_modification_trial_to_kernel_target_closed_form";
 const Z95: f64 = 1.959_963_984_540_054;
 const BASE_ROWS: usize = 3000;
 const SEED_BASE: u64 = 0x7B1A_C0DE;
 
-fn identification() -> TransportIdentification {
-    TransportIdentification::Transportable {
-        formula: TransportFormula::Direct(PopulationFactor {
-            regime: None,
-            population: Arc::from("source"),
-            variables: Arc::from([]),
-            conditioned_on: Arc::from([]),
-            interventions: Arc::from([]),
-        }),
-        certificate: TransportCertificate {
-            rule: Arc::from("transport.direct"),
-            selection_targets: Arc::from([]),
-            premises: Arc::from([]),
-        },
-    }
-}
-
-/// One replicate: the delta-method interval of the weighted-target contrast, or `None` when
-/// the overlap gate refuses the target.
+/// One replicate: the Wald interval the compiled transport query publishes for the weighted
+/// target, or `None` when the overlap gates refuse the target at build.
 fn interval(centre: f64, bandwidth: f64, n: usize, seed: u64) -> Option<(f64, f64)> {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x42);
     let (mut z, mut y) = (vec![0.0; n], vec![0.0; n]);
-    let (mut treatment, mut trial) = (vec![false; n], vec![false; n]);
+    let (mut treatment, mut trial) = (vec![0.0; n], vec![0.0; n]);
     let mut selection = vec![0.0; n];
     for i in 0..n {
         let in_trial = i % 2 == 0;
-        trial[i] = in_trial;
+        trial[i] = f64::from(in_trial);
         let zi = standard_normal(&mut rng) + if in_trial { 0.0 } else { 1.0 };
         z[i] = zi;
         selection[i] = 1.0 / (1.0 + (zi - 0.5).exp());
         let a = rng.next_f64() < 0.5;
-        treatment[i] = a;
+        treatment[i] = f64::from(a);
         y[i] = (1.0 + zi) * f64::from(a) + zi + 0.3 * standard_normal(&mut rng);
     }
-    let pairs = [("z", z)];
+    let pairs = [
+        ("a", treatment),
+        ("y", y),
+        ("trial", trial),
+        ("s", selection),
+        ("e", vec![0.5; n]),
+        ("z", z),
+    ];
     let borrowed: Vec<(&str, &[f64])> = pairs.iter().map(|(n, v)| (*n, v.as_slice())).collect();
     let data = TabularData::from_f64_columns(borrowed).ok()?;
     let declaration = WeightedTargetDeclaration::kernel(
         TransportKernel::new(KernelFamily::Gaussian, bandwidth).ok()?,
-        vec![VariableId::from_raw(0)],
+        vec![VariableId::from_raw(5)],
         vec![centre],
         None,
     )
     .ok()?;
-    let result = transport_trial_to_weighted_target(
-        &declaration,
-        &data,
-        &identification(),
-        &y,
-        &treatment,
-        &trial,
-        &selection,
-        &vec![0.5; n],
-        None,
-    )
-    .ok()?;
-    let half = Z95 * result.estimate.ipw_se;
-    Some((result.estimate.effect.ipw - half, result.estimate.effect.ipw + half))
+    let mut dag = Dag::with_variables(6);
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).ok()?;
+    let response = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(Arc::from([0.0, 1.0])),
+        ),
+    });
+    let query = TransportQuery::new(response, "trial", "target", [VariableId::from_raw(0)]);
+    let result = Study::tabular(data)
+        .graph(dag)
+        .query(CausalQuery::Transport(query))
+        .selection_targets(Arc::<[VariableId]>::from(Vec::new()))
+        .transport_trial(TransportTrialSpec {
+            trial: VariableId::from_raw(2),
+            selection_probability: VariableId::from_raw(3),
+            treatment_probability: VariableId::from_raw(4),
+        })
+        .weighted_target(declaration)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .ok()?
+        .run(&ExecutionContext::for_tests(seed))
+        .ok()?;
+    let effect = result.estimate().as_effect()?;
+    let half = Z95 * effect.se_analytic();
+    Some((effect.ate - half, effect.ate + half))
 }
 
 fn construction() -> Construction {
@@ -105,7 +111,7 @@ fn construction() -> Construction {
         structure: "fixed".into(),
         modality: "tabular".into(),
         inference: "Frequentist".into(),
-        estimator: "trial_ipw.weighted_target".into(),
+        estimator: "transport.trial_ipw".into(),
         interval_method: INTERVAL.into(),
         se_kind: "iid".into(),
         dependence: "iid".into(),

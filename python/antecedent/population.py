@@ -310,6 +310,9 @@ class WeightedTargetReport:
     overlap: TargetOverlap
     min_ess_fraction: float
     assumption: str
+    #: For a trial-to-target transport, the overlap of the weights the trial rows carry toward
+    #: the target; ``None`` for the target of an average effect.
+    trial_overlap: TargetOverlap | None = None
 
     @classmethod
     def _from_native(cls, raw: Mapping[str, Any], names: Sequence[str]) -> WeightedTargetReport:
@@ -333,6 +336,11 @@ class WeightedTargetReport:
             overlap=TargetOverlap._from_native(raw["overlap"]),
             min_ess_fraction=float(raw["min_ess_fraction"]),
             assumption=str(raw["assumption"]),
+            trial_overlap=(
+                TargetOverlap._from_native(raw["trial_overlap"])
+                if raw.get("trial_overlap")
+                else None
+            ),
         )
 
     def assumptions(self) -> tuple[str, ...]:

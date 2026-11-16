@@ -1397,6 +1397,27 @@ impl StudyBuilder {
                 "a weighted target population is declared over the rows of one table"
             ));
         };
+        if matches!(self.query, Some(CausalQuery::Transport(_))) {
+            // A trial-to-target transport: the target is the non-participant rows reweighted
+            // by the declaration, so the weights are kept for execution and gated against the
+            // trial columns here, before anything is estimated.
+            let Some(spec) = self.exposure.transport_trial.as_ref() else {
+                return Err(crate::unsupported_reason!(
+                    "required_option_missing",
+                    "a weighted target on a TransportQuery reads the trial columns; declare \
+                     transport_trial"
+                ));
+            };
+            let resolved =
+                declaration.resolve_for_transport(table, spec.trial, spec.selection_probability)?;
+            self.declared.weighted_transport =
+                Some(Arc::new(super::weighted_target::WeightedTransportWeights {
+                    weights: Arc::from(resolved.weights),
+                    min_ess_fraction: declaration.min_ess_fraction(),
+                }));
+            self.declared.weighted_target = Some(Arc::new(resolved.report));
+            return Ok(());
+        }
         let resolved = declaration.resolve(table)?;
         let Some(population) = self.query.as_mut().and_then(CausalQuery::target_population_mut)
         else {

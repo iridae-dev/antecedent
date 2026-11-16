@@ -55,6 +55,8 @@ estimate.trial_overlap                # the weights the trial rows carry toward 
 
 The target is the non-participant rows reweighted by the declaration, and the trial rows reach it through the usual selection odds multiplied by the same weights. Two gates apply, both the gate described below: one over the weights on the target rows, one over the weights the trial rows carry. With constant weights the estimate is the unweighted contrast. Rust: `transport_trial_to_weighted_target`.
 
+Through the compiled path, declare the same target on the query: `transport.TransportQuery(..., trial=..., selection_probability=..., treatment_probability=..., target=target_kernel(...))`, or `StudyBuilder::weighted_target` beside `transport_trial` in Rust. `analyze` then reports the weighted target's effect with the Wald interval of the delta-method standard error, and `result.weighted_target` carries the declaration and both overlaps. The target is checked at build, so a target without overlap refuses before any estimation. Sampling weights, declared dependence, Bayesian inference, graph classes and graph posteriors refuse a weighted target; a query that declares none is unchanged.
+
 ## Read the overlap
 
 `result.weighted_target` carries the declaration, its identity and the overlap of the weighting with the rows:
@@ -91,7 +93,7 @@ The weights enter the query identity, so two kernels, two bandwidths or two cent
 
 - The target is a reweighting of the analysed rows. A target outside the rows' support is refused; it is not extrapolated.
 - The weights are fixed by the declaration. Estimating them from the data and carrying that uncertainty is not part of the interval.
-- A weighted target applies to `AverageEffect` on a table and to the trial-to-target contrast of `estimate_trial_effect`. Other queries, frames and design routes refuse it. The compiled `TransportQuery` path keeps its population labels (see [Carry an effect to another population](carry-an-effect.md)); the weighted trial contrast is a point with delta-method standard errors and its coverage cells are wired but not yet measured.
+- A weighted target applies to `AverageEffect` on a table and to the trial-to-target contrast of `estimate_trial_effect`. Other queries, frames and design routes refuse it. The coverage of its Wald interval is wired to the calibration groups and not yet measured. The identity of the weights enters the result's assumptions and the reported identity, not the query digest, which a transport query keeps as its population labels.
 - Prior composition has its own weighted-target route over per-row unit effects; see [priors](../../priors.md).
 
 ## Related

@@ -1984,6 +1984,7 @@ fn into_study(exposure: BoundExposure) -> Study {
             overlap_policy: declared.overlap_policy,
             population_registry: declared.population_registry,
             weighted_target: declared.weighted_target,
+            weighted_transport: declared.weighted_transport,
             participants: declared.participants,
             missing: declared.missing,
             sampling_design: declared.sampling_design,

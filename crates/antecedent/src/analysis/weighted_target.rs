@@ -209,9 +209,19 @@ impl WeightedTargetDeclaration {
                     other => CausalError::Probability(other),
                 },
             )?;
-        let identity = self.identity(&weights);
+        let report = self.report(self.identity(&weights), overlap, None);
+        Ok(ResolvedWeightedTarget { weights, report })
+    }
+
+    /// The report of this declaration under a resolved identity and overlap.
+    fn report(
+        &self,
+        identity: String,
+        overlap: TargetOverlap,
+        trial_overlap: Option<TargetOverlap>,
+    ) -> WeightedTargetReport {
         let raw = u32::from_str_radix(&identity[..8], 16).unwrap_or(0) & 0x7FFF_FFFF;
-        let report = WeightedTargetReport {
+        WeightedTargetReport {
             kernel: match &self.spec {
                 WeightedTargetSpec::Kernel { kernel, .. } => Some(*kernel),
                 WeightedTargetSpec::RowWeights(_) => None,
@@ -226,10 +236,65 @@ impl WeightedTargetDeclaration {
                 WeightedTargetSpec::RowWeights(_) => None,
             },
             overlap,
+            trial_overlap,
             min_ess_fraction: self.min_ess_fraction,
             identity,
             distribution: DistributionRef::from_raw(raw),
+        }
+    }
+
+    /// Resolve the declaration as the target of a trial-to-target transport over `table`.
+    ///
+    /// The target is the non-participant rows (`trial == 0`) reweighted by the declaration.
+    /// Two gates apply, the shared overlap gate: one over the weights on the target rows, one
+    /// over the weights `odds * v` the trial rows carry toward them, where `odds` is
+    /// `(1 - s) / s` of the selection probability `s`.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::weights`]; a trial or selection column of another length than
+    /// the weights, or with a non-finite entry; or `transport_target_overlap_failed` from
+    /// either gate.
+    pub fn resolve_for_transport<T: TableView + ?Sized>(
+        &self,
+        table: &T,
+        trial: VariableId,
+        selection_probability: VariableId,
+    ) -> Result<ResolvedWeightedTarget, CausalError> {
+        let weights = self.weights(table)?;
+        let trial = table.float64_cow(trial).map_err(CausalError::from)?;
+        let selection = table.float64_cow(selection_probability).map_err(CausalError::from)?;
+        if trial.len() != weights.len()
+            || selection.len() != weights.len()
+            || trial.iter().chain(selection.iter()).any(|v| !v.is_finite())
+        {
+            return Err(invalid(
+                "the trial and selection columns must be finite and cover every row",
+            ));
+        }
+        let mut target_rows = Vec::new();
+        let mut trial_rows = Vec::new();
+        for ((&member, &s), &v) in trial.iter().zip(selection.iter()).zip(weights.iter()) {
+            if member == 0.0 {
+                target_rows.push(v);
+            } else if s > 0.0 && s < 1.0 {
+                trial_rows.push((1.0 - s) / s * v);
+            }
+        }
+        let gate = |rows: &[f64]| {
+            check_weights_overlap(rows, self.min_ess_fraction).map_err(|error| match error {
+                ProbError::Refused { code: code @ "transport_target_overlap_failed", message } => {
+                    CausalError::Probability(ProbError::Refused {
+                        code,
+                        message: format!("weighted_target.overlap_failed: {message}"),
+                    })
+                }
+                other => CausalError::Probability(other),
+            })
         };
+        let overlap = gate(&target_rows)?;
+        let trial_overlap = gate(&trial_rows)?;
+        let report = self.report(self.identity(&weights), overlap, Some(trial_overlap));
         Ok(ResolvedWeightedTarget { weights, report })
     }
 
@@ -251,6 +316,16 @@ impl WeightedTargetDeclaration {
     }
 }
 
+/// The resolved weights of a weighted target of a trial-to-target transport study, with the
+/// floor its overlap gate applies, frozen at build.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct WeightedTransportWeights {
+    /// One weight per table row.
+    pub(crate) weights: Arc<[f64]>,
+    /// The ESS-fraction floor the gate applies.
+    pub(crate) min_ess_fraction: f64,
+}
+
 /// The weights of a resolved target and the report on them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResolvedWeightedTarget {
@@ -268,6 +343,7 @@ pub struct WeightedTargetReport {
     center: Option<Arc<[f64]>>,
     scale: Option<Arc<[f64]>>,
     overlap: TargetOverlap,
+    trial_overlap: Option<TargetOverlap>,
     min_ess_fraction: f64,
     identity: String,
     distribution: DistributionRef,
@@ -308,6 +384,13 @@ impl WeightedTargetReport {
     #[must_use]
     pub const fn overlap(&self) -> &TargetOverlap {
         &self.overlap
+    }
+
+    /// For a trial-to-target transport, the overlap of the weights the trial rows carry
+    /// toward the target; `None` for a target of an ordinary average effect.
+    #[must_use]
+    pub const fn trial_overlap(&self) -> Option<&TargetOverlap> {
+        self.trial_overlap.as_ref()
     }
 
     /// The ESS-fraction floor the gate applied.
@@ -402,25 +485,7 @@ pub fn transport_trial_to_weighted_target<T: TableView + ?Sized>(
         &weights,
         declaration.min_ess_fraction(),
     )?;
-    let raw = u32::from_str_radix(&identity[..8], 16).unwrap_or(0) & 0x7FFF_FFFF;
-    let report = WeightedTargetReport {
-        kernel: match declaration.spec() {
-            WeightedTargetSpec::Kernel { kernel, .. } => Some(*kernel),
-            WeightedTargetSpec::RowWeights(_) => None,
-        },
-        covariates: Arc::from(declaration.covariates()),
-        center: match declaration.spec() {
-            WeightedTargetSpec::Kernel { center, .. } => Some(Arc::clone(center)),
-            WeightedTargetSpec::RowWeights(_) => None,
-        },
-        scale: match declaration.spec() {
-            WeightedTargetSpec::Kernel { scale, .. } => Some(Arc::clone(scale)),
-            WeightedTargetSpec::RowWeights(_) => None,
-        },
-        overlap: estimate.target_overlap,
-        min_ess_fraction: declaration.min_ess_fraction(),
-        identity,
-        distribution: DistributionRef::from_raw(raw),
-    };
+    let report =
+        declaration.report(identity, estimate.target_overlap, Some(estimate.trial_overlap));
     Ok(WeightedTrialTransport { estimate, report })
 }

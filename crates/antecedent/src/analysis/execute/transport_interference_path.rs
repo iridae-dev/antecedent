@@ -223,39 +223,54 @@ impl super::Study {
         };
         let dependence = self.transport_dependence_of(&columns)?;
         self.refuse_unread_transport_validation(&columns, &dependence)?;
-        let mut transported = transport_point(transport_id, &columns)?;
         let mut assumptions = identification.required_assumptions.clone();
         assumptions.push(known_probability_assumption());
         if weights.is_some() {
             assumptions.push(sampling_weights_assumption());
         }
-        let (estimate, posterior, estimator_id, diagnostic) = match inference {
-            InferenceMode::Bayesian(cfg) => {
-                let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
-                    cfg,
-                    (transport_id, &dependence),
-                    &columns,
-                    assumptions,
-                    identification.status,
-                    ctx,
-                )?;
-                transported.ipw = estimate.ate;
-                (
-                    estimate,
-                    Some(posterior),
-                    EstimatorId::TransportTrialBayesianBootstrap,
-                    diagnostic,
-                )
-            }
-            InferenceMode::Frequentist => {
-                let (estimate, diagnostic) = frequentist_transport_estimate(
-                    &columns,
-                    (transported.ipw, &dependence),
-                    assumptions,
-                )?;
-                (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
-            }
+        let weighted_target = self.weighted_transport_estimate(
+            transport_id,
+            &columns,
+            (&dependence, inference),
+            &assumptions,
+        )?;
+        let weighted_present = weighted_target.is_some();
+        let mut transported = match &weighted_target {
+            Some((point, _, _)) => *point,
+            None => transport_point(transport_id, &columns)?,
         };
+        let (estimate, posterior, estimator_id, diagnostic) =
+            if let Some((_, estimate, diagnostic)) = weighted_target {
+                (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
+            } else {
+                match inference {
+                    InferenceMode::Bayesian(cfg) => {
+                        let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
+                            cfg,
+                            (transport_id, &dependence),
+                            &columns,
+                            assumptions,
+                            identification.status,
+                            ctx,
+                        )?;
+                        transported.ipw = estimate.ate;
+                        (
+                            estimate,
+                            Some(posterior),
+                            EstimatorId::TransportTrialBayesianBootstrap,
+                            diagnostic,
+                        )
+                    }
+                    InferenceMode::Frequentist => {
+                        let (estimate, diagnostic) = frequentist_transport_estimate(
+                            &columns,
+                            (transported.ipw, &dependence),
+                            assumptions,
+                        )?;
+                        (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
+                    }
+                }
+            };
         // The calibration and overlap checks of the supplied probabilities and, under full
         // validation, a whole-procedure bootstrap of the transported contrast.
         let refutations = super::transport_refutation::refute_transport(
@@ -268,7 +283,13 @@ impl super::Study {
                 propensity: &propensity,
                 overlap: transported.overlap,
                 published: estimate.ate,
-                suite: self.settings.refute,
+                // The whole-procedure checks resample the unweighted contrast; a weighted
+                // target has none of its own, so it runs none.
+                suite: if weighted_present {
+                    crate::analysis::RefuteSuite::None
+                } else {
+                    self.settings.refute
+                },
                 dependence: dependence.as_grouping(),
                 replicates: self.settings.bootstrap_replicates,
             },
@@ -684,6 +705,94 @@ pub(super) fn frequentist_transport_estimate(
             message,
         ),
     ))
+}
+
+impl super::Study {
+    /// The trial-to-target contrast for the weighted target this study declared, with its
+    /// Wald-interval estimate and diagnostic; `None` when it declared none.
+    ///
+    /// The point and the delta-method standard error are
+    /// [`antecedent_estimate::trial_to_weighted_target_effect`]'s, behind both overlap gates.
+    /// A weighted target reads independent rows under frequentist inference: sampling weights,
+    /// declared dependence and Bayesian inference refuse rather than being ignored.
+    ///
+    /// # Errors
+    ///
+    /// An unsupported combination, weights that do not match the executed table, or the
+    /// estimator's refusals including `transport_target_overlap_failed`.
+    pub(super) fn weighted_transport_estimate(
+        &self,
+        transport: &TransportIdentification,
+        columns: &TrialColumns<'_>,
+        (dependence, inference): (&TrialDependence, &InferenceMode),
+        assumptions: &antecedent_core::AssumptionSet,
+    ) -> Result<Option<(TransportEffectEstimate, EffectEstimate, Diagnostic)>, CausalError> {
+        let Some(target) = self.declared.weighted_transport.as_ref() else {
+            return Ok(None);
+        };
+        if columns.weights.is_some()
+            || !matches!(dependence, TrialDependence::Independent)
+            || inference.is_bayesian()
+        {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "a weighted target population reads independent rows under frequentist \
+                 inference; sampling weights, declared dependence and Bayesian inference do not \
+                 apply to it"
+            ));
+        }
+        if target.weights.len() != columns.outcomes.len() {
+            return Err(CausalError::Conflict {
+                what: "weighted_target",
+                detail: "the declared target weights do not match the rows of the executed \
+                         table; declare the target again for these rows",
+            });
+        }
+        let weighted = antecedent_estimate::trial_to_weighted_target_effect(
+            transport,
+            columns.outcomes,
+            columns.treatment,
+            columns.trial,
+            columns.selection,
+            columns.propensity,
+            None,
+            &target.weights,
+            target.min_ess_fraction,
+        )?;
+        let mut assumptions = assumptions.clone();
+        if let Some(report) = self.declared.weighted_target.as_ref() {
+            assumptions.push(antecedent_core::AssumptionRecord {
+                assumption: antecedent_core::Assumption::ParametricRestriction(
+                    antecedent_core::ParametricAssumption {
+                        id: Arc::from("transport.weighted_target_population"),
+                        description: Arc::from(report.assumption()),
+                    },
+                ),
+                source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                    algorithm: Arc::from("estimate.transport.trial_ipw"),
+                },
+                scope: antecedent_core::AssumptionScope::Estimation,
+                status: antecedent_core::AssumptionStatus::Declared,
+            });
+        }
+        let estimate = EffectEstimate::new(
+            weighted.effect.ipw,
+            weighted.ipw_se,
+            assumptions,
+            OverlapPolicy::ExplicitOverride,
+        );
+        let diagnostic = Diagnostic::new(
+            "estimate.transport.trial_ipw",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "binary trial-to-target IPW toward a weighted target population: the non-participant \
+             rows reweighted by the declared kernel or row weights; the standard error is the \
+             delta-method error of the weighted ratio of means under known probabilities and \
+             fixed weights, and the interval is its Wald interval"
+                .to_owned(),
+        );
+        Ok(Some((weighted.effect, estimate, diagnostic)))
+    }
 }
 
 impl super::Study {

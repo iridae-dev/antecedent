@@ -3290,6 +3290,17 @@ evidence_test = "python/tests/test_weighted_target_population.py"
 evidence_assertion = "test_kernel_and_explicit_weights_with_the_same_weights_give_the_same_effect"
 
 [[routes]]
+route = "antecedent.analyze.transport_weighted_target"
+graph = "selection_diagram_dag_or_admg"
+evidence = "trial_rows_with_selection_probabilities_and_target_rows_with_covariates"
+functional = "weighted_target_transported_ipw_contrast"
+guarantee = "plug_in_delta_method_wald_interval_with_overlap_gate"
+reference = "docs/guides/transport/weighted-target-population.md"
+limits = "A compiled TransportQuery on one selection diagram under frequentist inference with independent unweighted rows; the target is the non-participant rows reweighted by a declared kernel or row weights, behind the Kish gates over the target rows and over the weights the trial rows carry toward them; the interval is the Wald interval of the delta-method standard error under known probabilities and fixed weights, its coverage wired to the calibration groups; sampling weights, declared dependence, Bayesian inference, graph classes and graph posteriors refuse."
+evidence_test = "crates/antecedent/tests/weighted_target_trial_transport.rs"
+evidence_assertion = "the_compiled_query_reports_the_closed_form_weighted_target_effect"
+
+[[routes]]
 route = "antecedent.transport.estimate_trial_effect.weighted_target"
 graph = "selection_diagram_admg"
 evidence = "trial_rows_with_selection_probabilities_and_target_rows_with_covariates"

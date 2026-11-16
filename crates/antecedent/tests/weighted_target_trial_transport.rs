@@ -193,3 +193,136 @@ fn a_target_without_overlap_refuses() {
     let error = transport(&fx, &kernel_target(0.2, 7.0), false).unwrap_err();
     assert!(error.to_string().contains("transport_target_overlap_failed"), "{error}");
 }
+
+// ---------------------------------------------------------------------------
+// The compiled transport query: a study with a selection diagram and trial columns.
+// ---------------------------------------------------------------------------
+
+mod compiled {
+    use antecedent::{RefuteSuite, Study, TransportTrialSpec};
+    use antecedent_core::{
+        CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional,
+        ResponseQuery, TransportQuery, VariableId,
+    };
+    use antecedent_data::{TableView, TabularData};
+    use antecedent_graph::{Dag, DenseNodeId};
+
+    use super::{Fixture, KernelFamily, TransportKernel, WeightedTargetDeclaration, closed_form};
+
+    const A: u32 = 0;
+    const Y: u32 = 1;
+    const TRIAL: u32 = 2;
+    const SEL: u32 = 3;
+    const PROP: u32 = 4;
+    const Z: u32 = 5;
+
+    fn table(fx: &Fixture, z: &[f64]) -> TabularData {
+        let flag = |values: &[bool]| -> Vec<f64> { values.iter().map(|v| f64::from(*v)).collect() };
+        let columns: Vec<(&str, Vec<f64>)> = vec![
+            ("a", flag(&fx.treatment)),
+            ("y", fx.outcome.clone()),
+            ("trial", flag(&fx.trial)),
+            ("s", fx.selection.clone()),
+            ("e", fx.treatment_probability.clone()),
+            ("z", z.to_vec()),
+        ];
+        let borrowed: Vec<(&str, &[f64])> =
+            columns.iter().map(|(name, values)| (*name, values.as_slice())).collect();
+        TabularData::from_f64_columns(borrowed).unwrap()
+    }
+
+    fn query() -> TransportQuery {
+        let response = ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome: VariableId::from_raw(Y),
+            treatment: ContinuousDomain::new(
+                VariableId::from_raw(A),
+                GridSpec::Values(std::sync::Arc::from([0.0, 1.0])),
+            ),
+        });
+        TransportQuery::new(response, "trial", "target", [VariableId::from_raw(A)])
+    }
+
+    fn study(
+        fx: &Fixture,
+        z: &[f64],
+        target: Option<WeightedTargetDeclaration>,
+    ) -> Result<Study, antecedent::CausalError> {
+        let mut dag = Dag::with_variables(6);
+        dag.insert_directed(DenseNodeId::from_raw(A), DenseNodeId::from_raw(Y)).unwrap();
+        let mut builder = Study::tabular(table(fx, z))
+            .graph(dag)
+            .query(CausalQuery::Transport(query()))
+            .selection_targets(std::sync::Arc::<[VariableId]>::from(Vec::new()))
+            .transport_trial(TransportTrialSpec {
+                trial: VariableId::from_raw(TRIAL),
+                selection_probability: VariableId::from_raw(SEL),
+                treatment_probability: VariableId::from_raw(PROP),
+            })
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0);
+        if let Some(target) = target {
+            builder = builder.weighted_target(target);
+        }
+        builder.build()
+    }
+
+    fn z_of(fx: &Fixture) -> Vec<f64> {
+        fx.data.float64_values(VariableId::from_raw(0)).unwrap()
+    }
+
+    fn declaration(bandwidth: f64, centre: f64) -> WeightedTargetDeclaration {
+        WeightedTargetDeclaration::kernel(
+            TransportKernel::new(KernelFamily::Gaussian, bandwidth).unwrap(),
+            vec![VariableId::from_raw(Z)],
+            vec![centre],
+            None,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn the_compiled_query_reports_the_closed_form_weighted_target_effect() {
+        let fx = super::fixture(12_000, 36);
+        let z = z_of(&fx);
+        for (centre, bandwidth) in [(1.0, 0.8), (1.5, 1.2)] {
+            let study = study(&fx, &z, Some(declaration(bandwidth, centre))).unwrap();
+            let result = study.run(&ExecutionContext::for_tests(36)).unwrap();
+            let effect = result.estimate().as_effect().unwrap();
+            let truth = closed_form(centre, bandwidth);
+            assert!(
+                (effect.ate - truth).abs() < 4.0 * effect.se_analytic(),
+                "ate {} se {} truth {truth}",
+                effect.ate,
+                effect.se_analytic()
+            );
+            assert!(format!("{:?}", effect.assumptions).contains("weighted_target_population"));
+        }
+    }
+
+    #[test]
+    fn a_weighted_target_without_overlap_refuses_before_estimation() {
+        let fx = super::fixture(6_000, 37);
+        let z = z_of(&fx);
+        let error = study(&fx, &z, Some(declaration(0.2, 7.0))).err().expect("refused at build");
+        assert!(error.to_string().contains("transport_target_overlap_failed"), "{error}");
+    }
+
+    #[test]
+    fn label_population_transport_is_unchanged() {
+        let fx = super::fixture(8_000, 38);
+        let z = z_of(&fx);
+        let labelled = study(&fx, &z, None).unwrap();
+        let result = labelled.run(&ExecutionContext::for_tests(38)).unwrap();
+        let unweighted = antecedent_estimate::trial_to_target_effect(
+            &super::identification(),
+            &fx.outcome,
+            &fx.treatment,
+            &fx.trial,
+            &fx.selection,
+            &fx.treatment_probability,
+            None,
+        )
+        .unwrap();
+        assert!((result.estimate().as_effect().unwrap().ate - unweighted.ipw).abs() < 1e-12);
+    }
+}

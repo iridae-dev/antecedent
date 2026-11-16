@@ -73,6 +73,16 @@ pub(crate) fn report_to_dict<'py>(
     overlap.set_item("ess_fraction", o.ess_fraction)?;
     overlap.set_item("max_weight_share", o.max_weight_share)?;
     out.set_item("overlap", overlap)?;
+    if let Some(t) = report.trial_overlap() {
+        let trial = PyDict::new(py);
+        trial.set_item("n_rows", t.n_rows)?;
+        trial.set_item("n_support", t.n_support)?;
+        trial.set_item("support_fraction", t.support_fraction)?;
+        trial.set_item("kish_ess", t.kish_ess)?;
+        trial.set_item("ess_fraction", t.ess_fraction)?;
+        trial.set_item("max_weight_share", t.max_weight_share)?;
+        out.set_item("trial_overlap", trial)?;
+    }
     out.set_item("kind", if report.kernel().is_some() { "kernel" } else { "row_weights" })?;
     out.set_item("family", report.kernel().map(|k| k.family().id()))?;
     out.set_item("bandwidth", report.kernel().map(|k| k.bandwidth()))?;

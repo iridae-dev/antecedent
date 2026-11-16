@@ -140,6 +140,14 @@ impl super::Study {
         let trial_spec = self.transport_trial.as_ref().ok_or(CausalError::Unsupported {
             message: "TransportQuery execute requires transport_trial columns",
         })?;
+        if self.declared.weighted_transport.is_some() {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "a weighted target population applies to a trial-to-target transport on one \
+                 selection diagram under frequentist inference; a graph class or a graph \
+                 posterior does not carry it"
+            ));
+        }
         let (treatment, outcome) = transport_primary_pair(query)?;
         let (identified, identify_cached) =
             self.transport_posterior_identification(gp, query, physical, ctx)?;
