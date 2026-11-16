@@ -97,7 +97,6 @@ fn mean(v: &[f64]) -> f64 {
     v.iter().sum::<f64>() / v.len() as f64
 }
 
-
 /// Independent permutation seeds.
 const SEEDS: u64 = 200;
 /// Permutations drawn per unit.
@@ -222,6 +221,9 @@ fn the_permutation_interval_holds_the_exact_shapley_value_at_its_nominal_share()
             .filter(|(e, s)| (e[j] - run.exact[j]).abs() <= 1.959_963_984_540_054 * s[j])
             .count();
         let share = held as f64 / SEEDS as f64;
-        assert!(share >= floor, "component {j}: the interval held the exact value in {share}, below {floor}");
+        assert!(
+            share >= floor,
+            "component {j}: the interval held the exact value in {share}, below {floor}"
+        );
     }
 }

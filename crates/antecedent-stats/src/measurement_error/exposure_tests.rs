@@ -2,10 +2,7 @@
 //! detection and latent-class repeat codings.
 
 #![allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::cast_precision_loss,
-    clippy::float_cmp,
     reason = "bounded simulation sizes and closed-form values compared exactly"
 )]
 
@@ -35,6 +32,7 @@ fn exact_counts() -> ExposureOutcomeCounts {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "exact closed-form values of identical computations")]
 fn outcome_specific_rates_recover_the_planted_exposure_odds_ratio() {
     let structure =
         ExposureErrorStructure::ByOutcome { controls: rates(0.7, 0.95), cases: rates(0.9, 0.8) };
@@ -246,6 +244,7 @@ fn substitution_on_calibrated_probabilities_recovers_the_coefficient_where_a_dra
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "exact closed-form values of identical computations")]
 fn imputation_over_outcome_conditioned_draws_recovers_the_coefficient_with_rubin_variance() {
     let s = soft_sample(3000, 23);
     let data =
@@ -266,6 +265,11 @@ fn imputation_over_outcome_conditioned_draws_recovers_the_coefficient_with_rubin
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "small simulation counts and category codes"
+)]
 fn reliability_reports_a_calibrated_and_a_miscalibrated_probability_set() {
     // Calibrated: every unit's expected coding share equals its stated probability.
     // Ten units per bin at q = 0.05, 0.15, ...; each unit has 4 codings whose share equals q
@@ -331,6 +335,7 @@ fn table() -> DetectionFunction {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "exact closed-form values of identical computations")]
 fn a_fully_declared_detection_function_recovers_the_planted_prevalence() {
     // d(c) = 0.4, 0.6, 0.8, 1.0; prevalence 0.3 gives 120, 180, 240, 300 detections of 1000.
     let (detected, covariate) = detection_rows(1000, [120, 180, 240, 300]);
@@ -485,6 +490,11 @@ fn detection_that_cannot_identify_or_contradicts_itself_refuses() {
 // ---------------------------------------------------------------------------
 
 /// Rows from exact pattern probabilities: `n * P(pattern)` rounded to whole units.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "small simulation counts and category codes"
+)]
 fn rows_from_model(
     n: usize,
     pi: &[f64],

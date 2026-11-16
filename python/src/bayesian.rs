@@ -666,9 +666,7 @@ impl PriorArgs {
                     .with_soft_tiers(SoftTiers::with_log_penalty(resolved, penalty));
             }
             _ => {
-                return Err(crate::value_err(
-                    "soft tiers need both the tiers and a penalty",
-                ));
+                return Err(crate::value_err("soft tiers need both the tiers and a penalty"));
             }
         }
         Ok(())

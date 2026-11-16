@@ -53,8 +53,6 @@
 
 #![allow(
     clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
     clippy::needless_range_loop,
     reason = "dense small-matrix and index arithmetic over bounded grids and row counts"
 )]
@@ -319,6 +317,11 @@ fn selection_critical_value(
         maxima.push(worst);
     }
     maxima.sort_by(f64::total_cmp);
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "level is in (0, 1), so the rank is in 1..=CRITICAL_DRAWS"
+    )]
     let index = ((level * CRITICAL_DRAWS as f64).ceil() as usize).clamp(1, CRITICAL_DRAWS) - 1;
     Ok(maxima[index])
 }
@@ -374,6 +377,11 @@ fn assign_folds(n: usize, folds: usize, seed: u64) -> Vec<usize> {
     let mut rng = CausalRng::from_seed(derive_stream(seed, FOLD_STREAM));
     let mut order: Vec<usize> = (0..n).collect();
     for i in (1..n).rev() {
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a uniform draw in [0, 1) scaled by i + 1 is a nonnegative index at most i"
+        )]
         let j = (rng.next_f64() * (i + 1) as f64) as usize;
         order.swap(i, j.min(i));
     }

@@ -55,9 +55,16 @@ fn fitted_model() -> FittedGcm {
 /// baseline mean and the paired difference.
 type Run = [(f64, f64); 3];
 
-fn run(fitted: &FittedGcm, program: &[Intervention], outcome: VariableId, n: usize, seed: u64) -> Run {
-    let value = policy_value(&fitted.model, program, outcome, n, &ExecutionContext::for_tests(seed))
-        .unwrap();
+fn run(
+    fitted: &FittedGcm,
+    program: &[Intervention],
+    outcome: VariableId,
+    n: usize,
+    seed: u64,
+) -> Run {
+    let value =
+        policy_value(&fitted.model, program, outcome, n, &ExecutionContext::for_tests(seed))
+            .unwrap();
     [
         (value.policy_mean, value.policy_simulation_stderr),
         (value.baseline_mean, 0.0),
@@ -93,8 +100,9 @@ fn case() -> Case {
 #[test]
 fn the_published_simulation_error_matches_the_spread_of_the_estimate_across_seeds() {
     let case = case();
-    let runs: Vec<Run> =
-        (0..SEEDS).map(|s| run(&case.fitted, &case.program, case.outcome, DRAWS, 10_000 + s)).collect();
+    let runs: Vec<Run> = (0..SEEDS)
+        .map(|s| run(&case.fitted, &case.program, case.outcome, DRAWS, 10_000 + s))
+        .collect();
     let band = Z / (2.0 * (SEEDS as f64 - 1.0)).sqrt();
     // The policy mean and the paired difference publish an error; the baseline is a mean of the
     // same noise and shares the policy mean's spread, so it is read through the difference.
@@ -117,8 +125,9 @@ fn the_simulation_interval_holds_the_exact_expectation_at_its_nominal_share() {
     let reference = run(&case.fitted, &case.program, case.outcome, REFERENCE_DRAWS, 1);
     let nominal = 0.95_f64;
     let floor = nominal - Z * (nominal * (1.0 - nominal) / SEEDS as f64).sqrt();
-    let runs: Vec<Run> =
-        (0..SEEDS).map(|s| run(&case.fitted, &case.program, case.outcome, DRAWS, 20_000 + s)).collect();
+    let runs: Vec<Run> = (0..SEEDS)
+        .map(|s| run(&case.fitted, &case.program, case.outcome, DRAWS, 20_000 + s))
+        .collect();
     for (index, name) in [(0, "policy_mean"), (2, "mean_difference")] {
         let truth = reference[index].0;
         let held = runs
@@ -126,6 +135,9 @@ fn the_simulation_interval_holds_the_exact_expectation_at_its_nominal_share() {
             .filter(|r| (r[index].0 - truth).abs() <= 1.959_963_984_540_054 * r[index].1)
             .count();
         let share = held as f64 / SEEDS as f64;
-        assert!(share >= floor, "{name}: the interval held the expectation in {share}, below {floor}");
+        assert!(
+            share >= floor,
+            "{name}: the interval held the expectation in {share}, below {floor}"
+        );
     }
 }
