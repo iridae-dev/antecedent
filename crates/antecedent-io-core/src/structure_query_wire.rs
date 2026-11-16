@@ -1461,11 +1461,17 @@ mod tests {
                 base: Box::new(DiscoveryMethod::StructureMcmc { prior: Some(prior.clone()) }),
             },
         ] {
+            // A screen runs independence tests, so it needs a significance level in (0, 1).
+            let alpha = if matches!(method, DiscoveryMethod::CiScreenedPosterior { .. }) {
+                0.05
+            } else {
+                0.0
+            };
             round_trip(&CausalQuery::Discover(DiscoverQuery::new(
                 vec![v(0), v(1), v(2)],
                 method,
                 SearchBounds {
-                    alpha: 0.0,
+                    alpha,
                     max_cond_size: 0,
                     max_lag: 0,
                     schedule: Some(SearchSchedule { chains: 2, warmup: 5, draws: 10, thin: 1 }),

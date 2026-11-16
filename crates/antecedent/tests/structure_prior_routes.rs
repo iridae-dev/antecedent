@@ -306,9 +306,9 @@ fn pooled_sampled_posteriors_are_the_mixture_of_the_per_imputation_draw_sets() {
     on_large_stack("pooled-samplers", || {
         let params = BayesianDiscoverParams::default();
         let schedule = antecedent::discovery::GraphMcmcSchedule {
-            n_chains: 2,
-            n_warmup: 100,
-            n_draws: 300,
+            n_chains: 4,
+            n_warmup: 500,
+            n_draws: 2_000,
             thin: 1,
         };
         let tables: Vec<TabularData> =

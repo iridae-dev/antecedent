@@ -19919,6 +19919,34 @@ evidence = ["crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_
 artifact_consumer = ["crates/antecedent-io-core/src/measurement_model_wire.rs", "crates/antecedent-estimate/tests/measurement_models.rs::artifact_replays_independently_and_refuses_semantic_mutation"]
 
 [[method]]
+id = "method.measurement.static.exposure"
+kind = "route_method"
+route = "measurement.static.exposure"
+child = ""
+target = "MeasurementCorrectedFunctional"
+graph_class = "Dag"
+design = "static"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "frequentist"
+design_time_model = "declaration-bound exposure-error corrections (outcome-specific or shared exposure misclassification, per-unit soft exposures, covariate-dependent detection, repeat codings as replicates), standalone and as measured-exposure declarations on the analysed variable"
+status = "capability"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "analytic"
+uncertainty_structure = "none"
+uncertainty_basis = "declared_and_corroborated"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent-estimate/src/measurement/exposure_routes.rs"
+implementation = ["crates/antecedent-estimate/src/measurement/exposure_routes.rs", "crates/antecedent-estimate/src/measurement/measured_exposure.rs", "crates/antecedent/src/analysis/measured_exposure.rs"]
+provenance = []
+evidence = ["crates/antecedent-estimate/tests/measurement_exposure_reference.rs", "crates/antecedent/tests/measured_exposure_known_truth.rs", "crates/antecedent/tests/measurement_exposure_calibration.rs", "crates/antecedent/tests/measured_exposure_calibration.rs"]
+artifact_consumer = "unlisted"
+
+[[method]]
 id = "method.measurement.static.bayesian"
 kind = "route_method"
 route = "measurement.static.bayesian"

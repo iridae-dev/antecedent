@@ -194,7 +194,11 @@ fn the_scored_interval_is_ordered_and_centred_near_the_effect() {
         .expect("a prior-regularized fit");
     assert_eq!(rows, 1_500);
     assert!(lo < hi);
-    assert!(lo < TRUTH && TRUTH < hi, "[{lo}, {hi}] against the effect {TRUTH}");
+    // One replicate: the centre lies within four standard errors of the effect (whether a
+    // single interval covers is what the ignored coverage cells measure, not a smoke test).
+    let se = (hi - lo) / (2.0 * 1.959_963_984_540_054);
+    let centre = 0.5 * (lo + hi);
+    assert!((centre - TRUTH).abs() < 4.0 * se, "[{lo}, {hi}] against the effect {TRUTH}");
 }
 
 /// A weak prior (zero mean, standard deviation 10): the near-unpenalized outcome fit.

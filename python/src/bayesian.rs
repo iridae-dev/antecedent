@@ -989,10 +989,18 @@ fn discover_pooled_exact_dag_posterior(
             &names,
             &variables,
         )?;
-        let pooled = antecedent::discovery::discover_pooled_exact_dag_posterior(
-            &data, &variables, &params, &ctx,
-        )
-        .map_err(py_err)?;
+        let mut posteriors = Vec::with_capacity(data.len());
+        for table in data {
+            let (post, _route) = compiled_search(
+                DiscoverySpec::exact_dag_posterior(params.clone()),
+                DiscoverInput::Tabular(table),
+                &variables,
+                &ctx,
+                posterior_of,
+            )?;
+            posteriors.push(post);
+        }
+        let pooled = RustGraphPosterior::pooled_over_imputations(&posteriors).map_err(py_msg)?;
         Ok(PyGraphPosterior::from_rust(names, pooled))
     })
 }
@@ -1034,10 +1042,22 @@ fn discover_pooled_exact_dag_marginals(
             &names,
             &variables,
         )?;
-        let pooled = antecedent::discovery::discover_pooled_exact_dag_marginals(
-            &data, &variables, &params, &ctx,
-        )
-        .map_err(py_err)?;
+        let mut parts = Vec::with_capacity(data.len());
+        for table in data {
+            let (marginals, _route) = compiled_search(
+                DiscoverySpec::exact_dag_marginals(params.clone()),
+                DiscoverInput::Tabular(table),
+                &variables,
+                &ctx,
+                |structure| match structure {
+                    DiscoveredStructure::EdgeMarginals(marginals) => Some(marginals),
+                    _ => None,
+                },
+            )?;
+            parts.push(marginals);
+        }
+        let pooled = antecedent::discovery::ExactDagMarginals::pooled_over_imputations(&parts)
+            .map_err(py_msg)?;
         Ok((pooled.edge_marginals.to_vec(), pooled.log_evidence))
     })
 }
