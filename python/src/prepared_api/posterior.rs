@@ -336,8 +336,14 @@ pub(super) fn finish_static_graph_posterior(
         Some(accepted) => study.accepted_graph_posterior(accepted),
         None => study.graph_posterior(gp),
     };
+    let builder_has_spec = spec.is_some();
     let builder = with_response_options(study.query(query), response_options);
     let builder = apply_estimator(req.opts.apply_budget_for(builder, spec.is_some()), None, spec)?;
+    // A configured estimator was parsed for the requested id and owns that choice: selecting
+    // the bare id again when compiling would replace it with the unconfigured default.
+    if builder_has_spec {
+        req.opts.estimator = None;
+    }
     let builder = req.opts.apply_inference(builder)?;
     req.compile_with(builder, false, ctx)
 }
