@@ -8,8 +8,8 @@ Real observational data are never presented as known causal truth. An example bu
 
 | Dataset | Used by | Licence |
 | --- | --- | --- |
-| [`nhefs`](nhefs.toml): NHEFS smoking-cessation subset from Hernán and Robins, *Causal Inference: What If* | `examples/python/observational_study.py` | not stated by the publisher; downloaded on request, not redistributed |
-| [`nsw_psid`](nsw_psid.toml): NSW job-training experiment with a PSID comparison group | `examples/python/when_overlap_fails.py` | not stated by the publisher; downloaded on request, not redistributed |
+| [`nhefs`](nhefs.toml): NHEFS smoking-cessation subset from Hernán and Robins, *Causal Inference: What If* | `examples/python/observational_study.py` ([tutorial](../../docs/tutorials/observational-study.md)) | not stated by the publisher; downloaded on request, not redistributed |
+| [`nsw_psid`](nsw_psid.toml): NSW job-training experiment with a PSID comparison group | `examples/python/when_overlap_fails.py` ([tutorial](../../docs/tutorials/when-overlap-fails.md)) | not stated by the publisher; downloaded on request, not redistributed |
 
 ## Fetch, verify, use offline
 

@@ -1,18 +1,19 @@
 # Antecedent
 
-Antecedent is a compiler and runtime for causal science.
+Antecedent is a compiler and runtime for causal science, for Python and Rust.
 
-Model causal systems, evaluate interventions, and connect evidence to decisions, with assumptions, uncertainty and limits made explicit. Declare a question, a model or study design, and the evidence. Antecedent checks what the question needs, compiles an analysis you can inspect, and executes a supported route. The answer carries its assumptions, uncertainty, provenance and limits into the comparison, decision or software that uses it.
+Declare a causal question, a model or study design, and the evidence. Antecedent checks what the question needs, compiles an analysis you can inspect, and executes a supported route. The answer carries its assumptions, uncertainty, provenance and limits into the comparison, decision or software that uses it. A question the declarations cannot answer returns a typed [refusal](concepts/refusals.md) that names what is missing.
 
 Antecedent's development applies high-assurance engineering principles, with explicit evidence governing capability claims. [Assurance](concepts/assurance.md) describes what that covers.
 
 ## A first answer
 
 ```bash
-python -m pip install --upgrade antecedent
+python -m pip install --upgrade antecedent   # Python 3.11 or later
+cargo add antecedent                         # Rust 1.97 or later
 ```
 
-Then prepare, inspect and estimate an effect in simulated data where the true answer is known. [Your first analysis](start/first-analysis.md) runs it in Python and in Rust, branches it onto changed data, and exports it. [Installation](start/installation.md) covers platforms, optional features and source builds.
+Then prepare, inspect and estimate an effect in simulated data where the true answer is known. [Your first analysis](start/first-analysis.md) runs it in Python, branches it onto changed data, exports it, and shows the Rust form. [Installation](start/installation.md) covers platforms, optional features and source builds.
 
 ## Choose your path
 
@@ -22,37 +23,57 @@ Then prepare, inspect and estimate an effect in simulated data where the true an
 
 ## Tutorials
 
-Each tutorial follows one scientific task and pairs with a maintained example.
+Each tutorial follows one scientific task and pairs with a maintained [example](examples.md).
 
-| Task | Tutorial |
+| Tutorial | What you do |
 | --- | --- |
-| Observe, fix and shock a variable in a feedback system | [One feedback system, three questions](tutorials/feedback-three-questions.md) |
-| Compare a coordinated intervention program with a baseline | [Joint interventions](tutorials/joint-interventions.md) |
-| Start with a marketing mix model, compare spending programs, incorporate experimental evidence, make a decision and rank the next studies | [Beyond the marketing mix](tutorials/beyond-marketing-mix.md) |
-| Combine historical humans, synthetic users and a small pilot to decide whether to launch or investigate | [The smallest defensible test](tutorials/synthetic-users-launch.md) |
-| Write conditional and history-dependent pricing and inventory policies, then replay the same stores | [Programmable causal policies](tutorials/programmable-policies.md) |
-| Plan an HCI study, choose follow-up research, check the claims in the paper and cite the methods behind them | [From day zero to publication](tutorials/research-from-day-zero.md) |
-| Update a response from an experiment and choose the next study | [From an experiment to the next study](tutorials/experiment-to-next-study.md) |
-| Change a utility, export a decision, withdraw a source | [Replay and current decisions](tutorials/replay-and-current-decisions.md) |
-| Decide when a result is suggestive but not significant | [Decide under uncertainty](tutorials/decide-under-uncertainty.md) |
-| Analyze a real public dataset end to end | [An observational study](tutorials/observational-study.md) |
-| Follow a refusal when the comparison group does not overlap, and see how far the answer moves | [When overlap fails](tutorials/when-overlap-fails.md) |
-| Follow a claim when new data stop fitting its graph: check, rediscover, compare readings and plan the study that would settle it | [When the causal assumptions stop holding](tutorials/when-assumptions-change.md) |
-| Use Antecedent as a component of an application | [Application component](tutorials/application-component.md) |
+| [One feedback system, three questions](tutorials/feedback-three-questions.md) | Observe, fix and shock a variable in a feedback system |
+| [Compare a coordinated intervention program](tutorials/joint-interventions.md) | Compare a coordinated intervention program with a baseline |
+| [Beyond the marketing mix](tutorials/beyond-marketing-mix.md) | Start with a marketing mix model, compare spending programs, incorporate experimental evidence, make a decision and rank the next studies |
+| [The smallest defensible test](tutorials/synthetic-users-launch.md) | Combine historical humans, synthetic users and a small pilot to decide whether to launch or investigate |
+| [Write and replay causal policies](tutorials/programmable-policies.md) | Write conditional and history-dependent pricing and inventory policies, then replay the same stores |
+| [From day zero to publication](tutorials/research-from-day-zero.md) | Plan an HCI study, choose follow-up research, check the claims in the paper and cite the methods behind them |
+| [From a new experiment to the next study](tutorials/experiment-to-next-study.md) | Update a response from an experiment and choose the next study |
+| [Stop, continue or run longer](tutorials/decide-under-uncertainty.md) | Decide when a result is suggestive but not significant |
+| [Replay and current decisions](tutorials/replay-and-current-decisions.md) | Change a utility, export a decision, withdraw a source |
+| [Estimate an effect from observational data](tutorials/observational-study.md) | Analyze a real public dataset end to end |
+| [When the comparison group does not overlap](tutorials/when-overlap-fails.md) | Follow a refusal when the comparison group does not overlap, and see how far the answer moves |
+| [When the causal assumptions stop holding](tutorials/when-assumptions-change.md) | Follow a claim when new data stop fitting its graph: check, rediscover, compare readings and plan the study that would settle it |
+| [Use an analysis inside an application](tutorials/application-component.md) | Use Antecedent as a component of an application |
 
 ## Guides
 
-Task guides cover bringing [your own data](guides/your-data.md), [notebook to system](guides/notebook-to-system.md), [estimating effects](supported-analyses.md), [study ranking](design-ranking.md), [sensitivity and robustness](sensitivity-and-robustness.md), [transport and counterfactuals](transport-counterfactuals.md), [decisions](decisions.md), [composition](composition.md) and [staleness and rebinding](guides/staleness.md). The navigation lists the guides by task.
+Guides are grouped in the navigation by the question you have. Each row names the group and a page to start from.
+
+| Your question | Guide group | Start with |
+| --- | --- | --- |
+| How do I bring my table, files, weights or missing values? | Data and inputs | [Bring your own table](guides/your-data.md), [missing values](guides/missing-data.md) |
+| Which question and estimator fit my data, and how do I check the answer? | Estimate effects | [Choose a question and an estimator](supported-analyses.md), [probe sensitivity to assumptions](sensitivity-and-robustness.md) |
+| How do I analyze an experiment, a panel, a discontinuity or a survival outcome? | Experiments and study designs | [Randomized and factorial experiments](guides/designs/randomized-experiments.md), [panel designs](guides/designs/panel-designs.md) |
+| I do not know the graph, or I am not sure of it. | Structure and discovery | [Discover, then estimate](selective-discovery.md), [check a graph against data](guides/graph-falsification.md) |
+| How do I fit mechanisms, ask counterfactuals or model feedback? | Structural models and feedback | [Fit and query a structural causal model](guides/gcm-estimands.md), [feedback loops and equilibria](guides/cyclic-systems.md) |
+| What happens when several things change together? | Joint interventions and search | [Fit and compare intervention programs](guides/joint-intervention-responses.md) |
+| Does this effect hold in another population? | Transport | [Carry an effect to another population](guides/transport/carry-an-effect.md), [when transport fails](guides/transport-failure.md) |
+| Which action should I take, and which study should I run next? | Decisions and study planning | [Evaluate actions with a decision contract](decisions.md), [rank further studies](design-ranking.md) |
+| How do I combine external evidence, measurement models and several sources? | Evidence and composition | [External evidence and study synthesis](evidence-ledger.md), [compose sources into a decision](composition.md) |
+| How do I inspect a plan, reuse a study, or recover from a refusal? | Prepare, branch and reuse | [Inspect a plan and read a report](guides/plan-view.md), [detect stale results](guides/staleness.md), [recover from refusals](guides/refusal-recipes.md) |
+| How do I embed Antecedent in software or exchange results with other tools? | Build with Antecedent | [Embed Antecedent in an application](guides/build/embedding.md), [from a notebook to a system](guides/notebook-to-system.md), [coming from DoWhy](interop_dowhy.md) |
 
 ## Concepts
 
-[How Antecedent works](concepts/how-antecedent-works.md), [results are claims](concepts/results-are-claims.md), [interventions and worlds](concepts/interventions-and-worlds.md), [uncertainty](concepts/uncertainty.md), [refusals](concepts/refusals.md) and [assurance](concepts/assurance.md) explain what a result means and where its limits come from.
+The concept pages explain what a result means and where its limits come from.
+
+- [How Antecedent works](concepts/how-antecedent-works.md): how declarations compile into a program you can inspect, execute and read as a claim.
+- [Results are claims](concepts/results-are-claims.md): what an answer asserts and the vocabulary used for it.
+- [Interventions and worlds](concepts/interventions-and-worlds.md), [uncertainty](concepts/uncertainty.md) and [refusals](concepts/refusals.md).
+- [Assurance](concepts/assurance.md) and [how methods are checked](guides/scientific-verification.md): the evidence behind a supported capability.
+- [Glossary](concepts/glossary.md): estimand, world, claim, supported and the other standing labels.
 
 ## Look things up
 
 - [Support lookup](support-lookup.md): search whether a question, structure, evidence, inference and estimator combination has executing support evidence, and read the [support matrix](support-matrix.md) behind it.
 - [Python API](python-api.md), [Python options](python-options.md) and the [Rust API](https://docs.rs/antecedent/).
-- [Glossary](concepts/glossary.md): estimand, world, claim, supported and the other standing labels.
+- [Refusal codes](reference/refusal-codes.md): refusal families, codes and remedies.
 - [Capability inventory](capabilities.md), [naming dictionary](api_naming.md) and [examples](examples.md).
 
 ## Release and migration
