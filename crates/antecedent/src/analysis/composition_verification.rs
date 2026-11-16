@@ -621,8 +621,8 @@ impl CompositionVerification {
     ///
     /// # Errors
     /// The typed refusal of a claim that must be recomputed or whose support
-    /// was withdrawn (calibration inherited from an object that no longer
-    /// holds it refuses with `not_supported`).
+    /// was withdrawn. Calibration inherited from an object that no longer
+    /// holds it is reported on the claim and does not refuse.
     pub fn require_valid(
         &self,
         key: &str,

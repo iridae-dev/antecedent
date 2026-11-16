@@ -1,13 +1,15 @@
 # Registered external cyclic mechanisms
 
-A feedback model may use a mechanism the library does not own. There are two ways to
-supply one, and they differ in what an artifact may claim.
+A feedback model may use a mechanism the library does not own: a saturating gain from a lab
+model, a fitted response written in your own code. Use this page when such a model must be
+saved and later recomputed in another process. There are two ways to supply the mechanism,
+and they differ in what an artifact may claim.
 
 | | Process-local callback | Registered external mechanism |
 | --- | --- | --- |
 | Where the code lives | The host process | The host process, registered by the caller |
 | What a saved artifact records | Nothing: `export` is refused (`policy_callback_not_portable`) | A mechanism identity: implementation id, version, content digest, dependencies, signature, parameter schema, derivative declaration, Lipschitz bounds |
-| Independent replay | Impossible | Possible with a caller-supplied trusted resolver, after verification |
+| Independent replay | Not offered: there is no artifact to replay | Available with a caller-supplied trusted resolver, after verification |
 | Standing | Numerical only | `verified_external`; never `native` |
 
 The process-local path is [`LocalCyclicModel`](guides/cyclic-systems.md).
@@ -49,7 +51,8 @@ declarations. Otherwise replay is refused and nothing is executed:
 | A declaration is malformed or incomplete | `mechanism_declaration_invalid` |
 
 The digest binds replay to the exact content the caller registered. It does not make that
-content correct or safe.
+content correct or safe. These codes and their remedies are also listed under
+[other registered refusal codes](reference/refusal-codes.md#other-registered-refusal-codes).
 
 ## Fitting
 

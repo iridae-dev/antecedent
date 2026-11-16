@@ -130,6 +130,7 @@ Build, export and consume a bundle:
 
 ```python
 from antecedent import composition_bundle as cb
+from antecedent.outcomes import require_success
 
 result_bytes = cb.mean_decision(contract, claim)     # point-only attested result
 builder = cb.Bundle.builder()
@@ -138,20 +139,24 @@ builder.add_artifact("decision_contract", contract.export(artifact_id="contract"
 builder.add_artifact("decision_result", result_bytes, node_id="result")
 bundle = builder.connect("claim", "result").connect("contract", "result").build()
 
-data, identity = bundle.export(artifact_id="my-bundle"), bundle.identity
+data, identity = bytes(bundle.export(artifact_id="my-bundle")), bundle.identity
 
 # In another process, under the identity retained independently of the bytes:
-consumed = cb.consume_bundle(data, expected_identity=identity)
+consumed = require_success(cb.consume_bundle(data, expected_identity=identity))
 consumed.require_verified()
 consumed.claim_label                      # "point_only_attested"
 consumed.value("result", "treat.expected_utility")   # 9.0
 ```
 
 `contract` and `claim` are the decision contract and bound external claim of
-[evaluating actions with a decision contract](decisions.md). `add_artifact(artifact)`
+[evaluating actions with a decision contract](decisions.md). `consume_bundle` returns an
+`Outcome`; `require_success` raises its refusal, and `require_verified()` raises unless every
+node verified. `add_artifact(artifact)`
 infers the node kind from the container when you do not name it, and an artifact
 object whose `export(artifact_id=...)` returns container bytes may be passed instead
 of bytes. A bundle never claims that a serialized result recreates an executable study.
+The runnable version is
+[`composition_bundle.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/composition_bundle.py).
 
 ## Read where an imported source came from
 
@@ -330,7 +335,9 @@ declared and need `admit_declared_mechanisms=True`), `Dependence` and
 `finite_law`, refreshes with `refresh_mechanisms`, exports one query with
 `export` and is consumed by `consume_mechanism_composition_artifact`. A refusal
 is a `MechanismCompositionRefusal` listing every defect (`refusals`,
-`details`); `interval(contrast, level)` returns the first-order Wald interval with
+`details`); the details and their remedies are listed under
+[mechanism composition refusals](reference/refusal-codes.md#mechanism-composition).
+`interval(contrast, level)` returns the first-order Wald interval with
 its calibration slot.
 
 The `composed_model` producer is a row of

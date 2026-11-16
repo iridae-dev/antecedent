@@ -5,7 +5,8 @@ least-squares, scatter or conjugate summary a prepared study's estimator rests o
 as rows arrive, leave or change weight, checking every change against a fresh reconstruction.
 **State publication** records which results a data or premise event made stale and accepts a
 recomputed result only through the identities of the prepared study that recomputed it. Neither
-re-identifies or re-estimates anything on its own.
+re-identifies or re-estimates anything on its own. To decide whether new data calls for a
+refresh at all, or for preparing again, run the [staleness diagnostic](staleness.md) first.
 
 ## Retained summary refresh
 

@@ -1,6 +1,6 @@
 # Check a composition after something changes
 
-Find out which downstream claims survive when an input of a composed analysis changes. A composed analysis rests on many objects: a cohort and its data, a measurement
+Use composition verification to find out which downstream claims survive when an input of a composed analysis changes. A composed analysis rests on many objects: a cohort and its data, a measurement
 model, a mechanism composition, a bridge, a ledger result, a transported result
 and the decision that reads them. When one of them changes, the question is
 which downstream claims survive. Composition verification answers it with one
@@ -111,7 +111,7 @@ each kind of change has a fixed outcome:
 | Change | Keeps | Recomputes | Refuses |
 |---|---|---|---|
 | `refresh` with new outcome-only data | the structural derivation (graph, identification, bridge form), the version labels, the support and provider-trust standings | every node that reads the data: the score artifact, the law, a bridged claim, a transported result, the decision. The earlier fit and uncertainty carry no authority (`structure_reused_fit_not_retained`) | a fit or an interval carried across: `claim_revalidation_required` |
-| change of target population, source evidence, selection diagram or support | the source evidence and fit when the planner reuses them; a calibration record at the coordinate it was established | the transported claim at the new coordinate | a calibration record established at another target, or inherited from an object that does not currently hold it: `not_supported`; coordinates outside the support: `claim_support_withdrawn` |
+| change of target population, source evidence, selection diagram or support | the source evidence and fit when the planner reuses them; a calibration record at the coordinate it was established | the transported claim at the new coordinate | a calibration record established at another target, or inherited from an object that does not currently hold it: withdrawn for calibration (state `lost`, detail `coordinate_mismatch`, `upstream_calibration_not_held` or `record_differs`); coordinates outside the support: `claim_support_withdrawn` |
 | ledger revision (a source withdrawn, replaced, updated) | results the revised source does not reach | results that lose one member of several | a result built on a withdrawn source and what rests on it: `claim_support_withdrawn` |
 | provider replacement or loss of trust | claims that do not rest on the provider | claims rebuilt on a provider whose trust holds | claims resting on the provider while its trust does not hold |
 | `export` and `load` | the graphs, the observed effects, the declared shared-data relations, every classification and the lineage identity | the classification, on load, from the stored graphs and effects | a stored class, reason, authority, calibration state or lineage identity that does not replay; an identity other than the retained one |
@@ -129,7 +129,8 @@ verification classifies claims and produces no estimate. An interval belongs to
 the route that produced the claim and is read there, at that route's own measured
 coordinate; a recomputed claim is read through its producing route again. The
 inheritance of a record across targets is closed by logic, since coverage is a
-property of the method at one target (`not_supported`). A dependence that is not declared as an
+property of the method at one target: such a claim reads calibration state `lost`
+(`coordinate_mismatch`). A dependence that is not declared as an
 edge is not detected; identities, coordinates, supports, trust standings and
 calibration records are declarations.
 
@@ -141,6 +142,10 @@ calibration records are declarations.
 | `claim_support_withdrawn` | `support_withdrawn`, `provider_trust_withdrawn`, `input_retired`, `stage_unexecutable` | restore the support named by the origin |
 | `invalid_argument` | `graph_invalid`, `unknown_claim`, `replay_mismatch`, `ledger_mismatch` | fix the declaration or regenerate |
 | `route_not_supported` | `identity_mismatch` | supply the artifact with the retained identity |
+
+The details are namespaced `composition_verification.*`. A claim withdrawn for
+calibration alone is not refused: `require_valid` returns it, the point value stands,
+and its interval's calibration status carries the loss.
 
 ## Where to find it
 

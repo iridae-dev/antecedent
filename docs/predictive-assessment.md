@@ -1,8 +1,11 @@
 # Assess a predictive law with proper scores and held-out checks
 
-Score a predictive law against realized observations, compare two laws on the same observations, and check calibration. A predictive law is assessed against realized observations. The assessment
-reports how the law performed on those observations, under a declared
-validation design, and nothing more. It is a model-independent contract, not a
+Use predictive assessment to score a predictive law against realized
+observations, compare two laws on the same observations, and read calibration
+diagnostics (whether the law's stated probabilities match observed frequencies). The
+assessment reports how the law performed on those observations, under a
+declared validation design, and nothing more. The [Python section](#python)
+has a minimal call and a runnable example. It is a model-independent contract, not a
 model zoo and not a forecasting application: laws come from native finite and
 closed-form families, or are supplied by an external provider and declared
 through the provider contract.
@@ -268,6 +271,9 @@ routes. `pa.replicate_laws` turns posterior predictive
 replicates into sample laws for the same scoring surface.
 
 ## Refused routes
+
+Every refusal is a `PredictiveAssessmentRefusal` with a registered code and a
+`predictive_assessment.*` detail; see [refusal codes and remedies](reference/refusal-codes.md).
 
 | Route | Reason | What would support it |
 | --- | --- | --- |

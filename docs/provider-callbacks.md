@@ -11,6 +11,45 @@ second registry. The bounded mean callback (`recalc_external`) is the route
 for a foreign mean that must follow a changing dependency under the shared
 recalculation planner.
 
+## Minimal call (Python)
+
+`antecedent.provider_callbacks` declares a callback, executes requests against a
+provider you pass in code, and exports and resumes its results:
+
+```python
+from antecedent import provider_callbacks as pc
+from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
+
+identity = pc.ProviderIdentity("lab", "gaussian", "1.0", "snap-1", "req-1")
+outcome = ScientificQuantity.of(
+    "outcome", "systolic", units="mmHg", population="trial", regime="do(a=1)"
+)
+declaration = pc.CallbackDeclaration(
+    "gaussian_law", "law", identity, outcome,
+    "estimand:outcome_law", "interventional_predictive", pc.Support.real(),
+    operations=("mean",),
+    dependencies=pc.Dependencies.complete([pc.Dependency("model", "parameters", "mu=2")]),
+    replay=pc.Replay.deterministic_pure(),
+    trust=pc.Trust.externally_attested("lab"),
+    evidence=(),
+)
+provider = pc.FunctionProvider(identity, lambda query, context: pc.Output.mean(2.0))
+
+session = pc.CallbackSession()
+result = require_success(session.execute(provider, declaration, pc.Request(pc.Query.mean())))
+result.output.values, result.standing, result.invocations   # (2.0,), "supported_external", 1
+again = require_success(session.execute(provider, declaration, pc.Request(pc.Query.mean())))
+again.reused, again.invocations                              # True, 0
+```
+
+`execute` returns an `Outcome`; a refusal carries a `callback_protocol.*` detail
+and, through `require_success`, raises `CallbackExecutionRefusal` with the
+invocation counts. Planning (`session.plan`), `consume_callback_result` and
+`inspect_callback_result` never call a provider. The rest of this page states
+the contract in terms of the Rust types; the Python classes carry the same
+names and fields.
+
 ## The protocol
 
 `antecedent_contract::callback_protocol::CallbackDeclaration` states:
