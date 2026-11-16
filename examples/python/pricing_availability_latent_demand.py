@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""Pricing, availability, and latent demand.
+"""How does demand respond to price when stock-outs hide part of it?
 
 When inventory is limited, recorded sales are ``min(demand, inventory)``. A price response for
-sales is therefore not automatically a price response for demand. This example makes the
-observation mechanism and its identifying assumption explicit, estimates the supported Cox IPCW
-demand curve, and keeps a true remaining refusal rather than substituting the observed proxy.
+sales is therefore not automatically a price response for demand. This example declares the
+observation mechanism and its identifying assumption, estimates the supported Cox
+inverse-probability-of-censoring-weighted (IPCW) demand curve, and keeps the refusal of a demand
+derivative instead of substituting the recorded-sales slope.
 
-Simulated demand falls by 8 units per unit of price before its floor at zero. The script
-prints the demand curve rather than checking it against that slope, and asserts that the
-observation-adjusted demand derivative is refused. Independent censoring is declared, not
-tested.
+The data are 2,000 simulated rows. Demand falls by 8 units per unit of price before its floor
+at zero. The script prints the demand curve and does not check it against that slope; it asserts
+that the observation-adjusted demand derivative is refused. Independent censoring is declared,
+not tested.
+
+Run: ``python examples/python/pricing_availability_latent_demand.py``.
 """
 
 from __future__ import annotations
@@ -30,8 +33,8 @@ N = 2_000
 # Season affects both price and latent demand. Conditional on price and season in this synthetic
 # design, inventory is generated independently of the remaining demand shock. Inventory binds
 # often enough to pull the recorded-sales slope away from demand, without driving fitted
-# censoring survival through the positivity floor. That design detail motivates—but does not
-# prove in real data—the declared independent-censoring assumption below.
+# censoring survival through the positivity floor. That design detail motivates the declared
+# independent-censoring assumption below; in real data nothing would prove it.
 
 # %%
 rng = np.random.default_rng(SEED)
@@ -55,7 +58,7 @@ observed_data = {
     "observed_sales": observed_sales,
     "demand_observed": demand_observed,
 }
-# fraction of inventory-censored rows
+# The fraction of rows where inventory ran out first, so demand is only known to exceed sales.
 print(float(1.0 - demand_observed.mean()))
 
 # %% [markdown]
@@ -121,9 +124,9 @@ print(demand_query)
 # %% [markdown]
 # ## Estimate demand under the censoring assumption
 #
-# We assume that, after accounting for price and season, censoring provides no
+# The assumption is that, after accounting for price and season, censoring provides no
 # additional information about demand. `IndependentGiven(["price", "season_index"])`
-# states that assumption and includes treatment and all adjustment variables.
+# states it and includes the treatment and every adjustment variable.
 #
 # The curve uses Cox inverse-probability-of-censoring weights (IPCW). The Cox
 # model assumes proportional hazards; fitting it does not test the independent
@@ -168,14 +171,13 @@ else:
 # %% [markdown]
 # ### Reuse the analysis and read its report
 #
-# Keep `result.study` to run the same analysis again. `ant.estimate(study)` runs
-# the prepared branch; `ant.rebind(study, data=new_data)` returns a new branch on the
+# Keep `result.study` to run the same analysis again. `antecedent.estimate(study)` runs
+# the prepared branch; `antecedent.rebind(study, data=new_data)` returns a new branch on the
 # new data without changing the original. Earlier results stay unchanged.
 #
-# The report explains the answer and its limitations. Check calibration too:
-# `not_measured` means no coverage record measured this construction; the interval is
-# reported without a calibration claim.
-# A passing diagnostic does not fill that gap.
+# The report explains the answer and its limitations. Read the calibration status too:
+# `not_measured` means no coverage record measured this construction, so the answer carries
+# no calibration claim. A passing diagnostic does not fill that gap.
 
 # %%
 study = demand.study

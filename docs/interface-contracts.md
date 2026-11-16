@@ -7,6 +7,12 @@ consumer needs a law, or what its interval means. An **interface contract** is
 the one declaration that states those things, so a connection can be accepted
 or refused from the two contracts alone, before any component runs.
 
+This page is the field-by-field reference. For a worked Python example of a
+connection that is refused on population and operation, and for the adapters of
+bridge, measurement-model and mechanism-composition declarations, read
+[connect scientific components](guides/build/scientific-interfaces.md#declare-what-a-component-produces-and-consumes)
+first.
+
 The contract extends the semantic and provider contracts the library already
 has (the scientific quantity, the distribution meaning, the measurement-model
 identity, the evidence-ledger source identity, the composition stage, the
@@ -37,7 +43,8 @@ consumed port's quantity: a connection requires them to equal the producer's.
 A contract has one canonical, versioned identity
 (`InterfaceContract::canonical_identity`): a length-framed `CanonicalWriter`
 stream under the tag `antecedent.interface_contract`, independent of port
-declaration order. The exact rules are in `spec/canonicalization-and-identity.md`.
+declaration order. The exact rules are in
+[`spec/canonicalization-and-identity.md`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/spec/canonicalization-and-identity.md).
 
 ## Checking a connection
 
@@ -107,6 +114,28 @@ identities (including a reference BLAKE3 checked against published vectors) and
 rejects mutations. The `specification_conformance` test of the `antecedent`
 crate fails if the fixtures, the schemas' vocabularies, the specification's
 tables or the consumer's tables drift from the implementation.
+
+## Python surface
+
+`antecedent.interface_contract` declares the contract (`InterfaceContract`,
+`ProducedPort`, `ConsumedPort`, `SupportDomain` with `real`, `non_negative`,
+`binary`, `interval` and `categorical`, and `Calibration` with `none`,
+`point_only`, `not_measured`, `measured(record_id)` and `inherited(input)`) and
+checks it with `check_connection` (returns a `Connection`) and
+`check_composition` (returns `ComposedInterfaces`).
+`check_composition_with_ledger` decides `disjoint_evidence` from an
+`EvidenceLedger`'s row-level observations instead of declared source identities,
+and `check_composition_with_cyclic` declares each prepared cyclic product as one
+component. `mechanism_contract`, `bridge_contract` and `measurement_contract`
+adapt existing declarations; `contract_identity` returns the canonical identity.
+`export_interface_contract`, `consume_interface_contract_artifact` and
+`inspect_interface_contract_artifact` are the artifact entry points.
+
+A refused check raises `InterfaceContractRefusal`. Its `refusals` lists every
+defect, each with `reason_code`, `detail`, `remedy`, and, for a failed
+comparison, `expected` and `supplied`; the refusal's own fields are those of the
+first defect. The details and remedies are also listed in
+[refusal codes and remedies](reference/refusal-codes.md#composed-spread-whole-path-evidence-overlap-and-interface-contracts).
 
 ## What is closed
 

@@ -1,7 +1,20 @@
-//! Class-preserving CPDAG ATE: the graph stays a `Cpdag`.
+//! Estimate on a CPDAG without completing it: the graph stays a `Cpdag`.
 //!
-//! A partial CPDAG estimates a MEC envelope. A fully-oriented CPDAG stays a
-//! `Cpdag`. Completing the graph yourself is still the `Dag` cell.
+//! Question: what can be said about the effect of `t` on `y` when the direction of the `z - t`
+//! edge is not known?
+//!
+//! Data and truth: 200 noise-free rows with `z` evenly spaced on `[0, 1)`, `t = 1` exactly when
+//! `z > 0.5`, and `y = 1 + 2 t + 3 z`. The partial CPDAG has `z -> y`, `t -> y` and an undirected
+//! `z - t`. Its two members disagree: with `z -> t` the effect is the adjusted 2; with `t -> z`
+//! it is the unadjusted contrast, 3.5.
+//!
+//! Asserted: the partial CPDAG returns 2.75, the equal-weight mean over the two members; the
+//! fully oriented CPDAG returns 2.
+//!
+//! What this establishes: a partial CPDAG estimates an envelope over its Markov equivalence
+//! class instead of one silently chosen member, and a fully oriented CPDAG stays a `Cpdag`.
+//! The value 2.75 summarizes the class; it is the effect under neither member. Completing the
+//! graph yourself and supplying a `Dag` is a different support cell.
 //!
 //! Run: `cargo run -p antecedent --example class_preserving_cpdag`
 //! Source: `examples/rust/class_preserving_cpdag.rs`
@@ -46,6 +59,7 @@ pub fn run() -> Result<(), CausalError> {
     let data_oriented = TabularData::try_from_schema_f64(schema.clone(), columns())?;
     let query = AverageEffectQuery::binary_ate(schema.id_of("t")?, schema.id_of("y")?);
 
+    // The z - t edge is left undirected: the data cannot orient it, and the analysis keeps it so.
     let mut partial = Cpdag::from_named_edges(&schema, &[("z", "y"), ("t", "y")])?;
     partial.insert_undirected(node(&schema, "z")?, node(&schema, "t")?)?;
     let result = Study::tabular(data)

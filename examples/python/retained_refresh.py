@@ -17,6 +17,8 @@ estimate; and compare the treatment coefficient with the true 2.0 within a few s
 Retention, spill and reload are shown with their typed refusals. Refreshing does not
 re-identify the effect or recheck any assumption, and it carries no interval; it only keeps the
 least-squares summary current.
+
+Run: `python examples/python/retained_refresh.py`.
 """
 
 from __future__ import annotations

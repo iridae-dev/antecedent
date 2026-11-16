@@ -1,7 +1,28 @@
-//! Reproducible CPU baseline for the accelerator decision.
+//! Stage timings of a cross-fitted neural partialling-out estimate on the CPU backend.
 //!
-//! Run with `cargo run --release -p antecedent-learn --features ml-neural
-//! --example neural_crossfit_benchmark`.
+//! Question: how long do fold planning, the two cross-fitted nuisance fits and the effect
+//! computation take with the neural learner on the `ndarray` CPU backend? The numbers are the
+//! reference a hardware-accelerated backend is compared with.
+//!
+//! Data and truth: 4,000 deterministic rows and eight covariates; a binary treatment that does
+//! not depend on the covariates; an outcome linear in the treatment and two covariates with
+//! coefficient 1.5 on the treatment. Three folds, one hidden layer of 16 units, 20 epochs.
+//!
+//! The effect is the partialling-out estimate from the cross-fitted propensity and outcome
+//! predictions, with a heteroskedasticity-robust standard error and a 95% Wald interval.
+//!
+//! Asserted: the standard error is finite and positive and the interval brackets the estimate.
+//! Whether the interval covers 1.5 is printed, not asserted.
+//!
+//! What this establishes: wall-clock timings of work that ran on this host, with a fixed seed.
+//! It is not a calibration of the interval: one run says nothing about coverage.
+//!
+//! Run:
+//!
+//! ```text
+//! cargo run --release -p antecedent-learn --features ml-neural \
+//!     --example neural_crossfit_benchmark
+//! ```
 
 use std::hint::black_box;
 use std::time::Instant;

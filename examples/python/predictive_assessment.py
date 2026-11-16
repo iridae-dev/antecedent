@@ -19,6 +19,8 @@ drift of the shifted feature is large and that of the control feature is near ze
 
 What it does NOT claim. A score is not causal validity, and the drift value has no
 significance level: it is a labelled diagnostic, not a test.
+
+Run: ``python examples/python/predictive_assessment.py``.
 """
 
 from __future__ import annotations

@@ -2,7 +2,7 @@
 
 When you write up a study, cite the methods that produced each number and say where the implementation departs from the published method. Every executed Antecedent result carries that information. It names the provenance records behind the route it ran: one for the identification strategy and one for the estimator. Capability-specific routes have their own records, read with `antecedent.citations.capability_provenance(capability_id)`. Each record gives the published sources, the documented deviations from the published method, what its review did not cover, and the record id and digest.
 
-This page shows how to read that information from a result, how to build one de-duplicated bibliography for a whole study, and what to put in your methods section.
+This page shows how to read that information from a result, how to build one de-duplicated bibliography for a whole study, and what to put in your methods section. The digests shown are those of the records at this release; read your own from the result.
 
 ## Read a result's provenance
 
@@ -27,7 +27,7 @@ For a backdoor AIPW analysis, the result names two records:
 | Record | Cited for | What it says |
 | --- | --- | --- |
 | `identify.backdoor` | identifier `backdoor.adjustment` | The adjustment-set identification and its sources. |
-| `estimate.aipw` | estimator `aipw` | Chernozhukov et al. (2018) and Funk et al. (2011), with two deviations: no cross-fitting on the ATT/ATC, trimmed and predicate-target paths, so the DML rate conditions are not inherited there; and nuisance models fixed to a GLM propensity and OLS outcomes rather than arbitrary learners. |
+| `estimate.aipw` | estimator `aipw` | Chernozhukov et al. (2018), Funk et al. (2011) and MacKinnon and White (1985), with three deviations: no cross-fitting on the ATT/ATC, trimmed and predicate-target paths, so the DML rate conditions are not inherited there; nuisance models fixed to a GLM propensity and OLS outcomes rather than arbitrary learners; and, on the full-sample paths with the iid standard error, influence values leverage-corrected (HC3-style) before the variance. |
 
 `outcome.method_provenance` is the provenance of the route the result *executed*: the identifier and estimator the plan resolved, not only the ones you declared. In Rust the same data is `StudyResult::method_provenance()`. It is distinct from the result's `provenance` field, which records the execution's own provenance graph.
 
@@ -50,7 +50,7 @@ Sources are the same when their DOIs agree. Sources without a DOI are matched by
 
 Cite each source in the bibliography. For each caveat, say which part of the published method was not implemented as published. For example:
 
-> Average effects were estimated with augmented inverse-probability weighting (Chernozhukov et al., 2018; Funk et al., 2011) as implemented in Antecedent (provenance record `estimate.aipw`, digest `f8819b29…`). Nuisance models were a logistic propensity and per-arm linear outcome regressions. The ATT was fit without cross-fitting, so the DML convergence guarantees are not inherited for that estimand.
+> Average effects were estimated with augmented inverse-probability weighting (Chernozhukov et al., 2018; Funk et al., 2011) as implemented in Antecedent (provenance record `estimate.aipw`, digest `14c356a2…`). Nuisance models were a logistic propensity and per-arm linear outcome regressions. The ATT was fit without cross-fitting, so the DML convergence guarantees are not inherited for that estimand.
 
 Report the record id and digest. The digest is the SHA-256 that a record's review binds. It changes when the record's sources or deviations change, so a reader can tell which version of the record your study used.
 

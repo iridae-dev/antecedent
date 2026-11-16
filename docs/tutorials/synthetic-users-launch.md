@@ -8,6 +8,11 @@ In the successful branch, 32 newly exposed humans support the same launch choice
 
 These are decisions under explicit models, not interchangeable datasets. The two analyses need not have the same posterior, precision or power. The small test earns its role by informing this decision with the earlier evidence, rather than reproducing every result a large experiment could establish.
 
+- **You will learn** how to turn agent sessions and historical human data into a declared, revisable prior, how a launch contract and exposure costs choose and stop a human pilot, how a conflict between prediction and pilot is reported, and how an identification check and the value of information select a targeted follow-up study.
+- **Before you start:** [installation](../start/installation.md), [stop, continue or run longer](decide-under-uncertainty.md) for decision contracts and the value of a study, and [when the causal assumptions stop holding](when-assumptions-change.md) for evidence plans. Posterior probabilities and binomial likelihoods are assumed.
+- **Time:** the example runs in about two seconds locally; allow up to a minute.
+- **Run it:** `python examples/python/synthetic_users_launch.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/synthetic_users_launch.ipynb). The complete script is embedded [below](#run-the-complete-investigation).
+
 ## The task and the launch contract
 
 The dataset consists of synthetic clickstream summaries, one independent user or agent per row. Each session attempts navigation, product discovery and checkout microtasks. Each task produces a binary success indicator. These are separately attempted tasks, **not conditional funnel conversion rates**: a failed navigation task does not remove a person from the checkout denominator. Historical sessions also contain a separate authentication-recovery probe.
@@ -206,20 +211,18 @@ The failed-transfer path uses the small pilot to ask a better next question. A p
 
 The application supplies the finite hypothesis family, binomial likelihoods, numerical prior projection and checkpoint controller. Antecedent supplies the prior-composition, mechanism-transport, decision, identification-repair and study-ranking operations they call. The complete example makes that boundary executable.
 
-It did not establish agent-to-human equivalence, the cause of the checkout discrepancy or the effect of an authentication repair. The targeted study is a recommendation under declared likelihoods, not a result.
+## What this did not establish
+
+The investigation did not establish agent-to-human equivalence, the cause of the checkout discrepancy or the effect of an authentication repair. The targeted study is a recommendation under declared likelihoods, not a result.
 
 **Synthetic data helps determine which real-world evidence is necessary. It does not replace the need for that evidence.**
 
+## Where to go next
+
+For API details, see [priors](../priors.md), [mechanism transport](../guides/mechanism-and-synthesis-transport.md), [decision contracts](../decisions.md), [study ranking](../design-ranking.md), with [external signals](../design-ranking.md#external-signals) for the `ExternalSignal` route used in step 5, and [from a failed identification to a ranked evidence plan](../design-ranking.md#from-a-failed-identification-to-a-ranked-evidence-plan) for the `antecedent.repair` interface. [Beyond the marketing mix](beyond-marketing-mix.md) follows a complementary investigation from a fitted response through experimental evidence and the next study.
+
 ## Run the complete investigation
-
-Run from a checkout with the Python extension installed:
-
-```bash
-python examples/python/synthetic_users_launch.py
-```
 
 The example needs no additional dependencies, credentials, network access or confidential content. It generates all observations, keeps the generating truth separate, and runs both paths in about two seconds locally. The pilot counts are illustrative seeded realizations; other observations can lead to more testing or to withholding launch.
 
 <!-- example: examples/python/synthetic_users_launch.py -->
-
-For API details, see [priors](../priors.md), [mechanism transport](../guides/mechanism-and-synthesis-transport.md), [decision contracts](../decisions.md), [study ranking](../design-ranking.md), and the public `antecedent.repair` interface. [Beyond the marketing mix](beyond-marketing-mix.md) follows a complementary investigation from a fitted response through experimental evidence and the next study.

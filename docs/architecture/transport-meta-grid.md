@@ -1,5 +1,10 @@
 # Complementary sources and retained finite transport responses
 
+This page describes transport from several sources and the retained grid of finite responses:
+how identification is checked, how providers and responses execute, what the durable artifact
+binds, and which tests and coverage records back it. It is for a contributor to the transport
+engine and a reviewer; it extends [exact single-source transport](transport-exact.md).
+
 The theoretical contract is Bareinboim and Pearl (2013),
 [*Meta-Transportability of Causal Effects: A Formal Approach*](https://proceedings.mlr.press/v31/bareinboim13a.pdf),
 Figure 5 (μsID) and its μs-hedge obstruction theorem. Only the paper's unrestricted

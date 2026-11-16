@@ -19,7 +19,64 @@ from .execution import Execution
 
 @dataclass(frozen=True, slots=True)
 class DataDiagnostics:
-    """Built-in suite selection, sample bounds and descriptive review thresholds."""
+    """Which data-quality checks run, how many rows they inspect, and when they flag a column.
+
+    Pass it as ``data_diagnostics=`` to :func:`antecedent.prepare`, or as ``suite=`` to
+    :func:`diagnose_data`. The checks are fit-free and advisory: a finding never drops rows,
+    changes an adjustment set or refuses an analysis. The thresholds are descriptive defaults,
+    not calibrated acceptance criteria.
+
+    Suites (``True`` runs the suite):
+
+    * ``missingness`` -- missing and non-finite cells.
+    * ``distribution`` -- constant, near-constant and repeated values, skewness, excess kurtosis
+      and low numeric resolution.
+    * ``duplicate_rows`` -- repeated rows over the inspected columns.
+    * ``treatment_support`` -- the share of rows in each declared treatment arm.
+    * ``relationships`` -- preflight relationship checks of the adjustment design (rank).
+
+    Coverage:
+
+    * ``max_sample_rows`` -- at most this many evenly spaced rows are inspected by the sampled
+      checks (default ``4096``); ``None`` profiles the full table. Basic counts always scan all
+      rows, and every check records whether it used a sample.
+    * ``max_relationship_columns`` -- relationship checks run automatically only up to this many
+      adjustment-design columns (default ``64``).
+
+    Thresholds (a column is flagged when):
+
+    * ``missing_share`` -- at least this share of its cells is missing or non-finite (default
+      ``0.05``).
+    * ``near_constant_share`` -- its modal value covers at least this share of observed values
+      (default ``0.99``).
+    * ``repeated_share`` -- its modal value covers at least this share, when not already near
+      constant (default ``0.5``).
+    * ``skewness`` / ``excess_kurtosis`` -- the absolute population skewness, or the population
+      excess kurtosis, exceeds this value (defaults ``2.0`` and ``10.0``).
+    * ``min_arm_share`` -- the smallest declared treatment arm holds less than this share of rows
+      (default ``0.05``).
+    * ``min_observations`` -- concentration and shape checks need at least this many observed
+      values (default ``100``).
+    * ``resolution_min_observations``, ``resolution_max_distinct``, ``resolution_max_fraction``
+      -- a column is flagged for low resolution when it has at least
+      ``resolution_min_observations`` observed values (default ``1000``), at most
+      ``resolution_max_distinct`` distinct values (default ``20``) and a distinct fraction of at
+      most ``resolution_max_fraction`` (default ``0.01``).
+
+    Raises:
+        CausalTypeError: when a suite flag is not a ``bool`` or a count or threshold has the
+            wrong type.
+        CausalValueError: when a count is below its minimum (1, or 2 for the observation
+            minimums) or a share is outside ``[0, 1]``; skewness and kurtosis thresholds must be
+            finite and nonnegative.
+
+    Example::
+
+        suite = antecedent.DataDiagnostics(skewness=3.0, duplicate_rows=False)
+        study = antecedent.prepare(data, graph=graph, query=query, data_diagnostics=suite)
+        for finding in study.data_diagnostics.findings:
+            print(finding.code, finding.criterion, finding.next_action)
+    """
 
     missingness: bool = True
     distribution: bool = True
@@ -41,7 +98,11 @@ class DataDiagnostics:
 
     @property
     def checks(self) -> tuple[Mapping[str, str], ...]:
-        """Built-in registry entries, including applicability and policy family."""
+        """The engine's registry of built-in checks, one read-only mapping per check.
+
+        Each entry gives the stable check code, the suite (policy family) it belongs to and when
+        it applies.
+        """
         from . import _native
 
         return tuple(
@@ -97,7 +158,20 @@ class DataDiagnostics:
 
 @dataclass(frozen=True, slots=True)
 class DataDiagnosticFinding:
-    """Measured observation, explicit criterion, interpretation and human follow-up."""
+    """One flagged measurement in a :class:`DataDiagnosticsReport`.
+
+    * ``code`` -- stable check code, for example ``"data.missingness"`` or
+      ``"data.treatment_imbalance"``.
+    * ``severity`` -- ``"review"``, ``"informational"`` or ``"blocking"`` (reserved for preflight
+      execution requirements such as a rank-deficient design; it never itself refuses
+      preparation).
+    * ``columns`` / ``roles`` -- the columns concerned and their roles in the question.
+    * ``observation`` -- the measured values, by name.
+    * ``criterion`` -- the rule the measurement met.
+    * ``interpretation`` and ``next_action`` -- what the finding may mean and what to check; a
+      finding needs human interpretation.
+    * ``sampled`` -- whether the measurement came from a row sample rather than the full table.
+    """
 
     code: str
     severity: str
@@ -112,7 +186,15 @@ class DataDiagnosticFinding:
 
 @dataclass(frozen=True, slots=True)
 class DataDiagnosticCheck:
-    """Coverage and applicability of one check."""
+    """Whether one check ran, on which column and on how many rows.
+
+    * ``code`` -- the check code.
+    * ``column`` -- the column checked, or ``None`` for a table-level check.
+    * ``status`` -- ``"evaluated"``, ``"not_evaluated"`` or ``"not_applicable"``.
+    * ``reason`` -- why the check was not evaluated (for example a disabled suite or too few
+      observed values), or ``None``.
+    * ``rows`` -- rows inspected; ``sampled`` says whether they were a sample.
+    """
 
     code: str
     column: str | None
@@ -124,7 +206,15 @@ class DataDiagnosticCheck:
 
 @dataclass(frozen=True, slots=True)
 class DataDiagnosticColumn:
-    """Typed column summary; distinctness and moments describe selected rows."""
+    """Summary of one column. Distinct counts and moments describe the inspected rows only.
+
+    * ``column``, ``role`` and ``value_type`` -- name, role in the question and value type.
+    * ``non_finite`` -- missing or non-finite cells.
+    * ``sample_observed`` / ``sample_distinct`` -- observed and distinct values in the sample.
+    * ``modal_share`` -- share of the most frequent value, or ``None``.
+    * ``skewness`` / ``excess_kurtosis`` -- population moments (divisor ``n``), or ``None`` when
+      undefined or not applicable.
+    """
 
     column: str
     role: str
@@ -139,7 +229,26 @@ class DataDiagnosticColumn:
 
 @dataclass(frozen=True, slots=True)
 class DataDiagnosticsReport:
-    """Identity-bound diagnostic report with deterministic JSON export."""
+    """The result of a data-diagnostics run, bound to the identity of the data it inspected.
+
+    Read ``findings`` first, then ``checks`` for what was and was not evaluated.
+
+    * ``identity`` / ``snapshot_identity`` -- identity of this report and of the data snapshot
+      (``None`` for a standalone table).
+    * ``context`` -- the roles and contrasts the checks were evaluated under.
+    * ``policy`` -- the :class:`DataDiagnostics` that was applied.
+    * ``rows_total``, ``rows_complete`` and ``sample_rows`` -- rows in the table, complete rows
+      (``None`` when not computed) and rows inspected by sampled checks.
+    * ``columns`` -- one :class:`DataDiagnosticColumn` per column.
+    * ``missing_patterns`` -- ``(missing columns, row count)`` pairs.
+    * ``duplicate_rows`` -- repeated rows beyond their first copy, or ``None`` when not checked.
+    * ``treatment_arms`` -- ``(level, rows)`` pairs per treatment.
+    * ``checks`` -- one :class:`DataDiagnosticCheck` per check.
+    * ``findings`` -- the :class:`DataDiagnosticFinding` records.
+    * ``version`` -- report format version.
+
+    The report is immutable; :meth:`to_json` returns its canonical encoding.
+    """
 
     version: int
     identity: str
@@ -158,7 +267,7 @@ class DataDiagnosticsReport:
     _json: str = field(repr=False, compare=False)
 
     def to_json(self) -> str:
-        """Return the canonical native report encoding without recalculation."""
+        """Return the report's canonical JSON encoding, as produced by the engine."""
         return self._json
 
 
@@ -235,7 +344,12 @@ def _review_count(study: Any) -> int:
 
 
 def retained_report(study: Any) -> Any:
-    """Read retained native evidence without performing work."""
+    """Return the data-diagnostics report retained when ``study`` was prepared, without new work.
+
+    A :class:`~antecedent.PreparedAnalysis` gives a :class:`DataDiagnosticsReport` or ``None``
+    (diagnostics disabled, refused preparation, or a route that keeps none); a prepared batch
+    gives a tuple with one entry per member.
+    """
     from ._batch import PreparedBatch
 
     if isinstance(study, PreparedBatch):
@@ -324,10 +438,35 @@ def diagnose_data(
     contrasts: Mapping[str, tuple[float, ...]] | None = None,
     execution: Execution | None = None,
 ) -> Any:
-    """Explicitly inspect a prepared study/batch or a standalone table.
+    """Run the data-quality checks on a table or on a prepared study's owned data.
 
-    Prepared calls return an Outcome, following existing diagnostic lifecycle APIs.
-    Standalone calls return a report and raise domain errors for invalid inputs.
+    * ``data`` -- a table (any input :func:`antecedent.prepare` accepts as data), or a
+      :class:`~antecedent.PreparedAnalysis` or prepared batch.
+    * ``suite`` -- a :class:`DataDiagnostics`; default ``None`` uses ``DataDiagnostics()``.
+    * ``roles`` -- for a table, the role of each column, for example
+      ``{"t": "treatment", "y": "outcome"}``. A prepared study uses its own roles.
+    * ``contrasts`` -- for a table, the treatment levels compared, for example
+      ``{"t": (0.0, 1.0)}``; used by the treatment-support check.
+    * ``execution`` -- the :class:`~antecedent.Execution` to run under; for a prepared study,
+      ``None`` keeps the study's own.
+
+    Returns a :class:`DataDiagnosticsReport` for a table. For a prepared study returns an
+    :class:`~antecedent.Outcome` holding the report (a tuple of reports for a batch). Findings
+    are advisory and never change the study.
+
+    Raises:
+        CausalTypeError: when ``suite`` is not a ``DataDiagnostics``, ``execution`` is not an
+            ``Execution``, or a column has an unsupported storage type.
+        CausalValueError: when ``roles`` or ``contrasts`` are given for a prepared study, or the
+            table's columns are not distinct names of equal-length one-dimensional arrays.
+
+    Example::
+
+        report = antecedent.diagnose_data(
+            data, roles={"t": "treatment", "y": "outcome"}, contrasts={"t": (0.0, 1.0)}
+        )
+        for finding in report.findings:
+            print(finding.code, finding.observation, finding.next_action)
     """
     from . import _native
     from ._batch import PreparedBatch

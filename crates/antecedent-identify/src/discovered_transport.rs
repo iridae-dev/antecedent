@@ -157,9 +157,10 @@ impl std::fmt::Display for DiscoveredTransportRefusal {
 
 /// Refusal for a PAG whose members are read as causal graphs.
 ///
-/// A PAG is now transported through [`transport_across_pag`], which reads each completion as
-/// the most-confounded ADMG it is compatible with; this constructor remains for callers that
-/// build the refusal themselves.
+/// Deprecated: use [`transport_across_pag`] (or [`transport_across_pag_with_context`]), which
+/// transports a PAG by reading each completion as the most-confounded ADMG it is compatible
+/// with, instead of refusing it. This constructor remains for callers that build the refusal
+/// themselves.
 ///
 /// # Errors
 ///

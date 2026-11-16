@@ -2,7 +2,7 @@
 
 Compare event times between a treated and a control group when follow-up ends early for some subjects (right-censoring). You get arm-specific Kaplan-Meier curves, the restricted mean survival time (RMST) up to a horizon you choose, and the survival probability at that horizon. The same guide covers delayed entry, competing events, and the case where treatment was observed rather than randomized.
 
-Name the horizon `tau` first. A survival curve is not an effect until a time is named, so every route here asks for one.
+Name the horizon `tau` first. A survival curve is not an effect until a time is named, so every route here asks for one. With `T(a)` the event time under arm `a` and `S_a(t) = P(T(a) > t)`, the two contrasts are the survival difference `S_1(tau) - S_0(tau)` and the RMST difference `RMST_1(tau) - RMST_0(tau)`, where `RMST_a(tau) = E[min(T(a), tau)]`, the area under `S_a` from 0 to `tau`.
 
 ## Randomized two-arm studies
 
@@ -27,7 +27,7 @@ result.value.survival.times, result.value.survival.control_survival, result.valu
 
 A row with `event_observed=False` is right-censored: it stays in the risk set through its recorded duration and does not count as an event. Both arms need observed follow-up through `tau`. Antecedent reports, and cannot verify, the assumptions of individual random assignment, independent right censoring within each arm, consistency and no interference. There is no scalar average treatment effect: the contrasts are the RMST difference and the survival difference at `tau`.
 
-`examples/python/survival_rmst.py` is the maintained executing example.
+[`examples/python/survival_rmst.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/survival_rmst.py) is the maintained executing example.
 
 ### Intervals and a simultaneous band
 
@@ -44,7 +44,7 @@ result.value.survival.survival_at_tau_difference_interval
 result.value.survival.bootstrap_replicates_ok
 ```
 
-The bootstrap resamples whole subjects within each arm and recomputes the full risk-set estimator. It needs at least eight subjects per arm and 199 to 100,000 requested replicates, and at least 90% of replicates must satisfy the estimator's support contract. If that gate fails the interval is refused rather than silently thinned. The two intervals cover the two scalar contrasts separately. Read `result.value.survival.uncertainty` for the method and valid replicate count, and `result.value.survival.support_status` for whether the intervals meet the `survival` rows of the [graphless support matrix](../../graphless-support-matrix.md).
+The bootstrap resamples whole subjects within each arm and recomputes the full risk-set estimator. It needs at least eight subjects per arm and 199 to 100,000 requested replicates, and at least 90% of replicates must satisfy the estimator's support contract. If that gate fails the interval is refused rather than silently thinned. The two intervals cover the two scalar contrasts separately. Read `result.value.survival.uncertainty` for the interval method, `bootstrap_replicates_ok` for the number of valid replicates, and `result.value.survival.support_status` for whether the intervals meet the `survival` rows of the [graphless support matrix](../../graphless-support-matrix.md).
 
 With at least 80 subjects per arm and at least 399 valid replicates, the same call gives a simultaneous 95% band over the whole survival-difference curve:
 
@@ -216,6 +216,8 @@ The estimate is the mean score and its standard error is the standard deviation 
 The standard errors are influence-function standard errors; `effect.calibration` carries their calibration status. No interval is produced. Delayed entry, competing risks and time-varying covariates are not covered by this route. Tests compare it to closed-form survival and RMST for exponential event times with a proportional-hazards effect and six confounder cells, and show that the unadjusted Kaplan-Meier contrast is biased under the same confounding (`crates/antecedent-estimate/tests/observational_survival_effects.rs`, `python/tests/test_observational_survival.py`).
 
 ### Refusals on the observational route
+
+Each refusal carries a reason code and a detail; see [refusal codes](../../reference/refusal-codes.md#other-registered-refusal-codes) for the codes and their remedies.
 
 | Reason code | Detail | When |
 | --- | --- | --- |

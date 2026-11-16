@@ -1,10 +1,12 @@
-"""Transport a response curve from one source table.
+"""What response curve does a target population have, given one table from a source experiment?
 
-The 150-row source table has ``P(y = 1)`` of 0.5 under ``x = 0`` and 0.8 under ``x = 1``, so the
-transported curve is ``[0.5, 0.8]``; rebinding a replacement table gives ``[0.4, 0.7]`` and leaves
-the first result unchanged. This call requests no bootstrap, so the script checks that no
-interval is reported; the transport assumptions are declared, not tested. Same verbs as the
-exact and complementary-source examples."""
+The hand-written 150-row source table has ``P(y = 1)`` of 0.5 under ``x = 0`` and 0.8 under
+``x = 1``, so the script asserts the transported curve is ``[0.5, 0.8]``, and that rebinding a
+replacement table gives ``[0.4, 0.7]`` and leaves the first result unchanged. This call requests
+no bootstrap, so the script checks that no interval is reported; the transport assumptions are
+declared, not tested. The calls are the same as in `transport_exact.py`.
+
+Run: ``python examples/python/transport_statistical.py``."""
 
 import antecedent as ant
 

@@ -1,12 +1,19 @@
-"""Recompute a decision without refitting: frozen cell scores, and resuming from their bytes.
+"""Can a decision be recomputed after its utility or target population changes, without refitting?
 
-``recalc_cell.CellSession`` runs a cell-saturated AIPW interaction contrast over two binary
-treatments and keeps the per-unit scores. Each change is then planned and receipted stage by stage:
+The data are 1,200 simulated rows with two binary treatments, a confounder ``z`` and an
+interaction effect of 1.5. ``recalc_cell.CellSession`` runs a cell-saturated AIPW interaction
+contrast and keeps the per-unit scores. Each change is then planned and receipted stage by stage:
 a new utility recomputes only the decision, a compatible target-population change reweights the
 frozen scores, and neither refits (the fit count comes from the estimator's own instrument).
 ``export_frozen_scores`` writes the scores, with no data and no model, as a checksummed artifact
 that ``resume_from_scores`` reloads in any interpreter; the one supported operation there is a
-retarget, and anything needing the data or a fit is refused before any work."""
+retarget, and anything needing the data or a fit is refused before any work.
+
+The script asserts 25 fits on the first run and zero afterwards, an interaction within 0.5 of
+1.5, and that the resumed scores retarget to the same effect as the live session. The effect
+holds under the declared graph and adjustment set, which are not tested.
+
+Run: ``python examples/python/recalc_cell_resume.py``."""
 
 from __future__ import annotations
 
@@ -34,8 +41,8 @@ EDGES = (
 )
 UTILITY = Utility(2.0, 0.5)  # net benefit = 2 * interaction - 0.5
 
-# Two confounded binary treatments with an interaction effect of 1.5, an unrelated column ``w``
-# and a second outcome ``y2`` (the draw order is the one the estimator's tests are checked on).
+# Two binary treatments with an interaction effect of 1.5: ``z`` raises the chance of ``a`` and
+# the outcome, ``d`` is a fair coin. ``w`` is an unrelated column and ``y2`` a second outcome.
 rng = np.random.default_rng(SEED)
 z = rng.standard_normal(N)
 w = rng.standard_normal(N)

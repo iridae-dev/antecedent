@@ -136,7 +136,20 @@ def _policy_json(policy: StalenessPolicy | Mapping[str, Any] | None) -> str | No
 
 @dataclass(frozen=True, slots=True)
 class StalenessFinding(ScientificResult):
-    """One evaluated diagnostic; ``exceeded`` says whether it counts as a finding."""
+    """One evaluated staleness diagnostic; ``exceeded`` says whether it counts as a finding.
+
+    * ``kind`` and ``subject`` -- the diagnostic and the variable, arm or period it concerns.
+    * ``statistic_name`` / ``statistic`` -- the measured statistic (``None`` when undefined).
+    * ``threshold_name`` / ``threshold`` -- the policy threshold it was judged against.
+    * ``p_value`` / ``adjusted_p_value`` -- for a test, its p-value before and after the policy's
+      multiplicity adjustment; ``None`` otherwise.
+    * ``exceeded`` -- whether the diagnostic crossed its threshold.
+    * ``forces`` -- the recommendation it forces when exceeded (``"reuse"``, ``"refresh"``,
+      ``"reidentify"`` or ``"refuse"``).
+    * ``keys`` -- the dependency keys it changes when exceeded.
+    * ``auxiliary`` -- further named measurements.
+    * ``detail`` -- a readable explanation.
+    """
 
     kind: str
     subject: str
@@ -177,7 +190,27 @@ class StalenessFinding(ScientificResult):
 
 @dataclass(frozen=True, slots=True)
 class StalenessReport(ScientificResult):
-    """The comparison of new data with a stored plan or baseline."""
+    """The comparison of new data with a stored plan or baseline.
+
+    Read ``recommendation`` and ``next_attempt`` first, then :attr:`findings` for the diagnostics
+    that drove it.
+
+    * ``recommendation`` -- ``"reuse"`` (nothing exceeded), ``"refresh"`` (the data changed but the
+      identification premises hold: keep the plan and refit), ``"reidentify"`` (overlap, support,
+      a recorded identification check or period drift failed) or ``"refuse"`` (schema or target
+      incompatible, or too few rows to assess uncertainty). A ``"refuse"`` recommendation is a
+      successful assessment, not an error.
+    * ``next_attempt`` -- the action to take next.
+    * ``evaluations`` -- every diagnostic as a :class:`StalenessFinding`, exceeded or not.
+    * ``not_evaluated`` -- ``(diagnostic, reason)`` pairs for diagnostics that could not run.
+    * ``changed_keys`` / ``changed_classes`` -- dependency keys and classes the exceeded
+      diagnostics change.
+    * ``invalidated`` / ``invalidated_products`` -- the stages and products selective
+      recalculation recomputes for them.
+    * ``plan_identity``, ``old_snapshot``, ``new_snapshot``, ``baseline_identity``,
+      ``policy_identity`` and ``identity`` -- the identities the comparison is bound to.
+    * ``new_rows`` -- rows in the new data.
+    """
 
     recommendation: Recommendation
     next_attempt: str
@@ -197,10 +230,12 @@ class StalenessReport(ScientificResult):
 
     @property
     def answer(self) -> Answer:
+        """A ``"structured"`` :class:`~antecedent.outcomes.Answer` holding the recommendation."""
         return Answer("structured", structured={"recommendation": self.recommendation})
 
     @property
     def identities(self) -> Mapping[str, str]:
+        """The report, plan, snapshot, baseline and policy identities, as a read-only mapping."""
         return freeze(
             {
                 "identity": self.identity,
@@ -271,11 +306,16 @@ class StalenessReport(ScientificResult):
 
 @dataclass(frozen=True, slots=True, init=False, repr=False)
 class StalenessBaseline(ScientificResult):
-    """Independently checked diagnostic summary, with no live study or full dataset.
+    """A sealed diagnostic summary of a study's data, checked without the study or the full data.
 
-    The historical baseline may retain a bounded diagnostic covariate subsample.
-    Its seal authenticates its recorded summary; it does not establish causal
-    identification or replay the unavailable original observations.
+    Produced by :func:`baseline` and exported with :meth:`export`, so that new data can later be
+    assessed with :func:`staleness` where the original study and table are not available.
+    Construct one from exported bytes with ``StalenessBaseline(artifact, expected_identity=...)``
+    or :func:`consume_baseline`; the engine checks its version, required features and seal.
+
+    The baseline may retain a bounded diagnostic subsample of the covariates. Its seal
+    authenticates the recorded summary; it does not establish causal identification or replay
+    the original observations, which it does not hold.
     """
 
     _artifact_bytes: bytes = field(repr=False)
@@ -307,36 +347,49 @@ class StalenessBaseline(ScientificResult):
 
     @property
     def identity(self) -> str:
+        """Identity of this baseline."""
         return str(self._metadata["identity"])
 
     @property
     def plan_identity(self) -> str:
+        """Identity of the prepared plan the baseline was computed from."""
         return str(self._metadata["plan_identity"])
 
     @property
     def snapshot(self) -> str:
+        """Identity of the data snapshot the baseline summarizes."""
         return str(self._metadata["snapshot"])
 
     @property
     def policy_identity(self) -> str:
+        """Identity of the :class:`StalenessPolicy` the baseline was built under."""
         return str(self._metadata["policy_identity"])
 
     @property
     def rows(self) -> int:
+        """Rows in the summarized data."""
         return int(self._metadata["rows"])
 
     @property
     def complete_rows(self) -> int:
+        """Complete rows (no missing value) in the summarized data."""
         return int(self._metadata["complete_rows"])
 
     def _summary_fields(self) -> dict[str, Any]:
         return {"identity": self.identity, "rows": self.rows, "complete_rows": self.complete_rows}
 
     def to_dict(self) -> dict[str, Any]:
-        """Bounded native summary metadata; retained profile arrays stay in the artifact."""
+        """Return the baseline's summary metadata and acceptance as a plain dictionary.
+
+        The retained profile arrays stay in the artifact and are not included.
+        """
         return {**thaw(self._metadata), "acceptance": self.acceptance.to_dict()}
 
     def export(self) -> ExportedArtifact[StalenessBaseline]:
+        """Return the baseline as an exported artifact of kind ``"staleness_baseline_v1"``.
+
+        Its ``expectation`` carries the baseline identity, to pass back as ``expected_identity``.
+        """
         return ExportedArtifact(
             self._artifact_bytes,
             "staleness_baseline_v1",
@@ -350,12 +403,18 @@ class StalenessBaseline(ScientificResult):
         policy: StalenessPolicy | Mapping[str, Any] | None = None,
         execution: Execution | None = None,
     ) -> Outcome[StalenessReport]:
+        """Assess ``new_data`` against this baseline; see :func:`staleness`."""
         return staleness(self, new_data, policy=policy, execution=execution)
 
 
 @outcome_operation
 def consume_baseline(artifact: Any, *, expected_identity: str | None = None) -> StalenessBaseline:
-    """Invoke the native independent baseline consumer; never recreate a live study."""
+    """Read an exported staleness baseline and check it; returns an :class:`~antecedent.Outcome`.
+
+    ``artifact`` is the exported artifact or its bytes. ``expected_identity``, when given, must
+    match the baseline's identity. The outcome holds a :class:`StalenessBaseline`; no live study
+    is recreated.
+    """
     return StalenessBaseline(artifact, expected_identity=expected_identity)
 
 
@@ -426,11 +485,22 @@ def baseline(
     policy: StalenessPolicy | Mapping[str, Any] | None = None,
     execution: Execution | None = None,
 ) -> StalenessBaseline:
-    """Explicitly compute a native diagnostic baseline under the declared policy.
+    """Profile a prepared study's data into a :class:`StalenessBaseline` for later staleness checks.
 
-    Profiling includes the existing diagnostic propensity fit. Calling this
-    operation neither estimates the causal effect nor changes the prepared study.
-    Preparation and inspection never invoke it implicitly.
+    * ``study`` -- an ordinary prepared tabular or series :class:`~antecedent.PreparedAnalysis`.
+    * ``policy`` -- a :class:`StalenessPolicy` or a mapping of its fields; ``None`` uses the
+      engine defaults. Assess the baseline later under the same policy.
+    * ``execution`` -- overrides the study's execution for the profiling; ``None`` keeps it.
+
+    Profiling includes the diagnostic propensity fit. It does not estimate the causal effect or
+    change the study, and preparation and inspection never call it implicitly. Returns an
+    :class:`~antecedent.Outcome` holding the baseline; export it with ``.export()``. A study whose
+    preparation was refused, or one that is not an ordinary table or series (for example a
+    transport study), is refused.
+
+    Raises:
+        CausalTypeError: when ``study`` is not a ``PreparedAnalysis`` or ``policy`` has an
+            unknown field.
     """
     engine = _study_engine(study)
     controls = _execution(study, execution)
@@ -456,9 +526,27 @@ def staleness(
     policy: StalenessPolicy | Mapping[str, Any] | None = None,
     execution: Execution | None = None,
 ) -> StalenessReport:
-    """Explicitly assess new observations against a canonical study or sealed baseline.
+    """Assess whether a prepared plan still applies to new observations.
 
-    Every native diagnostic and recommendation is retained. A ``refuse``
+    * ``source`` -- a :class:`~antecedent.PreparedAnalysis`, a :class:`StalenessBaseline` (or an
+      outcome holding one), or an exported baseline artifact or its bytes.
+    * ``new_data`` -- the new table, with the columns of the original data.
+    * ``policy`` -- a :class:`StalenessPolicy` or a mapping of its fields; ``None`` uses the
+      engine defaults.
+    * ``execution`` -- the :class:`~antecedent.Execution` to run under; ``None`` keeps a study's
+      own execution, or the default for a baseline. Its ``on_stage`` observer is refused.
+
+    Returns an :class:`~antecedent.Outcome` holding a :class:`StalenessReport`; read its
+    ``recommendation`` and ``next_attempt``.
+
+    Example::
+
+        report = antecedent.staleness(study, new_rows).value
+        print(report.recommendation, report.next_attempt)
+        for finding in report.findings:
+            print(finding.kind, finding.subject, finding.statistic, finding.threshold)
+
+    Every diagnostic and recommendation is retained. A ``refuse``
     recommendation is a successful assessment of the plan's applicability;
     operational failures remain exceptions. The source is never mutated.
 

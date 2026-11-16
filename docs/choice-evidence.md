@@ -4,6 +4,34 @@ Repeated categorical choices (which of K options was chosen, many times) run thr
 
 Rust: `antecedent::analysis::choice_inference` (contract `antecedent_contract::adaptive_design::ChoiceDesignContract`, estimators `antecedent_estimate::choice_inference`, artifact `antecedent_io::choice_inference_result_artifact`, ranking `antecedent_design::choice_evsi`). Python: `antecedent.choice_inference`.
 
+## Minimal call
+
+Declare the study, prepare a session (the contract is validated here), then run one route:
+
+```python
+from antecedent import choice_inference as ci
+from antecedent.adaptive_inference import StoppingRule
+from antecedent.outcomes import require_success
+
+study = ci.ChoiceStudy(
+    label="wave",
+    outcome="categorical_choice",            # one choice per respondent, pooled
+    options=("a", "b", "c"),
+    meaning="chosen in the pricing task",
+    population="customers",
+    respondents=[ci.Respondent("r0", [1, 0, 0]), ci.Respondent("r1", [0, 1, 0])],
+    initial_prior=(1.0, 1.0, 1.0),
+    looks=(2,),                              # respondents enrolled at each look; the last is final
+    stopping_rule=StoppingRule.no_stopping(),
+)
+session = ci.ChoiceInferenceSession.prepare(study)   # raises ChoiceInferenceRefusal on a bad contract
+posterior = require_success(session.analyze(ci.Posterior(look=0)))
+posterior.mean, posterior.probability_best           # per option, in the declared order
+posterior.calibration                                # "not_measured"
+```
+
+`prepare` raises `ChoiceInferenceRefusal` with one `choice_inference.*` detail per missing element or inconsistency. `analyze`, like `operating_characteristics`, `rank_studies` and `rank_hierarchical_studies`, returns an `Outcome`; `require_success` raises its refusal instead.
+
 ## Stages
 
 | Stage | Object | What it says | What it never says |
@@ -12,7 +40,7 @@ Rust: `antecedent::analysis::choice_inference` (contract `antecedent_contract::a
 | Qualify prior | retained sources | each source becomes a Dirichlet prior at a power-prior discount, only when its ordered options, meaning and population match the target; cross-population transfer is refused | that a distribution transports across populations; the discount is a declaration, not an estimated transfer |
 | Infer | `Posterior`, `Stopping`, `Hierarchical`, `HierarchicalStopping` | the pooled Dirichlet posterior of one choice per respondent, the hierarchical Dirichlet-multinomial posterior of repeated choices (two or three options), or the contract's stopping decision on either; each authorized by the procedure matrix | a calibrated interval; every result is point-only with `calibration: not_measured` |
 | Operating characteristics | `operating_characteristics` | the exact law of the declared sequential procedure (selection, stop at each look, horizon, expected enrolment) under a fixed truth or a Dirichlet prior predictive | a bound over other truths, an error rate for any other truth, a coverage statement |
-| Rank | `rank_studies` | expected value of sample information over the pooled posterior at a look (exact enumeration or Monte Carlo), or over a hierarchical posterior for one new respondent making one or two choices; net of cost | that the application should field the study |
+| Rank | `rank_studies` (Python `rank_hierarchical_studies` for a hierarchical posterior) | expected value of sample information over the pooled posterior at a look (exact enumeration or Monte Carlo), or over a hierarchical posterior for one new respondent making one or two choices; net of cost | that the application should field the study |
 | Export / consume | `export`, `consume_choice_inference_result_artifact` | `choice_inference_result_v1`, bound to its contract; the consumer replays the contract through the evidence ledger and recomputes every value | a stored number that was not recomputed |
 
 ## Dependence and conflict

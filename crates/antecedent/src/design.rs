@@ -1,4 +1,10 @@
-//! experiment / measurement design facade helpers.
+//! Experiment and measurement design: which study, measurement or policy to run next.
+//!
+//! Use this module when the question is what to do next rather than what the current data
+//! estimate: rank candidate designs by how much they would raise the probability that a query
+//! is identified, plan experiments and sample sizes, search adaptive policy families, and
+//! evaluate decisions with their reliability and robustness records. Ranking is advisory: it
+//! runs no analysis.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -2,7 +2,50 @@
 
 An experiment often estimates the effect of a change on several outcomes at once (order frequency, basket value, unit cost) while the decision turns on a quantity built from all of them. This page describes what Antecedent keeps at each step from estimate to decision, and what it refuses.
 
-Rust: `antecedent::decision_evidence`. Python: `antecedent.decision_evidence`. The step names below are the Rust functions; in Python, `compile_experiment` and `compile_experimental_design` compile, `JointEvidence.from_cluster_totals`, `JointEvidence.from_experimental_design` and `JointEvidence.from_adaptive_regime` estimate, and `evaluate` derives, decides and plans in one call.
+Rust: `antecedent::decision_evidence`. Python: `antecedent.decision_evidence`. The step names below are the Rust functions; in Python, `compile_experiment` and `compile_experimental_design` compile, `JointEvidence.from_cluster_totals`, `JointEvidence.from_experimental_design` and `JointEvidence.from_adaptive_regime` estimate, and `evaluate` derives, decides and plans in one call. A refusal raises `DecisionEvidenceRefusal`, whose `detail` is a `decision_evidence.*` reason and whose `remedy` names the next attempt (see [refusal codes and remedies](reference/refusal-codes.md)).
+
+## Minimal call
+
+A cluster-randomized experiment with three outcomes per cluster, and a decision on the margin `orders * (basket value - unit cost)`. `totals[k][c]` is the original total of outcome `k` in cluster `c` and `assigned[c]` its realized arm; the cluster identities, sizes, assignment law and consistency assumption are declared explicitly:
+
+```python
+from antecedent import decision_evidence as de
+
+evidence = de.JointEvidence.from_cluster_totals(
+    evidence_id="exp-shipping",
+    population_id="active_customers",
+    treated_regime_id="free_shipping",
+    control_regime_id="standard_shipping",
+    horizon=4,
+    components={
+        "frequency": ("outcome.frequency", "orders"),
+        "value": ("outcome.value", "usd"),
+        "cost": ("outcome.cost", "usd"),
+    },
+    totals=totals,                       # three lists, one total per cluster
+    assigned=assigned,                   # one bool per cluster
+    outcome_rows=12 * len(assigned),
+    exposure="no_between_unit_interference",
+    exposure_assumption_id="assumption.no_cross_customer_spillover",
+    cluster_ids=[f"cluster-{i}" for i in range(len(assigned))],
+    cluster_sizes=[12] * len(assigned),
+    assignment_law_id="complete-randomization",
+    treated_clusters=sum(assigned),
+    consistency_assumption_id="consistency",
+)
+
+freq, value, cost = de.Expr.input(0), de.Expr.input(1), de.Expr.input(2)
+margin = de.DerivedQuantity(
+    "margin_per_customer", "usd", freq * (value - cost),
+    [de.Measured("frequency"), de.Measured("value"), de.Assumed(4.0, 12.0, "assumption.unit_cost_range")],
+)
+result = de.evaluate(evidence, margin, frame=de.DecisionFrame("launch", "keep_standard", 2.5))
+result.derived["sampling"]           # delta-method estimate, standard error, 95% interval
+result.derived["assumption_range"]   # extremes over the declared unit-cost range
+result.verdict                       # "robust", "assumption_dependent" or "unresolved"
+```
+
+`derived["support"]` is `none` and `derived["calibration"]` is `not_measured`: the components' precision does not transfer to the margin. The [maintained example](#maintained-example) runs this scenario end to end.
 
 ## The five steps
 

@@ -208,7 +208,7 @@ claim = "A retained average effect whose rebound branch moves by exactly 1, a ra
 [[example]]
 id = "your_data"
 title = "Analyze a table of your own"
-summary = "Read a temporary CSV, check numeric columns, prepare and inspect an average effect."
+summary = "Read a CSV, check that the required columns are numeric and complete, then prepare and inspect an average effect."
 python = "examples/python/your_data.py"
 topic = "Data and inputs"
 level = "beginner"
@@ -241,7 +241,7 @@ claim = "The average effect from a Parquet file equals the in-memory one exactly
 [[example]]
 id = "propensity_weighting"
 title = "Adjust for a confounder by propensity weighting"
-summary = "Adjust for treatment selection using inverse-probability weights."
+summary = "Adjust for a measured variable that drives treatment by inverse-probability weighting, and read the overlap diagnostics."
 python = "examples/python/propensity_weighting.py"
 rust = "examples/rust/propensity_weighting.rs"
 topic = "Estimate effects"
@@ -253,18 +253,18 @@ claim = "Inverse-probability-weighted effect within 0.35 of the simulated 2 unde
 [[example]]
 id = "ihdp_propensity_e2e"
 title = "Compare propensity weighting and AIPW on a simulated confounded benchmark"
-summary = "Synthetic IHDP-like covariates → assumed DAG → IPW + AIPW + refutation."
+summary = "Recover a known effect on a synthetic IHDP-like table with propensity weighting and AIPW under a declared graph, then run the refutation suite."
 python = "examples/python/ihdp_propensity_e2e.py"
 topic = "Estimate effects"
 level = "intermediate"
 dependencies = []
 runtime = "up to 1 min"
-claim = "On a synthetic IHDP-like table with true effect 4.0, IPW and AIPW land in [3.7, 4.5] under the assumed six-confounder DAG, the IPW Wald interval contains 4.0 and the cheap refuters pass. Not a claim about the real IHDP data; AIPW uses full-sample nuisances, not cross-fitting."
+claim = "On a synthetic IHDP-like table with true effect 4.0, IPW and AIPW land in [3.7, 4.5] under the assumed six-confounder DAG, the IPW Wald interval contains 4.0 and the cheap refuters pass. Not a claim about the real IHDP data. For this untrimmed average effect AIPW cross-fits its nuisance regressions (provenance/estimate.aipw.toml); one seeded table is not evidence of coverage."
 
 [[example]]
 id = "staged_static_kinds"
 title = "Split an effect into direct and mediated parts"
-summary = "Separate direct and mediated effects; estimate individual effects."
+summary = "Separate a treatment's direct and mediated effects, and estimate individual counterfactual effects."
 python = "examples/python/staged_static_kinds.py"
 rust = "examples/rust/staged_static_kinds.rs"
 topic = "Estimate effects"
@@ -275,8 +275,8 @@ claim = "Natural direct 1.8, indirect 4.8 and total 6.6 effects and the mean ind
 
 [[example]]
 id = "sales_spreadsheet_e2e"
-title = "Ask several causal questions of one sales dataset"
-summary = "Explore average, mediated, individual and delayed effects."
+title = "Ask several causal questions of one sales table"
+summary = "Estimate average, path-specific, individual and delayed effects from declared graphs."
 python = "examples/python/sales_spreadsheet_e2e.py"
 rust = "examples/rust/sales_spreadsheet_e2e.rs"
 topic = "Estimate effects"
@@ -287,8 +287,8 @@ claim = "The lag-1 pulse lands within 0.25 of the simulated 0.85 under a declare
 
 [[example]]
 id = "continuous_causal_response"
-title = "How does the outcome change with dose?"
-summary = "Inspect supported doses, response values and derivatives."
+title = "Estimate how an outcome changes with dose"
+summary = "Estimate a dose-response curve, its local slope and elasticity, and read which doses the data support."
 python = "examples/python/continuous_causal_response.py"
 notebook = "examples/notebooks/continuous_causal_response.ipynb"
 topic = "Estimate effects"
@@ -299,8 +299,8 @@ claim = "Adjusted response at dose 4.5 within 0.6 and local slope at 2.5 within 
 
 [[example]]
 id = "pricing_availability_latent_demand"
-title = "Pricing, availability, and latent demand"
-summary = "Distinguish inventory-limited sales from latent demand."
+title = "Estimate demand when stock-outs censor sales"
+summary = "Estimate a demand curve from inventory-limited sales with censoring weights, and keep the refusal of a demand derivative."
 python = "examples/python/pricing_availability_latent_demand.py"
 notebook = "examples/notebooks/pricing_availability_latent_demand.ipynb"
 topic = "Estimate effects"
@@ -312,7 +312,7 @@ claim = "Cox-IPCW demand curve under a declared independent-censoring assumption
 [[example]]
 id = "msm_sensitivity"
 title = "Bound an effect under unmeasured confounding"
-summary = "Marginal-sensitivity bounds and tipping point for a stratified ATE."
+summary = "Compute marginal-sensitivity bounds and the tipping point for a stratified average effect, and check that a decision holds across them."
 python = "examples/python/msm_sensitivity.py"
 topic = "Estimate effects"
 level = "intermediate"
@@ -323,7 +323,7 @@ claim = "Identified effect 0.3, sharp range [0.04375, 0.4875] at Lambda = 2 and 
 [[example]]
 id = "policy_value_evaluation"
 title = "Score a fixed treatment policy on held-out rows"
-summary = "Held-out value of a fixed binary policy under known propensities."
+summary = "Evaluate the held-out value of a fixed binary policy under known propensities."
 python = "examples/python/policy_value_evaluation.py"
 topic = "Estimate effects"
 level = "intermediate"
@@ -334,7 +334,7 @@ claim = "The incremental value of a fixed policy that treats half the rows equal
 [[example]]
 id = "regime_value"
 title = "Value a treatment regime over two time points"
-summary = "Value of a static treatment rule by inverse-probability g-formula."
+summary = "Value a static treatment rule over two periods by the inverse-probability-weighted g-formula."
 python = "examples/python/regime_value.py"
 topic = "Estimate effects"
 level = "intermediate"
@@ -345,7 +345,7 @@ claim = "Two-period regime values equal the declared outcomes 2.0, 3.0 and 3.5 b
 [[example]]
 id = "quasi_difference_in_differences"
 title = "Estimate a difference-in-differences effect"
-summary = "2x2 and balanced-panel difference-in-differences on fixtures with a known effect."
+summary = "Estimate difference-in-differences on a repeated cross-section and a balanced panel, each constructed with a known effect."
 python = "examples/python/quasi_difference_in_differences.py"
 topic = "Estimate effects"
 level = "intermediate"
@@ -356,7 +356,7 @@ claim = "Repeated cross-section and balanced-panel difference-in-differences bot
 [[example]]
 id = "survival_rmst"
 title = "Compare restricted mean survival time between arms"
-summary = "Randomized survival curve and RMST by arm."
+summary = "Estimate the Kaplan-Meier curve and restricted mean survival time in each arm of a randomized study."
 python = "examples/python/survival_rmst.py"
 topic = "Estimate effects"
 level = "intermediate"
@@ -367,7 +367,7 @@ claim = "Kaplan-Meier survival and RMST by arm in a four-row randomized fixture:
 [[example]]
 id = "dowhy_handoff"
 title = "Hand an adjustment set to DoWhy"
-summary = "Exchange a reviewed backdoor graph with DoWhy (optional dependency)."
+summary = "Exchange a reviewed backdoor graph with DoWhy in both directions and compare adjustment sets and effects (optional dependency)."
 python = "examples/python/dowhy_handoff.py"
 topic = "Estimate effects"
 level = "intermediate"
@@ -378,7 +378,7 @@ claim = "Both libraries find adjustment set {z} on the reviewed backdoor graph a
 [[example]]
 id = "econml_cate_handoff"
 title = "Hand an adjustment set to EconML"
-summary = "Compare adjusted average effects with EconML CATE predictions (optional dependency)."
+summary = "Export an identified adjustment set as the columns an EconML learner takes, then fit conditional effects in EconML (optional dependency)."
 python = "examples/python/econml_cate_handoff.py"
 topic = "Estimate effects"
 level = "intermediate"
@@ -389,7 +389,7 @@ claim = "Antecedent identifies adjustment set {z} and estimates within 0.35 of t
 [[example]]
 id = "experiment_randomized_effect"
 title = "Estimate a randomized effect and reuse its design"
-summary = "Estimate a randomized ITT effect with design inputs named by data column."
+summary = "Estimate an intent-to-treat effect with design inputs named by data column, then rebind outcome-only data to the frozen design."
 python = "examples/python/experiment_randomized_effect.py"
 topic = "Experiments and study designs"
 level = "beginner"
@@ -400,7 +400,7 @@ claim = "ITT effect within 0.5 of the simulated 2.0 under a declared Bernoulli(0
 [[example]]
 id = "factorial_cell_means"
 title = "Read main effects and an interaction from a 2x2 experiment"
-summary = "2x2 Bernoulli factorial main effects and interaction (point utility)."
+summary = "Compute the main effects and interaction of a randomized 2x2 factorial experiment as point values."
 python = "examples/python/factorial_cell_means.py"
 topic = "Experiments and study designs"
 level = "intermediate"
@@ -434,7 +434,7 @@ claim = "A one-step pulse in pressure moves defects one step later by the simula
 [[example]]
 id = "temporal_response_curve"
 title = "Trace a delayed response across dose and horizon"
-summary = "Compare pressure levels and their effects over time."
+summary = "Estimate a response surface over pressure level and horizon with pointwise and simultaneous bands."
 python = "examples/python/temporal_response_curve.py"
 rust = "examples/rust/temporal_response_curve.rs"
 topic = "Experiments and study designs"
@@ -457,7 +457,7 @@ claim = "PCMCI recovers exactly the simulated lag-1 parent, and the pulse effect
 [[example]]
 id = "class_preserving_cpdag"
 title = "Ask what is identified when an edge direction is unknown"
-summary = "Estimate a range of effects when some edge directions are unknown."
+summary = "Read a partially identified answer while one edge direction is open, then declare the direction and identify the effect by adjusting for z."
 python = "examples/python/class_preserving_cpdag.py"
 rust = "examples/rust/class_preserving_cpdag.rs"
 topic = "Structure and discovery"
@@ -469,7 +469,7 @@ claim = "With one edge unoriented the effect is partially identified: the two co
 [[example]]
 id = "discover_then_estimate"
 title = "Discover a graph, accept it and estimate"
-summary = "Discover once, accept a DAG, estimate many times."
+summary = "Run discovery once, accept a reviewed DAG and estimate repeatedly without rerunning discovery."
 python = "examples/python/discover_then_estimate.py"
 rust = "examples/rust/discover_then_estimate.rs"
 topic = "Structure and discovery"
@@ -481,7 +481,7 @@ claim = "Later estimates and a rebind reuse the accepted DAG, and the first esti
 [[example]]
 id = "identify_only"
 title = "Ask whether an effect is identified before fitting"
-summary = "Identification without fitting."
+summary = "Check whether an effect is identified and derive its estimand without fitting anything."
 rust = "examples/rust/identify_only.rs"
 topic = "Structure and discovery"
 level = "intermediate"
@@ -491,8 +491,8 @@ claim = "The effect of t on y is nonparametrically identified by adjusting for t
 
 [[example]]
 id = "marketing_channel_structural_uncertainty"
-title = "Should we increase paid-search spend?"
-summary = "Compare naive marketing attribution with effects under uncertain graph directions."
+title = "Estimate a spend effect when the data leave edge directions open"
+summary = "Compare a naive spend-pipeline slope with the effect averaged over compatible graphs, and read the mass where it is not identified."
 python = "examples/python/marketing_channel_structural_uncertainty.py"
 notebook = "examples/notebooks/marketing_channel_structural_uncertainty.ipynb"
 topic = "Structure and discovery"
@@ -564,7 +564,7 @@ claim = "Replay of a compiled model on retained noise with fixed, redrawn and co
 [[example]]
 id = "gcm_do"
 title = "Sample from a fitted model under an intervention"
-summary = "Fit a GCM and sample under `do(·)`."
+summary = "Fit a graphical causal model on a supplied DAG and draw samples under an intervention."
 rust = "examples/rust/gcm_do.rs"
 topic = "Structural models and feedback"
 level = "intermediate"
@@ -587,13 +587,13 @@ claim = "In a fully declared finite SCM, P(Y_x0 = 1 | X = 1) is exactly 1 throug
 [[example]]
 id = "general_cyclic_systems"
 title = "Fit overlapping feedback loops and replay an artifact"
-summary = "Fit overlapping nonlinear feedback loops, query a held-out joint intervention and replay a shared-noise counterfactual artifact."
+summary = "Fit overlapping nonlinear feedback loops with correlated disturbances, predict a held-out joint intervention and a unit counterfactual, and replay the exported artifact."
 python = "examples/python/general_cyclic_systems.py"
 topic = "Structural models and feedback"
 level = "advanced"
 dependencies = []
 runtime = "up to 1 min"
-claim = "Held-out joint-intervention prediction and a shared-disturbance counterfactual within 0.035 of an independent reference generator, under a specified structure and covariance; a fresh process loads the artifact and reproduces the report. Read result.inspect().calibration for the calibration status of any interval."
+claim = "Held-out joint-intervention prediction and a unit-level counterfactual within 0.035 of an independent reference generator, under a specified structure and covariance; a fresh process loads the artifact and reproduces the report. Read result.inspect().calibration for the calibration status of any interval."
 
 [[example]]
 id = "recovered_feedback_law"
@@ -608,8 +608,8 @@ claim = "Under the declared recipe, do(A = 1), 3 and 4 give B near 0.5, 1.5 and 
 
 [[example]]
 id = "cyclic_paper_experiments"
-title = "Reproduce the published cyclic-system protocols"
-summary = "Reproduce applicable nonlinear and stochastic feedback synthetic experiments with held-out joint interventions and fresh CPU artifact replay."
+title = "Run published cyclic-system data protocols"
+summary = "Fit native cyclic estimators to the synthetic data protocols of two papers, with held-out joint interventions and fresh-process artifact replay; this is not a reproduction of the papers' methods."
 python = "examples/python/cyclic_paper_experiments.py"
 topic = "Structural models and feedback"
 level = "advanced"
@@ -631,7 +631,7 @@ claim = "Model-conditional joint responses under a declared period randomization
 [[example]]
 id = "transport_exact"
 title = "Transport a response from a known source law"
-summary = "Single-source exact-law transport of a response grid."
+summary = "Transport a response grid from exactly supplied source laws, then rebind to replacement laws."
 python = "examples/python/transport_exact.py"
 rust = "examples/rust/transport_exact.rs"
 topic = "Transport"
@@ -643,7 +643,7 @@ claim = "Transported response from supplied exact laws equals the source arm val
 [[example]]
 id = "transport_statistical"
 title = "Transport a response from a source table"
-summary = "Single-source empirical transport of a response grid."
+summary = "Transport a response grid from one source table, then rebind to a replacement table."
 python = "examples/python/transport_statistical.py"
 rust = "examples/rust/transport_statistical.rs"
 topic = "Transport"
@@ -655,19 +655,19 @@ claim = "Transported response from a 150-row source table equals its arm means 0
 [[example]]
 id = "transport_meta_grid"
 title = "Transport from complementary sources over a grid"
-summary = "Combined sources identify a target curve; one source does not."
+summary = "Chain two partial source experiments to identify a target curve that neither identifies alone."
 python = "examples/python/transport_meta_grid.py"
 rust = "examples/rust/transport_meta_grid.rs"
 topic = "Transport"
 level = "intermediate"
 dependencies = []
 runtime = "up to 1 min"
-claim = "Two complementary exact source laws identify the target curve by chaining (0.26 and 0.74); with one source's laws some grid points stay unsupported."
+claim = "Two complementary exact source laws identify the target curve by chaining (0.26 and 0.74); withholding source a's law under x = 0 leaves a grid point unsupported. Exact laws carry no sampling interval."
 
 [[example]]
 id = "transported_counterfactual"
 title = "Transport a mediated effect and see where it refuses"
-summary = "Transport direct and indirect effects under a shared additive model; inspect refusals."
+summary = "Transport natural direct and indirect effects to a target covariate law under declared additive-noise premises, and inspect the refusal when selection reaches the outcome."
 python = "examples/python/transported_counterfactual.py"
 topic = "Transport"
 level = "intermediate"
@@ -678,7 +678,7 @@ claim = "Transported natural direct and indirect effects equal the hand-derived 
 [[example]]
 id = "transported_measurement"
 title = "Carry a measurement correction to another clinic"
-summary = "Correct target prevalence under explicitly invariant source sensitivity and specificity."
+summary = "Correct a target clinic's prevalence for misclassification with sensitivity and specificity carried from a source clinic under a declared invariance."
 python = "examples/python/transported_measurement.py"
 topic = "Transport"
 level = "intermediate"
@@ -689,7 +689,7 @@ claim = "Corrected target prevalence and its delta-method standard error match c
 [[example]]
 id = "scenario_invariance"
 title = "Decide which factors carry over to a new scenario"
-summary = "Why each transport scenario answers as it does: selection and invariances."
+summary = "See why each transport scenario is identified or obstructed, from its selection nodes and invariances."
 python = "examples/python/scenario_invariance.py"
 topic = "Transport"
 level = "intermediate"
@@ -733,7 +733,7 @@ claim = "A loaded doubly robust effect model predicts exactly what the fitted on
 [[example]]
 id = "rank_designs"
 title = "Rank candidate studies by identification"
-summary = "Rank candidate experiments by identification probability."
+summary = "Rank candidate studies by how much they raise the probability that an effect is identified."
 python = "examples/python/rank_designs.py"
 rust = "examples/rust/rank_designs.rs"
 topic = "Decisions and study planning"
@@ -745,7 +745,7 @@ claim = "Candidate actions ranked by gain in identified structural mass under de
 [[example]]
 id = "rank_designs_evsi"
 title = "Rank candidate studies by expected value net of cost"
-summary = "Rank candidate studies by expected value of sample information."
+summary = "Rank candidate studies by expected value of sample information net of cost for a declared decision."
 python = "examples/python/rank_designs_evsi.py"
 topic = "Decisions and study planning"
 level = "intermediate"
@@ -755,15 +755,15 @@ claim = "Two coin-flip studies valued for a declared bet net of cost, each EVSI 
 
 [[example]]
 id = "marketing_experiment_design"
-title = "Which marketing experiment should we run next?"
-summary = "Rank investments that resolve a marketing identification problem."
+title = "Choose the next marketing study by identification gain"
+summary = "Rank evidence-gathering actions by how much they raise the probability that an outreach effect is identified, then apply a budget."
 python = "examples/python/marketing_experiment_design.py"
 notebook = "examples/notebooks/marketing_experiment_design.ipynb"
 topic = "Decisions and study planning"
 level = "intermediate"
 dependencies = ["pandas", "matplotlib", "ipykernel"]
 runtime = "up to 5 min"
-claim = "Budgeted study ranking under the declared marketing causal question and study costs."
+claim = "Four actions ranked by gain in identified posterior mass over declared graph hypotheses, then filtered by a declared budget; the adjusted estimate after the chosen measurement is printed beside the simulated effect, not asserted. The ranking depends on the declared unlock assumptions and costs, and recommends and runs nothing."
 
 [[example]]
 id = "repair_obligations"
@@ -801,7 +801,7 @@ claim = "The product's mean 0.4 and variance 6.4/9 match the enumerated ten-row 
 [[example]]
 id = "composition_bundle"
 title = "Hand a composed decision to another consumer"
-summary = "Export a composed decision and consume it under a retained identity"
+summary = "Export a composed decision and consume it under a retained identity."
 python = "examples/python/composition_bundle.py"
 topic = "Evidence and composition"
 level = "intermediate"
@@ -812,7 +812,7 @@ claim = "A consumer holding the bundle identity recomputes every embedded part a
 [[example]]
 id = "prior_bank_surveys"
 title = "Combine earlier surveys as prior evidence"
-summary = "Select and combine evidence from earlier surveys."
+summary = "Select compatible earlier surveys and combine them, weighted by caller-supplied similarity, into a prior for a new survey."
 python = "examples/python/prior_bank_surveys.py"
 rust = "examples/rust/prior_bank_surveys.rs"
 topic = "Evidence and composition"
@@ -824,7 +824,7 @@ claim = "Earlier surveys pass a tag compatibility check and are combined with ca
 [[example]]
 id = "sequential_bayes"
 title = "Carry one batch's posterior into the next"
-summary = "Use one batch’s results as prior evidence for the next."
+summary = "Use one batch's posterior as the prior for the next batch on the same graph and design."
 python = "examples/python/sequential_bayes.py"
 rust = "examples/rust/sequential_bayes.rs"
 topic = "Evidence and composition"
@@ -835,8 +835,8 @@ claim = "Batch A's posterior becomes batch B's prior on the same graph and desig
 
 [[example]]
 id = "sales_campaign_prior_transfer"
-title = "Can last quarter's campaign inform this quarter's sales analysis?"
-summary = "Transfer historical campaign evidence and update it with current observations."
+title = "Carry last quarter's campaign evidence into this quarter's analysis"
+summary = "Map a source campaign's effect posterior into a target prior across different designs, update it with current data, and see an identical-coefficient mapping refuse."
 python = "examples/python/sales_campaign_prior_transfer.py"
 notebook = "examples/notebooks/sales_campaign_prior_transfer.ipynb"
 topic = "Evidence and composition"
@@ -848,7 +848,7 @@ claim = "The source ATE posterior enters a target with an extra covariate throug
 [[example]]
 id = "artifact_producer"
 title = "Export a result with a separately retained identity"
-summary = "Store bytes and a separately retainable producer expectation."
+summary = "Save result bytes and an expected identity that can be retained apart from them."
 python = "examples/python/artifact_producer.py"
 topic = "Prepare, branch and reuse"
 level = "beginner"
@@ -859,7 +859,7 @@ claim = "Bytes and a separately retainable expectation that loads them identity-
 [[example]]
 id = "artifact_consumer"
 title = "Consume an artifact against its retained identity"
-summary = "Check independent consumption, a wrong identity and malformed bytes."
+summary = "Load an artifact against its retained identity, and see a wrong identity and malformed bytes refuse."
 python = "examples/python/artifact_consumer.py"
 topic = "Prepare, branch and reuse"
 level = "beginner"
@@ -870,7 +870,7 @@ claim = "Identity-bound consumption, with a wrong identity and malformed bytes r
 [[example]]
 id = "causal_state_workflow"
 title = "Track which queries a data append makes stale"
-summary = "Update an analysis as data arrive and identify outdated results."
+summary = "Append and replace data, and see which registered results go stale until refreshed."
 python = "examples/python/causal_state_workflow.py"
 rust = "examples/rust/causal_state_workflow.rs"
 topic = "Prepare, branch and reuse"
@@ -894,7 +894,7 @@ claim = "A host reads the status before running, relays a supported point near t
 [[example]]
 id = "bench_python_overhead"
 title = "Measure Python ingest overhead"
-summary = "Measure Python-to-native ingest overhead with repeatable workload inputs."
+summary = "Time dict, pandas and Arrow input conversion against the end-to-end native call on fixed workloads."
 python = "examples/python/bench_python_overhead.py"
 topic = "Build with Antecedent"
 level = "advanced"

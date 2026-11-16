@@ -17,6 +17,8 @@ prior mass, and that the sealed result replays only under an independently compi
 
 The result does not claim an expected utility or a posterior over the scenarios. It holds only
 conditional on the declared scenarios, and replay cannot show that the scenario set is complete.
+
+Run: ``python examples/python/robust_joint_scenarios.py``.
 """
 
 from __future__ import annotations

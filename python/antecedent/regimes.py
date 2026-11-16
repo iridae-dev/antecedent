@@ -268,6 +268,7 @@ class LongitudinalRegime:
 
     @property
     def periods(self) -> int:
+        """The number of periods in each subject's treatment history."""
         return len(self.treatment_history[0])
 
     @classmethod

@@ -4,6 +4,11 @@ A marketing team sets two channels, A and B, in every market every week. The que
 
 This tutorial builds that comparison on simulated data, so the true answer is known and the result can be checked against it.
 
+- **You will learn** how to declare whole programs as worlds and a contrast between them, why the contrast's uncertainty must come from draws the programs share, and how to ask separately whether the assignment design identifies the program's effect.
+- **Before you start:** [installation](../start/installation.md) and [a first analysis](../start/first-analysis.md). [Interventions and worlds](../concepts/interventions-and-worlds.md) defines the vocabulary; variance and covariance of two estimates are assumed.
+- **Time:** the example runs in under a minute.
+- **Run it:** `python examples/python/joint_intervention_program.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/joint_intervention_program.ipynb). The complete script is embedded [below](#the-complete-example).
+
 ## The task
 
 - **Units and population.** Four geographic groups, each observed for 24 weeks after two weeks of recorded history. The target is the mean over exactly these four groups with their own histories and covariates: a finite population, not a draw from a larger one.
@@ -44,14 +49,16 @@ With `fitted=True`, the example's `prepare` passes the two interaction channels,
 
 ```python
 result = require_success(prepared.estimate(execution=Execution(seed=SEED)))
+report = result.report()
+assert report["fits_performed"] == 1
 contrast = result.scheduled_contrast("terminal_mean", level=0.95)
 ```
 
-The fit happens once. Each of the 100 retained draws is one complete parameter vector from the fit's sampling law, and every world is evaluated on the same draw. For a frequentist run the draws approximate the sampling law of the fitted parameters with a group-cluster sandwich; `contrast["uncertainty"]` says so with `EstimatorSampling`. A draw that failed stays a failed slot and is never replaced by zero.
+The fit happens once, and `report["fits_performed"]` says so. Each of the 100 retained draws is one complete parameter vector from the fit's sampling law, and every world is evaluated on the same draw. For a frequentist run the draws approximate the sampling law of the fitted parameters with a group-cluster sandwich; `contrast["uncertainty"]` says so with `EstimatorSampling`. A draw that failed stays a failed slot and is never replaced by zero.
 
 `contrast["point"]` is the fitted joint-minus-baseline change in the last week, and `contrast["standard_error"]` and `contrast["interval"]` come from the contrast computed draw by draw. The interval is nominal. The example prints `report["diagnostics"]["calibration"]`; unless it reports a matching measurement, do not read the interval as demonstrated coverage.
 
-The example checks that the point estimate is within three standard errors of the known 4. This is a check on the fixture and the fit, not a coverage claim.
+The example checks that the optimizer converged and that the point estimate is within three standard errors of the known 4. This is a check on the fixture and the fit, not a coverage claim.
 
 ### Why the covariance matters
 
@@ -74,7 +81,7 @@ The independent combination reports a larger standard error here, because the sh
 
 ## What the assignment design establishes
 
-The fit above answers "what does the fitted mechanism say?" It does not say whether the data identify the effect of the whole program. Inspection reports that separately, as `identified`:
+The fit above answers "what does the fitted mechanism say?" It does not say whether the data identify the effect of the whole program. The report states that separately, as `identified`:
 
 ```python
 assert report["identified"] is False
@@ -124,18 +131,40 @@ assert replay["point"] == report["point"]
 assert replay["grants_current_authority"] is False
 ```
 
-The replay reproduces the numbers. `grants_current_authority` is false: replaying a historical result is not a live study and does not authorize a decision. For choosing among candidate programs under budgets, see the [joint intervention responses guide](../guides/joint-intervention-responses.md); for cell-level contrasts see the [joint cells guide](../guides/joint-cells.md).
+The replay reproduces the numbers. `grants_current_authority` is false: replaying a historical result is not a live study and does not authorize a decision.
+
+The example ends by printing a summary as JSON. Read it against the steps above:
+
+| Key | What it reports |
+| --- | --- |
+| `known_effect` | The fixture truth, 4 |
+| `estimated_effect` | `contrast["point"]` |
+| `shared_fit_standard_error` | The standard error of the per-draw differences |
+| `independent_combination_standard_error` | The larger value that drops the covariance |
+| `response_covariance` | The covariance between the two programs' estimated responses |
+| `failed_draw_slots` | Draws that failed and were kept as failed slots |
+| `weekly_assignment_identifies_program` | `false` |
+| `weekly_assignment_detail` | The rejected attempt's stated reason |
+| `whole_program_assignment_identifies_program` | `true` |
+
+For choosing among candidate programs under budgets, see the [joint intervention responses guide](../guides/joint-intervention-responses.md); for cell-level contrasts see the [joint cells guide](../guides/joint-cells.md).
+
+## What this established
+
+Under the declared mechanism and one shared fit, the joint program's 24-week effect over the baseline was estimated with uncertainty that carries the dependence between the programs' estimated responses, and the example checks the known 4 against it. Weekly randomization did not identify the whole program, and whole-program randomization with a declared exogenous context would.
+
+## What this did not establish
+
+The estimate is conditional on the fitted mechanism, and its interval is nominal, not demonstrated coverage. The fitted panel does not identify the whole program's causal effect: `report["identified"]` is `False`. The whole-program experiment that would identify it has one group per program and was inspected, not fitted. The known 4 is a fixture truth.
+
+## Where to go next
+
+The next question is which data would earn the identified status for the program you care about: assigning whole programs, with replication, rather than assigning each week. That decision and its cost belong in the study design before the fit.
+
+For one connected marketing investigation, [beyond the marketing mix](beyond-marketing-mix.md) follows a three-channel panel through spending proposals, experimental evidence, a business decision and the next study.
 
 ## The complete example
 
 <!-- example: examples/python/joint_intervention_program.py -->
 
-The script reads the fixture from a repository checkout. Run it from the repository root. A Rust version of the panel workflow is in `examples/rust/joint_panel_workflow.rs`.
-
-## What this established, and what comes next
-
-Under the declared mechanism and one shared fit, the joint program's 24-week effect over the baseline was estimated with uncertainty that carries the dependence between the programs' estimated responses, and the example checks the known 4 against it. That estimate is conditional on the fitted mechanism, and its interval is nominal, not demonstrated coverage. Weekly randomization did not identify the whole program, and whole-program randomization with a declared exogenous context would.
-
-The next question is which data would earn the identified status for the program you care about: assigning whole programs, with replication, rather than assigning each week. That decision and its cost belong in the study design before the fit.
-
-For one connected marketing investigation, [beyond the marketing mix](beyond-marketing-mix.md) follows a three-channel panel through spending proposals, experimental evidence, a business decision and the next study.
+The script reads the fixture from a repository checkout and, without one, downloads it from the matching release tag. A Rust version of the panel workflow is in [`examples/rust/joint_panel_workflow.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/joint_panel_workflow.rs).

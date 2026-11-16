@@ -1,4 +1,8 @@
-//! Carrier for a selected — and optionally fully configured — estimator.
+//! [`EstimatorSpec`]: the estimator a study uses, chosen by id or supplied fully configured.
+//!
+//! Use it when the default estimator for an identified estimand is not the one you want, or
+//! when you need to set an estimator's own options. A configured estimator is used as given;
+//! the study does not overwrite its fields.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

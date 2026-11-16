@@ -18,6 +18,8 @@ from a progress callback during the bootstrap stops that stage early and says so
 What this does not claim: a memory limit bounds the library's admitted native pool, not process
 memory. Cancellation takes effect at the next polling boundary, not instantly. Which build you
 are running is printed, not asserted.
+
+Run: ``python examples/python/embed_with_controls.py``.
 """
 
 from __future__ import annotations
@@ -65,7 +67,7 @@ def run(execution: ant.Execution, bootstrap: int = 0):
 # ## A plain execution is the baseline
 #
 # One `Execution` carries the seed, the thread budget, the memory limit, the observers and the
-# cancellation token. The default one is enough to recover the effect.
+# cancellation token. With only a seed and a thread count it recovers the effect.
 
 # %%
 baseline = run(ant.Execution(seed=3, threads=1))

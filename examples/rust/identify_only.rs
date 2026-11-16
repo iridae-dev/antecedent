@@ -1,4 +1,17 @@
-//! Identify-only: graph + query without fitting.
+//! Decide identification from a graph and a query, without fitting anything.
+//!
+//! Question: is the average effect of `t` on `y` identified under the declared graph, and by
+//! which estimand?
+//!
+//! Data and truth: identification reads the structure and the query, never the rows, so the
+//! two-row table only satisfies the builder. In the graph `z -> t`, `z -> y`, `t -> y` the
+//! variable `z` is a measured common cause of treatment and outcome, so the effect is identified
+//! by adjusting for `z`.
+//!
+//! Asserted: the status is `NonparametricallyIdentified` and at least one estimand is returned.
+//!
+//! What this establishes: under the declared graph the effect is a functional of the observed
+//! distribution. It does not test the graph against data and it produces no estimate.
 //!
 //! Run: `cargo run -p antecedent --example identify_only`
 //! Source: `examples/rust/identify_only.rs`
@@ -16,8 +29,9 @@ pub fn run() -> Result<(), CausalError> {
         .continuous("z")
         .context()
         .build()?;
-    // Dummy data required by the builder; identify_only ignores rows. Cpdag / Pag / temporal
-    // classes run through `Study::run`, which reports the identification beside the estimate.
+    // Placeholder rows: the builder requires data, and `identify_only` never reads it.
+    // `identify_only` covers static DAGs and ADMGs. Cpdag, Pag and temporal classes run through
+    // `Study::run`, which reports the identification beside the estimate.
     let data = TabularData::from_f64_columns([
         ("t", &[0.0_f64, 1.0][..]),
         ("y", &[0.0_f64, 1.0][..]),

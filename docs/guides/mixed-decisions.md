@@ -9,6 +9,19 @@ uncertainty. The three published means combine in one linear combination, `benef
 temporal - cost`. Its variance follows the dependence you declare between the routes. The bounds on
 the combination are not coverage statements, and nothing here reports a calibration record.
 
+The workflow runs on a fixed declared model with deterministic data built into the library, so
+the numbers are fixture numbers, not estimates about a real system: `run_mixed_decision` takes no data, only the
+dependence, the policy and the execution controls. Use it to see how a mixed-evidence decision
+keeps its sources, recomputes only what a change affects and loses authority when a source is
+withdrawn; build your own decision with a [decision contract](../decisions.md). The runnable
+version is [`replay_and_current_decisions.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/replay_and_current_decisions.py).
+
+The decided quantity is `U = b * M + T - C`, with `b` the declared benefit per unit of margin
+(1 at first), `M` the margin the bridge maps from the trial endpoint, `T` the temporal period
+effect and `C` the cost contrast. `decision.mean` and `decision.variance` are the mean and
+variance of `U` under the declared dependence; the action is chosen by comparing the expected
+utility of acting and declining at that mean.
+
 ```python
 import antecedent as ant
 from antecedent import mixed_decision as md

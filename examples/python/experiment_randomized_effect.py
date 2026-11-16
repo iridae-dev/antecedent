@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-"""Estimate a randomized experiment's ITT effect, using column-name inputs.
+"""What is the intent-to-treat (ITT) effect of a randomized assignment on revenue?
 
-`antecedent.experiment` carries a randomized design through the ordinary
-`analyze` / `prepare` API as a retained study. The row-aligned design inputs
-(realized assignment and unit ids) may be passed inline as arrays or, as shown
-here, named by the data column that holds them; `prepare` resolves those names
-and freezes the design. `rebind` then reuses that frozen design with
-outcome-only data. Interval claims for this family are rows of the graphless
-support matrix (docs/graphless-support-matrix.md).
+Data: 400 simulated accounts assigned by a fair coin; assignment raises revenue by 2.0 (unit
+noise). The design is declared, so no graph is needed. Its row-aligned inputs (realized
+assignment, unit ids) are named by data column here (arrays also work); `prepare` resolves the
+names and freezes the design, and `rebind` reuses it with outcome-only data.
 
-The simulated assignment lifts revenue by 2.0, and the script checks the ITT estimate lies
-within 0.5 of it. The interval's calibration status is printed as reported, not asserted.
+The script asserts the ITT estimate is within 0.5 of 2.0. The interval's support and calibration
+status are printed as reported, not asserted; interval claims for randomized designs are rows of
+docs/graphless-support-matrix.md.
 
-Install with `python -m pip install antecedent`; see examples/README.md."""
+Run: `python examples/python/experiment_randomized_effect.py`."""
 
 from __future__ import annotations
 
@@ -30,7 +28,8 @@ def main() -> None:
     revenue = 2.0 * assigned.astype(float) + rng.normal(size=n)
     account_id = np.array([f"account-{i}" for i in range(n)])
 
-    # Row-aligned design inputs are named by data column and resolved at prepare.
+    # The design states how assignment happened (independent fair coins) and which columns
+    # hold the realized assignment and the unit ids; randomization identifies the effect.
     design = ExperimentDesign(
         BernoulliAssignment(0.5),
         realized_assignment="assigned",
@@ -45,10 +44,11 @@ def main() -> None:
     print("Calibration:", result.value.calibration.status)
     print(f"ITT effect={fit.effect:.4f} 95% interval={fit.interval_95}")
     print("uncertainty:", fit.uncertainty, "support:", fit.support_status)
-    # The assignment lifts revenue by 2.0; the ITT estimate recovers it.
+    # The simulated assignment lifts revenue by 2.0.
     assert abs(fit.effect - 2.0) < 0.5, fit.effect
 
-    # Rebinding reuses the frozen design and accepts outcome-only data.
+    # A new outcome measured on the same assigned units needs no new design: rebinding keeps
+    # the frozen assignment and unit ids and takes outcome-only data.
     fresh = 2.0 * assigned.astype(float) + rng.normal(size=n)
     updated = antecedent.estimate(antecedent.rebind(result.study, data={"revenue": fresh}))
     print("After rebinding, effect=", round(updated.value.randomized_effect.effect, 4))

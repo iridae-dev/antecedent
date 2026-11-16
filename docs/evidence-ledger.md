@@ -1,9 +1,43 @@
 # Bring in external evidence and synthesize studies
 
-Record which evidence each result used, combine studies without counting anything twice, and see what a revision downstream changes. Evidence that re-enters an analysis is not new evidence. The ledger records
-which observations, experiments, priors, fitted models and external claims
-contributed to each result, how they overlap, and what changed afterwards.
-Overlap that is not declared stays unknown; independence is never assumed.
+Use the evidence ledger when a result combines evidence from more than one place
+(studies to pool, a prior to borrow from, a claim transported from another
+population) and you need to know that nothing was counted twice and what a later
+revision invalidates. The ledger records which observations, experiments, priors,
+fitted models and external claims contributed to each result, how they overlap,
+and what changed afterwards. Evidence that re-enters an analysis is not new
+evidence, and overlap that is not declared stays unknown: independence is never
+assumed.
+
+## Minimal call
+
+Declare each source with its row-level observation identities, then combine. The
+ledger checks overlap before it computes any number:
+
+```python
+from antecedent import evidence_ledger as el
+
+ledger = el.EvidenceLedger()
+a = ledger.add_source(el.SourceDeclaration("study_1", "observation_set",
+                                           observations=el.rows("cohort", range(0, 40))))
+b = ledger.add_source(el.SourceDeclaration("study_2", "observation_set",
+                                           observations=el.rows("cohort", range(40, 90))))
+pooled = ledger.pool_summaries(
+    "pool", [el.StudySummary(a, 1.0, 1.0), el.StudySummary(b, 3.0, 4.0)]
+)
+synthesis = pooled.value                     # SynthesisOutcome; pooled.refusal is None
+synthesis.value.estimate                     # 1.4: inverse-variance weights 1/1 and 1/4
+synthesis.mass.distinct_observations         # 90: each observation counted once
+synthesis.claim_class                        # "point_only"
+ledger.pooled_interval(synthesis.result)     # 95% interval with its calibration slot
+```
+
+`StudySummary(source, estimate, variance)` binds a study's estimate and sampling
+variance to the source it came from. If the two sources had shared rows, or one
+had been declared without `observations`, `pooled.refusal` would carry
+`evidence_double_counted` or `evidence_overlap_unknown` instead of a value; the
+codes and their remedies are listed under
+[evidence ledger refusals](reference/refusal-codes.md#evidence-ledger).
 
 ## Boundary
 
@@ -139,11 +173,15 @@ that does not replay, including a consistently resealed edit.
 `hierarchical_borrowing`, `dependence_range`, `transport_claim`,
 `reuse_result`, `repeat_observations`, `revise_source`, `synthesis`,
 `refresh` (returns a new session and leaves this one untouched) and `export`.
-A refused request raises `EvidenceLedgerRefusal` with its registered
-`reason_code` and `evidence_ledger.*` `detail`, and leaves the session as it
-was; `pooled_interval` returns the interval with its calibration slot (naming
-the coverage record when one attests), and raises `EvidenceLedgerRefusal` for a
-result with no interval construction.
+A refused request leaves the session as it was. The combinations, `revise_source`
+and `refresh` return an `Outcome`: a refusal is `outcome.refusal`, with its
+registered code and `evidence_ledger.*` detail, and
+`antecedent.outcomes.require_success(outcome)` raises it as an
+`EvidenceLedgerRefusal` instead. `add_source`, `synthesis` and `pooled_interval`
+raise `EvidenceLedgerRefusal` directly. `pooled_interval` returns a mapping with
+`lower`, `upper`, `level` and the calibration slot under `calibration` (naming
+the coverage record when one attests), and raises for a result with no interval
+construction.
 `consume_evidence_ledger_artifact` replays the operations, recomputes the
 syntheses and refuses another retained identity.
 
@@ -165,3 +203,9 @@ analysis result that enters the ledger carries the provenance of its own route
 (`outcome.method_provenance`: the published sources and the documented deviations from
 them), and `antecedent.citations.bibliography(*results)` lists the sources of a whole
 study once. See [cite the methods behind a study](guides/citing-a-study.md).
+
+## Where next
+
+- [From a new experiment to the next study](tutorials/experiment-to-next-study.md) registers a fitted model, an experiment and a mapping in a ledger and follows a withdrawal downstream.
+- [Scientific bridges](scientific-bridges.md) declares how one study's estimand maps onto another's before they are combined.
+- [Decision evidence](decision-evidence.md) carries a pooled point value into a decision.

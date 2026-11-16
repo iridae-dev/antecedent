@@ -1,5 +1,20 @@
 # Static response observation contract
 
+Use this page when the outcome of a response query is selected or censored rather than
+recorded for every row. It lists the pairs of observation mechanism (`ObservationSpec`: what
+was recorded) and observation assumption (`ObservationAssumption`: the independence you
+declare) that a response accepts, the correction each pair runs, and the fixture that checks
+it. A pair outside the tables is refused. In Python the specifications are the
+`antecedent.observation` dataclasses (`Complete`, `Selected`, `RightCensored`,
+`LeftCensored`, `IndependentGiven`, `OutcomeIndependentGiven`); the
+[observation-conditioned queries](observation-queries.md) page covers the separate question
+of conditioning on a recorded value.
+
+Each row of a table is one supported pair: the mechanism, the assumption it requires, the
+estimation that runs, and the conformance fixture that consumes it.
+
+## Static responses
+
 This table is part of the supported `ResponseCurve × Dag × explicit/accepted ×
 Frequentist × none` cell in the [support matrix](support-matrix.md).
 Observation is an additional contract, not another matrix axis. Every mechanism
@@ -56,7 +71,7 @@ remain unavailable. Observation-adjusted results omit uncertainty rather than
 reuse complete-data intervals. These cells do not extend to derivatives,
 Bayesian responses, or partial graphs.
 
-# Temporal response observation contract
+## Temporal response observation contract
 
 The same pairs ride Frequentist `TemporalDag` `ResponseCurve` /
 `InterventionResponse` at validation `none`. Each pair consumes
@@ -99,7 +114,12 @@ series start keep the declared-Z outcome model.
 
 A temporal observation pair outside this table refuses with
 `temporal response observation pair is not supported`.
-Delayed entry, interval/truncation, cheap/full, and `TemporalCpdag` / `TemporalPag` observation rides stay refused. Bayesian temporal response uses the separate observed-data likelihood contract below.
+Delayed entry, interval censoring, truncation and cheap/full validation stay refused. On
+`TemporalCpdag` and `TemporalPag` the selected and marginal- or treatment-conditional censored
+pairs are adjusted per completion and the class-mass contract is applied afterwards
+(`conformance/response/temporal_class_observation`); a multi-completion identified set
+withholds the class band while each completion keeps its own. Bayesian temporal response uses
+the separate observed-data likelihood contract below.
 When bootstrap replicates are requested, observation-adjusted temporal curves,
 single Set/Shift responses, and Sequence overlays report outer circular-block
 bootstrap intervals. Every replicate resamples blocks of lag-aligned

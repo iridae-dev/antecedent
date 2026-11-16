@@ -1,10 +1,16 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Fit overlapping nonlinear loops and replay an artifact.
+"""What does a fitted system of overlapping nonlinear loops predict under a held-out joint clamp?
 
-The reference generator below is independent of Antecedent's solver. Training
-contains observational and single-target intervention regimes; the queried joint
-regime is held out. Covariance is specified, including a shared disturbance term.
-Run with --output-dir to keep the artifact, request and separately retained identity.
+The data are 160 equilibrium rows of a ``tanh`` system with loops a <-> b and a <-> c, solved by
+a plain fixed-point loop independent of Antecedent's solver; a and b have correlated disturbances
+(correlation 0.3). Training holds observational and single-variable clamp regimes; the queried
+joint clamp (b = 0.8, c = -0.6) is held out. The script asserts that the fit converges, that the
+prediction and the counterfactual for one factual unit lie within 0.035 of the generator's
+values, and that a fresh process consuming the exported artifact reproduces the report exactly.
+The answers are those of the fitted equation family; they are not checked on a real system.
+
+Run: ``python examples/python/general_cyclic_systems.py [--output-dir DIR]`` (the directory
+keeps the artifact, the request and the separately retained identity).
 """
 
 from __future__ import annotations

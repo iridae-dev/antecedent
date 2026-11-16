@@ -167,6 +167,19 @@ class StructuralTransportEnvelope(ScientificResult):
     stopped the enumeration: no statement over the whole class). ``formulas_agree`` is whether
     every member is certified with one formula; when it is false the class does not determine
     the estimand's expression and the graph must be resolved before estimating.
+
+    Read ``status`` and ``formulas_agree`` first, then ``members``. Further fields:
+
+    * ``enumeration_complete`` -- whether every member of the class was enumerated.
+    * ``member_bound`` -- the enumeration bound that applied.
+    * ``identified_members`` -- how many members are ``identified``.
+    * ``members`` -- one :class:`EnvelopeMember` per enumerated member.
+    * ``unresolved`` -- unresolved pairs as ``(a, b, reason)`` by variable name.
+    * ``assumptions`` -- the premises under which the true graph is a member; none is checked.
+    * ``selection_targets`` -- the declared selection targets.
+    * ``structure_identity``, ``result_identity`` -- identities of the discovered structure and
+      the discovery result.
+    * ``identity`` -- identity of this envelope.
     """
 
     kind: str
@@ -186,7 +199,12 @@ class StructuralTransportEnvelope(ScientificResult):
 
 @dataclass(repr=False, frozen=True, slots=True)
 class DiscoveredTransport(ScientificResult):
-    """A discovery run and the structural envelope derived from the class it returned."""
+    """A discovery run and the structural envelope derived from the class it returned.
+
+    Returned by :func:`discover_and_transport`. ``envelope`` is the
+    :class:`StructuralTransportEnvelope`; ``outcome`` and ``report`` are the discovery's
+    :class:`~antecedent.selective_discovery.Outcome` and run report.
+    """
 
     envelope: StructuralTransportEnvelope
     outcome: Outcome
@@ -347,9 +365,14 @@ def transport_across_class(
     between the populations, declared by you. ``member_bound`` bounds the enumeration (default
     256).
 
+    Returns:
+        The :class:`StructuralTransportEnvelope`; read ``status`` first.
+
     Raises:
-        DiscoveredTransportRefusal: see the module documentation.
-        SelectiveDiscoveryRefusal: nothing has run.
+        DiscoveredTransportRefusal: see the module documentation; also raised when the adapter
+            has not run.
+        CausalTypeError: ``adapter`` is not a ``SelectiveDiscovery``, or a name is not a string.
+        CausalValueError: a variable name is not a searched variable, or ``grid`` is empty.
     """
     if not isinstance(adapter, SelectiveDiscovery):
         raise CausalTypeError("adapter must be a SelectiveDiscovery")
@@ -394,12 +417,19 @@ def discover_and_transport(
 
     A refusal of the transport request raises :class:`DiscoveredTransportRefusal` with the
     discovery that ran attached (``refusal.outcome``, ``refusal.report``); discovery is not
-    discarded.
+    discarded. Query parameters and defaults as :func:`transport_across_class`; ``data`` holds
+    integer-coded columns named like ``contract.variables``, and ``execution`` (default
+    ``None``, default controls) supplies threads and cancellation.
+
+    Returns:
+        A :class:`DiscoveredTransport`; read ``envelope.status`` first.
 
     Raises:
         DiscoveredTransportRefusal: see the module documentation.
         SelectiveDiscoveryRefusal: a refused contract.
         CausalDiscoveryError: the algorithm failed or was cancelled.
+        CausalTypeError: ``contract`` is not a ``StaticContract``.
+        CausalValueError: a variable name is not in the contract, or ``grid`` is empty.
     """
     from ..selective_discovery import SelectiveDiscoveryRefusal
 
@@ -466,7 +496,8 @@ class TransportAnswer:
     ``contrast`` is the smallest and largest member contrast, last level minus first.
     ``interval`` is the pointwise percentile interval on a point's contrast (``low``, ``high``,
     ``coverage_target``, ``calibration``), present only when requested; a structural range has
-    none (``interval_reason`` says why).
+    none (``interval_reason`` says why). ``expressions_agree`` is whether every estimated member
+    derived the same formula.
     """
 
     kind: str
@@ -484,6 +515,11 @@ class DiscoveredTransportEstimate(ScientificResult):
     ``export()`` returns the durable artifact: pass it to
     :func:`verify_discovered_transport_estimate` to replay every member's grid and recompute the
     answer.
+
+    Read ``answer`` first (a :class:`TransportAnswer`), then ``members``. ``levels`` is the
+    treatment grid, ``report_identity`` the identity of the discovery report the members came
+    from, ``identity`` the identity of this estimate, and ``outcome`` and ``report`` the
+    discovery that ran.
     """
 
     levels: tuple[float, ...]
@@ -498,7 +534,12 @@ class DiscoveredTransportEstimate(ScientificResult):
 
 @dataclass(frozen=True, slots=True)
 class VerifiedEstimate(ScientificResult):
-    """What replaying an exported estimate established."""
+    """What replaying an exported estimate established.
+
+    Returned by :func:`verify_discovered_transport_estimate`: the recomputed ``answer``, the
+    ``report_identity`` of the original discovery report and the replayed member indices
+    ``members``.
+    """
 
     answer: TransportAnswer
     report_identity: str
@@ -540,7 +581,11 @@ def estimate_discovered_transport(
     and ``target`` observational rows of the target population; both are integer-coded columns
     named like ``contract.variables``. The treatment is the source experiment, the grid gives the
     levels, and the answer is a point, a structural range or a refusal; see the module
-    documentation.
+    documentation. ``bootstrap_replicates`` (default ``0``) requests the pointwise interval on a
+    point answer's contrast; other defaults as :func:`transport_across_class`.
+
+    Returns:
+        A :class:`DiscoveredTransportEstimate`; read ``answer.kind`` first.
 
     Raises:
         DiscoveredTransportRefusal: a refusal of the transport request or of the estimate (a
@@ -633,10 +678,16 @@ def verify_discovered_transport_estimate(
     """Replay an exported estimate and return the answer it recomputes.
 
     Every member's transport grid is consumed with its embedded proof and tables, the mean at
-    every level is recomputed, and the answer kind and identity are checked.
+    every level is recomputed, and the answer kind and identity are checked. ``artifact`` is the
+    bytes or ``ExportedArtifact`` from :meth:`DiscoveredTransportEstimate.export`.
+
+    Returns:
+        A :class:`VerifiedEstimate`.
 
     Raises:
-        CausalValueError: a malformed or forged artifact.
+        CausalSerializationError: a malformed, corrupt or forged artifact.
+        CausalResourceError: replay exceeds its evaluation limits.
+        CausalTypeError: ``artifact`` is not bytes or an ``ExportedArtifact``.
     """
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray)):
@@ -766,10 +817,20 @@ def transport_across_temporal_class(
 
     ``adapter`` is a temporal :class:`~antecedent.selective_discovery.SelectiveDiscovery` that has
     run (PCMCI or PCMCI+). The intervention is on ``treatment`` at the origin and the outcome is
-    ``outcome`` ``horizon_steps`` later; ``selection_targets`` apply at every slice.
+    ``outcome`` ``horizon_steps`` later (``0`` asks for the contemporaneous effect);
+    ``selection_targets`` apply at every slice. ``history`` is the number of slices of history
+    in the window; ``None`` (the default) uses twice the template's largest lag. Other
+    parameters and defaults as :func:`transport_across_class`.
+
+    Returns:
+        The :class:`TemporalStructuralEnvelope`; read ``status`` first.
 
     Raises:
-        DiscoveredTransportRefusal: see the module documentation.
+        DiscoveredTransportRefusal: see the module documentation; also raised when the adapter
+            has not run.
+        CausalTypeError: ``adapter`` is not a ``SelectiveDiscovery``, or a name is not a string.
+        CausalValueError: a variable name is not a searched variable, ``grid`` is empty, or a
+            count is negative.
     """
     if not isinstance(adapter, SelectiveDiscovery):
         raise CausalTypeError("adapter must be a SelectiveDiscovery")
@@ -812,14 +873,22 @@ def transport_temporal_graph(
     member_bound: int | None = None,
     exhausted_search_bounds: int = 0,
 ) -> TemporalStructuralEnvelope:
-    """The structural verdict across a temporal graph you hold (``TemporalDag``,
-    ``TemporalCpdag`` or ``TemporalPag``), for example an LPCMCI result.
+    """The structural verdict across a temporal graph you hold, for example an LPCMCI result.
 
-    ``variables`` are the graph's variable names in id order. A circle endpoint of a
-    ``TemporalPag`` is enumerated and never read as the absence of confounding.
+    ``graph`` is a ``TemporalDag``, ``TemporalCpdag`` or ``TemporalPag``. ``variables`` are
+    the graph's variable names in id order. A circle endpoint of a ``TemporalPag`` is
+    enumerated and never read as the absence of confounding. ``exhausted_search_bounds``
+    (default ``0``) is the number of search bounds the discovery that produced ``graph``
+    exhausted; a nonzero count refuses as an incomplete search. Other parameters and defaults as
+    :func:`transport_across_temporal_class`.
+
+    Returns:
+        The :class:`TemporalStructuralEnvelope`; read ``status`` first.
 
     Raises:
         DiscoveredTransportRefusal: see the module documentation.
+        CausalValueError: ``graph`` is not one of the three temporal graph types, a variable
+            name is not in ``variables``, ``grid`` is empty, or a count is negative.
     """
     names = tuple(variables)
     query = _query_wire(
@@ -868,7 +937,12 @@ def estimate_discovered_temporal_transport(
     :func:`estimate_discovered_transport`. Window rows overlap, so an interval
     (``bootstrap_replicates``) is a circular block bootstrap of each series' window rows with
     ``block_length`` rows per block (default twice the window span); it is conditional on the
-    discovered class and its calibration is ``not_bound_to_this_execution``.
+    discovered class and its calibration is ``not_bound_to_this_execution``. ``horizon_steps``
+    and ``history`` as :func:`transport_across_temporal_class`; other parameters and defaults
+    as :func:`estimate_discovered_transport`.
+
+    Returns:
+        A :class:`DiscoveredTransportEstimate`; read ``answer.kind`` first.
 
     Raises:
         DiscoveredTransportRefusal: a refusal of the transport request or of the estimate.

@@ -1,12 +1,15 @@
-"""Enumerate a declared tiny procedure under supplied Bernoulli truths.
+"""What contrast values can a two-unit randomized procedure produce, and how often?
 
 Two units are each assigned to one of two arms with probability 0.5, and the arms have
 supplied success probabilities 0.2 and 0.6. The script checks the exact law of the contrast
 against hand-computed masses (0.04, 0.22 and 0.24 at -1, 0 and 1) and keeps the 0.5 mass
 where both units land in one arm visible as undefined.
 
-This is a derived procedure report, not empirical interval coverage or a fitted
+No data are simulated: the law is enumerated from the declared procedure and the supplied
+truths. It is a derived procedure report, not empirical interval coverage or a fitted
 posterior for real trial data.
+
+Run: ``python examples/python/adaptive_procedure.py``.
 """
 
 import math

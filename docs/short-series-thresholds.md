@@ -5,8 +5,15 @@ bootstrap over lag-aligned rows
 ([capabilities](capabilities.md#serially-dependent-rows-circular-block-uncertainty)).
 When the series is short for the serial dependence of its estimating score,
 the interval can under-cover, and the result carries
-`estimate.temporal.circular_block_se.short_series`. This page records the
-measurement behind when that warning fires.
+`estimate.temporal.circular_block_se.short_series`. This page lists the threshold
+below which that warning fires for each interval family, and records the
+coverage measurement the thresholds were set from.
+
+In the [threshold table](#statistic), a row is one family of intervals: the
+warning fires when the interval's score effective rows fall below the row's
+threshold. In the [measurement table](#table), a row is one simulated cell
+(design, persistence, series length) with its measured coverage of the
+nominal-0.90 interval and the share of replicates that warned.
 
 ## Level of the measurement
 

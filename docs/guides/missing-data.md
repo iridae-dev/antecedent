@@ -1,15 +1,43 @@
 # Decide what happens to missing values
 
-Missing values are never handled by accident. Each route says what it does with them, a
-policy is declared with `missing=` (Rust: `StudyBuilder::missing`), and every result records
-what happened to the rows.
+Use this guide when a column an analysis reads has missing cells (`NaN`, `None`, `NaT` or an
+invalid Arrow cell). Each route states what it does with them, you declare a policy with
+`missing=` (Rust: `StudyBuilder::missing`), and every result records what happened to the
+rows. No route deletes, weights or restricts rows on its own where that would change the design.
 
 ```python
-result = ant.analyze(data, query=query, missing="complete_case")
+import antecedent as ant
+
+result = ant.analyze(
+    data,
+    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=ant.AverageEffect("t", "y"),
+    missing="complete_case",             # a policy name, or an antecedent.missing.MissingPolicy
+)
 result.value.missing_data.policy         # "complete_case"
+result.value.missing_data.declared       # True: declared, not the route's default
 result.value.missing_data.assumption     # the assumption the policy needs
 result.value.missing_data.accounting     # rows total / kept / dropped, per variable, per reason
 ```
+
+To choose a policy:
+
+1. Find your route in [the table below](#defaults-and-policies): it lists the default and the
+   policies the route executes.
+2. Read [what each policy assumes](#what-each-policy-assumes) and pick the one whose
+   missingness assumption you can defend. Three mechanisms recur. Missing completely at random:
+   missingness is independent of every variable. Missing at random: missingness is independent
+   of the unobserved values given the observed variables the policy conditions on. Missing not
+   at random: missingness depends on the unobserved value itself. The data cannot distinguish
+   the last two, so the assumption is declared, never tested.
+3. Read [row accounting](#row-accounting) on the result to see which rows the estimate speaks
+   for, and [intervals](#intervals) for what uncertainty is published under the policy.
+
+The policy changes which rows enter and what is assumed about the rest; the estimand and its
+identifying assumptions stay those of the query. [`examples/python/observational_study.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/observational_study.py)
+declares `missing="complete_case"` and reads the accounting;
+[`examples/python/missing_outcome_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/missing_outcome_sensitivity.py)
+bounds an effect when outcomes are missing not at random.
 
 ## Defaults and policies
 
@@ -27,7 +55,8 @@ result.value.missing_data.accounting     # rows total / kept / dropped, per vari
 A refusal is `missing_policy_required` and names the first missing cell (column and row) and
 the policies the route can execute. A policy the route or design cannot execute is refused
 when the study is built as `missing_policy_not_applicable`, naming the supported policies and
-the next attempt; it is never accepted and ignored. Routes not listed read their rows in their
+the next attempt; it is never accepted and ignored. Both codes are listed under
+[other registered refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes). Routes not listed read their rows in their
 own way and accept no declaration.
 
 ### Route cells
@@ -113,13 +142,16 @@ table of float columns searched in column order and a study that runs `bayesian.
 From Python, `antecedent.missing.multiple_imputation_with_graph_selection(data, treatment=...,
 outcome=..., imputations=..., n_draws=..., prior_scale=...)` states that study declaratively
 (float columns with `NaN` for missing cells, the treatment and outcome, the Bayesian
-g-computation settings); the exact DAG posterior over the columns in order is searched on every
-completed table and the adjustment is whatever each sampled graph identifies. It returns the
-stacked effect, its posterior sd, the tables' posterior means, and the within, between and total
-variances. An interval is not reported: the combined procedure has no independent construction check of its own interval; graph selection, imputation and effect estimation must be
-evaluated together, and no confidence or credible interval follows from the point support.
-The result retains the
-declared missing-at-random assumption; refusals raise `GraphSelectionImputationRefusal`. Constructions with
+g-computation settings); the DAG posterior over the columns in order is searched on every
+completed table (exactly for at most six columns, by order MCMC for more) and the adjustment is
+whatever each sampled graph identifies. The seed is `execution.seed`. It returns the stacked
+effect (`effect`), its posterior standard deviation (`posterior_sd`), the tables' posterior
+means (`points`), and the `within`, `between` and `total` variances. An interval is not
+reported, and `result.interval()` refuses: the combined procedure has no independent
+construction check of its own interval; graph selection, imputation and effect estimation must
+be evaluated together, and no confidence or credible interval follows from the point support.
+The result retains the declared missing-at-random assumption (`assumption`); refusals raise
+`GraphSelectionImputationRefusal`. Constructions with
 no justified pooling rule are refused with their own detail: a frequentist study
 (`multiple_imputation.graph_posterior_frequentist`), a series posterior
 (`multiple_imputation.graph_posterior_series`), a query answered atom by atom, such as a response,
@@ -189,7 +221,9 @@ contrast above. Cluster, stratified, factorial, multi-arm and switchback designs
 estimator and variance (cluster totals, stratum weights, cell contrasts, sequence scores) and
 run it on every assigned unit's inverse-probability pseudo-outcome (the weighted outcome, zero
 for a non-responder), with the observation model fitted within each assignment group. Their
-variance is computed on pseudo-outcomes that carry the influence of the fitted response model (stacked M-estimation), so estimating the response probabilities is accounted for; across strata or clusters the shared coefficients are treated as independent between blocks.
+variance is computed on pseudo-outcomes that carry the influence of the fitted response model
+(stacked M-estimation), so estimating the response probabilities is accounted for; across
+strata or clusters the shared coefficients are treated as independent between blocks.
 CUPED, ANCOVA and receipt-adjusted fits read further per-unit inputs and refuse.
 
 Under Bayesian inference, `inverse_probability` has graphless support for two-arm
@@ -256,7 +290,8 @@ every mixture refuses a discovery-estimation split on a series with gaps.
 
 **Average effect, `multiple_imputation`.** Declare it with
 `MissingPolicy.multiple_imputation(model=..., imputations=..., iterations=..., seed=...,
-assumption="missing_at_random", auxiliary=(...))` (Rust:
+assumption="missing_at_random", auxiliary=(...))` (defaults: `chained_equations`, 20
+imputations, 10 iterations, seed 0; Rust:
 `MissingDeclaration::new(MissingPolicy::MultipleImputation(ImputationSpec::new()...))`).
 Every row is kept. The imputation model reads every float column of the table, or, when
 auxiliary variables are declared, the treatment, the outcome and those variables; an analysed
@@ -380,9 +415,9 @@ result = recover_chain(graph, query, law)          # `both`, `only_*` and `neith
 result.law                                         # the recovered 2x2 law P(X1, X2), summing to 1
 ```
 
-The pattern-law masses (`both` as a 2x2 nested list, the other three as in the class) are supplied by you from your data and are not shown here. In the executing test they come from an enumerated structural model, and `recover_chain` reproduces the enumerated truth to `1e-12` for either head response and with or without the `X1 -> R2` edge. The answer is point-only (`result.to_dict()["interval"]` reports `status` `point_only`) and does not depend on node order or labels. `result.export()` and `consume_recovery_chain_artifact(...)` recompute the recovered law from the artifact.
+The pattern-law masses (`both` as a 2x2 nested list, the other three as in the class) are supplied by you from your data and are not shown here. In the executing test they come from an enumerated structural model, and `recover_chain` reproduces the enumerated truth to `1e-12` for either head response and with or without the `X1 -> R2` edge. The answer is point-only (`result.to_dict()["interval"]` reports `status` `point_only`): it is an identity applied to the pattern law you supply, so it carries no sampling uncertainty for masses estimated from a finite sample. It does not depend on node order or labels. `result.export()` and `consume_recovery_chain_artifact(...)` recompute the recovered law from the artifact.
 
-Two refusals are different scientific information. A self-censoring edge (`X_i -> R_i`) with every other edge in the class is nonrecoverable, and the refusal carries an exactly verified two-model witness. A graph outside this class (anything other than one response chain) is `route_not_supported`: that says the row does not cover it, not that the law is nonrecoverable. A zero-mass cell or an invalid law is refused as well.
+Two refusals are different scientific information. A self-censoring edge (`X_i -> R_i`) with every other edge in the class is nonrecoverable, and the refusal carries an exactly verified two-model witness (`refusal.witness`): two models that agree on every observed cell and differ on the target. The witness models are degenerate, so the refusal claims nothing under faithful or generic parameters. A graph outside this class (anything other than one response chain) is `route_not_supported`: that says the route does not cover it, not that the law is nonrecoverable. A zero-mass cell or an invalid law is refused as well. Both raise `RecoveryChainRefusal`, a [structured refusal](../reference/refusal-codes.md#structured-refusals-and-their-remedies) with `code`, `detail` and `remedy`.
 
 ## Claims
 

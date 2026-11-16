@@ -308,8 +308,9 @@ assert report["identified"] is False
 # %% [markdown]
 # ## 3. Ask whether the allocation has a causal interpretation
 #
-# The panel has no randomized program assignment, so identification refuses. Posterior draws
-# stay joint across worlds, which keeps the contrast uncertainty exact.
+# The panel has no randomized program assignment, so the whole-program identification attempt
+# is rejected. Posterior draws stay joint across worlds, so the contrast's uncertainty carries
+# the dependence between the program and its baseline.
 
 # %%
 # Meaningful refusal: a missing whole-program assignment proof cannot be supplied by fit.

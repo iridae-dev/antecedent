@@ -11,12 +11,26 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
-//! Propensity-weighting (IPW) analyze example.
+//! Estimate an average effect by inverse propensity weighting and read its overlap diagnostics.
 //!
-//! Confounded SCM: `Z ~ N(0,1)`, `T ~ Bernoulli(sigmoid(-0.4 + 0.9 Z))`,
-//! `Y = 2T + Z + noise`. True ATE = 2.
+//! Question: what is the average effect of a binary treatment whose probability depends on a
+//! measured confounder?
+//!
+//! Data and truth: 1200 rows from `Z ~ N(0, 1)`, `T ~ Bernoulli(sigmoid(-0.4 + 0.9 Z))`,
+//! `Y = 2 T + Z + 0.4 noise`. The average effect of `T` on `Y` is 2.
+//!
+//! The study pins the identifier to backdoor adjustment and the estimator to propensity
+//! weighting, with 30 bootstrap replicates.
+//!
+//! Asserted: the estimate is within 0.35 of 2; the logical plan names the estimator
+//! `propensity.weighting`; and the overlap report carries an effective sample size.
+//!
+//! What this establishes: on this draw the weighted estimate is close to the simulated effect,
+//! and the overlap diagnostics are published with it. One seed and 30 replicates do not measure
+//! interval coverage; read the calibration status of the interval before relying on it.
 //!
 //! Run: `cargo run -p antecedent --example propensity_weighting`
+//! Source: `examples/rust/propensity_weighting.rs`
 
 use std::sync::Arc;
 
@@ -110,6 +124,8 @@ pub fn run() -> Result<(), CausalError> {
         .build()?
         .run(&ExecutionContext::for_tests(11))?;
 
+    // Weighting divides by the estimated propensity, so units with propensities near 0 or 1
+    // dominate. The overlap report gives the smallest propensity and the effective sample size.
     let report = result.estimate().as_effect().unwrap().diagnostics.overlap_report.as_ref();
     let ess = report.and_then(|r| r.ess);
     let pmin = report.map(|r| r.propensity_min);

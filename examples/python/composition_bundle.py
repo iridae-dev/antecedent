@@ -6,8 +6,12 @@ its result) as a typed graph of embedded artifacts and dependency edges. ``build
 calls ``consume_bundle(..., expected_identity=...)``: every embedded artifact is decoded through its
 own consumer and recomputed, so a changed or swapped part is refused or reported on its node.
 
-Hand oracle: four equally likely rows with ``p = [1, 3, 2, 0]`` and ``q = [4, 0, 2, 6]``; the
-risky action is worth ``E[p * q] = 2`` and the safe action 3, so the safe action is uniquely best."""
+The law is enumerated, not simulated: four equally likely rows with ``p = [1, 3, 2, 0]`` and
+``q = [4, 0, 2, 6]``. By hand the risky action is worth ``E[p * q] = 2`` and the safe action 3.
+The script asserts both values on the consumed bundle and that another identity is refused.
+The decision holds only under the declared law and utilities.
+
+Run: ``python examples/python/composition_bundle.py``."""
 
 from __future__ import annotations
 
@@ -66,7 +70,7 @@ contract = decision.Contract(
 )
 result = require_success(contract.evaluate(law))
 
-# Build: embed each artifact from its bytes and declare what depends on what.
+# Build: embed each artifact from its bytes and declare which parts the result depends on.
 builder = cb.Bundle.builder()
 parts = {
     "contract": ("decision_contract", contract.export(artifact_id="contract")),

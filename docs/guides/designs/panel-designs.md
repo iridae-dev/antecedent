@@ -13,11 +13,19 @@ import antecedent
 from antecedent.quasi import PanelDifferenceInDifferences
 ```
 
+```python
+query = PanelDifferenceInDifferences("outcome", "subject", "treated", "post", cluster="site")
+result = antecedent.analyze(data, query=query)
+result.value.panel_did.estimate, result.value.panel_did.standard_error
+```
+
+The estimand is the average effect on the treated in the post period, `ATT = E[Y_post(1) - Y_post(0) | D = 1]`, where `D` is the stable treatment indicator. It is identified by parallel trends: `E[Y_post(0) - Y_pre(0) | D = 1] = E[Y_post(0) - Y_pre(0) | D = 0]`, that is, without treatment the treated group's mean outcome would have changed by the same amount as the comparison group's.
+
 The query names the outcome, subject, stable treatment indicator, pre/post indicator and, optionally, a higher-level cluster column. The result reports the difference in mean subject-level changes under `result.value.panel_did`, with a cluster score-sandwich standard error. At least two clusters must contribute to each treatment group and clusters must nest within treatment groups. A pointwise 95% normal interval appears when each group has at least 30 independent clusters. Repeated cross sections use the query's explicit sampling mode. Staggered adoption and missing waves are refused by this query; use the event study below.
 
 When parallel trends hold only after adjusting for baseline covariates, use `CovariateAdjustedDiD` with `nuisance` set to `outcome_regression`, `inverse_probability_weighting` or `doubly_robust`.
 
-`examples/python/quasi_difference_in_differences.py` runs a repeated cross section and a balanced panel on simulated data with a known effect of 4.
+[`examples/python/quasi_difference_in_differences.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/quasi_difference_in_differences.py) runs a repeated cross section and a balanced panel on simulated data with a known effect of 4.
 
 ### Augmented panel DiD with your own nuisance models
 
@@ -33,7 +41,7 @@ result = prepared.estimate()
 assert result.value.panel_did.uncertainty == "point_only_no_standard_error"
 ```
 
-You supply the nuisance models; Antecedent does not fit them. `predictions_cross_fitted=True` records your declaration and is not checked against fold ownership. Propensities must lie strictly inside (0, 1), and the result reports the propensity range and the effective weighted control count as support diagnostics. The result is point-only.
+You supply the nuisance models; Antecedent does not fit them. `predictions_cross_fitted=True` records your declaration and is not checked against fold ownership. Propensities must lie strictly inside (0, 1), and the result reports the propensity range and the effective weighted control count as support diagnostics. Without `resampling` the result is point-only, as above. With `resampling="cluster_bootstrap"` (or `"cluster_multiplier"`) and `replicates`, whole clusters are resampled and the result carries `interval_95` and its standard error; the supplied propensities and predictions are held fixed in every replicate, so the interval leaves out their own estimation error.
 
 ## Event study with staggered adoption
 
@@ -120,15 +128,15 @@ The prepared study freezes unit and period row order; refreshing with changed de
 
 ### Synthetic difference-in-differences
 
-`SyntheticDifferenceInDifferences` weights both donor units and pre-periods on the simplex, then computes the weighted difference-in-differences contrast. It needs a balanced panel with one treated unit, at least two donors, two pre-periods and one post-period, and reports `result.value.synthetic_did` including both weight vectors. It returns no interval or standard error, and refuses a fabricated one in a saved artifact. `uniform_unit_randomization=True` adds the exact Fisher tail fraction as `randomization_p_value`, as for synthetic control; ridge augmentation is not available here.
+`SyntheticDifferenceInDifferences` weights both donor units and pre-periods on the simplex, then computes the weighted difference-in-differences contrast. It needs a balanced panel with one treated unit, at least two donors, two pre-periods and one post-period, and reports `result.value.synthetic_did` including both weight vectors. With one treated unit it returns no interval or standard error, and refuses a fabricated one in a saved artifact. As for synthetic control, `adoptions=[(unit, period), ...]` with `placebo_replicates` fits several adopting units and reports placebo-variance intervals. `uniform_unit_randomization=True` adds the exact Fisher tail fraction as `randomization_p_value`, as for synthetic control; ridge augmentation is not available here.
 
-Runnable example: [`examples/python/panel_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/panel_designs.py).
+Runnable example: [`examples/python/panel_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/panel_designs.py) runs synthetic control, synthetic difference-in-differences and a staggered event study on one simulated panel with a known, growing effect.
 
 ## Boundaries
 
 - Covariate adjustment at the unit level for synthetic control is not available; use the covariate-adjusted DiD or a rollout estimator.
 - Intervals on every route above are pointwise. Read each result's calibration status before relying on coverage.
-- If treatment turns on and off, units influence each other, or the panel is unbalanced where the estimator requires balance, the route refuses and names the next option. See [Refusals](../../concepts/refusals.md).
+- If treatment turns on and off, units influence each other, or the panel is unbalanced where the estimator requires balance, the route refuses and names the next option. See [Refusals](../../concepts/refusals.md) for how a refusal reaches your code and [refusal codes](../../reference/refusal-codes.md) for each code and its remedy.
 
 ## Related
 

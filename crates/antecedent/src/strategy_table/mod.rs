@@ -1,6 +1,9 @@
-//! Identifier / estimator strategy tables for plan compilation and static execution.
-//! Incremental extraction from the analysis workflow — does not
-//! replace [`crate::Study`] / plans / [`crate::StudyResult`].
+//! Identifier and estimator ids, their defaults, and the compatibility rules between
+//! estimands and estimators.
+//!
+//! [`EstimatorId`] and [`IdentifierId`] name the strategies a study may select; the tables here
+//! decide which pairs are valid for a query. Studies, plans and [`crate::StudyResult`] use
+//! these tables; select a strategy through the study builder rather than calling them.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

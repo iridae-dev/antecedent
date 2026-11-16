@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Estimate an effect when some causal directions are unknown.
+"""What is identified when one edge direction is unknown?
 
-A CPDAG represents several possible causal graphs. First, we leave one edge
-undirected and get an answer that preserves that uncertainty. Then we supply
-its direction and pass the resulting adjustment set to an EconML handoff.
-The graph object remains a Cpdag in both cases.
+A CPDAG stands for every DAG in one equivalence class. With the z - t edge left undirected,
+z is a confounder in one completion and a mediator in the other, so the effect of t on y is
+partially identified and the answer carries no point. Supplying the direction z -> t identifies the
+effect with adjustment set {z}, which is passed to an EconML handoff specification. The graph
+object remains a Cpdag in both cases.
 
-The fixture is noise-free with effect 2; the two completions of the open edge disagree, so
-the partial answer carries no point. The orientation is a reviewer's declaration, not learned
-from the data.
+The fixture is noise-free with structural effect 2. The script asserts the partial status,
+the absent point and the adjustment set; it does not assert the estimate. The orientation is
+a reviewer's declaration, not learned from the data.
 
-Install with `python -m pip install antecedent`; see examples/README.md."""
+Run: ``python examples/python/class_preserving_cpdag.py``."""
 
 from __future__ import annotations
 

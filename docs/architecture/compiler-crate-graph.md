@@ -1,5 +1,10 @@
 # Compiler crate graph
 
+This page lists every dependency edge between the workspace crates, the crate that owns new
+internal types of each compiler layer, and the edges that are refused and why. Read it before
+adding a type that crosses crates or a dependency to any `Cargo.toml`. The
+[architecture overview](overview.md) describes what each crate is for.
+
 New internal types for a [compiler layer](compiler-layers.md) go in existing
 crates and add no dependency edge. `PreparedStudy` / `PreparedAnalysis` stay the
 workflow. `antecedent-expr` stays the identified-functional IR.
@@ -14,6 +19,7 @@ Dev-only edges, not part of the library graph:
 - `antecedent-io` dev-depends on `antecedent-io` (`test-util`). A self-edge, not a cross-crate cycle.
 - `antecedent-model` dev-depends on `antecedent-identify`. `antecedent-identify` does not depend on `antecedent-model`. Not a cycle.
 - Several crates dev-depend on `antecedent-test-support`, a test-only crate with no workspace dependencies.
+- The remaining dev-dependencies name crates the source already depends on, to enable test-only features.
 
 ## Homes for new internal types
 

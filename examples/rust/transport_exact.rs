@@ -1,4 +1,21 @@
-//! Exact supplied laws. Four reasoning slots; no sampling interval.
+//! Transport an experimental result to a target population from exact supplied laws.
+//!
+//! Question: what is `P(Y = 1 | do(X = x))` in a target population, given the experimental law
+//! of a source population and a selection diagram that marks no difference between them?
+//!
+//! Inputs and truth: the graph is `X -> Y` with no selection node, and the source experiment
+//! supplies `P(Y | do(X = 0)) = (0.5, 0.5)` and `P(Y | do(X = 1)) = (0.2, 0.8)` as exact laws.
+//! With no marked difference the target law is the source law: 0.5 and 0.8. A second snapshot of
+//! the laws gives 0.7 at `X = 1`.
+//!
+//! Asserted: the transported probabilities equal 0.5, 0.8 and, after the refresh, 0.7 to within
+//! `1e-12`. Before and after estimation the reasoning view has identification and assumptions
+//! available and uncertainty unavailable.
+//!
+//! What this establishes: identification is decided once against the evidence catalog, and the
+//! bound functional is evaluated on whichever laws are supplied. The laws are exact inputs, so
+//! there is no sampling interval, and the uncertainty slot says so instead of reporting zero
+//! width. The absence of selection nodes is the caller's assumption; nothing here tests it.
 //!
 //! Run: `cargo run -p antecedent --example transport_exact`
 //! Source: `examples/rust/transport_exact.rs`
@@ -124,6 +141,8 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     for x in [0, 1] {
         let prepared =
             prepare(functional.clone(), diagram.clone(), "source-v1", [0.5, 0.5], [0.2, 0.8], x)?;
+        // Inspect before running: the four slots are already decided, and the execution identity
+        // read here is the one the checked estimate must match.
         let before = prepared.inspect();
         slots(&before.reasoning, false);
         let result = prepared.estimate_checked(&before.identities.execution, &ctx)?;
@@ -134,6 +153,8 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     assert!((means[1] - 0.8).abs() < 1e-12);
     println!("means = {means:?}");
 
+    // New source laws under a new snapshot identity: the same identified functional is
+    // evaluated again without repeating identification.
     let refreshed = prepare(functional, diagram, "source-v2", [0.6, 0.4], [0.3, 0.7], 1)?;
     let before = refreshed.inspect();
     let result = refreshed.estimate_checked(&before.identities.execution, &ctx)?;

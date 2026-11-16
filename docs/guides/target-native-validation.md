@@ -1,21 +1,32 @@
 # Refute the quantity a result reports and bound an untestable assumption
 
+Use this page when you have a prepared study or an estimate and want to (a) stress the
+quantity it reports by refitting it under placebo, resampling and negative-control
+perturbations, or (b) state how strong a violation of an untestable assumption would have to
+be before that quantity changes. You need a study prepared with `refute="none"` for (a), and
+an estimate with its interval, coefficient statistics, matched differences or posterior
+draws for (b).
+
 A refutation speaks to one quantity. The `Refute` suites (`cheap`, `placebo`,
 `full`) perturb the data and re-estimate a scalar average effect; they say
 nothing about a conditional effect, a response derivative, a temporal effect
 vector, a mediation decomposition, the mean outcome under several
-interventions, or a joint contrast. This page describes the refuters that test
-the quantity a result actually reports, and the sensitivity analyses that state
+interventions, or a joint contrast. The refuters here test
+the quantity a result reports, and the sensitivity analyses state
 how far an untestable assumption can be relaxed before that quantity changes.
 
 Every number here is a diagnostic. Pass thresholds are conventions with no
 measured error rate, and none of these checks supports an interval.
 
+Runnable example: [`examples/python/refute_and_bound.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/refute_and_bound.py)
+refutes an adjusted estimate and then bounds the hidden confounding the refuters could not
+detect.
+
 ## The target a refutation speaks to
 
 A **refutation target** names the quantity: its family (scalar average effect,
 conditional effect, response derivative, temporal effect, mediation,
-world-valued, joint contrast), its quadrant (static or temporal data,
+world-valued, joint contrast, attribution), its quadrant (static or temporal data,
 frequentist or Bayesian inference), one label per coordinate, and the identity
 of the compiled program that defines it. Two targets are the same only when
 these identities agree, so a refutation computed under another program, for
@@ -30,7 +41,8 @@ verdict; a report on another target is refused.
 
 ## The catalogue
 
-For every family and quadrant, `target_refutation_plan` lists the refuters:
+For every family and quadrant, `validation.target_refutation_plan(family, temporal=...,
+bayesian=..., suite=...)` lists the refuters that apply:
 
 | Refuter | What it does | Expected |
 | --- | --- | --- |
@@ -86,7 +98,8 @@ outcome = validation.refute_target(study, checks=checks)
 report = outcome.value     # typed TargetRefutation; inspect outcome.refusal first
 report.target.family      # e.g. "response_derivative"
 report.reports            # one TargetCheck per refuter that ran
-report.refused            # refusers with reasons and next actions
+report.refused            # refuters that could not run, with reasons and next attempts
+report.passed             # True, False, or None when no informative report ran
 
 # Reuse the exact original native result rather than execute it again.
 original = ant.estimate(study)
@@ -95,6 +108,11 @@ validated = validation.refute_target(original, checks=checks)
 updated = ant.rebind(study, data=new_data)
 updated_validation = validation.refute_target(updated, checks=checks)
 ```
+
+Each `TargetCheck` names its `refuter`, the `original` and `refuted` target vectors, the
+`statistic` with its `value`, `df` and `p_value`, whether it `passed`, and whether it was
+`informative`. Read `passed` with the caveats under [the catalogue](#the-catalogue): it is a
+fixed yardstick, not a test with a nominal rejection rate.
 
 Every refit re-executes a compiled program in full. Most refuters perturb the
 data and run the study's own prepared program; where a refuter changes the
@@ -214,18 +232,37 @@ and the certificate remain available on the report. Inspection and notebook
 representation read bounded retained metadata and execute nothing.
 
 An independently loaded artifact has no live study or observations and cannot
-be refitted. Supply a preparation or retained live outcome. Resource failure,
+be refitted (`route_not_supported`, `target_refutation.live_result_required`). Supply a
+preparation or retained live outcome. An outcome that is not the retained result of its own
+study is refused (`target_refutation.producer_mismatch`), as is a preparation with no
+target-native refit (`target_refutation.native_preparation_required`); when no refuter
+applies the refusal is `target_refutation.no_applicable_refuters`, and each refuter that
+could not run carries the code `refutation_not_applicable`. See
+[refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies)
+for the fields a refusal exposes. Resource failure,
 cancellation and callback failure remain typed exceptions; diagnostic operating
 characteristics remain not_measured.
 
 ## Sensitivity ranges
 
-Runnable example: [`examples/python/refute_and_bound.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/refute_and_bound.py).
+```python
+from antecedent import validation
 
-Each analysis returns an `AssumptionRange`: the assumption it relaxes, the
+result = validation.evalue(1.8, lower=1.2, upper=2.7)   # a risk ratio and its interval
+result.summary                    # the method's own numbers
+band = result.range               # AssumptionRange
+band.assumption, band.parameter   # what is relaxed, and the parameter that relaxes it
+band.tested                       # RangePoint(parameter, target, test) per probed value
+band.break_even                   # value at which the conclusion is explained away
+band.break_even_significance      # value at which it loses significance, when reached
+```
+
+Each analysis returns a `SensitivityResult` whose `range` is an `AssumptionRange`: the
+assumption it relaxes, the
 range of the sensitivity parameter it probed and the target (or its test) at
 each value, and the break-even value at which the conclusion is explained away
-or loses significance. The target identity is bound into the range's identity,
+or loses significance. The range is an assumption range, not a confidence interval: it
+states no sampling coverage, and its `calibration` field records the calibration status. The target identity is bound into the range's identity,
 so a range computed for one target cannot be cited by a claim on another.
 
 | Function | Assumption relaxed | Parameter | Break-even |

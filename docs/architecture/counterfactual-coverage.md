@@ -1,5 +1,11 @@
 # Counterfactual coverage
 
+This page states, for nested (cross-world) counterfactual queries, which graph and evidence
+configurations execute, how, with what uncertainty, and which are refused. It is for a reviewer
+checking the scope of a counterfactual claim and a contributor extending it. The support registry
+(`parity/support_cells.toml`, `parity/support_refusal_reasons.toml`) remains the coordinate-level
+authority; this table explains its counterfactual cells.
+
 | Query | Graph and evidence | Execution | Uncertainty or refusal |
 | --- | --- | --- | --- |
 | Existing unit-level counterfactual | Supported fixed Markovian DAG and compatible SCM evidence | Shared-exogenous abduction, action, prediction | Existing support registry governs inference and validation |

@@ -1,53 +1,28 @@
 #!/usr/bin/env python3
-"""IHDP-style propensity / AIPW end-to-end: identify → estimate → refute.
+"""Do propensity weighting and AIPW recover a known effect on a confounded benchmark table?
 
-Data provenance
----------------
-This script does **not** redistribute the real Infant Health and Development
-Program (IHDP) microdata. Redistributing that table is subject to its data-use terms, and
-public mirrors are unreliable. Instead it synthesizes an **IHDP-like** table
-that matches the classic NPCI / Hill (2011) layout:
+Data: a synthetic table in the layout of the Infant Health and Development Program (IHDP)
+benchmark of Hill (2011): 747 rows, 25 covariates (6 continuous, 19 binary), a binary
+``treatment`` and a continuous ``outcome``. The real IHDP microdata are not used or
+redistributed. Rows are drawn from a known logit-treatment, linear-Gaussian-outcome mechanism
+with true average effect ``TRUE_ATE = 4.0``; that value is a fixture truth, not a claim about
+the real IHDP study.
 
-- ``n = 747`` rows (the usual IHDP analysis size),
-- 25 covariates ``x1``…``x25`` (6 continuous, 19 binary),
-- binary treatment ``treatment``,
-- continuous outcome ``outcome``.
+Graph: declared, not discovered. ``x1..x6 -> treatment``, ``x1..x6 -> outcome`` and
+``treatment -> outcome``, so the backdoor adjustment set is ``{x1, ..., x6}``. The binary
+covariates ``x7..x25`` are in the table and outside the graph; that is a choice of this fixture,
+not a claim that binary IHDP covariates are ignorable in a real analysis.
 
-Covariates, treatment, and outcome are drawn from a known linear-Gaussian /
-logit SCM under the DAG below. The ground-truth ATE is ``TRUE_ATE = 4.0``
-(response-surface A order of magnitude, not a claim about real IHDP effects).
+The script asserts, with ``seed=11`` and ``bootstrap=40``: identification is
+``NonparametricallyIdentified`` by ``backdoor.adjustment`` with that set; the
+``propensity.weighting`` and ``aipw`` estimates both lie in [3.7, 4.5]; the weighting estimate's
+95% Wald interval contains 4.0; and its ``"cheap"`` refutation suite runs and passes. For this
+untrimmed average effect ``aipw`` cross-fits its logistic propensity and least-squares outcome
+regressions; it is derived from the doubly robust score and is not the exact estimator analyzed
+by Chernozhukov et al. (2018), see ``provenance/estimate.aipw.toml``. One seeded table shows
+agreement with a known truth under a correct graph, not interval coverage.
 
-Assumed DAG / adjustment set (no discovery)
--------------------------------------------
-We state the graph explicitly — Antecedent does not discover it:
-
-    x1…x6 → treatment,  x1…x6 → outcome,  treatment → outcome
-
-so the backdoor adjustment set is ``{x1,…,x6}``. Binary covariates ``x7``…``x25``
-remain in the table for IHDP-like structure but are **not** edges in this DAG
-(Antecedent's DAG backdoor search hits an identification budget well below 25
-confounders). That is a synthetic design choice for this demo, not a claim that
-binary IHDP covariates are ignorable in a real analysis.
-
-Estimators
-----------
-- ``propensity.weighting`` — inverse-probability weighting with the cheap
-  refute suite (overlap + E-value).
-- ``aipw`` — doubly robust AIPW. Antecedent fits GLM propensity and OLS
-  outcome nuisances on the **full sample** (no cross-fitting). Do **not** treat
-  Chernozhukov et al. (2018) DML rate guarantees as transferring; see
-  ``provenance/estimate.aipw.toml`` (Funk et al. 2011 is the uncross-fit cite).
-
-Expected ranges (seeded)
-------------------------
-With ``seed=11`` and ``bootstrap=40``:
-
-- IPW ATE ∈ [3.7, 4.5], 95% Wald CI contains 4.0,
-- AIPW ATE ∈ [3.7, 4.5],
-- identification status ``NonparametricallyIdentified`` via ``backdoor.adjustment``,
-- IPW cheap suite runs and passes (at least one refuter recorded).
-
-Install with ``python -m pip install antecedent``; see examples/README.md.
+Run: ``python examples/python/ihdp_propensity_e2e.py``.
 """
 
 from __future__ import annotations
@@ -66,15 +41,16 @@ COVARS = ADJUSTMENT + BINARY
 
 
 def make_ihdp_like(seed: int = 42) -> dict[str, np.ndarray]:
-    """Synthetic IHDP-like covariates + known-ATE outcome (see module docstring)."""
+    """Simulate the IHDP-like table with a known average effect (see the module docstring)."""
     rng = np.random.default_rng(seed)
     cont = rng.normal(size=(N_ROWS, 6))
-    # Mild correlation among the first two continuous covariates.
+    # Correlate the first two confounders (0.35) so adjustment has to separate them.
     cont[:, 1] = 0.35 * cont[:, 0] + np.sqrt(1.0 - 0.35**2) * cont[:, 1]
     binary = (rng.uniform(size=(N_ROWS, 19)) < 0.35).astype(np.float64)
     x = np.hstack([cont, binary])
 
-    # Soft selection on the continuous confounders → good overlap for IPW.
+    # Treatment depends weakly on four confounders, so propensities stay away from 0 and 1 and
+    # inverse-probability weights are stable (good overlap).
     logit = -0.2 + 0.15 * (0.8 * x[:, 0] + 0.6 * x[:, 1] + 0.4 * x[:, 2] - 0.3 * x[:, 3])
     propensity = 1.0 / (1.0 + np.exp(-logit))
     treatment = (rng.uniform(size=N_ROWS) < propensity).astype(np.float64)
@@ -96,7 +72,7 @@ def make_ihdp_like(seed: int = 42) -> dict[str, np.ndarray]:
 
 
 def assumed_dag_edges() -> list[tuple[str, str]]:
-    """Explicit edges for the assumed DAG (adjustment set = ADJUSTMENT)."""
+    """Edges of the assumed DAG: each confounder causes treatment and outcome."""
     return (
         [(z, "treatment") for z in ADJUSTMENT]
         + [(z, "outcome") for z in ADJUSTMENT]
@@ -162,7 +138,8 @@ def main() -> None:
             f"comparison={report.comparison:.4g} replicates={report.replicates}"
         )
 
-    # AIPW: full-sample nuisances (no cross-fitting); see provenance/estimate.aipw.toml.
+    # AIPW combines the propensity model with outcome regressions, so it stays consistent if
+    # either is right. Its nuisance-fitting scheme is described in provenance/estimate.aipw.toml.
     aipw = require_success(
         analyze(
             data,

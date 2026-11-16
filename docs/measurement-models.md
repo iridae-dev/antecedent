@@ -1,9 +1,47 @@
 # Measurement models
 
-A measured column is not the scientific quantity it is recorded for. A
-measurement model states how they relate, for which population, regime and
-arm, and what may be concluded. It is separate from the schema's
-`MeasurementSpec` flag, so no schema digest changes.
+A measured column is not the scientific quantity it is recorded for. Use a
+measurement model when a column records a quantity with error (a misclassified
+diagnosis, a noisy dose, a provider's posterior for a latent trait) and the
+analysis is about the quantity itself. The model states how column and quantity
+relate, for which population, regime and arm, and what may be concluded; the
+library then corrects one functional on one bounded route, or refuses. A
+measurement model is separate from the schema's `MeasurementSpec` flag, so
+declaring one does not change the schema digest.
+
+## Minimal call
+
+A prevalence measured by a test with declared sensitivity 0.9 and specificity
+0.8, corrected by Rogan-Gladen:
+
+```python
+from antecedent import measurement_models as mm
+from antecedent.outcomes import require_success
+
+model = mm.MeasurementModel(
+    indicator=mm.MeasurementVariable("schema:test_positive", "noisy_misclassified", "unit"),
+    construct=mm.MeasurementVariable("construct:infected", "latent_scientific", "unit"),
+    parameters=mm.BinaryParameters((mm.BinaryRates(0.9, 0.8, 1e-4, 4e-4),), min_youden=0.1),
+    population_id="cohort",
+    regime_id="observational",
+    evidence=mm.ParameterEvidence.declared("lab"),        # who declared the rates
+)
+analysis = mm.AnalysisBinding(construct_id="construct:infected",
+                              population_id="cohort", regime_id="observational")
+prepared = mm.prepare_measurement_model(model, analysis, mm.BinaryPrevalenceData(410, 1000))
+estimate = require_success(prepared.estimate())
+estimate.point, estimate.naive_point   # 0.3 corrected, 0.41 as recorded
+estimate.standard_error                # delta method, including the rates' variances
+estimate.interval(0.95)                # Wald interval, calibration "not_measured"
+```
+
+`prepare_measurement_model` raises `MeasurementModelRefusal` for the first
+failed check; `estimate` returns an `Outcome` whose refusal (for example a
+Youden index at or below `min_youden`, `measurement_not_identified`) carries the
+same code. Codes, details and remedies are listed under
+[measurement model refusals](reference/refusal-codes.md#measurement-models).
+The [transported measurement example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/transported_measurement.py)
+carries a measurement model into another population.
 
 ## Kinds
 
@@ -174,7 +212,11 @@ interval with its calibration slot (`not_measured`). `consume_measurement_model_
 numbers against the retained model identity. A posterior provider is stated
 with `ProviderObject` (an attestation, or a verification receipt the library
 issued); a claim of native trust is refused by name. Refusals are
-`MeasurementModelRefusal`.
+`MeasurementModelRefusal`; `estimate` returns an `Outcome` that carries the
+refusal instead of raising it. Carrying a prepared model into another population
+(`transport_measurement_model`, `verify_measurement_transport`,
+`transport_pooled_differential`) is described in
+[transported decisions and measurement](guides/transported-decisions-and-measurement.md).
 
 ## References
 

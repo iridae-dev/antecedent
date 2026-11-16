@@ -1,8 +1,7 @@
-//! Graph review interaction surface for discovery outputs.
+//! Edits that resolve a discovered structure before it is accepted.
 //!
-//! Discovery is a separate, explicit step (see [`crate::discovery`]); the review gate
-//! itself now lives in [`crate::accepted::AcceptedGraph`] construction. This module
-//! keeps the interactive edit surface (`accept_edge`, `orient_edge`, `require_edge`,
+//! Discovery is a separate, explicit step (see [`crate::discovery`]), and acceptance is
+//! [`crate::accepted::AcceptedGraph`] construction. This module holds the edits (`accept_edge`, `orient_edge`, `require_edge`,
 //! `accept_all`) callers use to resolve a review artifact before handing it to
 //! [`AcceptedGraph::accept`].
 //!

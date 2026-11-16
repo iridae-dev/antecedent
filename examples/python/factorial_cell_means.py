@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Point utility for a 2x2 Bernoulli factorial experiment.
+"""What are the main effects and the interaction in a 2x2 factorial experiment?
 
-`antecedent.factorial.estimate` reports cell means, main effects, the
-interaction, and covariance-free variance bounds for a 2x2 factorial randomized
-under independent Bernoulli assignment of each factor. It is a point utility: it
-carries no confidence interval. Pointwise intervals for a fixed-cell 2x2 design come from
-``antecedent.experiment.FactorialRandomization`` in a ``RandomizedEffect`` query, the
-``factorial_2x2`` row of the graphless support matrix.
+Data: a hand-built balanced fixture of eight rows, two per cell, with cell means 1, 4, 3 and 10,
+declared as randomized by an independent fair coin on each factor. The script asserts the main
+effects (4 and 5) and the interaction (4) to 1e-9.
 
-The fixture below is balanced with known cell means, so the main effects (4 and
-5) and the interaction (4) are exact. Install with
-`python -m pip install antecedent`; see examples/README.md."""
+`antecedent.factorial.estimate` is a point utility: it reports cell means, effects and
+covariance-free variance bounds, and no confidence interval. Pointwise intervals for a fixed-cell
+2x2 design come from ``antecedent.experiment.FactorialRandomization`` in a ``RandomizedEffect``
+query, the ``factorial_2x2`` row of docs/graphless-support-matrix.md.
+
+Run: `python examples/python/factorial_cell_means.py`."""
 
 from __future__ import annotations
 
@@ -38,7 +38,8 @@ def main() -> None:
         f"interaction={result.interaction_effect}"
     )
     print("uncertainty:", result.uncertainty_semantics)
-    # The balanced fixture has exact main effects (4, 5) and interaction (4).
+    # Main effects average over the other factor: A = ((3 - 1) + (10 - 4)) / 2 = 4,
+    # B = ((4 - 1) + (10 - 3)) / 2 = 5; the interaction is the difference (10 - 4) - (3 - 1) = 4.
     assert abs(result.factor_a_effect - 4.0) < 1e-9
     assert abs(result.factor_b_effect - 5.0) < 1e-9
     assert abs(result.interaction_effect - 4.0) < 1e-9

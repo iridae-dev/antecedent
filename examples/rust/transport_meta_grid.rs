@@ -1,4 +1,21 @@
-//! Complementary sources plus a retained grid. Four reasoning slots; exact laws.
+//! Combine two complementary source experiments and evaluate the transported law on a grid.
+//!
+//! Question: what is `P(Y = 1 | do(X = x))` in a target population when no single source can be
+//! transported, but one source supplies the first stage and another the second?
+//!
+//! Inputs and truth: the graph is `X -> W -> Y` with latent confounding between `X` and `W` and
+//! between `X` and `Y`. Source `a` differs from the target in the mechanism of `Y` and supplies
+//! an experiment on `X` measuring `W`: `P(W = 1 | do(X = 0)) = 0.2`, `P(W = 1 | do(X = 1)) = 0.8`.
+//! Source `b` differs in the mechanism of `W` and supplies an experiment on `W` measuring `Y`:
+//! `P(Y = 1 | do(W = 0)) = 0.1`, `P(Y = 1 | do(W = 1)) = 0.9`. Composing the two stages gives
+//! `0.8 * 0.1 + 0.2 * 0.9 = 0.26` at `X = 0` and `0.2 * 0.1 + 0.8 * 0.9 = 0.74` at `X = 1`.
+//!
+//! Asserted: the two grid points equal 0.26 and 0.74 to within `1e-12`; identification and
+//! assumptions are available and uncertainty is not, because the laws are exact.
+//!
+//! What this establishes: each source contributes the stage in which it does not differ from
+//! the target, and the grid evaluates one identified functional at several assignments. The
+//! selection declarations and the graph are the caller's assumptions.
 //!
 //! Run: `cargo run -p antecedent --example transport_meta_grid`
 //! Source: `examples/rust/transport_meta_grid.rs`
@@ -79,6 +96,8 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     graph.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2))?;
     graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))?;
     graph.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(2))?;
+    // Each source lists the variables whose mechanism may differ from the target's: source a
+    // differs at Y (variable 2), source b at W (variable 1).
     let query = MetaTransportQuery {
         outcomes: Arc::from([v(2)]),
         treatments: Arc::from([v(0)]),

@@ -1,14 +1,27 @@
 //! Mechanism selection: nonlinear and tree families scored on shared held-out folds.
 //!
-//! `y = 1 + 0.5 x + 0.8 x^2 + noise` is not linear in `x`. Linear, spline and tree-ensemble
-//! families all compete on the same folds; the winner is kept together with every candidate's
-//! score, the families that could not be fit and why, and the rule that chose. A per-node
-//! constraint can require a family whatever its rank, and the other candidates are still scored.
+//! Question: which mechanism family should model a node, and how is that choice recorded?
 //!
-//! Tree ensembles fit through optional providers (the `ml-gbdt` and `ml-forest` features). Without
-//! one a tree family is listed as failed with its reason, never silently dropped.
+//! Data and truth: 600 rows with `y = 1 + 0.5 x + 0.8 x^2 + 0.3 noise`, which is not linear in
+//! `x`. Linear, spline and tree-ensemble families compete on the same folds; the winner is kept
+//! together with every candidate's score, the families that could not be fit and why, and the
+//! rule that chose.
 //!
-//! Run: `cargo run -p antecedent --example mechanism_selection`
+//! Asserted: the selected family for `y` is not the linear one and beats it on held-out
+//! likelihood; every score equals held-out likelihood minus the complexity penalty; every named
+//! family is scored or recorded as failed; at the root `x` the tree families fail with a reason;
+//! a per-node constraint selects the required family whatever its rank while the others are
+//! still scored; a contradictory constraint is refused with `mechanism_candidates_invalid`
+//! before any family is fit.
+//!
+//! What this establishes: selection is a recorded, reproducible comparison of predictive fit on
+//! held-out rows. A better held-out score does not make a mechanism causally correct; the graph
+//! is still the caller's assumption.
+//!
+//! Tree ensembles fit through optional providers, so the example requires the `ml-gbdt` and
+//! `ml-forest` features.
+//!
+//! Run: `cargo run -p antecedent --features ml-gbdt,ml-forest --example mechanism_selection`
 //! Source: `examples/rust/mechanism_selection.rs`
 
 use std::sync::Arc;

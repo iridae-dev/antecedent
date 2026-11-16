@@ -1,4 +1,5 @@
-//! Estimation stage types and strategy identifiers.
+//! Estimators, estimation results and strategy identifiers, for configuring or reading the
+//! estimation stage of a study.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,11 +1,13 @@
-"""Estimate an effect, reuse the analysis, and save the result.
+"""Estimate an average effect, rerun the same study on new data, and save the result.
 
-The simulated treatment increases the outcome by 2. After estimating it,
-we change the data so the effect is 3 and run the same study again.
-The script checks that the rebound branch moves by exactly that 1 while the original result
-stays fixed, and that a saved result loads intact. Loading recomputes nothing, and the effect
-is a fixture truth of the simulated mechanism, not a claim about real data.
-See docs/start/first-analysis.md for installation and a step-by-step explanation."""
+The simulated randomized treatment raises the outcome by 2. A second table adds 1 to every
+treated outcome, so its effect is 3. The script asserts that the rebound branch moves by
+exactly that 1 while the original result stays fixed, and that a saved result loads intact.
+Loading recomputes nothing, and the effect is a fixture truth of the simulated mechanism, not
+a claim about real data.
+
+Run: ``python examples/python/analysis_workflow.py``. See docs/start/first-analysis.md for
+installation and a step-by-step explanation."""
 
 from __future__ import annotations
 
@@ -27,7 +29,8 @@ query = ant.AverageEffect("treatment", "outcome")
 
 new_data = {**data, "outcome": data["outcome"] + treatment}
 
-# Estimate the effect, then keep the study so we can reuse it.
+# Estimate the effect, then keep the study: it holds the identified program, so a rebind
+# reruns the same question on new rows without identifying again.
 result = ant.analyze(
     data,
     graph=graph,

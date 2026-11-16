@@ -59,8 +59,8 @@ assert decision.evaluation.chosen == (("act",) if decision.mean > 0.0 else ("dec
 # %% [markdown]
 # ## Change the utility, refit nothing
 #
-# The decision is recomputed. The receipt counts every fit, identification and score
-# recomputation the change performed.
+# Only the decision is recomputed. The receipt counts the temporal builds and identifications
+# and the cost model's fits, posterior draws and identifications the change performed: all zero.
 
 # %%
 receipt = workflow.utility_only(2.0)

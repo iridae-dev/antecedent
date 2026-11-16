@@ -1,6 +1,8 @@
-//! Day-1 imports for the `antecedent` facade.
+//! The imports a first study needs: builder, schema, data, graph, query, result and error.
 //!
-//! The glob import below is compiled as a doctest, so every re-export must resolve.
+//! Import everything with one glob; reach for named modules (`antecedent::estimate`,
+//! `antecedent::gcm` and so on) when a task needs more. The glob import below is compiled as a
+//! doctest, so every re-export resolves.
 //!
 //! ```
 //! use antecedent::prelude::*;

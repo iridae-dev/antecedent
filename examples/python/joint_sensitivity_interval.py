@@ -19,6 +19,8 @@ unestimated stage all refuse.
 The result does not claim a confidence interval for the whole sensitivity set. It is a
 conservative endpoint bootstrap that targets a fixed true deviation inside the declared box.
 Replay shows the numbers follow from the stored premises, not that the premises are right.
+
+Run: ``python examples/python/joint_sensitivity_interval.py``.
 """
 
 from __future__ import annotations

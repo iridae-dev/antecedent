@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Difference-in-differences on a repeated cross-section and a balanced panel.
+"""What did a treatment change, net of the trend the untreated group also followed?
 
 `antecedent.quasi` carries quasi-experimental designs. `estimate_did` is the
 2x2 repeated-cross-section point utility; `PanelDifferenceInDifferences` runs
@@ -8,8 +8,10 @@ standard error. The graphless support matrix lists when a difference-in-differen
 interval is supported, and these tiny fixtures are far below its cluster minimums.
 Identification rests on the declared parallel-trends assumption, which two periods cannot test.
 
-The fixtures are constructed with a known treatment effect of 4, and both estimates must equal
-it exactly. Install with `python -m pip install antecedent`; see examples/README.md."""
+Both fixtures are constructed without noise: a common period change of 3 and a treatment effect
+of 4 on the treated group after treatment. The script asserts both estimates equal 4 to 1e-9.
+
+Run: `python examples/python/quasi_difference_in_differences.py`."""
 
 from __future__ import annotations
 
@@ -23,7 +25,8 @@ from antecedent.quasi import (
 
 
 def main() -> None:
-    # Repeated cross-section: group x period cells, effect on the treated-post cell.
+    # Repeated cross-section: four group x period cells. Both groups rise by 3 after the period
+    # change; only the treated group after treatment gains the extra 4.
     treated = np.array([False, False, True, True] * 4)
     post = np.array([False, True, False, True] * 4)
     outcome = 10.0 + 3.0 * post + 4.0 * (treated & post)
@@ -36,7 +39,8 @@ def main() -> None:
     # The fixture is built with a treated-post effect of exactly 4.
     assert abs(did.estimate - 4.0) < 1e-9, did.estimate
 
-    # Balanced two-period panel: within-subject changes cancel stable effects.
+    # Balanced two-period panel: each subject has its own stable level, which the
+    # within-subject change removes.
     subjects = [f"s{i}" for i in range(8) for _ in range(2)]
     treated_panel = [i < 4 for i in range(8) for _ in range(2)]
     post_panel = [period for _ in range(8) for period in (False, True)]

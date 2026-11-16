@@ -12,10 +12,11 @@ them::
                                                observations=el.rows("cohort", range(0, 40))))
     b = ledger.add_source(el.SourceDeclaration("study_2", "observation_set",
                                                observations=el.rows("cohort", range(40, 90))))
-    pooled = ledger.pool_summaries(
+    outcome = ledger.pool_summaries(
         "pool", [el.StudySummary(a, 1.0, 1.0), el.StudySummary(b, 3.0, 4.0)]
     )
-    pooled.value.estimate       # 1.4 = (1/1 * 1 + 1/4 * 3) / (1/1 + 1/4)
+    pooled = outcome.value              # a SynthesisOutcome (None when refused)
+    pooled.value.estimate               # 1.4 = (1/1 * 1 + 1/4 * 3) / (1/1 + 1/4)
     pooled.mass.distinct_observations   # 90: each observation counted once
 
 What the ledger decides, and what it does not:
@@ -31,8 +32,8 @@ What the ledger decides, and what it does not:
   dependence range returns the exact extremes over the declared correlation interval, labelled
   ``assumption_range``. An interval is reported only by :meth:`EvidenceLedger.pooled_interval`,
   carrying its calibration status for the exact construction (fixed effect,
-  declared covariance, or random effects by Hartung-Knapp); any other construction raises
-  ``not_supported``.
+  declared covariance, or random effects by Hartung-Knapp); a hierarchical borrowing or a
+  dependence range has no interval construction and raises ``route_not_supported``.
 * **Atomic.** A refused request leaves the session exactly as it was; so does a refused
   :meth:`EvidenceLedger.refresh`, which applies a batch of added and retired evidence to a copy.
 * **No stale use.** Retiring a source reclassifies every result that rested on it as

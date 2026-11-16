@@ -4,6 +4,11 @@ Two quantities push on each other: A rises when B rises, and B rises when A rise
 
 Nothing in this tutorial is estimated from data. The system is declared by its equations, so every number is an exact consequence of those equations: a fixture truth of the stated model, not a claim about any real system.
 
+- **You will learn** the difference between observing, clamping (`Set`) and shocking (`Shift`) a variable in a feedback loop, how to declare each as a world and read its answer, how each world reports the way it was solved and certified, and how an intervention with no solution is reported.
+- **Before you start:** [installation](../start/installation.md). You need to be able to solve two linear equations by substitution; no earlier tutorial is assumed. [Interventions and worlds](../concepts/interventions-and-worlds.md) gives the general vocabulary.
+- **Time:** the example runs in under a minute.
+- **Run it:** `python examples/python/feedback_three_questions.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/feedback_three_questions.ipynb). The complete script is embedded [below](#the-complete-example).
+
 ## Declare the system
 
 The two mechanisms are
@@ -50,7 +55,7 @@ Three questions, three answers. The clamp cuts A's incoming mechanism, so it rem
 
 ## Ask Antecedent
 
-The declaration is the same two equations, written as direct effects. `("B", "A"): 0.5` means `B = 0.5 A + ...`; the disturbance covariance is the identity.
+The declaration is the same two equations, written as direct effects keyed `(into, from)`: `("B", "A"): 0.5` means `B = 0.5 A + ...`. The disturbance covariance is the identity, written out as a row-major 2 × 2 matrix.
 
 ```python
 model = LinearCyclicModel.from_direct_effects(
@@ -60,7 +65,7 @@ model = LinearCyclicModel.from_direct_effects(
 )
 ```
 
-Declare the four worlds. Preparation only checks and retains the question; it solves nothing, and `inspect()` reports `preparation_evaluations` of zero.
+Declare the four worlds: the system untouched, A clamped at 0, A clamped at 1, and a unit shock to A. Preparation only checks and retains the question; it solves nothing, and `prepared.inspect()["preparation_evaluations"]` is zero.
 
 ```python
 prepared = model.worlds(
@@ -86,18 +91,31 @@ clamp_effect = worlds[2].mean("B") - worlds[1].mean("B")
 shock_effect = worlds[3].mean("B")
 ```
 
-The example asserts all three against the hand derivation to within 1e-10: `association` is 1.40625 / 1.8125, `clamp_effect` is 0.5 and `shock_effect` is 0.625. It also asserts that the shock moves A by 1.25.
+World 0 is the untouched system, so the slope comes from its covariances. The clamp effect is a difference between two worlds, A held at 1 and A held at 0. The shock effect is the mean of B in world 3, because the mean of B in the untouched system is zero.
+
+The example asserts all three against the hand derivation to within 1e-10: `association` is 1.40625 / 1.8125, `clamp_effect` is 0.5 and `shock_effect` is 0.625. It also asserts that the shock moves the mean of A to 1.25. It then prints the three values with the two solution methods (values rounded here):
+
+| Printed key | Value |
+| --- | --- |
+| `association_of_B_with_A` | 0.776 |
+| `clamp_A_from_0_to_1` | 0.5 |
+| `unit_shock_to_U_A` | 0.625 |
+| `clamp_schedule` | `acyclic_order` |
+| `shock_schedule` | `strongly_connected_blocks` |
 
 ### Different questions run different programs
 
-The questions are not just different numbers. Each world reports how it was solved:
+The questions differ in more than their numbers. Each world records the action it applied and how it was solved:
 
 ```python
+assert worlds[1].actions[0]["kind"] == "hard_clamp"
+assert worlds[3].actions[0]["kind"] == "additive_shock"
 assert worlds[1].solved_by["method"] == "acyclic_order"
 assert worlds[3].solved_by["method"] == "strongly_connected_blocks"
+assert all(world.certified and world.failed_mass == 0.0 for world in worlds.values())
 ```
 
-A clamp turns the cyclic system into an acyclic one: A is fixed, then B follows. A shock leaves A and B in one strongly connected block that must be solved together. Each world also carries a certificate. The loop gain gives a spectral bound of √0.2 ≈ 0.45, below one, so the equilibrium is unique; showing that bound is the certificate Antecedent checks for these linear worlds. Every answer here is certified, with failed mass zero.
+A clamp turns the cyclic system into an acyclic one: A is fixed, then B follows. A shock leaves A and B in one strongly connected block that must be solved together. Each world also carries a certificate. With `K` the matrix of direct effects, the certificate Antecedent checks for these linear worlds is that the spectral radius of `|K|` is below one, which shows the equilibrium is unique. Here it is √0.2 ≈ 0.45. Every answer in this family is certified, with failed mass zero.
 
 ## An intervention with no solution
 
@@ -109,7 +127,7 @@ B = A + U_B
 C = A + U_C
 ```
 
-Without intervention this system has a unique equilibrium, `A = −(U_A + U_B + U_C)`. Its loop gain is large enough that the contraction bound is not shown, so Antecedent answers world 0 but marks it uncertified when asked to (`certificate="report_uncertified"`). Without that choice the default is to withhold the world: withheld mass means the certificate was not shown, which is different from the world having no solution.
+Without intervention this system has a unique equilibrium, `A = −(U_A + U_B + U_C)`. The disturbances are again independent with unit variance, the default when `noise_covariance` is omitted. The spectral radius of `|K|` is √2, above one, so the certificate is not shown. Antecedent answers world 0 but marks it uncertified when asked to (`certificate="report_uncertified"`). Without that choice the default, `certificate="required"`, is to withhold the world: withheld mass means the certificate was not shown, which is different from the world having no solution.
 
 Now clamp C at 1. C's mechanism is deleted and `C = 1`. What remains is
 
@@ -120,7 +138,27 @@ B = A + U_B
 
 Substituting the second into the first gives `0 = 1 + U_A + U_B`. A has dropped out. For any disturbance values the equation either fails or holds for every A; for almost every draw it fails. There is no equilibrium.
 
-Antecedent keeps this world instead of dropping it:
+Declare both worlds and ask Antecedent:
+
+```python
+model = LinearCyclicModel.from_direct_effects(
+    ["A", "B", "C"],
+    {("A", "B"): 1.0, ("A", "C"): 1.0, ("B", "A"): 1.0, ("C", "A"): 1.0},
+)
+worlds = require_success(
+    model.worlds(
+        [World(0), World(1, Set("C", 1.0))],
+        component_id="overlapping-loops",
+        source_id="specification",
+        certifying_evidence=["bench-derivation"],
+        certificate="report_uncertified",
+    ).interventions()
+)
+assert list(worlds) == [0, 1]
+assert not worlds[0].certified
+```
+
+Both worlds come back. World 0 answers and is marked uncertified. The clamped world is kept instead of dropped:
 
 ```python
 clamped = worlds[1]
@@ -138,7 +176,7 @@ except CyclicRefusal as refusal:
     next_attempt = refusal.next_attempt
 ```
 
-The refusal names what to do next. For a singular clamped loop the next attempt is to declare an equilibrium selection rule or a dynamic law for the clamped loop, or to intervene with a mechanism change that keeps the free block regular. Each of these is a modelling choice that you make, because the model as declared says nothing about where a clamped system with no equilibrium goes:
+The refusal names what to do next. The example prints the world's `status` (`no_solution`), its `failed_mass` (1.0) and that next attempt: declare an equilibrium selection rule or a dynamic law for the clamped loop, or intervene with a mechanism change that keeps the free block regular. Each of these is a modelling choice that you make, because the model as declared says nothing about where a clamped system with no equilibrium goes:
 
 - A **dynamic law** says how the loop evolves in time. The question then becomes where it is at a stated time rather than where it settles.
 - A **selection rule** picks one state among several when there are several. Here there are none, so this applies to nonlinear loops with multiple roots rather than to this linear one.
@@ -160,20 +198,26 @@ assert replayed.to_dict() == result.to_dict()
 
 A replay recomputes the same numbers. It does not turn a model into evidence: the artifact says what was asked of what, not that the equations describe a real system.
 
-To learn a feedback law from data instead of declaring it, see `examples/python/recovered_feedback_law.py`: it recovers the same two-variable law from a passive sample and two randomized clamp experiments, and attaches fit uncertainty to the answers. The [cyclic systems guide](../guides/cyclic-systems.md) covers nonlinear loops, shared disturbances and experiment-based fitting.
+To learn a feedback law from data instead of declaring it, see [`examples/python/recovered_feedback_law.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/recovered_feedback_law.py): it recovers the same two-variable law from a passive sample and two randomized clamp experiments, and attaches fit uncertainty to the answers. The [cyclic systems guide](../guides/cyclic-systems.md) covers nonlinear loops, shared disturbances and experiment-based fitting.
+
+## What this established
+
+In the stated feedback model, the passive slope is about 0.776, clamping A from 0 to 1 changes the mean of B by 0.5, and a unit mean shock to `U_A` changes it by 0.625. The three differ because the interventions differ, not because of any estimation error: nothing was estimated. A clamp that leaves a loop with no equilibrium is retained as failed mass with a named next attempt.
+
+## What this did not establish
+
+None of this says that the equations describe a real system: every number is a consequence of the declared model. The certificate shows that the declared equations have a unique equilibrium, not that the coefficients are right, and a replayed artifact reproduces the computation, not its premises.
+
+## Where to go next
+
+The next question is where the equations come from. Experiments that clamp one variable at a time can identify each direction of a linear loop under a declared recipe, with fit uncertainty that is a statement about the fitted law and not about the world. The [cyclic systems guide](../guides/cyclic-systems.md) shows that route.
 
 ## The complete example
 
 <!-- example: examples/python/feedback_three_questions.py -->
 
-The same computation is available in Rust as `examples/rust/feedback_three_questions.rs` through the cyclic world API of `antecedent-model`. It asserts the same three values and the same failed mass.
+The same computation is available in Rust as [`examples/rust/feedback_three_questions.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/feedback_three_questions.rs) through the cyclic world API of `antecedent-model`. It asserts the same three values and the same failed mass.
 
 ```sh
 cargo run -p antecedent --example feedback_three_questions
 ```
-
-## What this established, and what comes next
-
-In the stated feedback model, the passive slope is about 0.776, clamping A from 0 to 1 changes the mean of B by 0.5, and a unit mean shock to `U_A` changes it by 0.625. The three differ because the interventions differ, not because of any estimation error: nothing was estimated. A clamp that leaves a loop with no equilibrium is retained as failed mass with a named next attempt. None of this says that the equations describe a real system: every number is a consequence of the declared model.
-
-The next question is where the equations come from. Experiments that clamp one variable at a time can identify each direction of a linear loop under a declared recipe, with fit uncertainty that is a statement about the fitted law and not about the world. The [cyclic systems guide](../guides/cyclic-systems.md) shows that route.

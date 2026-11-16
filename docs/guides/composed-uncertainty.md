@@ -1,17 +1,27 @@
 # Carry uncertainty through a composed analysis
 
+A quantity computed from several uncertain inputs (a product of two effects, a
+margin built from three outcomes, a counterfactual read along a whole path) has
+the spread of the composition, not of its components. Use this guide when you
+combine uncertain quantities and need to know what spread the combination has,
+what dependence information that requires, and when an interval at the composed
+quantity is available. It assumes inputs that already carry uncertainty: aligned
+draws from a `JointDistributionArtifact`, a covariance, or a cross-world
+execution. Two routes read the spread at the composed coordinate. The
+composed-spread route (`antecedent.joint_law_propagation`) reports an interval
+with its calibration status; the whole-path route reports a spread only.
+
 ## Run a small example
 
-Compute the product of two columns from one aligned synthetic law; check the hand-derived mean and variance before requesting an interval.
+Compute the product of two columns from one aligned synthetic law; check the
+hand-derived mean (0.4) and variance (6.4/9) before requesting an interval. The
+spread is labelled `uncalibrated_spread`, and an interval request with no
+construction named is refused.
 
 <!-- example: examples/python/composed_uncertainty.py -->
 
-Continue below for the exact contracts and refused adjacent requests.
-
-A quantity computed from several uncertain inputs has the spread of the
-composition, not of its components. Two routes read that spread at the composed
-coordinate. The composed-spread route reports an interval with its calibration
-status; the whole-path route reports a spread only.
+The rest of this guide gives the exact contracts and the adjacent requests that
+are refused.
 
 | Route | Label |
 | --- | --- |
@@ -79,6 +89,9 @@ cross-world executions have no whole-path derivation and are refused.
 | Fitted or sampled mechanisms in a cross-world row | closed | Use the sampled counterfactual route with its posterior input |
 | Interval or posterior from the whole path | closed | Use the labelled spread |
 
+The `joint_law_propagation.*` and `cross_world_uncertainty.*` details and their remedies are
+also listed in [refusal codes and remedies](../reference/refusal-codes.md#composed-spread-whole-path-evidence-overlap-and-interface-contracts).
+
 ## Uncertainty of an adaptive procedure
 
 Enumerate the declared two-unit procedure, preserving its undefined contrast mass. The report is conditional on the supplied truths and design.
@@ -92,7 +105,7 @@ inferential paradigms apart: a report of one paradigm is never a statement of
 another. Every result is labelled derived and not_measured: the law is exact under the
 stated model and carries no coverage claim for any method.
 
-In Python, `AdaptiveInferenceSession.derive_procedure(elements)` returns the `AdaptiveProcedure` whose `report` derives the uncertainty (`antecedent.adaptive_inference`). Every premise failure of admission carries the registered code `not_supported` with its own detail.
+In Python, `AdaptiveInferenceSession.derive_procedure(elements)` returns the `AdaptiveProcedure` whose `report` derives the uncertainty (`antecedent.adaptive_inference`). A paradigm whose premise the procedure does not meet is refused with the registered code `adaptive_assumption_violated` and an `adaptive_inference.*` detail naming the premise.
 
 ### Declaring the procedure
 
@@ -144,5 +157,5 @@ more: it is not an interval and not a calibration.
 | Posterior from value-dependent loss | `adaptive_assumption_violated` (`adaptive_inference.posterior_premise_outcome_dependent_delay`) | Model the loss mechanism or restrict to ignorable loss |
 | Fixed-sample or group-sequential on an adaptive design | `adaptive_assumption_violated` (`adaptive_inference.fixed_sample_design_adaptive`, `group_sequential_assignment_adaptive`) | Use the adaptive-weighting or anytime-valid paradigm |
 | Rule that does not match the paradigm | `adaptive_assumption_violated` (`adaptive_inference.paradigm_rule_mismatch`) | Declare the matching stopping rule |
-| Anytime-valid with several contexts | `not_supported` (an `adaptive_inference.*` premise failure) | Run per context |
+| Anytime-valid with several contexts | `adaptive_assumption_violated` (`adaptive_inference.anytime_premise_contexts`) | Run per context |
 | Any interval or coverage claim | not supported | Treat as derived and not_measured |

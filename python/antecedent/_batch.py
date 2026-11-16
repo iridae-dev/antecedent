@@ -49,7 +49,21 @@ def analyze_many(
     candidate_screen: CandidateScreen | None = None,
     family: CellFamily | None = None,
 ) -> Outcome[BatchResult]:
-    """Prepare and explicitly execute one shared-fit batch, returning a typed outcome."""
+    """Prepare and execute one shared-fit batch: :func:`prepare_many` then :func:`estimate_many`.
+
+    Every member is the same kind of question on one table under one structure: either several
+    :class:`~antecedent.AverageEffect` queries, or the cells of discrete joint
+    :class:`~antecedent.InterventionResponse` queries. The batch fits the shared nuisances once and
+    keeps every member's cross-fitted scores aligned on the same rows, so the members can later be
+    retargeted and contrasted jointly (:meth:`BatchResult.retarget`). The arguments are those of
+    :func:`prepare_many`.
+
+    Returns:
+        An :class:`~antecedent.Outcome` of :class:`BatchResult`. A scientific refusal at any step
+        (including a mixed query family, ``route_not_supported``) is a refused outcome;
+        malformed arguments still raise :class:`~antecedent.errors.CausalTypeError` or
+        :class:`~antecedent.errors.CausalValueError`.
+    """
 
     def execute() -> Outcome[BatchResult]:
         return estimate_many(
@@ -87,7 +101,24 @@ def _batch_route_refusal(entry: str, covered: str) -> CausalUnsupportedError:
 
 @dataclass(frozen=True, slots=True)
 class CellFamily:
-    """Scientific contrast and aligned score-posterior budget of joint-cell families."""
+    """The family-level contrast and draw budget of a batch of joint intervention cells.
+
+    Pass it as ``family=`` to :func:`prepare_many` with joint
+    :class:`~antecedent.InterventionResponse` queries only; an
+    :class:`~antecedent.AverageEffect` batch rejects it.
+
+    Fields:
+
+    * ``contrast`` -- ``"cell_minus_control"`` (default: each cell against the control cell),
+      ``"interaction"`` (the factorial interaction contrast of the cells) or ``None`` (cells
+      only, no family contrast).
+    * ``posterior_draws`` -- number of aligned Bayesian-bootstrap draws of the cell scores, a
+      positive integer; default ``None`` draws none.
+
+    Raises:
+        CausalValueError: an unknown ``contrast`` or a ``posterior_draws`` below 1.
+        CausalTypeError: a ``posterior_draws`` that is not an integer.
+    """
 
     contrast: Literal["cell_minus_control", "interaction"] | None = "cell_minus_control"
     posterior_draws: int | None = None
@@ -448,6 +479,8 @@ class BatchRetarget:
 
     @property
     def answer(self) -> Answer:
+        """The family as an :class:`~antecedent.outcomes.Answer`: ``"partial"`` when any member
+        failed, else ``"structured"``, with the claim, contrast and failed-member counts."""
         refusal = self._complete_refusal
         return Answer(
             "partial" if self.failed_members else "structured",
@@ -463,6 +496,7 @@ class BatchRetarget:
 
     @property
     def identities(self) -> Mapping[str, Any]:
+        """The family, snapshot and estimator identities that bind this retarget."""
         from ._freeze import freeze
 
         # A retarget snapshot hashes original row IDs, not observation values.
@@ -476,6 +510,8 @@ class BatchRetarget:
 
     @property
     def provenance(self) -> Mapping[str, Any]:
+        """:attr:`identities` with the score source, the inference claim and each claim's
+        nuisance provenance."""
         from ._freeze import freeze
 
         return freeze(
@@ -660,7 +696,18 @@ def _retarget_estimand(query: Any) -> str | None:
 
 @dataclass(frozen=True, slots=True, repr=False)
 class PreparedBatch:
-    """Immutable, bound shared-fit plans; preparation never fits their nuisances."""
+    """An immutable prepared batch: identified, quoted shared-fit plans on owned data.
+
+    Returned by :func:`prepare_many`. Preparation identifies every member and freezes the shared
+    folds and covariate design (:attr:`shared_design`); it never fits a nuisance. Execute it with
+    :meth:`estimate` (or :func:`estimate_many`). A refused preparation still returns a batch:
+    :attr:`refusal` holds the refusal and :meth:`estimate` returns it as a refused outcome.
+
+    Branch it like a single prepared study: :meth:`rebind` binds other observations and
+    :meth:`reconfigure` changes declarations; each returns a new batch whose ``reuse`` (a
+    :class:`~antecedent.prepared.Reuse`) says what work was kept. ``execution`` is the
+    :class:`~antecedent.Execution` the batch runs under.
+    """
 
     _native: Any
     _queries: tuple[AverageEffect | InterventionResponse, ...]
@@ -678,14 +725,17 @@ class PreparedBatch:
 
     @property
     def refusal(self) -> Any:
+        """The refusal of a refused preparation, or ``None`` when every plan was prepared."""
         return None if self._refused is None else self._refused.refusal
 
     @property
     def queries(self) -> tuple[AverageEffect | InterventionResponse, ...]:
+        """The member queries, in the order given (member ``i`` answers ``queries[i]``)."""
         return self._queries
 
     @property
     def shared_design(self) -> SharedBatchDesign | None:
+        """The frozen folds and covariate design, or ``None`` when no design is shared."""
         if self._native is None:
             return None
         n_folds = self._native.shared_n_folds()
@@ -700,12 +750,25 @@ class PreparedBatch:
         )
 
     def estimate(self) -> Outcome[BatchResult]:
+        """Execute the batch once; the same as :func:`estimate_many` on this batch."""
         return estimate_many(self)
 
     def rebind(self, *, data: Any) -> PreparedBatch:
+        """A new batch on other observations with the same declarations; this one is unchanged.
+
+        The same table keeps every retained fit and score. A new table keeps the compiled
+        programs and invalidates fits and scores; a batch with string-labelled treatment arms, or
+        a refused one, is prepared again. ``reuse`` on the result says which.
+        """
         return rebind_many(self, data=data)
 
     def reconfigure(self, **declarations: Any) -> PreparedBatch:
+        """A new batch with changed declarations (keyword arguments of :func:`prepare_many`).
+
+        Any change, including a new ``execution=``, prepares the batch again on the same data;
+        no declarations returns this batch. Changing ``data`` here raises
+        :class:`~antecedent.errors.CausalValueError`; use :meth:`rebind`.
+        """
         return reconfigure_many(self, **declarations)
 
     def _required_native(self) -> Any:
@@ -715,17 +778,27 @@ class PreparedBatch:
         return self._native
 
     def diagnose(self, *, execution: Execution | None = None) -> Any:
+        """Counts, missingness and rank of every plan's design, without fitting.
+
+        Returns a :class:`~antecedent.preflight.BatchPreflightReport`; see
+        :func:`antecedent.preflight.diagnose`.
+        """
         from .preflight import diagnose
 
         return diagnose(self, execution=execution)
 
     @property
     def data_diagnostics(self) -> Any:
+        """The data-diagnostics report retained when the batch was prepared (no new work)."""
         from .data_diagnostics import retained_report
 
         return retained_report(self)
 
     def diagnose_data(self, *, suite: Any = None, execution: Execution | None = None) -> Any:
+        """Run the data-quality checks on the batch's owned data.
+
+        See :func:`antecedent.data_diagnostics.diagnose_data` for ``suite``.
+        """
         from .data_diagnostics import diagnose_data
 
         return diagnose_data(self, suite=suite, execution=execution)
@@ -739,16 +812,31 @@ class PreparedBatch:
     def plan_rank_drop(
         self, priority: Sequence[str] | None = None, *, execution: Execution | None = None
     ) -> Any:
+        """Plan an opt-in rank-deficiency drop for every plan under a declared column priority.
+
+        Returns one :class:`~antecedent.preflight.RankDropPlan` per member; see
+        :func:`antecedent.preflight.plan_rank_drop`.
+        """
         from .preflight import plan_rank_drop
 
         return plan_rank_drop(self, priority=priority, execution=execution)
 
     def estimate_cost(self, *, execution: Execution | None = None) -> Any:
+        """Planning counts of every plan and their totals, without executing.
+
+        Returns a :class:`~antecedent.preflight.BatchCostEstimate`; a planning hint, not a
+        runtime guarantee.
+        """
         from .preflight import estimate_cost
 
         return estimate_cost(self, execution=execution)
 
     def inspect(self) -> Any:
+        """An :class:`~antecedent.results.InspectionReport` of the prepared batch.
+
+        Only identification is available before :meth:`estimate`; support, uncertainty and
+        assumptions read ``not_executed``. A refused batch reports its refusal.
+        """
         from .data_diagnostics import _review_count
         from .results._report import InspectionReport, SlotModel
 
@@ -809,6 +897,44 @@ def prepare_many(
     Joint cells preserve their native aligned score covariance, family contrasts,
     and optional aligned Bayesian bootstrap draws. Statistical budgets belong to
     inference or the family declaration; operational settings belong to Execution.
+    Nothing is fitted until :meth:`PreparedBatch.estimate`.
+
+    Args:
+        data: the observations, in any form :func:`antecedent.data.table` accepts; copied into
+            library-owned storage.
+        graph: the structure shared by every member: a :class:`~antecedent.Dag`, a
+            :class:`~antecedent.graph.TieredBackground`, or ``(source, target)`` edges.
+        queries: one or more :class:`~antecedent.AverageEffect` queries, or one or more discrete
+            joint :class:`~antecedent.InterventionResponse` queries; not a mixture.
+        identifier: an identification strategy name; joint cells under a
+            ``TieredBackground`` accept only ``"generalized.adjustment"``. Default ``None``.
+        estimator: the estimator and ``estimator_config`` its options, as for
+            :func:`antecedent.prepare`; joint cells under a ``TieredBackground`` accept only
+            ``"cell.aipw"``. Default ``None``.
+        estimator_config: options of ``estimator``. Default ``None``.
+        refute: refutation depth: ``True``/``False`` or ``"full"``, ``"placebo"``, ``"cheap"``,
+            ``"none"``. Default ``None`` (the engine's default for the inference profile).
+        inference: a :class:`~antecedent.Frequentist` declaration (its ``bootstrap`` and
+            ``profile``); a batch takes no other. Default ``None``.
+        execution: the :class:`~antecedent.Execution` (seed, threads, callbacks). Default
+            ``Execution()``.
+        candidate_screen: a :class:`CandidateScreen` splitting the rows into a screening half and
+            an estimation half. Default ``None``.
+        family: a :class:`CellFamily` for joint cells. Default ``None`` (``CellFamily()`` for
+            joint cells).
+        data_diagnostics: the data-diagnostics setting, as for :func:`antecedent.prepare`.
+            Default ``True``.
+
+    Returns:
+        A :class:`PreparedBatch`. A scientific refusal of the native preparation is held on
+        :attr:`PreparedBatch.refusal` rather than raised.
+
+    Raises:
+        CausalUnsupportedError: ``route_not_supported`` for a mixed or other query family; also
+            raised for a joint-cell identifier or estimator other than the supported pair under a
+            ``TieredBackground``.
+        CausalValueError: no queries, or a ``family`` with average-effect queries.
+        CausalTypeError: an ``execution``, ``inference`` or ``family`` of the wrong type.
     """
     from ._study_lifecycle import replay_declaration, retain
     from ._table_snapshot import table
@@ -925,7 +1051,10 @@ def prepare_many(
 
 
 def rebind_many(study: PreparedBatch, *, data: Any) -> PreparedBatch:
-    """Bind new owned observations, invalidating fits without changing earlier branches."""
+    """Bind new owned observations, invalidating fits without changing earlier branches.
+
+    The function behind :meth:`PreparedBatch.rebind` and :func:`antecedent.rebind` for a batch.
+    """
     from dataclasses import replace
 
     from ._table_snapshot import table
@@ -1015,7 +1144,20 @@ def _retained_work(native: Any) -> tuple[str, ...]:
 
 
 def estimate_many(study: PreparedBatch) -> Outcome[BatchResult]:
-    """Execute once through the native shared-fit family, retaining an immutable run."""
+    """Execute a prepared batch once through the shared-fit family, retaining an immutable run.
+
+    The shared nuisances are fitted once and every member's estimate is computed from them. A
+    callback set as ``on_stage`` on the batch's :class:`~antecedent.Execution` receives each
+    member's stages with a ``query_index`` added to the payload.
+
+    Returns:
+        An :class:`~antecedent.Outcome` of :class:`BatchResult`; the outcome of a refused
+        preparation is returned as it was, and a scientific refusal during execution is a refused
+        outcome. Read :meth:`BatchResult.member` for each answer.
+
+    Raises:
+        CausalTypeError: ``study`` is not a :class:`PreparedBatch`.
+    """
     if not isinstance(study, PreparedBatch):
         raise CausalTypeError("estimate_many requires a PreparedBatch")
     from dataclasses import replace
@@ -1100,7 +1242,17 @@ def estimate_many(study: PreparedBatch) -> Outcome[BatchResult]:
 
 @dataclass(frozen=True, slots=True, repr=False)
 class BatchResult:
-    """A completed native batch with explicit member outcomes and aligned score reuse."""
+    """A completed batch: one outcome per member and the aligned scores they share.
+
+    Fields:
+
+    * ``members`` -- one :class:`~antecedent.Outcome` of :class:`AnalysisResult` per query, in
+      the order of :attr:`PreparedBatch.queries`. A member can be refused while others succeed.
+    * ``study`` -- the :class:`PreparedBatch` after execution (its fits and scores retained).
+
+    Read each answer with :meth:`member`; reweight the family without refitting with
+    :meth:`retarget`. A batch is not one quantity: :meth:`export` raises, export a member instead.
+    """
 
     members: tuple[Outcome[AnalysisResult], ...]
     study: PreparedBatch
@@ -1117,11 +1269,17 @@ class BatchResult:
         return self.members[index]
 
     def export(self) -> Any:
+        """Always raises :class:`~antecedent.errors.CausalValueError`; export a member instead."""
         raise CausalValueError(
             "a batch contains multiple quantities; select member(index).export()"
         )
 
     def inspect(self) -> Any:
+        """An :class:`~antecedent.results.InspectionReport` of the batch.
+
+        A slot is available only when it is available on every member; otherwise inspect the
+        member outcomes individually.
+        """
         from .outcomes import Answer
         from .results._report import InspectionReport, SlotModel
 
@@ -1156,10 +1314,14 @@ class BatchResult:
         return f"<pre>{html.escape(repr(self))}</pre>"
 
     def retarget_rows(self) -> tuple[int, ...] | None:
+        """The row ids that :class:`RetargetClaim` weights align with, or ``None`` when the
+        batch reports none."""
         rows = self._native.retarget_rows()
         return None if rows is None else tuple(int(row) for row in rows)
 
     def retarget_snapshot(self) -> str | None:
+        """The identity of the row snapshot behind :meth:`retarget_rows`; pass it as
+        ``expected_snapshot=`` to :meth:`retarget` to pin a family to these rows."""
         return self._native.retarget_snapshot()
 
     @outcome_operation

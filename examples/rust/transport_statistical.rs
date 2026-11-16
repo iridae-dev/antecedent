@@ -1,4 +1,19 @@
-//! Single-source empirical table. Four reasoning slots with a bootstrap interval.
+//! Transport an experimental result to a target population from a sampled source table.
+//!
+//! Question: what is `P(Y = 1 | do(X = x))` in a target population, estimated from the rows of a
+//! source experiment, and how uncertain is it?
+//!
+//! Data and truth: the graph is `X -> Y` with no selection node. The source experiment has 50
+//! rows at `X = 0` with 25 successes and 100 rows at `X = 1` with 80 successes, so the plug-in
+//! probabilities are 0.5 and 0.8. The catalog declares independent sampling.
+//!
+//! Asserted: the transported point estimates equal 0.5 and 0.8 to within `1e-12`. Before and
+//! after estimation the reasoning view has identification, assumptions and uncertainty
+//! available: 40 bootstrap replicates meet the minimum for a percentile interval.
+//!
+//! What this establishes: the same identified functional as `transport_exact`, evaluated on an
+//! empirical table, carries a bootstrap interval. The example does not check the interval's
+//! endpoints or its coverage, and the absence of selection nodes remains an assumption.
 //!
 //! Run: `cargo run -p antecedent --example transport_statistical`
 //! Source: `examples/rust/transport_statistical.rs`
@@ -123,10 +138,9 @@ fn prepare(
         },
         Assignment::from_pairs([(v(0), Value::Int64(x))]),
         ExactEvaluationLimits::default(),
-        // `PERCENTILE_95_MIN_REPLICATES` is 40: the estimator's earned-percentile
-        // support gate is `bootstrap_replicates >= 40`, so 39 (one below it) would
-        // withhold the uncertainty slot both at inspect time and after estimation,
-        // contradicting `slots(..., true)` below.
+        // A percentile interval needs at least `PERCENTILE_95_MIN_REPLICATES` (40) bootstrap
+        // replicates. With fewer, the uncertainty slot is withheld at inspection and after
+        // estimation.
         EmpiricalTableOptions { bootstrap_replicates: 40, ..EmpiricalTableOptions::default() },
         &ctx,
     )?)

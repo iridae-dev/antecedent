@@ -1,7 +1,8 @@
 # Inspect a plan and read a report
 
-Before anything is estimated you can inspect the program a study compiles to, and afterwards render the records as a readable report. A plan view shows every layer of that program.
-It covers one study under any route: an average effect
+Before anything is estimated you can inspect the program a study compiles to, and afterwards render its records as a readable report. Use the plan view to check what a prepared study will do (which estimand, estimator, uncertainty and memory it plans) before paying for the fit, and the report to hand a reviewer a document of what was run. In Python both start from a prepared study (`ant.prepare(...)`); the [example](#example) shows the calls.
+
+A plan view shows every layer of the lowered program. It covers one study under any route: an average effect
 on a DAG, a temporal response, a randomized trial, a structure search, a
 mixture over a graph posterior, a cyclic family or a standalone experiment
 plan. The view names the route and the family that lowered it. It shows the

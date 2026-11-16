@@ -1,18 +1,34 @@
 # Reuse cross-fitted DML scores to retarget with joint covariance
 
-`DmlAte` (the AIPW score), `DrLearner` and `CausalForest` keep a row-identified, per-arm
-cross-fitted AIPW **score table** of the average effect they report, so a prepared retarget
-and a batch retarget (see [the batch guide](batch-retarget.md)) reweight those scores and
-report the joint plug-in score covariance of the retargeted claims. The claim is
-`point_only`: values and a plug-in score covariance (a standard error is not an interval).
+Use this page when you have fitted an average effect with `DmlAte` (the AIPW score),
+`DrLearner` or `CausalForest` and want the effect in other declared populations without
+refitting. Each of these estimators keeps a row-identified, per-arm cross-fitted AIPW
+**score table** of the average effect it reports, so a prepared retarget and a batch
+retarget (see [the batch guide](batch-retarget.md)) reweight those scores and report the
+joint plug-in score covariance of the retargeted claims. The claim is `point_only`: values
+and a plug-in score covariance (a standard error is not an interval).
 
 ```rust
-let prepared = BatchStudy::new(data, graph)
+let prepared = BatchStudy::new(data.clone(), graph)
     .estimator_spec(DmlAte::new())
     .prepare(&queries, &ctx)?;
 let (results, scores) = prepared.estimate_scored(&data, &ctx)?;
 let report = prepared.retarget(&scores, &request, &ctx)?;
 ```
+
+`request` is a `BatchRetargetRequest`: the named claims, each with row-aligned target
+weights, and the named contrasts. `report` carries each retargeted point, the joint score
+covariance and the members that failed. In Python, retargeting belongs to the completed
+batch (`batch.retarget(...)`); the [batch guide](batch-retarget.md) shows the call and how
+to read the report.
+
+## Estimand
+
+With row weights `w_i` that are fixed functions of certified adjustment covariates, a
+retargeted claim is the weighted mean of the per-row score contrast,
+`theta_w = sum_i w_i (phi1_i - phi0_i) / sum_i w_i`, which estimates the average effect
+`E_w[Y(1) - Y(0)]` in the population the weights describe. Uniform weights return the fitted
+average effect. `phi1_i` and `phi0_i` are defined next.
 
 ## What the table is
 
@@ -95,7 +111,7 @@ For each summarized row the product reports the score at the posterior mode, its
 
 `product.export()` embeds the design the product was fitted on; `nuisance_scores.load_artifact(bytes(product.export()))` refits from it and refuses any edited, truncated or resealed artifact with `CausalSerializationError`. `temporal_treatment_score` is the temporal counterpart for a `TemporalDag` study.
 
-## What stays closed
+## What is refused
 
 - A partially linear DML fit, a trimmed DML fit, a DR-Learner or CausalForest fit under a
   non-`AllObserved` target or trimming: no table, `score_table_unavailable`.
@@ -103,6 +119,11 @@ For each summarized row the product reports the score at the posterior mode, its
   functional grid, so those refuse.
 - DR-Learner CATE profiles and CausalForest CATE intervals are separate cells and are not
   extended by this one.
+
+The `score_table_unavailable` code and the fields every refusal carries are described in
+[refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies).
+For a retarget of a single adjusted fit (a GLM adjustment fit rather than a DML table), see the runnable example
+[`examples/python/retarget_adjusted_fit.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/retarget_adjusted_fit.py).
 
 ## Tests
 

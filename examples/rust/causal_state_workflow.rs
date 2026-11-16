@@ -11,15 +11,33 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
-//! `CausalState` as the primary online append path.
+//! Keep published results consistent with data that changes, using `CausalState`.
 //!
-//! 1. Append (or replace) data — state versions and marks registered queries stale.
-//! 2. Capture the state version before computing; publish with `refresh_results_at`
-//!    under the `CacheBudget` — never auto-reruns on append.
-//! 3. UI code must key on `version` / stale queries so it never mixes an old
-//!    identification summary with a new estimate.
+//! Question: when rows are appended or replaced, which registered queries are stale, and how
+//! does an application publish a recomputed result against the version it was computed from?
+//!
+//! Data: 40 rows with `t` standard normal and `y = 0.5 t` plus noise of scale 0.1. The rows only
+//! feed incremental least-squares sufficient statistics; no effect is estimated, and the result
+//! fingerprints passed to the state are stand-ins.
+//!
+//! The workflow:
+//!
+//! 1. Append or replace data. The state advances its version and marks registered queries
+//!    stale. It never reruns a query by itself.
+//! 2. Capture the state version before computing, then publish with `refresh_results_at` under
+//!    the `CacheBudget`. A refresh over the budget refuses instead of dropping results.
+//! 3. Key application code on the version and the stale-query list, so an old identification
+//!    summary is never shown beside a new estimate.
+//!
+//! Asserted: an explicit refresh clears staleness; one batch is catalogued; the sufficient
+//! statistics count every appended row and both design columns; replacing the data makes the
+//! registered query stale until the next refresh.
+//!
+//! What this establishes: the bookkeeping that ties a result to the data version it read. It
+//! makes no statement about any causal quantity.
 //!
 //! Run: `cargo run -p antecedent --example causal_state_workflow`
+//! Source: `examples/rust/causal_state_workflow.rs`
 
 use std::sync::Arc;
 
@@ -42,7 +60,8 @@ pub fn run() -> Result<(), CausalError> {
         (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
     };
 
-    // Bound retained result bytes; over-budget refresh refuses instead of silent drop.
+    // Bound the bytes of retained results: a refresh over the budget refuses instead of
+    // silently dropping a result.
     let mut state = new_antecedent_state(CacheBudget::new(1 << 20));
 
     let n = 40usize;
@@ -64,7 +83,8 @@ pub fn run() -> Result<(), CausalError> {
     )?;
     println!("version after append={}", ver.raw());
 
-    // Register a query; refresh stores a versioned fingerprint (does not run estimators).
+    // Register a query. A refresh stores a versioned fingerprint of its result; it does not
+    // run an estimator.
     let qid = state.queries.register(CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
         VariableId::from_raw(0),
         VariableId::from_raw(1),
@@ -80,7 +100,8 @@ pub fn run() -> Result<(), CausalError> {
     assert_eq!(state.stale_queries().len(), 0, "an explicit refresh clears staleness");
     assert_eq!(state.data_catalog.batches.len(), 1);
 
-    // Incremental OLS: append rows, then compare shape to a full design.
+    // Incremental least squares: append one row at a time to the sufficient statistics of an
+    // intercept-plus-slope design, then check the row and column counts.
     let key: Arc<str> = Arc::from("m1");
     state.suff_stats.ols.insert(Arc::clone(&key), LinearOlsSuffStats::new(2).expect("dimension"));
     for (ti, yi) in t.iter().zip(y.iter()) {
@@ -90,7 +111,8 @@ pub fn run() -> Result<(), CausalError> {
     println!("ols n={} ncols={}", ols.n(), ols.ncols());
     assert_eq!((ols.n() as usize, ols.ncols()), (n, 2), "every appended row is counted");
 
-    // Replace data → registered query becomes stale until explicit refresh.
+    // Replacing the data invalidates what was computed from it: the registered query is stale
+    // until an explicit refresh publishes a result for the new version.
     let new_ver = state.data_catalog.version.next();
     apply_state_event(&mut state, StateEvent::ReplaceData(new_ver))?;
     println!("after replace stale={}", state.stale_queries().len());

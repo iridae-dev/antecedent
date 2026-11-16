@@ -45,6 +45,23 @@ class ArtifactExpectation(ScientificResult):
 
 @dataclass(repr=False, frozen=True, slots=True)
 class ArtifactAcceptance(ScientificResult):
+    """How a consumer took up an artifact: what was checked and what can be done with it.
+
+    Fields:
+
+    * ``status`` -- ``"replayed"`` (the consumer recomputed the content), ``"loaded"`` (the
+      recorded content was read and checked, not recomputed) or ``"unavailable"`` (nothing was
+      accepted, as for a plain :func:`antecedent.artifacts.inspect`). Read it first, or use
+      :attr:`replayed` and :attr:`answer_available`.
+    * ``identity_bound`` -- whether the artifact was checked against an identity the consumer
+      retained independently of the bytes.
+    * ``replayable`` / ``resumable`` -- whether the artifact can be recomputed, or resumed, from
+      what it carries.
+    * ``recognized`` -- whether the consumer recognized the artifact kind. Default ``True``.
+    * ``proof`` -- the consumer's proof record, when it produces one.
+    * ``unresolved`` -- what the consumer could not resolve.
+    """
+
     status: str
     identity_bound: bool
     replayable: bool
@@ -144,6 +161,14 @@ def _load_execution(context: LoadContext | None, execution: Execution | None) ->
 
 @dataclass(repr=False, frozen=True, slots=True)
 class ArtifactInspection(ScientificResult):
+    """What an artifact container declares about itself, read without accepting it.
+
+    Returned by :func:`antecedent.artifacts.inspect`. ``kind`` names the artifact format,
+    ``manifest`` and ``metadata`` are the container's own declarations, and ``acceptance`` is
+    ``"unavailable"``: inspection recomputes nothing and binds no identity. Load the artifact with
+    its owning consumer to accept it.
+    """
+
     kind: str
     manifest: Mapping[str, Any]
     metadata: Mapping[str, Any]
@@ -151,6 +176,7 @@ class ArtifactInspection(ScientificResult):
     _data: bytes = field(repr=False)
 
     def export(self) -> ExportedArtifact[Any]:
+        """The inspected bytes as an :class:`ExportedArtifact`, unchanged."""
         return ExportedArtifact(self._data, self.kind, metadata={"manifest": self.manifest})
 
 
@@ -250,6 +276,14 @@ _SOURCE_ENVELOPE_MAGICS = (
 
 
 def inspect_artifact(value: Any) -> ArtifactInspection:
+    """Read an artifact container's kind, manifest and metadata without accepting it.
+
+    ``value`` is the artifact bytes or an :class:`ExportedArtifact` (a successful
+    :class:`~antecedent.Outcome` of one is unwrapped). Returns an :class:`ArtifactInspection`
+    whose acceptance is ``"unavailable"``. Raises :class:`~antecedent.errors.CausalTypeError` for
+    any other value, and :class:`~antecedent.errors.CausalSerializationError` for a truncated or
+    malformed container.
+    """
     from . import _native
 
     data = container_bytes(value)

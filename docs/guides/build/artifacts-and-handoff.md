@@ -64,7 +64,7 @@ replayed = loaded.replay()  # the same, on an existing load
 replayed.acceptance.status  # "replayed" when every published part agrees
 ```
 
-A replay recomputes the published numbers from the evidence the artifact carries and never changes the recorded answer. When it does not reach `replayed`, two lists say why: `acceptance.not_replayable` names parts whose evidence the artifact does not carry, which is a limit of the artifact and does not restrict using the loaded answer, and `acceptance.mismatches` names parts that were recomputed and differ. Other artifact families recompute what they publish whenever they load, so `replay=` does not change them.
+A replay recomputes the published numbers from the evidence the artifact carries and never changes the recorded answer. When it does not reach `replayed`, two lists say why: `acceptance.not_replayable` names parts whose evidence the artifact does not carry, which describes the artifact's contents and does not restrict using the loaded answer, and `acceptance.mismatches` names parts that were recomputed and differ. Other artifact families recompute what they publish whenever they load, so `replay=` does not change them.
 
 ### Method provenance travels with the bytes
 

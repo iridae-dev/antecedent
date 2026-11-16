@@ -6,6 +6,38 @@ supplied law; semantic validation does not establish causal identification or
 sampling coverage. Method-specific measured scalar intervals use the separate
 `antecedent.inference.MeasuredInference` carrier.
 
+Use a joint distribution artifact when you hand draws of several quantities to
+another consumer (a decision, an inverse query, a propagation) and the consumer
+must know what each column means and whether row `i` is one joint realization.
+The rules for combining columns are in [joint law propagation](joint-law-propagation.md).
+
+```python
+import numpy as np
+from antecedent.artifacts import DistributionIdentity, JointDistributionArtifact, ScientificQuantity
+
+quantities = tuple(
+    ScientificQuantity(
+        variable_id=f"schema:{name}", variable_name=name, role="outcome",
+        units="dimensionless", population_id="target", regime_id="do(a=1)",
+        horizon=0, functional_id="outcome",
+    )
+    for name in ("x", "y")
+)
+identity = DistributionIdentity(
+    semantic="interventional_predictive", quantities=quantities, alignment="joint",
+    source_id="study", provider_id="provider", rng_id="deterministic_exact",
+    snapshot_id="snapshot", causal_contract_id="checked-contract",
+)
+artifact = JointDistributionArtifact(identity, np.array([[0.0, 0.0], [1.0, 2.0]]))
+artifact.covariance(0, 1)                  # 0.5, over the aligned rows
+data = bytes(artifact.export("joint-example"))
+again = JointDistributionArtifact.load(data, expected_identity=identity)
+```
+
+The consumer passes the identity it retained itself; a changed identity is
+refused on load. For unweighted draws `covariance` divides by the number of draws (it is the
+covariance of the finite draw law, not an estimate of a population covariance).
+
 ## Layout and identity
 
 `DistributionArtifact` is a distinct, versioned artifact kind. It does not

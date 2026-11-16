@@ -1,10 +1,6 @@
 # Check how reliable a sampled or selected decision is
 
-Ask how far a decision computed from Monte Carlo draws can be trusted: how much numerical error its value carries, how much the choice among noisy candidates overstates the winner, and which candidates a search left unexamined. Computing a decision from a supplied law is not the same as establishing that
-the decision is reliable. A decision value that comes from Monte Carlo draws
-carries numerical error; a decision chosen among many noisy candidates is
-optimistic; a ranking over a finite set says nothing about candidates a search
-did not keep. This page shows what the report contains, what it refuses and what stays closed.
+Ask how far a decision computed from Monte Carlo draws can be trusted: how much numerical error its value carries, how much the choice among noisy candidates overstates the winner, and which candidates a search left unexamined. Computing a decision from a supplied law is not the same as establishing that the decision is reliable. Use this page when you hold per-draw utilities of a finite set of candidate actions or policies, from a [decision contract](decisions.md), a cohort decision, a sequential evaluation or your own simulation, and want to know what the ranking among them supports. It shows what the report contains, what it refuses and what stays closed.
 
 Everything in a report is a **point diagnostic labelled uncalibrated**. A
 ranking or optimality probability, confidence set or selection-corrected
@@ -17,7 +13,8 @@ coverage table: a caller cannot supply or declare one.
 ## Assess a decision from draws
 
 `antecedent.decision_reliability` builds the carrier from numpy arrays and
-reports the same three components:
+reports the three components described below. In this sketch `a` and `b` are arrays of
+per-draw utilities of two candidate actions, evaluated on one shared simulation stream:
 
 ```python
 from antecedent import decision_reliability as dr
@@ -227,6 +224,8 @@ a joint law are refused.
 | Statement about candidates the search dropped | not covered | Retain and supply them |
 
 ## Refusals
+
+The details behind these codes and their remedies are listed in [refusal codes: decision reliability and adaptive procedure uncertainty](reference/refusal-codes.md#decision-reliability-and-adaptive-procedure-uncertainty).
 
 | Code | When |
 | --- | --- |

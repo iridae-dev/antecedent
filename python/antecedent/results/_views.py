@@ -74,6 +74,18 @@ __all__ = [
 
 
 class IdentificationView(ResultModel):
+    """The identification section of an :class:`AnalysisResult`.
+
+    * ``status`` -- the engine's identification status, for example
+      ``"NonparametricallyIdentified"``, ``"PartiallyIdentified"`` or ``"NotIdentified"``.
+      ``bool(view)`` is ``True`` exactly when it reads as identified.
+    * ``method`` -- the identification method used.
+    * ``adjustment_set`` -- the adjustment variables, when the method adjusts.
+    * ``assumption_count`` / ``derivation_step_count`` -- sizes of the certificate.
+    * ``horizon_adjustment_sets`` -- one adjustment set per horizon of a temporal query, or
+      ``None``.
+    """
+
     status: str
     method: str
     adjustment_set: Sequence[str]
@@ -92,6 +104,8 @@ class IdentificationView(ResultModel):
 
 
 class MediationView(ResultModel):
+    """Total, natural direct and mediated (indirect) effects of a mediation analysis."""
+
     total: float | None
     direct: float | None
     mediated: float | None
@@ -281,6 +295,25 @@ class CounterfactualContrastView(ResultModel):
 
 
 class EstimateView(ResultModel):
+    """The estimate section of an :class:`AnalysisResult`: the point value and its standard errors.
+
+    Prefer ``result.answer`` for the answer and ``outcome.uncertainty`` for intervals; this view
+    holds the estimator's raw outputs. Read first:
+
+    * ``ate`` -- the primary scalar contrast (for counterfactual results, the mean unit effect),
+      or ``None`` when the result has no scalar. When ``limitation`` is set it is not a point
+      answer for the claim.
+    * ``se_analytic`` / ``se_bootstrap`` -- the analytic (or influence-function) standard error,
+      and the bootstrap one when a bootstrap ran.
+    * ``estimator_id`` and ``method`` -- the estimator that ran (see
+      :class:`~antecedent.Estimator`).
+    * ``overlap_ess``, ``overlap_propensity_min`` and ``overlap_excluded_fraction`` -- overlap
+      diagnostics of weighting estimators.
+
+    The remaining fields are populated only by the estimators that produce them; each is
+    documented where it is declared.
+    """
+
     ate: float | None
     se_analytic: float
     se_bootstrap: float | None
@@ -397,6 +430,23 @@ class ConflictSummaryView(ResultModel):
 
 
 class PosteriorView(ResultModel):
+    """The posterior section of a Bayesian :class:`AnalysisResult`.
+
+    * ``effect_mean`` / ``effect_sd`` -- posterior mean and standard deviation of the effect.
+    * ``q025`` / ``q975`` -- the 2.5% and 97.5% posterior quantiles (the 95% credible interval;
+      see :meth:`interval`), constructed as ``interval_type`` states.
+    * ``n_draws`` and ``backend`` -- the draw count and backend (``laplace``, ``conjugate`` or
+      ``hmc``).
+    * ``p_below_zero`` -- posterior probability that the effect is negative.
+    * ``unidentified_mass`` -- posterior mass on structures under which the effect is not
+      identified; ``envelope`` -- the mixture over weighted graphs, when there is one.
+    * ``conflict`` -- applied external-prior weights after conflict shrinkage, or ``None``.
+
+    When ``limitation`` is set, the moments and quantiles describe a mixture, not an interval
+    for the claim. To keep the draws in portable form, export them with
+    ``result.export(quantity="posterior")``.
+    """
+
     effect_mean: float | None
     effect_sd: float | None
     q025: float | None
@@ -458,11 +508,12 @@ class PosteriorView(ResultModel):
         return f"<PosteriorView {' '.join(parts)}>"
 
     def __array__(self, dtype: Any = None, copy: Any = None) -> Any:
-        """``np.asarray(result.posterior)`` — the raw draws, decoded from ``artifact``.
+        """``np.asarray(result.posterior)``: the raw draws, decoded from ``artifact``.
 
-        Requires ``analyze(..., return_posterior_artifact=True)``; without it
-        ``artifact`` is ``None`` and only the moments/quantiles are available
-        (use :meth:`interval` for the 95% credible interval).
+        Raises ``ValueError`` when the view retains no ``artifact``; only the moments and
+        quantiles are then available (:meth:`interval` gives the 95% credible interval). The
+        draws travel portably as ``result.export(quantity="posterior")``, which
+        :func:`antecedent.load` reads back.
         """
         import numpy as np
 
@@ -480,11 +531,13 @@ class PosteriorView(ResultModel):
         return np.asarray(decoded, dtype=dtype, copy=copy)
 
     def interval(self, level: float = 0.95) -> tuple[float, float]:
-        """Credible interval at ``level``.
+        """Return the equal-tailed credible interval ``(q025, q975)`` at ``level``.
 
-        Only ``level=0.95`` is available: this view retains only ``q025``/
-        ``q975``. Any other level needs the full draws — decode via
-        ``np.asarray(result.posterior)`` and compute the quantile directly.
+        Only ``level=0.95`` is available, because this view retains only ``q025`` and ``q975``.
+        Any other level needs the full draws; compute the quantile from them directly.
+
+        Raises:
+            ValueError: for another ``level``, or when the view has no scalar-effect quantiles.
         """
         if level != 0.95:
             raise ValueError(
@@ -612,6 +665,20 @@ class RefutationReport(ResultModel):
 
 
 class ValidationView(ResultModel):
+    """The validation section of an :class:`AnalysisResult`: refutation checks and their verdicts.
+
+    Refutation checks try to falsify the estimate; passing them does not prove the identifying
+    assumptions. Iterate the view, index it by position or by a report's ``refuter`` name, or
+    read :attr:`failed` and :attr:`uninformative`.
+
+    * ``ran`` -- whether any refutation ran; ``count`` -- how many checks.
+    * ``passed`` -- whether every check passed; ``None`` when no whole-result verdict exists.
+    * ``reports`` -- one ``RefutationReport`` per check.
+    * ``prior_predictive`` / ``posterior_predictive`` / ``prior_sensitivity`` -- Bayesian
+      checks, when run.
+    * ``computation_failures`` -- checks that failed to compute, as opposed to failing.
+    """
+
     passed: bool | None
     ran: bool
     count: int
@@ -896,6 +963,17 @@ class MissingDataView(ResultModel):
 
 
 class PerformanceView(ResultModel):
+    """What the execution cost and how it ran. Nothing here changes the estimate.
+
+    * ``wall_time_ns``, ``peak_memory_bytes``, ``stage_timings`` and ``bytes_borrowed`` --
+      measured cost.
+    * ``latency_mode`` -- the budget profile that applied.
+    * ``bootstrap_replicates_requested`` / ``bootstrap_replicates_ok`` -- replicates asked for
+      and replicates that succeeded; ``n_draws`` -- posterior draws.
+    * ``cancelled`` / ``early_stopped`` -- whether the run was cancelled or stopped early.
+    * ``plan_id`` and ``modality`` -- the physical plan and data modality.
+    """
+
     plan_id: str | None = None
     modality: str | None = None
     peak_memory_bytes: int | None = None
@@ -917,6 +995,7 @@ class PerformanceView(ResultModel):
 
     @property
     def bootstrap_requested(self) -> int | None:
+        """Alias of ``bootstrap_replicates_requested``."""
         return self.bootstrap_replicates_requested
 
     def __repr__(self) -> str:
@@ -975,7 +1054,28 @@ class PhysicalPlanView(ResultModel):
 
 
 class AnalysisResult(ResultModel, ResultAPI):
-    """Nested analysis result matching the Rust facade sections."""
+    """The result of an ordinary analysis: identification, estimate, uncertainty and validation.
+
+    Held as ``outcome.value`` by :func:`antecedent.analyze` and :func:`antecedent.estimate`.
+    Read in this order:
+
+    1. ``answer`` -- the answer as an :class:`~antecedent.outcomes.Answer` (``kind``, then
+       ``value`` or ``bounds``); ``claim()`` states it in one paragraph with identification and
+       calibration.
+    2. ``inspect()`` -- the identification, support, uncertainty and assumption slots.
+    3. ``identification`` (:class:`IdentificationView`), ``estimate`` (:class:`EstimateView`),
+       ``posterior`` (:class:`PosteriorView`, Bayesian only) and ``validation``
+       (:class:`ValidationView`) -- the sections of the run.
+    4. ``interval_bindings`` -- every interval reported, primary first, with its method and
+       level; ``missing_data`` -- the missing-data policy and row accounting.
+    5. ``performance`` (:class:`PerformanceView`) and ``plan`` -- cost and plan.
+
+    ``effect`` and ``ate`` return the primary scalar but warn when a point would misrepresent
+    the claim (a partially identified or graph-dependent answer); ``answer`` never does.
+    ``export()`` writes a portable artifact (``quantity="posterior"`` selects the Bayesian
+    posterior). The remaining fields are populated by the routes that produce them and are
+    documented where declared.
+    """
 
     identification: IdentificationView
     estimate: EstimateView
@@ -1164,7 +1264,10 @@ class AnalysisResult(ResultModel, ResultAPI):
 
     @property
     def mean_ite(self) -> float:
-        """Mean two-world ITE. Only defined when ``unit_effects`` is present."""
+        """The mean of the unit-level effects ``Y(a) - Y(a0)`` of a counterfactual result.
+
+        Raises ``AttributeError`` when the result has no ``unit_effects`` or no scalar effect.
+        """
         if self.unit_effects is None:
             raise AttributeError("mean_ite is only defined for counterfactual results")
         value = self._scalar_effect()
@@ -1237,7 +1340,11 @@ class AnalysisResult(ResultModel, ResultAPI):
         return text
 
     def rendering_limitation(self) -> str | None:
-        """Stable id when a point-mean display would misrepresent the claim."""
+        """Return why a single point would misrepresent this claim, or ``None``.
+
+        A stable id such as ``"identified_set"`` or ``"unidentified_mass"``; when set, displays
+        withhold the point estimate behind the caveat.
+        """
         if self.reasoning is not None:
             limit = self.reasoning.rendering_limitation()
             if limit is not None:

@@ -7,7 +7,14 @@ it reads the status before running, runs only what is open, reports the claim wi
 its status, reports a failure as a coded refusal, and accepts an artifact only
 against the identity it retained. It plans nothing and chooses nothing.
 
-Run: ``python examples/python/reference_host.py``
+The request is 160 simulated rows in which a randomized treatment raises the outcome by 2. The
+script asserts a supported point within 0.6 of 2, that a load and a replay of the artifact
+return the same value, that a replay which cannot recompute refutation reports is relayed as
+partial, and that a refusal, malformed bytes and a wrong identity never yield a supported
+claim. A supported status describes the computation under the declared graph; the host
+certifies no assumption.
+
+Run: ``python examples/python/reference_host.py``.
 """
 
 from __future__ import annotations

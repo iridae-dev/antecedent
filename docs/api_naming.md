@@ -1,7 +1,10 @@
 # Cross-language naming dictionary
 
-Rust and Python expose the **same capabilities** with idiomatic shapes on each side
-(architecture invariant 9: capability parity ≠ API cloning).
+Rust and Python expose the **same capabilities** with idiomatic shapes on each side;
+neither API is a transliteration of the other. This page says where each Python name lives
+(root, stage module or narrower module) and maps each capability to its Rust and Python
+spelling. In the capability and identity tables, each row is one capability: read across for
+the Rust entry point and the Python entry point that reach it.
 
 ## The shape
 
@@ -16,7 +19,10 @@ The day-1 lifecycle is one immutable chain: prepare, estimate, branch, export.
 
 Scientific declarations go in `inference=Frequentist(...)` / `Bayesian(...)` (bootstrap or draws, `profile=`); seed, threads, cancellation, resource limits and observers go in one reusable `execution=Execution(...)`. A valid question that the declared structure cannot answer returns an `Outcome` with a typed `refusal` (or, with `on_refusal="describe"`, the same refusal beside a labelled `associational` outcome and an `evidence_plan`); invalid arguments and operational failures raise.
 
+## Where a name lives
+
 The root namespace (`import antecedent`) has an explicit `__all__` contract. Specialized families live on their stage modules; the namespace tests check the exported names directly.
+
 The `experiment`, `factorial`, `policy`, `quasi`, and `survival` stage
 modules add point-only randomized experiment, factorial, held-out policy,
 DiD, staggered event-study, switchback, and survival utilities. `SwitchbackDesign` and
@@ -51,6 +57,7 @@ The supported trial-IPW cell is
 `antecedent.transport.advanced.TransportQuery`; the structural transport compiler is
 `antecedent.transport.Transport` and is not a root export.
 See [the Python workflow](start/first-analysis.md) for lifetime and report semantics.
+
 The root set is: the seven verbs
 above plus `diagnose_data` and `staleness`; the study, outcome and result types
 (`PreparedAnalysis`, `Outcome`, `Refusal`, `AcceptedGraph`, `Identification`,
@@ -301,7 +308,7 @@ One row per identity domain, including `target_weights`. Rendered from
 Prefer package / module paths for stage depth; keep day-1 at the crate / package root.
 Rust stage APIs are **not** re-exported at the crate root — use `antecedent::io::…`, `antecedent::discovery::…`, `antecedent::gcm::…`, etc.
 
-## A sharp edge worth knowing
+## Sharp edges worth knowing
 
 **Pulse / Sustained vs temporal `ResponseCurve`.** On supported `TemporalDag`
 cells, `PulseEffect` and single-step `SustainedEffect` agree numerically with
@@ -321,6 +328,7 @@ Supported no-refutation runs surface the informational skip on
 `refute.temporal_response.skipped`. Rust `Study` diagnostics carry the same
 code. `PreparedAnalysis.refute` applies to `AverageEffect` and scalar Dag `InterventionResponse` only.
 
+**`import antecedent.identify as m` binds the function, not the module.**
 `__init__.py` does `from .identify import Identification, identify`, which
 rebinds the `identify` attribute on the `antecedent` package to the **function**.
 `import a.b as m` is spec'd as "import `a.b`, then `m = a.b`" — an attribute lookup

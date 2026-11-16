@@ -2,6 +2,8 @@
 
 You can carry something already learned in one population, such as a fitted effect model, a measurement model's error rates, a policy, an adaptive trial or a provider's output, into a declared target population and use it in a decision. Each route states the premise it stands on, inspects no target outcomes and returns its value with that premise attached. The measurement routes also report the parameter uncertainty they propagate, with calibration `not_measured`; the other routes are point-only.
 
+Use this page when what you carry is a fitted object or an external output. When you want a target response identified from source experiments, start at [Carry an effect to another population](transport/carry-an-effect.md); that page also lists [which transport page answers which question](transport/carry-an-effect.md#which-transport-page-answers-your-question).
+
 ## Run a small example
 
 Carry sensitivity and specificity from a source clinic under an explicit invariance premise and compare the target correction with the closed form.
@@ -73,6 +75,8 @@ Check the connection between a declared transported offer and a callback input, 
 **Handoff.** A `TransportedClaimOffer` carries its `TransportIdentity` (source populations, selection diagram, assumptions). A consumer that accepts only native target data refuses it. An accepted handoff stays a transported external claim and its calibration label is never raised. The portable record (`transport_handoff_v1`) is re-derived by the consumer, which rebuilds the offer and contract, re-runs the connection decision and recomputes identities. A stored handoff cannot be relabelled upward. A declared population is the producer's declaration, not proof that data came from it, and a verification receipt covers provider behaviour at exact requests, not the truth of an invariance assumption.
 
 ## What is refused, and what to do
+
+The details and remedies are listed in the reference under [transported cohort effect and measurement transport](../reference/refusal-codes.md#transported-cohort-effect-and-measurement-transport), [transported policy, adaptive trial source and period shift](../reference/refusal-codes.md#transported-policy-adaptive-trial-source-and-period-shift) and [provider-sourced transport and handoff](../reference/refusal-codes.md#provider-sourced-transport-and-handoff).
 
 | Refused request | Reason code | Next step |
 | --- | --- | --- |

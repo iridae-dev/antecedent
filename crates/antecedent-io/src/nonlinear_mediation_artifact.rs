@@ -64,6 +64,10 @@ pub const NONLINEAR_MEDIATION_ARTIFACT_VERSION: u16 = 1;
 /// The feature marker of the accepted format.
 pub const NONLINEAR_MEDIATION_ARTIFACT_FEATURE: &str = "nonlinear_mediation_v1";
 /// Most analysis rows an artifact embedded under the earlier fixed ceiling.
+///
+/// Deprecated and not enforced: the estimate has no row ceiling. Bound the computation with
+/// the memory limit of the context passed to [`NonlinearMediationArtifact::seal_with`], and the
+/// artifact size with the export budget of [`NonlinearMediationArtifact::to_bytes_within`].
 #[deprecated(
     since = "2.4.1",
     note = "no longer enforced: the estimate has no row ceiling; the export and computation budgets bound the artifact"

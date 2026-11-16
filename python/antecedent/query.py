@@ -271,13 +271,31 @@ def _coordinate_values(
 
 @dataclass(frozen=True, slots=True)
 class AverageEffect:
-    """Average treatment effect (static tabular).
+    """The average treatment effect ``E[Y(active)] - E[Y(control)]`` on tabular data.
 
-    ``control_level`` and ``active_level`` name the two arms of the treatment column: numbers
-    for a numerically coded column, or both labels (``str``) for a string- or category-coded
-    one (``control_level="a", active_level="b"``). Labels are mapped to the arm codes and run
-    the declared-level contrast of the numeric path; a row at any other label is refused
-    (``treatment_level_undeclared``).
+    The mean outcome had every unit in the target population been set to ``active_level``,
+    minus the mean had every unit been set to ``control_level``. Pass it as ``query=`` to
+    :func:`antecedent.analyze` or :func:`antecedent.prepare` with a graph; identification
+    chooses the adjustment, and ``outcome.answer.value`` is the estimate.
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``control_level`` / ``active_level`` -- the two arms of the treatment column (defaults
+      ``0.0`` and ``1.0``): numbers for a numerically coded column, or both labels (``str``) for
+      a string- or category-coded one (``control_level="a", active_level="b"``). Labels are
+      mapped to the arm codes and run the declared-level contrast of the numeric path; a row at
+      any other label is refused (``treatment_level_undeclared``).
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    * ``outcome_functional`` -- the functional of each arm's outcome distribution that is
+      contrasted: :class:`Mean` (``None``, the default), :class:`Exceedance`,
+      :class:`ExceedanceGrid` or :class:`Quantile`.
+
+    Example::
+
+        query = antecedent.AverageEffect("t", "y")
+        outcome = antecedent.analyze(data, graph=[("z", "t"), ("z", "y"), ("t", "y")], query=query)
     """
 
     treatment: str
@@ -421,7 +439,18 @@ class TemporalConditionalSustained:
 
 @dataclass(frozen=True, slots=True)
 class InterventionalDistribution:
-    """Interventional distribution query (static)."""
+    """The distribution of ``outcome`` under a hard intervention, ``P(Y | do(X = x), Z)``.
+
+    * ``outcome`` -- the outcome column.
+    * ``interventions`` -- ``{column: value}`` settings of the intervened variables (default
+      none). The outcome cannot be intervened on.
+    * ``conditioning`` -- columns ``Z`` to condition on (default none); they may not overlap the
+      outcome or the intervened variables.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    """
 
     outcome: str
     _: KW_ONLY
@@ -433,7 +462,25 @@ class InterventionalDistribution:
 
 @dataclass(frozen=True, slots=True)
 class PathSpecificEffect:
-    """Path-specific effect query (static)."""
+    """The effect of ``treatment`` on ``outcome`` transmitted along a restricted set of paths.
+
+    The contrast of ``active_level`` against ``control_level`` when the change propagates only
+    along the directed paths selected by ``path_nodes``; identified by the path-restricted
+    natural-effect strategy (``Identifier.PATH_SPECIFIC_NATURAL``).
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``path_nodes`` -- intermediate variables that every counted path must pass through, in
+      any order; ``None`` (default) counts all directed paths.
+    * ``control_level`` / ``active_level`` -- the contrasted treatment values (defaults ``0.0``
+      and ``1.0``).
+    * ``max_paths`` -- the most paths enumerated (default ``64``).
+    * ``max_len`` -- the longest path enumerated, in edges (default ``16``). Both caps change
+      which paths are summed, so they are part of the question.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    """
 
     treatment: str
     outcome: str
@@ -786,12 +833,34 @@ class ResponseCurve:
 
     @property
     def is_temporal(self) -> bool:
+        """``True`` when the query declares ``horizons`` and so is a temporal response."""
         return self.horizons is not None
 
 
 @dataclass(frozen=True, slots=True)
 class AverageDerivative:
-    """Population-average derivative of a continuous-treatment response."""
+    """The population-average derivative ``E[m'(A)]`` of a continuous-treatment response.
+
+    ``m(a) = E[Y | do(A = a)]`` is the dose-response curve; the derivative is averaged over the
+    observed treatment law (the only supported ``weighting``) using a Gaussian-score Riesz
+    representer. That representer assumes the treatment is homoskedastic Gaussian given the
+    adjustment set; on a skewed, heteroskedastic treatment law the interval's coverage is not
+    supported.
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``weighting`` -- the law the derivative is averaged over; ``None`` (default) is the
+      observed treatment law.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    * ``observation`` / ``observation_assumptions`` -- how the scientific outcome was recorded
+      (an :mod:`antecedent.observation` mechanism) and the identifying assumptions about that
+      recording; default none.
+
+    Raises:
+        CausalValueError: when ``treatment`` or ``outcome`` is not a nonempty name.
+    """
 
     treatment: str
     outcome: str
@@ -811,7 +880,25 @@ class AverageDerivative:
 
 @dataclass(frozen=True, slots=True)
 class PointDerivative:
-    """Local derivative of a response curve at one treatment value."""
+    """The derivative ``m'(a)`` (or ``m''(a)``) of the dose-response curve at one treatment value.
+
+    ``m(a) = E[Y | do(A = a)]``. The estimate is the slope of the curve itself, not a smoothed
+    surrogate, and needs an explicit ``bandwidth`` in ``estimator_config``. The published
+    interval is robust bias-corrected, so it is centered at the bias-corrected slope rather
+    than at the point value.
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``at`` -- the treatment value ``a``; required and finite.
+    * ``order`` -- ``1`` for the slope (default) or ``2`` for the curvature.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    * ``observation`` / ``observation_assumptions`` -- as on :class:`AverageDerivative`.
+
+    Raises:
+        CausalValueError: when ``at`` is not finite, ``order`` is not 1 or 2, or a name is empty.
+    """
 
     treatment: str
     outcome: str
@@ -833,7 +920,24 @@ class PointDerivative:
 
 @dataclass(frozen=True, slots=True)
 class Elasticity:
-    """Log-outcome/log-treatment derivative at a positive treatment value."""
+    """The elasticity ``a m'(a) / m(a)`` of the dose-response curve at a positive treatment value.
+
+    The percentage change in the mean outcome per percentage change in treatment at ``a``. The
+    fitted response at ``a`` must be positive, and an explicit ``bandwidth`` is needed in
+    ``estimator_config``. When the level is not statistically separated from zero no finite
+    interval is published (``response.derivative_interval_unbounded``).
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``at`` -- the treatment value; required, finite and positive.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    * ``observation`` / ``observation_assumptions`` -- as on :class:`AverageDerivative`.
+
+    Raises:
+        CausalValueError: when ``at`` is not finite and positive, or a name is empty.
+    """
 
     treatment: str
     outcome: str
@@ -854,7 +958,25 @@ class Elasticity:
 
 @dataclass(frozen=True, slots=True)
 class SemiElasticity:
-    """Derivative using one logarithmic scale and one identity scale."""
+    """A semi-elasticity of the dose-response curve at one treatment value.
+
+    With ``log_scale="treatment"`` (default) it is ``a m'(a)``, the change in mean outcome per
+    proportional change in treatment; with ``log_scale="outcome"`` it is ``m'(a) / m(a)``, the
+    proportional change in mean outcome per unit of treatment.
+
+    * ``treatment`` / ``outcome`` -- column names.
+    * ``at`` -- the treatment value; finite, and positive when ``log_scale="treatment"``.
+    * ``log_scale`` -- ``"treatment"`` or ``"outcome"``.
+    * ``target_population`` -- the population the effect averages over, an
+      :mod:`antecedent.population` type such as ``Treated()``; ``None`` (default) is every
+      observed row. Estimators that cannot target a declared population refuse it
+      (``population_not_estimable``).
+    * ``observation`` / ``observation_assumptions`` -- as on :class:`AverageDerivative`.
+
+    Raises:
+        CausalValueError: when ``log_scale`` is not one of the two names, ``at`` is invalid, or a
+            name is empty.
+    """
 
     treatment: str
     outcome: str
@@ -1011,6 +1133,7 @@ class InterventionResponse:
 
     @property
     def is_temporal(self) -> bool:
+        """``True`` when the query declares ``horizons`` and so is a temporal response."""
         return self.horizons is not None
 
 
@@ -1081,6 +1204,7 @@ class TemporalQuery:
 
     @property
     def is_temporal(self) -> bool:
+        """Always ``True``: a ``TemporalQuery`` is temporal by construction."""
         return True
 
 

@@ -1,4 +1,11 @@
-//! Facade errors.
+//! [`CausalError`], the error type of every facade entry point, and its refusal vocabulary.
+//!
+//! A failure is either a refusal (the library declines a question it cannot answer under the
+//! declared structure, data or support, and names why) or an error in the input or the
+//! computation. [`CausalError::reason_code`] returns the registered reason code a refusal
+//! carries, and [`CausalError::is_identification_refusal`] separates "the question is not
+//! identified" from budgets, cancellations and invalid arguments. Component-crate errors are
+//! wrapped in their own variants so the original cause stays inspectable.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

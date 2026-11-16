@@ -1,10 +1,15 @@
 # Inspect data quality before estimation
 
-Preparation automatically collects a bounded, fit-free `DataDiagnostics` report.
-The report describes suspicious measurements under the prepared question's roles.
-It never drops rows, changes an adjustment set, chooses an estimator, or changes
-identification or scientific standing. Review findings need human interpretation;
-there is no p-value or automatic rejection of a scientific model.
+Use this page to read what a table looks like before you fit anything: missing or
+non-finite cells, constant and near-constant columns, heavy tails, low numeric resolution,
+duplicate rows and a nearly empty treatment arm. `ant.prepare(...)` collects a bounded,
+fit-free `DataDiagnosticsReport` automatically and keeps it on `study.data_diagnostics`;
+`ant.diagnose_data(...)` produces the same report for a table with no prepared study.
+
+The report describes suspicious measurements under the prepared question's roles
+(treatment, outcome, adjustment). It never drops rows, changes an adjustment set, chooses
+an estimator, or changes identification or support. A finding needs human interpretation:
+there is no p-value and no automatic rejection of a scientific model.
 
 ```python
 import numpy as np
@@ -20,11 +25,20 @@ for finding in report.findings:
     print(finding.code, finding.observation, finding.criterion, finding.next_action)
 ```
 
-`report.columns` contains typed column summaries; `report.checks` records evaluated,
-inapplicable, disabled and unavailable checks. Missing values and infinities count
-as non-finite. Undefined moments stay absent. The `blocking` severity is reserved
+Each finding carries its `code` (such as `data.missingness` or `data.treatment_imbalance`),
+a `severity`, the `columns` and `roles` it concerns, the measured `observation`, the
+`criterion` it met, an `interpretation`, a `next_action`, and `sampled`, which says whether
+the measurement came from a row sample rather than the full table.
+
+`report.columns` contains typed column summaries. `report.checks` records every check with
+a `status` of `evaluated`, `not_evaluated` (with a `reason`, such as a disabled suite or too
+few observed values) or `not_applicable`. Missing values and infinities count
+as non-finite. Undefined moments stay absent (`None`). Severities are `review`,
+`informational` and `blocking`; `blocking` is reserved
 for preflight execution requirements, such as a rank-deficient
 regression design. Collecting that finding never itself refuses preparation.
+
+Runnable example: [`examples/python/data_diagnostics.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/data_diagnostics.py).
 
 Prepared inspection and `repr(study)` show bounded finding counts. Python emits
 no warnings. Reports and their nested collections are immutable Python values.
@@ -118,6 +132,8 @@ The standalone Rust API is `antecedent::diagnose_data`; prepared Rust handles ex
 `data_diagnostics()` and `diagnose_data(&policy, &ctx)`. Configure collection with
 `StudyBuilder::data_diagnostics(Some(policy))` or disable it with `None`; batch
 builders expose the same setting.
+
+## Related checks
 
 [Preflight diagnostics](preflight-diagnostics.md) keep their own execution
 requirements and relationship checks. [Staleness](staleness.md) compares snapshots

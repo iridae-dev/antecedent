@@ -24,6 +24,8 @@ for cell in result.cells:           # one entry per cell; an unsupported cell sa
     print(cell.levels, cell.status, cell.estimate)
 ```
 
+Each cell estimate is the mean potential outcome `mu_c = E[Y(do(T = c))]` over the rows, where `c` is a cell code (here bit 0 is `a` and bit 1 is `b`, so cell 3 is `a = 1, b = 1`), identified by adjustment for the declared set `Z` (here `age`). The identifying premises are yours: `Z` blocks every back-door path from the components to `Y`, and every cell has positive probability given `Z`. `cell_minus_control:3` is `mu_3 - mu_0`, and `interaction` is `mu_3 - mu_1 - mu_2 + mu_0`, the change in the effect of `a` when `b` is set to 1. `result.contrasts` holds the contrasts, `result.sensitivity` the [ordering sensitivity](#checks) and `result.claim` is `"point_only"`. A cell that cannot be estimated keeps a `refusal` naming why ([per-cell support](#read-per-cell-support-and-refusals)).
+
 ## The derived-treatment declaration
 
 A declaration states the source columns, the transformation, the legal derived values, the
@@ -200,11 +202,6 @@ declaration (see the cost section of [preflight diagnostics](preflight-diagnosti
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).
 
-## Related
-
-- [Fit and compare coordinated intervention programs](joint-intervention-responses.md)
-- [Joint distributions](../joint-distributions.md)
-
 ## Why a joint-cell family has no interval or joint covariance
 
 A refusal here is scientific, not a calibration gap. The conditional propensities of the
@@ -216,3 +213,9 @@ arbitrary learner's remainder, whose convergence rate cannot be checked from the
 cross-fitted interval is valid only under a verified product-rate condition. No construction
 of the interval or covariance is valid without those conditions, so the point estimates and the
 aligned score table are the whole result. Calibration plays no part in this refusal.
+
+## Related
+
+- [Fit and compare coordinated intervention programs](joint-intervention-responses.md)
+- [Joint distributions](../joint-distributions.md)
+- [Refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes): `derived_treatment_invalid`, `joint_cell_unsupported`, `arm_not_populated`, `penalized_interval_not_supported` and `ml_nuisance_not_supported`

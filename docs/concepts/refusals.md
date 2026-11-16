@@ -33,6 +33,8 @@ The refusal's `code` is a registered reason; `detail` names the specific slot; `
 
 Operational failures raise subclasses of `ant.CausalError` instead. Invalid arguments, cancellation, resource limits and callback failures are not scientific outcomes, and they are never returned as one.
 
+Functions that do not return an `Outcome`, such as many stage-module entry points, raise a refusal instead of returning it: an `antecedent.errors.CausalUnsupportedError` (structured refusals subclass it as `StructuredRefusal`) carrying the same `reason_code`, `detail` and `remedy`. Catch that class to tell a refusal from an operational failure. On a returned refusal, `outcome.refusal.raise_error()` raises the original error if your code prefers exceptions.
+
 The [codes and remedies](../reference/refusal-codes.md) are listed in the reference.
 
 ## Describing what the data do say

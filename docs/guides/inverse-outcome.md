@@ -5,6 +5,13 @@ you enumerate: *which of these interventions reach a target mean?* The answer is
 `E[Y^do(a)] >= threshold` (or `<=`) for the outcome, population and horizon of an
 existing, supported forward response route. The claim is `point_only`.
 
+Use it when you already have a forward response curve (a `ResponseCurve` or a temporal
+dose-by-horizon surface) and want to know which of a finite list of candidate doses meets a
+target mean within a budget and your own constraints. For a probability or quantile target,
+use a source that supplies an outcome law ([below](#ask-a-probability-or-quantile-question-of-a-composed-model));
+for choosing among actions under a utility, use a [decision contract](../decisions.md). In the
+snippet, `data` holds the treatment `t` and outcome `y` and `edges` is the declared graph.
+
 ```python
 import antecedent as ant
 from antecedent.inverse import Action, TargetMean, inverse_outcome
@@ -121,6 +128,8 @@ retain one time coordinate.
 
 The probability, quantile and observational refusals are raised before any input is read.
 
+The codes and their general remedies are in [refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes); the transported and composed source details are under [transported decisions and inverse forward sources](../reference/refusal-codes.md#transported-decisions-and-inverse-forward-sources).
+
 ## Inverse queries on composed, cohort and transported sources
 
 Inverse queries and decisions can also consume a composed mechanism, a cohort-mean
@@ -217,7 +226,6 @@ The mass of the event no scenario explains is reported, not renormalized away.
 | Event with no mass | typed refusal | Choose a supported event |
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).
-
 
 ### Ask a probability or quantile question of a composed model
 

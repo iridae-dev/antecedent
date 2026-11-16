@@ -11,12 +11,28 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
-//! Discover-once → many interactive estimates.
+//! Discover a structure once, accept a graph, then estimate repeatedly without rediscovery.
 //!
-//! Discover with PC, accept a fully oriented DAG for estimate clicks, then
-//! re-estimate via `PreparedStudy` without rediscovery.
+//! Question: how does an interactive application separate the one structure search from the
+//! many estimates that follow it?
+//!
+//! Data and truth: 500 rows from `Z ~ N(0, 1)`, `T ~ Bernoulli(sigmoid(-0.4 + 0.9 Z))`,
+//! `Y = 2 T + Z + 0.4 noise`. The average effect of `T` on `Y` is 2.
+//!
+//! Steps: run PC once; accept a fully oriented DAG; estimate through `Study::run`; then
+//! re-estimate through a `PreparedStudy`, which reuses the compiled plan. The accepted DAG is the
+//! generating graph, written by hand to stand in for a reviewer's decision. The discovered
+//! structure is not inspected.
+//!
+//! Asserted: discovery ran once; the first estimate is within 0.75 of 2; the second and the
+//! prepared estimates are finite; the accepted DAG survives a JSON round trip with its node count.
+//!
+//! What this establishes: estimation on an accepted graph and re-estimation on a prepared
+//! handle never re-enter discovery. It does not show that PC recovers this graph: the search runs
+//! with marginal tests only and its output is unused.
 //!
 //! Run: `cargo run -p antecedent --example discover_then_estimate`
+//! Source: `examples/rust/discover_then_estimate.rs`
 
 use std::sync::Arc;
 
@@ -105,7 +121,8 @@ pub fn run() -> Result<(), CausalError> {
     let (data, accepted_dag, query) = confounded_scm(500, 7);
     let ctx = ExecutionContext::for_tests(1);
 
-    // Structure-ready click (once).
+    // The structure search runs once. `max_cond_size: 0` restricts it to marginal
+    // independence tests, which keeps the example fast.
     let vars = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
     let params = StaticDiscoverParams {
         alpha: 0.5,
@@ -120,7 +137,8 @@ pub fn run() -> Result<(), CausalError> {
     let discovery_calls = 1u32;
     let _ = &discovery.evidence.graph;
 
-    // Spreadsheet review: accept a fully oriented DAG for estimate clicks.
+    // Review: the accepted graph is a fully oriented DAG. Estimation requires an accepted
+    // structure; a discovery output is never estimated on directly.
     let analysis = Study::tabular(data.clone())
         .graph(accepted_dag.clone())
         .query(query.clone())
@@ -135,9 +153,10 @@ pub fn run() -> Result<(), CausalError> {
         .refute(RefuteSuite::None)
         .build()?
         .run(&ctx)?;
+    // A prepared study compiles once; each `estimate` call reuses the plan on the given rows.
     let prepared = analysis.prepare(&ctx)?;
     let third = prepared.estimate(&data, &ctx)?;
-    // Prepared / graph= paths never re-enter discovery.
+    // Neither a supplied graph nor a prepared handle re-enters discovery.
     assert_eq!(discovery_calls, 1);
 
     assert!(
@@ -149,7 +168,7 @@ pub fn run() -> Result<(), CausalError> {
             && third.estimate().as_effect().unwrap().ate.is_finite()
     );
 
-    // Durable hold for the next session.
+    // Persist the accepted graph so a later session starts from the reviewed structure.
     let names = ["t".to_string(), "y".to_string(), "z".to_string()];
     let json = dag_to_json(&accepted_dag, Some(&names))?;
     let restored = dag_from_json(&json)?;

@@ -1,8 +1,53 @@
 # Use earlier posteriors as priors
 
-Carry what earlier analyses learned into a new Bayesian analysis as power or mixture priors, with the transfer, its conflict handling and its sensitivity recorded. A prior changes the posterior; it does not make an unidentified effect identified.
+Use this page when earlier analyses (previous surveys, an earlier batch, a related product)
+already estimated the coefficients a new Bayesian analysis needs, and you want the new fit to
+start from them. You compose the earlier posteriors into one Gaussian coefficient prior as
+power or mixture priors, and the transfer, its conflict handling and its sensitivity are
+recorded with the result. A prior changes the posterior; it does not make an unidentified
+effect identified.
 
-Surveys are the usual motivating domain (product and context tags), but Antecedent speaks in **sources** (earlier posteriors), **targets** (the new analysis) and **designs**.
+Surveys are the usual motivating domain (product and context tags), but Antecedent speaks in
+**sources** (earlier posteriors), **targets** (the new analysis) and **designs**.
+
+```python
+import antecedent
+from antecedent.priors import ExternalPriorSourceSpec, ExternalPriorWeight, compose_external_priors
+
+# One spec per source: the mean and V0 diagonal of its coefficient prior,
+# in the target design's coefficient order.
+specs = [
+    ExternalPriorSourceSpec("survey_launch", mean=(0.0, 2.0, 0.0), variance=(1.0, 0.25, 1.0),
+                            weight=ExternalPriorWeight(alpha=1.0)),
+    ExternalPriorSourceSpec("survey_retention", mean=(0.0, 1.5, 0.0), variance=(1.0, 0.25, 1.0),
+                            weight=ExternalPriorWeight(alpha=0.5)),
+]
+composed = compose_external_priors(specs)          # power prior: precisions add, scaled by alpha
+composed.alphas_requested, composed.alphas_applied # what you asked for, what was used
+
+outcome = antecedent.analyze(
+    data, graph=edges, query=query,
+    inference=antecedent.Bayesian(backend="conjugate", prior_from=composed),
+    refute="full",                                 # adds the prior predictive check and prior sensitivity
+)
+result = outcome.value
+```
+
+**Notation.** Source `k` contributes a Gaussian coefficient prior with precision `Λ_k`. Its
+power-prior weight `α_k` in `[0, 1]` discounts that precision, so the composed precision on
+the power path is `Λ = Λ_0 + Σ_k α_k Λ_k`, with `Λ_0` the weakly informative baseline. A
+mixture weight `w_k` instead gives source `k` a share of a mixture whose moment-matched
+Gaussian is the composed prior; weight not assigned to a source stays on the baseline.
+
+**Reading the result.** `composed.alphas_applied` can be smaller than
+`composed.alphas_requested`, never larger: a conflict policy or a transport check shrinks a
+source's weight and records why. After the fit, `result.validation.prior_predictive` is the
+check of the data against the prior in force, and `result.validation.prior_sensitivity`
+shows how the reported effect moves as the prior is weakened or strengthened
+(`alphas` and `effect_means` for a composed prior). A posterior that moves materially across
+that grid is driven by the prior, and should be reported as such. The posterior's interval
+is a credible interval under the composed prior and the model; no coverage is claimed for it
+beyond the calibration status the result carries.
 
 ## Workflow
 
@@ -315,6 +360,27 @@ to `V0` units) is added to the source `V0`. When the weights' Kish ESS falls
 below `TRANSPORT_MIN_KISH_ESS = 20`, α is forced to 0 and the reason recorded.
 
 Unsupported environment / unidentified shifts are **not claimed**.
+
+## Refusals
+
+| Situation | Code |
+| --- | --- |
+| source and target populations differ and no `TransportPolicy` was given | `transport_policy_required` |
+| the number of source populations does not match the number of sources | `transport_source_count_mismatch` |
+| transport weights that are not finite, non-negative and normalisable | `transport_invalid_weights` |
+| a banked posterior whose coefficient count does not match the target design's | `prior_dimension_mismatch` |
+| a route that fits under the isotropic prior scale and does not hydrate a transferred prior | `prior_transfer_not_hydrated` |
+| a transferred prior onto a non-Gaussian link the Bayesian route cannot carry it to | `likelihood_not_supported` |
+| a power-prior `α` outside `[0, 1]`, or a negative mixture weight | rejected as an invalid value |
+
+Each code is described under
+[other registered refusal codes](reference/refusal-codes.md#other-registered-refusal-codes).
+A catalog check does not raise: `compatible_with` returns a `CompatibilityReport` per source
+whose `status` is `compatible`, `partial` or `rejected`, with the `reason` for a rejection
+(for example `estimand_mismatch` or `temporal_coordinates_missing`). Two outcomes are
+deliberately not refusals: a source in conflict with the data, or with transport weights of
+Kish ESS below 20, keeps its place in the result with `α` forced toward or to 0 and the
+reason recorded.
 
 ## Rank studies from prior evidence
 

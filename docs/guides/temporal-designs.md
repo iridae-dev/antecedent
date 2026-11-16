@@ -2,23 +2,7 @@
 
 Estimate what a decision at one period did to a later outcome, or what a whole treatment path would have produced, from tables with one row per unit and period. You can analyse micro-randomized or sequentially randomized trials (the excursion effect of one decision), observational decision data (modelling the decision on measured history), static regimes on a continuous outcome, and survival under always-treat versus never-treat.
 
-`CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design` (Python) read the table. Where the experimenter recorded the assignment law, the recorded law identifies the target by design. Regime survival, the observational excursion and the observational regime contrast read observational data under declared sequential exchangeability. No route here has a cell in
-the support matrix. The sequentially randomized designs (two-arm, multi-arm, categorical,
-factorial, interference, the three dose targets and the median) and regime survival each have a
-frequentist and a Bayesian row in the
-[graphless support matrix](../graphless-support-matrix.md): a fit that meets its row's
-thresholds states the row (Python: `TemporalDesignEstimate.supported`; Rust:
-`StudyResult::states_section_row()`, the `estimate.temporal_design.graphless_support`
-diagnostic). A row names the fewest independent
-sequences and decisions and the smallest assignment probability it was measured at, and a
-posterior or bootstrap row also needs the measured number of draws or replicates. A row is
-stated for the settings that were measured: the median (not another quantile level), the
-local-quadratic level with a declared curvature bound of zero, and a survival horizon of at
-most three periods. Each row's coverage was measured on one named coordinate; the simultaneous
-band, the Holm-adjusted p-values and the other coordinates are published and not covered by
-the row. Every other fit, and both observational designs, executes as an **unsupported**
-structured answer, and every interval and posterior carries its calibration status in
-`TemporalDesignEstimate.calibration`.
+`CausalQuery::TemporalDesign` (Rust) and `antecedent.temporal_designs.estimate_temporal_design` (Python) read the table, and `antecedent.analyze` takes the same designs as typed queries. Where the experimenter recorded the assignment law, the recorded law identifies the target by design. Regime survival, the observational excursion and the observational regime contrast read observational data under declared sequential exchangeability. No graph is involved, so no route here has a cell in the graph-indexed [support matrix](../support-matrix.md); support is stated per row of the graphless matrix (see [When a fit is supported](#when-a-fit-is-supported)).
 
 ## Typed queries
 
@@ -46,6 +30,28 @@ whole-procedure bootstrap standard deviation (set when the route resampled with 
 `posterior_standard_deviation` is set for a Bayesian result. A rebound table must
 repeat the units, periods and recorded assignment law.
 
+No example script in `examples/` covers these designs; the code blocks on this page are the
+starting point.
+
+### When a fit is supported
+
+The sequentially randomized designs (two-arm, multi-arm, categorical,
+factorial, interference, the three dose targets and the median) and regime survival each have a
+frequentist and a Bayesian row in the
+[graphless support matrix](../graphless-support-matrix.md): a fit that meets its row's
+thresholds states the row (Python: `TemporalDesignEstimate.supported`; Rust:
+`StudyResult::states_section_row()`, the `estimate.temporal_design.graphless_support`
+diagnostic). A row names the fewest independent
+sequences and decisions and the smallest assignment probability it was measured at, and a
+posterior or bootstrap row also needs the measured number of draws or replicates. A row is
+stated for the settings that were measured: the median (not another quantile level), the
+local-quadratic level with a declared curvature bound of zero, and a survival horizon of at
+most three periods. Each row's coverage was measured on one named coordinate; the simultaneous
+band, the Holm-adjusted p-values and the other coordinates are published and not covered by
+the row. Every other fit, and both observational designs, executes as an **unsupported**
+structured answer, and every interval and posterior carries its calibration status in
+`TemporalDesignEstimate.calibration`.
+
 ## The excursion target
 
 At each decision period `t` a unit's treatment is drawn from a law the experimenter records:
@@ -56,7 +62,9 @@ assignment following the design. This is the causal excursion effect of micro-ra
 trials (Boruvka et al. 2018, doi:10.1080/01621459.2017.1305274). Carryover is inside the
 target, which is what separates it from the switchback direct effect: the switchback route
 assumes no carryover. Decisions whose outcome period lies past the unit's follow-up are left
-unpaired and counted.
+unpaired and counted. The target is identified because each assignment is drawn with a recorded
+probability, at least `min_probability` (default 0.05), given the unit's history; consistency
+and no interference between units (outside the interference design's clusters) are declared.
 
 | Design (`design=`) | Coordinates | Frequentist | Bayesian |
 | --- | --- | --- | --- |
@@ -215,6 +223,8 @@ uncertain.uncertainty.names, uncertain.uncertainty.sd
 `posterior_draws` (block-weight posterior) or `bootstrap_replicates` (circular-block bootstrap) adds `rolled.uncertainty`: the spread over refits of the dynamics for the step means, and, in the `path.step[..]` quantities, one simulated path per refit. A path's summaries are the predictive law of a path, which adds the fitted innovation noise to the refit uncertainty, so they are much wider than the step-mean summaries. The rollout is the fitted model's projection under the interventions you schedule, not an identified effect of those interventions.
 
 ## What is refused, and the remedy
+
+Each code is described with its remedies in [refusal codes](../reference/refusal-codes.md).
 
 | Refused request | Reason code | Remedy |
 | --- | --- | --- |

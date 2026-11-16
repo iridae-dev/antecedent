@@ -4,6 +4,11 @@ A retailer runs a geographic experiment with an advertising platform to measure 
 
 Should the retailer stop because the effect is not significant at 0.05? Continue because the estimated return is positive? Or run the experiment longer? This tutorial answers with a causal result, a decision contract, a risk question, and the value of more evidence, and it shows where each step refuses and why.
 
+- **You will learn** what a p-value does and does not say about a decision, how to declare actions and utilities as a decision contract, why a result that carries only a mean refuses a risk question, how to state a belief that can answer it, and how to value a further study against its cost.
+- **Before you start:** [installation](../start/installation.md) and [a first analysis](../start/first-analysis.md). [Reading a result](../start/reading-a-result.md) explains the fields used here.
+- **Time:** the example runs in under a minute.
+- **Run it:** `python examples/python/decide_under_uncertainty.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/decide_under_uncertainty.ipynb). The complete script is embedded [below](#the-complete-example).
+
 ## The task
 
 A decision to advertise is made for a population of regions, over a stretch of days, in dollars. The experiment gives an estimate of the effect on orders; the business supplies what an order is worth and what advertising costs. Antecedent connects the two and keeps the uncertainty attached.
@@ -14,7 +19,7 @@ The data are simulated, and the mechanism is declared:
 orders[r] = 12,000 + 1,000 × advertised[r] + u[r]
 ```
 
-There are 40 regions. Twenty were chosen at random for advertising and 20 held back. Regional variation `u` has a standard deviation of 1,750 orders per region per day, and shoppers in one region are not affected by advertising in another. The true effect is 1,000 orders per region per day. That is a truth of this fixture and useful because every later number can be checked; it says nothing about any real retailer.
+There are 40 regions. Twenty were chosen at random for advertising and 20 held back. Regional variation `u` has a standard deviation of 1,750 orders per region per day, and shoppers in one region are not affected by advertising in another. The true effect is 1,000 orders per region per day. That is a truth of this fixture and useful because every later number can be checked; it says nothing about any real retailer. The regional variation is built from equally spaced normal quantiles, used once in each arm, so the estimate equals the true effect and the standard error is a fixed number. A real experiment would not be this tidy.
 
 | Declared | Learned |
 | --- | --- |
@@ -35,7 +40,13 @@ result = require_success(
 )
 ```
 
-The query is the average effect of advertising on orders. The graph declares that nothing but chance assigns `advertised`. The estimate is 1,000 orders with a standard error of about 553, a ratio of about 1.8. By construction the sample effect equals the true effect here, and the standard error is a fixed number the example computes by hand from the two arms.
+The query is the average effect of advertising on orders. The graph declares that nothing but chance assigns `advertised`. The example reads the estimate from `result.estimate.ate`, computes the standard error by hand from the two arms (the square root of the sum of each arm's sample variance over 20, which is 1,750 × √0.1) and prints:
+
+```text
+effect 1000 orders, standard error 553, z 1.81, p 0.071
+```
+
+The test statistic `z` is the estimate divided by its standard error, and the p-value is two-sided against a normal reference.
 
 The p-value of 0.07 says this: if the true effect were zero, an estimate at least this far from zero would turn up about 7% of the time under the test's assumptions. It is not a 7% probability that the campaign has no effect, and 0.93 is not the probability that it works. Those are statements about the effect given the data, and they need a belief about the effect that a p-value does not contain. The section on downside risk supplies one, explicitly.
 
@@ -54,7 +65,20 @@ decision.Action("stop", inputs=(quantity,), utility=decision.x(0) * 0.0),
 
 Here `profit` is `(orders_effect × 25 − 20,000) × 9,000`, in dollars over the rollout of 50 regions for 180 days. Stopping is worth zero. The input is the effect quantity from the result (`ScientificQuantity.from_effect`), which carries its units and population, so a number cannot be silently reread as something else.
 
-`contract.evaluate(result)` returns expected utility. Continuing is worth about 45 million dollars on the point estimate (1,000 × 25 − 20,000 = 5,000 dollars per region-day, times 9,000). The contract's choice is `continue`.
+Evaluating the contract on the result returns the expected utility of each action and the selection:
+
+```python
+effect_quantity = ScientificQuantity.from_effect(result, outcome_units="orders_per_region_day")
+mean_contract = contract_for(effect_quantity, decision.Criterion.expected_utility())
+decided = require_success(mean_contract.evaluate(result))
+assert decided.selected == ("continue",)
+```
+
+```text
+expected profit if we continue: 45.0 million dollars
+```
+
+`contract_for` is the example's helper that builds a `decision.Contract` from the two actions above, with utility in `usd`. Continuing is worth 45 million dollars on the point estimate (1,000 × 25 − 20,000 = 5,000 dollars per region-day, times 9,000), stopping is worth zero, and the contract selects `continue`.
 
 That answer is a point value. A standard error is not a distribution of profit, and the decision reports no interval, no regret and no replayable export, because a mean retains nothing to compute them from. The next step asks for exactly what a mean cannot give.
 
@@ -63,12 +87,20 @@ That answer is a point value. A standard error is not a distribution of profit, 
 Ask for the tenth percentile of profit, a downside measure.
 
 ```python
-decision.Criterion.quantile(0.1)
+tenth_percentile = contract_for(effect_quantity, decision.Criterion.quantile(0.1))
+try:
+    require_success(tenth_percentile.evaluate(result))
+except decision.DecisionRefusal as refusal:
+    assert refusal.reason_code == "decision_contract_unsatisfied"
 ```
 
-`evaluate` refuses with `decision_contract_unsatisfied`. A quantile needs a distribution; the result supplies a mean. Nothing is invented to fill the gap, and the refusal names what is missing, not that the arithmetic failed.
+```text
+refused: decision_contract_unsatisfied
+```
 
-The study compiler asks the same question earlier, before anything is fitted, and makes the next option concrete. For the same decision it checks what the study's inference realization can publish:
+A quantile needs a distribution; the result supplies a mean. Nothing is invented to fill the gap, and the refusal names what is missing, not that the arithmetic failed.
+
+The study compiler asks the same question earlier, before anything is fitted, and makes the next option concrete. `study_ranking.compile_decision_for_study` takes the study, the decision and the carrier the decision demands, and checks what the study's inference realization can publish. The example declares the same study twice, once with `posterior=False` (sampling) and once with `posterior=True` (conjugate Bayesian):
 
 | Demanded of the study | Sampling realization | Conjugate Bayesian realization |
 | --- | --- | --- |
@@ -76,17 +108,35 @@ The study compiler asks the same question earlier, before anything is fitted, an
 | `parameter_posterior`, for expected utility and probabilities over the effect | refused; next attempt `bayesian_realization` | supplied |
 | `outcome_law`, for the risk of one region's orders | refused; next attempt `interventional_law` | refused; next attempt `interventional_law` |
 
-A confidence interval is not a posterior, and an average effect is not the law of one region's outcome. Each refusal says which carrier is missing and which realization could supply it.
+The sampling refusal for `parameter_posterior` has reason code `distribution_meaning_mismatch`. A confidence interval is not a posterior, and an average effect is not the law of one region's outcome. Each refusal says which carrier is missing and which realization could supply it.
 
 ## Downside risk under a belief you declare
 
-To ask how likely a loss is, you need a distribution over the effect, and you must say where it comes from. The example declares a normal belief with the estimate as its mean and the standard error as its standard deviation. This is what a flat prior and approximately normal sampling error imply. It is your judgment, stated in the example's code, and Antecedent labels the source as caller-built (`unverified`) with calibration `not_measured`. If you fit the study under a Bayesian realization instead, its posterior takes the place of this declaration.
+To ask how likely a loss is, you need a distribution over the effect, and you must say where it comes from. The example declares a normal belief with the estimate as its mean and the standard error as its standard deviation. This is what a flat prior and approximately normal sampling error imply. The example represents it as a `JointDistributionArtifact` of 4,001 equally weighted atoms at the belief's quantiles, so its mean is the estimate. It is your judgment, stated in the example's code, and Antecedent labels the source as caller-built (`unverified`) with calibration `not_measured`. If you fit the study under a Bayesian realization instead, its posterior takes the place of this declaration.
 
 Under that belief the contract can ask three things.
 
 - **Expected utility** is the same 45 million dollars, because the belief's mean is the estimate.
 - **The chance of breaking even** (`Criterion.threshold_probability(0.0)`) is about 64%, the probability that the effect reaches 800 orders. Equivalently, there is about a 36% chance continuing loses money. That is the statement the p-value was being asked to make.
-- **A downside policy** declared as a hard constraint: at most a 10% chance of losing more than 10 million dollars. Continuing reaches that bound with probability about 0.67 against 0.90 required, so it is excluded on today's evidence. A constraint excludes an action; it never subtracts a penalty from its utility.
+- **A downside policy** declared as a hard constraint: at most a 10% chance of losing more than 10 million dollars. A loss of 10 million dollars corresponds to an effect of about 756 orders, and the belief puts probability about 0.67 on the effect being at least that, against 0.90 required. Continuing is therefore not admissible on today's evidence, and the constrained contract selects `stop`. A constraint excludes an action; it never subtracts a penalty from its utility.
+
+```python
+loss_cap = decision.Constraint(
+    "loss-cap",
+    -profit(decision.x(0)),
+    bound=10_000_000.0,
+    units="usd",
+    min_probability=0.9,
+    applies_to=("continue",),
+)
+```
+
+```text
+chance that continuing breaks even: 0.64
+continuing reaches the loss cap with probability 0.67; required 0.90
+```
+
+The excluded action keeps its reason: `continuing.exclusions[0]` carries the `probability` reached and the probability `required`. The example checks both probabilities against the normal distribution function to within 0.002.
 
 So expected value says continue, and a stated tolerance for loss says do not continue yet. Neither is a significance test, and the second is a policy you choose, not a fact the data established.
 
@@ -102,24 +152,49 @@ The remaining option is to run longer. Candidate studies add pairs of regions, o
 
 `design.rank_designs` values each by expected value of sample information (EVSI): how much better the decision becomes, in expectation, if you decide after the study instead of today. Net value subtracts the study's cost.
 
-With a normal belief and a Gaussian study the value has a closed form, so the example computes it independently and requires agreement. The values are about 11.6, 17.1 and 22.0 million dollars. Perfect information would be worth about 30.4 million dollars, an upper bound on any study. Net of cost the order is twenty pairs (about 13.1 million), then forty (about 10.0), then ten (about 9.6). The cheapest study is not the best, and the largest costs more than it adds.
+```python
+ranked = design.rank_designs(
+    studies,
+    decision=declared,
+    signal=signal,
+    cost_map=design.CostMap("usd", "usd", 1.0),
+)
+print(ranked.explain())
+```
 
-Read the answer against the three options. Continuing now is worth about 45 million dollars in expectation. Running twenty more pairs first adds about 13 million net in expectation, and it narrows the belief that the loss policy rejected. Stopping forgoes both. On these declared inputs the best move is to run the twenty-pair study, then decide.
+`studies` holds one `design.Candidate` per row of the table, each with a `design.GaussianMeanSignal` of the pair variance. `declared` is the decision in the form the ranker reads, built by `design.DesignDecision.from_contract` with the belief as a `design.StatePrior.normal`. `ranked.candidates` is ordered by net value, and each entry carries `evsi`, `evpi` and `net_value`.
+
+With a normal belief and a Gaussian study the value has a closed form, so the example computes it independently and requires agreement to a relative 1e-5; each candidate reports its integration method as `exact`. The values are about 11.6, 17.1 and 22.0 million dollars. Perfect information would be worth about 30.4 million dollars, an upper bound on any study. Net of cost the order is twenty pairs (about 13.1 million), then forty (about 10.0), then ten (about 9.6). The cheapest study is not the best, and the largest costs more than it adds.
+
+Read the answer against the three options. Continuing now is worth about 45 million dollars in expectation. Running twenty more pairs first adds about 13 million net in expectation, and it narrows the belief that the loss policy rejected. Stopping forgoes both. On these declared inputs the best move is to run the twenty-pair study, then decide. The example's last two lines say so:
+
+```text
+decide today: continue is worth 45.0 million dollars
+best study twenty-more-pairs: expected value 17.1, net 13.1
+```
 
 The ranking values expected utility only. It carries neither a hard constraint nor a quantile, and a contract that declares one is refused (`DesignDecision.from_contract` names the hard constraints). So the loss policy shapes which action is admissible today, and the ranking tells you what information is worth for the expected-value decision. They answer different questions.
 
 If monitoring or early stopping is part of the experimental design, the inference must account for that procedure. Looking repeatedly until a conventional threshold is crossed is a different procedure from the single analysis here.
 
-<!-- example: examples/python/decide_under_uncertainty.py -->
-
 ## Boundaries worth keeping
 
 The belief in the downside-risk section is a declaration. The example's probabilities and values are exact for that belief, and they inherit its premises: randomized assignment, no spillover, an approximately normal sampling error, and a flat prior. A different belief gives different numbers, which is why it is written down where you can challenge it.
 
-When an input to a decision is itself a corrected measurement or a pooled estimate from several studies, the same discipline applies: declare the correction, name the evidence it rests on, and carry a point value only as a point value. The `measurement_to_decision` example works that case by hand, with a ledger that marks pooled evidence for recomputation when one source grows.
+When an input to a decision is itself a corrected measurement or a pooled estimate from several studies, the same discipline applies: declare the correction, name the evidence it rests on, and carry a point value only as a point value. [Measurement models](../measurement-models.md) covers corrected measurements, and the [evidence ledger](../evidence-ledger.md) covers pooled evidence and what a revised source changes downstream.
 
 ## What this established
 
-Under the declared design and belief, continuing is worth about 45 million dollars on average, has roughly a one-in-three chance of losing money, fails a stated downside policy, and is improved most, net of cost, by running a twenty-pair study first. The p-value of 0.07 did not decide any of that. The risk question a mean-only result could not answer refused, and a declared belief answered it with its status attached. The belief itself was not established: the downside numbers are exact for the declared normal belief and change with it.
+Under the declared design and belief, continuing is worth about 45 million dollars on average, has roughly a one-in-three chance of losing money, fails a stated downside policy, and is improved most, net of cost, by running a twenty-pair study first. The p-value of 0.07 did not decide any of that. The risk question a mean-only result could not answer refused, and a declared belief answered it with its status attached.
 
-The next scientific question is whether the twenty-pair study is feasible under the same randomization and non-interference premises. If it is, the continued use is to [update the response with the new experiment](experiment-to-next-study.md) and decide again. To keep an exported decision reproducible while its sources change, see [replay and current decisions](replay-and-current-decisions.md).
+## What this did not establish
+
+The belief itself was not established: the downside numbers are exact for the declared normal belief and change with it. The value of each study is an expectation under that same belief, not a forecast of what the study will find. Randomization and no spillover were declared for the fixture, not tested, and the 1,000-order effect is a property of the simulation.
+
+## Where to go next
+
+The next scientific question is whether the twenty-pair study is feasible under the same randomization and non-interference premises. If it is, the continued use is to [update the response with the new experiment](experiment-to-next-study.md) and decide again. To keep an exported decision reproducible while its sources change, see [replay and current decisions](replay-and-current-decisions.md). For the contract and the ranker in full, see [decisions](../decisions.md) and [design ranking](../design-ranking.md#ranking-studies-by-value-of-information).
+
+## The complete example
+
+<!-- example: examples/python/decide_under_uncertainty.py -->

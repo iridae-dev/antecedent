@@ -7,7 +7,11 @@ quantity a prediction approximates, the response a parameter encodes, the
 utility an endpoint is scored against. The claim does not answer those
 questions by being renamed. A **bridge** is the explicit, separately identified
 derivation that states the extra assumptions under which the source answers the
-downstream question.
+downstream question. Declare one whenever a result about one quantity is about to
+feed a decision, a composition or a report about another. The
+[experiment-to-next-study tutorial](tutorials/experiment-to-next-study.md) declares
+a bridge between an experiment's estimand and a retained response; the
+[Python section](#python) below shows the calls.
 
 A bridge produces a *new* claim. The source claim is not modified and stays
 separately inspectable; the derived claim has its own identity (it binds the
@@ -56,7 +60,8 @@ propagated law (below) and refuses a mean alone.
 ## Refusals
 
 Every refusal has a registered reason code, a `scientific_bridge.*` detail and
-the declaration or evidence that would support the request.
+the declaration or evidence that would support the request; the remedies are listed under
+[scientific bridge refusals](reference/refusal-codes.md#scientific-bridges).
 
 | Request | Code | Detail |
 |---|---|---|
@@ -274,26 +279,36 @@ mapping, identity and refusal is Rust's.
 
 ```python
 from antecedent import scientific_bridge as sb
+from antecedent.outcomes import require_success
 
 bridge = sb.prepare_scientific_bridge(contract)      # checks before any number is formed
-claim = bridge.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate))
+claim = require_success(bridge.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate)))
 claim.value, claim.fit.r_squared, claim.unresolved   # 0.796, 529/535, ("assumption:validation",)
 exported = claim.export("surrogate-bridge")
 again = sb.consume_scientific_bridge_artifact(bytes(exported), exported.expectation.identity)
-claim.require_value_kind("predictive_law")            # refused: value_kind_substitution
-claim.interval()                                      # refused: route_not_supported (unscoped)
+claim.require_value_kind("predictive_law")            # raises: value_kind_substitution
+claim.interval().refusal                              # route_not_supported (no level named)
 
-claim = bridge.derive(sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate, standard_error=0.1))
+claim = require_success(bridge.derive(
+    sb.SourceClaim.declared("biomarker-effect", 0.8, surrogate, standard_error=0.1)
+))
 claim.interval(0.95)                                  # the interval of the bridged value, with
                                                       # its calibration status
 
-claim = uncertain_bridge.derive(                      # a mapping that declares its uncertainty
+claim = require_success(uncertain_bridge.derive(      # a mapping that declares its uncertainty
     sb.SourceClaim.declared("intent", 0.5, stated, standard_error=0.05, nonlinear="square")
-)
+))
 claim.value                                           # the plug-in value
 claim.propagated_variance, claim.propagated_mean      # delta-method variance; E[g(X)] for the square
-claim.propagated_uncertainty().reading                # "uncalibrated_spread" (calibration "not_measured")
+claim.propagated_uncertainty().value.reading          # "uncalibrated_spread" (calibration "not_measured")
 ```
+
+`derive`, `interval`, `propagated_uncertainty`, `freshness` and
+`consume_scientific_bridge_artifact` return an `Outcome`: a refusal is in `.refusal` rather than
+raised, and `require_success` raises it instead. `prepare_scientific_bridge` and
+`require_value_kind` raise `ScientificBridgeRefusal` directly. The contract's construction (the
+`BridgeContract`, its `ScientificQuantity` source and target, a `TrialLevelMapping` and an
+`Assumption`) is shown in full in the `antecedent.scientific_bridge` module docstring.
 
 A bridge of draws is prepared with `prepare_distribution_bridge` and bridges a
 `JointDistributionArtifact` (the `consume_scientific_bridge_artifact` of its export returns a
@@ -306,12 +321,12 @@ contract = sb.BridgeContract(
     source_dependence=sb.SourceDependence.independent("disjoint-samples"),
     source_value="posterior", target_value="posterior",
 )
-bridged = sb.prepare_distribution_bridge(contract).derive(posterior_draws, seed=7)
+bridged = require_success(sb.prepare_distribution_bridge(contract).derive(posterior_draws, seed=7))
 bridged.distribution()        # the aligned draws of the terminal outcome
 bridged.reading               # "uncalibrated_spread"
 parts = bridged.chain_stage("terminal")   # sources and a measurement-mapping stage for pc.propagate
                                           # (an affine map, a predictive line or a correction)
-bridged.interval(0.95)        # refused: uncertain coefficients (interval_scope_outside_measured)
+bridged.interval(0.95).refusal  # uncertain coefficients: interval_scope_outside_measured
 ```
 
 Refusals are `ScientificBridgeRefusal` (a `CausalUnsupportedError`) with `reason_code`, `detail`

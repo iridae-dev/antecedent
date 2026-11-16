@@ -87,6 +87,16 @@ class TrialCompatibility:
     with its directed edges, whether it permits a directed treatment-to-outcome path and whether
     it was retained; ``retained_members`` are the retained indices and ``identity`` binds the
     refinement.
+
+    The test is a conditional, two-sided Fisher exact test of assignment against outcome in the
+    trial rows. Further fields:
+
+    * ``counts`` -- the trial's 2x2 table in the order ``(X=0, Y=0)``, ``(0, 1)``,
+      ``(1, 0)``, ``(1, 1)``, with ``X`` the assignment and ``Y`` the outcome.
+    * ``original_enumeration_complete`` -- whether the original class was fully enumerated;
+      refinement requires it.
+    * ``estimation_strategy`` -- the structural formula-selection policy bound into the
+      refined identity.
     """
 
     alpha: float
@@ -118,6 +128,12 @@ class TrialCompatibleEstimate(ScientificResult):
 
     ``members`` are indexed by position among ``compatibility.retained_members``. ``export()``
     returns the durable artifact for :func:`verify_trial_compatible_transport_estimate`.
+
+    Read ``answer`` first (a :class:`~antecedent.transport.discovered.TransportAnswer`), then
+    ``compatibility`` for the test and the member decisions. ``levels`` is the treatment grid,
+    ``members`` the per-member estimates, ``report_identity`` the identity of the unchanged
+    discovery report, ``identity`` the identity of this estimate, and ``outcome`` and
+    ``report`` the discovery that ran.
     """
 
     levels: tuple[float, ...]
@@ -132,7 +148,11 @@ class TrialCompatibleEstimate(ScientificResult):
 
     @artifact_export
     def export(self) -> ExportedArtifact[Any]:
-        """The test proof and every retained member's causal and evaluation artifact."""
+        """Export the test proof and every retained member's causal and evaluation artifact.
+
+        Returns an :class:`~antecedent.artifacts.ExportedArtifact` for
+        :func:`verify_trial_compatible_transport_estimate`.
+        """
         return artifact_from_receipt(self, self._artifact_bytes)
 
 
@@ -152,7 +172,12 @@ def _members(wire: Sequence[Mapping[str, Any]]) -> tuple[MemberEstimate, ...]:
 
 @dataclass(frozen=True, slots=True)
 class VerifiedTrialEstimate(ScientificResult):
-    """What replaying an exported trial-compatible estimate established."""
+    """What replaying an exported trial-compatible estimate established.
+
+    Returned by :func:`verify_trial_compatible_transport_estimate`: the replayed ``answer``,
+    the ``report_identity`` of the original discovery report, the retained member indices
+    ``members`` and the replayed ``compatibility`` test.
+    """
 
     answer: TransportAnswer
     report_identity: str
@@ -169,6 +194,22 @@ class TrialConfidenceSet(ScientificResult):
     asserted; ``logical_reason`` is ``trial_rejects_every_member``, ``class_not_identified`` or
     ``structural_range``). ``estimate`` is the retained estimate's wire, when the class could be
     estimated; ``export()`` is the artifact to replay against the original inputs.
+
+    Read ``kind`` first, then ``lower`` and ``upper`` (the endpoints for the last-minus-first
+    treatment mean contrast) and ``logical_reason``. Further fields:
+
+    * ``outcome_support`` -- the declared ``(support_lower, support_upper)``.
+    * ``calibration`` -- always ``not_bound_to_this_execution``: no whole-procedure coverage
+      record is bound to the set.
+    * ``method`` -- versioned identity of the set construction.
+    * ``execution_seed`` -- the bootstrap seed, taken from the contract's ``seed``; replay
+      needs the same seed and inputs.
+    * ``input_identity`` -- seal of the report, query, support, options, seed and both input
+      tables.
+    * ``identity`` -- identity of the method, inputs, support, branch, proof and retained
+      artifacts.
+    * ``compatibility`` -- the :class:`TrialCompatibility` test and member decisions.
+    * ``outcome``, ``report`` -- the discovery that ran, when there was one.
     """
 
     kind: str
@@ -189,7 +230,11 @@ class TrialConfidenceSet(ScientificResult):
 
     @artifact_export
     def export(self) -> ExportedArtifact[Any]:
-        """The receipt to replay against the original report, query, columns and seed."""
+        """Export the receipt to replay against the original report, query, columns and seed.
+
+        The receipt embeds no data; replay it with
+        :func:`verify_trial_compatible_transport_confidence_set_against`.
+        """
         return artifact_from_receipt(self, self._receipt)
 
 
@@ -290,12 +335,24 @@ def estimate_trial_compatible_discovered_transport(
     rows are inspected. The class is discovered on ``source`` unless ``discovery`` supplies other
     columns to discover on. See the module documentation.
 
+    Parameters with defaults: ``source_population`` (``"source"``), ``target_population``
+    (``"target"``), ``member_bound`` (``None``, the default envelope member bound of 256),
+    ``bootstrap_replicates`` (``0``, no interval), ``discovery`` (``None``) and ``execution``
+    (``None``, default controls).
+
+    Returns:
+        A :class:`TrialCompatibleEstimate`; read ``answer`` and ``compatibility`` first.
+
     Raises:
         DiscoveredTransportRefusal: the trial rejects every member
             (``discovered_transport.trial_rejects_every_member``), the original class is
             incomplete, the trial evidence is invalid, or a retained member is not identified or
             cannot be estimated.
         SelectiveDiscoveryRefusal: a refused contract.
+        CausalTypeError: ``contract`` is not a ``StaticContract`` or an argument has the wrong
+            type.
+        CausalValueError: ``alpha`` is not strictly between 0 and 1, or a variable name is not
+            in the contract.
     """
     names, request = _common(
         contract,
@@ -357,8 +414,17 @@ def verify_trial_compatible_transport_estimate(
 ) -> VerifiedTrialEstimate:
     """Replay an exported estimate: the test, every graph decision and every retained grid.
 
+    ``artifact`` is the bytes or ``ExportedArtifact`` from
+    :meth:`TrialCompatibleEstimate.export`.
+
+    Returns:
+        A :class:`VerifiedTrialEstimate`.
+
     Raises:
-        CausalValueError: a malformed or forged artifact, or one above the replay budget.
+        CausalSerializationError: a malformed, corrupt or forged artifact, or one above the
+            replay budget.
+        CausalResourceError: replay exceeds its evaluation limits.
+        CausalTypeError: ``artifact`` is not bytes or an ``ExportedArtifact``.
     """
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray)):
@@ -428,13 +494,24 @@ def estimate_trial_compatible_transport_confidence_set(
     The query is the complete mean curve at the treatment levels ``[0, 1]``. ``support_lower``
     and ``support_upper`` are your scientific bounds on every potential outcome in both
     populations: observed outcomes are checked against them, but finite rows can never prove
-    them. At least 40 bootstrap replicates are required for the identified branch. The class is
-    discovered on ``source`` unless ``discovery`` supplies other columns to discover on (a trial
-    that rejects every member of a class discovered elsewhere gives the logical set).
+    them. At least 40 bootstrap replicates (default ``200``) are required, whichever branch the
+    set takes. The class is discovered on ``source`` unless ``discovery`` supplies other columns
+    to discover on (a trial that rejects every member of a class discovered elsewhere gives the
+    logical set). Other parameters as
+    :func:`estimate_trial_compatible_discovered_transport`.
+
+    Returns:
+        A :class:`TrialConfidenceSet`; read ``kind``, ``lower`` and ``upper`` first.
 
     Raises:
-        DiscoveredTransportRefusal: invalid or missing data, an unsupported query, incomplete
-            enumeration, search or evaluation limits, or a member that cannot be estimated.
+        DiscoveredTransportRefusal: invalid or missing data, fewer than 40 bootstrap
+            replicates, an unsupported query, incomplete enumeration, search or evaluation
+            limits, or a member that cannot be estimated.
+        SelectiveDiscoveryRefusal: a refused contract.
+        CausalTypeError: an argument has the wrong type.
+        CausalValueError: ``alpha`` is not strictly between 0 and 1, the support bounds are not
+            finite with ``support_lower < support_upper``, or a variable name is not in the
+            contract.
     """
     lower, upper = _check_support(support_lower, support_upper)
     names, request = _common(
@@ -507,7 +584,12 @@ def verify_trial_compatible_transport_confidence_set_against(
     The datasets are not embedded in the receipt. The independent test and graph proof are
     validated, the retained member grids are replayed, and the bounded endpoint is recomputed
     from the supplied inputs (including the original bootstrap), so neither a forged reason nor a
-    substituted interval passes. The replay grants no calibration authority.
+    substituted interval passes. The replay grants no calibration authority. Pass the same
+    arguments as the original :func:`estimate_trial_compatible_transport_confidence_set`
+    call; the bootstrap seed is the contract's ``seed``, so the contract must be the same.
+
+    Returns:
+        The recomputed :class:`TrialConfidenceSet`.
 
     Raises:
         DiscoveredTransportRefusal: the receipt does not replay against the supplied inputs.

@@ -32,10 +32,12 @@ class Table(Mapping[str, Any]):
 
     @property
     def column_names(self) -> tuple[str, ...]:
+        """The column names, in table order."""
         return self._names
 
     @property
     def num_rows(self) -> int:
+        """The number of rows."""
         return int(self._handle.row_count) if self._handle is not None else int(self._rows or 0)
 
     @property

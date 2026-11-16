@@ -2,7 +2,7 @@
 
 ## 3.0.0
 
-Changes since 2.4.1. The [migration guide](docs/migration.md) gives the old and new form of every breaking change and what to regenerate; the [release notes](docs/release-notes/v3.0.0.md) describe the new features.
+Changes since 2.4.1. The [migration guide](docs/migration.md) says who needs to act and gives the old and new form of every breaking change and what to regenerate; the [release notes](docs/release-notes/v3.0.0.md) describe the new features.
 
 ### Added
 
@@ -17,11 +17,11 @@ Changes since 2.4.1. The [migration guide](docs/migration.md) gives the old and 
 ### Changed
 
 - **One support rule, and calibration that annotates.** A route is supported when it has provenance and an independent check that currently passes; otherwise it refuses with `not_supported` and lists the missing evidence. `cell_not_licensed` is now `not_supported`, every `*_not_licensed` code is `*_not_supported`, and `claim_license_withdrawn` is `claim_support_withdrawn`. At run time a supported interval is returned with its calibration status, whatever that status is, instead of being refused for want of a coverage record at its coordinate. Whether an interval route is supported is decided by its validation evidence, which for some constructions includes a coverage measurement.
-- **Load cheaply; replay on request.** Loading an analysis result checks it is intact and recomputes nothing. `ant.load(..., replay=True)` or `loaded.replay()` (Rust: `load_analysis_result`, `AnalysisResultLoad::replay`) recomputes the published numbers and reports what is not replayable apart from what does not match. Breaking: `consume_analysis_result*` becomes `replay_analysis_result*`; Python acceptance statuses are `loaded`, `replayed` and `unavailable`, and `acceptance.verified`, `.sealed` and `.unresolved` are removed.
+- **Load cheaply; replay on request.** Loading an analysis result checks it is intact and recomputes nothing. `ant.load(..., replay=True)` or `loaded.replay()` (Rust: `load_analysis_result`, `AnalysisResultLoad::replay`) recomputes the published numbers and reports what is not replayable apart from what does not match. Breaking: `consume_analysis_result*` becomes `replay_analysis_result*`; Python acceptance statuses are `loaded`, `replayed` and `unavailable`, and on an analysis result `acceptance.verified`, `.sealed`, `.replayable` and `.unresolved` are removed.
 - **Identity and artifact versions.** `IDENTITY_FORMAT` stays 2. Temporal CPDAG and PAG graph identities are versioned inside their own payload (`kind` is `temporal_cpdag.v2` / `temporal_pag.v2`): nodes are sorted and edges re-indexed, so insertion order no longer reaches their digest, and a digest of the earlier encoding is not comparable with it. No other identity digest changes. External response claim metadata is version 2: the provider fingerprint is computed over explicit coordinate fields and counted lists, capabilities are sorted and distinct, and version-1 claims are refused and must be regenerated. Transport proofs, selective-discovery structures, temporal-design, counterfactual-contrast and rollout result sections, and sampled transport artifacts are decoded under stricter checks of the same formats.
 - **Artifacts.** Score-table row ids are eight bytes, the scientific-target digest uses payload format 3, decision export is a version 2 envelope that needs the caller's current authority, predictive assessment artifacts are version 2, and mechanism plan identities are encoding version 2. Reduced-retention modes refuse the operations they cannot serve. See [artifact compatibility](docs/migration.md#artifact-compatibility).
 - **Minimum supported Rust version.** Building from source or depending on the crates now needs Rust 1.97 (edition 2024); 2.4 built on 1.85. Python support is unchanged (CPython 3.11–3.14).
-- **Rust API.** Prepared studies rebind rather than refresh, physical plans come from the compiler, indexed maps return `MapExecutionError`, execution stamps are read-only, and several retained collections are `RetainedSlice`. See the [Rust table](docs/migration.md#rust).
+- **Rust API.** Prepared studies branch with `rebind_data`, `rebind_series`, `rebind_panel` and `rebind_multi_env` (tabular `PreparedStudy::refresh` is removed), physical plans come from the compiler, indexed maps return `MapExecutionError`, execution stamps are read-only, and several retained collections are `RetainedSlice`. See the [Rust table](docs/migration.md#rust).
 
 ### Fixed
 

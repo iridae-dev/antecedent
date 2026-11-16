@@ -1,4 +1,12 @@
-"""Binary treatment policies and held-out randomized evaluation."""
+"""Treatment policies, their value on randomized evaluation data, and conditional dose responses.
+
+A policy is a fixed recommendation per row (:class:`BinaryPolicy`, :class:`MultiActionPolicy`);
+it is evaluated on randomized rows held out from whatever produced it. Ask
+:class:`PolicyValue` or :class:`MultiActionPolicyValue` through :func:`antecedent.analyze`, or use
+the direct utilities :func:`evaluate_policy`, :func:`evaluate_policy_doubly_robust`,
+:func:`evaluate_multi_action_policy` and :func:`uplift_by_score`.
+:class:`ConditionalDoseResponse` estimates a continuous-dose response within baseline groups.
+"""
 
 from __future__ import annotations
 
@@ -625,6 +633,23 @@ class UpliftBin:
 
 @dataclass(frozen=True, slots=True)
 class ConditionalDoseResponsePoint:
+    """One point of a conditional dose-response grid: the mean outcome at one dose in one group.
+
+    Fields:
+
+    * ``baseline_group`` -- the pre-treatment group label.
+    * ``target_dose`` -- the dose the response is evaluated at.
+    * ``response`` -- the kernel-smoothed inverse-density estimate of the mean outcome had every
+      unit in the group received ``target_dose``.
+    * ``local_rows`` -- rows inside the kernel window around the target dose.
+    * ``effective_sample_size`` -- the effective number of rows given the kernel weights.
+    * ``minimum_dose_density`` -- the density floor: the smallest supplied dose density the
+      point relies on.
+    * ``maximum_normalized_weight`` -- the largest normalized weight of a single row.
+    * ``local_outcome_sd`` -- the standard deviation of the local outcomes; descriptive, not a
+      standard error.
+    """
+
     baseline_group: str
     target_dose: float
     response: float
@@ -658,6 +683,24 @@ class FixedDosePolicyValueEstimate:
 
 @dataclass(frozen=True, slots=True)
 class ConditionalDoseResponseEstimate:
+    """The result of a :class:`ConditionalDoseResponse` query: group-specific dose responses.
+
+    Read ``points`` first, with each point's local-support diagnostics. ``uncertainty`` is
+    ``"point_only"`` unless the result says otherwise; ``fixed_policy`` holds the paired value of
+    the declared group-dose rule (:class:`FixedDosePolicyValueEstimate`) when ``policy_doses`` was
+    given, with ``policy_value_estimated`` set.
+
+    Fields:
+
+    * ``points`` -- one :class:`ConditionalDoseResponsePoint` per group and target dose.
+    * ``bandwidth`` -- the kernel bandwidth used.
+    * ``density_provenance`` -- the declared source of the supplied dose density.
+    * ``uncertainty``, ``evaluation_method``, ``support_status``, ``assumptions`` and
+      ``diagnostics`` -- labels stating what is estimated and on which premises (conditional
+      exchangeability of the dose given the groups, a correct dose density, and local positivity
+      around each target dose).
+    """
+
     points: tuple[ConditionalDoseResponsePoint, ...]
     bandwidth: float
     density_provenance: str

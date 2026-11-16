@@ -11,13 +11,30 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
-//! Survey prior bank: catalog → compose → analyze target.
+//! Reuse posteriors of earlier studies as a weighted prior for a new one.
 //!
-//! Two fake survey posteriors tagged by product/context, ranked by
-//! caller-supplied similarity, composed with power-prior weights, then
-//! transferred into a new target survey.
+//! Question: how are the results of earlier, related surveys catalogued, checked for
+//! compatibility with a new design, down-weighted and composed into the prior of a new study?
+//!
+//! Data and truth: three simulated surveys with the same graph (`z -> t`, `z -> y`, `t -> y`) and
+//! average effects 2.0 (launch), 1.5 (retention) and 1.8 (the target), of 160, 160 and 180 rows.
+//!
+//! Steps: fit a conjugate Bayesian effect on each earlier survey and store its posterior with
+//! tags and a design summary; filter the catalog for compatibility with the target design; rank
+//! the compatible sources by caller-supplied similarity; compose them as power priors with a
+//! weakly informative baseline under a conflict policy; fit the target survey with the composed
+//! prior and the full validation suite.
+//!
+//! Asserted: at least one source is compatible; the target posterior mean is finite; a prior
+//! sensitivity report and a prior predictive check are published with the result.
+//!
+//! What this establishes: the mechanics of borrowing with every weight visible. The similarity
+//! scores, the conflict signals and the prior variances are declared by the caller, not
+//! estimated, and the example does not check the target posterior against 1.8. Read the
+//! printed sensitivity means to see how far the borrowed prior moves the answer.
 //!
 //! Run: `cargo run -p antecedent --example prior_bank_surveys`
+//! Source: `examples/rust/prior_bank_surveys.rs`
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -174,6 +191,8 @@ pub fn run() -> Result<(), CausalError> {
         ("product".into(), "widget".into()),
         ("population".into(), "field".into()),
     ]));
+    // Compatibility is decided from the declared estimand, design and tags; similarity only
+    // orders the sources that passed.
     let reports = catalog.filter_compatible(&target);
     let similarity = [("survey_launch".into(), 0.85), ("survey_retention".into(), 0.55)];
     let ranked = catalog.rank(&reports, &similarity);
@@ -187,6 +206,8 @@ pub fn run() -> Result<(), CausalError> {
         .collect();
     assert!(!accepted.is_empty(), "expected at least one compatible prior source");
 
+    // Power-prior weights proportional to similarity, scaled so the sources together carry
+    // 0.6 of a full sample's weight. A weight below one discounts a source's evidence.
     let w_launch = 0.85;
     let w_ret = 0.55;
     let w_sum = w_launch + w_ret;
@@ -228,7 +249,8 @@ pub fn run() -> Result<(), CausalError> {
     )
     .expect("compose");
 
-    // Clear offline conflict for fit; α' already applied.
+    // The conflict policy has already adjusted the power weights; the fit uses the composed
+    // prior as it stands.
     let prior_for_fit = composed.clone();
 
     let target_result = Study::tabular(data_t)

@@ -1,11 +1,18 @@
 # Estimate with a penalized propensity (ridge or lasso AIPW)
 
+Use a penalized propensity when the plain logistic propensity of a cross-fitted AIPW
+average effect fails or is unstable (separation, near-collinear adjustment covariates, many
+covariates), and you want that choice declared in advance rather than applied as a rescue.
 `Aipw(propensity_penalty=PropensityPenalty(...))` (Rust:
 `AipwAte::with_propensity_nuisance(PropensityNuisance::ridge_logistic(..))` or
-`::lasso_with(..)`) fits the binary propensity of the cross-fitted AIPW with an explicit
-ridge-logistic or lasso-logistic penalty. It is a *declared nuisance choice*, distinct from
+`::lasso_with(..)`) fits the binary propensity with an explicit ridge-logistic or
+lasso-logistic penalty. It is a *declared nuisance choice*, distinct from
 `GlmOptions.ridge_on_separation` (a rescue that estimation paths refuse to keep because a
-rescued fit is not an MLE). The route publishes the cross-fitted point estimate, the score
+rescued fit is not an MLE).
+
+The estimand is unchanged: the average treatment effect `E[Y(1) - Y(0)]` of a binary
+treatment over all observed rows, under the identification assumptions of the AIPW average
+effect for your graph. The route publishes the cross-fitted point estimate, the score
 table, and two interval constructions whose assumptions are stated below: the cross-fitted
 influence-function SE of the out-of-fold scores, and (with `bootstrap > 0`) a refit bootstrap
 that repeats penalty selection and every nuisance fit on each resample. A declared
@@ -13,7 +20,11 @@ GLM-to-penalized fallback runs the same route when the plain GLM propensity fit 
 interval reports its calibration status: `calibrated` only at a coordinate a ridge or lasso
 coverage record measures (see [Calibration](#calibration)).
 
+The snippet assumes `data`, `graph` and an `ant.AverageEffect` `query` as in
+[your first analysis](../start/first-analysis.md).
+
 ```python
+import antecedent as ant
 from antecedent.estimators import Aipw, PropensityPenalty
 
 # Cross-fitted influence-function SE (bootstrap=0) ...
@@ -241,6 +252,13 @@ advance and triggered only by a fit failure.
 | `selection_inference_not_supported` | `penalized_propensity.selection_not_supported` | a lasso outside the cross-fitted untrimmed `AllObserved` mean ATE |
 | `nuisance_fallback_not_supported` | `penalized_propensity.fallback_not_supported` | a GLM fit fails under an ML fallback, or under any fallback on a full-sample route |
 | `cancelled_no_claim` | `penalized_propensity.cancelled` | penalty selection was cancelled; no estimate is reported |
+| `execution_resource_limit` | `penalized_propensity.grid_allocation` | the declared penalty grid exceeds the configuration policy or cannot be allocated |
+
+Each refusal carries the fields described in
+[refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies);
+`selection_inference_not_supported`, `nuisance_fallback_not_supported` and
+`execution_resource_limit` are listed under
+[other registered refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes).
 
 Selection observes cancellation once per penalty of every outer fold, so a cancel is seen
 within one penalty's inner cross-fit; a cancelled call returns no estimate or score table. A

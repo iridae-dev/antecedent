@@ -1,4 +1,35 @@
-"""High-level estimation entry points."""
+"""Shared-fit batches, identification without estimation, and the analysis result views.
+
+The everyday entry points are at the package root: :func:`antecedent.analyze`,
+:func:`antecedent.prepare` and :func:`antecedent.estimate` for one question, and
+:func:`antecedent.identify` for an identification certificate. This module adds:
+
+* **Batches of related effects.** :func:`prepare_many`, :func:`estimate_many` and
+  :func:`analyze_many` fit several homogeneous :class:`~antecedent.AverageEffect` queries, or the
+  joint cells of discrete :class:`~antecedent.InterventionResponse` queries, on one owned table
+  with one shared nuisance fit. Each member is an ordinary :class:`AnalysisResult` outcome;
+  :meth:`BatchResult.retarget` reweights the retained scores of the whole family over one row
+  snapshot, without refitting, and reports the joint score covariance, named contrasts and, for a
+  complete family, a max-t simultaneous band (:class:`SimultaneousInterval`).
+* **Identification only.** :func:`identify` returns the identification status, method and
+  adjustment set of an average effect under a ``Dag`` or ``Admg`` without touching data.
+* **Result views.** The section types of an :class:`AnalysisResult` (:class:`EstimateView`,
+  :class:`IdentificationView`, :class:`PosteriorView`, :class:`ValidationView`,
+  :class:`PerformanceView`, ...) are importable here for annotations and ``isinstance`` checks.
+
+Example::
+
+    from antecedent import AverageEffect, estimation
+
+    outcome = estimation.analyze_many(
+        data,
+        graph=[("age", "dose_a"), ("age", "dose_b"), ("age", "y"),
+               ("dose_a", "y"), ("dose_b", "y")],
+        queries=[AverageEffect("dose_a", "y"), AverageEffect("dose_b", "y")],
+    )
+    batch = outcome.value                  # a BatchResult, or None when refused
+    batch.member(0).answer.value           # the first effect, as from antecedent.analyze
+"""
 
 from __future__ import annotations
 
@@ -298,7 +329,18 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class IdentifyResult:
-    """Identify-only result (no estimate), retaining its certified query."""
+    """The result of :func:`identify`: whether and how the effect is identified, with no estimate.
+
+    Fields:
+
+    * ``status`` -- the name of the identification status, for example
+      ``"NonparametricallyIdentified"``.
+    * ``method`` -- the method of the estimand that carries the answer (the identification
+      strategy when there is no estimand), for example a back-door adjustment.
+    * ``adjustment_set`` -- the variables of that estimand's adjustment set; empty when it has
+      none.
+    * ``query`` -- the :class:`~antecedent.AverageEffect` that was identified.
+    """
 
     status: str
     method: str
@@ -313,11 +355,26 @@ def identify(
     names: Sequence[str] | None = None,
     identifier: str | Identifier | None = None,
 ) -> IdentifyResult:
-    """Identify without estimating.
+    """Identify an average effect under a structure, without data and without estimating.
 
     Accepts a ``Dag``, an ``Admg``, or an edge list. Pass ``names`` with an edge
     list (variable order); with a typed graph the names come from
     ``graph.nodes()``.
+
+    Args:
+        graph: the causal structure: a :class:`~antecedent.Dag`, an :class:`~antecedent.Admg`,
+            or ``(source, target)`` edges read as a ``Dag``.
+        query: the :class:`~antecedent.AverageEffect` to identify; only its ``treatment`` and
+            ``outcome`` are read.
+        names: every variable, in order; required with an edge list and ignored otherwise.
+        identifier: an identification strategy name or :class:`~antecedent.Identifier` to use
+            instead of the default search. Default ``None``.
+
+    Returns:
+        An :class:`IdentifyResult`. Read ``status`` first, then ``adjustment_set``.
+
+    Raises:
+        CausalValueError: an edge list without ``names``.
 
     This entry does not accept a tier rule: :func:`antecedent.identify` identifies a
     ``TieredBackground`` and returns the certificate.

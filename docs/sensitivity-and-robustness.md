@@ -1,12 +1,15 @@
 # Probe sensitivity to assumptions you cannot test
 
-A decision often rests on something that cannot be tested from the data: that
-there is no unmeasured confounding, that two populations share a mechanism, that
-the causal graph is the right one. The routes on this page carry such an
+Use this page when a conclusion or a decision rests on something the data cannot test: that
+there is no unmeasured confounding, that missing outcomes are missing at random, that two
+populations share a mechanism, that the causal graph is the right one. The routes here
+carry such an
 assumption into the decision as a declared range, report where the best action
-switches, and keep the range apart from sampling uncertainty.
+switches, and keep the range apart from sampling uncertainty. For refuters and
+sensitivity ranges bound to the quantity a single result reports (E-values, omitted-variable
+bias, Rosenbaum bounds), use [refute the reported quantity](guides/target-native-validation.md).
 
-Five modules:
+Pick the module by question:
 
 | Module | Question | Claim |
 | --- | --- | --- |
@@ -31,7 +34,7 @@ Every route here keeps these apart, and refuses to add them together:
 - the **sampling interval** is reported next to the decision, never inside the
   range. The MSM strata are supplied as exact quantities, so no sampling interval
   is reported at all (`sampling interval: not reported`), and asking to compose
-  one with the range is refused with `not_supported`
+  one with the range is refused with `route_not_supported`
   (`msm_sensitivity.composition_not_supported`, or
   `sensitivity_decision_composition.composition_not_supported` at decide time).
 
@@ -84,8 +87,8 @@ weighted and augmented weighted contrasts use a logistic propensity model. Param
 imputes the fitted values, which is the missing-at-random estimate. The per-point sampling
 interval of an adjusted estimator is a seeded bootstrap (`bootstrap_replicates`, `seed`) that
 resamples units within arm and repeats the imputation fit, so imputation uncertainty is in it.
-The route from a study is `result.mnar_sensitivity(data=..., model=..., lower=..., upper=...)`
-(Python) and `mnar_sensitivity_for_study` (Rust). Both bind the complete target of the study's
+The route from an analysis result is `outcome.value.mnar_sensitivity(data=..., model=..., lower=..., upper=...)`
+(Python, on the value of an `ant.analyze(...)` or `ant.estimate(...)` outcome) and `mnar_sensitivity_for_study` (Rust). Both bind the complete target of the study's
 average-effect query. The analysis is the full-population difference of the arm means at the two
 treatment levels, so a target population, an outcome functional, effect modifiers or intervention
 levels other than that contrast are refused with `mnar_sensitivity.unsupported_target`, which names
@@ -111,7 +114,9 @@ propensity outside (0, 1)), `invalid_bootstrap`, `unsupported_query`, `unbounded
 `composition_not_supported`, `invalid_data`, `invalid_loading`, `invalid_level`,
 `invalid_decision`, `invalid_tolerance`, `insufficient_observed` and `bounds_exceeded`. A
 multiple-imputation declaration of `missing_not_at_random` is refused with this analysis named as
-the next attempt (see [missing data](guides/missing-data.md)). Each tipping point is found by scanning every grid cell at eight interior points and
+the next attempt (see [missing data](guides/missing-data.md)).
+
+Each tipping point is found by scanning every grid cell at eight interior points and
 bisecting the continuous effect function (the conditional sampling interval for the
 excludes-null conclusion) inside the first cell where the conclusion differs from its
 missing-at-random value, separately on each side of MAR; the interval conclusion of an adjusted
@@ -121,7 +126,13 @@ estimator is scanned on the declared grid only, because each evaluation is a boo
 
 The Tan (2006) / Zhao-Small-Bhattacharya (2019) marginal sensitivity model for a
 binary treatment, a discrete adjustment set (finite strata) and exact population
-inputs. Strata can be built by hand or from a plain table with
+inputs. The target is the average treatment effect
+`sum_x p(x) (E[Y | T=1, X=x] - E[Y | T=0, X=x])` over the strata `x`. The sensitivity
+parameter Lambda (at least 1) bounds unmeasured confounding: the odds of treatment given
+the covariates and a potential outcome lie between `1/Lambda` and `Lambda` times the odds
+given the covariates alone. Lambda = 1 is no unmeasured confounding. Each
+`MsmStratum` holds the stratum mass `p(x)`, the propensity `P(T=1 | X=x)` and the treated
+and control outcome laws. Strata can be built by hand or from a plain table with
 `MsmStratum.table`.
 
 ```python
@@ -168,8 +179,11 @@ What you get back:
 Refusals use the `msm_sensitivity.*` namespace: `lambda_below_one`,
 `lambda_range_empty` (a `lambda_max` of exactly one), `positivity` (a propensity
 of 0 or 1), `stratum_mass`, `outcome_law`, `invalid_threshold`, `invalid_tolerance`
-and `bounds_exceeded` (`lambda_max` above 1000). All raise `MsmSensitivityRefusal`,
-a `StructuredRefusal`.
+and `bounds_exceeded` (`lambda_max` above `1e12`, or a stratum, outcome-atom or grid count
+above the [supported input bounds](supported-bounds.md)). All raise `MsmSensitivityRefusal`,
+a `StructuredRefusal`; see
+[structured refusals and their remedies](reference/refusal-codes.md#structured-refusals-and-their-remedies)
+for its fields.
 
 For an analysis outcome (`ate_result = ant.analyze(...)`), supply a sample explicitly rather than rebuilding laws
 from an aggregate ATE:
@@ -222,7 +236,7 @@ artifact = result.to_sensitivity_artifact(
     ],
     causal_contract_id="checked-contract",
 )
-decided = sd.decide(artifact.contract(), artifact)
+decided = sd.decide(artifact.contract(), artifact)   # an Outcome; read decided.refusal first
 decided.value.kind                  # "invariant_action": treat leads at every Lambda in [1, 2]
 decided.value.invariant_action      # "treat"
 ```
@@ -235,7 +249,7 @@ decided.value.invariant_action      # "treat"
   `from_actions`, `to_actions`, the `bracket` and whether the crossing is `exact`
   (a tie on a grid point) or interpolated, which is labelled an interpolation;
 - `no_robust_action`: the best action depends on where inside the range the
-  surface lies (`outcome.reason == "mixed_within_range"`);
+  surface lies (`decided.value.outcome.reason == "mixed_within_range"`);
 - `unresolved`.
 
 Only the declared grid points are evaluated; nothing between them is. `range=`
@@ -246,11 +260,12 @@ ranged surface refuse. A `SensitivityArtifact` exports, and
 it and refuses a resealed or foreign artifact. It can be embedded in a
 [composition bundle](composition.md) as a `sensitivity` node.
 
-A joint mechanism sensitivity enters the same way through
-`SensitivityArtifact.from_joint_sensitivity(...)`; `from_surface(...)` takes a
-hand-supplied surface (the tests derive their oracles by hand: a gamma grid
-`{0, 1, 2}` with action A worth `2 - gamma` against B worth 1 leads A, ties at 1
-and leads B).
+A joint mechanism sensitivity of a prepared transport stage enters the same way through
+`sensitivity_decision.evaluate_joint_sensitivity(stage, deviation, effect=..., actions=...,
+causal_contract_id=...)`; `SensitivityArtifact.from_surface(...)` takes a
+hand-supplied surface. For example, on a gamma grid
+`{0, 1, 2}` with action A worth `2 - gamma` against B worth 1, A leads at 0, the two tie
+at 1 and B leads at 2.
 
 Refusals use `SensitivityRefusal` with detail in
 `sensitivity_decision_composition.*`: `composition_not_supported`, `wrong_contract`
@@ -274,7 +289,9 @@ claims = [
     decision_robust.Claim.evaluated("s1", law_1, support=decision_robust.Support("supported")),
     decision_robust.Claim.evaluated("s2", law_2, support=decision_robust.Support("supported")),
 ]
-robust = decision_robust.robust(contract, claims, kind="graph_dependent")
+from antecedent.outcomes import require_success
+
+robust = require_success(decision_robust.robust(contract, claims, kind="graph_dependent"))
 robust.verdict.kind       # "structurally_robust", or "graph_dependent_choice" when they disagree
 robust.selected           # the action, or None when the choice depends on the structure
 print(robust.explain())
@@ -283,7 +300,8 @@ print(robust.explain())
 Verdict kinds include `structurally_robust`, `support_robust`, `support_dependent`,
 `graph_dependent_choice`, `unsupported_extrapolation`, `insufficient_claims`,
 `no_admissible_action`, `worst_case_choice`, `bayes_choice` and `report_only`.
-`finite_scenarios`, `graph_dependent`, `weighted_atoms` and `point_claim` are
+`decision_robust.robust` returns an `Outcome`; `require_success` returns its value or raises
+the refusal. `finite_scenarios`, `graph_dependent`, `weighted_atoms` and `point_claim` are
 shorthand for the claim kinds, and `identified_sets` handles intervals. Bayes over
 an identified set has no probability law and is refused. A decision whose value
 came from an external callback keeps its attested value and trust limit in the

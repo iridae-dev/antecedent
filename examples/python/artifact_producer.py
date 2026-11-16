@@ -1,8 +1,12 @@
-"""Write scientific bytes and a separately retainable expected identity.
+"""Save a result as bytes plus an expected identity that can be retained apart from them.
 
-With no arguments, runs in a temporary directory. Use --output to retain files.
-The simulated effect is 2. Saving binds the bytes to a scientific identity; it does not
-establish that the declared graph or the effect holds in the real world.
+A simulated randomized treatment has effect 2. The script writes analysis.bin and
+expected.json and asserts that the bytes load bound to that identity. Saving binds the bytes
+to a scientific identity; it does not establish that the declared graph or the effect holds in
+the real world.
+
+Run: python examples/python/artifact_producer.py [--output DIRECTORY]
+With no arguments the files go to a temporary directory.
 """
 
 import argparse

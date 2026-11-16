@@ -10,7 +10,7 @@ You can ask "what changes when the population changes?" for quantities beyond an
 | The reasons behind each scenario answer in a range | `antecedent.scenario_invariance` | A derived report; nothing is sealed |
 | A target-effect posterior from joint source and target models | `antecedent.transport.advanced.learned_joint_transport` | A measured scalar reported with its calibration status; see [Population, time and uncertainty routes](population-time-uncertainty.md) |
 
-For the ordinary transport question see [Carry an effect to another population](guides/transport/carry-an-effect.md) and [when transport fails](guides/transport-failure.md).
+Every route here needs a declared selection diagram, the same premise as the ordinary transport question in [Carry an effect to another population](guides/transport/carry-an-effect.md); that page also lists [which transport page answers which question](guides/transport/carry-an-effect.md#which-transport-page-answers-your-question). For outcomes that produce no number, see [when transport fails](guides/transport-failure.md).
 
 ## Transport a path-specific effect
 
@@ -135,7 +135,7 @@ again = t.consume_counterfactual_transport_artifact(
 )
 ```
 
-A decision that is not identified carries its typed reason (`reason_code`, `detail`); `missing_regimes` names the experiments that would support a derivation, and `witness` and `witness_values` give the verified two-model witness of an obstruction. Preparing it raises the same refusal.
+A decision that is not identified carries its typed reason (`reason_code`, `detail`); `missing_regimes` names the experiments that would support a derivation, and `witness` and `witness_values` give the verified two-model witness of an obstruction. Preparing it raises the same refusal. Every `counterfactual_transport.*` detail and its remedy is listed in [refusal codes: counterfactual transport (exact finite laws)](reference/refusal-codes.md#counterfactual-transport-exact-finite-laws).
 
 In Rust the same route is `antecedent::prepare_counterfactual_transport`:
 
@@ -183,7 +183,7 @@ The sampled route evaluates the same stored derivation on laws estimated from co
 estimate = decision.derivation.estimate_sampled(tables, overlap=..., unseen_rule=...)
 ```
 
-`tables` are `SampledCountTable` values, one per cited population, regime and intervention world (`cited_regimes` lists them), and `overlap` is a `SamplingOverlap`. `consume_sampled_counterfactual_transport_artifact` recomputes the estimate from the counts in a fresh process. The estimate keeps four claims in separate fields:
+`tables` are `SampledCountTable` values, one per cited population, regime and intervention world (`cited_regimes` lists them), and `overlap` is a `SamplingOverlap`. `consume_sampled_counterfactual_transport_artifact` recomputes the estimate from the counts in a fresh process. Its refusals are listed in [refusal codes: counterfactual transport from counts](reference/refusal-codes.md#counterfactual-transport-from-counts). The estimate keeps four claims in separate fields:
 
 | Claim | What it says | What it does not say |
 | --- | --- | --- |

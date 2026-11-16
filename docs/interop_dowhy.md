@@ -1,10 +1,12 @@
 # DoWhy ↔ Antecedent interoperability
 
-DoWhy and Antecedent are complementary: DoWhy is a familiar
-model–identify–estimate–refute surface with a large Python estimator ecosystem;
-Antecedent is identification-first and refuses to publish an estimate on an
-unreviewed or unidentified structure. This page is a **handoff cookbook**, not a
-wrapper. Antecedent does not import or call DoWhy estimators.
+Use this page to move a causal graph between DoWhy and Antecedent and compare
+what each library does with it. DoWhy is a model–identify–estimate–refute
+surface with a large Python estimator ecosystem; Antecedent is
+identification-first and refuses to publish an estimate on an unreviewed or
+unidentified structure. This page is a **handoff cookbook**, not a wrapper:
+Antecedent does not import or call DoWhy estimators, and each library keeps its
+own claim.
 
 Use the same small backdoor SCM in both libraries:
 
@@ -27,7 +29,8 @@ inside Antecedent APIs.
 1. Build a reviewed `Dag` (or wrap an `AcceptedGraph` after review).
 2. Identify under Antecedent (`identify` / `analyze`) and record the certified
    adjustment set.
-3. Export `Dag.to_dot()` (or NetworkX adjacency / node-link JSON).
+3. Export `Dag.to_dot()` (or `Dag.to_networkx_node_link()` / `Dag.to_networkx_adjacency()`, which
+   return NetworkX node-link or adjacency JSON as a string).
 4. Construct a DoWhy `CausalModel` with that graph string and the same table.
 5. Call DoWhy `identify_effect` / `estimate_effect` for a familiar estimand
    (for example `backdoor.linear_regression`).
@@ -39,15 +42,18 @@ intervals.
 
 ## DoWhy → Antecedent
 
-1. Start from a DoWhy-style DOT string (or NetworkX digraph) for the same
-   backdoor DAG.
-2. Import with `Dag.from_dot(...)` (or the NetworkX codecs).
-3. Review, then wrap `AcceptedGraph.from_graph(...)`.
+1. Start from a DoWhy-style DOT string for the same backdoor DAG, or a
+   NetworkX digraph serialized as node-link or adjacency JSON.
+2. Import with `Dag.from_dot(...)` (or `Dag.from_networkx_node_link(...)` /
+   `Dag.from_networkx_adjacency(...)`).
+3. Review, then wrap it: `AcceptedGraph.from_graph(dag, algorithm_id=...)`, where
+   `algorithm_id` records where the graph came from.
 4. Run `identify` / `analyze` under Antecedent’s publication rules
    (for example `estimator="propensity.weighting"`).
 
 Unreviewed discovery stays outside the estimate path: discover once, accept a
-DAG, then estimate (see `examples/python/discover_then_estimate.py`). Passing
+DAG, then estimate (see
+[`discover_then_estimate.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discover_then_estimate.py)). Passing
 `discovery=` into `analyze` with `accept_discovered=False` raises a review
 error rather than inventing an adjustment set.
 
@@ -56,12 +62,15 @@ error rather than inventing an adjustment set.
 | Concern | DoWhy (typical) | Antecedent |
 | ------- | --------------- | ---------- |
 | Identification | Often advisory: `proceed_when_unidentifiable=True` continues into estimation | Hard gate: unidentified queries refuse to publish a point estimate |
-| Discovery | Graph may be assumed or loosely attached | Unreviewed discovery refuses; estimate clicks use an `AcceptedGraph` |
-| Partial structure | Easy to collapse to a single numeric answer | Retains unidentified / graph-dependent mass (for example `GraphDependent` status, structural unidentified mass on class envelopes) |
+| Discovery | Graph may be assumed or loosely attached | Unreviewed discovery refuses; estimation uses an `AcceptedGraph` |
+| Partial structure | Easy to collapse to a single numeric answer | Retains unidentified / graph-dependent mass (for example `graph_dependent` identification status, structural unidentified mass on class envelopes) |
 
-Frozen DoWhy 0.14 conformance fixtures remain the authoritative record for
-scoped parity pins (`parity/baselines/dowhy.toml`). Prefer this exercised
-backdoor ATE recipe over unexercised general-ID oracles.
+Where Antecedent's results are compared with DoWhy's, the comparison is pinned
+to DoWhy 0.14 (`parity/baselines/dowhy.toml`). Four task guides state the
+differences route by route: [intervention programs](guides/intervention-programs.md#differences-from-dowhy),
+[mechanism selection](guides/mechanism-selection.md#differences-from-dowhy),
+[intrinsic influence](guides/intrinsic-influence.md#differences-from-dowhy) and
+[graph falsification](guides/graph-falsification.md#differences-from-dowhy).
 
 ## Soft dependency
 
@@ -72,4 +81,4 @@ python examples/python/dowhy_handoff.py
 ```
 
 If `import dowhy` fails, the example prints a skip notice and still asserts the
-Antecedent adjustment set `{z}` and a positive ATE.
+Antecedent adjustment set `{z}` and an ATE within 0.5 of the true +2.

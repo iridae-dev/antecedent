@@ -38,7 +38,8 @@ identity the caller holds.
 * :class:`TransportClaimState` holds the current scene and advances it only when a revalidation
   succeeds, so a refused refresh leaves the state unchanged.
 * :meth:`TransportRevalidation.export` writes the claim-level verification as
-  ``composition_verification_v1``; :func:`antecedent.composition_verification.consume` replays
+  ``composition_verification_v1``;
+  :func:`antecedent.composition_verification.consume_composition_verification_artifact` replays
   the classification from the bytes.
 
 Rust owns the identities, the classification, the sealed verification and every refusal; this
@@ -134,6 +135,10 @@ class Calibration:
     ``held`` is a record the claim holds itself, established at ``established_at_target``
     (default: the target of the scene it is declared in); ``inherited`` is a record claimed from
     another claim of the scene.
+
+    Build one with the class methods :meth:`point_only`, :meth:`required`, :meth:`held` or
+    :meth:`inherited`. ``record`` is the 64-hex identity of a calibration record you hold;
+    nothing here declares or measures one.
     """
 
     kind: Literal["point_only", "required", "held", "inherited"]
@@ -153,14 +158,26 @@ class Calibration:
 
     @classmethod
     def held(cls, record: str, established_at_target: str | None = None) -> Calibration:
-        """A record the claim holds itself (a 64-hex identity)."""
+        """A record the claim holds itself (a 64-hex identity).
+
+        ``established_at_target`` is the target identity the record was established at
+        (:attr:`TransportSceneBuilder.target_identity`); ``None`` (the default) means the
+        target of the scene the claim is declared in.
+
+        Raises:
+            CausalValueError: ``record`` is empty.
+        """
         return cls("held", _hex(record, "record"), established_at_target)
 
     @classmethod
     def inherited(
         cls, from_claim: str, record: str, established_at_target: str | None = None
     ) -> Calibration:
-        """A record claimed from the claim ``from_claim`` of the same scene."""
+        """A record claimed from the claim ``from_claim`` of the same scene.
+
+        The claim holds the record only while ``from_claim`` holds it at the same target and
+        quantity. ``established_at_target`` as :meth:`held`.
+        """
         return cls("inherited", _hex(record, "record"), established_at_target, from_claim)
 
     def _wire(self) -> dict[str, Any]:
@@ -218,8 +235,11 @@ class TransportSceneBuilder:
 
     @property
     def target_identity(self) -> str:
-        """The identity the scene gives its target: the population and the content identity of
-        its declaration and data. A calibration record established at this target names it."""
+        """The identity the scene gives its target population and its data.
+
+        It binds the population and the content identity of its declaration and data. A
+        calibration record established at this target names it (``established_at_target``).
+        """
         return str(
             _native.transport_scene_target_identity(
                 self.target_population, self.target_data_identity
@@ -229,13 +249,19 @@ class TransportSceneBuilder:
     def target_support(
         self, unsupported_coordinates: Sequence[str] | None
     ) -> TransportSceneBuilder:
-        """Declare the target outside the support the transport needs, naming the coordinates
-        (``None`` restores a supported target)."""
+        """Declare the target outside the support the transport needs, naming the coordinates.
+
+        ``None`` restores a supported target. A target outside the support withdraws every
+        transported claim.
+        """
         coordinates = None if unsupported_coordinates is None else tuple(unsupported_coordinates)
         return replace(self, unsupported_target=coordinates)
 
     def source(self, population: str, evidence_identity: str) -> TransportSceneBuilder:
-        """Declare a source population with the content identity of its evidence."""
+        """Declare a source population with the content identity of its evidence.
+
+        Declaring a population again replaces its evidence identity.
+        """
         text(population, "population", non_empty=True)
         entry = (population, _hex(evidence_identity, "evidence_identity"))
         kept = tuple(s for s in self.sources if s[0] != population)
@@ -248,7 +274,16 @@ class TransportSceneBuilder:
         calibration: Calibration | None = None,
         trust: TrustStanding = "not_applicable",
     ) -> TransportSceneBuilder:
-        """Add a transported claim from a response and the calibration it states."""
+        """Add a transported claim from a response and the calibration it states.
+
+        ``calibration`` defaults to :meth:`Calibration.point_only`. ``trust`` states the claim's
+        provider-trust standing directly: ``"not_applicable"`` (default), ``"held"``,
+        ``"withdrawn"`` or ``"undeclared"``. Use :meth:`transported_claim` to read it from the
+        response's provenance instead.
+
+        Raises:
+            CausalTypeError: ``response`` is not a ``TransportedResponse``.
+        """
         if not isinstance(response, TransportedResponse):
             raise CausalTypeError("response must be a TransportedResponse")
         stated = calibration or Calibration.point_only()
@@ -294,7 +329,12 @@ class TransportSceneBuilder:
     def decision(
         self, key: str, identity: str, quantity: str, rests_on: Sequence[str] = ()
     ) -> TransportSceneBuilder:
-        """Add a decision resting on claims of the scene."""
+        """Add a decision resting on claims of the scene.
+
+        ``identity`` and ``quantity`` are the 64-hex identities of the decision and the
+        quantity it acts on; ``rests_on`` lists the keys of the claims it rests on. A decision
+        is reclassified with the claims it rests on.
+        """
         claim: dict[str, Any] = {
             "kind": "decision",
             "key": text(key, "key", non_empty=True),
@@ -339,7 +379,10 @@ class TransportScene(ScientificResult):
     ``target_identity`` is the identity of the target (population and data); ``selection_diagram``
     the content identity of the diagrams the claims name; ``sources`` the declared source
     populations with their evidence identities; ``claims`` every claim and decision with its
-    identities and dependencies.
+    identities and dependencies. ``target_supported`` is ``False`` when the builder declared
+    the target outside the support.
+
+    Build one with :meth:`builder`.
     """
 
     target_identity: str
@@ -351,8 +394,11 @@ class TransportScene(ScientificResult):
 
     @classmethod
     def builder(cls, target_population: str, target_data_identity: str) -> TransportSceneBuilder:
-        """A builder for a scene about ``target_population``; ``target_data_identity`` is the
-        content identity (64 hex) of the target's declaration and data."""
+        """A :class:`TransportSceneBuilder` for a scene about ``target_population``.
+
+        ``target_data_identity`` is the content identity (64 hex) of the target's declaration
+        and data.
+        """
         return TransportSceneBuilder(target_population, target_data_identity)
 
     @classmethod
@@ -368,7 +414,11 @@ class TransportScene(ScientificResult):
         )
 
     def claim(self, key: str) -> Mapping[str, Any]:
-        """One declared claim by key."""
+        """One declared claim by key.
+
+        Raises:
+            CausalTypeError: no claim has that key.
+        """
         for item in self.claims:
             if item["key"] == key:
                 return item
@@ -388,6 +438,10 @@ class ClaimRevalidation:
     each. ``prior_authority`` is ``retained`` or ``not_retained``. ``calibration_withdrawn`` is
     ``True`` when the record the claim relied on no longer holds: its point value is left as it
     was.
+
+    ``key`` is the claim key and ``kind`` ``transported`` or ``decision``. ``calibration`` is
+    the claim's uncertainty guarantee after revalidation: ``not_applicable``, ``held``,
+    ``inherited``, ``lost`` or ``required``.
     """
 
     key: str
@@ -440,7 +494,11 @@ class TransportRevalidation(ScientificResult):
         )
 
     def claim(self, key: str) -> ClaimRevalidation:
-        """The classification of one claim."""
+        """The classification of one claim.
+
+        Raises:
+            CausalTypeError: no claim has that key.
+        """
         for item in self.claims:
             if item.key == key:
                 return item
@@ -459,8 +517,12 @@ class TransportRevalidation(ScientificResult):
 
     @artifact_export
     def export(self, *, artifact_id: str = "transport-revalidation") -> ExportedArtifact[Any]:
-        """The claim-level verification as ``composition_verification_v1``; a fresh consumer
-        replays the classification."""
+        """Export the claim-level verification as ``composition_verification_v1``.
+
+        A fresh consumer replays the classification with
+        :func:`antecedent.composition_verification.consume_composition_verification_artifact`.
+        ``artifact_id`` defaults to ``"transport-revalidation"``.
+        """
         return artifact_from_receipt(self, bytes(_unwrap(self._handle.export(artifact_id))))
 
 
@@ -503,7 +565,17 @@ def revalidate(
 ) -> TransportRevalidation:
     """Classify every claim of ``current`` against ``previous`` under the observed ``effects``.
 
-    ``previous=None`` is a first verification. Refuses a scene whose graph does not build.
+    ``previous=None`` is a first verification. ``effects`` are observations such as those
+    from :func:`invalidation_effects`; default ``None``.
+
+    Returns:
+        A :class:`TransportRevalidation`; read ``claim(key).classification`` or call
+        ``require_valid(key)``.
+
+    Raises:
+        TransportedResponseRefusal: a scene whose graph does not build.
+        CausalTypeError: ``previous`` or ``current`` is not a ``TransportScene``, or an effect
+            is not an :class:`ObservedEffect`.
     """
     if previous is not None and not isinstance(previous, TransportScene):
         raise CausalTypeError("previous must be a TransportScene or None")
@@ -518,22 +590,30 @@ def revalidate(
 
 
 class TransportClaimState:
-    """The current scene of a set of transported claims, advanced only by a successful
-    revalidation. A refused observation leaves the state exactly as it was."""
+    """The current scene of a set of transported claims, advanced only by a successful revalidation.
+
+    A refused observation leaves the state exactly as it was. Construct it empty and call
+    :meth:`observe` with each new scene; the first observation is a first verification.
+    """
 
     def __init__(self) -> None:
         self._native = _native.TransportClaimStateHandle()
 
     @property
     def scene(self) -> TransportScene | None:
-        """The scene the last successful observation recorded."""
+        """The scene the last successful observation recorded, or ``None`` before the first."""
         handle = self._native.scene()
         return None if handle is None else TransportScene._of(handle)
 
     def observe(
         self, scene: TransportScene, effects: Sequence[ObservedEffect] | None = None
     ) -> TransportRevalidation:
-        """Classify ``scene`` against the recorded scene and, only on success, record it."""
+        """Classify ``scene`` against the recorded scene and, only on success, record it.
+
+        Raises:
+            TransportedResponseRefusal: the revalidation is refused; the state is unchanged.
+            CausalTypeError: ``scene`` is not a ``TransportScene``.
+        """
         if not isinstance(scene, TransportScene):
             raise CausalTypeError("scene must be a TransportScene")
         handle = _unwrap(self._native.observe(scene._handle, _effects(effects)))

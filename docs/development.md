@@ -1,6 +1,20 @@
 # Development
 
-[How Antecedent checks its scientific methods](guides/scientific-verification.md) explains how provenance, independent references, executing assertions and calibration support a claim. This page describes the development and measurement procedures that maintain that evidence.
+This page is the contributor and maintainer reference for the checks that guard the repository: what CI runs, which gate to run locally for which change, how scientific and calibration records are earned, and how a release is cut. Read [CONTRIBUTING.md](https://github.com/iridae-dev/antecedent/blob/v3.0.0/CONTRIBUTING.md) first for the clone-to-pull-request path. [How Antecedent checks its scientific methods](guides/scientific-verification.md) explains how provenance, independent references, executing assertions and calibration support a claim; this page describes the procedures that maintain that evidence.
+
+Names: the product is **Antecedent**. The Python distribution and import name is `antecedent`. The Rust
+facade crate is `antecedent` (`cargo add antecedent`); the supporting crates are `antecedent-*` on
+crates.io.
+
+| To do this | Read |
+| --- | --- |
+| Preview or check the documentation | [Documentation preview and checks](#documentation-preview-and-checks) |
+| Understand what CI runs and in what order | [CI vs local gates](#ci-vs-local-gates) |
+| Run one gate for a focused change | [Gates (local)](#gates-local), [Public API snapshots](#public-api-snapshots), [Python lint / types](#python-lint-types), [Native extension builds](#native-extension-builds) |
+| Choose the kind of test, or check the performance, feature and dependency rules | [Tests that matter](#tests-that-matter), [Performance rules](#performance-rules-merge-blockers), [Feature flags](#feature-flags), [Unsafe / deps](#unsafe-deps) |
+| Earn or check a scientific record | [Recorded scientific tests](#recorded-scientific-tests), [Earning platforms](#earning-platforms) |
+| Measure, probe or check a coverage record | [Coverage records](#coverage-records) |
+| Bump the version, cut and publish a release | [Versions](#versions), [Release candidates](#release-candidates), [Releases](#releases), [crates.io (Rust)](#cratesio-rust) |
 
 ## Documentation preview and checks
 
@@ -12,22 +26,18 @@ python scripts/generate_example_catalog.py --check
 python scripts/generate_doc_release_links.py --check
 python scripts/check_docs_experience.py
 python scripts/example_coverage.py --check
+python scripts/run_doc_examples.py
 python scripts/render_notebooks.py
 mkdocs build --strict
 python scripts/build_python_api_docs.py site/python
 mkdocs serve
 ```
 
-Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest (`scripts/docs_publication.toml`) keeps evidence-linked sources at their paths and out of the published site. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/v3.0.0/docs/README.md) for editorial conventions.
+These are the checks the `docs` workflow (`.github/workflows/docs.yml`) runs on every pull request, against a wheel it builds from the commit; it then verifies the built HTML with `python scripts/check_docs_site.py site`. `scripts/run_doc_examples.py` executes the documented Python snippets and embedded examples against the installed package. Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest (`scripts/docs_publication.toml`) keeps evidence-linked sources at their paths and out of the published site. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/v3.0.0/docs/README.md) for editorial conventions.
 
 `scripts/example_coverage.py` prints, for every example-catalog entry, whether each of its Python, Rust and notebook sources is executed, compiled only, or skipped and why. It reads what the runners select (the Python suite, the documentation build and the Rust example suite) and runs nothing; `--check` fails on a source no runner selects unless its catalog entry states the reason in an `unexecuted` table.
 
 Published pages link repository sources (provenance and parity records, tests, examples, ADRs) at the tag of the release they document, so a released page keeps naming the evidence it shipped with. Write such a link against any ref and run `python scripts/generate_doc_release_links.py`, which pins it; the link check fails a published page that names `main` or another release tag. The tag is created from the release commit, so before then a pinned link names nothing on GitHub and is checked against the working tree instead.
-
-
-Product name: **Antecedent**. Python distribution/import: `antecedent`. Rust
-facade: `antecedent` (`cargo add antecedent`). Supporting crates are
-`antecedent-*` on crates.io.
 
 ## CI vs local gates
 
@@ -39,7 +49,8 @@ GitHub Actions CI (`ci.yml`) runs the gate in tiers. The gate jobs run sections 
 `development` and `python-lint` sections; cheap checks come first and the record-currency job last.
 CI executes no scientific assertion and no calibration measurement:
 
-0. **`static`** — source reading only, no build and no test: DCO, rustfmt, lint allows, test
+0. **`static`** — source reading only, no build and no test: the DCO sign-off of every commit (a
+   step of the CI job, not of the gate script), rustfmt, lint allows, test
    targets, crate ownership, the test registry and lane filters, parity inventories, provenance,
    capability records, the one support count (`scripts/gate_support.py`), the release inventory
    (`scripts/check_release_inventory.py`), bounds, release claims, links and
@@ -50,13 +61,14 @@ CI executes no scientific assertion and no calibration measurement:
    `--no-default-features`), **`public-api`** (public items match `parity/public_api/*.txt`),
    **`cited-tests`** (eight shards; every cited test is a compiled, non-ignored test),
    **`benches`** (Criterion smoke, skipped on a pull request that touches no bench),
-   **`python-native`** (the extension the Python jobs share), **`deny`** (`cargo deny check` and
-   the crates.io publish dry-run) and **`fuzz`**.
+   **`python-native`** (the extension the Python jobs share), **`deny`** (`cargo deny check`, and
+   the crates.io publish dry-run on a pull request that changes a crate manifest or the publish
+   scripts) and **`fuzz`** (builds the fuzz targets on nightly).
 2. **Engineering tests** — tests of the software with no scientific claim. **`rust`** (the
    engineering nextest selection and doctests; the facade and remaining packages run in parallel on
    Ubuntu, both also on macOS after merge), **`development`** (the development build that runs
    `not_supported` routes), **`python-lint`** (Ruff, mypy, script tests, then pytest without the
-   scientific and calibration markers, with an 85% coverage floor) and **`python-wheels`** (builds
+   `requires_calibration` and `calibration_simulation` markers, with an 85% coverage floor) and **`python-wheels`** (builds
    and tests the supported wheel matrix). The optional learner and Gaussian-process feature tests
    run in `features` on every pull request.
 3. **`scientific`** — one job, `bash scripts/gate_release.sh --section scientific`: the same two
@@ -74,13 +86,15 @@ GitHub.** CI only checks that the committed records are current. See [Earning an
 model and every lane command. Criterion benchmark smokes check
 execution, not timing regressions; a pull request labelled `perf` also runs `bench-regression`,
 which benchmarks six hot paths at the base and the head commit in one job and compares them
-(`scripts/bench_regression.py`). `cargo deny` runs inside `gate_release.sh` only when `cargo-deny`
-is on PATH, which it is not in CI's `benches` job (the `deny` job owns it there).
+(`scripts/bench_regression.py`). The `deny` section of `gate_release.sh` runs `cargo deny check`
+when `cargo-deny` is on PATH and otherwise warns and continues; the release-candidate gate sets
+`REQUIRE_CARGO_DENY=1`, which makes it mandatory. CI's `deny` job runs `cargo deny check` itself.
 
 ## Gates (local)
 
-Each gate below is also a step of `scripts/gate_release.sh`. Run one on its own when a change might
-break something unintended:
+Run one of these on its own when a change might break something unintended. All but
+`scripts/test.sh` (bare) and `scripts/measure_calibration.sh`, which earn records on a development
+machine, are steps of `scripts/gate_release.sh`:
 
 ```bash
 python3 scripts/check_parity_inventories.py   # every parity inventory: done rows have evidence, exit artifacts exist
@@ -103,6 +117,14 @@ bash scripts/gate_release.sh       # tiers 0 to 3 in order
 bash scripts/gate_python_lint.sh   # local equivalent of the CI lint/type checks
 ```
 
+### Capability inventory status
+
+Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
+**or** a named harness in the gate script, plus a recorded reference-generation
+command when black-box comparison applies.
+
+Statuses: `pending` | `done`.
+
 ## Public API snapshots
 
 `scripts/gate_public_api.sh` lists every published crate's public items (paths,
@@ -117,6 +139,196 @@ cross-crate plumbing that is not a supported API out of the snapshot by making
 it `pub(crate)`, or, when another workspace crate or a fixture needs it, behind
 a `test-util`-style feature (see `antecedent-identify`) rather than
 `#[doc(hidden)] pub`.
+
+## Python lint / types
+
+`scripts/gate_python_lint.sh` runs **ruff** (check + format) and **mypy** over
+`python/antecedent` (including hand-written `.pyi` stubs for `_native`). It is a
+local equivalent of the checks in the separate CI `python-lint` job; the
+wheel-matrix job does not run lint or type checks.
+
+```bash
+cd python
+uv sync --group dev
+# If CONDA_PREFIX and VIRTUAL_ENV are both set, unset CONDA_PREFIX first.
+bash ../scripts/gate_python_lint.sh
+```
+
+Or individually:
+
+```bash
+cd python && uv run ruff check antecedent tests ../examples/python ../scripts ../benchmarks ../conformance
+uv run ruff format --check antecedent tests ../examples/python
+uv run mypy
+```
+
+## Native extension builds
+
+All Python builds of `antecedent._native` — wheels, `maturin develop`, and the
+editable rebuild uv performs when the install goes stale — compile with Cargo's
+release profile (`[tool.maturin] profile = "release"` in `python/pyproject.toml`).
+Do not remove that pin: the PEP 517/660 default is the debug profile, which
+produces bit-identical estimates at roughly 50× the wall time, so nothing
+downstream notices. A debug-profile extension warns on import (the flag is
+`antecedent._native.__build_optimized__`), and `tests/test_build_profile.py`
+fails the pytest suite — locally and in CI — if the extension under test is
+unoptimized (`ANTECEDENT_ALLOW_DEBUG_NATIVE=1` opts out deliberately).
+
+## Tests that matter
+
+| Kind | Role |
+|------|------|
+| Unit / property | Algorithm invariants, graph witnesses, numeric edge cases |
+| Conformance | Frozen fixtures vs expected outputs (`conformance/`) |
+| Calibration | Coverage / Type I / null FPR (`parity/calibration_groups.toml`, measured locally by `measure_calibration.sh`) |
+| Cross-language | Python bindings exercise the same semantics |
+| Criterion benches | Designated hot paths; release gate locally and in CI |
+| Fuzz | Parsers / graph / artifact surfaces under `fuzz/` |
+
+Tolerance classes live in `antecedent-core` (ADR 0010). Do not tighten or loosen a
+conformance band without an ADR-level reason.
+
+## Performance rules (merge blockers)
+
+- Data layout and copy policy are designed with the algorithm, not after.
+- No per-observation dynamic dispatch / Python / hash / heap in scalar inner loops
+  unless the slow path is API-explicit and separately benched.
+- Scalar kernels are the correctness reference; SIMD/BLAS/parallel paths pass the
+  same tests.
+- Do not change statistical semantics to go faster (sample selection, masking,
+  conditioning order, randomization, stopping rules, estimands).
+- Parallelism is bounded by `ExecutionContext`.
+- Superlinear storage must expose bounds, streaming, or refuse — not OOM later.
+
+See [hot_paths.md](hot_paths.md).
+
+## Feature flags
+
+Cargo features mean “optional adapter / heavy backend,” never “different numbers
+on the default path.”
+
+Always on: `faer`, portable kernels, `ExecutionContext` parallelism (`rayon`
+rejected).
+
+Optional features include `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
+`antecedent-learn/ml-gbdt`, `ml-forest`, `ml-neural`. A feature that gates no code is not
+declared (the HMC backend is always compiled), and there is no `simd-runtime`
+feature, so `KernelPolicy::allow_arch_simd` always selects the portable kernels.
+Ingest and exchange adapters are optional features and never reshape core types.
+The `development` feature (and `scripts/dev_python.sh` for Python, which
+installs a development build and checks `antecedent.build_flavor()`) turns the
+support gate into a recorder: a route that lacks provenance or an independent
+scientific check runs instead of refusing, and its result carries `would_refuse`
+(the `not_supported` code, the detail and the missing evidence). Scientific
+refusals still refuse. A development build is for exercising unsupported routes
+and developing their evidence; artifacts it seals are stamped `development` and
+release consumers refuse them, so never ship, publish or write fixtures from one.
+The only place a `not_supported` refusal is built is
+`antecedent_core::support_gate::require_supported`, and
+`scripts/gate_not_supported_sites.py` enforces that. See
+[How Antecedent checks its scientific methods](guides/scientific-verification.md#the-evidence-model).
+CI compiles the feature combinations crates.io users get (default features, each
+optional feature alone, `--no-default-features`) in the `features` job.
+
+## Unsafe / deps
+
+Reviewed `unsafe` is concentrated in `antecedent-kernels` (SIMD), the
+`antecedent-data` buffer/Arrow FFI adapters (`unsafe from_ffi`), and IO mmap
+(`unsafe open_path_mapped`; safe `open_path` is an owned snapshot).
+New `unsafe` needs justification in review. Dependency and license policy: ADR 0008 and `deny.toml`.
+
+## Recorded scientific tests
+
+The scientific assertions (those whose claims carry the `scientific` role, plus the uncited ones in
+`parity/scientific_tests.toml`; calibration simulations and acceptance measurements are excluded)
+are recorded in `parity/scientific_records.toml`: per assertion, its exact selector, roles, the
+commit it passed at, a fingerprint of its dependencies and the time. While the fingerprint still
+matches, the recorded pass carries forward and the assertion does not rerun. What the fingerprint
+covers, and what owed means for support, is in [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records).
+
+```bash
+bash scripts/test.sh                                  # engineering, then owed scientific, then owed calibration
+bash scripts/test.sh scientific                       # owed scientific assertions only
+bash scripts/test.sh scientific --only PATTERN        # owed rows matching PATTERN (substring or glob)
+bash scripts/test.sh scientific --all                 # manual: rerun and re-record everything
+python3 scripts/scientific_records.py status          # which assertions are owed
+python3 scripts/scientific_records.py status --check  # exit 1 if any owed; executes nothing (CI)
+```
+
+`scientific_records.py run` is the one entry point that executes scientific assertions. The
+engineering lane excludes them (the nextest default filter and the pytest `scientific` marker are
+both derived from the registries). Scientific assertions are Rust tests: every owed test target is
+built once with coverage instrumentation and each assertion runs by its exact selector. A pass is
+recorded with its dependency manifest, as each target finishes, only while its inputs still match (see
+[Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records)).
+The capability, transport, composition, checked-execution and
+GCM conformance gates only resolve their rows to exact tests (`run_evidence_rows.py --static`).
+The runner proves the exact assertion executed and was not ignored; failures are reported and never
+recorded. A recorded pass is evidence for support only; it is never a calibration measurement or
+coverage record.
+
+## Earning platforms
+
+A record is earned on the machine of the developer who implemented its feature, whatever its
+platform, and committed with the change. Every other machine, CI included, only checks that the
+record is current. `scripts/evidence_platforms.py` holds the reviewed platforms; each has its own
+policy id, Nix system, build recipes, sandbox rule and reviewed compile-time registry:
+
+| platform (Rust host triple) | Nix system | policy | compile-time registry |
+| --- | --- | --- | --- |
+| `aarch64-apple-darwin` | `aarch64-darwin` | `nix-darwin-private-tmp-audit-v1` | `nix/compile-time-reviewed.json` |
+| `x86_64-unknown-linux-gnu` | `x86_64-linux` | `nix-linux-sandbox-audit-v1` | `nix/compile-time-reviewed.x86_64-unknown-linux-gnu.json` |
+| `aarch64-unknown-linux-gnu` | `aarch64-linux` | `nix-linux-sandbox-audit-v1` | `nix/compile-time-reviewed.aarch64-unknown-linux-gnu.json` |
+
+**Earning.** The commands are the same on every platform (`bash scripts/test.sh`,
+`bash scripts/measure_calibration.sh`, `python3 scripts/calibration_probe.py`), and the tree holds
+each platform's whole policy: pinned toolchain archives, recipes and reviewed registry. Earning
+selects the policy of the host it runs on and refuses, before building, on a host with no
+reviewed policy. `python3 scripts/evidence_platforms.py status` prints the host's policy and
+whether it can earn. On Apple silicon nothing changes.
+
+**On Linux** (`x86_64` or `aarch64`, glibc, a multi-user Nix), run the earning command. Its first
+run prepares the host, as `python3 scripts/evidence_platforms.py prepare` does on its own:
+
+- It checks the daemon's sandbox: `/etc/nix/nix.conf` is root-owned, has no include line and sets
+  `sandbox = true` and `sandbox-fallback = false`; the daemon reports the same and exposes no host
+  path but `/bin/sh` mapped into the store. NixOS writes this by default. Elsewhere only root can
+  change the file, so the refusal prints the command:
+  `printf 'sandbox = true\nsandbox-fallback = false\n' | sudo tee -a /etc/nix/nix.conf && sudo systemctl restart nix-daemon`.
+- It checks that the reviewed registry licenses every compile-time unit the host's Cargo
+  resolves, and names any that it does not.
+- It realises what an evidence build reads besides the source (`nix/evidence-inputs.nix`: the
+  toolchain archives by their pinned SHA-256, the build tools of the locked nixpkgs and the crates
+  of `Cargo.lock`), online. Evidence builds themselves stay offline and without substitutes.
+
+This is repeated when the recipes, the registry or `Cargo.lock` change. The first build under a
+new recipe set or lock is also rebuilt and compared bit for bit, as `--check-reproducible` asks
+for on Apple silicon.
+
+**Registries after a `Cargo.lock` change.** Each registry is bound to the lock's hash, so a
+changed lock owes every platform's registry, and a record is rechecked against the registry of
+the platform it names. `python3 scripts/evidence_platforms.py draft-registry --all` rebinds them
+from any host: it resolves each platform's unit graphs as that platform's Cargo would, keeps every
+reviewed row and adds each new build-script or procedural-macro unit (and what it depends on) as
+`unresolved`. Earning refuses an `unresolved` unit. Read what the unit reads on that platform
+(`nix/compile-time-audit.md`, `nix/linux/compile-time-audit.md`), set its `source_projection` to
+`reviewed-safe` or `complete-source`, and commit the registries with the lock.
+
+**Which platform earned a record.** A record's dependency manifest
+(`parity/evidence_manifests/<dependency_manifest>.json`) names it in `nix_build.policy.target`.
+`nix_build.policy.id` and `nix_build.tools.host` (the compiler's host triple) must be that
+platform's, and its recipe digests must be of that platform's recipes; the manifest checker
+refuses a receipt whose fields disagree.
+
+**On a machine of another platform.** You can check that the record is current: currency compares
+source fingerprints, the compiler pin, `Cargo.lock` and the record's own platform registry, all
+read from the repository, so the answer is the same on every host
+(`scientific_records.py status --check`, `calibration_status.py --check`). You cannot replay it. A
+coverage record's replicate digests are bit-exact and depend on the platform's math library, so
+`calibration_probe.py` does not run a record earned elsewhere and reports
+`earned on <platform>; this host (<host>) cannot replay its digests`, never a mismatch; a probe
+attestation covers only a measurement of its own platform. A record that a change makes owed is
+re-earned on the platform of whoever makes the change, and then names that platform.
 
 ## Coverage records
 
@@ -143,8 +355,8 @@ record-emitting group once per grid point with
 | `SHORT_SERIES` | `3n/4, n, 2n` | series of at most 100 steps, whose base is already the shortest series the construction is supported for (`grid_n`) |
 | `HEAVY` | `n/2, n, 3n/2` | designs that run for hours at their base (Bayesian derivative and Jacobian bands, ADMG front door, the 2500-row counterfactual designs) |
 
-The base point (point 1, also what an unset variable means) is the design as it
-was measured before the grid, on the same replicate data; points 0 and 2 salt
+The base point (point 1, also what an unset variable means) is the design at its
+base `n`, with unsalted generators; points 0 and 2 salt
 every generator in the harness, so each point measures independent data and
 stays deterministic. A test name's `nNNN` names the base point.
 
@@ -228,7 +440,7 @@ dependency closure, the test file with its helpers and the DGP file, `Cargo.lock
 and the workspace manifest, the toolchain and compiler, embedded and declared
 inputs (`parity/fingerprint_inputs.toml`), build scripts, the build configuration
 and `ANTECEDENT_*` values. The scientific records use the same manifests; the full
-list is in the canonical page above.
+list is in [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records).
 
 **Status.** `python3 scripts/calibration_status.py status` classifies every
 record in `parity/coverage_records.toml`:
@@ -440,7 +652,7 @@ measurement: `record_id`, `calibration_sha`, `sha` (the probed commit),
 `bound = 3/k`, `result`, and for a pass its `dependency_manifest` and
 `measurement_digest`. A mismatch leaves the record owed. A record whose
 margin needs more replicates than its longest stored prefix, or that stores no
-digests (measured before probes existed), is reported `owed`; only a
+digests, is reported `owed`; only a
 re-measurement makes it current. `quick` is a cheap detector: a record stands on a row
 only when `k` is at least what its margin needs.
 
@@ -449,13 +661,28 @@ covers its measurement and the row's manifest still matches the tree.
 Commit the attestation file with the change it attests; re-measuring a record
 drops its rows.
 
-### Capability inventory status
+## Versions
 
-Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
-**or** a named harness in the gate script, plus a recorded reference-generation
-command when black-box comparison applies.
+Workspace and Python package versions follow `[workspace.package].version` in `Cargo.toml`.
+Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
-Statuses: `pending` | `done`.
+MSRV: Rust 1.97, edition 2024. Python: CPython 3.11–3.14.
+
+Keep `[workspace.package].version` in `Cargo.toml` and `version` in
+`python/pyproject.toml` in sync:
+
+```bash
+bash scripts/set_version.sh X.Y.Z
+```
+
+`set_version.sh` also updates path-dependency pins under `crates/*/Cargo.toml`,
+the Python fallback `__version__`, the local package entry in `python/uv.lock`,
+`CITATION.cff` and the generated release snippets (the supported-versions table in
+`SECURITY.md`, install pins), refreshes `Cargo.lock` offline, and freezes the previous
+cut's supported-cell block in `docs/release-notes/` so a later matrix regen cannot
+overwrite it. `bash scripts/set_version.sh --check X.Y.Z` writes nothing and fails when
+the tree is not at that version. The generator rewrites live supported-cell markers only in
+`docs/release-notes/vX.Y.Z.md` for the current workspace version.
 
 ## Release candidates
 
@@ -502,219 +729,6 @@ citation, reachability, metadata and support gates.
 `scripts/gate_selftests.sh` runs all of them. Each case builds a repo overlay and
 runs a whole gate, so it takes tens of minutes and is run on demand (after
 changing a gate or its cases), not by `gate_release.sh` or CI.
-
-## Python lint / types
-
-`scripts/gate_python_lint.sh` runs **ruff** (check + format) and **mypy** over
-`python/antecedent` (including hand-written `.pyi` stubs for `_native`). It is a
-local equivalent of the checks in the separate CI `python-lint` job; the
-wheel-matrix job does not run lint or type checks.
-
-```bash
-cd python
-uv sync --group dev
-# If CONDA_PREFIX and VIRTUAL_ENV are both set, unset CONDA_PREFIX first.
-bash ../scripts/gate_python_lint.sh
-```
-
-Or individually:
-
-```bash
-cd python && uv run ruff check antecedent tests ../examples/python
-uv run ruff format --check antecedent tests ../examples/python
-uv run mypy
-```
-
-## Native extension builds
-
-All Python builds of `antecedent._native` — wheels, `maturin develop`, and the
-editable rebuild uv performs when the install goes stale — compile with Cargo's
-release profile (`[tool.maturin] profile = "release"` in `python/pyproject.toml`).
-Do not remove that pin: the PEP 517/660 default is the debug profile, which
-produces bit-identical estimates at roughly 50× the wall time, so nothing
-downstream notices. A debug-profile extension warns on import (the flag is
-`antecedent._native.__build_optimized__`), and `tests/test_build_profile.py`
-fails the pytest suite — locally and in CI — if the extension under test is
-unoptimized (`ANTECEDENT_ALLOW_DEBUG_NATIVE=1` opts out deliberately).
-
-## Recorded scientific tests
-
-The scientific assertions (those whose claims carry the `scientific` role, plus the uncited ones in
-`parity/scientific_tests.toml`; calibration simulations and acceptance measurements are excluded)
-are recorded in `parity/scientific_records.toml`: per assertion, its exact selector, roles, the
-commit it passed at, a fingerprint of its dependencies and the time. While the fingerprint still
-matches, the recorded pass carries forward and the assertion does not rerun. What the fingerprint
-covers, and what owed means for support, is in [Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records).
-
-```bash
-bash scripts/test.sh                                  # engineering, then owed scientific, then owed calibration
-bash scripts/test.sh scientific                       # owed scientific assertions only
-bash scripts/test.sh scientific --only PATTERN        # owed rows matching PATTERN (substring or glob)
-bash scripts/test.sh scientific --all                 # manual: rerun and re-record everything
-python3 scripts/scientific_records.py status          # which assertions are owed
-python3 scripts/scientific_records.py status --check  # exit 1 if any owed; executes nothing (CI)
-```
-
-`scientific_records.py run` is the one entry point that executes scientific assertions. The
-engineering lane excludes them (the nextest default filter and the pytest `scientific` marker are
-both derived from the registries). Owed Rust assertions build once per test target with coverage
-instrumentation and run exactly; owed Python assertions run in one pytest batch. A pass is recorded
-with its dependency manifest, after each target and batch, only while its inputs still match (see
-[Earning and checking the records](guides/scientific-verification.md#earning-and-checking-the-records)).
-The capability, transport, composition, checked-execution and
-GCM conformance gates only resolve their rows to exact tests (`run_evidence_rows.py --static`).
-The runner proves the exact assertion executed and was not ignored; failures are reported and never
-recorded. A recorded pass is evidence for support only; it is never a calibration measurement or
-coverage record.
-
-## Earning platforms
-
-A record is earned on the machine of the developer who implemented its feature, whatever its
-platform, and committed with the change. Every other machine, CI included, only checks that the
-record is current. `scripts/evidence_platforms.py` holds the reviewed platforms; each has its own
-policy id, Nix system, build recipes, sandbox rule and reviewed compile-time registry:
-
-| platform (Rust host triple) | Nix system | policy | compile-time registry |
-| --- | --- | --- | --- |
-| `aarch64-apple-darwin` | `aarch64-darwin` | `nix-darwin-private-tmp-audit-v1` | `nix/compile-time-reviewed.json` |
-| `x86_64-unknown-linux-gnu` | `x86_64-linux` | `nix-linux-sandbox-audit-v1` | `nix/compile-time-reviewed.x86_64-unknown-linux-gnu.json` |
-| `aarch64-unknown-linux-gnu` | `aarch64-linux` | `nix-linux-sandbox-audit-v1` | `nix/compile-time-reviewed.aarch64-unknown-linux-gnu.json` |
-
-**Earning.** The commands are the same on every platform (`bash scripts/test.sh`,
-`bash scripts/measure_calibration.sh`, `python3 scripts/calibration_probe.py`), and the tree holds
-each platform's whole policy: pinned toolchain archives, recipes and reviewed registry. Earning
-selects the policy of the host it runs on and refuses, before building, on a host with no
-reviewed policy. `python3 scripts/evidence_platforms.py status` prints the host's policy and
-whether it can earn. On Apple silicon nothing changes.
-
-**On Linux** (`x86_64` or `aarch64`, glibc, a multi-user Nix), run the earning command. Its first
-run prepares the host, as `python3 scripts/evidence_platforms.py prepare` does on its own:
-
-- It checks the daemon's sandbox: `/etc/nix/nix.conf` is root-owned, has no include line and sets
-  `sandbox = true` and `sandbox-fallback = false`; the daemon reports the same and exposes no host
-  path but `/bin/sh` mapped into the store. NixOS writes this by default. Elsewhere only root can
-  change the file, so the refusal prints the command:
-  `printf 'sandbox = true\nsandbox-fallback = false\n' | sudo tee -a /etc/nix/nix.conf && sudo systemctl restart nix-daemon`.
-- It checks that the reviewed registry licenses every compile-time unit the host's Cargo
-  resolves, and names any that it does not.
-- It realises what an evidence build reads besides the source (`nix/evidence-inputs.nix`: the
-  toolchain archives by their pinned SHA-256, the build tools of the locked nixpkgs and the crates
-  of `Cargo.lock`), online. Evidence builds themselves stay offline and without substitutes.
-
-This is repeated when the recipes, the registry or `Cargo.lock` change. The first build under a
-new recipe set or lock is also rebuilt and compared bit for bit, as `--check-reproducible` asks
-for on Apple silicon.
-
-**Registries after a `Cargo.lock` change.** Each registry is bound to the lock's hash, so a
-changed lock owes every platform's registry, and a record is rechecked against the registry of
-the platform it names. `python3 scripts/evidence_platforms.py draft-registry --all` rebinds them
-from any host: it resolves each platform's unit graphs as that platform's Cargo would, keeps every
-reviewed row and adds each new build-script or procedural-macro unit (and what it depends on) as
-`unresolved`. Earning refuses an `unresolved` unit. Read what the unit reads on that platform
-(`nix/compile-time-audit.md`, `nix/linux/compile-time-audit.md`), set its `source_projection` to
-`reviewed-safe` or `complete-source`, and commit the registries with the lock.
-
-**Which platform earned a record.** A record's dependency manifest
-(`parity/evidence_manifests/<dependency_manifest>.json`) names it in `nix_build.policy.target`.
-`nix_build.policy.id` and `nix_build.tools.host` (the compiler's host triple) must be that
-platform's, and its recipe digests must be of that platform's recipes; the manifest checker
-refuses a receipt whose fields disagree.
-
-**On a machine of another platform.** You can check that the record is current: currency compares
-source fingerprints, the compiler pin, `Cargo.lock` and the record's own platform registry, all
-read from the repository, so the answer is the same on every host
-(`scientific_records.py status --check`, `calibration_status.py --check`). You cannot replay it. A
-coverage record's replicate digests are bit-exact and depend on the platform's math library, so
-`calibration_probe.py` does not run a record earned elsewhere and reports
-`earned on <platform>; this host (<host>) cannot replay its digests`, never a mismatch; a probe
-attestation covers only a measurement of its own platform. A record that a change makes owed is
-re-earned on the platform of whoever makes the change, and then names that platform.
-
-## Tests that matter
-
-| Kind | Role |
-|------|------|
-| Unit / property | Algorithm invariants, graph witnesses, numeric edge cases |
-| Conformance | Frozen fixtures vs expected outputs (`conformance/`) |
-| Calibration | Coverage / Type I / null FPR (`parity/calibration_groups.toml`, measured locally by `measure_calibration.sh`) |
-| Cross-language | Python bindings exercise the same semantics |
-| Criterion benches | Designated hot paths; release gate locally and in CI |
-| Fuzz | Parsers / graph / artifact surfaces under `fuzz/` |
-
-Tolerance classes live in `antecedent-core` (ADR 0010). Do not tighten or loosen a
-conformance band without an ADR-level reason.
-
-## Performance rules (merge blockers)
-
-- Data layout and copy policy are designed with the algorithm, not after.
-- No per-observation dynamic dispatch / Python / hash / heap in scalar inner loops
-  unless the slow path is API-explicit and separately benched.
-- Scalar kernels are the correctness reference; SIMD/BLAS/parallel paths pass the
-  same tests.
-- Do not change statistical semantics to go faster (sample selection, masking,
-  conditioning order, randomization, stopping rules, estimands).
-- Parallelism is bounded by `ExecutionContext`.
-- Superlinear storage must expose bounds, streaming, or refuse — not OOM later.
-
-See [hot_paths.md](hot_paths.md).
-
-## Feature flags
-
-Cargo features mean “optional adapter / heavy backend,” never “different numbers
-on the default path.”
-
-Always on: `faer`, portable kernels, `ExecutionContext` parallelism (`rayon`
-rejected).
-
-Optional features include `antecedent-data/arrow`, `antecedent-model/gaussian-process`,
-`antecedent-learn/ml-gbdt`, `ml-forest`, `ml-neural`. A feature that gates no code is not
-declared (the HMC backend is always compiled), and there is no `simd-runtime`
-feature, so `KernelPolicy::allow_arch_simd` always selects the portable kernels.
-Ingest and exchange adapters are optional features and never reshape core types.
-The `development` feature (and `scripts/dev_python.sh` for Python, which
-installs a development build and checks `antecedent.build_flavor()`) turns the
-support gate into a recorder: a route that lacks provenance or an independent
-scientific check runs instead of refusing, and its result carries `would_refuse`
-(the `not_supported` code, the detail and the missing evidence). Scientific
-refusals still refuse. A development build is for exercising unsupported routes
-and developing their evidence; artifacts it seals are stamped `development` and
-release consumers refuse them, so never ship, publish or write fixtures from one.
-The only place a `not_supported` refusal is built is
-`antecedent_core::support_gate::require_supported`, and
-`scripts/gate_not_supported_sites.py` enforces that. See
-[How Antecedent checks its scientific methods](guides/scientific-verification.md#the-evidence-model).
-CI compiles the feature combinations crates.io users get (default features, each
-optional feature alone, `--no-default-features`) in the `features` job.
-
-## Unsafe / deps
-
-Reviewed `unsafe` is concentrated in `antecedent-kernels` (SIMD), the
-`antecedent-data` buffer/Arrow FFI adapters (`unsafe from_ffi`), and IO mmap
-(`unsafe open_path_mapped`; safe `open_path` is an owned snapshot).
-New `unsafe` needs justification in review. Dependency and license policy: ADR 0008 and `deny.toml`.
-
-## Versions
-
-Workspace and Python package versions follow `[workspace.package].version` in `Cargo.toml`.
-Artifact format is frozen separately — see [artifacts.md](artifacts.md).
-
-MSRV: Rust 1.97, edition 2024. Python: CPython 3.11–3.14.
-
-Keep `[workspace.package].version` in `Cargo.toml` and `version` in
-`python/pyproject.toml` in sync:
-
-```bash
-bash scripts/set_version.sh X.Y.Z
-```
-
-`set_version.sh` also updates path-dependency pins under `crates/*/Cargo.toml`,
-the Python fallback `__version__`, the local package entry in `python/uv.lock`,
-`CITATION.cff` and the generated release snippets (the supported-versions table in
-`SECURITY.md`, install pins), refreshes `Cargo.lock` offline, and freezes the previous
-cut's supported-cell block in `docs/release-notes/` so a later matrix regen cannot
-overwrite it. `bash scripts/set_version.sh --check X.Y.Z` writes nothing and fails when
-the tree is not at that version. The generator rewrites live supported-cell markers only in
-`docs/release-notes/vX.Y.Z.md` for the current workspace version.
 
 ## Releases
 

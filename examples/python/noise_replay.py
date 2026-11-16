@@ -1,10 +1,17 @@
-"""Keeping a fitted model's exogenous noise and evaluating it again under other settings.
+"""What would the same units have done under another setting of a fitted model?
 
-Drawing returns the noise that produced the rows. Replaying that noise reproduces the draws bit
-for bit, replaying it under an intervention gives that intervention's counterfactual for the very
-same units, and noise edited by the caller (here one coordinate set to zero) is replayed as given.
-The chain ``a -> b -> c`` is linear, so the variance of ``b`` once the noise of ``a`` is held at
-zero is exactly the variance of ``b``'s own noise."""
+The data are 3,000 simulated rows of a linear Gaussian chain ``a -> b -> c``, fitted as a
+graphical causal model. Drawing returns the noise that produced the rows. The script asserts that
+replaying that noise reproduces the draws bit for bit, that replaying it under an intervention
+gives that intervention's counterfactual for the very same units, and that noise edited by the
+caller (here one coordinate set to zero) is replayed as given. The chain is linear, so the
+variance of ``b`` once the noise of ``a`` is held at zero is exactly the variance of ``b``'s own
+noise. Noise of the wrong width is refused.
+
+The counterfactuals are those of the fitted mechanisms under the declared graph, not of a real
+system.
+
+Run: ``python examples/python/noise_replay.py``."""
 
 from __future__ import annotations
 

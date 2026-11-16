@@ -1,8 +1,40 @@
 # Program interventions
 
-For an end-to-end pricing and inventory investigation, see [write and replay your own causal policies](../tutorials/programmable-policies.md).
+Define an intervention whose value is computed, such as a price floor, a cap or a rule that reads other variables, and evaluate it on a fitted structural model. Use a program when a constant `do(x = c)` does not describe the action: the new value depends on the value the unit would have had, or on other variables.
 
-Define an intervention whose value is computed, such as a price floor, a cap or a rule that reads other variables, and evaluate it on a fitted structural model. In Python, write expressions with `antecedent.intervention_programs` (`var`, `minimum`, `maximum`, `generated`, `transform`, `assign`); the Rust names below are the same constructs. Two interventions carry a typed expression:
+You need a fitted model ([fit and query a structural causal model](gcm-estimands.md)). Every result is a property of that model: the policy's value under the fitted mechanisms, with only its simulation error quantified. For an end-to-end pricing and inventory investigation, see [write and replay your own causal policies](../tutorials/programmable-policies.md).
+
+## Apply a price floor
+
+```python
+import numpy as np
+import antecedent
+from antecedent.intervention_programs import (
+    counterfactual_policy, generated, maximum, policy_support, policy_value, sample_policy, transform,
+)
+
+rng = np.random.default_rng(23)
+price = 11.0 + rng.normal(scale=2.0, size=600)
+demand = 50.0 - 0.8 * price + rng.normal(scale=1.0, size=600)
+model = antecedent.model.fit_gcm(["price", "demand"], [price, demand], [("price", "demand")])
+
+floor = transform("price", maximum(10, 0.85 * generated()))    # price := max(10, 0.85 * price)
+
+draws = sample_policy(model, [floor], 512, execution=antecedent.Execution(seed=7)).draws
+worlds = counterfactual_policy(model, [floor], ["price", "demand"], execution=antecedent.Execution(seed=1))
+value = policy_value(model, [floor], "demand", n=4000, execution=antecedent.Execution(seed=3))
+print(value.mean_difference, value.difference_simulation_stderr, value.model_uncertainty)
+print(policy_support(model, [floor]).identification.reason_code)   # policy_route_not_supported
+```
+
+- `sample_policy` draws fresh units with the program applied; `draws[0]` is the floored price, never below 10.
+- `counterfactual_policy` returns, for each observed row, the named outcomes had the program applied, on that row's own abduced noise (the noise that reproduces the row under the fitted mechanisms).
+- `policy_value` reports `policy_mean`, `baseline_mean` and their paired difference on the same noise, `mean_difference`. The two `*_simulation_stderr` fields are Monte Carlo errors of the draws only; `model_uncertainty` is `"unquantified"`, which is not zero, and no interval is claimed.
+- `policy_support` states, per route, whether the program is supported: simulation and counterfactual execution here, but not observational identification (see [support by route](#support-by-route)).
+
+## Transform or assign
+
+In Python, write expressions with `antecedent.intervention_programs` (`var`, `lag`, `generated`, `minimum`, `maximum`, `clip`, `where`, `indicator`) and wrap them with `transform` or `assign`; the Rust names below are the same constructs. Two interventions carry a typed expression:
 
 - `Intervention::transform(variable, expr)` runs after the node's mechanism produced its
   value and replaces that value with `expr`, which may read it as `ValueExpr::generated()`.
@@ -50,7 +82,7 @@ own noise survives and only the policy changes its value.
 
 A program's reads are added to the graph's parent edges to give the evaluation order, so
 policies are applied in dependency order whatever the order they are declared in. Refusals
-(all coded in `parity/reason_codes.toml`, none produces a draw):
+(all [registered codes](../reference/refusal-codes.md#other-registered-refusal-codes); none produces a draw):
 
 | Code | Detail | When |
 | --- | --- | --- |
@@ -81,8 +113,11 @@ temporal rollout below executes them.
 - *Observational identification* is supported only for interventions that reduce to a hard level:
   a `Set`, or an `Assign` that folds to a constant (the identification layer then sees a `Set`).
   A transform depends on each unit's own noise and an assignment from other variables is a
-  function rather than a level, so both refuse with `policy_route_not_supported` while remaining
-  simulable.
+  function rather than a level, so both refuse with
+  [`policy_route_not_supported`](../reference/refusal-codes.md#other-registered-refusal-codes) while remaining simulable.
+
+In Python each decision is a `RouteDecision` on `PolicySupport.simulation`, `.counterfactual` and
+`.identification`, with `supported` and, when refused, `reason_code`.
 
 A policy value is a property of the fitted model, not an identified estimand, so the same
 program is posed to the practitioner handle as a `PolicyProgramValue` question, on the declared
@@ -143,6 +178,8 @@ nothing is replaced by a default or `nan`.
 | `policy_callback_output_invalid` | `intervention_program.callback_output` | wrong length or dtype, a non-finite value, a value outside the declared support |
 | `policy_callback_not_portable` | `policy_callback.runtime_binding` | an artifact, identity or wire encoder met a runtime-bound callback |
 | `policy_callback_unrecoverable` | `policy_callback.recovery_mismatch` | a recovery record does not match the implementation supplied for replay |
+
+These codes are also listed under [registered refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes).
 
 A callback is supported for simulation. Counterfactual execution is supported under a stated
 assumption (`RouteDecision::SupportedUnder`): the callback returns a function of its declared
@@ -235,7 +272,7 @@ From Python, `antecedent.intervention_programs` builds programs (`transform`, `a
 
 ## Examples
 
-`examples/rust/intervention_programs.rs` and `examples/python/intervention_programs.py` apply the
+[`examples/rust/intervention_programs.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/intervention_programs.rs) and [`examples/python/intervention_programs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/intervention_programs.py) apply the
 price floor `max(10, 0.85 * price)` to a fitted model: sampled forward, replayed on each factual
 unit's own noise, supported per route and valued against the unintervened model, saved as a portable
 artifact, and written as a batch callback (refused as portable while it is an in-process function,
@@ -281,10 +318,9 @@ Where they differ.
   (`EmpiricalDistribution`); the default registry here fits a Gaussian. The interventional means
   above agree because the root is set or enters through a linear mechanism.
 
-
-
 ## Related
 
 - [Fit and query a structural causal model](gcm-estimands.md)
+- [Write and replay your own causal policies](../tutorials/programmable-policies.md)
 - [Fit and compare coordinated intervention programs](joint-intervention-responses.md)
 - [Interventions and worlds](../concepts/interventions-and-worlds.md)

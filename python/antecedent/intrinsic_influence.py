@@ -158,7 +158,7 @@ def intrinsic_influence(
     bidirected edge, i.e. a latent common cause, is refused). Without either the call is
     refused.
 
-    ``allocation="auto"`` enumerates every coalition up to ten sources and samples
+    ``allocation="auto"`` enumerates every coalition up to eleven sources and samples
     ``n_permutations`` permutations above that. ``outer_draws``, ``inner_draws`` and
     ``replicates`` size the nested simulation; ``fit_bootstrap`` (0 for none, otherwise at
     least 10) refits the mechanisms on that many row-bootstrap resamples of ``data`` to

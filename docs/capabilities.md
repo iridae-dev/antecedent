@@ -1,7 +1,12 @@
 # Capabilities
 
-This is a readable inventory of what exists in Antecedent, not the product's
-mental model or a promise that every combination can run. Read
+This page lists what exists in Antecedent, area by area: each section names the
+capabilities, their entry points and the limits each states. Read an entry as
+"this is implemented", then look up whether your exact combination is supported in
+the [support matrix](support-matrix.md) or [support lookup](support-lookup.md).
+
+The inventory is not the product's mental model or a promise that every
+combination can run. Read
 [assurance](concepts/assurance.md#capability-support-and-scientific-validity) for the distinction between capability,
 supported execution, and real-world scientific validity. The parity manifests
 are the maintained implementation inventory; the [support matrix](support-matrix.md)

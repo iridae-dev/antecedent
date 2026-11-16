@@ -1,8 +1,9 @@
 """Measured target-effect inference for the known-variance learned joint model.
 
-The standard producer returns native-authorized scalar inference only inside the
-finite degree-two validation design. The complete original posterior remains an
-not_measured, model-conditional candidate; its law receives no blanket interval support.
+The scalar target-effect interval carries a measured calibration only inside the finite
+degree-two validation design; outside it the interval is still reported, with calibration
+``not_measured``. The complete original posterior remains a ``not_measured``,
+model-conditional candidate; its law receives no blanket interval support.
 """
 
 from __future__ import annotations
@@ -97,9 +98,12 @@ def learned_joint_transport(
     Requires the original identification and typed source, target and complete priors.
     Native execution checks the finite validation protocol (known variances, declared
     zero-mean Gaussian variance-1000 priors, degree two, fixed target design and .95
-    scalar interval), derives the actual basis and resolves its attesting record.
-    Nearby unsupported protocols refuse; evidence does not guarantee coverage for
-    arbitrary data-generating laws. Original candidate artifacts remain not_measured.
+    scalar interval), derives the actual basis and resolves its attesting record. A
+    configuration outside that protocol is still reported, with the reason in its scope and
+    calibration ``not_measured``; it is not refused. A graph class other than ``fixed_dag``
+    is refused (``route_not_supported``), and inputs beyond the declared size bounds are
+    refused (``invalid_argument``). Measured evidence does not guarantee coverage for
+    arbitrary data-generating laws. Original candidate artifacts remain ``not_measured``.
     """
     if isinstance(sources, (str, bytes)) or not isinstance(sources, Sequence):
         raise CausalTypeError("sources must be a sequence of source trials")

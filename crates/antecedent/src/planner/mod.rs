@@ -1,4 +1,9 @@
-//! Logical / physical analysis planning.
+//! The logical and physical plans a study compiles to, and their inspection.
+//!
+//! [`LogicalAnalysisPlan`] records what will be identified and estimated;
+//! [`PhysicalExecutionPlan`] records how it will run. [`PlanView`] lays out a program's routes
+//! and stages, and [`inspect`] estimates resources and reuse from values the caller already
+//! holds. Read a plan before running when you need to know what a study will do and cost.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

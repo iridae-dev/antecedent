@@ -1,13 +1,34 @@
 //! Stage timings for the accelerator candidates on this host.
 //!
-//! Runs deterministic cross-fitted workloads through `antecedent_learn_burn::staged` on the
-//! `NdArray<f32>` CPU backend and, when built with `--features wgpu`, on Burn's WGPU backend
-//! (Metal on Apple). Build with `--features accelerate` to put Apple Accelerate BLAS under
-//! the ndarray backend; the report labels the CPU backend accordingly.
+//! Question: on this machine, at what workload size does a GPU backend fit the cross-fitted
+//! neural nuisance models faster than the CPU backend, with transfers included, and do the two
+//! backends predict the same values?
+//!
+//! Data: the deterministic `small`, `control` and `large` workloads of
+//! `antecedent_learn_burn::staged::Workload` (fixed rows, columns, folds, hidden width, epochs
+//! and seed) and, with `--sweep`, eight hidden widths from 8 to 256 at 20,000 rows. There is
+//! no causal truth: the subject is compute, not an effect.
+//!
+//! Each workload runs through `antecedent_learn_burn::staged` on the `NdArray<f32>` CPU backend
+//! and, when built with `--features wgpu`, on Burn's WGPU backend (Metal on Apple). Build with
+//! `--features accelerate` to put Apple Accelerate BLAS under the ndarray backend; the report
+//! labels the CPU backend accordingly.
 //!
 //! Every number is a wall clock of work that ran: prepare, upload, fit, synchronize,
 //! download, predict, and output. `cold` is the first run (device runtime and shader
-//! compilation included); `warm` is the per-stage median of the remaining repeats.
+//! compilation included); `warm` is the per-stage median of the remaining repeats. For each
+//! workload run on both backends the report gives the warm speed-up, whether it meets the
+//! `GAIN_THRESHOLD` of 2, and the largest out-of-fold prediction gap between the backends in
+//! target standard deviations; it then names the smallest workload where the device wins and
+//! the smallest that both meets the threshold and stays within `DEVICE_VS_CPU_SD` (0.05).
+//!
+//! Asserted: nothing. The example measures and reports; it fails only on bad arguments or a
+//! backend error.
+//!
+//! What this establishes: timings and prediction agreement on this host, for these workloads.
+//! Numbers from another machine, driver or build profile are a different measurement, and
+//! agreement of predictions within 0.05 standard deviations says nothing about the accuracy of
+//! either backend's fit.
 //!
 //! Usage:
 //!

@@ -429,15 +429,49 @@ def load(
     execution: Execution | None = None,
     replay: bool = False,
 ) -> Any:
-    """Consume independently under the caller's shared execution policy.
+    """Load an exported artifact and return what it holds as an outcome.
 
-    Nested consumers inherit that same admission pool, cancellation and cache
-    policy. Loading retains no prepared study and never invokes a provider.
+    ``data`` is the :class:`ExportedArtifact` returned by an ``export()`` call, or its raw bytes.
+    The artifact's family is recognized from its header and read by that family's consumer:
+    analysis results, refusal records, and the other exportable scientific objects. Loading never
+    restores a live study, runs a provider or invokes a callback, so the returned outcome has no
+    ``study``.
 
-    Loading checks that an analysis result is intact and recomputes nothing. ``replay=True``
-    also recomputes its published numbers (see :meth:`LoadedResult.replay`); ask for it when
-    the result came from outside your own authoring. Other artifact families always
-    recompute what they publish, so the flag does not change them.
+    * ``expected`` -- an identity the artifact must match, kept separately from the bytes. For an
+      analysis result: the ``expectation`` of the exported artifact, a ``claim_id`` string, or a
+      mapping with any of ``program_id``, ``claim_id``, ``data_snapshot_id``, ``target_id``,
+      ``identification_id``, ``identification_product_id``, ``inference_binding_id``,
+      ``observation_id`` and ``execution_id``. Default ``None`` checks integrity only; the
+      artifact's own metadata never binds an identity implicitly.
+    * ``context`` -- a ``LoadContext`` naming the sources a composition bundle is checked
+      against. Analysis results do not take one.
+    * ``execution`` -- the :class:`~antecedent.Execution` (memory pool, cancellation, cache) the
+      load runs under; default ``None``.
+    * ``replay`` -- for an analysis result, also recompute its published numbers and report the
+      comparison in ``outcome.acceptance`` (see :meth:`Outcome.replay
+      <antecedent.outcomes.Outcome.replay>`). Default ``False``: the artifact is checked to be
+      intact and nothing is recomputed. Other artifact families always recompute what they
+      publish, so the flag does not change them.
+
+    Returns an :class:`~antecedent.outcomes.Outcome`. For an analysis result its value is a loaded
+    result with the same ``answer`` and ``inspect()`` report as the original; read
+    ``outcome.acceptance`` for what loading established. A loaded refusal record returns a refused
+    outcome with the original code and fields.
+
+    Raises:
+        CausalSerializationError: when the bytes are malformed, or the artifact's kind or
+            identity differs from ``expected``.
+        CausalValueError: when ``expected`` names no identity or an unknown identity field, or
+            ``context`` is given for an artifact that takes none.
+        CausalCancelledError: when the execution's cancellation token is already cancelled.
+
+    Example::
+
+        artifact = outcome.export()
+        path.write_bytes(artifact.data)
+
+        loaded = antecedent.load(path.read_bytes(), expected=artifact.expectation)
+        print(loaded.answer, loaded.acceptance.status)
     """
     from ._artifact_protocol import _load_execution
 

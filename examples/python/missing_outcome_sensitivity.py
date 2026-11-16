@@ -21,6 +21,8 @@ The tipping point of a declared decision matches its closed form.
 What it does NOT claim. The range is an assumption range under a one-parameter shift model,
 not a confidence interval, and the data cannot test the departure. The sampling interval at
 each grid point is conditional on that point and its calibration is reported, not assumed.
+
+Run: ``python examples/python/missing_outcome_sensitivity.py``.
 """
 
 from __future__ import annotations
@@ -77,8 +79,9 @@ assert truth - complete_case > 0.05
 # ## Declare a departure and sweep it
 #
 # The model shifts each arm's missing outcomes by ``delta`` from that arm's observed mean (the
-# same shift in both arms). We declare the range ``[-3, 3]``, which contains 0 (the complete-
-# case assumption), and a decision that acts when the effect exceeds ``THRESHOLD``.
+# same shift in both arms). We declare the range ``[-3, 3]``, which contains 0 (missing at
+# random, the complete-case assumption), and a decision that acts when the effect exceeds
+# ``THRESHOLD``.
 
 # %%
 result = mnar.mnar_ate_sensitivity(

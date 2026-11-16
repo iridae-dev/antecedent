@@ -1,5 +1,19 @@
 # Estimate an effect when treatment has several levels
 
+Use this page when the treatment column is not coded `0/1`: it holds two arbitrary levels, labels,
+or three or more levels. The route depends on the contrast you want.
+
+| You want | Use | Adjustment |
+|---|---|---|
+| One contrast between two levels of a column, on the graph-identified route | [`AverageEffect(..., active_level=, control_level=)`](#declared-levels) | Identified from the graph |
+| One contrast between two of several levels, with the averaging population declared | [`multi_level_treatment.multi_level_effect`](#treatments-with-more-than-two-levels) | Columns you declare; no graph is checked |
+| Every level against one reference level, tested jointly | [`categorical_treatment.categorical_effects`](#compare-every-level-with-a-reference) | Columns you declare; no graph is checked |
+| Several treatment columns in one regression | [`vector_treatment.joint_effects`](#estimate-several-treatments-together) | Columns you declare; no graph is checked |
+
+A row at a level you did not declare is never dropped silently: the fit refuses with
+`treatment_level_undeclared` (see [refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes))
+until you declare what happens to those rows.
+
 The propensity estimators (`Aipw`, `PropensityWeighting`, `PropensityMatching`,
 `PropensityStratification`, and the cross-fitted DML AIPW score) contrast two declared levels
 of the treatment column. They do not need the column coded `0/1`.
@@ -7,8 +21,24 @@ of the treatment column. They do not need the column coded `0/1`.
 ## Declared levels
 
 `AverageEffect(..., active_level=a, control_level=c)` (Rust:
-`AverageEffectQuery::with_levels(treatment, outcome, c, a)`) names the two arms. Preparation
-recodes `a` to the arm indicator `1` and `c` to `0`, so every downstream step is unchanged:
+`AverageEffectQuery::with_levels(treatment, outcome, c, a)`) names the two arms. The defaults are
+`control_level=0.0` and `active_level=1.0`.
+
+```python
+import antecedent as ant
+
+result = ant.analyze(
+    data,
+    graph=graph,
+    query=ant.AverageEffect("t", "y", control_level=1, active_level=2),
+    estimator="aipw",
+)
+```
+
+The estimand is `E[Y | do(T=a)] - E[Y | do(T=c)]`, the difference between the mean outcome with
+the treatment `T` set to the active level `a` and with it set to the control level `c`.
+Preparation recodes `a` to the arm indicator `1` and `c` to `0`, so every downstream step is
+unchanged:
 
 - `1/2` coding with `active_level=2, control_level=1` gives bit-identical estimates to the
   `0/1` coding of the same units.
@@ -68,20 +98,41 @@ instrument. Recode the treatment into the binary contrast, or use a continuous d
 
 ## Treatments with more than two levels
 
-In Python the two targets are `antecedent.multi_level_treatment.multi_level_effect(outcome,
-treatment, active=..., control=..., target="full_population" | "pairwise_subpopulation",
-levels=..., adjust={...})`; `target` has no default. The caller declares the adjustment columns:
-no graph is identified or checked.
-
 With three or more levels there is no single average effect of "the" treatment: a pair of
 levels can be contrasted over different populations, and the two answers differ whenever the
-effect varies with the covariates. `MultiLevelAipw` (Rust, `antecedent-estimate`) makes the
-choice explicit; there is no default.
+effect varies with the covariates. `multi_level_treatment.multi_level_effect` (Rust:
+`MultiLevelAipw`, in `antecedent-estimate`) makes the choice explicit: `target` has no default.
+
+```python
+from antecedent import multi_level_treatment
+
+# Level 2 against level 0, each standardized over all complete-case rows.
+full = multi_level_treatment.multi_level_effect(
+    outcome, dose, active=2.0, control=0.0,
+    target="full_population", levels=[0.0, 1.0, 2.0], adjust={"age": age},
+)
+full.effect, full.se_analytic, full.level_means
+
+# Level 2 against level 0 on the rows at level 0 or 2 only.
+pair = multi_level_treatment.multi_level_effect(
+    outcome, dose, active=2.0, control=0.0,
+    target="pairwise_subpopulation", adjust={"age": age},
+)
+pair.target_population, pair.excluded_rows
+```
+
+`outcome`, `dose` and `age` are numeric columns of equal length; a `NaN` marks a missing cell and
+its row leaves the complete cases. You declare the adjustment columns in `adjust`: no graph is
+identified or checked, and the result records `adjustment_basis == "declared"`. Identification
+therefore rests on your claim that the outcome under each level is independent of the received
+level given those columns, together with positivity of every contrasted level, consistency and no
+interference. `levels` is required for `"full_population"` and must contain `active` and
+`control`; `folds` (default 5) sets the cross-fit fold count of the full-population fit.
 
 | Target | Population the contrast averages over | How |
 |---|---|---|
-| `MultiLevelAipw::pairwise_subpopulation()` | rows with `T` in `{active, control}` | Binary cross-fitted AIPW on those rows; rows at other levels are excluded and counted. |
-| `MultiLevelAipw::full_population(levels)` | all complete-case rows | Generalized propensity `e_k(Z) = P(T = k given Z)` from a multinomial logit over the declared `levels`, a per-level outcome regression `m_k(Z)`, and the cross-fitted score `m_k(Z) + 1{T = k}(Y - m_k(Z)) / e_k(Z)` per level. |
+| `"pairwise_subpopulation"` (Rust: `MultiLevelAipw::pairwise_subpopulation()`) | rows with `T` in `{active, control}` | Binary cross-fitted AIPW on those rows; rows at other levels are excluded and counted. |
+| `"full_population"` (Rust: `MultiLevelAipw::full_population(levels)`) | all complete-case rows | With `Z` the adjustment columns: generalized propensity `e_k(Z) = P(T = k given Z)` from a multinomial logit over the declared `levels`, a per-level outcome regression `m_k(Z)`, and the cross-fitted score `m_k(Z) + 1{T = k}(Y - m_k(Z)) / e_k(Z)` per level. |
 
 The full-population target returns the standardized mean outcome of every declared level and
 the contrast of the query's two levels over the same population, so any pair of levels is
@@ -147,3 +198,26 @@ fit.joint_wald.p_value
 ```
 
 The contrast's standard error is larger than the naive one here because the two treatment coefficients are negatively correlated; ignoring the off-diagonal would understate the spread. The coefficients are conditional contrasts of one linear model, not a claim that each treatment is separately identified: that rests on the adjustment you declare. As with the categorical route, standard errors and p-values carry calibration `not_measured`.
+
+## Refusals you can meet
+
+Each refusal carries a registered code and a `detail`; read both from the raised
+`CausalUnsupportedError` (see [structured refusals](../reference/refusal-codes.md#structured-refusals-and-their-remedies)).
+
+| Code or detail | When | What to change |
+|---|---|---|
+| `treatment_level_undeclared` (`treatment_levels.undeclared_level`) | Rows sit at a level that is neither the active nor the control level. | Declare `other_levels="exclude_undeclared"` on the estimator, or recode the column. |
+| `treatment_level_undeclared` (`treatment_levels.full_population_undeclared_level`) | A row is outside `levels` on the full-population target. | Add the level to `levels`, or use the pairwise target. |
+| `treatment_level_undeclared` (`iv.undeclared_level`) | An instrumental estimator meets extra treatment levels. | Recode the treatment to the binary contrast or use a continuous dose; there is no exclusion option. |
+| `arm_not_populated` (`treatment_levels.level_not_populated`, `.training_fold_missing_level`, `.sparse_level`) | A declared level has no rows, or a training fold has none or too few for its outcome regression. | Declare only levels the data support, or collect rows at that level. |
+| `arm_not_populated` (`categorical_treatment.sparse_level`, `.absent_level`) | A declared category has fewer than `min_level_rows` rows (default 2), or none. | Declare only levels the data support. |
+| `design_rank_deficient` (`vector_treatment.collinear_treatments`) | Treatment columns are collinear. | Remove or combine the redundant treatment. |
+
+`treatment_level_undeclared` and `arm_not_populated` are described under [other registered refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes).
+
+## Related
+
+- [Heterogeneous effects and policies](heterogeneous-effects-and-policies.md) for the value of a rule that assigns one of several actions.
+- [Responses, derivatives and distributions](../causal-responses.md) when the treatment is a continuous dose.
+- [Sampling weights](sampling-weights.md) and [clusters](clustered-dml.md) for the row declarations the categorical route reads.
+- [Reading a result](../start/reading-a-result.md) for calibration statuses such as `not_measured`.

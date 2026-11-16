@@ -5,8 +5,12 @@ in both populations, given comparable measurements. A rejection says the mechani
 is not invariant (so a selection node on it cannot be excluded). A non-rejection never certifies
 invariance: the result states the smallest differences it could have detected.
 
-Hand oracle (four rows, one parent ``x``): the source fits ``[1.3, 0.8]``; a target equal to the
-source plus ``0.5 + 0.5 x`` gives ``W = 25 / 6`` on 2 degrees of freedom, ``p = exp(-25 / 12)``."""
+Data: four hand-made rows with one parent ``x``, no simulation. The source fits ``[1.3, 0.8]``; a
+target equal to the source plus ``0.5 + 0.5 x`` gives ``W = 25 / 6`` on 2 degrees of freedom and
+``p = exp(-25 / 12)``, which the script asserts along with the non-rejection at 0.05. A target
+shifted by ``5 x`` is rejected, and an exported result is recomputed only under its own identity.
+
+Run: ``python examples/python/mechanism_discrepancy.py``."""
 
 from __future__ import annotations
 
@@ -37,11 +41,15 @@ print(small.explain())
 assert math.isclose(small.statistic, 25.0 / 6.0, abs_tol=1e-9)
 assert small.degrees_of_freedom == 2
 assert math.isclose(small.p_value, math.exp(-25.0 / 12.0), abs_tol=1e-9)
-# Not rejected at 0.05, and that is not evidence of invariance.
+# p = exp(-25/12) is about 0.12: not rejected at 0.05. With four rows the test has little power,
+# so the result reports the smallest differences it could have detected instead of certifying
+# invariance.
 assert small.conclusion == "not_rejected"
 assert small.non_rejection_certifies_invariance is False
 assert set(small.minimal_detectable_differences) == {"(intercept)", "x"}
 
+# A rejection bears on transport: the node's mechanism differs, so a selection node on it cannot
+# be excluded.
 large = md.diagnose_mechanism_discrepancy(
     source=source, target=sample("target", LARGE_SHIFT_Y), measurement=measurement
 )

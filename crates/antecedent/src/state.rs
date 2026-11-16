@@ -1,8 +1,10 @@
-//! incremental antecedent-state facade helpers.
+//! Incremental state: keep published results consistent with data that changes.
 //!
-//! `apply` stays events/invalidation only. The facade inspects stale layers,
-//! recomputes through prepared handles, and publishes only the data/program
-//! version actually computed.
+//! [`apply_state_event`] records appended or replaced data and marks the registered queries
+//! that depend on it stale; it never reruns anything. The caller recomputes through prepared
+//! handles and publishes with [`publish_recomputed_results`], which stores a result only
+//! against the data and program version it was computed from. Use it in an application that
+//! shows results while data arrive.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -4,6 +4,18 @@ A result is a claim: an answer together with what it was asked, what it assumed,
 
 Read in this order: the kind of answer, identification, uncertainty, calibration status, support status, diagnostics, the methods behind the route, then the limits. The condition under which each is true is a property of that part, not of the whole result.
 
+| Part | Where to read it |
+|---|---|
+| Kind of answer, then the number | `result.answer.kind`, `result.answer.value` |
+| Identification | `result.inspect().identification.summary` |
+| Assumptions | `result.assumptions` |
+| Uncertainty | `result.uncertainty.summary`, `result.value.interval_bindings` |
+| Calibration status | `result.inspect().calibration.status` |
+| Support | `result.support` |
+| Diagnostics | `result.diagnostics` |
+| Methods | `result.method_provenance`, `result.citations()` |
+| Refusal | `result.accepted`, `result.refusal.code` |
+
 ## The answer
 
 Start with `result.answer.kind` before extracting a number.
@@ -67,7 +79,12 @@ An implemented interval, an identified effect or a passing diagnostic does not e
 
 ## Support status
 
-`result.support` records the empirical support for the answer, for example overlap or sample size for the target population. A route is supported when a named combination of question, structure, evidence, inference and estimator has provenance and an independent scientific check that currently passes. A route that is not supported refuses in release builds with `not_supported` and names the missing evidence; a development build runs it and reports `would_refuse` beside the result. The calibration status of an interval (`calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`) is an annotation, not a condition for running. Successful execution does not upgrade the scientific claim. Look a combination up in [support lookup](../support-lookup.md).
+"Support" names two different things; read them separately.
+
+- **Empirical support of this answer.** `result.support` records the empirical support for the answer, for example overlap or sample size for the target population.
+- **Support of the route.** A route is supported when a named combination of question, structure, evidence, inference and estimator has provenance and an independent scientific check that currently passes. A route that is not supported refuses in release builds with `not_supported` and names the missing evidence; a development build runs it and reports `would_refuse` beside the result (`result.value.would_refuse` on an effect analysis, always empty in a release build). Look a combination up in [support lookup](../support-lookup.md).
+
+The calibration status of an interval (`calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`) is an annotation, not a condition for running. Successful execution does not upgrade the scientific claim.
 
 ## Diagnostics
 
@@ -91,5 +108,7 @@ A valid question that the declared structure cannot answer returns an `Outcome` 
 | `estimator_inference_mismatch` | Check whether the selected estimator supports the requested inference method. |
 | `population_not_estimable` | Check the estimator's supported target populations. Changing the population changes the question. |
 | `score_table_unavailable` | Retargeting needs prepared scores; check the supported retargeting workflow. |
+
+These are four common reasons; [refusal codes](../reference/refusal-codes.md) is the reference catalog of codes and remedies.
 
 Invalid arguments, cancellation, resource limits and callback failures raise `ant.CausalError` subclasses instead of returning an outcome. Opt in with `on_refusal="describe"` to keep the refusal as the primary outcome and read a separately labelled `associational` description and an `evidence_plan` beside it. See [refusals](../concepts/refusals.md) and [the fallback guide](../guides/fallback.md).

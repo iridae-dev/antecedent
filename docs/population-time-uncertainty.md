@@ -1,6 +1,6 @@
 # Population, time and uncertainty routes
 
-You can ask how an effect behaves across populations, over time and under sampling uncertainty with routes that go beyond a single static estimate: a joint posterior over source and target models, an uncertain initial state, a refresh onto a new observation period, a test that an effect is constant across a partition, and a counterfactual replay of a fixed population. For each route this page states the question it answers, the scope it runs within, the claim it makes, the Python entry point and the namespace of its refusal details.
+You can ask how an effect behaves across populations, over time and under sampling uncertainty with routes that go beyond a single static estimate: a joint posterior over source and target models, an uncertain initial state, a refresh onto a new observation period, a test that an effect is constant across a partition, and a counterfactual replay of a fixed population. For each route this page states the question it answers, the scope it runs within, the claim it makes, the Python entry point and the namespace of its refusal details. The routes assume a transport question already posed as in [Carry an effect to another population](guides/transport/carry-an-effect.md); for the other transport pages, see [which transport page answers your question](guides/transport/carry-an-effect.md#which-transport-page-answers-your-question).
 
 Whether a route is supported follows from its validation evidence; read `result.inspect().calibration` and `result.inspect().uncertainty` on the result. The statistical adapters below return a factory-only `inference.MeasuredInference` whose named scalar intervals each carry a calibration status: `calibrated` only when the scalar's actual basis resolves to a current attesting record, otherwise `outside_measured_scope`, `measured_below_nominal` or `not_measured`. Calibration annotates these intervals and never withholds them, and the underlying model artifacts keep their `not_measured` standing outside the named scalar intervals.
 
@@ -11,7 +11,7 @@ Whether a route is supported follows from its validation evidence; read `result.
 - **Measured scalar inference.** The native producer and fresh consumer derive each reported scalar's full method-specific basis and resolve it against the current records. Only the named scalar intervals can receive `calibrated` standing. Sampling and model assumptions remain declarations, and covariance, posterior draws and simultaneous intervals receive no blanket support.
 - **Closed or unsupported.** A missing implementation or an unsupported route produces a typed refusal. A configuration outside a measured protocol is not refused: its interval is reported with its calibration status.
 
-Every refusal is a pair of a registered reason code and a detail of the form `<namespace>.<snake_case>`; callers switch on the pair.
+Every refusal is a pair of a registered reason code and a detail of the form `<namespace>.<snake_case>`; callers switch on the pair. The fields every refusal exposes are described in [structured refusals and their remedies](reference/refusal-codes.md#structured-refusals-and-their-remedies).
 
 ## Joint Bayesian transport
 

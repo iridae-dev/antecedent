@@ -1,14 +1,34 @@
 # Choose and inspect mechanisms
 
-Control which mechanism families a structural causal model may use for each node, how candidates are scored, and read back why each was chosen. A graphical causal model fits one mechanism per node; the registry scores every
-candidate family on the same held-out folds and keeps the best, with the score of
-every candidate, the candidates that failed, and how the choice was made.
+Control which mechanism families a structural causal model may use for each node and how candidates are scored, then read back why each was chosen. Use this when the default linear and categorical families do not fit a node (a curved response, an interaction), when a node must use a particular family, or when rows are serially dependent or clustered and the default validation folds would leak.
 
-Rust surface: `antecedent_model::{MechanismRegistry, SelectionOptions,
+A structural causal model ([fit and query one](gcm-estimands.md)) fits one mechanism per node: the conditional law of the node given its parents. For each node the registry scores every candidate family on the same held-out folds and keeps the best. The fit records the score of every candidate, the candidates that failed and the rule that selected.
+
+```python
+import numpy as np
+import antecedent
+
+rng = np.random.default_rng(11)
+x = rng.normal(size=600)
+y = 1.0 + 0.5 * x + 0.8 * x**2 + 0.3 * rng.normal(size=600)   # not linear in x
+
+fitted = antecedent.model.fit_gcm(
+    ["x", "y"], [x, y], [("x", "y")],
+    candidates=["linear", "additive_spline", "random_forest", "gradient_boosted_trees"],
+)
+record = next(r for r in fitted.mechanism_selection() if r["variable"] == "y")
+print(record["selected"], record["rule"])            # not "linear_gaussian"; "best_score"
+for candidate in record["candidates"]:               # sorted by score, best first
+    print(candidate["family"], candidate["score"])
+print(record["failed"])                              # families that could not be scored, with reasons
+```
+
+`score` is the held-out log-likelihood less a complexity penalty, so a flexible family is selected only where it predicts rows it did not fit. The selection is a model-comparison result on the declared graph; it does not test the graph and carries no uncertainty statement of its own.
+
+Python: `antecedent.model.fit_gcm(..., candidates=, constraints=, splits=, purge=)` and
+`FittedGcm.mechanism_selection()`. Rust: `antecedent_model::{MechanismRegistry, SelectionOptions,
 NodeFamilyConstraint, ValidationSplits, SelectionProvenance}` and
-`antecedent::gcm::{fit_gcm_with, registry_from_candidates}`. Python:
-`antecedent.model.fit_gcm(..., candidates=, constraints=, splits=, purge=)` and
-`FittedGcm.mechanism_selection()`.
+`antecedent::gcm::{fit_gcm_with, registry_from_candidates}`.
 
 On an attribution or simulation study, `StudyBuilder::mechanisms(MechanismProgram)`
 declares the same choice; the program's label is part of the lowered program and
@@ -49,8 +69,8 @@ is recorded as a failed candidate with that reason.
 
 Fitting uses the optional `antecedent-learn` providers: build with the `ml-gbdt` (boosted
 families) and `ml-forest` (forest families) features. Without a provider the family is
-recorded in `failed_families` as "provider not compiled in"; it is never silently
-dropped. A fitted slot stores a provider-independent tree map, so a saved model
+recorded among the failed candidates (`failed_families` in Rust, `failed` in Python) with a
+reason stating that the provider is not compiled in; it is never silently dropped. A fitted slot stores a provider-independent tree map, so a saved model
 evaluates, samples and abduces without any provider, and a mechanism artifact carries
 the map.
 
@@ -64,7 +84,8 @@ names families by alias (`linear`, `logistic`, `additive_spline`, `interactions`
 or by exact id; an alias names the member for each outcome type, so one list serves a
 graph with continuous and categorical nodes. An outcome type no entry names keeps its
 standard family, and `constant` (admissible only for a degenerate column) is always
-appended. An unknown entry is refused with reason `mechanism_candidates_invalid`.
+appended. An unknown entry is refused with reason
+[`mechanism_candidates_invalid`](../reference/refusal-codes.md#other-registered-refusal-codes).
 
 ## Per-node constraints
 
@@ -77,7 +98,7 @@ one node and leaves every other node on the full list.
 - `required` selects that family whatever its rank; every other remaining candidate is
   still scored on the same folds. It takes an exact id, and is added to the list when the
   list lacks it. A required family that cannot be scored refuses the fit with reason
-  `mechanism_family_unavailable`, naming the node and the family's failure.
+  [`mechanism_family_unavailable`](../reference/refusal-codes.md#other-registered-refusal-codes), naming the node and the family's failure.
 
 A contradictory constraint (required and excluded, required outside `allowed`, required of
 the wrong outcome type, an unknown node, two constraints on one node) is refused with
@@ -103,19 +124,34 @@ cannot support is refused with `mechanism_candidates_invalid`.
 
 ## Read the selection record
 
-`FittedGcm.mechanism_selection()` (Rust: `MechanismAssignment`) returns, per node:
+`FittedGcm.mechanism_selection()` (Rust: `MechanismAssignment`) returns one record per node
+(`variable`), with:
 
-- every scored candidate with `score`, `held_out_log_likelihood` and
+- `selected`: the family the node uses;
+- `candidates`: every scored candidate with `family`, `score`, `held_out_log_likelihood` and
   `complexity_penalty` (`score = held_out_log_likelihood - complexity_penalty`), sorted
   descending, all on the same folds;
-- `failed`: each failed candidate with its reason;
-- the split scheme, `purge`, fold count, row count and seed (`None` for the deterministic
-  time-ordered blocks), the resolved candidate set, the declared constraint, and the
-  selection rule (`best_score`, `required_by_policy`, `required_by_node_constraint`);
+- `failed`: each failed candidate with its `family` and `reason`;
+- the split scheme (`splits`), `purge`, fold count, row count (`n_rows`) and `seed` (`None` for
+  the deterministic time-ordered blocks), the resolved candidate set, the declared constraint,
+  and the selection `rule` (`best_score`, `required_by_policy`, `required_by_node_constraint`);
 - the selected family's `noise_inference` and `attribution_compatible`.
+
+Compare scores only within one node: they are log-likelihoods of that node's held-out rows.
 
 Selection is deterministic: a fixed fold seed, a fixed ensemble seed, a single fitting
 thread, and exact ties broken by listing order (the simpler family first).
+
+## Refusals
+
+Both codes are listed under [registered refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes); neither produces a fit.
+
+| Code | When | Remedy |
+| --- | --- | --- |
+| `mechanism_candidates_invalid` | an unknown candidate name; a contradictory or duplicated node constraint; a constraint on an unknown node; a split scheme the rows cannot support | correct the list, the constraint or the split declaration |
+| `mechanism_family_unavailable` | a `required` family could not be scored on its node (a tree family on a root or on too few rows, a provider not compiled in) | require a family the node admits, or build with the provider feature |
+
+A candidate that fails without being required does not refuse the fit: it is listed in `failed`.
 
 ## Not covered
 
@@ -127,7 +163,7 @@ thread, and exact ties broken by listing order (the simpler family first).
 
 ## Examples
 
-`examples/rust/mechanism_selection.rs` and `examples/python/mechanism_selection.py` fit a quadratic
+[`examples/rust/mechanism_selection.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/mechanism_selection.rs) and [`examples/python/mechanism_selection.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/mechanism_selection.py) fit a quadratic
 mechanism against linear, spline and tree candidates, read the scores, the failed families and the
 selection rule, require a family for one node, refuse a contradictory constraint, and (Python)
 cut the scores by forward chaining for serially dependent rows. Both assert their results and run

@@ -19,7 +19,9 @@ publishes a pointwise 95% interval for each post-adoption cell, each with its ca
 status; they are pointwise intervals, not a simultaneous band, and the script does not assert
 them. Identification rests on assumptions the data cannot confirm (no anticipation, comparable
 donors or parallel trends, no interference); a close pre-adoption fit or flat leads do not
-establish them."""
+establish them.
+
+Run: `python examples/python/panel_designs.py`."""
 
 from __future__ import annotations
 

@@ -1,9 +1,9 @@
-//! `AcceptedGraph`: the review gate moved into the type system.
+//! `AcceptedGraph`: a graph a caller has reviewed and accepted, recorded in its type.
 //!
-//! The library's committed philosophy is that identification is evaluated before
-//! estimation, and that partial graphs are never silently completed. Historically that
-//! guarantee was enforced by runtime checks scattered across `compile()` — all firing
-//! late, long after a user had already built an analysis around an unreviewed graph.
+//! Identification is evaluated before estimation, and a partial graph is never silently
+//! completed. Use this module when a structure comes from discovery, a file or another tool:
+//! accepting it here moves the review decision to the point where the graph enters the
+//! library, instead of to a late check inside `compile()`.
 //!
 //! [`AcceptedGraph`] records acceptance in the type system. Class-aware
 //! identification still validates that the accepted marks support estimation. PAG circles and CPDAG

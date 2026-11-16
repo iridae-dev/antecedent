@@ -1,15 +1,35 @@
-"""Explicit discovery, algorithm configurations, and structural review helpers.
+"""Causal structure learning: algorithm configurations, graph posteriors and review.
 
-``discover(data, method=..., execution=...)`` runs the existing native discovery
-and review authority. Pass its accepted artifact as ``graph=`` to preparation.
+Discovery proposes a structure from data; estimation never reruns it. The usual path is one
+reviewed search, then estimation on the accepted structure::
 
-Each config dataclass below owns its own wire-serialization (``_wire``),
-native dispatch (``run``), and — for the algorithms that produce a holdable
-graph artifact — session acceptance (``accept``). ``run_static_discovery`` /
-``run_temporal_discovery`` / ``discovery_algorithm`` are thin dispatchers kept
-for the external callers (``estimation.py``, ``_analyze.py``, ``gcm.py``,
-``accepted_graph.py``) that already depend on their exact signatures and
-return types; the per-algorithm knowledge itself lives on the config classes.
+    import antecedent
+    from antecedent import discovery
+
+    graph = discovery.discover(data, method=discovery.PC(alpha=0.01))
+    outcome = antecedent.analyze(data, graph=graph, query=antecedent.AverageEffect("x", "y"))
+
+:func:`discover` runs the configuration once and passes its result through the structure
+review gate. Edges the data cannot orient stay unresolved, and pending review raises
+:class:`~antecedent.errors.ReviewRequired` unless ``accept_discovered=True``.
+
+The configurations, by the structure they return:
+
+* Tabular, one graph: :class:`PC` and :class:`GES` (a CPDAG, assuming no unmeasured common
+  cause), :class:`FCI` and :class:`RFCI` (a PAG, allowing unmeasured common causes),
+  :class:`LiNGAM` and :class:`NOTEARS` (a DAG under linear-model assumptions).
+* Time series, one graph: :class:`PCMCI` (lagged links), :class:`PCMCIPlus` (lagged and
+  contemporaneous), :class:`LPCMCI` (with unmeasured common causes), :class:`JPCMCIPlus`
+  (several environments) and :class:`RPCMCI` (labelled regimes).
+* Graph posteriors (:class:`GraphPosterior`): :class:`ExactDagPosterior`, :class:`OrderMcmc`,
+  :class:`StructureMcmc`, :class:`CiScreenedPosterior`, :class:`DbnPosterior`,
+  :class:`ExactPagPosterior`, :class:`PagMcmc` and :class:`EquivalenceClassPosterior`.
+* Stability of a frequentist search over resamples: :class:`BootstrapStability`.
+
+Each single-graph configuration has ``run(data)`` (the raw :class:`DiscoveryResult`, no
+review) and ``accept(data)`` (a reviewed :class:`~antecedent.AcceptedGraph`). Prior structural
+claims are declared with :class:`BackgroundKnowledge`; a statement an algorithm cannot honour
+is refused, never ignored.
 """
 
 from __future__ import annotations
@@ -313,6 +333,30 @@ def _wire_knowledge(wire: dict[str, Any], knowledge: BackgroundKnowledge | None)
 
 @dataclass(frozen=True)
 class PC:
+    """PC: a Markov equivalence class (CPDAG) learned from conditional-independence tests.
+
+    Assumes acyclicity, causal sufficiency (no unmeasured common cause of two searched variables)
+    and faithfulness. Edges whose direction the data cannot fix stay undirected and are
+    reviewed before the structure is accepted. Use :class:`FCI` when a common cause may be
+    unmeasured.
+
+    Fields:
+
+    * ``alpha`` -- significance level of each conditional-independence test. Default ``0.05``.
+    * ``fdr`` -- adjust the test p-values by Benjamini-Hochberg before comparing them with
+      ``alpha``. Default ``True``.
+    * ``ci`` -- the conditional-independence test: a registered name (``"parcorr"``, the default
+      partial-correlation test for linear Gaussian data; also ``"robust_parcorr"``,
+      ``"gsquared"`` for discrete data, ``"knn_dependence"``, ``"gpdc"``, ...) or a Python
+      callable batch test, which runs on one worker. An unknown name raises with
+      ``invalid_argument``.
+    * ``max_cond_size`` -- the largest conditioning set a test uses. Default ``2``.
+    * ``knowledge`` -- a :class:`BackgroundKnowledge` of required and forbidden links, tiers and a
+      parent limit; a statement the algorithm cannot honour is refused. Default ``None``.
+
+    Use :meth:`accept` (or :func:`discover`) for a reviewed :class:`~antecedent.AcceptedGraph`.
+    """
+
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
@@ -335,6 +379,13 @@ class PC:
         )
 
     def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
+        """Run the search once on a table and return the raw result, without review.
+
+        ``data`` is a table in any form :func:`antecedent.data.table` accepts; ``execution``
+        sets the seed, threads and cancellation. Read ``graph_edges`` and ``pending_edge_count``
+        first. To use the structure for estimation, call :meth:`accept` (or :func:`discover`)
+        instead.
+        """
         names, cols = coerce_data(data)
         with _named_positions(names):
             return _run_native(
@@ -369,6 +420,28 @@ class PC:
 
 @dataclass(frozen=True)
 class PCMCI:
+    """PCMCI: lagged causal links of a multivariate time series.
+
+    Finds links ``X[t - lag] -> Y[t]`` for lags 1 to ``max_lag``; contemporaneous links are not
+    searched (use :class:`PCMCIPlus`). Assumes stationarity of the link structure over the
+    series, causal sufficiency and faithfulness.
+
+    Fields:
+
+    * ``max_lag`` -- the largest lag searched. Default ``1``.
+    * ``alpha`` -- significance level of each conditional-independence test. Default ``0.05``.
+    * ``fdr`` -- adjust the test p-values by Benjamini-Hochberg before comparing them with
+      ``alpha``. Default ``True``.
+    * ``ci`` -- the conditional-independence test: a registered name (``"parcorr"``, the default
+      partial-correlation test for linear Gaussian data; also ``"robust_parcorr"``,
+      ``"gsquared"`` for discrete data, ``"knn_dependence"``, ``"gpdc"``, ...) or a Python
+      callable batch test, which runs on one worker. An unknown name raises with
+      ``invalid_argument``.
+    * ``max_cond_size`` -- the largest conditioning set a test uses. Default ``2``.
+    * ``knowledge`` -- a :class:`BackgroundKnowledge` of required and forbidden links, tiers and a
+      parent limit; a statement the algorithm cannot honour is refused. Default ``None``.
+    """
+
     max_lag: int = 1
     alpha: float = 0.05
     fdr: bool = True
@@ -399,6 +472,14 @@ class PCMCI:
         execution: Execution | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
+        """Run the search once on a time series and return the raw result, without review.
+
+        ``data`` is one series (a table whose rows are consecutive time points) or an
+        :class:`antecedent.data.PanelFrame`, whose units each keep their own lag windows and are
+        pooled. ``weights`` holds one observation weight per row and is accepted only with
+        ``ci="weighted_parcorr"``. Read ``links`` and ``graph_edges`` first. To use the structure
+        for estimation, call :meth:`accept` (or :func:`discover`) instead.
+        """
         names, cols, unit_lengths = coerce_temporal_data(data)
         with _named_positions(names):
             return _run_native(
@@ -436,6 +517,28 @@ class PCMCI:
 
 @dataclass(frozen=True)
 class PCMCIPlus:
+    """PCMCI+: lagged and contemporaneous links of a multivariate time series.
+
+    Extends :class:`PCMCI` to lag 0. Lagged links are oriented by time; contemporaneous links
+    the data cannot orient stay undirected (a temporal CPDAG) and are reviewed before
+    acceptance. Same assumptions as :class:`PCMCI`.
+
+    Fields:
+
+    * ``max_lag`` -- the largest lag searched. Default ``1``.
+    * ``alpha`` -- significance level of each conditional-independence test. Default ``0.05``.
+    * ``fdr`` -- adjust the test p-values by Benjamini-Hochberg before comparing them with
+      ``alpha``. Default ``True``.
+    * ``ci`` -- the conditional-independence test: a registered name (``"parcorr"``, the default
+      partial-correlation test for linear Gaussian data; also ``"robust_parcorr"``,
+      ``"gsquared"`` for discrete data, ``"knn_dependence"``, ``"gpdc"``, ...) or a Python
+      callable batch test, which runs on one worker. An unknown name raises with
+      ``invalid_argument``.
+    * ``max_cond_size`` -- the largest conditioning set a test uses. Default ``2``.
+    * ``knowledge`` -- a :class:`BackgroundKnowledge` of required and forbidden links, tiers and a
+      parent limit; a statement the algorithm cannot honour is refused. Default ``None``.
+    """
+
     max_lag: int = 1
     alpha: float = 0.05
     fdr: bool = True
@@ -470,6 +573,14 @@ class PCMCIPlus:
         execution: Execution | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
+        """Run the search once on a time series and return the raw result, without review.
+
+        ``data`` is one series (a table whose rows are consecutive time points) or an
+        :class:`antecedent.data.PanelFrame`, whose units each keep their own lag windows and are
+        pooled. ``weights`` holds one observation weight per row and is accepted only with
+        ``ci="weighted_parcorr"``. Read ``links`` and ``graph_edges`` first. To use the structure
+        for estimation, call :meth:`accept` (or :func:`discover`) instead.
+        """
         names, cols, unit_lengths = coerce_temporal_data(data)
         with _named_positions(names):
             return _run_native(
@@ -507,6 +618,26 @@ class PCMCIPlus:
 
 @dataclass(frozen=True)
 class LPCMCI:
+    """LPCMCI: lagged and contemporaneous links of a time series with unmeasured common causes.
+
+    The time-series counterpart of :class:`FCI`: the result is a temporal PAG whose circle
+    endpoints mark orientations the data leave open. Takes no background knowledge. Note the
+    ``fdr`` default is ``False`` here.
+
+    Fields:
+
+    * ``max_lag`` -- the largest lag searched. Default ``1``.
+    * ``alpha`` -- significance level of each conditional-independence test. Default ``0.05``.
+    * ``fdr`` -- adjust the test p-values by Benjamini-Hochberg before comparing them with
+      ``alpha``. Default ``False``.
+    * ``ci`` -- the conditional-independence test: a registered name (``"parcorr"``, the default
+      partial-correlation test for linear Gaussian data; also ``"robust_parcorr"``,
+      ``"gsquared"`` for discrete data, ``"knn_dependence"``, ``"gpdc"``, ...) or a Python
+      callable batch test, which runs on one worker. An unknown name raises with
+      ``invalid_argument``.
+    * ``max_cond_size`` -- the largest conditioning set a test uses. Default ``2``.
+    """
+
     max_lag: int = 1
     alpha: float = 0.05
     fdr: bool = False
@@ -533,6 +664,14 @@ class LPCMCI:
         execution: Execution | None = None,
         weights: list[float] | None = None,
     ) -> DiscoveryResult:
+        """Run the search once on a time series and return the raw result, without review.
+
+        ``data`` is one series (a table whose rows are consecutive time points) or an
+        :class:`antecedent.data.PanelFrame`, whose units each keep their own lag windows and are
+        pooled. ``weights`` holds one observation weight per row and is accepted only with
+        ``ci="weighted_parcorr"``. Read ``links`` and ``graph_edges`` first. To use the structure
+        for estimation, call :meth:`accept` (or :func:`discover`) instead.
+        """
         names, cols, unit_lengths = coerce_temporal_data(data)
         return _run_native(
             execution,
@@ -568,6 +707,38 @@ class LPCMCI:
 
 @dataclass(frozen=True)
 class JPCMCIPlus:
+    """J-PCMCI+: one temporal causal graph learned jointly from several environments or datasets.
+
+    Pools the lagged tests across environments without concatenating them, and adds observed
+    context variables and synthetic dummies so that differences between environments are
+    modelled rather than read as links. The result is a temporal CPDAG over the system
+    variables, with context nodes. Takes no background knowledge.
+
+    Fields:
+
+    * ``max_lag`` -- the largest lag searched. Default ``1``.
+    * ``alpha`` -- significance level of each conditional-independence test. Default ``0.05``.
+    * ``fdr`` -- adjust the test p-values by Benjamini-Hochberg before comparing them with
+      ``alpha``. Default ``True``.
+    * ``ci`` -- the conditional-independence test: a registered name (``"parcorr"``, the default
+      partial-correlation test for linear Gaussian data; also ``"robust_parcorr"``,
+      ``"gsquared"`` for discrete data, ``"knn_dependence"``, ``"gpdc"``, ...) or a Python
+      callable batch test, which runs on one worker. An unknown name raises with
+      ``invalid_argument``.
+    * ``max_cond_size`` -- the largest conditioning set a test uses. Default ``2``.
+    * ``context_names`` -- columns that are observed context variables, not system variables.
+      Default ``()``.
+    * ``include_space_dummy`` -- add a dummy identifying the environment (with two or more
+      environments). Default ``True``.
+    * ``include_time_dummy`` -- add a dummy for the time index. Default ``False``.
+    * ``space_dummy_ci`` / ``time_dummy_ci`` -- whether a dummy enters a test as scalar
+      columns (``"scalar"``, default) or as one multivariate block (``"multivariate"``).
+    * ``time_dummy_encoding`` -- ``"integer"`` (default) or ``"one_hot"``.
+
+    Pass a :class:`antecedent.data.MultiEnvFrame`, a :class:`antecedent.data.PanelFrame` or a
+    sequence of environment tables to :meth:`accept`.
+    """
+
     max_lag: int = 1
     alpha: float = 0.05
     fdr: bool = True
@@ -732,6 +903,33 @@ class RPCMCI:
 
 @dataclass(frozen=True)
 class GES:
+    """GES: greedy equivalence search for the CPDAG that maximises the Gaussian BIC score.
+
+    A forward phase inserts edges and a backward phase deletes them, both over equivalence
+    classes. Same assumptions as :class:`PC` (acyclicity, causal sufficiency), with a linear
+    Gaussian score in place of tests. ``alpha``, ``fdr``, ``ci`` and ``max_cond_size`` are
+    read only by the optional PC skeleton screen.
+
+    Fields:
+
+    * ``alpha`` -- significance level of each conditional-independence test. Default ``0.05``.
+    * ``fdr`` -- adjust the test p-values by Benjamini-Hochberg before comparing them with
+      ``alpha``. Default ``True``.
+    * ``ci`` -- the conditional-independence test: a registered name (``"parcorr"``, the default
+      partial-correlation test for linear Gaussian data; also ``"robust_parcorr"``,
+      ``"gsquared"`` for discrete data, ``"knn_dependence"``, ``"gpdc"``, ...) or a Python
+      callable batch test, which runs on one worker. An unknown name raises with
+      ``invalid_argument``.
+    * ``max_cond_size`` -- the largest conditioning set a test uses. Default ``2``.
+    * ``screen_pc`` -- restrict the candidate insertions with a PC skeleton screen. Default
+      ``False``.
+    * ``max_subset`` -- the operator search per pair enumerates subsets of at most this many
+      neighbours; ``None`` uses 12. When the cap binds, the result carries a
+      ``ges.operator_search_pruned`` diagnostic.
+    * ``knowledge`` -- a :class:`BackgroundKnowledge` of required and forbidden links, tiers and a
+      parent limit; a statement the algorithm cannot honour is refused. Default ``None``.
+    """
+
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
@@ -756,6 +954,13 @@ class GES:
         )
 
     def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
+        """Run the search once on a table and return the raw result, without review.
+
+        ``data`` is a table in any form :func:`antecedent.data.table` accepts; ``execution``
+        sets the seed, threads and cancellation. Read ``graph_edges`` and ``pending_edge_count``
+        first. To use the structure for estimation, call :meth:`accept` (or :func:`discover`)
+        instead.
+        """
         names, cols = coerce_data(data)
         with _named_positions(names):
             return _run_native(
@@ -792,6 +997,20 @@ class GES:
 
 @dataclass(frozen=True)
 class LiNGAM:
+    """DirectLiNGAM: a single DAG learned from linear non-Gaussian data.
+
+    Assumes a linear acyclic model with independent non-Gaussian errors and no unmeasured
+    common cause; under those assumptions the causal order, and so every edge direction, is
+    identified. Takes no background knowledge.
+
+    Fields:
+
+    * ``prune_threshold`` -- edges whose absolute standardised coefficient
+      ``|beta| * sd(parent) / sd(child)`` falls below this are pruned. Default ``0.05``.
+    * ``max_cond_size`` -- the conditioning cap of the shared discovery constraints. Default
+      ``8``.
+    """
+
     prune_threshold: float = 0.05
     max_cond_size: int = 8
     kind: Literal["lingam"] = "lingam"
@@ -809,6 +1028,13 @@ class LiNGAM:
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
+        """Run the search once on a table and return the raw result, without review.
+
+        ``data`` is a table in any form :func:`antecedent.data.table` accepts; ``execution``
+        sets the seed, threads and cancellation. Read ``graph_edges`` and ``pending_edge_count``
+        first. To use the structure for estimation, call :meth:`accept` (or :func:`discover`)
+        instead.
+        """
         names, cols = coerce_data(data)
         return _run_native(
             execution,
@@ -884,6 +1110,13 @@ class NOTEARS:
         return wire
 
     def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
+        """Run the search once on a table and return the raw result, without review.
+
+        ``data`` is a table in any form :func:`antecedent.data.table` accepts; ``execution``
+        sets the seed, threads and cancellation. Read ``graph_edges`` and ``pending_edge_count``
+        first. To use the structure for estimation, call :meth:`accept` (or :func:`discover`)
+        instead.
+        """
         names, cols = coerce_data(data)
         return _run_native(
             execution,
@@ -917,6 +1150,28 @@ class NOTEARS:
 
 @dataclass(frozen=True)
 class FCI:
+    """FCI: a partial ancestral graph (PAG) that allows unmeasured common causes.
+
+    Drops the causal-sufficiency assumption of :class:`PC`: the PAG represents every maximal
+    ancestral graph consistent with the tests, and a circle endpoint marks an orientation the
+    data leave open. Assumes acyclicity and faithfulness. Class marks stay class information
+    after acceptance.
+
+    Fields:
+
+    * ``alpha`` -- significance level of each conditional-independence test. Default ``0.05``.
+    * ``fdr`` -- adjust the test p-values by Benjamini-Hochberg before comparing them with
+      ``alpha``. Default ``True``.
+    * ``ci`` -- the conditional-independence test: a registered name (``"parcorr"``, the default
+      partial-correlation test for linear Gaussian data; also ``"robust_parcorr"``,
+      ``"gsquared"`` for discrete data, ``"knn_dependence"``, ``"gpdc"``, ...) or a Python
+      callable batch test, which runs on one worker. An unknown name raises with
+      ``invalid_argument``.
+    * ``max_cond_size`` -- the largest conditioning set a test uses. Default ``2``.
+    * ``knowledge`` -- a :class:`BackgroundKnowledge` of required and forbidden links, tiers and a
+      parent limit; a statement the algorithm cannot honour is refused. Default ``None``.
+    """
+
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
@@ -939,6 +1194,13 @@ class FCI:
         )
 
     def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
+        """Run the search once on a table and return the raw result, without review.
+
+        ``data`` is a table in any form :func:`antecedent.data.table` accepts; ``execution``
+        sets the seed, threads and cancellation. Read ``graph_edges`` and ``pending_edge_count``
+        first. To use the structure for estimation, call :meth:`accept` (or :func:`discover`)
+        instead.
+        """
         names, cols = coerce_data(data)
         with _named_positions(names):
             return _run_native(
@@ -973,6 +1235,27 @@ class FCI:
 
 @dataclass(frozen=True)
 class RFCI:
+    """RFCI: a faster approximation of :class:`FCI` that runs fewer conditional-independence tests.
+
+    Same assumptions and output type as :class:`FCI` (a PAG that allows unmeasured common
+    causes); it skips the possible-d-separation phase, so its PAG can leave more endpoints
+    unoriented than FCI's on the same data.
+
+    Fields:
+
+    * ``alpha`` -- significance level of each conditional-independence test. Default ``0.05``.
+    * ``fdr`` -- adjust the test p-values by Benjamini-Hochberg before comparing them with
+      ``alpha``. Default ``True``.
+    * ``ci`` -- the conditional-independence test: a registered name (``"parcorr"``, the default
+      partial-correlation test for linear Gaussian data; also ``"robust_parcorr"``,
+      ``"gsquared"`` for discrete data, ``"knn_dependence"``, ``"gpdc"``, ...) or a Python
+      callable batch test, which runs on one worker. An unknown name raises with
+      ``invalid_argument``.
+    * ``max_cond_size`` -- the largest conditioning set a test uses. Default ``2``.
+    * ``knowledge`` -- a :class:`BackgroundKnowledge` of required and forbidden links, tiers and a
+      parent limit; a statement the algorithm cannot honour is refused. Default ``None``.
+    """
+
     alpha: float = 0.05
     fdr: bool = True
     ci: CiSpec = "parcorr"
@@ -995,6 +1278,13 @@ class RFCI:
         )
 
     def run(self, data: Any, *, execution: Execution | None = None) -> DiscoveryResult:
+        """Run the search once on a table and return the raw result, without review.
+
+        ``data`` is a table in any form :func:`antecedent.data.table` accepts; ``execution``
+        sets the seed, threads and cancellation. Read ``graph_edges`` and ``pending_edge_count``
+        first. To use the structure for estimation, call :meth:`accept` (or :func:`discover`)
+        instead.
+        """
         names, cols = coerce_data(data)
         with _named_positions(names):
             return _run_native(
@@ -1060,6 +1350,9 @@ class ExactDagMarginals:
     _matrix: tuple[tuple[float, ...], ...]
 
     def edge_marginal_matrix(self) -> list[list[float]]:
+        """The exact edge marginals as a list of rows: ``[i][j]`` is ``P(i -> j)``, in the order of
+        ``names``.
+        """
         return [list(row) for row in self._matrix]
 
     def __getattr__(self, name: str) -> Any:
@@ -1129,13 +1422,22 @@ class ExactPagPosterior:
         return {"algorithm": "exact_pag_posterior"}
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
+        """Run the posterior on the data and return a :class:`GraphPosterior`.
+
+        Read ``weights`` and ``edge_marginals`` (or ``edge_marginal_matrix()``) first, then the
+        convergence diagnostics where the method reports them. ``execution`` sets the seed and
+        threads.
+        """
         names, cols = coerce_data(data)
         return _run_native(execution, _discover_exact_pag_posterior, names, cols)
 
 
 @dataclass(frozen=True)
 class PagMcmc:
-    """Metropolis posterior over PAG classes of Gaussian maximal ancestral graphs (2 to 8 variables).
+    """Metropolis posterior over PAG classes of Gaussian maximal ancestral graphs.
+
+    Two to 31 variables are representable; a run whose cost (moves times the m-separation
+    queries that sign one graph) exceeds the sampler's work budget is refused before that width.
 
     The sampled counterpart of :class:`ExactPagPosterior`: each chain starts at the empty graph
     and changes the link of one pair at a time, scoring every maximal ancestral graph by BIC
@@ -1165,6 +1467,12 @@ class PagMcmc:
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
+        """Run the posterior on the data and return a :class:`GraphPosterior`.
+
+        Read ``weights`` and ``edge_marginals`` (or ``edge_marginal_matrix()``) first, then the
+        convergence diagnostics where the method reports them. ``execution`` sets the seed and
+        threads.
+        """
         names, cols = coerce_data(data)
         return _run_native(
             execution,
@@ -1218,6 +1526,12 @@ class OrderMcmc:
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
+        """Run the posterior on the data and return a :class:`GraphPosterior`.
+
+        Read ``weights`` and ``edge_marginals`` (or ``edge_marginal_matrix()``) first, then the
+        convergence diagnostics where the method reports them. ``execution`` sets the seed and
+        threads.
+        """
         names, cols = coerce_data(data)
         return _run_native(
             execution,
@@ -1265,6 +1579,12 @@ class StructureMcmc:
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
+        """Run the posterior on the data and return a :class:`GraphPosterior`.
+
+        Read ``weights`` and ``edge_marginals`` (or ``edge_marginal_matrix()``) first, then the
+        convergence diagnostics where the method reports them. ``execution`` sets the seed and
+        threads.
+        """
         names, cols = coerce_data(data)
         return _run_native(
             execution,
@@ -1281,6 +1601,30 @@ class StructureMcmc:
 
 @dataclass(frozen=True)
 class CiScreenedPosterior:
+    """Structure-MCMC graph posterior restricted to the pairs a PC skeleton screen keeps.
+
+    A static PC search with the declared test first removes pairs it judges independent, then
+    structure MCMC samples DAGs over the remaining pairs. The screen is a frequentist filter,
+    not evidence against an edge: a weak true edge the test fails to detect is excluded from
+    the proposal set, so the posterior cannot put mass on it. Optional soft weights are
+    recorded as diagnostics, not used as truth.
+
+    Fields:
+
+    * ``alpha`` -- significance level of each conditional-independence test. Default ``0.05``.
+    * ``fdr`` -- adjust the test p-values by Benjamini-Hochberg before comparing them with
+      ``alpha``. Default ``True``.
+    * ``ci`` -- the conditional-independence test: a registered name (``"parcorr"``, the default
+      partial-correlation test for linear Gaussian data; also ``"robust_parcorr"``,
+      ``"gsquared"`` for discrete data, ``"knn_dependence"``, ``"gpdc"``, ...). An unknown name
+      raises with ``invalid_argument``.
+    * ``max_cond_size`` -- the largest conditioning set a test uses. Default ``2``.
+    * ``soft_weight`` -- ``"none"`` (default), ``"bayes_factor"`` or
+      ``"posterior_dependence"``: proposal weights recorded as diagnostic notes.
+    * ``n_chains``, ``n_warmup``, ``n_draws``, ``thin`` -- the MCMC schedule. Defaults ``2``,
+      ``300``, ``600`` and ``1``.
+    """
+
     alpha: float = 0.05
     fdr: bool = True
     ci: str = "parcorr"
@@ -1309,6 +1653,12 @@ class CiScreenedPosterior:
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
+        """Run the posterior on the data and return a :class:`GraphPosterior`.
+
+        Read ``weights`` and ``edge_marginals`` (or ``edge_marginal_matrix()``) first, then the
+        convergence diagnostics where the method reports them. ``execution`` sets the seed and
+        threads.
+        """
         names, cols = coerce_data(data)
         return _run_native(
             execution,
@@ -1361,6 +1711,12 @@ class DbnPosterior:
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
+        """Run the posterior on the data and return a :class:`GraphPosterior`.
+
+        Read ``weights`` and ``edge_marginals`` (or ``edge_marginal_matrix()``) first, then the
+        convergence diagnostics where the method reports them. ``execution`` sets the seed and
+        threads.
+        """
         names, cols, unit_lengths = coerce_temporal_data(data)
         return _run_native(
             execution,
@@ -1417,6 +1773,12 @@ class EquivalenceClassPosterior:
         return {"algorithm": "class_posterior", "base": self.base._wire()}
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
+        """Run the posterior on the data and return a :class:`GraphPosterior`.
+
+        Read ``weights`` and ``edge_marginals`` (or ``edge_marginal_matrix()``) first, then the
+        convergence diagnostics where the method reports them. ``execution`` sets the seed and
+        threads.
+        """
         base = self.base
         if isinstance(base, DbnPosterior):
             names, cols, unit_lengths = coerce_temporal_data(data)
@@ -1719,6 +2081,27 @@ def discover(
     explicitly permits the native gate to accept it. Equivalence-class marks
     remain unresolved class information. Pass the accepted structure as
     ``prepare(data, graph=structure, ...)``; estimation never reruns discovery.
+
+    Args:
+        data: the observations the configuration reads: a table for the tabular searches, a
+            series or :class:`antecedent.data.PanelFrame` for the temporal ones, and
+            environments for :class:`JPCMCIPlus`.
+        method: a single-graph configuration (:class:`PC`, :class:`GES`, :class:`LiNGAM`,
+            :class:`NOTEARS`, :class:`FCI`, :class:`RFCI`, :class:`PCMCI`, :class:`PCMCIPlus`,
+            :class:`LPCMCI`, :class:`JPCMCIPlus` or :class:`RPCMCI`).
+        execution: the :class:`~antecedent.Execution` (seed, threads, cancellation, callbacks).
+            Default ``Execution()``.
+        accept_discovered: let the gate accept pending directed edges. Default ``False``.
+        regimes: one regime label per observation; :class:`RPCMCI` only.
+
+    Returns:
+        An :class:`~antecedent.AcceptedGraph`, ready for ``graph=``.
+
+    Raises:
+        ReviewRequired: edges are pending review and ``accept_discovered`` is ``False``.
+        CausalUnsupportedError: ``option_not_applicable`` for ``regimes`` with another method.
+        CausalTypeError: an ``execution``, ``method`` or ``accept_discovered`` of the wrong
+            type (a graph posterior is not a ``method`` here).
     """
     from .estimation import _accept_live_discovery, _Controls
 
@@ -1758,10 +2141,10 @@ def run_static_discovery(
     *,
     execution: Execution | None = None,
 ) -> tuple[DiscoveryResult, str]:
-    """Dispatch a static discovery config to its ``run()``.
+    """Run a tabular configuration (PC, GES, LiNGAM, NOTEARS, FCI or RFCI) without review.
 
-    Single source of truth for PC/GES/LiNGAM/NOTEARS/FCI/RFCI used by
-    ``analyze``, ``AcceptedGraph``, and GCM compose helpers.
+    Returns ``(result, algorithm_id)``: the configuration's ``run(data)`` result and its
+    algorithm identifier. The ``execution`` argument is accepted but not forwarded to ``run``.
     """
     if not isinstance(discovery, _STATIC_DISCOVERY_TYPES):
         raise CausalTypeError(f"unsupported static discovery type: {type(discovery)!r}")
@@ -1774,14 +2157,22 @@ def run_temporal_discovery(
     *,
     execution: Execution | None = None,
 ) -> tuple[DiscoveryResult, str]:
-    """Dispatch a PCMCI-family discovery config to its ``run()``."""
+    """Run a PCMCI, PCMCI+ or LPCMCI configuration without review.
+
+    Returns ``(result, algorithm_id)``. The ``execution`` argument is accepted but not
+    forwarded to ``run``.
+    """
     if not isinstance(discovery, _TEMPORAL_DISCOVERY_TYPES):
         raise CausalTypeError(f"unsupported temporal discovery type: {type(discovery)!r}")
     return discovery.run(data, execution=execution), discovery.algorithm_id
 
 
 def discovery_algorithm(discovery: Any) -> dict[str, Any]:
-    """Serialize a discovery config dataclass into kwargs for native analyze paths."""
+    """The settings of a discovery configuration as a plain dictionary, with its algorithm name.
+
+    Raises :class:`~antecedent.errors.CausalTypeError` for an object that is not one of this
+    module's configurations.
+    """
     if not isinstance(discovery, _ALL_DISCOVERY_TYPES):
         raise CausalTypeError(f"unsupported discovery config: {type(discovery)!r}")
     return discovery._wire()

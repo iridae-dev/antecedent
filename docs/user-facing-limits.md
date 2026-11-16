@@ -1,8 +1,9 @@
 # What the transport and uncertainty routes do not do
 
-This page lists, for each package, what it does not do, the request
-most likely to be refused, and the remedy. It states limits only; the guides
-state what each route does. Every route here is point-only, a structural
+This page lists, for each route family, what it does not do, the request
+most likely to be refused, and the remedy. Each row of the table is one family:
+its name links to the guide that states what the route does, and the remaining
+columns state its limits. Every route here is point-only, a structural
 envelope, an assumption range, or derived-not_measured. None supports a
 confidence interval, a posterior coverage statement or a calibration claim.
 
@@ -24,7 +25,7 @@ confidence interval, a posterior coverage statement or a calibration claim.
 | [Adaptive procedure uncertainty](guides/composed-uncertainty.md#uncertainty-of-an-adaptive-procedure) | Handle more than the bounded design; claim coverage; cross paradigms | A posterior under value-dependent loss, or fixed-sample inference on an adaptive design | Model the loss; use the adaptive-weighting or anytime-valid paradigm |
 | [Finite-SCM discretization](cross-world-execution.md#discretize-a-gaussian-composition-into-a-finite-model) | Bound variances, probabilities or counterfactuals; take latent loadings, non-Gaussian or bounded support | Levels left undeclared, or an interval on the discretized value | Declare levels; use the point and its bound |
 | [Assumption range and revalidation](guides/assumption-range-and-revalidation.md) | Choose the bound; attach a probability; carry a record to another target | A range for a discovered structure, or calibration at a new target (it is withdrawn, never inherited) | Use the structural envelope; re-measure |
-| [Inverse and decision reach](guides/inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources) | Supply a law from a point; supply an interval region; rank actions from scenario inversion; export a transported law | A quantile or probability on a point source, or a transported input to a consumer not declared to accept one (`not_supported`) | Supply a law (draws or a finite table), or accept the transported input explicitly with its receipt |
+| [Inverse and decision reach](guides/inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources) | Supply a law from a point; supply an interval region; rank actions from scenario inversion; export a transported law | A quantile or probability on a point source, or a transported input to a consumer not declared to accept one (`decision_contract_unsatisfied`) | Supply a law (draws or a finite table), or accept the transported input explicitly with its receipt |
 | [Interface-contract adapters and overlap](guides/build/scientific-interfaces.md#adapt-declarations-you-already-have) | Infer support, estimand or calibration; treat unknown overlap as disjoint | Independence declared where overlap is unknown | Register the sources in the evidence ledger |
 | [Parquet, Arrow IPC and large tables](guides/large-tables.md) | Read decimal, binary or nested columns; cast a type lossily; give a calibrated interval above 100,000 rows; use Polars as a backend; hold a table resident beyond the admission pool | A resident read, or a full-design route, on a table larger than the pool | Stream the weighted Gaussian summary, lower `chunk_rows`, raise the execution's memory limit, or flatten and cast the column explicitly |
 | [Sequentially randomized designs and regime survival](guides/temporal-designs.md) | Give a calibrated interval or posterior; identify a static switchback (assignment is a sequence of periods); infer an assignment probability or dose density; check sequential exchangeability for regime survival; pool error for a misclassified outcome that differs by arm or period; carry a band across a misclassification correction | A design option the route does not read (`bootstrap=` on an analytic interval), a local-quadratic grid with no curvature bound, or a realized probability below the floor | Omit the option; declare `curvature_bound` or use the smoothed curve; lower the floor or redesign the assignment |
@@ -44,7 +45,7 @@ confidence interval, a posterior coverage statement or a calibration claim.
 ## Reading a refusal
 
 A refusal carries a registered reason code, a typed detail and a remedy. The
-codes are listed in the refusal registry. A refusal is not a failure of the
+codes are listed in the [refusal code reference](reference/refusal-codes.md). A refusal is not a failure of the
 data; it states which premise or declaration was not met.
 
 ## Not applicable versus not supported

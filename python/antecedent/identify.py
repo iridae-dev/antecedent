@@ -130,15 +130,45 @@ def _derivation_statements(certificate: Mapping[str, Any] | None) -> tuple[str, 
 
 @dataclass(frozen=True)
 class Identification:
-    """A resolved identification strategy, staged for ``.prepare()`` / ``.estimate()``.
+    """Whether a causal query is identified on a structure, and how, before any data is seen.
 
-    Produced by :func:`identify` or :meth:`from_view`. Typed-structure
-    certificates retain each case's assumptions, derivation and search diagnostics;
-    aggregate counts remain unset when there is no single point certificate.
-    :attr:`statement`, :attr:`verdict`, :attr:`assumption_statements`, and
-    :attr:`derivation_statements` are human-readable state on this object —
-    not a notebook renderer. Conceptually immutable, like
+    Produced by :func:`identify` (or :meth:`from_view` from a completed analysis). It retains the
+    resolved query, structure and strategy, so it can continue into :meth:`prepare` or
+    :meth:`estimate` with data. ``bool(identification)`` is ``True`` exactly when
+    :attr:`verdict` is ``"identified"``. Conceptually immutable, like
     :class:`antecedent.AcceptedGraph`.
+
+    Read first:
+
+    * :attr:`verdict` -- ``"identified"``, ``"partially identified"``, ``"graph-dependent"``,
+      ``"not identified"``, ``"not claimed"`` (a noncausal association) or ``"design based"``
+      (a randomized or interference design identifies the contrast). :attr:`qualified_verdict`
+      adds the restriction an identified verdict holds under, for example
+      ``"identified under parametric restrictions"``.
+    * :attr:`statement` -- one sentence stating the identification claim.
+    * ``adjustment_set`` -- the variables adjusted for, when the strategy adjusts.
+    * :attr:`assumption_statements` and :attr:`derivation_statements` -- the assumptions the
+      claim rests on and the steps that derive it, in readable form.
+
+    Fields:
+
+    * ``status`` -- the engine's exact status, for example ``"NonparametricallyIdentified"``,
+      ``"IdentifiedUnderParametricRestrictions"``, ``"PartiallyIdentified"``,
+      ``"GraphDependent"`` or ``"NotIdentified"``.
+    * ``method`` -- the identification method the engine used.
+    * ``adjustment_set`` -- adjustment variable names, as a tuple (empty when none is used).
+    * ``graph`` and ``query`` -- the structure and the query as given.
+    * ``names`` -- the variable order of an edge-list graph, or ``None``.
+    * ``identifier`` -- the strategy id carried into preparation (see
+      :class:`~antecedent.Identifier`), or ``None``.
+    * ``assumption_count`` / ``derivation_step_count`` -- counts from a single point
+      certificate; ``None`` when there is none.
+    * ``certificate`` -- the complete typed-structure certificate (per-completion records,
+      adjustment coordinates, weights, derivations, assumptions and search limits), or ``None``.
+    * ``design`` -- for a design-based query, the declared design basis; otherwise ``None``.
+
+    Preparation checks identification again on the data's schema; this certificate is retained
+    for reading, not reused as an executable proof.
     """
 
     status: str
@@ -191,6 +221,13 @@ class Identification:
 
     @classmethod
     def from_prepared(cls, payload: Mapping[str, Any], *, query: Any, graph: Any) -> Identification:
+        """Build an identification from the identification payload of a prepared study.
+
+        ``payload`` is the mapping a prepared study reports for its identification, with
+        ``status``, ``method``, ``names`` and per-completion ``cases``; ``query`` and ``graph``
+        are the study's declarations. A randomized-trial or interference query with no cases
+        becomes a design-based identification.
+        """
         names = tuple(payload.get("names", ()))
         cases = payload.get("cases", ())
         first = cases[0].get("identification", {}) if cases else {}
@@ -240,7 +277,11 @@ class Identification:
 
     @property
     def scenario_adjustment_sets(self) -> tuple[tuple[str, ...], ...]:
-        """Named retained adjustment scenarios; these are not exhaustive graph-class bounds."""
+        """The adjustment set of each retained scenario, as tuples of variable names.
+
+        One entry per declared orientation scenario or completion case in the certificate. They
+        are the scenarios retained, not bounds over every graph in the class.
+        """
         return tuple(
             tuple(coordinate["name"] for coordinate in coordinates)
             for case in _certificate_cases(self.certificate)
@@ -249,7 +290,12 @@ class Identification:
 
     @property
     def completion_keys(self) -> list[int]:
-        """Stable temporal-class completion fingerprints for :class:`ClassPrior`."""
+        """Stable fingerprints of the completions of an incomplete temporal graph class.
+
+        A :class:`~antecedent.ClassPrior` given with ``ordered=`` masses aligns them with this
+        order; one given with ``pairs=`` uses these keys. Empty when the structure has no class
+        completions.
+        """
         certificate = self.certificate or {}
         keys = certificate.get("completion_keys")
         if keys:
@@ -266,7 +312,12 @@ class Identification:
 
     @property
     def verdict(self) -> str:
-        """Stable human label: identified, not identified, partial, or graph-dependent."""
+        """Stable label of the identification status.
+
+        One of ``"identified"``, ``"partially identified"``, ``"graph-dependent"``,
+        ``"not identified"``, ``"not claimed"`` or ``"design based"``. An unrecognized status warns
+        and reads ``"not identified"``.
+        """
         return "design based" if self.design is not None else verdict_for(self.status)
 
     @property
@@ -282,7 +333,7 @@ class Identification:
 
     @property
     def assumption_statements(self) -> tuple[str, ...]:
-        """Readable assumption lines retained from the identification certificate."""
+        """The assumptions the identification rests on, as readable sentences."""
         return (
             ("The declared design and its required scientific checks govern this analysis.",)
             if self.design is not None
@@ -291,16 +342,16 @@ class Identification:
 
     @property
     def derivation_statements(self) -> tuple[str, ...]:
-        """Readable derivation steps retained from the identification certificate."""
+        """The steps that derive the identifying expression, as readable sentences."""
         return _derivation_statements(self.certificate)
 
     def claim(self) -> str:
-        """Same sentence as :attr:`statement` — the claim before estimation."""
+        """Return :attr:`statement`: the identification claim before estimation."""
         return self.statement
 
     @property
     def statement(self) -> str:
-        """One-sentence identification state. This is data, not a display hook."""
+        """One sentence stating what is identified, by which method and adjustment set."""
         return (
             f"{type(self.query).__name__} for {self.design.get('outcome') or 'the declared quantity'} uses the declared design; scientific standing and inference supports are reported by estimation."
             if self.design is not None
@@ -308,7 +359,7 @@ class Identification:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """JSON-safe identification state, including the human-readable fields."""
+        """Return a JSON-safe dictionary of every field, the verdicts and the readable statements."""
         return {
             "status": self.status,
             "verdict": self.verdict,
@@ -338,11 +389,10 @@ class Identification:
         )
 
     def to_identify_result(self) -> IdentifyResult:
-        """Convert down to the legacy identify-only result shape.
+        """Return the narrower :class:`~antecedent.estimation.IdentifyResult` view.
 
-        ``IdentifyResult`` stays exported for callers that only want that
-        narrower shape; this keeps it a projection of ``Identification``
-        rather than a second, independently-computed value.
+        It holds ``status``, ``method``, ``adjustment_set`` and ``query`` only, and is a
+        projection of this object rather than a second computation.
         """
         return IdentifyResult(
             status=self.status,
@@ -361,10 +411,11 @@ class Identification:
         names: Sequence[str] | None = None,
         identifier: str | None = None,
     ) -> Identification:
-        """Build from a completed analysis's identification section.
+        """Build an identification from the identification section of a completed analysis.
 
-        Unlike :func:`identify` alone, a view sourced from a full estimate
-        carries ``assumption_count`` / ``derivation_step_count``.
+        ``view`` is that section; ``graph``, ``query``, ``names`` and ``identifier`` are the
+        declarations it was computed under. Unlike :func:`identify`, a view from a full estimate
+        carries ``assumption_count`` and ``derivation_step_count``.
         """
         return cls(
             status=view.status,
@@ -379,7 +430,11 @@ class Identification:
         )
 
     def inspect(self) -> Any:
-        """Identification / support / assumptions slots. No provider access."""
+        """Return an inspection report with the identification and assumption slots filled.
+
+        The support and uncertainty slots are unavailable because nothing has been estimated.
+        No data is read and no provider is called.
+        """
 
         from ._claim import identification_statement
         from .results._report import InspectionReport, SlotModel
@@ -532,14 +587,16 @@ class Identification:
         quantity_transform: str = "identity",
         dose_units: str | None = None,
     ) -> PreparedAnalysis[Any]:
-        """Own data and prepare this strategy through the common lifecycle.
+        """Prepare this identified question on ``data``; returns a :class:`~antecedent.PreparedAnalysis`.
 
-        The native preparation checks identification again: the identify-only
-        certificate is retained on this stage, but is not a reusable native proof.
-        Statistical budgets belong to ``inference``; execution settings belong
-        to ``Execution``. Omitted refutation keeps the ordinary-stage default
-        disabled and the transport-stage default unspecified; explicit options
-        are validated by the common preparation path.
+        Equivalent to :func:`antecedent.prepare` with this object's ``query``, ``graph`` and
+        ``identifier``; the keyword arguments have the meaning they have there. Preparation
+        checks identification again: the certificate retained here is not reused as an
+        executable proof. Statistical budgets belong to ``inference`` and execution settings to
+        ``execution``.
+
+        ``refute`` differs from :func:`antecedent.prepare` only when omitted: refutation is then
+        off (``False``) for ordinary queries and left to the engine for transport queries.
         """
         from .prepared import Reuse, prepare
         from .transport import Transport
@@ -614,7 +671,11 @@ class Identification:
         quantity_transform: str = "identity",
         dose_units: str | None = None,
     ) -> Outcome[Any]:
-        """Prepare and execute through the common immutable lifecycle."""
+        """Prepare this identified question on ``data`` and estimate it.
+
+        Equivalent to ``antecedent.estimate(identification.prepare(data, ...))``; takes the same
+        keyword arguments as :meth:`prepare` and returns an :class:`~antecedent.Outcome`.
+        """
         from .prepared import estimate
 
         return estimate(
@@ -956,7 +1017,31 @@ def identify(
     names: Sequence[str] | None = None,
     identifier: str | Identifier | None = None,
 ) -> Identification:
-    """Identify without estimating; returns a stageable :class:`Identification`.
+    """Decide whether ``query`` is identified on ``graph``, without data and without estimating.
+
+    Returns an :class:`Identification`. Read its :attr:`~Identification.verdict` and
+    :attr:`~Identification.statement`, then continue with ``.prepare(data)`` or
+    ``.estimate(data)``. A question that is not identified is returned with that verdict; it is
+    not raised.
+
+    * ``graph`` -- a :class:`~antecedent.Dag`, :class:`~antecedent.Admg`,
+      :class:`~antecedent.Cpdag`, :class:`~antecedent.Pag`, a temporal graph or temporal class, a
+      :class:`~antecedent.graph.TieredBackground`, an :class:`~antecedent.AcceptedGraph`, or a list of
+      ``(cause, effect)`` edges.
+    * ``query`` -- the causal question, for example :class:`~antecedent.AverageEffect`.
+    * ``names`` -- the variable order when ``graph`` is an edge list; a typed graph supplies its
+      own ``nodes()``. Default ``None``.
+    * ``identifier`` -- an :class:`~antecedent.Identifier` (or its id) to require a strategy;
+      default ``None`` lets the engine choose.
+
+    Example::
+
+        ident = antecedent.identify(
+            graph=antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")]),
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        )
+        print(ident.verdict, ident.adjustment_set)    # identified ('z',)
+        outcome = ident.estimate(data)
 
     ``TieredBackground`` identifies without data. Co-determined tiers return
     their checked closure; unknown tiers retain two declared orientation
@@ -989,6 +1074,13 @@ def identify(
     "this variable is not observable", so a latent common cause flattened into
     one is identified by adjusting on a variable no study can measure.
     ``Dag.latent_project(observed)`` builds the ``Admg``.
+
+    Raises:
+        TypeError: when the query is not supported on the supplied graph class (for example a
+            staged ``ResponseCurve`` on an ``Admg``); :class:`~antecedent.errors.CausalTypeError`
+            when a transport query is given a graph that is not an ``Admg``.
+        ValueError: when ``names`` is missing for an edge list, or ``identifier`` names a
+            strategy the query cannot use.
     """
     identifier_s = str(identifier) if isinstance(identifier, Identifier) else identifier
     from .transport import Transport

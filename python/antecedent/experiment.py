@@ -1,4 +1,18 @@
-"""First-class randomized experiment designs and intention-to-treat queries."""
+"""Randomized experiment designs, intention-to-treat queries and direct estimator utilities.
+
+Declare how treatment was randomized (:class:`ExperimentDesign` with Bernoulli, complete,
+cluster, :class:`StratifiedRandomization` or :class:`FactorialRandomization` assignment;
+:class:`MultiArmExperimentDesign`; :class:`SwitchbackDesign`) and ask a query:
+:class:`RandomizedEffect` (the intention-to-treat effect), :class:`ComplierEffect` (the
+complier average causal effect from encouragement and receipt), :class:`TreatmentOnTreated`
+or :class:`SwitchbackEffect`. Pass the query to :func:`antecedent.analyze` or
+:func:`antecedent.prepare`; the declared randomization is what identifies the effect.
+
+The ``estimate`` methods and the functions :func:`estimate_cuped_effect`,
+:func:`estimate_ancova_effect` and :func:`exact_randomization_test` are direct estimator
+utilities: each result's ``support_status`` says it is not a supported ``analyze`` route, and
+its ``uncertainty`` field says what the reported standard error or bound covers.
+"""
 
 from __future__ import annotations
 
@@ -293,6 +307,27 @@ class SwitchbackEffect:
 
 @dataclass(frozen=True, slots=True)
 class SwitchbackEstimate:
+    """The unit-period intention-to-treat effect of a switchback experiment.
+
+    Returned by :meth:`SwitchbackEffect.estimate`. A point estimate with a standard error; no
+    interval is reported.
+
+    Fields:
+
+    * ``effect`` -- the Horvitz-Thompson ITT estimate: mean unit-period outcome under treatment
+      minus under control, weighting by the declared marginal assignment probabilities.
+    * ``standard_error`` -- sandwich standard error treating each sequence as an independent
+      cluster, with arbitrary dependence among periods within a sequence.
+    * ``minimum_assignment_probability`` -- the smallest declared assignment probability, a
+      positivity check.
+    * ``sequence_count`` / ``period_count`` -- the independent sequences and the unit-period rows
+      used.
+    * ``treatment_arms`` -- the ``(control, treated)`` labels of the design.
+    * ``estimand``, ``uncertainty``, ``support_status`` and ``assumptions`` -- fixed labels: what
+      is estimated, what the standard error covers, that this is an unsupported direct estimator
+      utility, and the premises it rests on (notably no carryover between periods).
+    """
+
     effect: float
     standard_error: float
     minimum_assignment_probability: float
@@ -912,6 +947,22 @@ class ComplierEffectEstimate:
 
 @dataclass(frozen=True, slots=True)
 class CUPEDEstimate:
+    """A Bernoulli intention-to-treat effect adjusted by one pre-treatment covariate (CUPED).
+
+    Returned by :func:`estimate_cuped_effect`. A point estimate with a standard error; no interval
+    is reported.
+
+    Fields:
+
+    * ``effect`` -- the Horvitz-Thompson ITT contrast of the covariate-residualized outcomes,
+      with the declared assignment probabilities.
+    * ``adjustment_coefficient`` -- the pooled outcome-on-covariate slope used to residualize.
+    * ``standard_error`` -- asymptotic standard error under independent assignment units.
+    * ``uncertainty``, ``support_status`` and ``assumptions`` -- fixed labels: what the standard
+      error covers, that this is an unsupported direct estimator utility, and its premises (the
+      covariate was measured before assignment).
+    """
+
     effect: float
     adjustment_coefficient: float
     standard_error: float
@@ -1032,6 +1083,22 @@ def estimate_ancova_effect(
 
 @dataclass(frozen=True, slots=True)
 class RandomizationTest:
+    """An exact two-sided randomization test of the sharp null of no effect for any unit.
+
+    Returned by :func:`exact_randomization_test`. A test, not an interval: it does not address the
+    weak null of zero average effect.
+
+    Fields:
+
+    * ``observed_effect`` -- the Horvitz-Thompson contrast under the realized assignment
+      (outcomes weighted by the inverse of the declared assignment probabilities).
+    * ``exact_two_sided_p_value`` -- the probability, over every assignment the declared Bernoulli
+      design can produce (each weighted by its assignment probability), of a statistic at least
+      as extreme as the observed one.
+    * ``assignments_enumerated`` -- the assignments enumerated (at most ``2**20``).
+    * ``null``, ``uncertainty`` and ``support_status`` -- fixed labels.
+    """
+
     observed_effect: float
     exact_two_sided_p_value: float
     assignments_enumerated: int
@@ -1067,6 +1134,21 @@ def exact_randomization_test(
 
 @dataclass(frozen=True, slots=True)
 class MultiArmContrast:
+    """One arm of a multi-arm randomized experiment, compared with the control arm.
+
+    Read from :attr:`RandomizedExperimentEstimate.multi_arm_contrasts`.
+
+    Fields:
+
+    * ``action`` -- the arm label.
+    * ``value`` -- the estimated mean outcome under this arm.
+    * ``effect_vs_control`` -- ``value`` minus the control arm's mean.
+    * ``variance_bound_vs_control`` -- a covariance-free upper bound on the variance of
+      ``effect_vs_control`` (twice the sum of the two arm variances).
+    * ``observed_support`` -- the units observed under this arm.
+    * ``interval_95`` -- a supported pointwise 95% interval, or ``None`` when none is reported.
+    """
+
     action: str
     value: float
     effect_vs_control: float

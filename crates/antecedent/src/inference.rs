@@ -1,4 +1,9 @@
-//! Bayesian inference configuration for the facade.
+//! Inference mode and Bayesian configuration of a study.
+//!
+//! [`InferenceMode`] chooses frequentist or Bayesian inference; [`BayesianConfig`] declares the
+//! backend, likelihood, priors and posterior draws of a Bayesian study, including priors taken
+//! from earlier posteriors. The module also re-exports the prior, likelihood and test types
+//! these declarations use.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

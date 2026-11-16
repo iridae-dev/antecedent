@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""Compare pressure levels and their delayed effects on defects.
+"""What would defects be at each pressure level and horizon, and after one fixed setting?
 
-A response curve asks what would happen at each pressure level and time
-horizon. We also estimate the path after setting pressure to one fixed level.
-The graph states which earlier pressure measurements affect today's outcome.
+A response curve estimates the outcome at each pressure level (dose) and time horizon; an
+intervention response follows the path after setting pressure to one level. The declared temporal
+graph says which earlier pressure values affect today's defects.
 
-Defects follow 0.9 times the pressure one step earlier plus 0.1 times the pressure two
-steps earlier, with no noise. The script checks that the surface carries pointwise and
-simultaneous bands and that estimating the study again reproduces it; it prints the values
-rather than asserting them, and each band's calibration status is reported as computed. The
-slowly varying pressure series is strongly autocorrelated, which the declared graph omits, so
-the printed surface does not separate the two lag coefficients; the Rust example uses a series
-whose lags are uncorrelated and checks the surface against 0.9 and 0.1.
+The data are 400 deterministic steps: defects equal 0.9 times the pressure one step earlier plus
+0.1 times the pressure two steps earlier, with no noise. The script asserts that the surface
+carries pointwise and simultaneous bands, that the exported result loads, and that estimating the
+study again reproduces it; it prints the values rather than asserting them, and reports each
+band's calibration status as computed. The slowly varying pressure series is strongly
+autocorrelated, which the declared graph omits, so the printed surface does not separate the two
+lag coefficients; the Rust example uses a series whose lags are uncorrelated and checks the
+surface against 0.9 and 0.1.
 
-Install with `python -m pip install antecedent`; see examples/README.md."""
+Run: `python examples/python/temporal_response_curve.py`."""
 
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ from antecedent import InterventionResponse, ResponseCurve, analyze, load
 from antecedent.intervention import Set
 from antecedent.outcomes import require_success
 
-# Pressure at lag 1 and 2 drives defect; pulse policy at t-1.
+# Defects respond to pressure at lags 1 and 2. A pulse sets pressure once, one step back.
 N = 400
 pressure = np.array([math.sin(0.04 * t) for t in range(N)], dtype=np.float64)
 defect = np.zeros(N, dtype=np.float64)
@@ -44,9 +45,9 @@ curve = ResponseCurve(
     treatment_lag=1,
 )
 
-# The band comes from joint circular-block bootstrap replicates of the whole
-# surface; bootstrap=0 keeps the point surface without
-# a band, because an analytic band would treat lag-aligned rows as independent.
+# The bands come from circular-block bootstrap replicates of the whole surface, which keep
+# the serial dependence of the series. With bootstrap=0 the surface has no band: an analytic
+# band would treat lag-aligned rows as independent.
 result = require_success(
     analyze(
         data,

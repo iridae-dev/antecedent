@@ -1,6 +1,8 @@
 # Refusal codes and remedies
 
-The reference catalog of refusal families, codes and remedies. For how refusals reach your code and what each category means, read [refusals](../concepts/refusals.md). Each detail below is registered with its top-level code and a remedy in `parity/capability_records.toml`.
+This page lists the refusal families, their codes and their remedies. In the family tables each row is one refusal: the *detail* (`family.slot`, the specific reason), the registered top-level *code* it is raised under, and the *remedy*, which says what you can change to proceed or states that nothing can.
+
+Look a refusal up by the `detail` it reports, or by its `code` when it has no detail. For how refusals reach your code and what each category means, read [refusals](../concepts/refusals.md). Each detail below is registered with its top-level code and a remedy in `parity/capability_records.toml`.
 
 ## Structured refusals and their remedies
 
@@ -633,7 +635,7 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `transported_decision.native_label_on_transported_value` | `transport_not_certified` | A transported value is never native. |
 | `transported_decision.mixed_transports` | `transport_not_certified` | Decide each transport's value on its own. |
 | `transported_decision.law_not_supplied` | `decision_contract_unsatisfied` | Supply a transported law. |
-| `transported_decision.interval_not_supported` | `uncertainty_representation_insufficient` | None: the value is point-only. |
+| `transported_decision.interval_not_supported` | `not_supported` | None: the value is point-only. |
 | `transported_decision.transported_not_accepted` | `decision_contract_unsatisfied` | Accept a transported claim explicitly in the support policy. |
 | `transported_decision.uncertainty_requirement` | `decision_contract_unsatisfied` | Supply a transported law or drop the requirement. |
 | `transported_decision.exclusions_leave_no_comparison` | `decision_contract_unsatisfied` | Declare fewer exclusions. |
@@ -763,12 +765,147 @@ Each detail below is registered with its top-level code and a remedy in `parity/
 | `adaptive_inference.fixed_sample_data_dependent_stopping` | `adaptive_assumption_violated` | Use the group-sequential or anytime-valid paradigm. |
 | `adaptive_inference.group_sequential_assignment_adaptive` | `adaptive_assumption_violated` | Use fixed randomization or an anytime-valid paradigm. |
 | `adaptive_inference.inversion_premise_contexts` | `adaptive_assumption_violated` | Invert one context at a time. |
+| `adaptive_inference.analysis_invalid` | `invalid_argument` | Correct the declared analysis. |
+| `adaptive_inference.analysis_route_mismatch` | `adaptive_assumption_violated` | Match the analysis to the assignment rule. |
+| `adaptive_inference.arm_not_observed` | `adaptive_assumption_violated` | Observe a completed unit in both contrast arms; a prior alone does not identify the contrast. |
+| `adaptive_inference.arm_out_of_range` | `invalid_argument` | Use arm indexes of the declared arm labels. |
+| `adaptive_inference.assigned_probability_zero` | `invalid_argument` | Retain the probabilities the policy actually used. |
+| `adaptive_inference.assignment_probabilities_missing` | `adaptive_contract_incomplete` | Retain each unit's probability of every arm at assignment. |
+| `adaptive_inference.between_unit_variance_missing` | `adaptive_contract_incomplete` | Declare the between-unit variance. |
+| `adaptive_inference.cancelled` | `cancelled_no_claim` | Rerun without cancellation. |
+| `adaptive_inference.cell_incoherent` | `route_not_supported` | Declare interim looks with a stopping rule, or one final analysis with none. |
+| `adaptive_inference.cell_not_delivered` | `route_not_supported` | Analyse a cell that is implemented. |
+| `adaptive_inference.choice_outcome_needs_choice_contract` | `invalid_argument` | Declare a categorical or repeated choice outcome with the choice design contract (`choice_inference`); it is not an assigned-arm outcome. |
+| `adaptive_inference.correlation_invalid` | `invalid_argument` | Declare a valid correlation. |
+| `adaptive_inference.delay_not_ignorable` | `adaptive_assumption_violated` | Declare an administrative delay or model the delay mechanism. |
+| `adaptive_inference.exact_law_unavailable` | `adaptive_assumption_violated` | Use the simulation route. |
+| `adaptive_inference.exposure_differs_from_assignment` | `adaptive_assumption_violated` | Analyse by assignment with a compliance model or restrict to compliers; noncompliance is not modelled. |
+| `adaptive_inference.final_analysis_missing` | `adaptive_contract_incomplete` | Declare the estimator and unit summary. |
+| `adaptive_inference.fixed_sample_on_adaptive_data` | `adaptive_design_ignored` | Use an adaptive-design route: a posterior, adaptively weighted scores, group-sequential boundaries or a confidence sequence. |
+| `adaptive_inference.guarantee_not_transferable` | `adaptive_assumption_violated` | Establish the guarantee for this cell. |
+| `adaptive_inference.independence_assumed_for_dependent_measurements` | `adaptive_assumption_violated` | Use the cluster-robust unit-level analysis. |
+| `adaptive_inference.input_invalid` | `invalid_argument` | Declare prior shapes of at least one and between two and 64 arms. |
+| `adaptive_inference.interval_names_no_quantity` | `quantity_semantics_mismatch` | Request the interval of a named result with measured_interval, which reports it with its calibration status; the point values and uncalibrated diagnostics are the result. |
+| `adaptive_inference.ledger_limit` | `invalid_argument` | Reduce the units or looks. |
+| `adaptive_inference.look_out_of_range` | `invalid_argument` | Name a look within the declared interim analyses. |
+| `adaptive_inference.looks_overlap_unknown` | `evidence_overlap_unknown` | Declare the observations behind each look. |
+| `adaptive_inference.looks_share_observations` | `evidence_double_counted` | Treat the looks as nested analyses of one growing sample. |
+| `adaptive_inference.measurements_invalid` | `invalid_argument` | Declare 2 to 32 measurements. |
+| `adaptive_inference.no_stagewise_adjustment_procedure` | `route_not_supported` | None: the boundaries and the first crossing are the result; adjusted inference needs its own derivation and measurement. |
+| `adaptive_inference.no_stopping_reliability_procedure` | `estimator_inference_mismatch` | None: the decision follows the retained history; its reliability needs whole-procedure measurement and a decision-reliability record. |
+| `adaptive_inference.numerical_failure` | `invalid_argument` | No value is reported; reduce the counts or report the failure. |
+| `adaptive_inference.outcome_invalid` | `invalid_argument` | Declare finite outcomes inside the route's support. |
+| `adaptive_inference.outcome_structure_missing` | `adaptive_contract_incomplete` | Declare the outcome structure. |
+| `adaptive_inference.pairing_not_supported` | `route_not_supported` | A pairing needs its own record; a guarantee for two components does not support it. |
+| `adaptive_inference.paradigm_not_supported_for_cell` | `route_not_supported` | Use a paradigm the cell is supported for. |
+| `adaptive_inference.policy_history_invalid` | `invalid_argument` | Declare ordered epochs starting at the first unit. |
+| `adaptive_inference.positivity_floor` | `adaptive_assumption_violated` | Declare a clipping policy as its own route or use a route that does not weight by assignment probability. |
+| `adaptive_inference.probabilities_invalid` | `invalid_argument` | Retain each unit's actual distribution over the arms. |
+| `adaptive_inference.probability_floor_invalid` | `invalid_argument` | Declare a probability floor in (0, 1]. |
+| `adaptive_inference.procedure_limit_exceeded` | `invalid_argument` | Reduce the units, looks, cells or delay of the declared procedure, or use the simulation route. |
+| `adaptive_inference.repeated_measures_paradigm_not_derived` | `adaptive_assumption_violated` | Use a derived paradigm for the cell. |
+| `adaptive_inference.repeated_measures_stopping_not_derived` | `invalid_argument` | Declare one final analysis with no stopping rule. |
+| `adaptive_inference.report_replay_mismatch` | `invalid_argument` | Re-export the artifact from the experiment's history. |
+| `adaptive_inference.selection_not_ignorable` | `adaptive_assumption_violated` | Model selection jointly with the outcome, or randomize independently of unobserved quantities. |
+| `adaptive_inference.shape_mismatch` | `invalid_argument` | Declare one record per unit and a look within the declared looks exactly where an outcome was observed. |
+| `adaptive_inference.structure_incomplete` | `adaptive_assumption_violated` | Declare the within-unit variance and a valid correlation or hierarchy. |
+| `adaptive_inference.unit_out_of_range` | `invalid_argument` | Name a unit within the declared units. |
+| `adaptive_inference.variance_invalid` | `invalid_argument` | Declare finite positive variances. |
+| `adaptive_inference.within_unit_correlation_missing` | `adaptive_contract_incomplete` | Declare compound symmetry or AR(1) correlation. |
+| `adaptive_inference.within_unit_variance_missing` | `adaptive_contract_incomplete` | Declare the within-unit variance. |
+| `adaptive_inference.wrong_contract` | `route_not_supported` | Consume the contract of the experiment the retained identity names. |
 | `decision_reliability.effective_sample_size_too_small` | `route_not_supported` | Draw more or reduce serial dependence. |
 | `decision_reliability.dependence_unknown` | `sampling_dependence_unknown` | Declare shared simulation, independent streams or an aligned joint law. |
 | `decision_reliability.search_record_required` | `candidate_search_record_required` | Supply the candidate search record (considered and retained counts). |
 | `decision_reliability.validation_not_independent` | `validation_stream_not_independent` | Validate on an independent stream or a disjoint split. |
 | `decision_reliability.producer_point_only` | `joint_law_required` | Supply aligned per-draw utilities from one joint law, or retain per-rollout utilities. |
 | `decision_reliability.producer_mean_disagrees` | `distribution_meaning_mismatch` | Supply draws of the same quantity or drop the agreement check. |
+
+### Sequential evaluation
+
+`sequential_evaluation.*`. See [sequential evaluation](../sequential-evaluation.md). An exact policy value under a declared finite model has no sampling interval; a value estimated from logged trajectories reports its own uncertainty.
+
+| Detail | Code | Remedy |
+| --- | --- | --- |
+| `sequential_evaluation.accounting_residual` | `invalid_argument` | The model probabilities are not normalized; revalidate the model declaration. |
+| `sequential_evaluation.action_channel` | `invalid_argument` | Attach observation channels to continue actions only. |
+| `sequential_evaluation.action_cost` | `invalid_argument` | Declare costs and resource use as non-negative finite numbers. |
+| `sequential_evaluation.action_delayed_outcome` | `invalid_argument` | Declare when the outcome falls due (1 to 12 decision times) and its utility by state. |
+| `sequential_evaluation.action_index` | `invalid_argument` | Name declared actions only. |
+| `sequential_evaluation.action_label` | `invalid_argument` | Give every action a distinct bounded label. |
+| `sequential_evaluation.action_not_supported` | `history_support_violated` | Restrict the policy to supported actions, or establish and declare the support evidence for the action in that history. |
+| `sequential_evaluation.action_support` | `invalid_argument` | Declare, for the default and for each override, one flag per action. |
+| `sequential_evaluation.action_transition` | `invalid_argument` | Declare one distribution over next states per current state. |
+| `sequential_evaluation.action_utility` | `invalid_argument` | Declare the immediate utility by latent state. |
+| `sequential_evaluation.artifact_id_missing` | `invalid_argument` | Name the artifact. |
+| `sequential_evaluation.artifact_kind_mismatch` | `invalid_argument` | Supply an artifact written by this library for a sequential evaluation. |
+| `sequential_evaluation.behaviour_support_missing` | `history_support_violated` | Evaluate a policy the logged data can identify, or collect data where the logging policy takes the action. |
+| `sequential_evaluation.cancelled` | `cancelled_no_claim` | Re-run without cancellation; a partial enumeration is not a result. |
+| `sequential_evaluation.channel_binding_mismatch` | `measurement_binding_mismatch` | Establish the measurement model for this population and regime, or declare the invariance premise under a transport contract. |
+| `sequential_evaluation.channel_construct_mismatch` | `measurement_binding_mismatch` | Bind the measurement model to the construct the latent states describe. |
+| `sequential_evaluation.channel_levels_mismatch` | `measurement_binding_mismatch` | Declare the confusion model over exactly the model's states, in the same order. |
+| `sequential_evaluation.channel_rates` | `route_not_supported` | Declare shared non-differential rates for a two-state model, or use a categorical channel. |
+| `sequential_evaluation.channel_route` | `route_not_supported` | Declare a binary misclassification or categorical confusion model for the observation. |
+| `sequential_evaluation.commit_has_no_observation` | `invalid_argument` | Record observations of continue actions only. |
+| `sequential_evaluation.comparison_kind_mismatch` | `invalid_argument` | Declare the kind the policy implements, or supply a policy that implements the declared kind. |
+| `sequential_evaluation.comparison_label` | `invalid_argument` | Give every comparison a distinct label. |
+| `sequential_evaluation.comparisons` | `invalid_argument` | Supply at least one named policy comparison. |
+| `sequential_evaluation.decision_receipt_mismatch` | `invalid_argument` | Regenerate the artifact from the model and policy. |
+| `sequential_evaluation.delayed_outcome_beyond_horizon` | `invalid_argument` | Extend the horizon, or declare the censoring rule forfeit to count such outcomes as zero and report them. |
+| `sequential_evaluation.differential_channel` | `differential_error_not_pooled` | Declare non-differential error; differential error has no bounded route here. |
+| `sequential_evaluation.empty_log` | `invalid_argument` | Supply the logged trajectories to evaluate against. |
+| `sequential_evaluation.exact_mismatch` | `invalid_argument` | Regenerate the artifact from the model and policy. |
+| `sequential_evaluation.history_receipt_mismatch` | `invalid_argument` | Regenerate the artifact from the model and policy. |
+| `sequential_evaluation.identity_mismatch` | `route_not_supported` | Supply the artifact whose recomputed identity equals the retained identity. |
+| `sequential_evaluation.importance_weight_overflow` | `invalid_argument` | Bound the weights or clip with a declared ceiling. |
+| `sequential_evaluation.indicator_as_state` | `proxy_offered_as_construct` | Name the latent construct as the state variable and relate the measured column to it by a measurement model. |
+| `sequential_evaluation.interval_not_supported` | `uncertainty_representation_insufficient` | None: the exact value has no sampling uncertainty; read the interval of a logged-trajectory estimate from the off-policy estimate. |
+| `sequential_evaluation.limit_exceeded` | `invalid_argument` | Reduce the horizon, the policy table or the data, or raise the evaluation limit. |
+| `sequential_evaluation.log_partially_counted` | `evidence_double_counted` | Evaluate the complete earlier log again, or only trajectories the ledger does not hold. |
+| `sequential_evaluation.logged_trajectory_inconsistent` | `invalid_argument` | Log trajectories generated under the declared model, logging policy, boundaries and budget, or correct the model declaration. |
+| `sequential_evaluation.malformed` | `invalid_argument` | Regenerate the artifact from its producer. |
+| `sequential_evaluation.model_actions` | `invalid_argument` | Declare the finite action set (1 to 16 actions). |
+| `sequential_evaluation.model_field` | `invalid_argument` | Name the population, regime, period and latent state variable the laws were established for. |
+| `sequential_evaluation.model_horizon` | `invalid_argument` | Freeze a bounded finite horizon. |
+| `sequential_evaluation.model_initial` | `invalid_argument` | Declare the prior over the latent states. |
+| `sequential_evaluation.model_mismatch` | `invalid_argument` | Regenerate the artifact from its producer. |
+| `sequential_evaluation.model_resource_budget` | `invalid_argument` | Declare a non-negative budget or none. |
+| `sequential_evaluation.model_states` | `invalid_argument` | Declare 2 to 32 distinct named latent states. |
+| `sequential_evaluation.model_terminal_utility` | `invalid_argument` | Declare the utility when the horizon is reached without a commit. |
+| `sequential_evaluation.model_work` | `invalid_argument` | Reduce the latent states, actions or horizon. |
+| `sequential_evaluation.no_overlap` | `history_support_violated` | Log data where the logging policy takes the actions the target policy takes. |
+| `sequential_evaluation.observation_impossible` | `invalid_argument` | The observation contradicts the declared model; revise the model rather than conditioning on it. |
+| `sequential_evaluation.observation_recorded_twice` | `evidence_double_counted` | Record each action and observation once. |
+| `sequential_evaluation.off_policy_mismatch` | `invalid_argument` | Regenerate the artifact from the logged trajectories. |
+| `sequential_evaluation.past_horizon` | `invalid_argument` | Evaluate the realized history. |
+| `sequential_evaluation.policy_change_refused` | `route_not_supported` | Fix the policy as a new version and evaluate it, against fresh or held-out observations when its value is estimated from data. |
+| `sequential_evaluation.policy_distribution` | `invalid_argument` | Give each history a distribution over distinct actions summing to one. |
+| `sequential_evaluation.policy_incomplete` | `invalid_argument` | Declare an action for every history the policy can reach; a missing history is not given a default. |
+| `sequential_evaluation.policy_mismatch` | `invalid_argument` | Regenerate the artifact from its producer. |
+| `sequential_evaluation.policy_version` | `invalid_argument` | Label the policy so its receipts name the version evaluated. |
+| `sequential_evaluation.record_already_counted` | `evidence_double_counted` | Record each observation and action once; cite the existing record instead. |
+| `sequential_evaluation.record_identity` | `invalid_argument` | Identify each record so it can be counted once. |
+| `sequential_evaluation.resource_budget_exceeded` | `invalid_argument` | Restrict the policy to the declared resource budget or raise the budget. |
+| `sequential_evaluation.return_overflow` | `invalid_argument` | Rescale the utilities. |
+| `sequential_evaluation.rollout_belief` | `invalid_argument` | The model laws are inconsistent; revalidate the model. |
+| `sequential_evaluation.rollout_mismatch` | `invalid_argument` | Regenerate the artifact with the same seed and rollout count. |
+| `sequential_evaluation.rollouts` | `invalid_argument` | Request a positive number of rollouts. |
+| `sequential_evaluation.session_label` | `invalid_argument` | Label the session so its records are scoped to it. |
+| `sequential_evaluation.static_score_table` | `route_not_supported` | Supply a contingent policy: a table from observed histories to actions over the declared horizon. |
+| `sequential_evaluation.stopping_boundary` | `invalid_argument` | Monitor distinct in-range states with thresholds in [0, 1], lower below upper, and stop with a commit action. |
+| `sequential_evaluation.temporal_transport_contract_missing` | `transport_missing_evidence` | Declare a model established for the target period, or supply a time-invariance contract for the mechanisms across periods. |
+| `sequential_evaluation.trajectory_identity` | `invalid_argument` | Identify each trajectory so it can be counted once. |
+| `sequential_evaluation.trajectory_recorded_twice` | `evidence_double_counted` | Log each trajectory once, or give distinct trajectories distinct identities. |
+| `sequential_evaluation.transported_policy_contract_missing` | `transport_missing_evidence` | Supply a selection diagram with the transition and observation mechanisms marked invariant and a target initial-state law with support overlap, through counterfactual transport, or declare a model native to the target population. |
+| `sequential_evaluation.value_mismatch` | `invalid_argument` | Regenerate the artifact from the model and policy. |
+| `sequential_evaluation.version` | `invalid_argument` | Supply an artifact written by this library version. |
+| `sequential_evaluation.voi_collect_action` | `invalid_argument` | Name a pure information-collecting action; evaluate other actions as policies. |
+| `sequential_evaluation.voi_commit_actions` | `invalid_argument` | Name declared commit actions. |
+| `sequential_evaluation.voi_enumeration_mismatch` | `invalid_argument` | The finite channel and the model disagree; revalidate the model declaration. |
+| `sequential_evaluation.voi_ranking` | `invalid_argument` | Check the collect action, the commit actions and the model's finite channel. |
+| `sequential_evaluation.voi_scope` | `route_not_supported` | Evaluate the collect-then-act policy directly as a comparison. |
+| `sequential_evaluation.weighted_estimate_overflow` | `invalid_argument` | Rescale the utilities or bound the weights. |
+| `sequential_evaluation.weighted_sum_overflow` | `invalid_argument` | Rescale the utilities or bound the weights. |
 
 ### Finite-SCM discretization
 

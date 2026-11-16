@@ -11,9 +11,26 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
-//! Temporal dose × horizon ``ResponseCurve`` on a ``TemporalDag``.
+//! A dose-by-horizon response surface on a temporal graph, with a pointwise band.
+//!
+//! Question: how does the defect rate respond to a pulse of pressure of size 0, 0.5 or 1, one
+//! and two steps after the pulse?
+//!
+//! Data and truth: 400 hourly points with `pressure[t] = sin((pi / 2) t)` and
+//! `defect[t] = 0.9 pressure[t - 1] + 0.1 pressure[t - 2]`, noise-free. The surface is
+//! `0.9 * dose` at horizon 1 and `0.1 * dose` at horizon 2.
+//!
+//! The band comes from 100 joint circular-block bootstrap replicates of the whole surface.
+//!
+//! Asserted: the six surface cells match `{0, 0, 0.05, 0.1, 0.45, 0.9}` to within 0.05, and
+//! every band contains its own mean.
+//!
+//! What this establishes: the response route recovers both lag coefficients when the two lags
+//! are uncorrelated in the sample. The comment in `run` explains why a slowly varying input
+//! would not: each cell regresses on its own lag only. The band's coverage is not measured.
 //!
 //! Run: `cargo run -p antecedent --example temporal_response_curve`
+//! Source: `examples/rust/temporal_response_curve.rs`
 
 use std::sync::Arc;
 

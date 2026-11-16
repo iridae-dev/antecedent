@@ -18,6 +18,8 @@ independent-censoring curve (the same estimator with `G = 1`) is biased, estimat
 cumulative incidence with a competing event, and show the refusal of a `G` below the positivity
 floor. In real data `G` must be fitted and checked by you; here it is supplied and never fitted
 or verified, the results are point-only, and nothing is claimed about delayed entry or intervals.
+
+Run: `python examples/python/survival_ipcw.py`.
 """
 
 from __future__ import annotations

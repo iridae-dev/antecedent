@@ -1,9 +1,22 @@
 //! A counterfactual through a shared hidden cause, computed because the model is fully declared.
 //!
-//! A hidden frailty `u` (frail with probability 0.3) drives who is treated and how the outcome
-//! responds: `x = u`, `y = x xor u`. A patient observed treated is known to be frail, and the same
-//! frailty is read under `do(x = 0)`, so `P(Y_x0 = 1 | X = 1) = 1`; independent outcome noise with
-//! the same law gives 0.3. The execution is sealed and replayed.
+//! Question: for a patient observed treated, what is the probability of the outcome had the
+//! patient not been treated?
+//!
+//! Model and truth: a hidden frailty `u` (frail with probability 0.3) drives who is treated and
+//! how the outcome responds: `x = u`, `y = x xor u`. A patient observed treated is known to be
+//! frail, and the same frailty is read under `do(x = 0)`, so `P(Y_x0 = 1 | X = 1) = 1`. A model
+//! in which the outcome has its own independent noise with the same law gives 0.3.
+//!
+//! Asserted: the shared-frailty execution returns exactly 1 on the
+//! `counterfactual.finite_shared_exogenous_scm.marginal` row, the independent-noise model returns
+//! 0.3, and a consumer that replays the sealed bytes recomputes the same value bit for bit.
+//!
+//! What this establishes: the counterfactual depends on whether the outcome's noise is the
+//! same variable that drove treatment. With the shared frailty, observing the treatment
+//! determines `u`, and the same `u` is carried into the untreated world. The answer is a
+//! property of the declared structural model, obtained by exact enumeration; nothing is
+//! estimated.
 //!
 //! Run: `cargo run -p antecedent --example shared_exogenous_counterfactual`
 //! Source: `examples/rust/shared_exogenous_counterfactual.rs`

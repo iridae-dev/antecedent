@@ -127,13 +127,13 @@ Invalid arguments, cancellation, resource limits and callback failures are diffe
 
 ## The same analysis in Rust
 
-Run the smallest effect-estimation example from a source checkout:
+The Rust facade follows the same order: declare the data, graph and question, build a study, run it, then read the answer and its identification. Run the smallest effect-estimation example from a source checkout:
 
 ```bash
 cargo run -p antecedent --example ate_quickstart
 ```
 
-The example creates a table, declares the schema and the causal graph, and asks for the average treatment effect. Its simulated outcome is `y = 1 + 2t + 3z` with `z` confounding `t`, so adjusting for `z` recovers exactly 2. The crude contrast of `y` on `t` does not, because the `z` gap between arms adds 1.5.
+This example uses different data from the Python one above. It has 200 rows and no noise: `z` runs evenly from 0 to 1, `t` is 1 when `z > 0.5`, and `y = 1 + 2t + 3z`. Here `z` is a common cause of treatment and outcome, so the graph has three edges, `z → t`, `z → y` and `t → y`, and the effect of `t` on `y` is identified by adjusting for `z`. Adjustment recovers exactly 2. The crude contrast of `y` between arms does not: treated rows have larger `z`, and that gap adds 1.5.
 
 ```rust
 let schema = CausalSchemaBuilder::new()
@@ -160,7 +160,25 @@ println!("effect = {:.4}", result.effect());
 println!("status = {:?}", result.identification.status);
 ```
 
-This is an excerpt; read the [complete source](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/ate_quickstart.rs), which includes the data generation and asserts the result. It disables refutation and bootstrap intervals and uses a parametric model, so it does not establish overlap for a real dataset. Expect `effect = 2.0000` and a nonparametrically identified status. Rust returns scientific refusals as typed values on the same terms as Python; `cargo doc -p antecedent --open` builds the API reference for your checkout.
+This is an excerpt: `t`, `y` and `z` are `Vec<f64>` columns, the names come from `use antecedent::prelude::*;` and `use antecedent::RefuteSuite;`, and `?` propagates a `CausalError`. Read the [complete source](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/ate_quickstart.rs), which includes the data generation and asserts the result.
+
+| Step | What it declares or does |
+| --- | --- |
+| `CausalSchemaBuilder` | Names each column, its type and its role: `t` is the treatment, `y` the outcome, `z` context. |
+| `TabularData::try_from_schema_f64` | Binds the columns to that schema as one table. |
+| `Dag::from_named_edges` | Declares the causal graph by variable name. |
+| `AverageEffectQuery::binary_ate` | Asks for the average effect of setting `t` to 1 rather than 0 on `y`. |
+| `Study::tabular(...)...build()?` | Validates the declarations and returns the study; a missing graph or query, or a graph that does not match the table, is an error here. Nothing is fitted yet. |
+| `.run(&ctx)?` | Executes the study and returns its result. `ExecutionContext::for_tests(1)` is an execution context with seed 1. |
+
+Expect:
+
+```text
+effect = 2.0000
+status = NonparametricallyIdentified
+```
+
+`result.effect()` is the point estimate and `result.identification.status` says how the declared graph identifies it. The example calls `.refute(RefuteSuite::None)` and `.bootstrap_replicates(0)`, so it runs no refutation checks and reports no bootstrap interval. It also uses a parametric outcome model on arms that share no values of `z`, so the exact answer reflects the noiseless linear data; it does not establish overlap for a real dataset. Rust returns scientific refusals as typed values on the same terms as Python; `cargo doc -p antecedent --open` builds the API reference for your checkout.
 
 ## Next steps
 

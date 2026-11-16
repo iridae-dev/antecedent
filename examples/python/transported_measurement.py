@@ -1,11 +1,13 @@
-"""Carry declared sensitivity and specificity from one clinic to another.
+"""What is a target clinic's true prevalence when its records are misclassified?
 
-The invariance premise is declared, not learned from these target counts. Its
-uncertainty is not silently absorbed into a confidence interval.
+Sensitivity 0.9 and specificity 0.8 come from a 500-unit validation sample in clinic A and are
+carried to clinic B under a declared invariance premise, which is not learned from the target
+counts and is not absorbed into the standard error. With 520 of 1,000 clinic B records positive,
+the corrected prevalence is (0.52 + 0.8 - 1) / (0.9 + 0.8 - 1); the script asserts it and its
+delta-method standard error against those closed forms, and that the standard error is labelled
+uncalibrated.
 
-With 520 of 1,000 target records positive, sensitivity 0.9 and specificity 0.8, the corrected
-prevalence is (0.52 + 0.8 - 1) / (0.9 + 0.8 - 1); the script checks it and its delta-method
-standard error against those closed forms. The standard error is labelled uncalibrated.
+Run: ``python examples/python/transported_measurement.py``.
 """
 
 import math

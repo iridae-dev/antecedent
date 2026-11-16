@@ -11,8 +11,9 @@ Most PSID respondents earned far more than anyone who entered the programme, so 
 model gives many of them essentially no chance of treatment. The script follows what Antecedent
 reports at each step: the ``positivity_violated`` refusal when no overlap policy is declared,
 the estimate a declared clip yields and the ``partial`` status it carries, the common-support
-estimate once a trim is declared, and how far the answer moves with that choice. On the real files it ends by comparing with the
-randomised NSW benchmark, which estimates the same effect on the treated.
+estimate once a trim is declared, and how far the answer moves with that choice. On the real
+files it ends by comparing with the randomised NSW benchmark, which estimates the same effect
+on the treated.
 
 Data. By default this script runs on a **synthetic stand-in** with the same ten columns and
 sizes and the same overlap problem, whose effect on the treated is a fixture truth of the

@@ -11,12 +11,26 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
-//! Sequential Bayes: batch A posterior → batch B prior.
+//! Sequential Bayesian updating: the posterior of one batch is the prior of the next.
 //!
-//! Fits Bayesian ATE on batch A, encodes the posterior artifact, then re-analyzes
-//! an independent batch B with `prior_from_artifact` on the same graph/design.
+//! Question: how is an effect posterior carried from one batch of data to an independent batch
+//! on the same graph and design?
+//!
+//! Data and truth: two independent batches of 180 rows from `Z ~ N(0, 1)`,
+//! `T = 1 when Z + e > 0`, `Y = 2 T + Z + 0.4 noise`. The average effect of `T` on `Y` is 2.
+//!
+//! Steps: fit the conjugate Bayesian average effect on batch A, encode the posterior as an
+//! artifact, then analyze batch B with `prior_from_artifact`.
+//!
+//! Asserted: batch B returns a posterior with a finite effect mean, and its identification
+//! lists at least one required assumption.
+//!
+//! What this establishes: the posterior artifact of one study is accepted as the prior of a
+//! second study with the same graph and query. The example does not check either posterior mean
+//! against 2, nor that the second posterior is narrower than the first.
 //!
 //! Run: `cargo run -p antecedent --example sequential_bayes`
+//! Source: `examples/rust/sequential_bayes.rs`
 
 use std::sync::Arc;
 
@@ -116,6 +130,8 @@ pub fn run() -> Result<(), CausalError> {
         .run(&ExecutionContext::for_tests(11))?;
     let post_a = batch_a.posterior.as_ref().expect("batch A posterior");
     let mean_a = post_a.summaries.mean[post_a.effect_column().unwrap()];
+    // The artifact holds the full posterior draws under the id `batch-a`; the second study
+    // reads its prior from these bytes.
     let artifact = encode_causal_posterior_bytes(post_a, "batch-a")?;
 
     let batch_b = Study::tabular(data_b)

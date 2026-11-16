@@ -1,9 +1,16 @@
 # Compare raw and adjusted estimates and re-express a pair of means
 
-`antecedent.descriptive` (Rust: `antecedent_estimate::descriptive_comparison`) holds two
-small computations over estimates you already have. Both are `point_only` and
+Use this page when you already hold an adjusted estimate and want to report (a) how far
+adjustment moved it from the unadjusted difference of arm means, or (b) a pair of arm means
+on another reporting scale (risk difference, log risk ratio, log odds ratio).
+`antecedent.descriptive` (Rust: `antecedent_estimate::{compare_raw_adjusted,
+transform_mean_pair}`) holds both computations. Both are `point_only` and
 **descriptive**: they report a gap and re-express a pair of means, and neither identifies
 or decomposes a causal effect.
+
+You need the outcome and a 0/1 treatment column as numeric sequences, plus the adjusted
+estimate (and, for transformed standard errors, the joint covariance of the two arm means
+as the source estimate published it).
 
 ```python
 from antecedent.descriptive import raw_vs_adjusted, transform_mean_pair
@@ -13,14 +20,19 @@ comparison = raw_vs_adjusted(
     adjusted_estimate=ate, adjusted_standard_error=se,
 )
 comparison.raw_difference, comparison.adjusted_estimate, comparison.gap
+comparison.raw_standard_error          # Welch; None when an arm has fewer than two rows
 
 transform = transform_mean_pair(
     mean_active, mean_control,
     scales=["log_risk_ratio", "log_odds_ratio"],
     covariance=[[var_a, cov], [cov, var_c]],   # as the source estimate published it
 )
-transform.values, transform.covariance
+transform.values, transform.covariance   # one value per scale; k x k delta-method covariance
+transform.standard_error("log_risk_ratio")
 ```
+
+To describe an outcome against predictors with no causal claim (the `Association` query, used
+for example after a refusal), see [when the effect is not identified](fallback.md).
 
 ## Raw versus adjusted
 
@@ -31,7 +43,9 @@ control level 0, on the all-observed population. Anything else is refused rather
 compared: another scale or level coding (`route_not_supported`,
 `descriptive_comparison.estimand_coding_mismatch`), or a subpopulation, treated-only or
 reweighted target (`population_not_estimable`,
-`descriptive_comparison.population_not_all_observed`).
+`descriptive_comparison.population_not_all_observed`). A treatment arm with no rows is
+refused with `arm_not_populated` (`descriptive_comparison.arm_not_populated`). The codes are
+listed in the [refusal code reference](../reference/refusal-codes.md#other-registered-refusal-codes).
 
 `gap = raw - adjusted`. Read it as "how far adjustment moved this number", not as bias,
 not as confounding and not as a causal decomposition: it also contains the adjustment

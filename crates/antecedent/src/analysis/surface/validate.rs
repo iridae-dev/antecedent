@@ -1,4 +1,4 @@
-//! Validation / refutation types.
+//! Refutation, sensitivity and diagnostic checks of an estimate, and their reports.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

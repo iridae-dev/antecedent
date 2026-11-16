@@ -1,7 +1,33 @@
-"""Immutable prepared studies and the common exploration lifecycle.
+"""Prepared studies and the prepare / estimate / rebind / reconfigure lifecycle.
 
-Declarations remain Python values; scientific identification, programs and owned
-snapshots remain in the native handle. Execution creates a separate run header.
+:func:`prepare` validates a question against data and a causal structure, takes an owned copy
+of the observations, runs identification and compiles the estimation program, without fitting
+anything. The result is an immutable :class:`PreparedAnalysis`. :func:`estimate` executes it and
+returns an :class:`~antecedent.outcomes.Outcome`; :func:`rebind` and :func:`reconfigure` return
+new prepared branches on other data or other declarations and leave the original unchanged.
+:func:`analyze` is ``estimate(prepare(...))`` in one call.
+
+Scientific refusals (the question is not identified, the route is not supported, positivity
+fails) are returned on the outcome as :attr:`Outcome.refusal <antecedent.outcomes.Outcome.refusal>`.
+Malformed arguments and operational failures (cancellation, resource limits, serialization)
+raise :class:`~antecedent.errors.CausalError` subclasses.
+
+Example::
+
+    import antecedent as ant
+
+    study = ant.prepare(
+        data,
+        graph=[("z", "t"), ("z", "y"), ("t", "y")],
+        query=ant.AverageEffect(treatment="t", outcome="y"),
+        execution=ant.Execution(seed=19),
+    )
+    study.inspect()                 # identification and contract; nothing is fitted
+    outcome = ant.estimate(study)
+    if outcome.refusal is None:
+        print(outcome.answer.value, outcome.uncertainty)
+    else:
+        print(outcome.refusal.code, outcome.refusal.remedy)
 """
 
 from __future__ import annotations
@@ -55,7 +81,20 @@ def _preparation_declarations(**values: Any) -> Mapping[str, Any]:
 
 @dataclass(frozen=True, slots=True)
 class Reuse:
-    """The work retained or invalidated by a prepared branch."""
+    """What a prepared branch kept from the study it was derived from.
+
+    Read it as :attr:`PreparedAnalysis.reuse` after :func:`rebind` or :func:`reconfigure` to see
+    which earlier work the new branch still uses and which it must redo.
+
+    * ``retained`` -- labels of the work carried over unchanged, for example ``"declarations"``,
+      ``"data"``, ``"identification"`` or ``"program"``. Empty for a study built directly by
+      :func:`prepare`.
+    * ``invalidated`` -- labels of the work the branch discards and recomputes when it is next
+      estimated, for example ``"fits"``, ``"scores"``, ``"statistical_plan"``, ``"physical_plan"``,
+      ``"draws"`` or ``"family_inference"`` (the joint inference of a batch the branch left).
+    * ``preparation`` -- ``"compiled"`` for a study prepared from scratch or branched without any
+      change, ``"reprepared"`` when the branch was prepared again on new data or declarations.
+    """
 
     retained: tuple[str, ...] = ()
     invalidated: tuple[str, ...] = ()
@@ -64,7 +103,32 @@ class Reuse:
 
 @dataclass(frozen=True, slots=True, repr=False)
 class PreparedAnalysis(Generic[T]):
-    """An immutable native preparation; methods delegate to the common functions."""
+    """An immutable prepared study: a validated question, its owned data and its identification.
+
+    Returned by :func:`prepare`. Preparation has already checked the declarations, copied the
+    observations into library-owned storage, identified the estimand and compiled the program that
+    estimates it; no model has been fitted. The object never changes: :meth:`estimate` returns a new
+    :class:`~antecedent.outcomes.Outcome`, and :meth:`rebind` / :meth:`reconfigure` return new
+    studies.
+
+    Read first:
+
+    * :attr:`refusal` -- ``None`` when preparation succeeded; otherwise the scientific refusal that
+      every later :meth:`estimate` returns unchanged.
+    * :meth:`inspect` -- the identification, support, uncertainty and assumption slots known before
+      execution.
+    * :attr:`identification` -- the retained identification proofs.
+    * :attr:`reuse` -- what this branch kept from the study it was derived from (:class:`Reuse`).
+
+    Public fields:
+
+    * ``execution`` -- the :class:`~antecedent.execution.Execution` (seed, threads, limits,
+      cancellation, observers) every operation on this study runs under.
+    * ``reuse`` -- a :class:`Reuse` record.
+
+    Most methods delegate to the module-level function of the same name, so
+    ``study.estimate()`` and ``antecedent.estimate(study)`` are the same call.
+    """
 
     _engine: Any = field(repr=False, compare=False)
     execution: Execution = field(repr=False, compare=False)
@@ -77,27 +141,35 @@ class PreparedAnalysis(Generic[T]):
         object.__setattr__(self, "_declarations", freeze(dict(self._declarations)))
 
     def estimate(self) -> Outcome[T]:
+        """Execute this study and return its outcome; see :func:`antecedent.estimate`."""
         return estimate(self)
 
     def rebind(self, *, data: Any) -> PreparedAnalysis[T]:
+        """Return a new study on other observations; see :func:`rebind`."""
         return rebind(self, data=data)
 
     def reconfigure(self, **declarations: Any) -> PreparedAnalysis[T]:
+        """Return a new study with changed declarations; see :func:`reconfigure`."""
         return reconfigure(self, **declarations)
 
     def retarget(self, weights: Any, *, depends_on: Sequence[str]) -> Outcome[Any]:
+        """Re-estimate for a reweighted population without refitting; see :func:`retarget`."""
         return retarget(self, weights, depends_on=depends_on)
 
     def reexecute_retarget(self, artifact: bytes) -> Outcome[Any]:
+        """Re-run an exported row-weight retarget; see :func:`reexecute_retarget`."""
         return reexecute_retarget(self, artifact)
 
     def mechanism_sensitivity(self, **declarations: Any) -> Outcome[Any]:
+        """Evaluate exact-transport mechanism sensitivity; see :func:`mechanism_sensitivity`."""
         return mechanism_sensitivity(self, **declarations)
 
     def plan_view(self) -> Any:
+        """Return the compiled program's layers without executing it; see :func:`plan_view`."""
         return plan_view(self)
 
     def refute(self, *, suite: Any = "placebo") -> Outcome[Any]:
+        """Run a refutation suite against this study's completed run; see :func:`refute`."""
         return refute(self, suite=suite)
 
     def refute_target(
@@ -106,30 +178,62 @@ class PreparedAnalysis(Generic[T]):
         checks: TargetRefutationSpec | None = None,
         execution: Execution | None = None,
     ) -> Outcome[TargetRefutation]:
+        """Run target-specific refutation checks on this study.
+
+        Delegates to :func:`antecedent.validation.refute_target`. ``checks`` is a
+        :class:`~antecedent.validation.TargetRefutationSpec` (``None`` selects that function's
+        default checks) and ``execution`` overrides this study's execution for the checks only
+        (``None`` keeps it). Returns an :class:`~antecedent.outcomes.Outcome` holding a
+        :class:`~antecedent.validation.TargetRefutation`.
+        """
         from .validation import refute_target
 
         return refute_target(self, checks=checks, execution=execution)
 
     def preflight(self) -> Any:
+        """Return the structural inspection from before identification; see :func:`preflight`."""
         return preflight(self)
 
     def diagnose(self, *, execution: Execution | None = None) -> Any:
+        """Report fit-free design diagnostics of the retained table and adjustment set.
+
+        Delegates to :func:`antecedent.preflight.diagnose`. ``execution`` overrides this study's
+        execution for the diagnostic only; ``None`` keeps it. Nothing is fitted.
+        """
         from .preflight import diagnose
 
         return diagnose(self, execution=execution)
 
     @property
     def data_diagnostics(self) -> Any:
+        """The data-quality report retained from preparation.
+
+        The report of the automatic (or declared) data diagnostics that ran when the study was
+        prepared, as returned by :func:`antecedent.data_diagnostics.retained_report`. Reading it
+        does not rescan the data. Use :meth:`diagnose_data` to run a suite explicitly.
+        """
         from .data_diagnostics import retained_report
 
         return retained_report(self)
 
     def diagnose_data(self, *, suite: Any = None, execution: Execution | None = None) -> Any:
+        """Run a data-diagnostics suite on this study's owned observations.
+
+        Delegates to :func:`antecedent.diagnose_data`. ``suite`` is a
+        :class:`~antecedent.data_diagnostics.DataDiagnostics` declaration (``None`` selects the
+        default suite) and ``execution`` overrides this study's execution for the scan only.
+        """
         from .data_diagnostics import diagnose_data
 
         return diagnose_data(self, suite=suite, execution=execution)
 
     def diagnose_fit(self, *, execution: Execution | None = None) -> Outcome[Any]:
+        """Fit diagnostic propensity models on the retained design and report their diagnostics.
+
+        Delegates to :func:`antecedent.preflight.diagnose_fit` and returns its
+        :class:`~antecedent.outcomes.Outcome`. No effect is estimated and the study is unchanged.
+        ``execution`` overrides this study's execution for the diagnostic only.
+        """
         from .preflight import diagnose_fit
 
         return diagnose_fit(self, execution=execution)
@@ -137,11 +241,22 @@ class PreparedAnalysis(Generic[T]):
     def plan_rank_drop(
         self, priority: Sequence[str] | None = None, *, execution: Execution | None = None
     ) -> Any:
+        """Plan which linearly dependent design columns to drop, without fitting.
+
+        Delegates to :func:`antecedent.preflight.plan_rank_drop`, which documents ``priority``;
+        ``execution`` overrides this study's execution for the plan only.
+        """
         from .preflight import plan_rank_drop
 
         return plan_rank_drop(self, priority=priority, execution=execution)
 
     def estimate_cost(self, *, execution: Execution | None = None) -> Any:
+        """Read the prepared plan's scientific budgets and work counts, without executing it.
+
+        Delegates to :func:`antecedent.preflight.estimate_cost`. The counts describe the prepared
+        plan; they are a planning estimate, not a measured execution. ``execution`` overrides this
+        study's execution for the read only.
+        """
         from .preflight import estimate_cost
 
         return estimate_cost(self, execution=execution)
@@ -149,6 +264,13 @@ class PreparedAnalysis(Generic[T]):
     def staleness(
         self, data: Any, *, policy: Any = None, execution: Execution | None = None
     ) -> Outcome[Any]:
+        """Compare new observations with this study's data and report staleness.
+
+        Delegates to :func:`antecedent.staleness` with this study as the reference. ``data`` is the
+        newer table, ``policy`` an optional drift policy (``None`` selects the default) and
+        ``execution`` overrides this study's execution for the comparison only. Returns an
+        :class:`~antecedent.outcomes.Outcome`.
+        """
         from .drift import staleness
 
         return staleness(self, data, policy=policy, execution=execution)
@@ -156,6 +278,11 @@ class PreparedAnalysis(Generic[T]):
     def staleness_baseline(
         self, *, policy: Any = None, execution: Execution | None = None
     ) -> Outcome[Any]:
+        """Record the drift baseline of this study's own data for later staleness checks.
+
+        Delegates to :func:`antecedent.drift.baseline`. ``policy`` and ``execution`` have the
+        meaning they have on :meth:`staleness`. Returns an :class:`~antecedent.outcomes.Outcome`.
+        """
         from .drift import baseline
 
         return baseline(self, policy=policy, execution=execution)
@@ -169,6 +296,21 @@ class PreparedAnalysis(Generic[T]):
         summary_rows: Sequence[int] = (),
         execution: Execution | None = None,
     ) -> Outcome[Any]:
+        """Fit a posterior for the treatment (propensity) score of this study.
+
+        Delegates to :func:`antecedent.nuisance_scores.treatment_score_posterior`, which documents
+        the model and the returned record. The result describes treatment probabilities; it is not a
+        posterior of a causal effect.
+
+        * ``prior_sd`` -- standard deviation of the ``N(0, prior_sd**2)`` prior on every logit
+          coefficient, intercept included (default ``2.0``; must be positive).
+        * ``draws`` -- number of posterior draws (default ``4000``).
+        * ``clip`` -- score clipping bound, positive and strictly below ``0.5`` (default ``0.05``).
+        * ``summary_rows`` -- original row positions whose scores are summarised (default none).
+        * ``execution`` -- overrides this study's execution for this operation only.
+
+        Returns an :class:`~antecedent.outcomes.Outcome`.
+        """
         from .nuisance_scores import treatment_score_posterior
 
         return treatment_score_posterior(
@@ -190,6 +332,23 @@ class PreparedAnalysis(Generic[T]):
         draws: int = 4000,
         execution: Execution | None = None,
     ) -> Outcome[Any]:
+        """Fit treatment scores on one row per subject of a retained panel of trajectories.
+
+        Delegates to :func:`antecedent.nuisance_scores.temporal_treatment_score`, which documents
+        the model and the returned record. The result is not a posterior of a causal effect, and a
+        single dependent series is refused.
+
+        * ``histories`` -- sequences of numeric history values, passed to that function.
+        * ``penalty`` -- a positive ridge penalty. When given, the fit is a ridge fit with an
+          unpenalized intercept and no posterior uncertainty; ``None`` (default) fits a Laplace
+          posterior under independent Gaussian coefficient priors.
+        * ``intercept_sd`` / ``slope_sd`` -- prior standard deviations of the intercept and of the
+          slopes (default ``1.0`` each; must be positive).
+        * ``draws`` -- number of posterior draws (default ``4000``).
+        * ``execution`` -- overrides this study's execution for this operation only.
+
+        Returns an :class:`~antecedent.outcomes.Outcome`.
+        """
         from .nuisance_scores import temporal_treatment_score
 
         return temporal_treatment_score(
@@ -203,27 +362,46 @@ class PreparedAnalysis(Generic[T]):
         )
 
     def preview_transform(self, intent: str) -> Mapping[str, Any]:
+        """Preview a proposed change without executing it; see :func:`preview_transform`."""
         return preview_transform(self, intent)
 
     @property
     def participants(self) -> tuple[str, ...] | None:
-        """The retained original row labels, without reading or fitting observations."""
+        """The original participant label of every prepared row, or ``None``.
+
+        ``None`` unless :func:`prepare` was given ``participant=``. The labels are the named
+        column's values as text, in the table's original row order. Reading them fits and scans
+        nothing.
+        """
         return self._engine.participants
 
     @property
     def validator_names(self) -> tuple[str, ...]:
-        """Names retained by native preparation, without invoking their callbacks."""
+        """Names of the custom validators retained at preparation.
+
+        Empty when preparation was refused. Reading the names does not invoke the validator
+        callbacks.
+        """
         if self._refused is not None:
             return ()
         return self._engine.validator_names
 
     @property
     def identification(self) -> PreparedIdentification:
-        """Navigate retained native proofs without executing or converting them.
+        """The retained identification proofs, as a navigable view.
 
-        Composite questions retain their horizons, graph samples and completion
-        cases. Select a child to inspect one proof; full conversion is explicit
-        through the view's ``to_dict()`` operation.
+        Returns a ``PreparedIdentification``. Composite questions keep one proof per horizon, graph
+        sample or completion case; select a child to inspect one proof. Nothing is executed or
+        converted until the view's ``to_dict()`` is called.
+
+        A refused preparation returns a view marked unavailable with reason ``preparation_refused``
+        that carries the refusal. A provider-backed study returns one marked
+        ``provider_identification_not_independently_verified``.
+
+        Raises:
+            CausalUnsupportedError: for a policy-program question, which has no identified estimand
+                (``reason_code="option_not_applicable"``).
+            CausalStateError: when the preparation exposes no identification view.
         """
         from ._prepared_identification import PreparedIdentification
         from ._prepared_provider import PreparedProvider
@@ -257,6 +435,14 @@ class PreparedAnalysis(Generic[T]):
         return PreparedIdentification.from_native(native.identification_view(), self.execution)
 
     def inspect(self) -> Any:
+        """Return what this study knows now, without estimating.
+
+        Returns an ``InspectionReport`` whose ``identification``, ``support``, ``uncertainty`` and
+        ``assumptions`` slots, contract identities and ``operations`` describe the study at its
+        current stage. ``stage`` is ``"prepared"`` before execution and ``"executed"`` on a study
+        retained by a completed outcome (``outcome.study``), where the report is that of the latest
+        result. A refused preparation reports its refusal with ``stage="prepared"``.
+        """
         if self._refused is not None:
             return self._refused.inspect().model_copy(
                 update={
@@ -298,45 +484,85 @@ class PreparedAnalysis(Generic[T]):
 
     @property
     def structure_source(self) -> str | None:
-        """Support-matrix structure axis frozen at preparation (`explicit` or `accepted`)."""
+        """Where the causal structure came from: ``"explicit"`` or ``"accepted"``.
+
+        ``"explicit"`` for a graph passed directly, ``"accepted"`` for an
+        :class:`~antecedent.AcceptedGraph`; this is the structure axis of the support matrix, fixed
+        at preparation. ``None`` when the study has no plan summary (a refused preparation or a
+        family without one).
+        """
         summary = self._plan_summary()
         return str(summary.get("structure_source", "explicit")) if summary else None
 
     @property
     def evidence_status(self) -> str | None:
-        """`supported` or `not_supported`, or ``None`` when the query is off-axis."""
+        """Whether the prepared analysis cell is ``"supported"`` or ``"not_supported"``.
+
+        ``None`` when the plan summary carries no evidence status for this question.
+        """
         raw = self._plan_summary().get("evidence_status")
         return None if raw is None else str(raw)
 
     def assumption_obligations(self, *, offset: int = 0, limit: int = 32) -> InspectionPage:
-        """Explicitly page retained scoped native assumption obligations."""
+        """Page through the assumption obligations retained at preparation.
+
+        ``offset`` is the index of the first item (default ``0``) and ``limit`` the page size
+        (default ``32``). Returns an ``InspectionPage``. Nothing is recomputed.
+        """
         from ._prepared_inspection import inspection_page
 
         return inspection_page(self, "assumption_obligations", offset, limit)
 
     def uncertainty_components(self, *, offset: int = 0, limit: int = 32) -> InspectionPage:
-        """Explicitly page retained native uncertainty components."""
+        """Page through the uncertainty components the prepared program will report.
+
+        ``offset`` is the index of the first item (default ``0``) and ``limit`` the page size
+        (default ``32``). Returns an ``InspectionPage``. Nothing is recomputed.
+        """
         from ._prepared_inspection import inspection_page
 
         return inspection_page(self, "uncertainty_components", offset, limit)
 
     def evidence_obligations(self, *, offset: int = 0, limit: int = 32) -> InspectionPage:
-        """Explicitly page original proof-derived evidence obligations."""
+        """Page through the evidence obligations derived from the identification proof.
+
+        ``offset`` is the index of the first item (default ``0``) and ``limit`` the page size
+        (default ``32``). Returns an ``InspectionPage``. Nothing is recomputed.
+        """
         from ._prepared_inspection import inspection_page
 
         return inspection_page(self, "evidence_obligations", offset, limit)
 
     def evidence_actions(self, *, offset: int = 0, limit: int = 32) -> InspectionPage:
-        """Explicitly page original evidence-gathering actions without running them."""
+        """Page through the evidence-gathering actions the study names, without running them.
+
+        ``offset`` is the index of the first item (default ``0``) and ``limit`` the page size
+        (default ``32``). Returns an ``InspectionPage``.
+        """
         from ._prepared_inspection import inspection_page
 
         return inspection_page(self, "evidence_actions", offset, limit)
 
     @property
     def refusal(self) -> Refusal | None:
+        """The scientific refusal preparation ended with, or ``None`` when it succeeded.
+
+        When set, :meth:`estimate` returns an outcome carrying this same
+        :class:`~antecedent.outcomes.Refusal` and runs nothing.
+        """
         return None if self._refused is None else self._refused.refusal
 
     def report(self, format: str = "markdown") -> str:
+        """Render this study as a readable report.
+
+        ``format`` is ``"markdown"`` (default) or ``"html"`` (one self-contained page). The report
+        restates the records the study holds, the prepared contract before execution and the
+        executed claim after it, and computes nothing. A refused preparation renders its refusal.
+
+        Raises:
+            CausalValueError: when a refused preparation is asked for a format other than
+                ``"markdown"`` or ``"html"``.
+        """
         if self._refused is not None:
             if format not in ("markdown", "html"):
                 raise CausalValueError("report format must be markdown or html")
@@ -345,6 +571,7 @@ class PreparedAnalysis(Generic[T]):
 
     @property
     def query(self) -> Any:
+        """The query this study was prepared for, as declared."""
         return self._declarations["query"]
 
     def __repr__(self) -> str:
@@ -390,10 +617,139 @@ def prepare(
     quantity_transform: str = "identity",
     dose_units: str | None = None,
 ) -> PreparedAnalysis[Any]:
-    """Validate, own inputs, identify and quote work without executing estimators.
+    """Validate a causal question against data and a structure, and identify it, without fitting.
 
-    Omitted data diagnostics run automatically for native studies; provider
-    requests omit this native-only control. Explicit provider diagnostics are refused.
+    Preparation checks every declaration, copies ``data`` into library-owned immutable storage,
+    identifies the estimand under the declared structure, and compiles and quotes the estimation
+    program. No estimator runs; call :func:`estimate` for that. :func:`analyze` takes the same
+    arguments and does both.
+
+    Every argument either reaches the prepared study or is refused; none is silently dropped.
+    Omitted scientific budgets (bootstrap replicates, posterior draws, refutation depth) resolve
+    to the engine's defaults.
+
+    Data and question:
+
+    * ``data`` -- the observations: a mapping of column name to array, a pandas ``DataFrame`` or
+      Arrow table, a path to a ``.parquet`` / ``.arrow`` / ``.feather`` / ``.arrows`` file or a
+      directory of Parquet files, a snapshot from :func:`antecedent.data.table`, or an
+      :mod:`antecedent.data` panel, multi-environment or event frame. Transport queries take
+      their own evidence objects.
+    * ``query`` -- the question, for example :class:`~antecedent.AverageEffect`; one of the query
+      classes in :mod:`antecedent.query` or a stage-module query such as
+      :class:`antecedent.experiment.RandomizedEffect`. Required.
+
+    Causal structure (give at most one of ``graph`` and ``discovery``; giving both raises
+    :class:`~antecedent.errors.CausalValueError`):
+
+    * ``graph`` -- a :class:`~antecedent.Dag`, :class:`~antecedent.Cpdag`, :class:`~antecedent.Pag`,
+      :class:`~antecedent.Admg` or :class:`~antecedent.TemporalDag`, a list of ``(cause, effect)``
+      edges, or an :class:`~antecedent.AcceptedGraph`. Default ``None``.
+    * ``discovery`` -- a graph posterior (the result of a posterior search, or a constructed
+      ``GraphPosterior``) to average over. A discovery configuration that has not been run is
+      rejected with :class:`~antecedent.errors.CausalTypeError`: run and accept it first with
+      :mod:`antecedent.discovery` and pass the accepted graph as ``graph``. Default ``None``.
+    * ``accept_discovered`` -- retained with the declarations (default ``False``). Because
+      preparation takes only executed discovery results, there is no pending review for it to
+      waive.
+    * ``regimes`` -- regime labels for regime-aware discovery (``RPCMCI``); refused for any other
+      declaration. Default ``None``.
+    * ``class_prior`` -- a :class:`~antecedent.ClassPrior` over the completions of an incomplete
+      temporal graph; requires :class:`~antecedent.Bayesian` inference on a temporal CPDAG or PAG.
+    * ``max_completions`` -- cap on the completions enumerated for such a graph; refused for a
+      structure without class completions. Default ``None`` (the engine's bound).
+
+    Method:
+
+    * ``inference`` -- :class:`~antecedent.Frequentist` or :class:`~antecedent.Bayesian`. Default
+      ``None``, which means ``Frequentist()``. Transport queries take a ``TransportInference``.
+    * ``identifier`` -- an :class:`~antecedent.Identifier` or its string id. Default ``None``
+      leaves the choice of identification strategy to the engine.
+    * ``estimator`` -- an :class:`~antecedent.Estimator`, its string id, or a typed configuration
+      from :mod:`antecedent.estimators` such as ``Aipw(...)``. Default ``None`` selects the
+      engine's default estimator for the identified estimand.
+    * ``estimator_config`` -- a mapping of estimator options; an unknown key is refused.
+    * ``refute`` -- a :class:`~antecedent.Refute` suite or its name (``"full"``, ``"placebo"``,
+      ``"cheap"``, ``"none"``), or ``False`` for none. ``True`` is rejected because it names no
+      suite. Default ``None`` leaves the choice to the engine's defaults and the inference
+      ``profile``.
+    * ``validators`` -- custom validator callbacks, as a sequence or a mapping of name to
+      callable. Their names are retained (:attr:`PreparedAnalysis.validator_names`).
+    * ``provider`` -- the evidence provider of a transport query; any other query refuses it.
+
+    Rows and populations:
+
+    * ``participant`` -- name of a column of row labels. The column is removed from the analysis
+      variables and its values are kept as :attr:`PreparedAnalysis.participants`. Refused on
+      transport studies and on frame or design routes.
+    * ``missing`` -- how missing values are handled: a policy name or an
+      :class:`antecedent.missing.MissingPolicy`. With the default ``None``, average-effect routes
+      keep complete cases and report the rows dropped; randomized, panel and temporal routes refuse
+      a missing value until a policy is declared.
+    * ``sampling_design`` -- how rows were sampled: ``"independent_subject_trajectories"``,
+      ``"clustered_panel"`` or ``"dependent_time_series"``. Every resampling or sample-splitting
+      step is held to it, and a request the design does not allow is refused. Any other name
+      raises :class:`~antecedent.errors.CausalValueError`. Default ``None`` (no declaration).
+    * ``population_registry`` -- definitions of the named and custom target populations a query's
+      ``target_population`` refers to (:mod:`antecedent.population`).
+
+    Diagnostics and refusals:
+
+    * ``data_diagnostics`` -- ``True``, ``False`` or a :class:`~antecedent.DataDiagnostics`
+      declaration. When omitted, the diagnostics run automatically for native studies; read them
+      from :attr:`PreparedAnalysis.data_diagnostics`. Provider studies refuse an explicit value.
+    * ``on_refusal`` -- ``"refuse"`` (default) or ``"describe"``. With ``"describe"``, a question
+      refused for lack of identification keeps its refusal, and the outcome additionally carries a
+      noncausal description of the observed data (``outcome.associational``) and the evidence that
+      would resolve the refusal (``outcome.evidence_plan``); see :mod:`antecedent.fallback`. Not
+      available for transport and policy-program queries.
+    * ``evidence_candidates`` -- candidate evidence sources for that description; requires
+      ``on_refusal="describe"``.
+
+    Reporting units (labels on the reported quantity; they do not change the estimate):
+
+    * ``outcome_units`` -- unit label of the outcome. Requires a response result. Default ``None``.
+    * ``quantity_population`` -- population label of the reported quantity, default ``"target"``.
+    * ``quantity_transform`` -- transform label, default ``"identity"``. A non-default population
+      or transform requires ``outcome_units``.
+    * ``dose_units`` -- unit label of the dose of a static :class:`~antecedent.ResponseCurve`;
+      nonempty, at most 256 bytes, and requires ``outcome_units``.
+
+    Other:
+
+    * ``execution`` -- an :class:`~antecedent.Execution` holding the seed, threads, resource
+      limits, cancellation token and observers. Default ``None`` means ``Execution()`` (seed 1).
+    * ``retain_joint_horizons`` -- keep the replicates that refit all horizons of a temporal
+      :class:`~antecedent.ResponseCurve` or :class:`~antecedent.InterventionResponse` together, so
+      quantities built from several horizons keep their dependence. Any other query refuses it.
+      Default ``False``.
+
+    Returns a :class:`PreparedAnalysis`. A scientific refusal met during preparation (for example
+    ``effect_not_identified``) does not raise: it is retained as :attr:`PreparedAnalysis.refusal`
+    and returned by every later :func:`estimate`. Read ``study.inspect()`` next.
+
+    Raises:
+        CausalTypeError: when ``execution`` is not an ``Execution``, a unit label is not a string,
+            or ``discovery`` is an unexecuted discovery configuration.
+        CausalValueError: when ``on_refusal`` is not ``"refuse"`` or ``"describe"``, a unit label
+            is empty, ``quantity_population`` or ``quantity_transform`` is set without
+            ``outcome_units``, or ``dose_units`` is invalid or used with another query.
+        CausalUnsupportedError: with ``reason_code="option_not_applicable"`` when an option does
+            not apply to the query or structure, for example ``evidence_candidates`` without
+            ``on_refusal="describe"``, ``class_prior`` on a static graph, or ``participant`` on a
+            transport study.
+
+    Example::
+
+        study = antecedent.prepare(
+            data,
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=antecedent.AverageEffect(treatment="t", outcome="y"),
+            inference=antecedent.Frequentist(bootstrap=500),
+            execution=antecedent.Execution(seed=7),
+        )
+        if study.refusal is None:
+            outcome = antecedent.estimate(study)
     """
     from .estimation import _PreparedEngine as Engine
 
@@ -647,7 +1003,31 @@ def estimate(study: PreparedCyclicFamily | PreparedCyclicSystem) -> Outcome[Cycl
 
 
 def estimate(study: Any) -> Outcome[Any]:
-    """Execute one immutable prepared branch and retain its completed native state."""
+    """Execute a prepared study and return its outcome.
+
+    Runs the estimator, inference and any declared refutation of ``study`` under the study's
+    :class:`~antecedent.Execution`. ``study`` is a :class:`PreparedAnalysis`, a prepared batch
+    from :func:`antecedent.estimation.prepare_many`, or a prepared cyclic system. The study itself
+    is not modified.
+
+    Returns an :class:`~antecedent.outcomes.Outcome`. Check ``outcome.refusal`` first:
+
+    * ``None`` -- ``outcome.value`` is the typed result. Read ``outcome.answer`` for the estimate
+      and ``outcome.uncertainty``, ``outcome.support`` and ``outcome.assumptions`` for what
+      qualifies it. ``outcome.study`` is the executed branch, usable with :func:`rebind`,
+      :func:`reconfigure`, :func:`refute` and :func:`retarget`.
+    * set -- a scientific refusal, with ``code``, ``message`` and ``remedy``. A study whose
+      preparation was refused returns that refusal without running anything. If the study was
+      prepared with ``on_refusal="describe"`` and the refusal is an identification refusal,
+      ``outcome.associational`` and ``outcome.evidence_plan`` are also set.
+
+    Raises:
+        CausalTypeError: when ``study`` is not a prepared study.
+        CausalError: for operational failures such as cancellation, an exceeded resource limit or
+            a failing callback. The raised error carries the study as ``error.study``.
+        CausalUnsupportedError: when the study declares ``outcome_units`` and the result is not a
+            response result (``reason_code="option_not_applicable"``).
+    """
     from ._batch import PreparedBatch, estimate_many
 
     if isinstance(study, PreparedBatch):
@@ -819,7 +1199,18 @@ def _finish_outcome(study: PreparedAnalysis[T], outcome: Outcome[T]) -> Outcome[
 
 
 def plan_view(study: PreparedAnalysis[Any]) -> Any:
-    """Read the native lowered program and quoted work without executing it."""
+    """Return every layer of the compiled program of a prepared study, without executing it.
+
+    The view states the scientific problem, the identification product (status, assumptions,
+    estimand, adjustment set, unresolved obligations), the statistical program, the physical plan
+    with its quoted work, and the uncertainty and claim that execution will publish. Reading it
+    identifies, fits and scans nothing.
+
+    Raises:
+        CausalTypeError: when ``study`` is not a :class:`PreparedAnalysis`.
+        CausalUnsupportedError: with ``reason_code="plan_view_unavailable"`` when the preparation
+            was refused or the study executes no lowered program (transport studies).
+    """
     if not isinstance(study, PreparedAnalysis):
         raise CausalTypeError("plan_view requires a PreparedAnalysis")
     if study._refused is not None:
@@ -833,14 +1224,38 @@ def plan_view(study: PreparedAnalysis[Any]) -> Any:
 
 
 def preflight(study: PreparedAnalysis[Any]) -> Any:
-    """Read native structural obligations without fitting or compiling another program."""
+    """Return the structural inspection of a prepared study from before identification.
+
+    A cheaper view than :meth:`PreparedAnalysis.inspect`: it reports the structural obligations of
+    the declared study and has no ``program_id``, because that identity depends on identification.
+    Nothing is fitted or compiled. A refused preparation returns its inspection report, and a
+    transport study returns the same report as ``inspect()``.
+
+    Raises:
+        CausalTypeError: when ``study`` is not a :class:`PreparedAnalysis`.
+    """
     if not isinstance(study, PreparedAnalysis):
         raise CausalTypeError("preflight requires a PreparedAnalysis")
     return study.inspect() if study._refused is not None else study._engine.preflight()
 
 
 def preview_transform(study: PreparedAnalysis[Any], intent: str) -> Mapping[str, Any]:
-    """Read native transformation obligations; do not execute or mutate the study."""
+    """Preview a proposed change to a prepared study without executing or modifying it.
+
+    ``intent`` names the change: ``display_precision``, ``filter_display``,
+    ``compatible_data_replace``, ``retarget``, ``filter_population``, ``new_conditional_query``,
+    ``change_graph``, ``change_prior``, ``change_physical_policy`` or
+    ``average_unweighted_class``.
+
+    Returns a read-only mapping that names the intent, whether it would be refused (with the same
+    refusal code the operation itself gives), the obligations it carries, and the identities of
+    the frozen inputs it would reuse under ``input_<domain>`` keys.
+
+    Raises:
+        CausalTypeError: when ``study`` is not a :class:`PreparedAnalysis`.
+        CausalUnsupportedError: when the preparation was refused
+            (``reason_code="option_not_applicable"``).
+    """
     from .errors import CausalUnsupportedError
 
     if not isinstance(study, PreparedAnalysis):
@@ -854,7 +1269,22 @@ def preview_transform(study: PreparedAnalysis[Any], intent: str) -> Mapping[str,
 
 
 def refute(study: PreparedAnalysis[Any], *, suite: Any = "placebo") -> Outcome[Any]:
-    """Execute a native validation suite on an independently retained run header."""
+    """Run a refutation suite against a study's completed run.
+
+    Use it after :func:`estimate`, on ``outcome.study``, to run a deeper suite than the estimate
+    did. ``suite`` is a :class:`~antecedent.Refute` member or its name; the default ``"placebo"``
+    runs the placebo checks, ``"full"`` the full suite and ``"cheap"`` the inexpensive checks. The
+    suite runs on its own snapshot of the completed run under the study's execution, so the
+    original outcome is unchanged.
+
+    Returns an :class:`~antecedent.outcomes.Outcome` whose value is the result with the suite's
+    validation verdict. A refused preparation returns its refusal.
+
+    Raises:
+        CausalTypeError: when ``study`` is not a :class:`PreparedAnalysis`.
+        CausalUnsupportedError: when the study retains no run to validate, or the query has no
+            refuter suite (response curves, transport, interference and attribution queries).
+    """
     from .errors import CausalUnsupportedError
 
     if not isinstance(study, PreparedAnalysis):
@@ -887,13 +1317,29 @@ def refute(study: PreparedAnalysis[Any], *, suite: Any = "placebo") -> Outcome[A
 def retarget(
     study: PreparedAnalysis[Any], weights: Any, *, depends_on: Sequence[str]
 ) -> Outcome[Any]:
-    """Execute declared population weights against retained scores or compatible adjusted fits.
+    """Re-estimate a completed study for a reweighted population, without refitting.
 
-    Native checks bind the weights to their data snapshot and validate that
-    their declared dependencies do not include treatment descendants.
-    A retained OLS/GLM mean model uses standardization and its own coefficient
-    covariance, conditional on the declared target law. It is not doubly robust.
-    This operation never refits the model.
+    ``weights`` gives one weight per prepared row and defines the target population as a
+    reweighting of the observed rows. ``depends_on`` names the variables the weights were
+    computed from. The engine binds the weights to the study's data snapshot and checks that none
+    of those variables is a descendant of the treatment; nonconstant weights require a nonempty
+    ``depends_on``, and a nonempty ``depends_on`` requires a directed graph (DAG or ADMG).
+
+    The estimate is recomputed from the study's retained score table, or, for a retained OLS or
+    unpenalized GLM mean model, by standardization with that model's own coefficient covariance,
+    conditional on the declared target law. The latter is not doubly robust. No model is refitted.
+
+    Returns an :class:`~antecedent.outcomes.Outcome`. A study with no retained scores or compatible
+    fit refuses the request (``score_table_unavailable``); a refused preparation returns its
+    refusal.
+
+    Raises:
+        CausalTypeError: when ``study`` is not a :class:`PreparedAnalysis`.
+
+    Example::
+
+        outcome = antecedent.estimate(study)
+        older = antecedent.prepared.retarget(outcome.study, weights, depends_on=["age"])
     """
     if not isinstance(study, PreparedAnalysis):
         raise CausalTypeError("retarget requires a PreparedAnalysis")
@@ -912,11 +1358,16 @@ def retarget(
 
 
 def reexecute_retarget(study: PreparedAnalysis[Any], artifact: bytes) -> Outcome[Any]:
-    """Re-execute the row-weight retarget an exported contract carries, without refitting.
+    """Re-run the row-weight retarget carried by an exported artifact, without refitting.
 
-    The weights travel in the artifact bound to one data snapshot and a score table
-    or separately typed adjusted-fit identity;
-    a different snapshot refuses with ``row_weights_bound_to_snapshot``.
+    ``artifact`` is the exported bytes of a retargeted result. Its weights are bound to one data
+    snapshot and to a score table or adjusted-fit identity. Returns an
+    :class:`~antecedent.outcomes.Outcome`; a study holding a different snapshot is refused with
+    ``row_weights_bound_to_snapshot`` and no rows are reweighted. A refused preparation returns
+    its refusal.
+
+    Raises:
+        CausalTypeError: when ``study`` is not a :class:`PreparedAnalysis`.
     """
     if not isinstance(study, PreparedAnalysis):
         raise CausalTypeError("reexecute_retarget requires a PreparedAnalysis")
@@ -934,7 +1385,22 @@ def reexecute_retarget(study: PreparedAnalysis[Any], artifact: bytes) -> Outcome
 
 
 def mechanism_sensitivity(study: PreparedAnalysis[Any], **declarations: Any) -> Outcome[Any]:
-    """Evaluate checked fixed-graph mechanism sensitivity of a prepared exact transport."""
+    """Evaluate fixed-graph mechanism sensitivity of a prepared exact transport.
+
+    Applies only to a study prepared from an exact transport query. The keyword ``declarations``
+    state the outcome values, parent cardinalities, the two treatment levels, the source kernel
+    and parent laws with their regimes and snapshots, the largest perturbation fraction
+    (``max_fraction``) and, optionally, a decision threshold and the mechanism to perturb. The
+    study's cancellation token applies.
+
+    Returns an :class:`~antecedent.outcomes.Outcome` holding the sensitivity record as a mapping.
+    A refused preparation returns its refusal.
+
+    Raises:
+        CausalTypeError: when ``study`` is not a :class:`PreparedAnalysis`.
+        CausalUnsupportedError: when the study is not a prepared exact transport
+            (``reason_code="option_not_applicable"``).
+    """
     if not isinstance(study, PreparedAnalysis):
         raise CausalTypeError("mechanism_sensitivity requires a PreparedAnalysis")
     if study._refused is not None:
@@ -960,7 +1426,29 @@ def rebind(study: CyclicStudyT, *, data: Any) -> CyclicStudyT: ...
 
 
 def rebind(study: Any, *, data: Any) -> Any:
-    """Return a new preparation on compatible observations, leaving the source intact."""
+    """Return a new prepared study on other observations, keeping every declaration.
+
+    ``data`` must be compatible with the prepared schema (it must provide the prepared analysis
+    columns). It is copied into library-owned storage like the data given to :func:`prepare`.
+    The query, structure, identification and estimator stay as prepared; fits and scores are
+    recomputed when the new study is estimated. ``study`` is unchanged, and earlier outcomes keep
+    their own data.
+
+    ``study`` may also be a prepared batch or a prepared cyclic system; the same type is returned.
+    Read ``reuse`` on the returned :class:`PreparedAnalysis` for what was retained and
+    invalidated. Rebinding a study whose preparation was refused prepares it again on ``data``.
+
+    Raises:
+        CausalTypeError: when ``study`` is not a prepared study.
+        CausalUnsupportedError: for a held-out policy-value study, whose recommendations and
+            nuisance predictions are bound to the prepared rows
+            (``reason_code="option_not_applicable"``); prepare a new study instead.
+
+    Example::
+
+        this_week = antecedent.rebind(study, data=new_rows)
+        outcome = antecedent.estimate(this_week)
+    """
     from ._batch import PreparedBatch, rebind_many
 
     if isinstance(study, PreparedBatch):
@@ -1073,7 +1561,32 @@ def reconfigure(study: CyclicStudyT, **declarations: Any) -> CyclicStudyT: ...
 
 
 def reconfigure(study: Any, **declarations: Any) -> Any:
-    """Branch scientific or execution declarations without executing the new study."""
+    """Return a new prepared study with changed declarations or execution, without executing it.
+
+    ``declarations`` are keyword arguments of :func:`prepare` other than ``data`` (use
+    :func:`rebind` to change data), for example ``query=``, ``graph=``, ``estimator=``,
+    ``inference=`` or ``execution=``. ``study`` is unchanged.
+
+    What is reused depends on what changes (read ``reuse`` on the result):
+
+    * nothing -- the same study, with data, identification and program retained;
+    * only ``execution`` -- data and identification are retained; the physical plan, fits and
+      draws are recomputed under the new seed, threads and limits;
+    * any scientific declaration -- the study is prepared again on the same owned data, so
+      identification and the program are recomputed.
+
+    ``study`` may also be a prepared batch or a prepared cyclic system; the same type is returned.
+
+    Raises:
+        CausalTypeError: when ``study`` is not a prepared study, a keyword is not a preparation
+            declaration, or ``execution`` is not an :class:`~antecedent.Execution`.
+        CausalValueError: when ``data`` is passed, or the study retains no data to prepare again.
+
+    Example::
+
+        reseeded = antecedent.reconfigure(study, execution=antecedent.Execution(seed=2))
+        bayesian = antecedent.reconfigure(study, inference=antecedent.Bayesian())
+    """
     from ._batch import PreparedBatch, reconfigure_many
 
     if isinstance(study, PreparedBatch):
@@ -1155,7 +1668,36 @@ def reconfigure(study: Any, **declarations: Any) -> Any:
 
 
 def analyze(data: Any, **declarations: Any) -> Outcome[Any]:
-    """Concise preparation followed by explicit estimation, including scientific refusals."""
+    """Prepare and estimate a causal question in one call.
+
+    Equivalent to ``estimate(prepare(data, **declarations))``; ``declarations`` are the keyword
+    arguments of :func:`prepare` (``query=`` is required, and usually ``graph=``).
+
+    Returns an :class:`~antecedent.outcomes.Outcome`. Check ``outcome.refusal`` first. When it is
+    ``None``, read ``outcome.answer`` (the estimate), ``outcome.uncertainty``, ``outcome.support``
+    and ``outcome.assumptions``, or call ``outcome.inspect()`` for the full report;
+    ``outcome.value`` is the typed result and ``outcome.study`` the executed study for
+    :func:`rebind`, :func:`reconfigure` and :func:`refute`. When it is set, the question was
+    refused on scientific grounds: read ``outcome.refusal.code`` and ``outcome.refusal.remedy``.
+
+    A scientific refusal met while preparing or while estimating is returned on the outcome,
+    never raised. Malformed arguments (:class:`~antecedent.errors.CausalTypeError`,
+    :class:`~antecedent.errors.CausalValueError`) and operational failures still raise.
+
+    Example::
+
+        import antecedent as ant
+
+        outcome = ant.analyze(
+            data,
+            graph=[("z", "t"), ("z", "y"), ("t", "y")],
+            query=ant.AverageEffect(treatment="t", outcome="y"),
+        )
+        if outcome.refusal is None:
+            print(outcome.answer.value)
+        else:
+            print(outcome.refusal.code, outcome.refusal.remedy)
+    """
     return capture_outcome(lambda: estimate(prepare(data, **declarations)))
 
 

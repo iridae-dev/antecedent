@@ -1,5 +1,10 @@
 # Supported input bounds
 
+This page lists the hard input limits of the bounded routes: the largest draw count, table,
+grid or byte size each accepts before it refuses. In the [table](#bounds-by-record), each row
+is one bound: the capability record it belongs to, the bound's name, its integer value, and
+the source file that enforces it.
+
 These limits belong to the exact implementation and record shown. They bound the
 listed input or default consumer scope; they do not authorize inference or
 calibration. Python preflight limits can be stricter than the native API. A caller
@@ -33,6 +38,8 @@ whole-row BCa uses 1000..4000 observations with B2000. Current method/prior/
 functional records are required separately for every reported scalar. See the
 [population and uncertainty guide](population-time-uncertainty.md) for all
 protocol checks; underlying engine bounds do not confer measured authority.
+
+## Bounds by record
 
 `python3 scripts/check_limits_agreement.py` regenerates the table between the
 markers below and compares it. Prose outside those markers is not read.
