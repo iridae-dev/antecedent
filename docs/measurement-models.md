@@ -72,8 +72,8 @@ vector representation are not intervenable. (`representation_mapping_required`)
 |---|---|---|
 | classical continuous error | corrected normal equations (= regression calibration for a linear model), known or validated error variance; through `estimate_continuous`, logistic regression calibration and SIMEX | the `nonlinear_outcome_model` operation of `check_operation` (a logistic coefficient enters only through `estimate_continuous`) |
 | repeated measurements | same, error variance and ICC from the sample's own replicates | normal-theory variance intervals; the `nonlinear_outcome_model` operation, as above |
-| binary misclassification | Rogan-Gladen prevalence and risk difference, Youden index above the declared minimum | exposure misclassification |
-| probabilistic categorical | confusion-matrix inversion, category proportions and outcome means | per-unit soft assignments |
+| binary misclassification | Rogan-Gladen prevalence and risk difference, Youden index above the declared minimum | misclassification of an exposure (its own entry points, below) |
+| probabilistic categorical | confusion-matrix inversion, category proportions and outcome means | per-unit soft assignments (their own entry point, below) |
 | external latent posterior | posterior-mean substitution, or Rubin's rules for outcome-conditioned draws | any trust inferred from metadata |
 
 Each route's assumptions, allowed operations and refused operations are in
@@ -194,6 +194,65 @@ as recorded and the estimate reports the mapping identity. It never carries
 intervention meaning without declared evidence, and the route itself refuses an
 intervention on the recorded indicator.
 
+## Exposure errors
+
+Four corrections have their own entry points in `antecedent.measurement_exposure`
+(Rust `antecedent_estimate::measurement::exposure_routes`, numerics in
+`antecedent_stats::measurement_error`). They take their declarations as
+arguments rather than through a prepared model, report a corrected value with
+a variance split into named parts, an uncalibrated standard error and a Wald
+interval with a `not_measured` calibration slot, and refuse what they cannot
+identify.
+
+| Correction | Corrects | Identified when | Refused |
+|---|---|---|---|
+| exposure misclassification | the exposure odds ratio and the exposure shares among cases and controls, for a sensitivity and specificity that may differ by outcome level | Youden index above the floor in each outcome level; rates declared or estimated from one validation sample per level (binomial variances propagated; one shared pair keeps its covariance) | a Youden index at or below the floor in either level (`measurement_not_identified`); a corrected share outside `(0, 1)` |
+| per-unit soft exposure | the exposure coefficient of a linear outcome model on a per-unit probability that the exposure is present | posterior-mean substitution when the probabilities are calibrated given the covariates; multiple imputation when outcome-conditioned draws are supplied or generated | fewer than two imputations, a rank-deficient design |
+| evidence-dependent detection | a prevalence recorded with detection probability `d(c)` that depends on a covariate (a count), optional false-positive rate | fully declared `d` (logistic, table): a point; partially declared monotone `d` with anchor bounds: sharp bounds `A / G` | mean detection net of false positives at or below the floor; contradictory anchors; bounds implying a prevalence above one |
+| repeat codings as replicates | the prevalence of a binary or ordinal latent facet and each coding's response law, by a latent-class model | three or more conditionally independent codings (Kruskal's condition on levels, categories and codings); two codings of a binary facet with exchangeable codings and a declared law of the lowest level | any other count of codings; codings whose class-conditional laws are almost equal |
+
+**Exposure misclassification.** With recorded exposure share `p_y` among units
+with outcome `y`, `pi_y = (p_y + Sp_y - 1) / J_y`, `J_y = Se_y + Sp_y - 1`, and
+the corrected odds ratio is `[pi_1 / (1 - pi_1)] / [pi_0 / (1 - pi_0)]`,
+valid under case-control and cohort sampling. The delta-method variance has a
+sampling part and a rates part; independent per-level rates add, one shared
+pair adds its derivatives before squaring. Applying one pair to error that
+differs by outcome misses the truth, which is why the structure is declared.
+
+**Soft exposures.** With `X = q + eta`, `E[eta | q, Z] = 0` and
+`Var(eta | q) = q (1 - q)`, least squares on `q` is consistent for the
+coefficient of `X` and its HC0 sandwich contains the extra residual variance
+`beta^2 q (1 - q)`; the report splits that term out as `exposure_uncertainty`
+(`beta^2 mean(q (1 - q)) (M^-1)_11 / n`, at most the total). A single draw of
+`X` from `q` alone is Berkson noise and attenuates the slope, so multiple
+imputation draws the exposure given the outcome: a Gaussian outcome model with
+the exposure as a binary regressor and `q` as its prior is fitted by EM, the
+rows are bootstrapped for each imputation, the model is refitted and each
+exposure drawn from its posterior; the fits are combined by Rubin's rules. The
+draws are proper only if that outcome model is right. `soft_exposure_reliability`
+compares the stated probabilities with repeat 0/1 codings in equal-width bins
+(expected coding share `Se q + (1 - Sp)(1 - q)`, exact codings by default) and
+reports gaps with standard errors and a chi-square summary; it never gates.
+
+**Detection.** With presence probability `pi` independent of the covariate,
+`P(D = 1) = pi d(c) + (1 - pi) f` and `pi = (sum D - n f) / (sum d - n f)`;
+the variance adds Bernoulli sampling, the declared function's parameter
+covariance and the false-positive rate's variance. A monotone envelope gives
+each unit the tightest bounds the anchors allow; because `sum d` can reach any
+value between the sums of the two bounds, `[A / G(hi), A / G(lo)]` is sharp
+for the declaration. Standard errors of the bounds are sampling errors of each
+endpoint; no interval over the identified set is claimed.
+
+**Repeat codings.** The model is `P(c) = sum_j pi_j prod_k theta_{k j c_k}`
+with conditional independence across codings given the level, an assumption
+that is stated and not tested. It is fitted by EM from several starts (the
+best likelihood is kept and the number of agreeing starts reported); levels
+are ordered by expected coding score; the covariance is the inverse of the
+outer product of per-unit scores in a softmax parametrization, carried to the
+probabilities by the delta method and reported when invertible. The per-unit
+posterior of a level can be passed to the soft-exposure correction as the
+exposure probability.
+
 ## Python surface
 
 `antecedent.measurement_models` states the model (`MeasurementModel`,
@@ -218,11 +277,21 @@ refusal instead of raising it. Carrying a prepared model into another population
 `transport_pooled_differential`) is described in
 [transported decisions and measurement](guides/transported-decisions-and-measurement.md).
 
+`antecedent.measurement_exposure` offers `correct_exposure_misclassification`
+(with `ExposureError.shared` or `ExposureError.by_outcome`, each pair declared
+as `BinaryRates` or estimated from `ValidationCounts`), `soft_exposure_effect`
+(`method="posterior_mean"`, `"multiple_imputation"` or `"supplied_draws"`),
+`soft_exposure_reliability`, `detection_dependent_prevalence` (with
+`LogisticDetection`, `TableDetection` or `MonotoneDetection`) and
+`repeat_codings_latent_class`, all refusing with `MeasurementModelRefusal`.
+
 ## References
 
 Carroll, Ruppert, Stefanski and Crainiceanu (2006), *Measurement Error in
 Nonlinear Models*, doi:10.1201/9781420010138. Cook and Stefanski (1994),
 Simulation-extrapolation estimation in parametric measurement error models,
 JASA 89:1314-1328, doi:10.1080/01621459.1994.10476871. Rogan and Gladen (1978), Am J
-Epidemiol 107:71-76, doi:10.1093/oxfordjournals.aje.a112510. Rubin (1987),
+Epidemiol 107:71-76, doi:10.1093/oxfordjournals.aje.a112510. Kruskal (1977),
+Three-way arrays: rank and uniqueness of trilinear decompositions, Linear
+Algebra Appl 18:95-138, doi:10.1016/0024-3795(77)90069-6. Rubin (1987),
 *Multiple Imputation for Nonresponse in Surveys*, doi:10.1002/9780470316696.

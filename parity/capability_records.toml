@@ -12656,7 +12656,6 @@ routes = [
   { name = "antecedent_estimate.measurement.correct_binary_risk_difference", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent_estimate.measurement.interval_not_supported.binary_misclassification", stage = "uncertainty", status = "supported", claim = "interval" },
   { name = "antecedent_estimate.measurement.correct_binary_prevalence", stage = "evaluate", status = "supported", claim = "point_only" },
-  { name = "antecedent_estimate.measurement.binary_misclassification.exposure_misclassification", stage = "evaluate", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_support_them" },
   { name = "antecedent_estimate.measurement.binary_misclassification.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
   { name = "antecedent_estimate.measurement.binary_misclassification.differential_by_time", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
   { name = "antecedent_estimate.measurement.binary_misclassification.other_population", stage = "evaluate", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_support_them" },
@@ -12775,7 +12774,6 @@ refusals = [
 routes = [
   { name = "antecedent_estimate.measurement.correct_categorical", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent_estimate.measurement.interval_not_supported.probabilistic_categorical", stage = "uncertainty", status = "supported", claim = "interval" },
-  { name = "antecedent_estimate.measurement.probabilistic_categorical.per_unit_soft_assignment", stage = "evaluate", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_support_them" },
   { name = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
   { name = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_time", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", permanent_in_release = true, refusal_test = "crates/antecedent-estimate/tests/measurement_models.rs", refusal_assertion = "route_and_structure_mismatches_are_never_pooled" },
   { name = "antecedent_estimate.measurement.probabilistic_categorical.other_population", stage = "evaluate", status = "closed", reason_code = "route_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-contract/src/measurement.rs", refusal_assertion = "operations_outside_the_route_are_refused_with_what_would_support_them" },
@@ -22785,3 +22783,369 @@ activation_disposition = "retain_point_only_route_no_inferential_guarantee"
 allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
 measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
 truth_grid_allocation = "No repeated-sampling grid allocated."
+
+[[record]]
+id = "measurement.exposure_misclassification"
+capability = "measurement.exposure_misclassification"
+status = "supported"
+consumer_question = "With a binary exposure misclassified differently among cases and controls, what are the corrected exposure shares and odds ratio with the validation uncertainty of the rates propagated?"
+theorem = "pi_y = (p_y + Sp_y - 1) / (Se_y + Sp_y - 1) within each outcome level y; the exposure odds ratio [pi_1/(1-pi_1)]/[pi_0/(1-pi_0)] is the outcome odds ratio of the exposure under case-control and cohort sampling. Variance is delta-method in the recorded shares and the rates; independent per-level rates add, one shared pair adds its derivatives before they are squared. Refused when the Youden index of either level is at or below the declared minimum or a corrected share leaves (0, 1). NOT inherited: coverage."
+reference = "docs/measurement-models.md"
+guarantee = "corrected_exposure_odds_ratio_point_with_uncalibrated_delta_method_se"
+graph_class = "Not applicable to the correction; a causal reading requires identification of the adjustment set."
+population_semantics = "One population and regime; error may differ by outcome level and is declared for each level."
+evidence_family = "Recorded exposed counts by outcome level and outcome-specific or shared sensitivity and specificity, declared or from validation counts."
+provider = "antecedent_stats::measurement_error::corrected_exposure_association; antecedent_estimate::measurement::correct_exposure_misclassification."
+estimand = "Exposure shares among cases and controls and the exposure log odds ratio."
+inference_claim = "interval"
+owners = ["antecedent-stats", "antecedent-estimate", "python/antecedent"]
+identity_inputs = ["recorded exposed counts and totals by outcome level", "sensitivity, specificity and their variances per outcome level", "minimum Youden index"]
+wire_changes = ["None: the correction returns values and publishes no artifact."]
+compatibility = "Additive. The model-based measurement routes, their identities and artifacts are unchanged."
+search = false
+prerequisite_records = []
+bounds = { cancellation = true }
+inference_inventory_disposition = "interval_output_listed_not_measured"
+refusals = [
+  { detail = "measurement_model.youden_too_small", remedy = "Use more accurate rates or a validation study that shows a Youden index (or mean net detection) above the declared floor." },
+  { detail = "measurement_model.input_invalid", remedy = "Supply well-formed counts, probabilities, covariates and declarations within range." },
+  { detail = "measurement_model.cancelled", remedy = "Rerun without cancellation; the cancellation is not a verdict on the data." },
+  { detail = "measurement_model.interval_level", remedy = "Use a level strictly between 0 and 1." },
+  { detail = "measurement_model.interval_requires_estimate", remedy = "Use the point value; a record without a standard error reports no interval." },
+]
+routes = [
+  { name = "antecedent_estimate.measurement.correct_exposure_misclassification", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_estimate.measurement.DeclaredEstimate.wald_interval.exposure_misclassification", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.measurement_exposure.correct_exposure_misclassification", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.measurement_exposure.ExposureCorrection.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+fixtures = [
+  { id = "measurement.exposure_misclassification.planted_odds_ratio.truth", role = "truth", intent = "Outcome-specific rates (cases Se 0.9 Sp 0.8, controls Se 0.7 Sp 0.95) applied to recorded shares 0.48 and 0.18 recover the planted exposure shares 0.4 and 0.2 and the log odds ratio ln(8/3) exactly, with the hand sampling variance; one shared pair misses it.", evidence_test = "crates/antecedent-stats/src/measurement_error/exposure_tests.rs", evidence_assertion = "outcome_specific_rates_recover_the_planted_exposure_odds_ratio" },
+  { id = "measurement.exposure_misclassification.python_planted.positive", role = "positive", intent = "Python surface: the same planted truth through the typed declarations, with the rate variance equal to a numerical gradient.", evidence_test = "python/tests/test_measurement_exposure.py", evidence_assertion = "test_outcome_specific_rates_recover_the_planted_odds_ratio" },
+  { id = "measurement.exposure_misclassification.youden.negative", role = "negative", intent = "A Youden index at or below the floor in either outcome level refuses with measurement_not_identified.", evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs", evidence_assertion = "unidentified_exposure_rates_refuse_with_the_registered_code" },
+  { id = "measurement.exposure_misclassification.oracle_replay.artifact", role = "artifact", intent = "An independent 50-digit computation with mpmath numerical derivatives reproduces the corrected log odds ratio and both variance parts for outcome-specific, shared and validation-estimated rates.", evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs", evidence_assertion = "exposure_correction_matches_the_numerically_differentiated_oracle" },
+  { id = "measurement.exposure_misclassification.gradient_variance.construction", role = "construction", intent = "The delta-method variance equals the numerical gradient of the explicit corrected log odds ratio times the rate and sampling variances, for independent outcome-specific rates and for one shared pair (derivatives add before squaring).", evidence_test = "crates/antecedent-stats/src/measurement_error/exposure_tests.rs", evidence_assertion = "delta_method_variance_equals_a_numerical_gradient_for_both_structures" },
+]
+[[record.inference_outputs]]
+id = "measurement.exposure_misclassification.point.1"
+fields = ["corrected exposure shares among cases and controls", "corrected log odds ratio and odds ratio", "delta-method standard error including validation-sample uncertainty"]
+method = "Inversion of the recorded exposure share by the outcome-level sensitivity and specificity, pi_y = (p_y + Sp_y - 1)/J_y, then the logit contrast; a delta-method variance in the recorded shares and the rates, with one shared pair's derivatives added before squaring."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::correct_exposure_misclassification"
+public_producers = ["antecedent_estimate.measurement.correct_exposure_misclassification", "antecedent.measurement_exposure.correct_exposure_misclassification"]
+closed_producers = []
+independent_consumers = ["measurement.exposure_misclassification.oracle_replay.artifact"]
+method_source = "crates/antecedent-estimate/src/measurement/exposure_routes.rs; crates/antecedent-stats/src/measurement_error/exposure.rs"
+truth_design = "Exact recorded shares of planted true shares 0.4 and 0.2 under outcome-specific rates, an independent 50-digit oracle, and rates estimated from binomial validation draws."
+truth_fixtures = ["measurement.exposure_misclassification.planted_odds_ratio.truth", "measurement.exposure_misclassification.gradient_variance.construction"]
+nominal_level = "none; point value with an uncalibrated standard error, no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated relative tolerances of the independent oracle and the closed-form planted truths; no sampling-coverage threshold is claimed for the point."
+measurement_suite = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a corrected value and a first-order standard error labelled uncalibrated; the Wald interval is the separate output below."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated for the point. The declared checks are the oracle tests."
+
+[[record.inference_outputs]]
+id = "measurement.exposure_misclassification.wald_interval"
+fields = ["equal-tailed Wald interval of the corrected log odds ratio"]
+method = "Point -/+ z times the delta-method standard error, the validation variance of the rates included."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::DeclaredEstimate::wald_interval"
+public_producers = ["antecedent_estimate.measurement.DeclaredEstimate.wald_interval.exposure_misclassification", "antecedent.measurement_exposure.ExposureCorrection.interval"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/measurement/exposure_routes.rs"
+truth_design = "Exact recorded shares of planted true shares 0.4 and 0.2 under outcome-specific rates, an independent 50-digit oracle, and rates estimated from binomial validation draws."
+truth_fixtures = ["measurement.exposure_misclassification.planted_odds_ratio.truth", "measurement.exposure_misclassification.gradient_variance.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/measurement_exposure_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Binary exposure misclassified with outcome-specific or shared sensitivity and specificity estimated from validation samples of at least 75 truly exposed and 75 truly unexposed units per level, at least 500 units per outcome level, 95% level, truth the log odds ratio. The result carries no calibration statement."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Two designs: outcome-specific rates from validation samples (150 per margin and level, 1000 units per outcome level) and one shared pair (200 per margin); each at 0.5x / 1x / 2x."
+
+[[record]]
+id = "measurement.soft_exposure"
+capability = "measurement.soft_exposure"
+status = "supported"
+consumer_question = "With a per-unit probability that the exposure is present, what is the exposure coefficient of a linear outcome model, with the exposure uncertainty accounted for?"
+theorem = "With X = q + eta, E[eta | q, Z] = 0 and Var(eta | q) = q(1-q), least squares on q is consistent for the coefficient of X and its HC0 variance carries the extra residual variance beta^2 q(1-q). A draw of X from q alone is Berkson noise and attenuates the slope, so imputation draws X given the outcome from a Gaussian outcome model fitted by EM with the probabilities as prior and bootstrapped refits, combined by Rubin's rules (valid when that model is right). The reliability report compares the stated probabilities with repeat codings in bins and never gates. NOT inherited: coverage."
+reference = "docs/measurement-models.md"
+guarantee = "soft_exposure_coefficient_point_with_uncalibrated_hc0_or_rubin_se"
+graph_class = "Not applicable to the correction; a causal reading requires identification of the adjustment set."
+population_semantics = "One population and regime; the probabilities are calibrated given the covariates."
+evidence_family = "Outcome, per-unit exposure probabilities, error-free covariates, optionally repeat 0/1 codings of the same units."
+provider = "antecedent_stats::measurement_error::soft_exposure_substitution; antecedent_estimate::measurement::correct_soft_exposure_effect."
+estimand = "Coefficient of the exposure in a linear outcome model."
+inference_claim = "interval"
+owners = ["antecedent-stats", "antecedent-estimate", "python/antecedent"]
+identity_inputs = ["outcome, probabilities and covariates digest", "imputation count and seed"]
+wire_changes = ["None: the correction returns values and publishes no artifact."]
+compatibility = "Additive. The model-based measurement routes, their identities and artifacts are unchanged."
+search = false
+prerequisite_records = []
+bounds = { cancellation = true }
+inference_inventory_disposition = "interval_output_listed_not_measured"
+refusals = [
+  { detail = "measurement_model.input_invalid", remedy = "Supply well-formed counts, probabilities, covariates and declarations within range." },
+  { detail = "measurement_model.insufficient_replicates", remedy = "Supply the number of conditionally independent codings or imputations the correction needs, or declare the constraints that identify it." },
+  { detail = "measurement_model.design_singular", remedy = "Supply covariates and probabilities that vary enough for the design to have full rank." },
+  { detail = "measurement_model.cancelled", remedy = "Rerun without cancellation; the cancellation is not a verdict on the data." },
+  { detail = "measurement_model.interval_level", remedy = "Use a level strictly between 0 and 1." },
+  { detail = "measurement_model.interval_requires_estimate", remedy = "Use the point value; a record without a standard error reports no interval." },
+]
+routes = [
+  { name = "antecedent_estimate.measurement.correct_soft_exposure_effect", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_estimate.measurement.DeclaredEstimate.wald_interval.soft_exposure", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent_estimate.measurement.soft_exposure_reliability_report", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.measurement_exposure.soft_exposure_effect", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.measurement_exposure.SoftExposureEffect.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.measurement_exposure.soft_exposure_reliability", stage = "evaluate", status = "supported", claim = "none" },
+]
+fixtures = [
+  { id = "measurement.soft_exposure.berkson_recovery.truth", role = "truth", intent = "On calibrated probabilities the slope on q recovers the exposure coefficient 2 within four standard errors while a regression on one 0/1 draw given q alone is attenuated below 1.5.", evidence_test = "crates/antecedent-stats/src/measurement_error/exposure_tests.rs", evidence_assertion = "substitution_on_calibrated_probabilities_recovers_the_coefficient_where_a_draw_does_not" },
+  { id = "measurement.soft_exposure.python_hc0.positive", role = "positive", intent = "Python surface: the substitution coefficients equal numpy least squares and the covariance the written-out HC0 sandwich; the exposure term and sampling term sum to the variance.", evidence_test = "python/tests/test_measurement_exposure.py", evidence_assertion = "test_posterior_mean_substitution_is_least_squares_with_an_hc0_sandwich" },
+  { id = "measurement.soft_exposure.malformed.negative", role = "negative", intent = "A probability outside [0, 1] refuses with invalid_argument and a single imputation refuses with measurement_not_identified.", evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs", evidence_assertion = "malformed_soft_exposures_and_a_single_imputation_refuse" },
+  { id = "measurement.soft_exposure.exact_rational.artifact", role = "artifact", intent = "Exact rational least squares, the HC0 sandwich, the exposure-uncertainty term and Rubin's rules over three exact draws reproduce the library's values.", evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs", evidence_assertion = "soft_exposure_substitution_and_rubin_match_exact_rational_arithmetic" },
+  { id = "measurement.soft_exposure.seeded_imputation.construction", role = "construction", intent = "The seeded outcome-conditioned imputations equal, draw for draw, an independent port of the SplitMix stream, the EM fit and the bootstrap refits, and Rubin's total variance equals within plus (1 + 1/S) between.", evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs", evidence_assertion = "seeded_imputation_matches_the_independent_port_draw_for_draw" },
+  { id = "measurement.soft_exposure.reliability_bins.positive", role = "positive", intent = "The binned reliability report equals exact rational bin means, gaps and standard errors and applies no gate.", evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs", evidence_assertion = "reliability_bins_match_exact_rational_arithmetic" },
+]
+[[record.inference_outputs]]
+id = "measurement.soft_exposure.point.1"
+fields = ["exposure coefficient of a linear outcome model on per-unit exposure probabilities", "exposure-uncertainty and sampling variance parts, or within- and between-imputation variance", "binned reliability of stated probabilities against repeat codings"]
+method = "Least squares on the per-unit posterior mean with the HC0 sandwich and the exposure term beta^2 mean(q(1-q)) (M^-1)_11 / n, or one fit per outcome-conditioned imputation combined by Rubin's rules."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::correct_soft_exposure_effect"
+public_producers = ["antecedent_estimate.measurement.correct_soft_exposure_effect", "antecedent.measurement_exposure.soft_exposure_effect"]
+closed_producers = []
+independent_consumers = ["measurement.soft_exposure.exact_rational.artifact"]
+method_source = "crates/antecedent-estimate/src/measurement/exposure_routes.rs; crates/antecedent-stats/src/measurement_error/soft_exposure.rs"
+truth_design = "Calibrated exposure probabilities with Y = 1 + 2 X + 0.5 Z + N(0, 1); exact rational least squares; an independent port of the seeded imputation."
+truth_fixtures = ["measurement.soft_exposure.berkson_recovery.truth", "measurement.soft_exposure.seeded_imputation.construction"]
+nominal_level = "none; point value with an uncalibrated standard error, no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated relative tolerances of the independent oracle and the closed-form planted truths; no sampling-coverage threshold is claimed for the point."
+measurement_suite = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a corrected value and a first-order standard error labelled uncalibrated; the Wald interval is the separate output below."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated for the point. The declared checks are the oracle tests."
+
+[[record.inference_outputs]]
+id = "measurement.soft_exposure.wald_interval"
+fields = ["equal-tailed Wald interval of the exposure coefficient"]
+method = "Point -/+ z times the HC0 or Rubin total standard error."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::DeclaredEstimate::wald_interval"
+public_producers = ["antecedent_estimate.measurement.DeclaredEstimate.wald_interval.soft_exposure", "antecedent.measurement_exposure.SoftExposureEffect.interval"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/measurement/exposure_routes.rs"
+truth_design = "Calibrated exposure probabilities with Y = 1 + 2 X + 0.5 Z + N(0, 1); exact rational least squares; an independent port of the seeded imputation."
+truth_fixtures = ["measurement.soft_exposure.berkson_recovery.truth", "measurement.soft_exposure.seeded_imputation.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/measurement_exposure_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Linear outcome model on calibrated per-unit exposure probabilities, at least 300 units, 95% level; imputation is declared for a correct Gaussian outcome model. The result carries no calibration statement."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Substitution from 600 and imputation (30 draws) from 400 units, each at 0.5x / 1x / 2x."
+
+[[record]]
+id = "measurement.detection_dependent_prevalence"
+capability = "measurement.detection_dependent_prevalence"
+status = "supported"
+consumer_question = "When the chance of detecting a condition depends on a covariate such as the evidence available for the unit, what is the corrected prevalence, or its sharp bounds when the detection function is only partly declared?"
+theorem = "P(D=1) = pi d(c) + (1-pi) f for a presence probability pi independent of c, so pi = (sum D - n f)/(sum d(c) - n f); the variance adds Bernoulli sampling, the declared parameters' covariance and Var(f). A monotone envelope gives each unit the tightest bounds the anchors allow; sum d takes any value between the sums of the two bounds, so [A/G(hi), A/G(lo)] is sharp for the declaration. Refused when the mean detection net of false positives is at or below the floor. NOT inherited: coverage, and any interval over the bounds."
+reference = "docs/measurement-models.md"
+guarantee = "detection_adjusted_prevalence_point_or_sharp_bounds"
+graph_class = "Not applicable to the correction; a causal reading requires identification of the adjustment set."
+population_semantics = "One population; presence independent of the detection covariate."
+evidence_family = "Per-unit recorded detections and the covariate that drives detection."
+provider = "antecedent_stats::measurement_error::detection_adjusted_prevalence; antecedent_estimate::measurement::correct_detection_dependent_prevalence."
+estimand = "Prevalence of the condition (point or bounds)."
+inference_claim = "interval"
+owners = ["antecedent-stats", "antecedent-estimate", "python/antecedent"]
+identity_inputs = ["detections and covariate digest", "detection function or envelope", "false-positive rate and variance", "minimum net detection"]
+wire_changes = ["None: the correction returns values and publishes no artifact."]
+compatibility = "Additive. The model-based measurement routes, their identities and artifacts are unchanged."
+search = false
+prerequisite_records = []
+bounds = { cancellation = true }
+inference_inventory_disposition = "interval_output_listed_not_measured"
+refusals = [
+  { detail = "measurement_model.youden_too_small", remedy = "Use more accurate rates or a validation study that shows a Youden index (or mean net detection) above the declared floor." },
+  { detail = "measurement_model.input_invalid", remedy = "Supply well-formed counts, probabilities, covariates and declarations within range." },
+  { detail = "measurement_model.cancelled", remedy = "Rerun without cancellation; the cancellation is not a verdict on the data." },
+  { detail = "measurement_model.interval_level", remedy = "Use a level strictly between 0 and 1." },
+  { detail = "measurement_model.interval_requires_estimate", remedy = "Use the point value; a record without a standard error reports no interval." },
+]
+routes = [
+  { name = "antecedent_estimate.measurement.correct_detection_dependent_prevalence", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_estimate.measurement.DeclaredEstimate.wald_interval.detection_dependent_prevalence", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.measurement_exposure.detection_dependent_prevalence", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.measurement_exposure.DetectionPrevalence.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+fixtures = [
+  { id = "measurement.detection_dependent_prevalence.planted_prevalence.truth", role = "truth", intent = "Detections 120, 180, 240, 300 of 1000 at counts 0..3 under the declared detection 0.4, 0.6, 0.8, 1.0 recover the prevalence 0.3 exactly, with the hand Bernoulli variance.", evidence_test = "crates/antecedent-stats/src/measurement_error/exposure_tests.rs", evidence_assertion = "a_fully_declared_detection_function_recovers_the_planted_prevalence" },
+  { id = "measurement.detection_dependent_prevalence.python_planted.positive", role = "positive", intent = "Python surface: the planted prevalence, the observed rate and the sampling variance equal their hand values, and a partially declared monotone function gives bounds containing the truth.", evidence_test = "python/tests/test_measurement_exposure.py", evidence_assertion = "test_a_declared_detection_function_recovers_the_planted_prevalence" },
+  { id = "measurement.detection_dependent_prevalence.net_detection.negative", role = "negative", intent = "Mean detection net of false positives at or below the floor refuses with measurement_not_identified.", evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs", evidence_assertion = "non_identifying_detection_refuses_with_the_registered_code" },
+  { id = "measurement.detection_dependent_prevalence.oracle_replay.artifact", role = "artifact", intent = "An independent 50-digit computation with mpmath numerical derivatives reproduces the prevalence, the Bernoulli part and the logistic-parameter and false-positive parts of the variance.", evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs", evidence_assertion = "logistic_detection_matches_the_numerically_differentiated_oracle" },
+  { id = "measurement.detection_dependent_prevalence.false_positive_variance.construction", role = "construction", intent = "A declared false-positive rate shifts the inversion to (sum D - n f)/(sum d - n f) and adds (n (1 - pi)/G)^2 Var(f) to the variance.", evidence_test = "crates/antecedent-stats/src/measurement_error/exposure_tests.rs", evidence_assertion = "a_false_positive_rate_shifts_the_inversion_and_adds_its_variance" },
+  { id = "measurement.detection_dependent_prevalence.sharp_bounds.positive", role = "positive", intent = "A monotone envelope gives the bounds A/G(hi) and A/G(lo) of exact rational arithmetic, which collapse onto the point when the anchors pin the function.", evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs", evidence_assertion = "monotone_envelope_bounds_match_exact_rational_arithmetic" },
+]
+[[record.inference_outputs]]
+id = "measurement.detection_dependent_prevalence.point.1"
+fields = ["prevalence corrected for covariate-dependent detection, or its sharp bounds", "Bernoulli sampling and detection-function variance parts", "bound endpoint sampling standard errors"]
+method = "pi = (sum D - n f)/(sum d(c) - n f) with the Bernoulli variance plus the declared function's parameter covariance and the false-positive variance; for a monotone envelope the bounds A/G(hi) and A/G(lo)."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::correct_detection_dependent_prevalence"
+public_producers = ["antecedent_estimate.measurement.correct_detection_dependent_prevalence", "antecedent.measurement_exposure.detection_dependent_prevalence"]
+closed_producers = []
+independent_consumers = ["measurement.detection_dependent_prevalence.oracle_replay.artifact"]
+method_source = "crates/antecedent-estimate/src/measurement/exposure_routes.rs; crates/antecedent-stats/src/measurement_error/detection.rs"
+truth_design = "Prevalence 0.3 detected with probability expit(-1 + 0.8 c) at a count c; exact rational bounds; an independent 50-digit gradient."
+truth_fixtures = ["measurement.detection_dependent_prevalence.planted_prevalence.truth", "measurement.detection_dependent_prevalence.false_positive_variance.construction"]
+nominal_level = "none; point value with an uncalibrated standard error, no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated relative tolerances of the independent oracle and the closed-form planted truths; no sampling-coverage threshold is claimed for the point."
+measurement_suite = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a corrected value and a first-order standard error labelled uncalibrated; the Wald interval is the separate output below."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated for the point. The declared checks are the oracle tests."
+
+[[record.inference_outputs]]
+id = "measurement.detection_dependent_prevalence.wald_interval"
+fields = ["equal-tailed Wald interval of the corrected prevalence (fully declared function)"]
+method = "Point -/+ z times the delta-method standard error."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::DeclaredEstimate::wald_interval"
+public_producers = ["antecedent_estimate.measurement.DeclaredEstimate.wald_interval.detection_dependent_prevalence", "antecedent.measurement_exposure.DetectionPrevalence.interval"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/measurement/exposure_routes.rs"
+truth_design = "Prevalence 0.3 detected with probability expit(-1 + 0.8 c) at a count c; exact rational bounds; an independent 50-digit gradient."
+truth_fixtures = ["measurement.detection_dependent_prevalence.planted_prevalence.truth", "measurement.detection_dependent_prevalence.false_positive_variance.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/measurement_exposure_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Condition whose presence does not depend on the detection covariate, detection a fully declared function of it, at least 1000 units, 95% level, truth the prevalence. Bounds from a partial declaration carry no coverage claim. The result carries no calibration statement."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "2000 units with counts 0..5, the function declared exactly and with parameters estimated from 400 units, each at 0.5x / 1x / 2x."
+
+[[record]]
+id = "measurement.repeat_codings_latent_class"
+capability = "measurement.repeat_codings_latent_class"
+status = "supported"
+consumer_question = "With repeat codings of a binary or ordinal facet, what are the latent-level prevalences and each coding's error law, treating the codings as replicates?"
+theorem = "P(c) = sum_j pi_j prod_k theta_{k j c_k} with codings conditionally independent given the latent level (an assumption, not tested). Identified up to class order by Kruskal's condition (k-ranks min(J, C^size) of three coding groups sum to at least 2J + 2: three codings for two levels), or for two codings of a binary facet by exchangeable codings and a declared law of the lowest level; any other count refuses, as do codings whose class-conditional laws are nearly equal. Fitted by EM from several starts. NOT inherited: coverage, and robustness to dependence between codings."
+reference = "docs/measurement-models.md"
+guarantee = "latent_class_prevalence_and_response_laws_point_with_uncalibrated_opg_se"
+graph_class = "Not applicable to the correction; a causal reading requires identification of the adjustment set."
+population_semantics = "One population; every unit has every coding; codings share one latent level and are conditionally independent given it."
+evidence_family = "Per-unit repeat codings as category indices."
+provider = "antecedent_stats::measurement_error::fit_latent_class; antecedent_estimate::measurement::fit_repeat_codings."
+estimand = "Latent-level prevalences and per-coding response laws."
+inference_claim = "interval"
+owners = ["antecedent-stats", "antecedent-estimate", "python/antecedent"]
+identity_inputs = ["codings digest", "levels, categories and constraints", "EM starts and seed"]
+wire_changes = ["None: the correction returns values and publishes no artifact."]
+compatibility = "Additive. The model-based measurement routes, their identities and artifacts are unchanged."
+search = false
+prerequisite_records = []
+bounds = { cancellation = true }
+inference_inventory_disposition = "interval_output_listed_not_measured"
+refusals = [
+  { detail = "measurement_model.insufficient_replicates", remedy = "Supply the number of conditionally independent codings or imputations the correction needs, or declare the constraints that identify it." },
+  { detail = "measurement_model.input_invalid", remedy = "Supply well-formed counts, probabilities, covariates and declarations within range." },
+  { detail = "measurement_model.cancelled", remedy = "Rerun without cancellation; the cancellation is not a verdict on the data." },
+  { detail = "measurement_model.interval_level", remedy = "Use a level strictly between 0 and 1." },
+  { detail = "measurement_model.interval_requires_estimate", remedy = "Use the point value; a record without a standard error reports no interval." },
+]
+routes = [
+  { name = "antecedent_estimate.measurement.fit_repeat_codings", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_estimate.measurement.LatentClassFit.prevalence_wald_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { name = "antecedent.measurement_exposure.repeat_codings_latent_class", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.measurement_exposure.RepeatCodingFit.prevalence_standard_error", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+fixtures = [
+  { id = "measurement.repeat_codings_latent_class.planted_latent_class.truth", role = "truth", intent = "Rounded exact pattern counts of three binary codings with prevalence 0.3 recover the planted prevalence and every coding's sensitivity and specificity.", evidence_test = "crates/antecedent-stats/src/measurement_error/exposure_tests.rs", evidence_assertion = "three_binary_codings_recover_the_planted_latent_class_model" },
+  { id = "measurement.repeat_codings_latent_class.python_planted.positive", role = "positive", intent = "Python surface: the planted latent-class model is recovered and the posterior rows sum to one.", evidence_test = "python/tests/test_measurement_exposure.py", evidence_assertion = "test_three_binary_codings_recover_the_planted_latent_class_model" },
+  { id = "measurement.repeat_codings_latent_class.identification.negative", role = "negative", intent = "Two binary codings with no declared constraints refuse with measurement_not_identified.", evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs", evidence_assertion = "repeat_codings_that_cannot_identify_the_latent_classes_refuse_with_the_registered_code" },
+  { id = "measurement.repeat_codings_latent_class.ml_oracle.artifact", role = "artifact", intent = "Maximum-likelihood EM to 1e-30 in 40-digit arithmetic on two integer pattern-count tables, binary and ordinal, reproduces the fitted prevalence, response laws and log likelihood.", evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs", evidence_assertion = "latent_class_fit_matches_the_multiprecision_maximum_likelihood_oracle" },
+  { id = "measurement.repeat_codings_latent_class.constrained_two_codings.construction", role = "construction", intent = "Two exchangeable codings with a declared lowest-level law are identified and recover the planted prevalence and sensitivity, while the same data without either declaration refuse.", evidence_test = "crates/antecedent-stats/src/measurement_error/exposure_tests.rs", evidence_assertion = "two_codings_identify_only_under_declared_constraints" },
+  { id = "measurement.repeat_codings_latent_class.ordinal.positive", role = "positive", intent = "Three ordinal codings recover a three-level facet's prevalence.", evidence_test = "crates/antecedent-stats/src/measurement_error/exposure_tests.rs", evidence_assertion = "ordinal_codings_recover_a_three_level_facet" },
+]
+[[record.inference_outputs]]
+id = "measurement.repeat_codings_latent_class.point.1"
+fields = ["prevalence of each latent level and each coding's response law", "per-unit posterior over latent levels", "outer-product-of-scores standard errors"]
+method = "Maximum-likelihood latent-class model under conditional independence, EM from several starts, levels ordered by expected coding score, covariance the inverse outer product of per-unit scores in a softmax parametrization carried by the delta method."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::fit_repeat_codings"
+public_producers = ["antecedent_estimate.measurement.fit_repeat_codings", "antecedent.measurement_exposure.repeat_codings_latent_class"]
+closed_producers = []
+independent_consumers = ["measurement.repeat_codings_latent_class.ml_oracle.artifact"]
+method_source = "crates/antecedent-estimate/src/measurement/exposure_routes.rs; crates/antecedent-stats/src/measurement_error/latent_class.rs"
+truth_design = "Rounded exact pattern counts of planted binary and ordinal latent-class models; a 40-digit maximum-likelihood oracle."
+truth_fixtures = ["measurement.repeat_codings_latent_class.planted_latent_class.truth", "measurement.repeat_codings_latent_class.constrained_two_codings.construction"]
+nominal_level = "none; point value with an uncalibrated standard error, no interval or coverage target"
+acceptance_threshold = "Asserted values within the stated relative tolerances of the independent oracle and the closed-form planted truths; no sampling-coverage threshold is claimed for the point."
+measurement_suite = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "The route publishes a corrected value and a first-order standard error labelled uncalibrated; the Wald interval is the separate output below."
+activation_disposition = "retain_point_only_route_no_inferential_guarantee"
+allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
+measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
+truth_grid_allocation = "No repeated-sampling grid allocated for the point. The declared checks are the oracle tests."
+
+[[record.inference_outputs]]
+id = "measurement.repeat_codings_latent_class.wald_interval"
+fields = ["equal-tailed Wald interval of a latent level's prevalence (point -/+ z se)"]
+method = "Point -/+ z times the outer-product delta-method standard error."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-estimate"
+operation_or_object = "antecedent_estimate::measurement::DeclaredEstimate::wald_interval"
+public_producers = ["antecedent_estimate.measurement.LatentClassFit.prevalence_wald_interval", "antecedent.measurement_exposure.RepeatCodingFit.prevalence_standard_error"]
+closed_producers = []
+independent_consumers = []
+method_source = "crates/antecedent-estimate/src/measurement/exposure_routes.rs"
+truth_design = "Rounded exact pattern counts of planted binary and ordinal latent-class models; a 40-digit maximum-likelihood oracle."
+truth_fixtures = ["measurement.repeat_codings_latent_class.planted_latent_class.truth", "measurement.repeat_codings_latent_class.constrained_two_codings.construction"]
+nominal_level = "0.95"
+acceptance_threshold = "Nominal 0.95 within the gate band at each grid point."
+measurement_suite = "crates/antecedent/tests/measurement_exposure_calibration.rs"
+allocated_coverage_records = []
+inherited_coverage_records = []
+boundary = "Three conditionally independent codings of a binary facet (three ordinal codings of a three-level facet), at least 750 units, 95% level, scored on the highest level's prevalence. Conditional independence is an assumption. The result carries no calibration statement."
+activation_disposition = "measured_endpoint_construction_current_attestation_required"
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Three binary codings from 1500 units and three ordinal codings from 3000 units, each at 0.5x / 1x / 2x."

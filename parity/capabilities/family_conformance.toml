@@ -127,7 +127,7 @@ decision_demand = "a_decision_demand_is_satisfied_or_refused_by_carrier"
 artifact_consumer = "a_saved_result_is_re_derived_by_an_independent_consumer"
 plan_view = "the_plan_view_agrees_with_the_lowered_program"
 refusal_next_attempt = "every_refusal_names_its_next_attempt"
-routes = ["measurement.static.frequentist", "measurement.static.bayesian", "measurement.transport.pooled_differential", "composition.static.frequentist", "composition.static.bayesian", "composition.temporal.frequentist", "composition.temporal.bayesian"]
+routes = ["measurement.static.frequentist", "measurement.static.exposure", "measurement.static.bayesian", "measurement.transport.pooled_differential", "composition.static.frequentist", "composition.static.bayesian", "composition.temporal.frequentist", "composition.temporal.bayesian"]
 
 [[family]]
 id = "associational"

@@ -33,6 +33,7 @@
 pub mod binary;
 pub mod categorical;
 pub mod continuous;
+pub mod exposure_routes;
 pub mod linear;
 pub mod posterior;
 
@@ -54,6 +55,11 @@ pub use continuous::{
     ContinuousCorrectionSpec, ContinuousCorrectionSummary, ContinuousErrorData,
     ContinuousMethodKind, CorrectedContinuousEffect, CorrectionMethod, ErrorLocation, OutcomeLink,
     SimexExtrapolant, SimexFit, correct_continuous_error,
+};
+pub use exposure_routes::{
+    CorrectedExposure, DeclaredEstimate, DetectionDependentPrevalence, SoftExposureCombination,
+    SoftExposureEffect, correct_detection_dependent_prevalence, correct_exposure_misclassification,
+    correct_soft_exposure_effect, fit_repeat_codings, soft_exposure_reliability_report,
 };
 pub use linear::{
     CorrectedLinearEffect, LinearMeasuredData, correct_classical_linear_effect,

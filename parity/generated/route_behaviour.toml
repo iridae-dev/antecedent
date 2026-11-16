@@ -4612,7 +4612,6 @@ routes = [
   { route = "antecedent_estimate.measurement.correct_binary_risk_difference", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent_estimate.measurement.interval_not_supported.binary_misclassification", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent_estimate.measurement.correct_binary_prevalence", stage = "evaluate", status = "supported", claim = "point_only" },
-  { route = "antecedent_estimate.measurement.binary_misclassification.exposure_misclassification", stage = "evaluate", status = "closed", reason_code = "route_not_supported", claim = "point_only" },
   { route = "antecedent_estimate.measurement.binary_misclassification.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", claim = "point_only" },
   { route = "antecedent_estimate.measurement.binary_misclassification.differential_by_time", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", claim = "point_only" },
   { route = "antecedent_estimate.measurement.binary_misclassification.other_population", stage = "evaluate", status = "closed", reason_code = "route_not_supported", claim = "point_only" },
@@ -4638,7 +4637,6 @@ refusals = [
 routes = [
   { route = "antecedent_estimate.measurement.correct_categorical", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent_estimate.measurement.interval_not_supported.probabilistic_categorical", stage = "uncertainty", status = "supported", claim = "interval" },
-  { route = "antecedent_estimate.measurement.probabilistic_categorical.per_unit_soft_assignment", stage = "evaluate", status = "closed", reason_code = "route_not_supported", claim = "point_only" },
   { route = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_population", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", claim = "point_only" },
   { route = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_time", stage = "evaluate", status = "closed", reason_code = "differential_error_not_pooled", claim = "point_only" },
   { route = "antecedent_estimate.measurement.probabilistic_categorical.other_population", stage = "evaluate", status = "closed", reason_code = "route_not_supported", claim = "point_only" },
@@ -7862,4 +7860,75 @@ refusals = [
 ]
 routes = [
   { route = "antecedent.Study.synthetic_control", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "measurement.exposure_misclassification"
+status = "supported"
+refusals = [
+  { code = "measurement_not_identified", detail = "measurement_model.youden_too_small" },
+  { code = "invalid_argument", detail = "measurement_model.input_invalid" },
+  { code = "cancelled_no_claim", detail = "measurement_model.cancelled" },
+  { code = "invalid_argument", detail = "measurement_model.interval_level" },
+  { code = "route_not_supported", detail = "measurement_model.interval_requires_estimate" },
+]
+routes = [
+  { route = "antecedent_estimate.measurement.correct_exposure_misclassification", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent_estimate.measurement.DeclaredEstimate.wald_interval.exposure_misclassification", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.measurement_exposure.correct_exposure_misclassification", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.measurement_exposure.ExposureCorrection.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "measurement.soft_exposure"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "measurement_model.input_invalid" },
+  { code = "measurement_not_identified", detail = "measurement_model.insufficient_replicates" },
+  { code = "design_rank_deficient", detail = "measurement_model.design_singular" },
+  { code = "cancelled_no_claim", detail = "measurement_model.cancelled" },
+  { code = "invalid_argument", detail = "measurement_model.interval_level" },
+  { code = "route_not_supported", detail = "measurement_model.interval_requires_estimate" },
+]
+routes = [
+  { route = "antecedent_estimate.measurement.correct_soft_exposure_effect", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent_estimate.measurement.DeclaredEstimate.wald_interval.soft_exposure", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent_estimate.measurement.soft_exposure_reliability_report", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.measurement_exposure.soft_exposure_effect", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.measurement_exposure.SoftExposureEffect.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.measurement_exposure.soft_exposure_reliability", stage = "evaluate", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "measurement.detection_dependent_prevalence"
+status = "supported"
+refusals = [
+  { code = "measurement_not_identified", detail = "measurement_model.youden_too_small" },
+  { code = "invalid_argument", detail = "measurement_model.input_invalid" },
+  { code = "cancelled_no_claim", detail = "measurement_model.cancelled" },
+  { code = "invalid_argument", detail = "measurement_model.interval_level" },
+  { code = "route_not_supported", detail = "measurement_model.interval_requires_estimate" },
+]
+routes = [
+  { route = "antecedent_estimate.measurement.correct_detection_dependent_prevalence", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent_estimate.measurement.DeclaredEstimate.wald_interval.detection_dependent_prevalence", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.measurement_exposure.detection_dependent_prevalence", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.measurement_exposure.DetectionPrevalence.interval", stage = "uncertainty", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "measurement.repeat_codings_latent_class"
+status = "supported"
+refusals = [
+  { code = "measurement_not_identified", detail = "measurement_model.insufficient_replicates" },
+  { code = "invalid_argument", detail = "measurement_model.input_invalid" },
+  { code = "cancelled_no_claim", detail = "measurement_model.cancelled" },
+  { code = "invalid_argument", detail = "measurement_model.interval_level" },
+  { code = "route_not_supported", detail = "measurement_model.interval_requires_estimate" },
+]
+routes = [
+  { route = "antecedent_estimate.measurement.fit_repeat_codings", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent_estimate.measurement.LatentClassFit.prevalence_wald_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.measurement_exposure.repeat_codings_latent_class", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.measurement_exposure.RepeatCodingFit.prevalence_standard_error", stage = "uncertainty", status = "supported", claim = "interval" },
 ]

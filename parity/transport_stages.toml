@@ -5402,10 +5402,6 @@ evidence_assertion = "binary_prevalence_inverts_the_misclassification_algebra"
 notes = "Rust facade route; point-only or accounting, no interval. The Python surface is wired in python/antecedent/measurement_models.py."
 
 [[routes]]
-route = "antecedent_estimate.measurement.binary_misclassification.exposure_misclassification"
-notes = "The route refuses misclassification of the exposure with route_not_supported."
-
-[[routes]]
 route = "antecedent_estimate.measurement.binary_misclassification.differential_by_population"
 notes = "Implemented and tested in the owning crates; no facade, Python or lifecycle producer is wired, so the public route is not supported. The record is frozen. Interval, nonlinear, population-transport and non-arm differential variants are permanently closed adjacent routes."
 
@@ -5430,10 +5426,6 @@ notes = "Rust facade route; point-only or accounting, no interval. The Python su
 [[routes]]
 route = "antecedent_estimate.measurement.interval_not_supported.probabilistic_categorical"
 notes = "The correction reports a Wald interval from its derived standard error with its calibration; a record without a standard error refuses with route_not_supported."
-
-[[routes]]
-route = "antecedent_estimate.measurement.probabilistic_categorical.per_unit_soft_assignment"
-notes = "The route refuses a per-unit soft assignment with route_not_supported."
 
 [[routes]]
 route = "antecedent_estimate.measurement.probabilistic_categorical.differential_by_population"
@@ -10744,3 +10736,135 @@ notes = "Weighted equal-tailed posterior interval of a contrast after an experim
 [[routes]]
 route = "antecedent.Study.synthetic_control"
 notes = "Point-only synthetic control: the mean post-intervention gap with a descriptive placebo rank and an exact randomization tail; no interval."
+
+[[routes]]
+route = "antecedent_estimate.measurement.correct_exposure_misclassification"
+graph = "not_applicable_to_the_correction_a_corrected_value_is_causal_only_where_identification_supports_the_adjustment"
+evidence = "exposure_counts_by_outcome_and_outcome_specific_sensitivity_specificity"
+functional = "corrected_exposure_log_odds_ratio"
+guarantee = "outcome_specific_rogan_gladen_exposure_point_with_uncalibrated_delta_method_se"
+evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs"
+evidence_assertion = "exposure_correction_matches_the_numerically_differentiated_oracle"
+notes = "Declaration-bound correction; point with an uncalibrated standard error, no model identity. The Python surface is python/antecedent/measurement_exposure.py."
+
+[[routes]]
+route = "antecedent.measurement_exposure.correct_exposure_misclassification"
+graph = "not_applicable_to_the_correction_a_corrected_value_is_causal_only_where_identification_supports_the_adjustment"
+evidence = "exposure_counts_by_outcome_and_outcome_specific_sensitivity_specificity"
+functional = "corrected_exposure_log_odds_ratio"
+guarantee = "outcome_specific_rogan_gladen_exposure_point_with_uncalibrated_delta_method_se"
+evidence_test = "python/tests/test_measurement_exposure.py"
+evidence_assertion = "test_outcome_specific_rates_recover_the_planted_odds_ratio"
+notes = "Declaration-bound correction; point with an uncalibrated standard error, no model identity. The Python surface is python/antecedent/measurement_exposure.py."
+
+[[routes]]
+route = "antecedent_estimate.measurement.correct_soft_exposure_effect"
+graph = "not_applicable_to_the_correction_a_corrected_value_is_causal_only_where_identification_supports_the_adjustment"
+evidence = "per_unit_exposure_probabilities_outcome_and_covariates"
+functional = "soft_exposure_coefficient"
+guarantee = "posterior_mean_or_rubin_point_with_uncalibrated_se"
+evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs"
+evidence_assertion = "soft_exposure_substitution_and_rubin_match_exact_rational_arithmetic"
+notes = "Declaration-bound correction; point with an uncalibrated standard error, no model identity. The Python surface is python/antecedent/measurement_exposure.py."
+
+[[routes]]
+route = "antecedent.measurement_exposure.soft_exposure_effect"
+graph = "not_applicable_to_the_correction_a_corrected_value_is_causal_only_where_identification_supports_the_adjustment"
+evidence = "per_unit_exposure_probabilities_outcome_and_covariates"
+functional = "soft_exposure_coefficient"
+guarantee = "posterior_mean_or_rubin_point_with_uncalibrated_se"
+evidence_test = "python/tests/test_measurement_exposure.py"
+evidence_assertion = "test_posterior_mean_substitution_is_least_squares_with_an_hc0_sandwich"
+notes = "Declaration-bound correction; point with an uncalibrated standard error, no model identity. The Python surface is python/antecedent/measurement_exposure.py."
+
+[[routes]]
+route = "antecedent_estimate.measurement.soft_exposure_reliability_report"
+graph = "not_applicable_to_the_correction_a_corrected_value_is_causal_only_where_identification_supports_the_adjustment"
+evidence = "stated_exposure_probabilities_and_repeat_codings"
+functional = "binned_reliability_report"
+guarantee = "report_only_never_gates"
+evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs"
+evidence_assertion = "reliability_bins_match_exact_rational_arithmetic"
+notes = "Declaration-bound correction; point with an uncalibrated standard error, no model identity. The Python surface is python/antecedent/measurement_exposure.py."
+
+[[routes]]
+route = "antecedent.measurement_exposure.soft_exposure_reliability"
+graph = "not_applicable_to_the_correction_a_corrected_value_is_causal_only_where_identification_supports_the_adjustment"
+evidence = "stated_exposure_probabilities_and_repeat_codings"
+functional = "binned_reliability_report"
+guarantee = "report_only_never_gates"
+evidence_test = "python/tests/test_measurement_exposure.py"
+evidence_assertion = "test_reliability_bins_match_hand_computed_means_and_never_gate"
+notes = "Declaration-bound correction; point with an uncalibrated standard error, no model identity. The Python surface is python/antecedent/measurement_exposure.py."
+
+[[routes]]
+route = "antecedent_estimate.measurement.correct_detection_dependent_prevalence"
+graph = "not_applicable_to_the_correction_a_corrected_value_is_causal_only_where_identification_supports_the_adjustment"
+evidence = "per_unit_detections_and_detection_covariate"
+functional = "detection_adjusted_prevalence"
+guarantee = "declared_detection_point_or_sharp_bounds_with_uncalibrated_se"
+evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs"
+evidence_assertion = "logistic_detection_matches_the_numerically_differentiated_oracle"
+notes = "Declaration-bound correction; point with an uncalibrated standard error, no model identity. The Python surface is python/antecedent/measurement_exposure.py."
+
+[[routes]]
+route = "antecedent.measurement_exposure.detection_dependent_prevalence"
+graph = "not_applicable_to_the_correction_a_corrected_value_is_causal_only_where_identification_supports_the_adjustment"
+evidence = "per_unit_detections_and_detection_covariate"
+functional = "detection_adjusted_prevalence"
+guarantee = "declared_detection_point_or_sharp_bounds_with_uncalibrated_se"
+evidence_test = "python/tests/test_measurement_exposure.py"
+evidence_assertion = "test_a_declared_detection_function_recovers_the_planted_prevalence"
+notes = "Declaration-bound correction; point with an uncalibrated standard error, no model identity. The Python surface is python/antecedent/measurement_exposure.py."
+
+[[routes]]
+route = "antecedent_estimate.measurement.fit_repeat_codings"
+graph = "not_applicable_to_the_correction_a_corrected_value_is_causal_only_where_identification_supports_the_adjustment"
+evidence = "repeat_codings_of_a_binary_or_ordinal_facet"
+functional = "latent_level_prevalence_and_response_laws"
+guarantee = "latent_class_ml_point_with_uncalibrated_opg_se"
+evidence_test = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs"
+evidence_assertion = "latent_class_fit_matches_the_multiprecision_maximum_likelihood_oracle"
+notes = "Declaration-bound correction; point with an uncalibrated standard error, no model identity. The Python surface is python/antecedent/measurement_exposure.py."
+
+[[routes]]
+route = "antecedent.measurement_exposure.repeat_codings_latent_class"
+graph = "not_applicable_to_the_correction_a_corrected_value_is_causal_only_where_identification_supports_the_adjustment"
+evidence = "repeat_codings_of_a_binary_or_ordinal_facet"
+functional = "latent_level_prevalence_and_response_laws"
+guarantee = "latent_class_ml_point_with_uncalibrated_opg_se"
+evidence_test = "python/tests/test_measurement_exposure.py"
+evidence_assertion = "test_three_binary_codings_recover_the_planted_latent_class_model"
+notes = "Declaration-bound correction; point with an uncalibrated standard error, no model identity. The Python surface is python/antecedent/measurement_exposure.py."
+
+[[routes]]
+route = "antecedent_estimate.measurement.DeclaredEstimate.wald_interval.exposure_misclassification"
+notes = "The correction reports a Wald interval from its derived standard error with its calibration annotation; the harness measures its coverage."
+
+[[routes]]
+route = "antecedent.measurement_exposure.ExposureCorrection.interval"
+notes = "The correction reports a Wald interval from its derived standard error with its calibration annotation; the harness measures its coverage."
+
+[[routes]]
+route = "antecedent_estimate.measurement.DeclaredEstimate.wald_interval.soft_exposure"
+notes = "The correction reports a Wald interval from its derived standard error with its calibration annotation; the harness measures its coverage."
+
+[[routes]]
+route = "antecedent.measurement_exposure.SoftExposureEffect.interval"
+notes = "The correction reports a Wald interval from its derived standard error with its calibration annotation; the harness measures its coverage."
+
+[[routes]]
+route = "antecedent_estimate.measurement.DeclaredEstimate.wald_interval.detection_dependent_prevalence"
+notes = "The correction reports a Wald interval from its derived standard error with its calibration annotation; the harness measures its coverage."
+
+[[routes]]
+route = "antecedent.measurement_exposure.DetectionPrevalence.interval"
+notes = "The correction reports a Wald interval from its derived standard error with its calibration annotation; the harness measures its coverage."
+
+[[routes]]
+route = "antecedent_estimate.measurement.LatentClassFit.prevalence_wald_interval"
+notes = "The correction reports a Wald interval from its derived standard error with its calibration annotation; the harness measures its coverage."
+
+[[routes]]
+route = "antecedent.measurement_exposure.RepeatCodingFit.prevalence_standard_error"
+notes = "The correction reports a Wald interval from its derived standard error with its calibration annotation; the harness measures its coverage."

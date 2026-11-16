@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "92af7b41d77af97d9172cae5682579c3e3cbfa03144611ea5761a31a6c8a75b2",
+  "gate_sha256": "2cd036be3fe73b787e3ed9319118c23273e3f150a94658b6218d2a548e6660f1",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "3419a75c1ba2f918a15d7326d821e35032f26ad7befbc7df00ff395cb02c9fc4",
+  "label_audit_sha256": "bd37f3d5cae841cc2d1567151f57ef399390faaf46fc8def79f070fdc38671e7",
   "groups": [
     {
       "index": 1,
@@ -8591,6 +8591,46 @@
     {
       "index": 1714,
       "label": "local_designs_statements_calibration: bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio_under_ar2_errors",
+      "grid": true
+    },
+    {
+      "index": 1715,
+      "label": "measurement_exposure_calibration: measurement_exposure_differential_by_outcome_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1716,
+      "label": "measurement_exposure_calibration: measurement_exposure_shared_rates_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1717,
+      "label": "measurement_exposure_calibration: measurement_soft_exposure_posterior_mean_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1718,
+      "label": "measurement_exposure_calibration: measurement_soft_exposure_multiple_imputation_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1719,
+      "label": "measurement_exposure_calibration: measurement_detection_declared_function_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1720,
+      "label": "measurement_exposure_calibration: measurement_detection_estimated_function_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1721,
+      "label": "measurement_exposure_calibration: measurement_repeat_codings_binary_latent_class_wald_l95",
+      "grid": true
+    },
+    {
+      "index": 1722,
+      "label": "measurement_exposure_calibration: measurement_repeat_codings_ordinal_latent_class_wald_l95",
       "grid": true
     }
   ],

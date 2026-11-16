@@ -1575,6 +1575,9 @@ name = "measurement_composition_calibration"
 name = "measurement_composition_horizon_calibration"
 
 [[test]]
+name = "measurement_exposure_calibration"
+
+[[test]]
 name = "panel_did_calibration"
 
 [[test]]

@@ -195,6 +195,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     composition_api::register(m)?;
     composition_bundle_api::register(m)?;
     measurement_model_api::register(m)?;
+    measurement_exposure_api::register(m)?;
     mechanism_composition_api::register(m)?;
     typed_mechanism_transport_api::register(m)?;
     observation_query_api::register(m)?;

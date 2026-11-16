@@ -40,12 +40,36 @@ use thiserror::Error;
 use crate::gram::{invert_square, solve_spd};
 
 mod classification;
+mod detection;
+mod exposure;
 mod imputation;
+mod latent_class;
+mod soft_exposure;
 pub use classification::{
     BinaryErrorRates, ConfusionMatrix, CorrectedCategorical, CorrectedProportion,
     CorrectedRiskDifference, ObservedClassSummary, TwoByTwoCounts, corrected_categories,
     corrected_prevalence, corrected_risk_difference_differential,
     corrected_risk_difference_nondifferential,
+};
+
+pub use detection::{
+    DetectionAdjusted, DetectionAnchor, DetectionBounds, DetectionData, DetectionDeclaration,
+    DetectionDirection, DetectionFunction, DetectionPoint, FalsePositiveRate,
+    detection_adjusted_prevalence,
+};
+pub use exposure::{
+    CorrectedExposureAssociation, ExposureErrorStructure, ExposureOutcomeCounts,
+    corrected_exposure_association, exposure_rates_from_validation,
+};
+pub use latent_class::{
+    LatentClassConstraints, LatentClassData, LatentClassFit, LatentClassIdentification,
+    LatentClassSettings, LatentClassStandardErrors, MAX_LATENT_CATEGORIES, MAX_LATENT_CODINGS,
+    MAX_LATENT_LEVELS, fit_latent_class, kruskal_identified,
+};
+pub use soft_exposure::{
+    ReliabilityBin, SoftExposureData, SoftExposureDraws, SoftExposureReliability,
+    SoftExposureSubstitution, soft_exposure_imputation, soft_exposure_outcome_conditioned_draws,
+    soft_exposure_reliability, soft_exposure_substitution,
 };
 
 pub use imputation::{
@@ -772,5 +796,7 @@ fn implied_reliability(gram: &[f64], d: usize, shift: f64) -> Result<f64, Measur
     Ok(1.0 - shift * inv_xx)
 }
 
+#[cfg(test)]
+mod exposure_tests;
 #[cfg(test)]
 mod tests;
