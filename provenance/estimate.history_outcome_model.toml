@@ -44,7 +44,7 @@ sha256 = "6979ac1fd305b8208895afc53e045dccc0b0f7095fec47631bb16c97013f7bba"
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
 items = ["fn check_preprocess_cancelled", "fn draw_mvn_known_sigma", "fn draw_nig", "fn ensure_conjugate_gram", "fn fit", "fn fit_conjugate_gaussian", "fn fit_conjugate_gaussian_resolved", "fn fit_with_absolute_scale_resolved", "fn inverse", "fn ols_residual_variance", "fn posterior_known_sigma2", "fn posterior_nig", "fn residual_ss_from_design", "fn residual_ss_from_moments", "fn solve_posterior_mean", "struct NigMoments", "struct NigPosterior", "struct ScaledSolve"]
-sha256 = "81480e7cac5f4ca97855d646a708ed4e96bc6043c32c4099dedb383a4798b9e2"
+sha256 = "636803f0edcb36083b9864041b4cdd9a4af19f54705a091368ae8679d9da32b8"
 
 [[method_review.artifacts]]
 role = "assertion"

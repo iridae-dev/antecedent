@@ -30,7 +30,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
-rationale = "Shared-plan retention over the checked DML-AIPW and DR-Learner estimators: frozen scores, same-row reweighting and point CATE prediction without refitting."
+rationale = "Shared-plan retention over the checked DML-AIPW and DR-Learner estimators: frozen scores, same-row reweighting and point CATE prediction without refitting. A DML configuration that declares an outcome-nuisance prior is not supported by this plan: the support check excludes it, so the wrapper retains scores only of the unregularized estimators it was reviewed against."
 no_independent_algorithm = "recalc_dr.rs counts resolved fits, retains the estimator's scores and calls the existing retarget and prediction primitives; the only arithmetic of its own is a min/max range check of row ids and the shared decision arithmetic. The only arithmetic besides delegated estimator calls is the shared decision net benefit benefit_per_unit * ate - cost (one fused multiply-add) in recalc_receipt.rs."
 covered_by = ["estimate.dml", "estimate.dr.learner", "estimate.aipw"]
 record_sha256 = "71f7f3145af76a84452b55f059c565fd2a9b416e00cb62edf279adbdbff499c1"
@@ -39,7 +39,7 @@ record_sha256 = "71f7f3145af76a84452b55f059c565fd2a9b416e00cb62edf279adbdbff499c
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_dr.rs"
 items = ["enum DrEstimator", "fn boundary", "fn data", "fn default", "fn dr_stage", "fn execute_dr_with_receipt", "fn export_predictor_result", "fn export_predictor_result_with_source", "fn export_scores", "fn family", "fn feature_bounds", "fn fitted_effect", "fn graph", "fn identities", "fn is_live", "fn new", "fn plan", "fn plan_ids", "fn predict", "fn prediction_columns", "fn recomputed", "fn resume", "fn score_table", "fn spec", "fn study", "fn supported", "fn validate", "struct DrRequest", "struct DrSession", "struct Live", "type DrStage"]
-sha256 = "de00b4f6be5b08f95aad3243df9795fca1ab6c149733c5d7275fc5cc2dd1ce8d"
+sha256 = "f336a0ce89b5f03bb4ddc104ca113e7bd219fd8468a250c451331ec8a8f967d4"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

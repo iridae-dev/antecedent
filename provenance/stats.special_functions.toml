@@ -52,8 +52,8 @@ record_sha256 = "f5722191d4159658d5759c8d3613100fc44a7d4790a6589f62e95f98073d9f0
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/special.rs"
-items = ["const C", "const G", "const STUDENT_T_NORMAL_SERIES_FROM_DF", "const TINY", "fn chi_square_sf", "fn deviance_bd0", "fn gamma_density_factor", "fn gamma_p_series", "fn gamma_q", "fn gamma_q_cf", "fn ln_beta", "fn ln_gamma", "fn normal_ppf", "fn regularized_incomplete_beta_with_complement", "fn stirling_error", "fn student_t_beta_arguments", "fn student_t_central_mass", "fn student_t_ppf", "fn student_t_sf"]
-sha256 = "d679a3c508f218d36c313e6c8f35b43929f230ebb60ed81e0553eadc9c3d47d0"
+items = ["const C", "const G", "const STUDENT_T_NORMAL_SERIES_FROM_DF", "const TINY", "fn chi_square_sf", "fn deviance_bd0", "fn gamma_density_factor", "fn gamma_p_series", "fn gamma_q", "fn gamma_q_cf", "fn ln_beta", "fn ln_gamma", "fn normal_ppf", "fn regularized_incomplete_beta", "fn regularized_incomplete_beta_with_complement", "fn stirling_error", "fn student_t_beta_arguments", "fn student_t_central_mass", "fn student_t_ppf", "fn student_t_sf"]
+sha256 = "bca01b44733810516cf8096be6d88fa61bfc9ea2891a03a613620c1816485ef1"
 
 [[method_review.artifacts]]
 role = "implementation"

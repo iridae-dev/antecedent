@@ -49,7 +49,7 @@ sha256 = "5d08ab3e51d416154dcceb2acb34de298fb565ba80e15d69fe7783a5676695dc"
 role = "implementation"
 path = "crates/antecedent-stats/src/special.rs"
 items = ["module"]
-sha256 = "28ae178322b8cd99a4819a0902f80b10c441b6937f9e93d1b4d5239122bfbe3f"
+sha256 = "f41f3a84dfa2bbed710d247bb2a1b87ae5917eabbc24851eb79a9bb4bfe213df"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -66,7 +66,7 @@ sha256 = "b8d9a218691afb5fe031aedc15979cfa26de1aa82e5738504bd4098d63fe3b2e"
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
 items = ["module"]
-sha256 = "f4749add3cb784e1c14c23880b7e8acf318e66443e5da22d6a34c5f37a88ab92"
+sha256 = "f5cf1cda28f58df8e564b78764fe244ff6c0ea252a249985627af6028b4ba6d7"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -4630,6 +4630,7 @@
    "id": "estimate.aipw",
    "review": "method_review",
    "scope_limits": [
+    "not covered by the method review: the optional outcome-nuisance prior branch (outcome_prior set: the prior-regularized per-arm outcome regression of the cross-fitted ATE, delegated to the DML prior route), whose configuration guard and dispatch are read here only to establish that with the prior unset the reviewed routes run unchanged and that every other route refuses a set prior",
     "not covered by the method review: the bootstrap, penalised propensities, cluster-DML, sampling weights, custom targets, or the cluster, multiway and HAC kinds"
    ],
    "sources": [
@@ -5749,6 +5750,7 @@
    "id": "estimate.dml",
    "review": "method_review",
    "scope_limits": [
+    "not covered by the method review: the optional outcome-nuisance prior (outcome_prior set: a prior-regularized per-arm outcome regression replacing the linear outcome learner), whose scope guard is read here only to establish that with the prior unset the reviewed route runs unchanged and that the partially linear score, whole-cluster folds and caller-supplied learner factories refuse a set prior",
     "not covered by the method review: the choice or tuning of a flexible learner, sampling weights, cluster-DML, the population interval, or the score table beyond its fold ids"
    ],
    "sources": [
@@ -10140,7 +10142,7 @@
    "deviations": [
     "First-order spread only; all three pieces (source sampling, target sampling, transport functional) and a supported dependence are required, otherwise the request is refused."
    ],
-   "digest": "c0de971aa08fa5b0ee6bb5efc4a5d94b277a8fc1d44815b34ca6131b3cef6ff3",
+   "digest": "456edaa67092d73ce693369aa8b65218803e579874aef8b3583db78d4ac56dec",
    "id": "joint_law.composed_spread_transported",
    "review": "none",
    "scope_limits": [],
@@ -10363,7 +10365,7 @@
     "No estimator: the contract states which request may use a model and inherits no theorem.",
     "Measurement-error structure (non-differential error) is taken from Carroll et al. (2006) ch. 1-2 as a declaration, not verified from data."
    ],
-   "digest": "e6a055f241297479339031b95bc6532c70e8d4dab4f5d4debdd0bb2d85acfcb1",
+   "digest": "340bbb411d2f3495b4939da071c4d7781a553f9157ee71604b04568c1d38de0f",
    "id": "measurement.model_contract",
    "review": "none",
    "scope_limits": [],
@@ -11256,7 +11258,7 @@
     "Execution measures actual nuisance and final-stage learner work and successful score-table builds (two on initial preparation/estimation); bounded physical-input reuse avoids duplicate nuisance fits and includes fold-unit kind/seed. Canonical graph/target/utility identities permit independent score consumption; reported analytic diagnostics and point predictions retain not-measured calibration, with no interval or coverage claim.",
     "Historical receipts contain no executable state. Fresh processes require independently verified scores or predictors for their separately supported operations, or supplied raw data for refitting."
    ],
-   "digest": "e4018a7f8efb7a3f5a1696a64ce00c15da7c064f9ceb0f40cfd3fe417c80aeb2",
+   "digest": "45eef005bc468eba648570940d22a250a451646be18c7a299de60f24180a979f",
    "id": "recalculation.doubly_robust",
    "review": "none",
    "scope_limits": [],

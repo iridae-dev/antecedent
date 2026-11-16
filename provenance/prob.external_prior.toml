@@ -29,7 +29,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "Composition of Gaussian coefficient priors in compose_external_priors_with_alphas: diagonal and dense precision addition with applied alphas, diagonal and dense moment-matched mixtures with leftover baseline mass and dropped zero-alpha sources, checked against numerical quadrature of the densities they claim to summarise. Effective-sample-size metadata and the conflict path that chooses applied alphas are not reviewed."
+scope = "Composition of Gaussian coefficient priors in compose_external_priors_with_alphas: diagonal and dense precision addition with applied alphas, diagonal and dense moment-matched mixtures with leftover baseline mass and dropped zero-alpha sources, checked against numerical quadrature of the densities they claim to summarise. The refusal of a baseline or source prior set that carries a Beta or Gamma count prior (checked before any precision or mixture arithmetic, so a count prior is never silently dropped from a composition) is read here. Effective-sample-size metadata and the conflict path that chooses applied alphas are not reviewed."
 assumptions = ["The power path is the Gaussian closed form of baseline density times the source densities each raised to their alpha, which is a tempered product of Gaussian priors and not the historical-data power prior of the cited paper.", "The mixture path matches the first two moments of the weighted Gaussian mixture, with each source variance divided by its alpha; it intentionally discards multimodality.", "Sources and baseline are Gaussian coefficient priors on a common conjugate scale; absolute-scale priors are refused."]
 historical_exposure = "Historical author exposure cannot be established. No upstream implementation or test source was consulted. The cited power-prior paper was not re-read for this review; the check is against the target densities stated in the record's deviations, evaluated by quadrature with no use of the closed forms."
 redistribution = "New tests are repository-authored under MIT OR Apache-2.0; no third-party material is redistributed."
@@ -42,7 +42,7 @@ record_sha256 = "bff1015ed09894d06c7758f0d3706887f969ea490a65433fc380e171a61d21b
 role = "implementation"
 path = "crates/antecedent-prob/src/external_prior.rs"
 items = ["fn compose_dense", "fn compose_external_priors", "fn compose_external_priors_with_alphas", "fn compose_mixture", "fn compose_power_add", "fn composition_assumption", "fn dense_scale", "fn effective_ess_per_source", "fn kish_weights_for_composition", "fn new", "fn power", "fn power_composed_ess", "fn power_mixture", "fn validate", "fn validate_mixture_weights", "struct ComposedPrior", "struct ExternalPriorSource", "struct ExternalPriorWeight"]
-sha256 = "932bf8472d8afe0064ac8374e3ab70aa690ec52fd363002974ce61b5bc57eff0"
+sha256 = "614b5942a8b63460913d128cca1efb1ffce16f589f324a4d09fa8f0096b0e74d"
 
 [[method_review.artifacts]]
 role = "assertion"

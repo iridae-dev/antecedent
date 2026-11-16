@@ -69,7 +69,7 @@ sha256 = "589a30a9e940cc29ef795ef541fb1d3acbedd5b075f9f3679a02448562394fdd"
 role = "implementation"
 path = "crates/antecedent-discovery/src/edge_prior.rs"
 items = ["fn pair_logs", "fn refuse", "fn validate", "struct EdgePriors", "struct SoftTiers"]
-sha256 = "fcbbe8e22f725c2b1a641da172723794b425ed4bef2c467c123d10a644c40cba"
+sha256 = "d7041156dd42c95e3462aa2ba98603e7206b98b5f036d5d1ff21a4619c3759bb"
 
 [[method_review.artifacts]]
 role = "assertion"

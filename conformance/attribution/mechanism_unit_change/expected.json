@@ -17,58 +17,33 @@
       "tolerance declaration"
     ],
     "independence_basis": "The generator parses the declared baseline equation for its slope and applies contribution = slope * (x - reference_mean); it imports no Antecedent code and no statistics package. The shared object is the fixture formula (contribution of the sole input equals slope times deviation from the reference), a one-parent exact Shapley value.",
-    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
-    "reference_review": {
-      "scope": "The unit contribution of a single input on Y = 2X with reference mean 1 at three declared x values. The generator reads the slope from the declared baseline equation and recomputes b (x - xbar) and its mean.",
-      "independence_basis": "The generator parses the declared baseline equation for its slope and applies contribution = slope * (x - reference_mean); it imports no Antecedent code and no statistics package. The shared object is the fixture formula (contribution of the sole input equals slope times deviation from the reference), a one-parent exact Shapley value.",
-      "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded.",
-      "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
-      "limitations": "One-parent linear model only; with a single input the Shapley allocation is trivially the whole change, so this does not test multi-player allocation. The mechanism_detection block (changed y, unchanged x) is context: the executing assertion does not read it, and the unchanged status of x is not derivable from the declared equations alone. No uncertainty or calibration.",
-      "sources": [],
-      "artifacts": [
-        {
-          "role": "generator",
-          "path": "conformance/attribution/mechanism_unit_change/reference.py",
-          "sha256": "7b59bba45c5d3ff83853330c86eb90d26905dcb5eb38d053835fb5909f7eb1f9"
-        },
-        {
-          "role": "environment_lock",
-          "path": "conformance/attribution/mechanism_unit_change/reference.py.lock",
-          "sha256": "51922dd59df289399dd2df4115ec463599ffe5a1061205cfb695db97a9af7479"
-        },
-        {
-          "role": "assertion_source",
-          "path": "crates/antecedent-attribution/src/unit_change.rs",
-          "items": [
-            "fn pooled_stderr",
-            "fn pooled_stderr_is_per_player_root_sum_of_squares_over_n",
-            "fn unit_change",
-            "fn unit_change_attributes_parent",
-            "fn unit_change_does_not_depend_on_thread_count",
-            "fn unit_change_rejects_out_of_range_unit_row",
-            "fn unit_seed",
-            "fn units_draw_independent_permutation_streams",
-            "struct Fixture",
-            "struct UnitCase",
-            "struct UnitPayoff"
-          ],
-          "sha256": "629d89e079183dfc7eb977d55c909f62c7f97026b3bb9af9bcf1d5e23292c2a5"
-        }
-      ],
-      "fixture_payload_sha256": "8f42c42369ffb55a2e9334d3e487aaa2f7f0feee3ac6a6bb08ad1bbf97f1a0e8"
-    }
+    "historical_exposure": "The original values were pinned in an earlier import whose harness was not retained; this reference was written during this review from the fixture formula and declared inputs, with the executing assertion read to establish which values it compares and no product implementation source consulted. Who first derived the pinned numbers is unrecorded."
   },
   "unit_case": {
-    "x": [0.0, 1.0, 2.0],
+    "x": [
+      0.0,
+      1.0,
+      2.0
+    ],
     "reference_mean": 1.0,
-    "contributions": [-2.0, 0.0, 2.0],
+    "contributions": [
+      -2.0,
+      0.0,
+      2.0
+    ],
     "mean_contribution": 0.0
   },
   "mechanism_detection": {
     "baseline": "Y=1+2X",
     "comparison": "Y=6+2X",
-    "changed": ["y"],
-    "unchanged": ["x"]
+    "changed": [
+      "y"
+    ],
+    "unchanged": [
+      "x"
+    ]
   },
-  "tolerance": {"absolute": 1e-10}
+  "tolerance": {
+    "absolute": 1e-10
+  }
 }
