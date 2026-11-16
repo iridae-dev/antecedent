@@ -52,6 +52,7 @@ from _repo import load_toml
 from _rust_source import rust_mask
 from gate_recipe_obligations import matrix_alignment_problems
 from gate_retained_routes import retained_route_problems
+from generate_supported_route_tests import named as supported_route_tests
 from test_evidence import checked_execution_body_problems, closure
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -742,13 +743,24 @@ def main() -> None:
     )
     # Every supported route dispatches the lowered program compile attached.
     lowered_dispatch = "crates/antecedent/tests/lowered_dispatch.rs"
+    # The index ties every supported cell to one route; each route's own test executes its cells.
+    rows.append(
+        (
+            "compiler_path_supported_routes",
+            "crates/antecedent/tests/supported_compiler.rs",
+            "every_supported_cell_completes_the_compiler_path",
+        )
+    )
+    rows.extend(
+        (
+            f"compiler_path_route_{name}",
+            "crates/antecedent/tests/supported_compiler.rs",
+            f"compiler_path_{name}",
+        )
+        for name, *_ in supported_route_tests()
+    )
     rows.extend(
         [
-            (
-                "compiler_path_supported_routes",
-                "crates/antecedent/tests/supported_compiler.rs",
-                "every_supported_cell_completes_the_compiler_path",
-            ),
             (
                 "lowered_dispatch_refuses_unlowered_plan",
                 lowered_dispatch,
