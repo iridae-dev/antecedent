@@ -223,7 +223,10 @@ pub mod scientific;
 pub mod validate;
 
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
-pub use accepted::{AcceptedGraph, GraphClass, GraphRef, IntoAccepted, StructureProvenance};
+pub use accepted::{
+    AcceptedGraph, GraphClass, GraphRef, IntoAccepted, STRUCTURE_STAGE_ASSUMPTION_ID,
+    StructurePooling, StructureProvenance,
+};
 pub use analysis::api::*;
 #[doc(hidden)]
 pub use analysis::max_t_critical_value;

@@ -539,6 +539,47 @@ impl DmlAte {
             .map(Some)
     }
 
+    /// The cross-fitted per-arm AIPW score table of a prior-regularized outcome nuisance, on
+    /// any target population, with the assumption records the prior adds.
+    ///
+    /// The table is the population-free per-row object (`mu_a + 1{T=a}(Y - mu_a)/e_a`): the
+    /// caller weights it for its target. Unlike [`Self::score_table`] this builds the table for
+    /// a problem whose target is a custom distribution, so a prior-regularized estimate can be
+    /// standardized to a weighted population.
+    ///
+    /// # Errors
+    ///
+    /// No outcome prior declared, a non-binary treatment, a prior scope the route does not
+    /// cover, or a failed nuisance fit.
+    pub(crate) fn prior_score_table(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: &mut AssumptionSet,
+    ) -> Result<ScoreTable, EstimationError> {
+        let Some(prior) = &self.outcome_prior else {
+            return Err(EstimationError::data_msg("no outcome-nuisance prior is declared"));
+        };
+        if self.folds < 2 {
+            return Err(EstimationError::data_msg("DML requires at least two folds"));
+        }
+        require_binary_treatment(problem)?;
+        self.require_outcome_prior_scope()?;
+        let (nuisance, hydrated, names) = self.prior_nuisances(prior, problem, ctx)?;
+        for record in prior.assumptions(&hydrated, &names) {
+            assumptions.push(record);
+        }
+        let mut table = aipw_score_table(
+            problem,
+            &nuisance,
+            self.folds,
+            [self.outcome, self.treatment],
+            "dml",
+        )?;
+        table.nuisance_provenance = self.prior_provenance(prior, problem);
+        Ok(table)
+    }
+
     /// Refuse the combinations an outcome-nuisance prior does not cover.
     fn require_outcome_prior_scope(&self) -> Result<(), EstimationError> {
         if self.outcome_prior.is_none() {

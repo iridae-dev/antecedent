@@ -2348,3 +2348,66 @@ evidence_assertion = "a_pooled_dbn_posterior_is_the_hand_mixture_keyed_by_atom_a
 kind = "known_truth"
 fixtures = []
 why = "The bounded-lag template posterior pooled across series equals the hand mixture keyed by atom and lag mask, its lagged marginals are the means of the per-imputation ones, and posteriors over different lag windows are refused."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/composition_chain.rs"
+evidence_assertion = "the_chain_recovers_the_closed_form_population_effect_and_names_every_stage"
+kind = "known_truth"
+fixtures = []
+why = "A misclassified exposure with a validation subsample, a structure posterior with a declared prior pooled across the completed tables by the engine, outcome-nuisance estimation under a power-prior discount selected from each completed table, the structure-wise effects of a kernel-weighted target mixed by posterior weight with the between-structure variance and pooled by Rubin's rules recover the closed-form kernel-weighted mean of the planted modified effect within the stated tolerance, where the naive pipeline does not; the pooled result names the measurement, the structure search with its prior and pooling, the selected discount and the weighted target it consumed."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_posterior_weighted_target.rs"
+evidence_assertion = "the_route_equals_the_hand_mixture_over_the_answered_mass"
+kind = "known_truth"
+fixtures = []
+why = "A structure posterior studied for a kernel-weighted target equals the hand mixture of single-structure studies over the answered mass: an atom with no directed path from the treatment to the outcome contributes exactly zero, an atom the target's covariate cannot be adjusted in is reported as unanswered mass and not redistributed, and the published standard error is sqrt((sum w se)^2 + between-structure variance)."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/pooled_structure_and_prior_selection.rs"
+evidence_assertion = "the_pooled_accepted_posterior_is_the_engine_mixture_with_its_provenance"
+kind = "known_truth"
+fixtures = []
+why = "A structure posterior pooled over completed tables is the engine's equal-weight mixture atom for atom and is accepted with the search, its declared structure prior, the pooling rule, the imputation count and what produced the tables, whose digest changes with each."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/pooled_structure_and_prior_selection.rs"
+evidence_assertion = "a_study_on_the_pooled_posterior_carries_the_provenance_like_a_compiled_one"
+kind = "known_truth"
+fixtures = []
+why = "A study built on a pooled accepted posterior carries the pooled provenance in its contract exactly as one built on a single compiled run's posterior, and one built on the same atoms supplied by hand carries none."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/pooled_structure_and_prior_selection.rs"
+evidence_assertion = "the_study_selection_equals_the_selection_run_by_hand_on_the_same_design"
+kind = "known_truth"
+fixtures = []
+why = "The power-prior discount a study selects on its own table equals the selection run by hand on the same design, with the same composed prior and selection identity."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/pooled_structure_and_prior_selection.rs"
+evidence_assertion = "the_selection_is_recorded_and_a_diffuse_prior_leaves_the_weighted_estimate_unchanged"
+kind = "known_truth"
+fixtures = []
+why = "A prior-regularized cross-fitted AIPW estimate for a kernel-weighted target equals the unregularized one when the sources are diffuse, and the selected discount is recorded in the assumptions of the result."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_posterior_weighted_target.rs"
+evidence_assertion = "the_bayesian_route_equals_the_hand_mixture_of_per_structure_posteriors"
+kind = "known_truth"
+fixtures = []
+why = "Under Bayesian inference a structure posterior studied for a kernel-weighted target has the posterior mean of the hand mixture over the answered mass of the single-structure posteriors, with a structure that has no directed path from the treatment to the outcome a point mass at exactly zero (the model-based effect with treatment interactions centred at the weighted covariate means), and the mass of a structure the target cannot be estimated in is reported as unevaluable."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_posterior_weighted_target.rs"
+evidence_assertion = "every_refuter_re_estimates_the_targeted_effect_under_frequentist_inference"
+kind = "known_truth"
+fixtures = []
+why = "The random-common-cause and data-subset refuters of a structure posterior studied for a kernel-weighted target re-estimate the targeted effect through the study's own estimator, reporting the targeted value and not the all-rows effect; the placebo treatment centres on zero."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_posterior_weighted_target.rs"
+evidence_assertion = "every_refuter_re_estimates_the_targeted_effect_under_bayesian_inference"
+kind = "known_truth"
+fixtures = []
+why = "Under Bayesian inference the random-common-cause and data-subset refuters re-estimate the model-based effect on the declared target, reporting the targeted value and not the all-rows effect."

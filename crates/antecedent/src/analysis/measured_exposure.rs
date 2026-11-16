@@ -11,9 +11,15 @@
 //!    before any draw.
 //! 2. **Estimate** ([`PreparedMeasuredExposure::estimate`]) runs the caller's ordinary study on
 //!    every completed table (the exposure column replaced by the draw), takes each run's effect
-//!    and analytic variance, and pools them with Rubin's rules. The result carries the pooled
-//!    effect, its Rubin `t` interval (calibration `not_measured`), the within, between and total
-//!    variance and the estimate that takes the recorded column at face value.
+//!    and variance (any result that carries a point effect and a finite standard error: a
+//!    structure-posterior mixture, a population-targeted effect, a plain adjustment), and pools
+//!    them with Rubin's rules. The result carries the pooled effect, its Rubin `t` interval
+//!    (calibration `not_measured`), the within, between and total variance, the estimate that
+//!    takes the recorded column at face value and the stages the runs consumed.
+//!    [`PreparedMeasuredExposure::estimate_over_structures`] adds a structure search: the
+//!    posterior search runs on every completed table, the engine pools the posteriors into one
+//!    accepted posterior with its provenance, and the caller's study (built on
+//!    [`crate::StudyBuilder::accepted_graph_posterior`]) runs on every table over it.
 //! 3. **Export** ([`PreparedMeasuredExposure::export_draws`]) writes the draws as the library's
 //!    posterior artifact (one quantity per unit, one draw per imputation); [`consume_exposure_draws`]
 //!    reads them back against a declaration identity retained out of band.
@@ -23,7 +29,9 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ExecutionContext;
+use std::sync::Arc;
+
+use antecedent_core::{Assumption, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_estimate::measurement::{
     ExposureDraws, ExposureMeasurement, ImputationData, MeasuredEffect, MeasurementError,
@@ -32,6 +40,8 @@ use antecedent_estimate::measurement::{
 use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 
 use super::StudyBuilder;
+use super::structure_route::{AcceptedPosterior, DiscoverySpec};
+use crate::accepted::StructureProvenance;
 use crate::io::{
     CausalPosteriorWire, IoError, PosteriorQuantityWire, decode_causal_posterior_bytes,
     encode_posterior_artifact,
@@ -204,6 +214,49 @@ impl StudyBuilder {
     }
 }
 
+/// The stages a pooled result consumed, named by what each one declared.
+///
+/// The measurement is the declaration the draws were imputed from; the structure stage is the
+/// search the posterior came from, its structure prior and the pooling over the completed
+/// tables; every other stage (a weighted target population, a composed or selected outcome
+/// prior, a structure-posterior mixture) is the declaration the per-table runs recorded in the
+/// assumptions of their results.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChainProvenance {
+    /// What the draws were imputed from: kind, declaration identity, data identity and the
+    /// number of draws.
+    pub measurement: String,
+    /// The accepted posterior's provenance, when a structure search ran on the completed
+    /// tables.
+    pub structure: Option<Arc<StructureProvenance>>,
+    /// `(id, statement)` of every stage declaration the per-table results recorded, in first
+    /// appearance order and without repeats.
+    pub declarations: Vec<(String, String)>,
+}
+
+impl ChainProvenance {
+    /// Every stage the result consumed as one statement each: the measurement, the structure
+    /// search and its pooling, and each recorded declaration.
+    #[must_use]
+    pub fn statements(&self) -> Vec<String> {
+        let mut out = vec![self.measurement.clone()];
+        if let Some(structure) = &self.structure {
+            out.push(structure.statement());
+        }
+        out.extend(self.declarations.iter().map(|(_, statement)| statement.clone()));
+        out
+    }
+
+    /// The statement of the recorded declaration with this id, when the runs recorded one.
+    #[must_use]
+    pub fn declaration(&self, id: &str) -> Option<&str> {
+        self.declarations
+            .iter()
+            .find(|(declared, _)| declared == id)
+            .map(|(_, statement)| statement.as_str())
+    }
+}
+
 /// The pooled effect of a measured exposure.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MeasuredExposureEstimate {
@@ -213,18 +266,58 @@ pub struct MeasuredExposureEstimate {
     pub declaration_identity: String,
     /// Identity of the data the imputation read.
     pub data_identity: String,
+    /// The stages the per-table runs consumed.
+    pub provenance: ChainProvenance,
+    /// The mean over the completed tables of the posterior mass a structure-posterior run left
+    /// unanswered (unidentified, not evaluable for the declared target, or not evaluated); zero
+    /// when the runs were not over a structure posterior.
+    pub unanswered_mass: f64,
 }
 
-fn effect_of(result: &StudyResult) -> Result<(f64, f64), MeasuredExposureError> {
-    let effect = result
-        .estimate()
-        .as_effect()
-        .ok_or_else(|| input("a measured exposure is pooled over scalar effects"))?;
-    let se = effect.uncertainty.analytic.se;
+/// The point effect and its variance of one run, with the recorded stage declarations and the
+/// mass its structure mixture left unanswered.
+struct RunEffect {
+    point: f64,
+    variance: f64,
+    declarations: Vec<(String, String)>,
+    unanswered_mass: f64,
+}
+
+fn run_effect(result: &StudyResult) -> Result<RunEffect, MeasuredExposureError> {
+    let effect = result.estimate().as_effect().ok_or_else(|| {
+        input("a measured exposure is pooled over results that carry a point effect")
+    })?;
+    let analytic = effect.uncertainty.analytic.se;
+    let se = if analytic.is_finite() {
+        analytic
+    } else {
+        effect.uncertainty.bootstrap.se.filter(|se| se.is_finite()).unwrap_or(f64::NAN)
+    };
     if !(effect.ate.is_finite() && se.is_finite()) {
         return Err(input("a per-draw effect or standard error is not finite"));
     }
-    Ok((effect.ate, se * se))
+    let declarations = effect
+        .provenance
+        .assumptions
+        .entries
+        .iter()
+        .filter_map(|record| match &record.assumption {
+            Assumption::ParametricRestriction(declared) => {
+                Some((declared.id.to_string(), declared.description.to_string()))
+            }
+            Assumption::PriorRestriction(declared) => {
+                Some((declared.id.to_string(), declared.description.to_string()))
+            }
+            Assumption::Custom { id, description } => {
+                Some((id.to_string(), description.to_string()))
+            }
+            _ => None,
+        })
+        .collect();
+    let unanswered_mass = result.structural_response.as_ref().map_or(0.0, |mixture| {
+        mixture.unidentified_mass + mixture.unevaluable_mass + mixture.subsampled_out_mass
+    });
+    Ok(RunEffect { point: effect.ate, variance: se * se, declarations, unanswered_mass })
 }
 
 impl PreparedMeasuredExposure {
@@ -257,25 +350,98 @@ impl PreparedMeasuredExposure {
     /// the pooled result carries that estimate as the naive effect.
     ///
     /// # Errors
-    /// The first refusal of `analyse`, a result that is not a scalar effect, or pooling that
-    /// cannot proceed.
+    /// The first refusal of `analyse`, a result without a point effect and a finite standard
+    /// error, or pooling that cannot proceed.
     pub fn estimate(
         &self,
+        analyse: impl FnMut(&TabularData) -> Result<StudyResult, CausalError>,
+    ) -> Result<MeasuredExposureEstimate, MeasuredExposureError> {
+        self.pool(analyse, true, None)
+    }
+
+    /// The posterior over structures of the completed tables: `spec` runs on every one, the
+    /// engine pools the per-table posteriors with equal weight, and the pooled posterior comes
+    /// back accepted, with the search, its structure prior, the pooling and this measurement as
+    /// provenance. Hand it to a study with [`crate::StudyBuilder::accepted_graph_posterior`].
+    ///
+    /// `variables` are the searched columns, in the table's column order.
+    ///
+    /// # Errors
+    /// A method that does not pool, or a search failure on any completed table.
+    pub fn structure_posterior(
+        &self,
+        spec: &DiscoverySpec,
+        variables: &[VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<AcceptedPosterior, MeasuredExposureError> {
+        let tables = (0..self.draws.draw_count)
+            .map(|k| self.completed_table(k))
+            .collect::<Result<Vec<_>, _>>()?;
+        let source = self.measurement_statement();
+        spec.pooled_posterior(&tables, variables, Some(&source), ctx)
+            .map_err(MeasuredExposureError::Analysis)
+    }
+
+    /// The structure search on the completed tables and the effect over the pooled posterior,
+    /// pooled by Rubin's rules.
+    ///
+    /// [`Self::structure_posterior`] runs once; `analyse` then runs on every completed table
+    /// with the accepted posterior, and builds its study on it (a posterior-mixture study,
+    /// optionally for a declared target population, whose uncertainty carries the
+    /// between-structure spread). The naive effect is not computed: the recorded column has no
+    /// structure search of its own.
+    ///
+    /// # Errors
+    /// The refusals of [`Self::structure_posterior`] and [`Self::estimate`].
+    pub fn estimate_over_structures(
+        &self,
+        spec: &DiscoverySpec,
+        variables: &[VariableId],
+        ctx: &ExecutionContext,
+        mut analyse: impl FnMut(&TabularData, &AcceptedPosterior) -> Result<StudyResult, CausalError>,
+    ) -> Result<MeasuredExposureEstimate, MeasuredExposureError> {
+        let posterior = self.structure_posterior(spec, variables, ctx)?;
+        self.pool(|table| analyse(table, &posterior), false, Some(&posterior))
+    }
+
+    fn measurement_statement(&self) -> String {
+        format!(
+            "exposure measurement: {} declaration {} on data {}, {} draws (seed {})",
+            self.draws.kind,
+            self.draws.declaration_identity,
+            self.draws.data_identity,
+            self.draws.draw_count,
+            self.draws.seed
+        )
+    }
+
+    fn pool(
+        &self,
         mut analyse: impl FnMut(&TabularData) -> Result<StudyResult, CausalError>,
+        with_naive: bool,
+        posterior: Option<&AcceptedPosterior>,
     ) -> Result<MeasuredExposureEstimate, MeasuredExposureError> {
         let mut points = Vec::with_capacity(self.draws.draw_count);
         let mut variances = Vec::with_capacity(self.draws.draw_count);
+        let mut declarations: Vec<(String, String)> = Vec::new();
+        let mut unanswered = 0.0;
         for k in 0..self.draws.draw_count {
             let table = self.completed_table(k)?;
             let result = analyse(&table).map_err(MeasuredExposureError::Analysis)?;
-            let (point, variance) = effect_of(&result)?;
-            points.push(point);
-            variances.push(variance);
+            let run = run_effect(&result)?;
+            points.push(run.point);
+            variances.push(run.variance);
+            unanswered += run.unanswered_mass;
+            for declared in run.declarations {
+                if !declarations.iter().any(|(id, _)| id == &declared.0) {
+                    declarations.push(declared);
+                }
+            }
         }
-        let naive = if self.columns.has_column(&self.request.exposure) {
+        let naive = if with_naive && self.columns.has_column(&self.request.exposure) {
             let table = self.columns.table()?;
             let result = analyse(&table).map_err(MeasuredExposureError::Analysis)?;
-            Some(effect_of(&result)?.0)
+            Some(run_effect(&result)?.point)
         } else {
             None
         };
@@ -284,6 +450,12 @@ impl PreparedMeasuredExposure {
             effect,
             declaration_identity: self.draws.declaration_identity.clone(),
             data_identity: self.draws.data_identity.clone(),
+            provenance: ChainProvenance {
+                measurement: self.measurement_statement(),
+                structure: posterior.map(|accepted| Arc::new(accepted.provenance().clone())),
+                declarations,
+            },
+            unanswered_mass: unanswered / self.draws.draw_count.max(1) as f64,
         })
     }
 

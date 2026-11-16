@@ -329,6 +329,17 @@ fn build_outcome_prior(
     let artifact = dict.get_item("prior_artifact")?.filter(|value| !value.is_none());
     let mapping = dict.get_item("prior_mapping")?.filter(|value| !value.is_none());
     let composed = dict.get_item("composed_prior")?.filter(|value| !value.is_none());
+    let selection = dict.get_item("alpha_selection")?.filter(|value| !value.is_none());
+    if let Some(selection) = selection {
+        if artifact.is_some() || mapping.is_some() || composed.is_some() {
+            return Err(crate::value_err(
+                "estimator_config['alpha_selection'] is the whole prior: it takes no \
+                 prior_artifact, prior_mapping or composed_prior",
+            ));
+        }
+        return crate::prior_bank::outcome_prior_from_alpha_selection(selection.cast::<PyDict>()?)
+            .map(Some);
+    }
     if let Some(composed) = composed {
         if artifact.is_some() || mapping.is_some() {
             return Err(crate::value_err(

@@ -1616,12 +1616,28 @@ name = "weighted_target_effect"
 path = "tests/weighted_target_effect.rs"
 
 [[test]]
+name = "composition_chain"
+path = "tests/composition_chain.rs"
+
+[[test]]
 name = "weighted_target_effect_calibration"
 path = "tests/weighted_target_effect_calibration.rs"
 
 [[test]]
 name = "weighted_target_trial_transport"
 path = "tests/weighted_target_trial_transport.rs"
+
+[[test]]
+name = "graph_posterior_weighted_target"
+path = "tests/graph_posterior_weighted_target.rs"
+
+[[test]]
+name = "graph_posterior_weighted_target_calibration"
+path = "tests/graph_posterior_weighted_target_calibration.rs"
+
+[[test]]
+name = "pooled_structure_and_prior_selection"
+path = "tests/pooled_structure_and_prior_selection.rs"
 
 [[test]]
 name = "weighted_target_transport_calibration"

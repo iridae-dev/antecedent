@@ -261,6 +261,31 @@ impl BayesianGComputationAte {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedBayesianProblem, EstimationError> {
+        self.prepare_for_population(data, estimand, query, None)
+    }
+
+    /// [`Self::prepare`] for a query whose target population may be a custom distribution
+    /// registered in `registry` (a declared weighted target).
+    ///
+    /// The model-based effect on a weighted population is the treatment coefficient of the
+    /// outcome model with the treatment-by-covariate interactions centred at the weighted
+    /// means of the covariates: averaged over the weights the centred interactions vanish, so
+    /// on the identity link `(active - control) b_T` is the contrast on that population for
+    /// every posterior draw. The weights must depend only on the adjustment set, whose
+    /// covariates carry the interactions.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::prepare`], and a custom target without its registered weights, with weights
+    /// that depend on a variable outside the adjustment set, with all-zero weights on the
+    /// complete rows, or under a link other than Gaussian identity.
+    pub fn prepare_for_population(
+        &self,
+        data: &TabularData,
+        estimand: &IdentifiedEstimand,
+        query: &AverageEffectQuery,
+        registry: Option<&antecedent_core::PopulationRegistry>,
+    ) -> Result<PreparedBayesianProblem, EstimationError> {
         require_explicit_override(
             self.overlap,
             "BayesianGComputationAte requires ExplicitOverride overlap policy",
@@ -277,8 +302,38 @@ impl BayesianGComputationAte {
                 "Bayesian g-comp does not support effect modifiers",
             ));
         }
+        let weighted = if let TargetPopulation::CustomDistribution(id) = &query.target_population {
+            let depends =
+                registry.and_then(|r| r.distribution_dependencies(*id)).ok_or_else(|| {
+                    EstimationError::unsupported_coded(
+                        antecedent_core::reason_code!("required_option_missing"),
+                        "a custom target needs its registered weights with declared dependencies",
+                    )
+                })?;
+            if depends.iter().any(|v| *v == query.treatment || !estimand.adjustment_set.contains(v))
+            {
+                return Err(EstimationError::unsupported(
+                    "Bayesian g-comp custom weights must depend only on the certified adjustment set",
+                ));
+            }
+            if self.effective_likelihood() != BayesLikelihood::GaussianIdentity {
+                return Err(EstimationError::refused(
+                    antecedent_core::reason_code!("population_not_estimable"),
+                    "the Bayesian model-based effect on a weighted population is the treatment \
+                     coefficient of the Gaussian identity outcome model; use that model",
+                ));
+            }
+            let selection = query
+                .target_population
+                .resolve(data.row_count(), None, registry)
+                .map_err(|error| EstimationError::data_msg(&error.to_string()))?;
+            selection.weights
+        } else {
+            None
+        };
         let reference_arm = match &query.target_population {
             TargetPopulation::AllObserved => None,
+            TargetPopulation::CustomDistribution(_) => None,
             TargetPopulation::Treated => Some(ReferenceArm::Active),
             TargetPopulation::Untreated => Some(ReferenceArm::Control),
             _ => {
@@ -328,15 +383,24 @@ impl BayesianGComputationAte {
         let coef_names = coefficient_names_from_design(&design, treatment_name, |id| {
             schema.get(id).ok().map(|v| Arc::clone(&v.name))
         });
-        let (design, coef_names) = match reference_arm {
-            Some(arm) => {
+        let (design, coef_names) = match (reference_arm, weighted) {
+            (None, Some(full)) => {
+                let aligned: Vec<f64> = row_mask
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, keep)| **keep)
+                    .map(|(i, _)| full.get(i).copied().unwrap_or(0.0))
+                    .collect();
+                center_interactions_on_weights(&design, &coef_names, &aligned)?
+            }
+            (Some(arm), _) => {
                 let level = match arm {
                     ReferenceArm::Active => active,
                     ReferenceArm::Control => control,
                 };
                 center_interactions_on_arm(&design, &coef_names, level)?
             }
-            None => (design, coef_names),
+            (None, None) => (design, coef_names),
         };
         Ok(PreparedBayesianProblem {
             design,
@@ -1446,6 +1510,57 @@ fn center_interactions_on_arm(
         let mean =
             values.iter().zip(&in_arm).filter(|(_, flag)| **flag).map(|(v, _)| *v).sum::<f64>()
                 / arm_rows as f64;
+        matrix.extend(treatment.iter().zip(values).map(|(t, x)| t * (x - mean)));
+        roles.push(roles[col]);
+        let base = names.get(col).map_or("covariate", |name| name.as_ref());
+        all_names
+            .push(Arc::from(format!("treatment_x_centered_{}", base.trim_start_matches("coef_"))));
+    }
+    let ncols = roles.len();
+    let widened = CompiledDesign {
+        ncols,
+        matrix: Arc::from(matrix),
+        columns: antecedent_stats::DesignColumnMap::from_roles(roles),
+        ..design.clone()
+    };
+    Ok((widened, Arc::from(all_names)))
+}
+
+/// [`center_interactions_on_arm`] with each covariate centred at its weighted mean over the
+/// complete rows: the model-based contrast on the weighted population.
+fn center_interactions_on_weights(
+    design: &CompiledDesign,
+    names: &Arc<[Arc<str>]>,
+    weights: &[f64],
+) -> Result<CenteredDesign, EstimationError> {
+    let n = design.nrows;
+    let mass: f64 = weights.iter().sum();
+    if weights.len() != n || !(mass.is_finite() && mass > 0.0) || weights.iter().any(|w| *w < 0.0) {
+        return Err(EstimationError::data_msg(
+            "the target weights are not non-negative with positive mass on the complete rows",
+        ));
+    }
+    let treatment = &design.matrix[n..2 * n];
+    let covariate_cols: Vec<usize> = design
+        .columns
+        .iter()
+        .enumerate()
+        .filter(|(_, column)| matches!(column.role, DesignColumnRole::Covariate(_)))
+        .map(|(index, _)| index)
+        .collect();
+    if design.ncols + covariate_cols.len() >= n {
+        return Err(EstimationError::data_msg(
+            "the Bayesian model-based effect on a weighted population needs more rows than \
+             coefficients",
+        ));
+    }
+    let mut matrix = design.matrix.to_vec();
+    let mut roles: Vec<DesignColumnRole> =
+        design.columns.iter().map(|column| column.role).collect();
+    let mut all_names: Vec<Arc<str>> = names.to_vec();
+    for &col in &covariate_cols {
+        let values = &design.matrix[col * n..(col + 1) * n];
+        let mean = values.iter().zip(weights).map(|(v, w)| v * w).sum::<f64>() / mass;
         matrix.extend(treatment.iter().zip(values).map(|(t, x)| t * (x - mean)));
         roles.push(roles[col]);
         let base = names.get(col).map_or("covariate", |name| name.as_ref());

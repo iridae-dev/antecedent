@@ -121,8 +121,14 @@ def _validate_bootstrap(bootstrap: int | None) -> None:
 
 def _validate_outcome_prior(prior_from: object, mapping: object) -> None:
     """Fail fast on an outcome-nuisance prior the native parser would refuse less specifically."""
-    from .priors import ComposedPrior, PriorMapping  # noqa: PLC0415
+    from .priors import ComposedPrior, PriorMapping, SelectAlpha  # noqa: PLC0415
 
+    if isinstance(prior_from, SelectAlpha):
+        if mapping is not None:
+            raise CausalValueError(
+                "a SelectAlpha prior names its coefficients itself; declare no mapping"
+            )
+        return
     if isinstance(prior_from, ComposedPrior):
         if mapping is not None:
             if not isinstance(mapping, PriorMapping):
@@ -145,8 +151,10 @@ def _validate_outcome_prior(prior_from: object, mapping: object) -> None:
 
 def _outcome_prior_wire(prior_from: object, mapping: object) -> dict[str, Any]:
     """The estimator-config entries of an outcome-nuisance prior (artifact or composed)."""
-    from .priors import ComposedPrior  # noqa: PLC0415
+    from .priors import ComposedPrior, SelectAlpha  # noqa: PLC0415
 
+    if isinstance(prior_from, SelectAlpha):
+        return {"alpha_selection": prior_from.to_native_dict()}
     if isinstance(prior_from, ComposedPrior):
         composed = prior_from
         if mapping is not None:

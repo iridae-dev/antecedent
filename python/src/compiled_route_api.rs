@@ -236,7 +236,9 @@ fn hex(bytes: &[u8; 32]) -> String {
 }
 
 /// The structure-provenance keys of a contract, prefixed `structure_provenance.`.
-fn provenance_map(provenance: &antecedent::StructureProvenance) -> HashMap<String, String> {
+pub(crate) fn provenance_map(
+    provenance: &antecedent::StructureProvenance,
+) -> HashMap<String, String> {
     let mut out = HashMap::new();
     out.insert("method".to_owned(), provenance.method.to_string());
     out.insert("inference".to_owned(), provenance.inference.to_string());
@@ -250,6 +252,12 @@ fn provenance_map(provenance: &antecedent::StructureProvenance) -> HashMap<Strin
     out.insert("resolved_marks".to_owned(), provenance.resolved_marks.to_string());
     if let Some(statement) = &provenance.structure_prior {
         out.insert("structure_prior".to_owned(), statement.to_string());
+    }
+    if let Some(pooling) = &provenance.pooling {
+        out.insert("pooling_method".to_owned(), pooling.method.to_string());
+        out.insert("pooled_imputations".to_owned(), pooling.imputations.to_string());
+        out.insert("pooling_source".to_owned(), pooling.source.to_string());
+        out.insert("statement".to_owned(), provenance.statement());
     }
     out.insert("digest".to_owned(), hex(&provenance.digest()));
     out

@@ -8,6 +8,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub use super::alpha_selection::{OutcomePriorSelection, ResolvedOutcomePrior};
 pub use super::structure_route::{
     AcceptedPosterior, AttributionOutcome, AttributionPayload, CompiledExecution,
     DiscoveredStructure, DiscoveryPayload, DiscoverySpec, MechanismProgram, SimulationOutcome,

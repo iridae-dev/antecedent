@@ -1757,6 +1757,64 @@ def select_alpha_linear(
 
 
 @dataclass(frozen=True)
+class SelectAlpha:
+    """A power-prior discount selected from the table a study analyses.
+
+    ``Aipw(prior_from=SelectAlpha(...))`` and ``DML(prior_from=SelectAlpha(...))`` declare the
+    external ``sources`` of the outcome regression and the rule that chooses their common
+    discount. The study resolves the declaration natively against its own table (every
+    completed table of an imputation selects its own discount), on the design the outcome
+    regression uses: ``coefficient_names`` (``intercept``, then ``coef_<column>`` for each
+    adjusted column) are the columns, the outcome is the response and the mean of the design is
+    the reported functional. The selection (criterion, selected discount, level, interval
+    semantics) enters the prior's identity and is recorded in the assumptions of every result
+    that used it. The prior shapes the efficiency of the estimate and never its
+    identification.
+    """
+
+    sources: Sequence[ExternalPriorSourceSpec]
+    baseline: tuple[Sequence[float], Sequence[float]]
+    coefficient_names: Sequence[str]
+    criterion: Literal["empirical_bayes", "cross_validated"] = "empirical_bayes"
+    folds: int = 5
+    grid: Sequence[float] | None = None
+    level: float = 0.95
+    discrepancy_bound: float | None = None
+    seed: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.sources:
+            raise CausalValueError("SelectAlpha needs at least one source")
+        names = tuple(self.coefficient_names)
+        if not names or names[0] != "intercept":
+            raise CausalValueError(
+                "SelectAlpha names its coefficients `intercept`, then `coef_<column>` for each "
+                "adjusted column"
+            )
+        object.__setattr__(self, "coefficient_names", names)
+        mean, variance = self.baseline
+        if len(mean) != len(names) or len(variance) != len(names):
+            raise CausalValueError("the baseline names one mean and one variance per coefficient")
+
+    def to_native_dict(self) -> dict[str, Any]:
+        mean, variance = self.baseline
+        return {
+            "sources": [{**s.to_dict(), "alpha": 1.0} for s in self.sources],
+            "baseline_mean": [float(m) for m in mean],
+            "baseline_variance": [float(v) for v in variance],
+            "coefficient_names": list(self.coefficient_names),
+            "criterion": self.criterion,
+            "folds": int(self.folds),
+            "grid": None if self.grid is None else [float(g) for g in self.grid],
+            "level": float(self.level),
+            "discrepancy_bound": None
+            if self.discrepancy_bound is None
+            else float(self.discrepancy_bound),
+            "seed": int(self.seed),
+        }
+
+
+@dataclass(frozen=True)
 class BetaSource:
     """Source counts of a Beta-Binomial power prior: ``successes`` of ``trials`` at discount ``alpha``."""
 
@@ -2023,6 +2081,7 @@ __all__ = [
     "PriorMapping",
     "PriorSource",
     "PriorSourceMeta",
+    "SelectAlpha",
     "SelectedAlpha",
     "TargetOverlap",
     "TransportKernel",

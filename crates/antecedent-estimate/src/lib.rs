@@ -312,7 +312,9 @@ pub use descriptive_comparison::{
     raw_contrast, refuse_column_attribution, transform_mean_pair,
 };
 pub use dml::{DmlAte, DmlScore};
-pub use dml_outcome_prior::{NamedOutcomePrior, OUTCOME_PRIOR_ASSUMPTION_ID, OutcomePriorSource};
+pub use dml_outcome_prior::{
+    AlphaSelectionRequest, NamedOutcomePrior, OUTCOME_PRIOR_ASSUMPTION_ID, OutcomePriorSource,
+};
 pub use dr::{CateProfile, DrLearner, PointwiseCateEstimate};
 pub use empirical_table::{
     BayesianTransportLawProvider, EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP, EMPIRICAL_TABLE_PLUGIN,

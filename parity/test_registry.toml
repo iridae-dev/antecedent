@@ -24026,6 +24026,27 @@ path = "crates/antecedent/tests/weighted_target_trial_transport.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "graph-posterior-weighted-target"
+crate = "antecedent"
+cargo_target = "graph_posterior_weighted_target"
+path = "crates/antecedent/tests/graph_posterior_weighted_target.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-posterior-weighted-target-calibration"
+crate = "antecedent"
+cargo_target = "graph_posterior_weighted_target_calibration"
+path = "crates/antecedent/tests/graph_posterior_weighted_target_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "pooled-structure-and-prior-selection"
+crate = "antecedent"
+cargo_target = "pooled_structure_and_prior_selection"
+path = "crates/antecedent/tests/pooled_structure_and_prior_selection.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "weighted-target-transport-calibration"
 crate = "antecedent"
 cargo_target = "weighted_target_transport_calibration"
@@ -24101,3 +24122,18 @@ crate = "antecedent"
 cargo_target = "named_composed_prior"
 path = "crates/antecedent/tests/named_composed_prior.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "composition-chain"
+crate = "antecedent"
+cargo_target = "composition_chain"
+path = "crates/antecedent/tests/composition_chain.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "composition-chain-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_composition_chain.py"
+gates = ["inventory"]
+why = "One planted dataset through measured exposure, pooled structure posterior with a structure prior, composed-prior estimation and a kernel-weighted target, against the closed-form population effect."

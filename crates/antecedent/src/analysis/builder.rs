@@ -355,6 +355,8 @@ pub struct StudyBuilder {
     declared: Declarations,
     /// A declared weighted target population, resolved against the table at build.
     weighted_target: Option<super::weighted_target::WeightedTargetDeclaration>,
+    /// A declared outcome-nuisance prior whose discount is selected from the table at build.
+    outcome_prior_selection: Option<super::alpha_selection::OutcomePriorSelection>,
     /// Transport trial and interference network inputs.
     exposure: ExposureInputs,
     /// Inference mode, validation suite and bootstrap budget.
@@ -637,6 +639,7 @@ impl StudyBuilder {
             caller_graph: None,
             declared: Declarations::default(),
             weighted_target: None,
+            outcome_prior_selection: None,
             exposure: ExposureInputs::default(),
             settings: InferenceSettings::omitted(Self::OMITTED_REFUTE, Self::OMITTED_BOOTSTRAP),
             execution: ExecutionSettings::default(),
@@ -1293,6 +1296,25 @@ impl StudyBuilder {
         self
     }
 
+    /// Declare the outcome-nuisance prior of a cross-fitted AIPW or DML estimator as external
+    /// sources whose common power-prior discount is selected from the table the study analyses.
+    ///
+    /// At build the selection runs on that table (see
+    /// [`super::alpha_selection::OutcomePriorSelection`]) and the composed prior at the
+    /// selected discount becomes the estimator's outcome prior; the selection (criterion,
+    /// discount, level and interval semantics) is recorded in the assumptions of the result and
+    /// in the prior's identity. A study built on each completed table of an imputation selects
+    /// on that table. Requires an `AipwAte` or `DmlAte` estimator declared without a prior, an
+    /// average-effect query and a tabular table; anything else is refused at build.
+    #[must_use]
+    pub fn outcome_prior_selection(
+        mut self,
+        selection: super::alpha_selection::OutcomePriorSelection,
+    ) -> Self {
+        self.outcome_prior_selection = Some(selection);
+        self
+    }
+
     /// Append custom effect validators ( slow path).
     #[must_use]
     pub fn custom_validators(mut self, validators: Vec<Arc<dyn CustomEffectValidator>>) -> Self {
@@ -1459,6 +1481,69 @@ impl StudyBuilder {
         Ok(())
     }
 
+    /// Select the discount of a declared outcome-nuisance prior on the table and hand the
+    /// composed prior to the estimator.
+    fn resolve_outcome_prior_selection(&mut self) -> Result<(), CausalError> {
+        let declared = match self.declared.estimator_spec.as_ref() {
+            Some(EstimatorSpec::Aipw(cfg)) => {
+                cfg.outcome_prior.as_ref().and_then(|prior| prior.selection.clone())
+            }
+            Some(EstimatorSpec::Dml(cfg)) => {
+                cfg.outcome_prior.as_ref().and_then(|prior| prior.selection.clone())
+            }
+            _ => None,
+        };
+        let selection = match (self.outcome_prior_selection.take(), declared) {
+            (None, None) => return Ok(()),
+            (Some(_), Some(_)) => {
+                return Err(CausalError::Conflict {
+                    what: "outcome_prior_selection",
+                    detail: "the estimator already declares an alpha selection as its prior",
+                });
+            }
+            (Some(selection), None) => selection,
+            (None, Some(request)) => {
+                super::alpha_selection::OutcomePriorSelection::from_request(&request)?
+            }
+        };
+        let DataInput::Tabular(table) = &self.data else {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "an outcome-prior selection reads the rows of one table"
+            ));
+        };
+        let Some(CausalQuery::AverageEffect(query)) = &self.query else {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "an outcome-prior selection applies to an average effect"
+            ));
+        };
+        let resolved = selection.resolve(table, query.outcome)?;
+        let refuse = || {
+            crate::unsupported_reason!(
+                "option_not_applicable",
+                "an outcome-prior selection chooses the outcome prior of an AipwAte or DmlAte \
+                 estimator declared without one"
+            )
+        };
+        match self.declared.estimator_spec.as_mut() {
+            Some(EstimatorSpec::Aipw(cfg)) => {
+                if cfg.outcome_prior.as_ref().is_some_and(|prior| prior.selection.is_none()) {
+                    return Err(refuse());
+                }
+                cfg.outcome_prior = Some(resolved.source);
+            }
+            Some(EstimatorSpec::Dml(cfg)) => {
+                if cfg.outcome_prior.as_ref().is_some_and(|prior| prior.selection.is_none()) {
+                    return Err(refuse());
+                }
+                cfg.outcome_prior = Some(resolved.source);
+            }
+            _ => return Err(refuse()),
+        }
+        Ok(())
+    }
+
     fn finish(mut self, inspect_only: bool) -> Result<Study, CausalError> {
         if let Some(error) = self.discovery_query_error.take() {
             return Err(CausalError::from(error));
@@ -1471,6 +1556,7 @@ impl StudyBuilder {
         }
         self.apply_bootstrap_interval()?;
         self.resolve_weighted_target()?;
+        self.resolve_outcome_prior_selection()?;
         if let (Some(CausalQuery::SyntheticControl(query)), InferenceMode::Frequentist) =
             (self.query.as_mut(), &self.settings.inference)
         {
