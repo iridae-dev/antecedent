@@ -217,6 +217,19 @@ pub enum DiscoveryMethod {
         /// Soft weighting of the screened candidates.
         weight: ScreenWeight,
     },
+    /// CI screen of every variable, then exact edge marginals of the focus variables'
+    /// skeleton neighbourhood under the screen's per-edge prior. The marginals are conditional
+    /// on the screen.
+    ScreenedExactMarginals {
+        /// Variables of interest; the exact set grows outward from them.
+        focus: Arc<[VariableId]>,
+        /// Most variables the exact computation runs on (at most the exact ceiling).
+        max_variables: u32,
+        /// Prior inclusion probability of an edge between a pair the screen kept.
+        in_probability: f64,
+        /// Prior inclusion probability of an edge between any other pair.
+        out_probability: f64,
+    },
     /// Bounded-lag DBN template posterior.
     DbnPosterior {
         /// Sample by MCMC even where exact enumeration is feasible.
@@ -268,6 +281,7 @@ impl DiscoveryMethod {
             Self::OrderMcmc { .. } => "order_mcmc",
             Self::StructureMcmc => "structure_mcmc",
             Self::CiScreenedPosterior { .. } => "ci_screened_posterior",
+            Self::ScreenedExactMarginals { .. } => "screened_exact_marginals",
             Self::DbnPosterior { .. } => "dbn_posterior",
             Self::ClassPosterior { .. } => "class_posterior",
             Self::ExactPagPosterior => "exact_pag_posterior",
@@ -282,6 +296,7 @@ impl DiscoveryMethod {
         match self {
             Self::ExactDagPosterior
             | Self::ExactDagMarginals
+            | Self::ScreenedExactMarginals { .. }
             | Self::OrderMcmc { .. }
             | Self::StructureMcmc
             | Self::CiScreenedPosterior { .. }
@@ -319,7 +334,9 @@ impl DiscoveryMethod {
             | Self::OrderMcmc { .. }
             | Self::StructureMcmc
             | Self::CiScreenedPosterior { .. } => DiscoveredClass::DagPosterior,
-            Self::ExactDagMarginals => DiscoveredClass::DagEdgeMarginals,
+            Self::ExactDagMarginals | Self::ScreenedExactMarginals { .. } => {
+                DiscoveredClass::DagEdgeMarginals
+            }
             Self::DbnPosterior { .. } => DiscoveredClass::TemporalDagPosterior,
             Self::ClassPosterior { .. } => DiscoveredClass::CpdagPosterior,
             Self::ExactPagPosterior | Self::PagMcmc => DiscoveredClass::PagPosterior,
@@ -359,6 +376,7 @@ impl DiscoveryMethod {
                     | Self::JpcmciPlus
                     | Self::Rpcmci { .. }
                     | Self::CiScreenedPosterior { .. }
+                    | Self::ScreenedExactMarginals { .. }
             ),
         }
     }
@@ -435,6 +453,16 @@ impl CanonicalEncode for DiscoveryMethod {
             }
             Self::DbnPosterior { force_mcmc } => {
                 writer.word(17).word(flag(*force_mcmc));
+            }
+            Self::ScreenedExactMarginals {
+                focus,
+                max_variables,
+                in_probability,
+                out_probability,
+            } => {
+                writer.word(22).word(u64::from(*max_variables));
+                writer.real(*in_probability).real(*out_probability);
+                encode_variables(writer, focus);
             }
             Self::ExactPagPosterior => {
                 writer.word(20);

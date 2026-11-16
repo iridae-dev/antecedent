@@ -74,6 +74,11 @@ pub struct ExactDagMarginals {
     /// The Gaussian score is -BIC/2 and counts each fitted residual variance. This is
     /// not an exact marginal likelihood.
     pub log_evidence: f64,
+    /// The variables the marginals index, in order, when they are a selection of a larger
+    /// screened set; `None` when they cover every variable of the call.
+    pub variables: Option<Arc<[VariableId]>>,
+    /// Statement that the marginals are conditional on a CI screen, when they are.
+    pub conditional_on_screen: Option<Arc<str>>,
 }
 
 /// Exact `P(i → j)` of the Gaussian-BIC DAG posterior of `variables`.
@@ -95,7 +100,7 @@ pub fn exact_dag_marginals(
     score_family: GraphScoreFamily,
     ctx: &ExecutionContext,
 ) -> Result<ExactDagMarginals, DiscoveryError> {
-    prior.validate_edge_inclusion()?;
+    prior.validate_for(variables)?;
     prior.constraints.validate()?;
     let n = variables.len();
     if n == 0 {
@@ -243,6 +248,8 @@ fn marginals_from_factors(
         n_vars: n,
         edge_marginals: Arc::from(marginals),
         log_evidence: total.ln() + best[sets - 1],
+        variables: None,
+        conditional_on_screen: None,
     })
 }
 

@@ -26,6 +26,7 @@ use antecedent_state::GraphScoreFamily;
 
 use crate::adjacency_mask::{AdjacencyMask, LagMask, edge_bits_fit, parent_bits};
 use crate::constraints::DiscoveryConstraints;
+use crate::edge_prior::{EdgePriors, SoftTiers};
 use crate::error::DiscoveryError;
 use crate::result::LaggedLink;
 
@@ -36,12 +37,33 @@ use crate::result::LaggedLink;
 pub const EXACT_ENUM_MAX_NODES: usize = 6;
 
 /// Prior over DAG structures for Bayesian discovery.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct GraphPrior {
     /// Discovery constraints (forbidden / required / max-parents / tiers).
     pub constraints: DiscoveryConstraints,
     /// Independent Bernoulli edge-inclusion probability (`None` = uniform over valid DAGs).
     pub edge_inclusion: Option<f64>,
+    /// Sparse per-edge inclusion probabilities (`None` = every edge uses `edge_inclusion`).
+    pub edge_priors: Option<EdgePriors>,
+    /// A prior penalty on edges against a declared tier order, short of forbidding them
+    /// (`None` = none). Hard tiers in `constraints` win over it.
+    pub soft_tiers: Option<SoftTiers>,
+}
+
+/// The `Debug` text is part of the configuration digest of a discovery query, so a prior that
+/// sets neither per-edge factor prints exactly as it did before those fields existed.
+impl std::fmt::Debug for GraphPrior {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug = f.debug_struct("GraphPrior");
+        debug.field("constraints", &self.constraints).field("edge_inclusion", &self.edge_inclusion);
+        if self.edge_priors.is_some() {
+            debug.field("edge_priors", &self.edge_priors);
+        }
+        if self.soft_tiers.is_some() {
+            debug.field("soft_tiers", &self.soft_tiers);
+        }
+        debug.finish()
+    }
 }
 
 impl Default for GraphPrior {
@@ -63,6 +85,8 @@ impl GraphPrior {
                 ..DiscoveryConstraints::default()
             },
             edge_inclusion: None,
+            edge_priors: None,
+            soft_tiers: None,
         }
     }
 
@@ -89,6 +113,8 @@ impl GraphPrior {
                 ..DiscoveryConstraints::default()
             },
             edge_inclusion: Some(p),
+            edge_priors: None,
+            soft_tiers: None,
         })
     }
 
@@ -105,10 +131,41 @@ impl GraphPrior {
         Ok(())
     }
 
+    /// Validate the edge-inclusion probability and, against `variables`, the per-edge map and
+    /// soft tiers: probabilities in `(0, 1)`, known variables, no repeated or self edge, no
+    /// listed edge the hard constraints forbid, a finite non-negative soft-tier penalty.
+    pub(crate) fn validate_for(&self, variables: &[VariableId]) -> Result<(), DiscoveryError> {
+        self.validate_edge_inclusion()?;
+        if self.edge_priors.is_none() && self.soft_tiers.is_none() {
+            return Ok(());
+        }
+        let index = crate::constraints::ConstraintIndex::compile(&self.constraints);
+        crate::edge_prior::validate(
+            self.edge_priors.as_ref(),
+            self.soft_tiers.as_ref(),
+            variables,
+            |i, j| index.is_forbidden(&self.constraints, static_link(variables, i, j)),
+        )
+    }
+
     /// Attach constraints.
     #[must_use]
     pub fn with_constraints(mut self, constraints: DiscoveryConstraints) -> Self {
         self.constraints = constraints;
+        self
+    }
+
+    /// Attach a sparse per-edge inclusion map (with the default for unlisted edges).
+    #[must_use]
+    pub fn with_edge_priors(mut self, edge_priors: EdgePriors) -> Self {
+        self.edge_priors = Some(edge_priors);
+        self
+    }
+
+    /// Attach a soft tier order: a prior penalty on edges against it, short of forbidding them.
+    #[must_use]
+    pub fn with_soft_tiers(mut self, soft_tiers: SoftTiers) -> Self {
+        self.soft_tiers = Some(soft_tiers);
         self
     }
 }
@@ -1166,6 +1223,10 @@ pub(crate) struct GraphPriorTable {
     max_parents: usize,
     /// `(ln p, ln (1 - p))` of the Bernoulli edge prior, when one is set.
     edge_logs: Option<(f64, f64)>,
+    /// `(ln p, ln (1 - p))` of every ordered pair, row-major, when a per-edge map or soft tiers
+    /// are set. Present, it replaces `edge_logs`; absent, the global-probability arithmetic runs
+    /// unchanged.
+    pair_logs: Option<Vec<(f64, f64)>>,
 }
 
 /// The fixed inputs of one parent-set enumeration.
@@ -1207,7 +1268,22 @@ impl GraphPriorTable {
             required,
             max_parents: prior.constraints.max_parents.unwrap_or(n.saturating_sub(1)),
             edge_logs: prior.edge_inclusion.map(|p| (p.ln(), (1.0 - p).ln())),
+            pair_logs: (prior.edge_priors.is_some() || prior.soft_tiers.is_some()).then(|| {
+                crate::edge_prior::pair_logs(
+                    n,
+                    variables,
+                    prior.edge_inclusion,
+                    prior.edge_priors.as_ref(),
+                    prior.soft_tiers.as_ref(),
+                )
+            }),
         }
+    }
+
+    /// `(ln p, ln (1 - p))` of the directed edge `from → to` when a per-edge map or soft tiers
+    /// are set, else `None`.
+    pub(crate) fn pair_log(&self, from: usize, to: usize) -> Option<(f64, f64)> {
+        self.pair_logs.as_ref().map(|logs| logs[from * self.n + to])
     }
 
     /// Number of nodes.
@@ -1226,6 +1302,20 @@ impl GraphPriorTable {
             || parents.count_ones() > self.max_parents
         {
             return None;
+        }
+        if let Some(pairs) = &self.pair_logs {
+            let mut total = 0.0;
+            for from in 0..self.n {
+                if from == node
+                    || self.forbidden_parents[node].bit(crate::indexing::dense_u32(from))
+                {
+                    continue;
+                }
+                let (present, absent) = pairs[from * self.n + node];
+                total +=
+                    if parents.bit(crate::indexing::dense_u32(from)) { present } else { absent };
+            }
+            return Some(total);
         }
         let Some((lp, lq)) = self.edge_logs else {
             return Some(0.0);
@@ -1321,6 +1411,19 @@ impl GraphPriorTable {
         }
         if !crate::adjacency_mask::mask_is_dag(mask, n) {
             return None;
+        }
+        if let Some(pairs) = &self.pair_logs {
+            let mut s = 0.0;
+            for i in 0..n {
+                for j in 0..n {
+                    if i == j || self.forbidden.bit(edge_bit(n, i, j)) {
+                        continue;
+                    }
+                    let (present, absent) = pairs[i * n + j];
+                    s += if mask.bit(edge_bit(n, i, j)) { present } else { absent };
+                }
+            }
+            return Some(s);
         }
         let Some((lp, lq)) = self.edge_logs else {
             return Some(0.0);

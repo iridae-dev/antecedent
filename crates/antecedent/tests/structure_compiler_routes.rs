@@ -841,3 +841,60 @@ fn wrapped_mechanisms_name_themselves_in_the_program() {
         assert!(CompiledExecution::run(&other, &ctx()).is_err());
     });
 }
+
+#[test]
+fn a_screened_exact_marginals_search_compiles_and_equals_its_engine() {
+    on_large_stack("screened-exact-marginals", || {
+        let data = chain_table(300, 5);
+        let spec = DiscoverySpec::screened_exact_marginals(
+            BayesianDiscoverParams::default(),
+            static_params(),
+            vec![v(1)],
+            3,
+            0.5,
+            0.02,
+            "parcorr",
+        );
+        let study = Study::tabular(data.clone()).discovery(spec, three()).build().unwrap();
+        let execution = compiled(&study, "DiscoverStatic");
+        let (contract, _) = execution.contract_and_claim(&ctx()).unwrap();
+        assert_eq!(&*contract.inference, "bayesian");
+        let Some(DiscoveredStructure::EdgeMarginals(found)) =
+            execution.result().discovery().map(|payload| payload.structure.clone())
+        else {
+            panic!("the screened route returns edge marginals");
+        };
+        assert!(found.conditional_on_screen.is_some(), "the result states it is conditional");
+        assert_eq!(found.variables.as_deref(), Some(&three()[..]));
+        let direct = antecedent::discovery::discover_screened_exact_marginals(
+            &data,
+            &three(),
+            &[v(1)],
+            3,
+            &BayesianDiscoverParams::default(),
+            &static_params(),
+            0.5,
+            0.02,
+            &ctx(),
+        )
+        .unwrap();
+        let bits = |m: &[f64]| m.iter().map(|w| w.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(&found.edge_marginals), bits(&direct.edge_marginals));
+        assert_eq!(found.log_evidence.to_bits(), direct.log_evidence.to_bits());
+        // A different probability is a different query.
+        let other = DiscoverySpec::screened_exact_marginals(
+            BayesianDiscoverParams::default(),
+            static_params(),
+            vec![v(1)],
+            3,
+            0.5,
+            0.05,
+            "parcorr",
+        );
+        let other_study = Study::tabular(data).discovery(other, three()).build().unwrap();
+        assert_ne!(
+            study.compile(&ctx()).unwrap().lowered_program_identity(),
+            other_study.compile(&ctx()).unwrap().lowered_program_identity()
+        );
+    });
+}

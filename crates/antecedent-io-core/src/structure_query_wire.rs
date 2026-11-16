@@ -86,6 +86,17 @@ pub enum DiscoveryMethodWire {
         /// Candidate weighting (`none`, `bayes_factor`, `posterior_dependence`).
         weight: String,
     },
+    /// CI screen, then exact marginals of the focus neighbourhood.
+    ScreenedExactMarginals {
+        /// Variables of interest (raw ids).
+        focus: Vec<u32>,
+        /// Most variables the exact computation runs on.
+        max_variables: u32,
+        /// Prior inclusion probability of a screened-in pair.
+        in_probability: f64,
+        /// Prior inclusion probability of any other pair.
+        out_probability: f64,
+    },
     /// DBN template posterior.
     DbnPosterior {
         /// Force MCMC.
@@ -140,6 +151,17 @@ impl DiscoveryMethodWire {
             DiscoveryMethod::CiScreenedPosterior { weight } => {
                 Self::CiScreenedPosterior { weight: weight.as_str().into() }
             }
+            DiscoveryMethod::ScreenedExactMarginals {
+                focus,
+                max_variables,
+                in_probability,
+                out_probability,
+            } => Self::ScreenedExactMarginals {
+                focus: vars_to_raw(focus),
+                max_variables: *max_variables,
+                in_probability: *in_probability,
+                out_probability: *out_probability,
+            },
             DiscoveryMethod::DbnPosterior { force_mcmc } => {
                 Self::DbnPosterior { force_mcmc: *force_mcmc }
             }
@@ -195,6 +217,17 @@ impl DiscoveryMethodWire {
                         )));
                     }
                 },
+            },
+            Self::ScreenedExactMarginals {
+                focus,
+                max_variables,
+                in_probability,
+                out_probability,
+            } => DiscoveryMethod::ScreenedExactMarginals {
+                focus: vars_from_raw(focus),
+                max_variables: *max_variables,
+                in_probability: *in_probability,
+                out_probability: *out_probability,
             },
             Self::DbnPosterior { force_mcmc } => {
                 DiscoveryMethod::DbnPosterior { force_mcmc: *force_mcmc }

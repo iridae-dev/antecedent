@@ -52,13 +52,13 @@ sha256 = "d845f04f6d17923e16183380169b183c85e4d8e3112402bdc098413fa7c72825"
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_enumeration.rs"
 items = ["const MAX_ENUM_NODES", "fn default", "fn enumerate_unique_dags", "fn grow_dags", "fn new", "fn run", "fn sample_instead", "struct ExactDagPosterior"]
-sha256 = "8d5307deb3d5654ad069d54902fce20d9e453fe5533cd59f8b39ee23ca590f48"
+sha256 = "1c4c26fb839e748c1441b8978f71a0932c28750b100cc61ef8424bc6eaa532fd"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/graph_posterior.rs"
 items = ["enum GraphPosteriorAtomKind", "fn algorithm", "fn as_str", "fn atom_kind", "fn atoms", "fn bernoulli_edges", "fn default", "fn diagnostics", "fn distinct_graph_keys", "fn edge_ess", "fn edge_marginals", "fn edge_mcse", "fn edge_rhat", "fn ess", "fn from_atoms", "fn graph_keys", "fn lag_bidirected_masks", "fn lag_masks", "fn lagged_edge_marginals", "fn lagged_edge_mcse", "fn mark_atoms", "fn max_lag", "fn n_graphs", "fn n_vars", "fn new", "fn orientation_marginals", "fn rejected_invalid", "fn uniform", "fn weights", "struct GraphPosterior", "struct GraphPrior", "struct SamplingSummary"]
-sha256 = "c5d9c160aba162be52d03192ea401d8ca985fc6128cff3d511f3c064e7b1cf38"
+sha256 = "81596197a1f6f82f3bb9012e793b7c426569dbc2314c56bc9a645055472524f1"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -14514,3 +14514,42 @@ target = "transport_weighted_target_calibration"
 tests = ["tricube_kernel_transported_estimate_covers_across_bandwidths"]
 ignored = true
 grid = true
+[[group]]
+label = "antecedent-discovery: structure_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::structure_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors"]
+ignored = true
+grid = false
+
+[[group]]
+label = "antecedent-discovery: order_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::order_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors"]
+ignored = true
+grid = false
+
+[[group]]
+label = "antecedent-discovery: per_edge_prior_marginals_are_reliable_under_draws_from_the_prior"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::per_edge_prior_marginals_are_reliable_under_draws_from_the_prior"]
+ignored = true
+grid = false
+
+[[group]]
+label = "antecedent-discovery: soft_tier_marginals_are_reliable_under_draws_from_the_prior"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::soft_tier_marginals_are_reliable_under_draws_from_the_prior"]
+ignored = true
+grid = false
+
+[[group]]
+label = "antecedent-discovery: per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior"]
+ignored = true
+grid = false

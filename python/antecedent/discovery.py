@@ -35,8 +35,9 @@ is refused, never ignored.
 from __future__ import annotations
 
 import json
+import math
 import re
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, TypedDict
@@ -116,6 +117,9 @@ from ._native import (
     discover_rpcmci_stability as _discover_rpcmci_stability,
 )
 from ._native import (
+    discover_screened_exact_marginals as _discover_screened_exact_marginals,
+)
+from ._native import (
     discover_structure_mcmc as _discover_structure_mcmc,
 )
 from ._validate import count as _count
@@ -143,6 +147,7 @@ _NATIVE_WITHOUT_CANCEL = frozenset(
         "discover_order_mcmc",
         "discover_structure_mcmc",
         "discover_ci_screened_posterior",
+        "discover_screened_exact_marginals",
         "discover_dbn_posterior",
     }
 )
@@ -1332,11 +1337,141 @@ class _UnavailableGraphAtoms(CausalUnsupportedError, AttributeError):
 
 
 @dataclass(frozen=True)
+class StructurePrior:
+    """A prior over DAG structures beyond one global edge probability.
+
+    ``edge_probabilities`` maps ``(from, to)`` variable names to the prior probability that the
+    directed edge is present, each in the open interval (0, 1); ``default_edge_probability`` is
+    that probability for every edge not listed (unset: the listed edges stand alone against a
+    neutral prior). Naming an unknown variable, a self edge, an edge twice, or an edge the
+    background knowledge forbids is refused.
+
+    ``soft_tiers`` order variables like the tiers of :class:`BackgroundKnowledge`, but an edge
+    from a later tier into an earlier one is penalised rather than forbidden: its prior odds
+    are multiplied by ``exp(-soft_tier_log_penalty)``, or equivalently by
+    ``soft_tier_odds_factor`` in (0, 1) (give one of the two). A hard tier always wins: an edge
+    it forbids carries no prior at all.
+
+    Both factors are modular, so the exact edge marginals and the order and structure samplers
+    use the same prior and need no other change. Pass the prior as ``prior=`` to
+    :class:`ExactDagPosterior`, :class:`OrderMcmc` or :class:`StructureMcmc`.
+    """
+
+    edge_probabilities: Mapping[tuple[str, str], float] | Sequence[tuple[str, str, float]] = ()
+    default_edge_probability: float | None = None
+    soft_tiers: tuple[tuple[str, ...], ...] = ()
+    soft_tier_log_penalty: float | None = None
+    soft_tier_odds_factor: float | None = None
+
+    def __post_init__(self) -> None:
+        raw = self.edge_probabilities
+        triples = (
+            [(a, b, p) for (a, b), p in raw.items()]
+            if isinstance(raw, Mapping)
+            else [tuple(item) for item in raw]
+        )
+        edges: list[tuple[str, str, float]] = []
+        seen: set[tuple[str, str]] = set()
+        for item in triples:
+            if len(item) != 3:
+                raise CausalTypeError("an edge probability is (from, to, probability)")
+            source = _variable_name(item[0], "an edge probability's source")
+            target = _variable_name(item[1], "an edge probability's target")
+            probability = _probability(item[2], f"the probability of {source} -> {target}")
+            if source == target:
+                raise CausalValueError(f"the edge probability names a self edge on {source!r}")
+            if (source, target) in seen:
+                raise CausalValueError(f"the edge {source} -> {target} is listed twice")
+            seen.add((source, target))
+            edges.append((source, target, probability))
+        object.__setattr__(self, "edge_probabilities", tuple(edges))
+        if self.default_edge_probability is not None:
+            object.__setattr__(
+                self,
+                "default_edge_probability",
+                _probability(self.default_edge_probability, "default_edge_probability"),
+            )
+        tiers = tuple(tuple(tier) for tier in self.soft_tiers)
+        for tier in tiers:
+            for name in tier:
+                _variable_name(name, "a soft-tier member")
+        object.__setattr__(self, "soft_tiers", tiers)
+        if self.soft_tier_log_penalty is not None and self.soft_tier_odds_factor is not None:
+            raise CausalValueError("give soft_tier_log_penalty or soft_tier_odds_factor, not both")
+        if tiers and self.soft_tier_log_penalty is None and self.soft_tier_odds_factor is None:
+            raise CausalValueError(
+                "soft_tiers need a soft_tier_log_penalty or a soft_tier_odds_factor"
+            )
+        if not tiers and (
+            self.soft_tier_log_penalty is not None or self.soft_tier_odds_factor is not None
+        ):
+            raise CausalValueError("a soft-tier penalty needs soft_tiers")
+        if self.soft_tier_log_penalty is not None:
+            penalty = float(self.soft_tier_log_penalty)
+            if not math.isfinite(penalty) or penalty < 0.0:
+                raise CausalValueError("soft_tier_log_penalty must be finite and non-negative")
+            object.__setattr__(self, "soft_tier_log_penalty", penalty)
+        if self.soft_tier_odds_factor is not None:
+            object.__setattr__(
+                self,
+                "soft_tier_odds_factor",
+                _probability(self.soft_tier_odds_factor, "soft_tier_odds_factor"),
+            )
+
+    def _native_kwargs(self) -> dict[str, Any]:
+        """The native search's prior arguments (only those this prior sets)."""
+        out: dict[str, Any] = {}
+        if self.edge_probabilities:
+            out["edge_priors"] = [list(edge) for edge in self.edge_probabilities]
+        if self.default_edge_probability is not None:
+            out["edge_prior_default"] = self.default_edge_probability
+        if self.soft_tiers:
+            out["soft_tiers"] = [list(tier) for tier in self.soft_tiers]
+            out["soft_tier_penalty"] = (
+                self.soft_tier_log_penalty
+                if self.soft_tier_log_penalty is not None
+                else -math.log(float(self.soft_tier_odds_factor or 1.0))
+            )
+        return out
+
+    def _wire(self) -> dict[str, Any]:
+        wire: dict[str, Any] = {}
+        if self.edge_probabilities:
+            wire["edge_probabilities"] = [list(edge) for edge in self.edge_probabilities]
+        if self.default_edge_probability is not None:
+            wire["default_edge_probability"] = self.default_edge_probability
+        wire.update(
+            {key: value for key, value in self._native_kwargs().items() if key.startswith("soft")}
+        )
+        return wire
+
+
+def _probability(value: object, what: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise CausalTypeError(f"{what} must be a number")
+    probability = float(value)
+    if not (0.0 < probability < 1.0):
+        raise CausalValueError(f"{what} must lie in (0, 1)")
+    return probability
+
+
+def _prior_kwargs(prior: StructurePrior | None) -> dict[str, Any]:
+    return {} if prior is None else prior._native_kwargs()
+
+
+def _prior_wire(prior: StructurePrior | None) -> dict[str, Any]:
+    return {} if prior is None else {"prior": prior._wire()}
+
+
+@dataclass(frozen=True)
 class ExactDagMarginals:
     """Exact edge marginals of the Gaussian-BIC DAG posterior of 7 to 15 variables.
 
-    ``edge_marginal_matrix()[i][j]`` is ``P(i -> j)``, exact for the BIC pseudo-posterior with the
-    uniform edge prior (no sampling error). ``log_evidence`` is the log pseudo-posterior
+    ``edge_marginal_matrix()[i][j]`` is ``P(i -> j)`` over ``names`` (the variables of the run, or
+    the screened selection of :class:`ScreenedExactMarginals`, whose ``conditional_on_screen``
+    states that every number is conditional on the CI screen), exact for the BIC pseudo-posterior with the
+    edge prior of the run (uniform unless a :class:`StructurePrior` was given; no sampling
+    error). ``log_evidence`` is the log pseudo-posterior
     normalizer ``log sum_G exp(score(G))``, with Gaussian score equal to -BIC/2 including
     the fitted residual variances; it is not an exact marginal likelihood. Above six variables the graphs themselves cannot be listed, so
     the graph-level outputs of :class:`GraphPosterior` (atoms, weights, the MAP graph, the
@@ -1348,6 +1483,7 @@ class ExactDagMarginals:
     n_vars: int
     log_evidence: float
     _matrix: tuple[tuple[float, ...], ...]
+    conditional_on_screen: str | None = None
 
     def edge_marginal_matrix(self) -> list[list[float]]:
         """The exact edge marginals as a list of rows: ``[i][j]`` is ``P(i -> j)``, in the order of
@@ -1379,22 +1515,30 @@ class ExactDagPosterior:
     Composed: pass the executed ``ExactDagPosterior().run(data)`` as ``discovery=`` with
     ``inference=Bayesian(...)`` to ``analyze`` to mix effect draws over the graph posterior
     (at most 6 variables).
+
+    ``prior`` (a :class:`StructurePrior`) gives per-edge inclusion probabilities and soft tiers;
+    unset, the edge prior is uniform.
     """
 
+    prior: StructurePrior | None = None
     kind: Literal["exact_dag_posterior"] = "exact_dag_posterior"
 
     algorithm_id: ClassVar[str] = "exact_dag_posterior"
 
     def _wire(self) -> dict[str, Any]:
-        return {"algorithm": "exact_dag_posterior"}
+        return {"algorithm": "exact_dag_posterior", **_prior_wire(self.prior)}
 
     def run(
         self, data: Any, *, execution: Execution | None = None
     ) -> GraphPosterior | ExactDagMarginals:
         names, cols = coerce_data(data)
         if len(names) <= EXACT_ENUMERATION_MAX_VARIABLES:
-            return _run_native(execution, _discover_exact_dag_posterior, names, cols)
-        flat, log_evidence = _run_native(execution, _discover_exact_dag_marginals, names, cols)
+            return _run_native(
+                execution, _discover_exact_dag_posterior, names, cols, **_prior_kwargs(self.prior)
+            )
+        flat, log_evidence = _run_native(
+            execution, _discover_exact_dag_marginals, names, cols, **_prior_kwargs(self.prior)
+        )
         n = len(names)
         matrix = tuple(tuple(flat[i * n : (i + 1) * n]) for i in range(n))
         return ExactDagMarginals(list(names), n, log_evidence, matrix)
@@ -1500,6 +1644,8 @@ class OrderMcmc:
     is truly non-Gaussian; it is a pseudo-posterior under that declared noise family and is
     misspecified under other non-Gaussian noise. It is the Bayesian counterpart of LiNGAM and
     NOTEARS orientation.
+
+    ``prior`` (a :class:`StructurePrior`) gives per-edge inclusion probabilities and soft tiers.
     """
 
     n_chains: int = 4
@@ -1509,6 +1655,7 @@ class OrderMcmc:
     require_diagnostics_gate: bool = True
     max_parents: int | None = None
     noise: Literal["gaussian", "laplace"] = "gaussian"
+    prior: StructurePrior | None = None
     kind: Literal["order_mcmc"] = "order_mcmc"
 
     algorithm_id: ClassVar[str] = "order_mcmc"
@@ -1523,6 +1670,7 @@ class OrderMcmc:
             "require_diagnostics_gate": self.require_diagnostics_gate,
             **({} if self.max_parents is None else {"max_parents": self.max_parents}),
             **({} if self.noise == "gaussian" else {"noise": self.noise}),
+            **_prior_wire(self.prior),
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
@@ -1545,6 +1693,7 @@ class OrderMcmc:
             thin=self.thin,
             require_diagnostics_gate=self.require_diagnostics_gate,
             max_parents=self.max_parents,
+            **_prior_kwargs(self.prior),
         )
 
 
@@ -1556,7 +1705,8 @@ class StructureMcmc:
     bulk ESS and every edge's Monte-Carlo error clear the publication bar, so there is no
     ``require_diagnostics_gate`` switch here (unlike :class:`OrderMcmc`). Per-edge
     ``edge_rhat`` / ``edge_ess`` / ``edge_mcse`` on the result report the chain diagnostics.
-    ``max_parents`` caps the parents of any node (``None``: no cap).
+    ``max_parents`` caps the parents of any node (``None``: no cap). ``prior`` (a
+    :class:`StructurePrior`) gives per-edge inclusion probabilities and soft tiers.
     """
 
     n_chains: int = 4
@@ -1564,6 +1714,7 @@ class StructureMcmc:
     n_draws: int = 1000
     thin: int = 1
     max_parents: int | None = None
+    prior: StructurePrior | None = None
     kind: Literal["structure_mcmc"] = "structure_mcmc"
 
     algorithm_id: ClassVar[str] = "structure_mcmc"
@@ -1576,6 +1727,7 @@ class StructureMcmc:
             "mcmc_draws": self.n_draws,
             "thin": self.thin,
             **({} if self.max_parents is None else {"max_parents": self.max_parents}),
+            **_prior_wire(self.prior),
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
@@ -1596,6 +1748,7 @@ class StructureMcmc:
             n_draws=self.n_draws,
             thin=self.thin,
             max_parents=self.max_parents,
+            **_prior_kwargs(self.prior),
         )
 
 
@@ -1634,6 +1787,7 @@ class CiScreenedPosterior:
     n_warmup: int = 300
     n_draws: int = 600
     thin: int = 1
+    prior: StructurePrior | None = None
     kind: Literal["ci_screened_posterior"] = "ci_screened_posterior"
 
     algorithm_id: ClassVar[str] = "ci_screened_posterior"
@@ -1650,6 +1804,7 @@ class CiScreenedPosterior:
             "n_warmup": self.n_warmup,
             "mcmc_draws": self.n_draws,
             "thin": self.thin,
+            **_prior_wire(self.prior),
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
@@ -1674,6 +1829,7 @@ class CiScreenedPosterior:
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
             thin=self.thin,
+            **_prior_kwargs(self.prior),
         )
 
 
@@ -1689,6 +1845,9 @@ class DbnPosterior:
     and ``PulseEffect``/``SustainedEffect`` to mix temporal effect draws, or
     with ``inference=Frequentist()`` to mix atom estimates under a shared
     circular-block SE whose replicate count follows ``bootstrap`` / the latency tier.
+
+    ``prior`` (a :class:`StructurePrior`) prices each ``(from, to)`` pair alike at the
+    contemporaneous edge and at every lag.
     """
 
     max_lag: int = 1
@@ -1696,6 +1855,7 @@ class DbnPosterior:
     n_chains: int = 2
     n_warmup: int = 200
     n_draws: int = 400
+    prior: StructurePrior | None = None
     kind: Literal["dbn_posterior"] = "dbn_posterior"
 
     algorithm_id: ClassVar[str] = "dbn_posterior"
@@ -1708,6 +1868,7 @@ class DbnPosterior:
             "n_chains": self.n_chains,
             "n_warmup": self.n_warmup,
             "mcmc_draws": self.n_draws,
+            **_prior_wire(self.prior),
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
@@ -1729,7 +1890,85 @@ class DbnPosterior:
             n_chains=self.n_chains,
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
+            **_prior_kwargs(self.prior),
         )
+
+
+@dataclass(frozen=True)
+class ScreenedExactMarginals:
+    """Exact edge marginals of the neighbourhood a CI screen picks around variables of interest.
+
+    The exact marginals stop at 15 variables, but they apply per question: the conditional-
+    independence screen runs on every variable, ``focus`` and the variables nearest to it in the
+    screen's skeleton (at most ``max_variables``, itself at most 15) are selected, and the exact
+    dynamic programme runs on them with the screen as a per-edge prior: both directions of a pair
+    the screen kept get ``in_probability``, every other pair ``out_probability``. Probabilities a
+    ``prior`` (:class:`StructurePrior`) lists for an edge keep their value.
+
+    ``run`` returns :class:`ExactDagMarginals` over the selected variables, with
+    ``conditional_on_screen`` stating that every number is conditional on the screen: variables
+    outside the set are not conditioned on, and no marginal is that of the full posterior.
+    """
+
+    focus: tuple[str, ...]
+    max_variables: int = 12
+    in_probability: float = 0.5
+    out_probability: float = 0.02
+    alpha: float = 0.05
+    fdr: bool = True
+    ci: str = "parcorr"
+    max_cond_size: int = 2
+    prior: StructurePrior | None = None
+    kind: Literal["screened_exact_marginals"] = "screened_exact_marginals"
+
+    algorithm_id: ClassVar[str] = "screened_exact_marginals"
+
+    def __post_init__(self) -> None:
+        focus = (self.focus,) if isinstance(self.focus, str) else tuple(self.focus)
+        if not focus:
+            raise CausalValueError("focus must name at least one variable")
+        for name in focus:
+            _variable_name(name, "a focus variable")
+        object.__setattr__(self, "focus", focus)
+        _probability(self.in_probability, "in_probability")
+        _probability(self.out_probability, "out_probability")
+        limit = EXACT_MARGINALS_MAX_VARIABLES
+        _count(self.max_variables, "max_variables", minimum=len(focus), maximum=limit)
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "screened_exact_marginals",
+            "focus": list(self.focus),
+            "max_variables": self.max_variables,
+            "in_probability": self.in_probability,
+            "out_probability": self.out_probability,
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "max_cond_size": self.max_cond_size,
+            **_prior_wire(self.prior),
+        }
+
+    def run(self, data: Any, *, execution: Execution | None = None) -> ExactDagMarginals:
+        names, cols = coerce_data(data)
+        selected, flat, log_evidence, statement = _run_native(
+            execution,
+            _discover_screened_exact_marginals,
+            names,
+            cols,
+            list(self.focus),
+            max_variables=self.max_variables,
+            in_probability=self.in_probability,
+            out_probability=self.out_probability,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            ci=self.ci,
+            max_cond_size=self.max_cond_size,
+            **_prior_kwargs(self.prior),
+        )
+        n = len(selected)
+        matrix = tuple(tuple(flat[i * n : (i + 1) * n]) for i in range(n))
+        return ExactDagMarginals(list(selected), n, log_evidence, matrix, statement)
 
 
 @dataclass(frozen=True)
@@ -1794,6 +2033,7 @@ class EquivalenceClassPosterior:
                 n_warmup=base.n_warmup,
                 n_draws=base.n_draws,
                 equivalence_classes=True,
+                **_prior_kwargs(base.prior),
             )
         names, cols = coerce_data(data)
         if isinstance(base, ExactDagPosterior):
@@ -1805,7 +2045,12 @@ class EquivalenceClassPosterior:
                     reason_code="option_not_applicable",
                 )
             return _run_native(
-                execution, _discover_exact_dag_posterior, names, cols, equivalence_classes=True
+                execution,
+                _discover_exact_dag_posterior,
+                names,
+                cols,
+                equivalence_classes=True,
+                **_prior_kwargs(base.prior),
             )
         if isinstance(base, OrderMcmc):
             return _run_native(
@@ -1821,6 +2066,7 @@ class EquivalenceClassPosterior:
                 **({} if base.max_parents is None else {"max_parents": base.max_parents}),
                 equivalence_classes=True,
                 noise=base.noise,
+                **_prior_kwargs(base.prior),
             )
         if isinstance(base, StructureMcmc):
             return _run_native(
@@ -1834,6 +2080,7 @@ class EquivalenceClassPosterior:
                 thin=base.thin,
                 **({} if base.max_parents is None else {"max_parents": base.max_parents}),
                 equivalence_classes=True,
+                **_prior_kwargs(base.prior),
             )
         return _run_native(
             execution,
@@ -1850,6 +2097,7 @@ class EquivalenceClassPosterior:
             n_draws=base.n_draws,
             thin=base.thin,
             equivalence_classes=True,
+            **_prior_kwargs(base.prior),
         )
 
 
@@ -2246,7 +2494,9 @@ __all__ = [
     "RPCMCI",
     "RpcmciDiscoverySummary",
     "StructureMcmc",
+    "StructurePrior",
     "RegimeStabilityResult",
+    "ScreenedExactMarginals",
     "StructureStabilityResult",
     "cpdag_oriented_edges",
     "discover",

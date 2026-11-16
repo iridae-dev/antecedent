@@ -42,7 +42,7 @@ record_sha256 = "9f5e6009f6de2737998c27d039aaad72537ece3542417372d4bd18e878ffb01
 role = "implementation"
 path = "crates/antecedent-discovery/src/structure_mcmc.rs"
 items = ["const DEFAULT_PAIR_MOVE_PROBABILITY", "const PAIR_MOVE_MAX_SETS", "fn build", "fn candidate_directed_list", "fn default", "fn is_empty", "fn new", "fn run", "fn schedule", "fn with_diagnostics_gate", "fn with_schedule", "struct ParentSetCatalog", "struct StructureMcmc", "struct StructureWalker"]
-sha256 = "235627146726ea8f03fbd844b79484fdbf0db47a48da5732fff6fb7cf0e6634a"
+sha256 = "7bf34d1e555c6f4fb6df148354f32cf8e7af5749319426b661cfcf1c9d546075"
 
 [[method_review.artifacts]]
 role = "assertion"

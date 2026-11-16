@@ -84,6 +84,10 @@ struct DbnTarget<'a> {
     prior: &'a GraphPrior,
     variables: &'a [VariableId],
     score_family: GraphScoreFamily,
+    /// `(ln p, ln (1 - p))` of every ordered pair when the prior carries a per-edge map or soft
+    /// tiers; it prices the lag edges `from_{t-lag} → to_t` of every lag alike. `None` keeps the
+    /// global Bernoulli arithmetic.
+    pair_logs: Option<&'a [(f64, f64)]>,
 }
 
 impl DbnTarget<'_> {
@@ -168,7 +172,7 @@ impl DbnPosterior {
         score_family: GraphScoreFamily,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        prior.validate_edge_inclusion()?;
+        prior.validate_for(variables)?;
         prior.constraints.validate()?;
         if !matches!(score_family, GraphScoreFamily::GaussianBic) {
             return Err(DiscoveryError::unsupported(
@@ -223,7 +227,24 @@ impl DbnPosterior {
         let (score_data, _) = build_lagged_score_data(units, variables, max_lag)?;
         let use_exact = !self.force_mcmc && exact_fits_budget(p, n_lag_bits);
 
-        let target = DbnTarget { p, max_lag, data: &score_data, prior, variables, score_family };
+        let pair_logs = (prior.edge_priors.is_some() || prior.soft_tiers.is_some()).then(|| {
+            crate::edge_prior::pair_logs(
+                p,
+                variables,
+                prior.edge_inclusion,
+                prior.edge_priors.as_ref(),
+                prior.soft_tiers.as_ref(),
+            )
+        });
+        let target = DbnTarget {
+            p,
+            max_lag,
+            data: &score_data,
+            prior,
+            variables,
+            score_family,
+            pair_logs: pair_logs.as_deref(),
+        };
         if use_exact { Self::run_exact(&target, ctx) } else { self.run_mcmc(&target, ctx) }
     }
 
@@ -884,7 +905,7 @@ fn score_dbn_template(
     target: &DbnTarget<'_>,
     cache: &mut LocalScoreCache,
 ) -> Option<f64> {
-    let DbnTarget { p, max_lag, data, prior, variables, .. } = *target;
+    let DbnTarget { p, max_lag, data, prior, variables, pair_logs, .. } = *target;
     if !mask_is_dag(cmask, p) {
         return None;
     }
@@ -937,8 +958,22 @@ fn score_dbn_template(
         }
         total += s;
     }
-    // Weak Bernoulli prior on lag edges when edge_inclusion set.
-    if let Some(pr) = prior.edge_inclusion {
+    // Per-edge prior on lag edges: each (from, to) pair is priced alike at every lag.
+    if let Some(pairs) = pair_logs {
+        for lag in 1..=max_lag {
+            for from in 0..p {
+                for to in 0..p {
+                    let (present, absent) = pairs[from * p + to];
+                    total += if has_lag_edge(lmask, p, max_lag, lag, from, to) {
+                        present
+                    } else {
+                        absent
+                    };
+                }
+            }
+        }
+    } else if let Some(pr) = prior.edge_inclusion {
+        // Weak Bernoulli prior on lag edges when edge_inclusion set.
         let lp_e = pr.ln();
         let lq = (1.0 - pr).ln();
         let n_lag_bits = (max_lag as usize) * p * p;
@@ -1228,6 +1263,7 @@ mod tests {
             prior: &prior,
             variables: &vars,
             score_family: GraphScoreFamily::GaussianBic,
+            pair_logs: None,
         };
         let mut cache = target.score_cache();
         let mut contemp = AdjacencyMask::EMPTY;

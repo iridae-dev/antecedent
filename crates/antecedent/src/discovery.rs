@@ -30,14 +30,14 @@ use antecedent_discovery::DiscoveryConstraints;
 pub use antecedent_discovery::{
     BackgroundKnowledge, CiScreenedPosterior, CiSoftWeight, ContextKind, CpdagDiscoveryResult,
     DagDiscoveryResult, DbnPosterior, DirectLingam, DiscoveryPerformanceRecord,
-    EXACT_ENUM_MAX_NODES, EXACT_MARGINAL_MAX_NODES, ExactDagMarginals, ExactDagPosterior, Fci, Ges,
-    GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine, GraphPrior, JpcmciNodeRole,
-    JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears, NotearsDiscoveryResult,
-    OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment, RegimeGraphCollection, Rfci,
-    Rpcmci, RpcmciDiscoveryResult, SamplingSummary, ScoredLink, SpaceDummyCiMode,
-    StaticCpdagDiscoveryResult, StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc,
-    StructureStability, TimeDummyCiMode, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
-    two_regime_half_split,
+    EXACT_ENUM_MAX_NODES, EXACT_MARGINAL_MAX_NODES, EdgePriors, ExactDagMarginals,
+    ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine,
+    GraphPrior, JpcmciNodeRole, JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears,
+    NotearsDiscoveryResult, OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment,
+    RegimeGraphCollection, Rfci, Rpcmci, RpcmciDiscoveryResult, SamplingSummary, ScoredLink,
+    ScreenedMarginals, SoftTiers, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
+    StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc, StructureStability,
+    TimeDummyCiMode, adjacency_mask_from_cpdag, adjacency_masks_from_pag, two_regime_half_split,
 };
 use antecedent_graph::{DenseNodeId, Endpoint, TemporalPag};
 pub use antecedent_prob::InferenceDiagnostics;
@@ -706,6 +706,49 @@ pub fn discover_ci_screened_posterior(
     Ok(eng
         .run(data, variables, &params.prior, params.score_family, &mut ws, ctx)?
         .with_algorithm("ci_screened_posterior"))
+}
+
+/// Screen a wide variable set by conditional independence, then compute the exact edge
+/// marginals of at most [`EXACT_MARGINAL_MAX_NODES`] variables around `focus`, with the screen's
+/// edges as per-edge prior probabilities. Every marginal is conditional on the screen.
+///
+/// # Errors
+///
+/// Screening failures, an empty or unknown `focus`, a set size above the exact ceiling,
+/// probabilities outside `(0, 1)`, or the exact computation's refusals.
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments, reason = "one screened question, stated field by field")]
+pub fn discover_screened_exact_marginals(
+    data: &TabularData,
+    variables: &[VariableId],
+    focus: &[VariableId],
+    max_variables: usize,
+    params: &BayesianDiscoverParams,
+    screen: &StaticDiscoverParams,
+    in_probability: f64,
+    out_probability: f64,
+    ctx: &ExecutionContext,
+) -> Result<ExactDagMarginals, CausalError> {
+    let eng = CiScreenedPosterior::new()
+        .with_constraints(static_pc_constraints(screen.alpha, screen.max_cond_size))
+        .with_ci(Arc::clone(&screen.ci))
+        .with_retain_undecided(true);
+    let mut eng = eng;
+    eng.fdr = static_fdr(screen);
+    let mut ws = DiscoveryWorkspace::default();
+    let screened = eng.screen_then_exact_marginals(
+        data,
+        variables,
+        focus,
+        max_variables,
+        &params.prior,
+        in_probability,
+        out_probability,
+        params.score_family,
+        &mut ws,
+        ctx,
+    )?;
+    Ok(screened.marginals)
 }
 
 /// Bounded-lag DBN template posterior from a time series (Gaussian BIC).

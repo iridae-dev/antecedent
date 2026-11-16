@@ -81,9 +81,12 @@ fn posterior_algorithm(
 ) -> (PosteriorAlgorithm, usize) {
     match (method, schedule) {
         (DiscoveryMethod::ClassPosterior { base }, schedule) => posterior_algorithm(base, schedule),
-        (DiscoveryMethod::ExactDagPosterior | DiscoveryMethod::ExactDagMarginals, _) => {
-            (PosteriorAlgorithm::Enumeration, 0)
-        }
+        (
+            DiscoveryMethod::ExactDagPosterior
+            | DiscoveryMethod::ExactDagMarginals
+            | DiscoveryMethod::ScreenedExactMarginals { .. },
+            _,
+        ) => (PosteriorAlgorithm::Enumeration, 0),
         (_, Some(schedule)) => (
             PosteriorAlgorithm::DiscreteMcmc,
             (schedule.chains as usize)

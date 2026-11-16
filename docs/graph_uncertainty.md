@@ -225,6 +225,36 @@ What is checked, and what is not:
   checked is computational: the exact marginals against enumeration, and the published samplers
   against the exact marginals. The marginals are conditional on the prior and the parent cap.
 
+## Per-edge priors, soft tiers and screened marginals
+
+The edge prior need not give every edge one probability. `StructurePrior` (Python) and
+`GraphPrior::with_edge_priors` / `with_soft_tiers` (Rust) add two factors that keep the prior a
+product over directed edges, so the exact marginals, `OrderMcmc` and `StructureMcmc` use them with no
+change of algorithm:
+
+- **Per-edge probabilities.** A sparse map `(from, to) -> p`, each `p` in (0, 1), plus a default for
+  the edges it does not list (unset, unlisted edges keep the global `edge_inclusion` or a neutral
+  factor). Edge `i -> j` contributes `ln p` when present and `ln (1 - p)` when absent. A probability
+  outside (0, 1), an unknown variable, a self edge, an edge listed twice, or an edge the hard
+  constraints forbid is refused.
+- **Soft tiers.** A tier order whose violations are penalised, not forbidden: a present edge from a
+  later tier into an earlier one multiplies the prior odds by `exp(-penalty)` (state the log-penalty,
+  or the odds factor in (0, 1)). A hard tier (`BackgroundKnowledge.tiers`) wins: the edge it forbids
+  has no prior factor at all, so declaring the same order softly beside it changes nothing.
+
+`StructurePrior` is accepted by `ExactDagPosterior`, `OrderMcmc`, `StructureMcmc`, `CiScreenedPosterior` and `DbnPosterior` (which prices a `(from, to)` pair alike at the contemporaneous edge and at every lag).
+
+Without either factor the prior, the scores and the samplers are exactly those described above.
+
+**Screen, then exact marginals, at scale.** Above 15 variables the exact marginals do not apply to
+the whole problem, but they apply per question. `CiScreenedPosterior::screen_then_exact_marginals`
+(Rust) runs the CI screen on all variables, takes the focus variables plus their nearest neighbours
+in the screen's skeleton (at most `max_variables`, itself at most `EXACT_MARGINAL_MAX_NODES`), and
+runs the exact dynamic programme on that set with the screen as a per-edge prior: pairs the screen
+kept get one probability, the others a low one, and a caller's own per-edge probability for an edge
+is kept. In Python this is `ScreenedExactMarginals(focus=("y",), max_variables=12).run(data)`, which returns `ExactDagMarginals` over the selected variables; in Rust it is a compiled search, `DiscoverySpec::screened_exact_marginals`. The result states that its marginals are **conditional on the screen**: variables outside
+the set are not conditioned on, and no marginal is that of the full posterior.
+
 ## Uncertainty over a discovered structure
 
 A frequentist search (PC, FCI, GES, LiNGAM, NOTEARS, PCMCI) returns one structure and no

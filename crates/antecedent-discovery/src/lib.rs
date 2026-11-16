@@ -52,6 +52,7 @@ pub mod constraints;
 pub mod cyclic_fci;
 pub mod dbn_posterior;
 pub mod discriminating_paths;
+pub mod edge_prior;
 pub mod engine;
 pub mod error;
 pub mod evidence;
@@ -103,7 +104,7 @@ pub use ci::{
 };
 
 pub use antecedent_stats::{FdrAdjustment, MultipleTestingMethod};
-pub use ci_screened_posterior::{CiScreenedPosterior, CiSoftWeight};
+pub use ci_screened_posterior::{CiScreenedPosterior, CiSoftWeight, ScreenedMarginals};
 pub use constraints::{
     BackgroundKnowledge, CandidateCatalog, CiMaskType, CompiledConstraints, ContextKind,
     CrossEnvLinkAssumption, DiscoveryConstraints, JpcmciNodeRole, KnowledgeFault, KnowledgeScope,
@@ -114,6 +115,7 @@ pub use dbn_posterior::{
     temporal_pag_from_dbn_masks,
 };
 pub use discriminating_paths::DiscriminatingPathBudget;
+pub use edge_prior::{EdgePriors, SoftTiers};
 pub use engine::{DiscoveryWorkspace, PcmciEngine};
 pub use error::DiscoveryError;
 pub use evidence::threshold_scored_links;
