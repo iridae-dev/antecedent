@@ -171,6 +171,83 @@ fn soft_exposure_substitution_and_rubin_match_exact_rational_arithmetic() {
 }
 
 #[test]
+fn seeded_imputation_matches_the_independent_port_draw_for_draw() {
+    let case = &reference()["imputation"];
+    let outcome = floats(&case["outcome"]);
+    let probability = floats(&case["probability"]);
+    let covariate = floats(&case["covariate"]);
+    let draw_count = case["draw_count"].as_u64().unwrap() as usize;
+    let data = SoftExposureData {
+        outcome: &outcome,
+        probability: &probability,
+        covariates: &covariate,
+        covariate_count: 1,
+    };
+    let generated = antecedent_stats::measurement_error::soft_exposure_outcome_conditioned_draws(
+        &data,
+        draw_count,
+        case["seed"].as_u64().unwrap(),
+    )
+    .unwrap();
+    for (got, want) in generated.coefficients.iter().zip(floats(&case["full_coefficients"])) {
+        close(*got, want, 1e-6, "EM coefficient");
+    }
+    close(
+        generated.residual_variance,
+        case["full_residual_variance"].as_f64().unwrap(),
+        1e-6,
+        "EM residual variance",
+    );
+    let want: Vec<f64> = case["draws"].as_array().unwrap().iter().flat_map(floats).collect();
+    assert_eq!(generated.draws, want, "every imputed exposure equals the port's");
+    let effect = correct_soft_exposure_effect(
+        &data,
+        &SoftExposureCombination::MultipleImputation {
+            draw_count,
+            seed: case["seed"].as_u64().unwrap(),
+        },
+        &ctx(),
+    )
+    .unwrap();
+    let combined = effect.imputations.as_ref().unwrap();
+    let d = combined.dim;
+    close(combined.coefficients[1], case["coefficient"].as_f64().unwrap(), 1e-9, "Rubin point");
+    close(combined.within[d + 1], case["within"].as_f64().unwrap(), 1e-9, "within");
+    close(combined.between[d + 1], case["between"].as_f64().unwrap(), 1e-9, "between");
+    close(combined.covariance[d + 1], case["total"].as_f64().unwrap(), 1e-9, "total");
+}
+
+#[test]
+fn malformed_soft_exposures_and_a_single_imputation_refuse() {
+    let outcome = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+    let covariate = vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+    let bad = vec![0.1, 0.2, 1.5, 0.4, 0.5, 0.6, 0.7, 0.8];
+    let data = SoftExposureData {
+        outcome: &outcome,
+        probability: &bad,
+        covariates: &covariate,
+        covariate_count: 1,
+    };
+    let err = correct_soft_exposure_effect(&data, &SoftExposureCombination::PosteriorMean, &ctx())
+        .unwrap_err();
+    assert_eq!(err.code, antecedent_core::reason_code!("invalid_argument"));
+    assert_eq!(err.detail, antecedent_core::reason_details::measurement_model::INPUT_INVALID);
+    let good = vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+    let data = SoftExposureData { probability: &good, ..data };
+    let err = correct_soft_exposure_effect(
+        &data,
+        &SoftExposureCombination::SuppliedDraws { draws: &[0.0; 8], draw_count: 1 },
+        &ctx(),
+    )
+    .unwrap_err();
+    assert_eq!(err.code, antecedent_core::reason_code!("measurement_not_identified"));
+    assert_eq!(
+        err.detail,
+        antecedent_core::reason_details::measurement_model::INSUFFICIENT_REPLICATES
+    );
+}
+
+#[test]
 fn reliability_bins_match_exact_rational_arithmetic() {
     let case = &reference()["reliability"];
     let probability = floats(&case["probability"]);

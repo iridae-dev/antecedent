@@ -1634,6 +1634,19 @@
       "review": "Twenty-five source-fixed measurement-correction and composition designs (categorical correction, regression calibration, SIMEX, temporal misclassification beyond two arms, composed sums, weighted sums, products and ratios) with closed-form truths and one declared 0.95 level; the design axes and test names are literal."
     },
     {
+      "path": "crates/antecedent/tests/measurement_exposure_calibration.rs",
+      "sha256": "c8bf9342b7278cca4c8281b3f89fe92abcab34e7945bbd8520855a60d9aac2ba",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 81,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval }, REPORTED_LEVEL"
+        }
+      ],
+      "review": "Eight source-fixed designs of the exposure-error corrections (outcome-specific and shared validated exposure misclassification, soft exposures by substitution and by imputation, covariate-dependent detection declared exactly and with estimated parameters, binary and ordinal repeat codings), each scoring one named coordinate's published 0.95 interval against its closed-form truth; every estimator, functional and interval label is a literal in the source and no label depends on a simulated outcome."
+    },
+    {
       "path": "crates/antecedent/tests/mechanism_composition_interval_calibration.rs",
       "sha256": "580c5ab12acf535a0f792063fb3a50eb64fc4551a08f4741bb132ff8f7457cef",
       "labelled_calls": [],

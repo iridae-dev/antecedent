@@ -10238,10 +10238,10 @@
    "deviations": [
     "Rogan and Gladen give the variance for known rates; the extension adding Var(Se) and Var(Sp) is a first-order delta method derived in-repo, with shared rates keeping the arm covariance.",
     "Corrected proportions are reported unclipped to [0,1] and flagged.",
-    "Only outcome misclassification; exposure misclassification is a closed adjacent route.",
+    "Only outcome misclassification; a misclassified exposure is corrected by its own entry points (correct_exposure_misclassification).",
     "No interval; coverage is not measured."
    ],
-   "digest": "267051e1bd2f12b5d390311158a144e03a14cdedebeb5a5d2487ff2296d7915f",
+   "digest": "d5fbc3875067a724fbd2d14ee3268c97699217f5de6b9d92700375dfcac38095",
    "id": "measurement.binary_misclassification",
    "review": "method_review",
    "scope_limits": [

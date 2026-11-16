@@ -3126,6 +3126,21 @@ owning_module = "crates/antecedent/src/analysis/measurement_model.rs"
 notes = "PreparedMeasurementModel::estimate over crates/antecedent-estimate/src/measurement/{binary,categorical,linear,continuous}.rs; continuous classical error (regression calibration, SIMEX) is the data-quality route in crates/antecedent/src/analysis/continuous_measurement.rs. Differential error is never pooled into the non-differential route. Support units (status capability): capability records measurement.binary_misclassification, measurement.classical_continuous_error and measurement.repeated_measurements (independent checks in crates/antecedent-estimate/tests/measurement_models.rs); their interval routes are mapped to the coverage groups in parity/calibration_routes.toml. The route has no sealed operation (a prepared measurement model is not a compiled study) and no support-matrix cell."
 
 [[route]]
+id = "measurement.static.exposure"
+target = "MeasurementCorrectedFunctional"
+graph_class = "Dag"
+design_time_model = "declaration-bound exposure-error corrections (outcome-specific or shared exposure misclassification, per-unit soft exposures, covariate-dependent detection, repeat codings as replicates) called through antecedent.measurement_exposure"
+inference = "Frequentist"
+uncertainty = "delta-method (or Rubin total, or HC0 sandwich) Wald interval at the requested level from the standard error that includes the declared or validation-estimated parameter uncertainty; the result carries a not_measured calibration slot. 95% coverage harnesses (measurement_exposure_calibration: measurement_*_wald_l95): validated exposure misclassification by outcome and with shared rates, soft exposures by substitution and imputation, count-dependent detection declared exactly and estimated, and binary and ordinal repeat codings. Bounds from a partially declared detection function carry no interval claim"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "capability"
+capability_record = ["measurement.exposure_misclassification", "measurement.soft_exposure", "measurement.detection_dependent_prevalence", "measurement.repeat_codings_latent_class"]
+capability_claim = "interval"
+owning_module = "crates/antecedent-estimate/src/measurement/exposure_routes.rs"
+notes = "correct_exposure_misclassification, correct_soft_exposure_effect, correct_detection_dependent_prevalence and fit_repeat_codings over crates/antecedent-stats/src/measurement_error/{exposure,soft_exposure,detection,latent_class}.rs; they take their declarations as arguments and bind no model identity. Support units (status capability): the four capability records measurement.exposure_misclassification, measurement.soft_exposure, measurement.detection_dependent_prevalence and measurement.repeat_codings_latent_class (independent checks in crates/antecedent-estimate/tests/measurement_exposure_reference.rs); their interval routes are mapped to the coverage groups in parity/calibration_routes.toml. No sealed operation and no support-matrix cell."
+
+[[route]]
 id = "measurement.static.bayesian"
 target = "MeasurementCorrectedFunctional"
 graph_class = "Dag"

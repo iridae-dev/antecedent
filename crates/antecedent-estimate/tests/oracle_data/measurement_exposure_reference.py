@@ -427,10 +427,171 @@ def latent_class_case(counts, k, c, j):
     }
 
 
+# ---------------------------------------------------------------- seeded multiple imputation
+
+MASK = (1 << 64) - 1
+GOLDEN = 0x9E3779B97F4A7C15
+
+
+class SplitMix:
+    """The library's SplitMix64 stream, written from its definition."""
+
+    def __init__(self, seed):
+        self.state = (seed ^ GOLDEN) & MASK
+
+    def next_f64(self):
+        self.state = (self.state + GOLDEN) & MASK
+        z = self.state
+        z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & MASK
+        z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & MASK
+        z ^= z >> 31
+        return (z >> 11) * (1.0 / (1 << 53))
+
+
+def gauss_solve(a, b):
+    """Gaussian elimination with partial pivoting in binary64."""
+    n = len(a)
+    m = [row[:] + [bv] for row, bv in zip(a, b)]
+    for c in range(n):
+        piv = max(range(c, n), key=lambda r: abs(m[r][c]))
+        m[c], m[piv] = m[piv], m[c]
+        d = m[c][c]
+        m[c] = [v / d for v in m[c]]
+        for r in range(n):
+            if r != c:
+                f = m[r][c]
+                m[r] = [v - f * w for v, w in zip(m[r], m[c])]
+    return [row[n] for row in m]
+
+
+def mixture_fit(y, q, z, rows, start):
+    """EM for Y ~ N(b0 + b1 X + b2 Z, s2) with latent X ~ Bernoulli(q_i) over `rows`."""
+    d = 3
+
+    def design(i, x):
+        return [1.0, x, z[i]]
+
+    def m_step(resp):
+        a = [[0.0] * d for _ in range(d)]
+        b = [0.0] * d
+        for slot, i in enumerate(rows):
+            r = resp[slot]
+            for x, w in ((1.0, r), (0.0, 1.0 - r)):
+                if w <= 0.0:
+                    continue
+                v = design(i, x)
+                for s_ in range(d):
+                    b[s_] += w * v[s_] * y[i]
+                    for t in range(d):
+                        a[s_][t] += w * v[s_] * v[t]
+        beta = gauss_solve(a, b)
+        rss = 0.0
+        for slot, i in enumerate(rows):
+            r = resp[slot]
+            for x, w in ((1.0, r), (0.0, 1.0 - r)):
+                if w <= 0.0:
+                    continue
+                mu = sum(vv * cc for vv, cc in zip(design(i, x), beta))
+                rss += w * (y[i] - mu) ** 2
+        return beta, rss / len(rows)
+
+    def responsibility(qi, yi, mu0, mu1, s2):
+        if qi <= 0.0:
+            return 0.0
+        if qi >= 1.0:
+            return 1.0
+        odds = log(mpf(qi) / (1 - qi)) + ((yi - mu0) ** 2 - (yi - mu1) ** 2) / (
+            2.0 * s2
+        )
+        return float(1 / (1 + exp(-odds)))
+
+    def resp_of(beta, s2, i):
+        mu0 = sum(vv * cc for vv, cc in zip(design(i, 0.0), beta))
+        mu1 = sum(vv * cc for vv, cc in zip(design(i, 1.0), beta))
+        return responsibility(q[i], y[i], mu0, mu1, s2)
+
+    if start is None:
+        beta, s2 = m_step([q[i] for i in rows])
+    else:
+        beta, s2 = start
+    for _ in range(500):
+        resp = [resp_of(beta, s2, i) for i in rows]
+        nxt, ns2 = m_step(resp)
+        change = max([abs(a - b) for a, b in zip(nxt, beta)] + [abs(ns2 - s2)])
+        beta, s2 = nxt, ns2
+        if change < 1e-9:
+            break
+    return beta, s2, resp_of
+
+
+def ols_hc0_float(y, columns):
+    n, d = len(y), len(columns)
+    xtx = [
+        [sum(columns[a][i] * columns[b][i] for i in range(n)) for b in range(d)]
+        for a in range(d)
+    ]
+    xty = [sum(columns[a][i] * y[i] for i in range(n)) for a in range(d)]
+    beta = gauss_solve(xtx, xty)
+    resid = [y[i] - sum(beta[a] * columns[a][i] for a in range(d)) for i in range(n)]
+    bread = [gauss_solve(xtx, [float(i == j) for i in range(d)]) for j in range(d)]
+    meat = [
+        [
+            sum(columns[a][i] * columns[b][i] * resid[i] ** 2 for i in range(n))
+            for b in range(d)
+        ]
+        for a in range(d)
+    ]
+    tmp = [
+        [sum(bread[a][k] * meat[k][b] for k in range(d)) for b in range(d)]
+        for a in range(d)
+    ]
+    cov = [
+        [sum(tmp[a][k] * bread[k][b] for k in range(d)) for b in range(d)]
+        for a in range(d)
+    ]
+    return beta, cov
+
+
+def imputation_case():
+    n = 60
+    q = [0.05 + 0.9 * i / (n - 1) for i in range(n)]
+    z = [((7 * i) % 11 - 5) / 5 for i in range(n)]
+    y = [1.0 + 3.0 * q[i] + 0.5 * z[i] + ((13 * i) % 17 - 8) / 4 for i in range(n)]
+    seed, draw_count = 4, 6
+    full_beta, full_s2, _ = mixture_fit(y, q, z, list(range(n)), None)
+    rng = SplitMix(seed)
+    draws = []
+    for _ in range(draw_count):
+        rows = [min(int(rng.next_f64() * n), n - 1) for _ in range(n)]
+        beta, s2, resp_of = mixture_fit(y, q, z, rows, (full_beta, full_s2))
+        draws.append(
+            [1.0 if rng.next_f64() < resp_of(beta, s2, i) else 0.0 for i in range(n)]
+        )
+    fits = [ols_hc0_float(y, [[1.0] * n, d, z]) for d in draws]
+    mean_beta = sum(f[0][1] for f in fits) / draw_count
+    within = sum(f[1][1][1] for f in fits) / draw_count
+    between = sum((f[0][1] - mean_beta) ** 2 for f in fits) / (draw_count - 1)
+    return {
+        "outcome": y,
+        "probability": q,
+        "covariate": z,
+        "seed": seed,
+        "draw_count": draw_count,
+        "full_coefficients": full_beta,
+        "full_residual_variance": full_s2,
+        "draws": draws,
+        "coefficient": mean_beta,
+        "within": within,
+        "between": between,
+        "total": within + (1 + 1 / draw_count) * between,
+    }
+
+
 def main():
     mp.dps = 50
     exposure = exposure_cases()
     soft = soft_case()
+    imputation = imputation_case()
     reliability = reliability_case()
     logistic = logistic_case()
     bounds = bounds_case()
@@ -475,6 +636,7 @@ def main():
             {
                 "exposure": exposure,
                 "soft": soft,
+                "imputation": imputation,
                 "reliability": reliability,
                 "logistic": logistic,
                 "bounds": bounds,

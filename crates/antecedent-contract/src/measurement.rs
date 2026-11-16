@@ -163,7 +163,7 @@ const REPEATED_REFUSED: &[(MeasurementOperation, &str)] = &[
 const CATEGORICAL_REFUSED: &[(MeasurementOperation, &str)] = &[
     (
         MeasurementOperation::ConditionOnConstruct,
-        "per-unit soft assignments are not consumed; a calibrated per-unit posterior is a separate route",
+        "per-unit soft assignments are not consumed by a confusion matrix; a calibrated per-unit probability of exposure is answered by `antecedent_estimate::measurement::correct_soft_exposure_effect` (Python `measurement_exposure.soft_exposure_effect`)",
     ),
     (
         MeasurementOperation::InterveneOnRepresentation,
@@ -222,7 +222,7 @@ pub fn route_card(route: MeasurementRoute) -> MeasurementRouteCard {
                 "sensitivity and specificity known, or estimated from an independent validation sample",
                 "Youden index above the declared minimum",
                 "non-differential error, or an explicit per-arm differential declaration",
-                "misclassification of the outcome; exposure misclassification is a separate unsupported route",
+                "misclassification of the outcome; a misclassified exposure is answered by `antecedent_estimate::measurement::correct_exposure_misclassification` (Python `measurement_exposure.correct_exposure_misclassification`)",
             ],
             allowed: &[
                 MeasurementOperation::LatentPrevalence,
