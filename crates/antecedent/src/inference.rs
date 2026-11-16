@@ -1181,7 +1181,15 @@ pub mod interference {
 }
 /// Pure corrections for uncertain measurements.
 pub mod measurement_error {
-    pub use antecedent_stats::measurement_error::{ObservedClassSummary, TwoByTwoCounts};
+    pub use antecedent_stats::measurement_error::{
+        BinaryErrorRates, CorrectedExposureAssociation, DetectionAdjusted, DetectionAnchor,
+        DetectionBounds, DetectionData, DetectionDeclaration, DetectionDirection,
+        DetectionFunction, DetectionPoint, ExposureErrorStructure, ExposureOutcomeCounts,
+        FalsePositiveRate, LatentClassConstraints, LatentClassData, LatentClassFit,
+        LatentClassIdentification, LatentClassSettings, LatentClassStandardErrors,
+        ObservedClassSummary, ReliabilityBin, SoftExposureData, SoftExposureReliability,
+        TwoByTwoCounts, exposure_rates_from_validation,
+    };
 }
 /// Items of `antecedent-prob::metropolis`.
 pub mod metropolis {
