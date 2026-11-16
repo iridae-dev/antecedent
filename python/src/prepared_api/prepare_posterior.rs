@@ -57,7 +57,10 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-            let spec = configured_spec(estimator_config, None, &req.opts)?;
+            // A declared target runs the requested estimator on every atom: check its
+            // configuration against that estimator, not the posterior route's default.
+            let requested = req.opts.estimator.map(|id| id.as_str());
+            let spec = configured_spec(estimator_config, requested, &req.opts)?;
             // A posterior the engine pooled over completed tables keeps its provenance.
             let pooled = posterior.as_ref().and_then(|bound| bound.borrow().pooled_accepted());
             let supplied = take_supplied_posterior(posterior, &req.names)?;

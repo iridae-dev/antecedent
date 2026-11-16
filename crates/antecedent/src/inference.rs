@@ -663,15 +663,16 @@ pub fn map_named_composed(
     if selection.mapped.is_empty() {
         let list =
             |items: &[Arc<str>]| items.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
-        return Err(CausalError::Compile {
-            message: format!(
+        return Err(CausalError::Estimate(antecedent_estimate::EstimationError::refused(
+            antecedent_core::reason_code!("quantity_semantics_mismatch"),
+            format!(
                 "the composed prior's coordinates [{}] map by name onto none of the design \
                  columns [{}]; name the sources' coefficients as the design columns they inform \
                  (ExternalPriorSourceSpec.coefficient_names)",
                 list(names),
                 list(target)
             ),
-        });
+        )));
     }
     Ok(selection.prior)
 }
