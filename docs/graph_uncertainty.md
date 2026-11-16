@@ -1,14 +1,40 @@
 # Read graph uncertainty and unidentified mass
 
-Discovered structure is evidence, not a finished causal model. Antecedent keeps
-compatible graphs in play, reports when an effect is not identified on part of
-that belief, and refuses to invent orientations the data do not support. This
-page is a practitioner reading guide; the [support matrix](support-matrix.md)
-lists which combinations are supported.
+Use this page when your graph came from discovery, or you hold several candidate graphs,
+and you need to report an effect without pretending the structure is settled. It shows how to
+estimate across the compatible graphs, how to read the share of structural belief on which
+the effect is not identified (`unidentified_mass`), and what to do when estimation stops for
+review of a partial graph. You need a table and a query; the
+[support matrix](support-matrix.md) lists which combinations are supported.
 
-Related mental-model pages: [results are claims](concepts/results-are-claims.md),
-[refusals](concepts/refusals.md), and the
-discover → [`AcceptedGraph`](artifacts.md) spine.
+```python
+import antecedent
+from antecedent import AverageEffect, Bayesian, analyze
+from antecedent.discovery import ExactDagPosterior
+from antecedent.outcomes import require_success
+
+result = require_success(
+    analyze(
+        data=data,
+        discovery=ExactDagPosterior().run(data, execution=antecedent.Execution(seed=7)),
+        query=AverageEffect(treatment="spend", outcome="pipeline"),
+        inference=Bayesian(n_draws=200, backend="conjugate"),
+        execution=antecedent.Execution(seed=7),
+    )
+)
+posterior = result.posterior
+posterior.unidentified_mass     # share of graph-posterior weight with no identified estimand
+posterior.effect_mean           # E[effect | identified], not the effect under all graphs
+```
+
+Antecedent checks identification in each graph before estimating there. Graphs in which the
+effect is not identified contribute no estimate, and their weight is reported, never
+renormalized away. Read the two numbers together: see
+[Reading `unidentified_mass` and envelope cases](#reading-unidentified_mass-and-envelope-cases).
+
+Background: [results are claims](concepts/results-are-claims.md),
+[refusals](concepts/refusals.md), and holding a reviewed graph in an
+[`AcceptedGraph`](selective-discovery.md#hold-an-accepted-graph-and-estimate-from-it-repeatedly).
 
 ## Exact DAG posterior vs PAG / partial graphs
 
@@ -25,6 +51,72 @@ Practical distinction:
 - A **PAG / CPDAG envelope** answers “across completions of this partial graph, what identified set and residual unidentified mass remain?” Completing the class (review) is a separate scientific act from averaging over it.
 
 Priors never upgrade an unidentified atom into an identified one. Failed estimation on an identified atom is **unevaluable** mass, not unidentified mass—keep those axes separate when reading diagnostics.
+
+## Reading `unidentified_mass` and envelope cases
+
+After `analyze(...)` with a graph posterior or class envelope, inspect the result
+before projecting a scalar. `analyze` returns an outcome; `require_success(outcome)` (or
+`outcome.value`) is the result:
+
+```python
+posterior = result.posterior  # may be None on some Frequentist routes
+mass = posterior.unidentified_mass if posterior is not None else None
+```
+
+Notation: the structural belief is a set of atoms (DAGs of a posterior, or completions of a
+class) with weights `w_g` summing to one; `τ_g` is the query's effect in atom `g`; and an
+atom is *identified* when the query has an identified estimand in it.
+
+What to look for:
+
+1. **`posterior.unidentified_mass`** (or `result` / HTML callouts that mirror it) — the sum of `w_g` over atoms where the query has **no** identified estimand. A value of `0.5` means half of the structural belief says the observational data alone cannot answer the question under those graphs.
+2. **`posterior.effect_mean` / envelope means** — typically **`E[τ | identified]`**: a mixture only over atoms that identify the effect. That number is *not* “the ATE under all plausible graphs.”
+3. **Answer shape `partial` / limitation `unidentified_mass`** — Antecedent withholds a single point mean when unidentified mass is material; the HTML banner says so explicitly.
+4. **Envelope fields** (`posterior.envelope`, structural response identified sets) — lower/upper over identified atoms, plus the same unidentified mass axis. Informative when you need a set; still not support to drop the unidentified share.
+
+When is an envelope useful vs “don’t publish a point”?
+
+- **Publish the split:** report identified-conditional effect *and* unidentified mass (and, if present, the identified set).
+- **Do not publish a lone ROI / ATE** when unidentified mass is large enough that a decision would change if that mass resolved against you—unless you state the conditioning (“among structures where the effect is identified…”).
+- **Envelope alone** is still incomplete if you hide the unidentified share; the set only covers identified completions.
+
+Pinned contracts for the math and refusal behavior:
+
+- [Bayesian graph effect envelope](conformance/bayesian__graph_effect_envelope.md) (`conformance/bayesian/graph_effect_envelope`) — weighted ensemble with known unidentified fraction; `renormalize_identified_only` refuses a 100% mixture after dropping mass.
+- [PAG envelope unidentified mass](conformance/pag__envelope_unidentified_mass.md) (`conformance/pag/envelope_unidentified_mass`) — for `x o-> y`, both completions (`x -> y`, `x <-> y`) lack an adjustment certificate, so the effect is reported as not identified by the implemented adjustment method and the unidentified mass is preserved (this is a refusal of that method, not a claim of a zero effect).
+- [Known-truth mixtures](conformance/bayesian__known_truth_mixtures.md) — analytic `E[τ | identified]` with retained unidentified mass (e.g. static mixture mean `2.625` with mass `0.2`).
+
+## When `CausalReviewError` is raised
+
+Discovery algorithms often return a CPDAG or PAG with pending marks. Estimation
+that would require treating that partial graph as a finished DAG raises
+`CausalReviewError` (also available as `ReviewRequired`). Structured attributes
+include `kind`, `algorithm`, `pending_edge_count`, `hint`, and pending edge
+records—see `python/tests/test_review_required_ux.py`.
+
+Typical triggers:
+
+- `discovery.discover(data, method=FCI(...), accept_discovered=False)` (or incomplete
+  review) when circle marks remain.
+- Forcing a point estimate on a TemporalPag / MAG completion path with no
+  identified mass (compile refusal rather than a silent NaN).
+
+How to complete or accept a graph:
+
+1. **Review pending marks** with subject-matter knowledge:
+   `accepted.review({(u, v): ("tail", "arrow"), ...})` on an
+   [`AcceptedGraph`](artifacts.md) handle (version bumps; the old handle stays).
+2. **Supply an explicit DAG** you are willing to defend
+   (`AcceptedGraph.from_graph(dag)` or `graph=[(u, v), ...]`), as in
+   [`examples/python/discover_then_estimate.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discover_then_estimate.py).
+3. **Keep the class and use an envelope / posterior route** when you are not
+   ready to orient—do not silently pick a MAP orientation to “unblock” the
+   pipeline.
+4. Use `antecedent.errors.next_action(err)` / `pending_edges(err)` for an
+   actionable orientation hint in UIs.
+
+Acceptance records review provenance; it does **not** prove the real-world
+graph is true.
 
 ## Completion search budgets
 
@@ -155,9 +247,10 @@ classes of each template's one-step window. `ExactPagPosterior` is the Bayesian 
 variables: every maximal ancestral graph is fitted by residual iterative conditional fitting,
 scored by BIC, and Markov-equivalent graphs are merged into their PAG, so the result is a
 `GraphPosterior` with `atom_kind` `"Pag"` and `mark_masks` flagging the circle endpoints.
-`PagMcmc` is its Metropolis counterpart for two to eight variables (single-pair link moves from
+`PagMcmc` is its Metropolis counterpart for two to 31 variables (single-pair link moves from
 the empty graph, with ancestrality and maximality checks); `converged` records only that the
-chains' class frequencies agree. Larger graphs refuse.
+chains' class frequencies agree. More variables, or a schedule whose m-separation work exceeds
+the sampler's budget, refuse.
 
 **Stability of the search.** `BootstrapStability(base, replicates)` (Rust:
 `DiscoverySpec::bootstrap_stability`) re-runs the search on resamples drawn under the
@@ -171,68 +264,6 @@ which the search fails is counted in `replicates_failed` and never redrawn, and 
 half succeeding is refused. A table with a missing searched value, a masked or weighted
 table and a declared design that does not sample independent rows are refused with the next
 attempt named.
-
-## Reading `unidentified_mass` and envelope cases
-
-After `analyze(...)` with a graph posterior or class envelope, inspect the result
-before projecting a scalar:
-
-```python
-result = analyze(...)
-posterior = result.value.posterior  # may be None on some Frequentist routes
-mass = posterior.unidentified_mass if posterior is not None else None
-```
-
-What to look for:
-
-1. **`posterior.unidentified_mass`** (or `result` / HTML callouts that mirror it) — posterior (or class) weight where the query has **no** identified estimand. A value of `0.5` means half of the structural belief says the observational data alone cannot answer the question under those graphs.
-2. **`posterior.effect_mean` / envelope means** — typically **`E[τ | identified]`**: a mixture only over atoms that identify the effect. That number is *not* “the ATE under all plausible graphs.”
-3. **Answer shape `partial` / limitation `unidentified_mass`** — Antecedent withholds a single point mean when unidentified mass is material; the HTML banner says so explicitly.
-4. **Envelope fields** (`posterior.envelope`, structural response identified sets) — lower/upper over identified atoms, plus the same unidentified mass axis. Informative when you need a set; still not support to drop the unidentified share.
-
-When is an envelope useful vs “don’t publish a point”?
-
-- **Publish the split:** report identified-conditional effect *and* unidentified mass (and, if present, the identified set).
-- **Do not publish a lone ROI / ATE** when unidentified mass is large enough that a decision would change if that mass resolved against you—unless you state the conditioning (“among structures where the effect is identified…”).
-- **Envelope alone** is still incomplete if you hide the unidentified share; the set only covers identified completions.
-
-Pinned contracts for the math and refusal behavior:
-
-- [Bayesian graph effect envelope](conformance/bayesian__graph_effect_envelope.md) (`conformance/bayesian/graph_effect_envelope`) — weighted ensemble with known unidentified fraction; `renormalize_identified_only` refuses a 100% mixture after dropping mass.
-- [PAG envelope unidentified mass](conformance/pag__envelope_unidentified_mass.md) (`conformance/pag/envelope_unidentified_mass`) — for `x o-> y`, both completions (`x -> y`, `x <-> y`) lack an adjustment certificate, so the effect is reported as not identified by the implemented adjustment method and the unidentified mass is preserved (this is a refusal of that method, not a claim of a zero effect).
-- [Known-truth mixtures](conformance/bayesian__known_truth_mixtures.md) — analytic `E[τ | identified]` with retained unidentified mass (e.g. static mixture mean `2.625` with mass `0.2`).
-
-## When `CausalReviewError` is raised
-
-Discovery algorithms often return a CPDAG or PAG with pending marks. Estimation
-that would require treating that partial graph as a finished DAG raises
-`CausalReviewError` (also available as `ReviewRequired`). Structured attributes
-include `kind`, `algorithm`, `pending_edge_count`, `hint`, and pending edge
-records—see `python/tests/test_review_required_ux.py`.
-
-Typical triggers:
-
-- `discovery.discover(data, method=FCI(...), accept_discovered=False)` (or incomplete
-  review) when circle marks remain.
-- Forcing a point estimate on a TemporalPag / MAG completion path with no
-  identified mass (compile refusal rather than a silent NaN).
-
-How to complete or accept a graph:
-
-1. **Review pending marks** with subject-matter knowledge:
-   `accepted.review({(u, v): ("tail", "arrow"), ...})` on an
-   [`AcceptedGraph`](artifacts.md) handle (version bumps; the old handle stays).
-2. **Supply an explicit DAG** you are willing to defend
-   (`AcceptedGraph.from_graph(dag)` or `graph=[(u, v), ...]`), as in
-   `examples/python/discover_then_estimate.py`.
-3. **Keep the class and use an envelope / posterior route** when you are not
-   ready to orient—do not silently pick a MAP orientation to “unblock” the
-   pipeline.
-4. Use `antecedent.errors.next_action(err)` / `pending_edges(err)` for an
-   actionable orientation hint in UIs.
-
-Acceptance records review provenance; it does **not** prove the real-world
-graph is true.
 
 ## Worked vignette: marketing channel structural uncertainty
 
@@ -270,6 +301,20 @@ Dashboard anti-copy: a single “incremental ROI” tile with a wider error bar.
 Dashboard-appropriate: two readouts—**identified-conditional effect** and
 **unidentified structural mass**—plus a link to the pending graph / review
 state.
+
+## Refusals and stops you will meet
+
+| Situation | What you get | Next step |
+| --- | --- | --- |
+| estimating on a CPDAG or PAG with pending marks | `CausalReviewError` (`ReviewRequired`) with the pending edges | orient the marks with `AcceptedGraph.review`, supply a DAG, or keep the class and use a posterior or envelope route; see [above](#when-causalreviewerror-is-raised) |
+| asking `ExactDagPosterior` for graph atoms, weights, the MAP graph or a mixture over graphs at 7 to 15 variables | `option_not_applicable`: only exact edge marginals exist there | use the marginals, or sample with `OrderMcmc` or `StructureMcmc` |
+| `ExactDagPosterior` above 15 variables, `ExactPagPosterior` above four, `PagMcmc` above 31 or with a schedule whose work exceeds its budget | refused, naming the bound | reduce the variables, shorten the schedule, or use a sampler |
+| an MCMC schedule that fails the publication gate | refused, not published | lengthen the schedule toward the validated conditions |
+| `BootstrapStability` on a table with a missing searched value, a masked or weighted table, or with fewer than half the resamples succeeding | refused with the next attempt named | drop incomplete rows first; fix the failing search |
+| a completion search that exhausts its budget | a partial result with `search_stop` and a receipt, not a refusal | every class-wide claim is withdrawn; raise the budget or restrict the class |
+| a point estimate on a temporal PAG or MAG completion path with no identified mass | a refusal at compile, not a NaN and not a zero effect | see [evidence that would resolve a not-identified result](reference/refusal-codes.md#evidence-that-would-resolve-a-not-identified-result) |
+
+Codes and remedies are in the [refusal reference](reference/refusal-codes.md).
 
 ## Anti-patterns
 

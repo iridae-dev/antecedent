@@ -1,16 +1,50 @@
 # Attribute a target's variance to its noise terms
 
-Split the spread of a target among the mechanisms that produce it. Intrinsic causal influence splits the variance of a target among the exogenous noise
-terms of its ancestors and its own. It answers "how much of the spread in `y` is
-produced at each mechanism", as opposed to how much of it is passed through from
-upstream. The game is
+Split the variance of a target among the mechanisms that produce it. Intrinsic causal influence
+attributes `Var(Y)` to the exogenous noise terms of the target's ancestors and its own. Use it to
+answer "how much of the spread in `y` is produced at each mechanism", as opposed to how much is
+passed through from upstream. It needs a directed acyclic graph you declare, data for every node,
+and your declaration that the noise terms are independent. The answer is a property of the
+fitted structural model, not an identified effect.
+
+## Run it on a chain
+
+```python
+import numpy as np
+from antecedent.gcm import intrinsic_influence
+
+rng = np.random.default_rng(0)
+x = rng.normal(size=2000)
+y = 2 * x + rng.normal(size=2000)
+z = 1.5 * y + 0.5 * rng.normal(size=2000)
+
+result = intrinsic_influence(
+    {"x": x, "y": y, "z": z},
+    [("x", "y"), ("y", "z")],
+    "z",
+    independent_noise=True,
+    fit_bootstrap=20,
+)
+for source in result.sources:
+    print(source.source, source.contribution)  # about 9, 2.25, 0.25
+```
+
+The three contributions are the shares of `Var(z)` produced by the noise of `x`, `y` and `z`.
+Here the closed form is `(1.5 * 2)**2 * 1 = 9`, `1.5**2 * 1 = 2.25` and `0.5**2 = 0.25`; they sum
+to `result.total_variance` up to estimation error, which `result.allocation_residual` reports.
+
+## The quantity
+
+Write `U_j` for the noise term of source `j` and `U_S` for the noise terms of a set of sources
+`S`. The value of a coalition is
 
     v(S) = Var( E[ Y | U_S ] )
 
-over the noise coordinates `U_S` of the sources in `S`. Then `v(∅) = 0` and
-`v(all) = Var(Y)`, and the Shapley values of the sources add up to the target variance.
-For a linear model with independent noise `v(S)` is the sum over `S` of the squared
-total path coefficient times the noise variance, so each source's share is that term.
+the variance of the target `Y` explained by knowing the noise of `S`. Then `v(∅) = 0` and
+`v(all) = Var(Y)`, and the contribution of a source is its Shapley value in this game, so the
+contributions add up to the target variance. For a linear model with independent noise `v(S)` is
+the sum over `S` of the squared total path coefficient times the noise variance, so each
+source's share is that term.
 
 Python: `antecedent.gcm.intrinsic_influence(data, edges, target, ...)` fits and attributes in one call. On a model you already fitted, `antecedent.gcm.fitted_intrinsic_influence(fitted, target, ...)` uses its structure, mechanisms and rows without refitting and gives the result `intrinsic_influence` gives on the data and edges it was fitted from. In Rust, `antecedent_attribution::intrinsic_influence` is the engine and the compiled route is `CausalQuery::Attribute` with `AttributeTarget::IntrinsicInfluence` on a supplied or accepted `Dag` (see [compiled structure routes](compiled-structure-routes.md)). The quantity is that of Janzing, Blöbaum, Mastakouri, Faller, Minorics and Budhathoki (2024), "Quantifying intrinsic causal contributions via structure preserving interventions", AISTATS.
 
@@ -24,9 +58,12 @@ Python: `antecedent.gcm.intrinsic_influence(data, edges, target, ...)` fits and 
   cause, or correlated noise) is refused, naming the pair, and so is a call with no
   declaration. A state-space mechanism, whose noise is serially dependent across rows, an
   unfitted mechanism and a categorical target are refused too.
-- Exact Shapley is used for up to ten sources (`max_exact_players` in
-  [supported input bounds](../supported-bounds.md)); above that, permutation sampling. Requesting
-  `allocation="exact"` for more sources is refused.
+- With `allocation="auto"`, every coalition is enumerated (exact Shapley) for up to eleven
+  sources, the largest count for which enumeration costs no more than a plan of 200
+  permutations; above that, 200 permutations are sampled (`n_permutations` applies to
+  `allocation="permutation"`). `allocation="exact"`
+  has no source bound of its own and is refused when its plan exceeds the simulation budget.
+  At most `max_sources` sources (default 64) are admitted.
 
 ## How a coalition value is estimated
 
@@ -72,7 +109,7 @@ component is computed from the pooled coalition values, which carry some simulat
 noise, so it slightly overstates the permutation error; the bootstrap spread is reduced
 by the Monte Carlo variance of one estimate before it is reported. The intervals are
 Student-t intervals on those standard errors and are uncalibrated diagnostics: no
-coverage claim is made. `SourceInfluence::quantified_stderr` adds the quantified
+coverage claim is made. In Rust, `SourceInfluence::quantified_stderr` adds the quantified
 components in quadrature for comparison with a known value and lists the components it
 leaves out; it is a total only when that list is empty.
 
@@ -105,31 +142,22 @@ identification. In Rust the same attribution runs through the compiled route und
 refit is a full nested attribution, and such a run is outside the measured conditions and
 states no support.
 
-## Run it on a chain
+## Refusals
 
-```python
-import numpy as np
-from antecedent.gcm import intrinsic_influence
+Each of these refuses before any attribution is returned; a bidirected-edge refusal names the pair.
+The fields of a structured refusal are described in
+[refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies).
 
-rng = np.random.default_rng(0)
-x = rng.normal(size=2000)
-y = 2 * x + rng.normal(size=2000)
-z = 1.5 * y + 0.5 * rng.normal(size=2000)
-
-result = intrinsic_influence(
-    {"x": x, "y": y, "z": z},
-    [("x", "y"), ("y", "z")],
-    "z",
-    independent_noise=True,
-    fit_bootstrap=20,
-)
-for source in result.sources:
-    print(source.source, source.contribution)  # about 9, 2.25, 0.25
-```
+| Request | Remedy |
+| --- | --- |
+| No independence declaration (`independent_noise` left `False` and no `bidirected_edges`) | Declare `independent_noise=True` if you can defend it, or pass the structure's `bidirected_edges` |
+| Any bidirected edge (a latent common cause or correlated noise) | None on this route: the variance game is defined for independent noise |
+| A state-space mechanism, an unfitted mechanism or a categorical target | Attribute a continuous target on a fully fitted static model |
+| An exact or permutation plan over the simulation budget | Lower `outer_draws`, `inner_draws` or `replicates`, or use `allocation="permutation"` |
 
 ## Examples
 
-`examples/rust/intrinsic_influence.rs` and `examples/python/intrinsic_influence.py` attribute the
+[`examples/rust/intrinsic_influence.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/intrinsic_influence.rs) and [`examples/python/intrinsic_influence.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/intrinsic_influence.py) attribute the
 variance of `z` on `x -> y -> z` to the three noise terms (closed form 9, 2.25 and 0.25), show
 which uncertainty components are quantified, not applicable or unquantified, and refuse a call
 that does not declare independent noise. Both assert their results and run in the example suites.
@@ -153,7 +181,7 @@ Where they differ.
   approximate the map from noise terms to the target (`"exact"` propagates noise through the
   fitted mechanisms). This route always replays the fitted model itself, so there is no surrogate.
 - The nested simulation subtracts the inner-sampling bias of `Var(E[Y | U_S])`, uses exact Shapley
-  values up to ten sources and permutation sampling beyond, and reports the efficiency gap.
+  values up to eleven sources and permutation sampling beyond, and reports the efficiency gap.
 - Uncertainty is reported by component (permutation sampling, simulation, mechanism fit), never
   combined, and a component that was not measured is `unquantified`; DoWhy returns point values.
 - Independence of the noise terms is a declaration the call must make, and a latent common cause

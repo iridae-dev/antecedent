@@ -1,14 +1,51 @@
 # Rerun discovery without recomputing it
 
-Discovery is the expensive first stage of many analyses, and it is rerun for reasons
-that leave most of its work unchanged: a different threshold, added background
-knowledge, a different orientation budget, a different lag window. Selective discovery
-reuses the conditional-independence statistics a run computed, at exactly the input
-coordinates where a later request needs them, and reruns the decisions and the
-orientation on top. It makes one claim: a selective run returns what a full run of the
-same request returns, bit for bit. It makes no claim that the result is the true graph.
+Use selective discovery when you rerun a constraint-based search (PC or FCI over a table,
+PCMCI or PCMCI+ over a series) on the same data with a changed request: a different
+threshold, added background knowledge, a different orientation budget. Those changes leave
+the conditional-independence statistics untouched, and the statistics are most of the cost.
+A `SelectiveDiscovery` adapter retains the statistics a run computed, serves a later request
+from them at exactly the input coordinates where it needs them, and reruns the decisions and
+the orientation on top.
 
-The portable state is exported as the artifact kind `selective_discovery_v1`. The Python surface is `antecedent.selective_discovery`; the Rust implementation is in `antecedent_discovery::selective`.
+It makes one claim: a selective run returns what a full run of the same request returns, bit
+for bit. It makes no claim that the result is the true graph.
+
+```python
+from antecedent import selective_discovery as sd
+
+contract = sd.StaticContract(("a", "b", "c", "d"), algorithm="pc", alpha=0.2, seed=0)
+adapter = sd.SelectiveDiscovery("static")
+
+first = adapter.run(contract, data)                      # computes every statistic it needs
+second = adapter.run(sd.replace(contract, alpha=0.01), data)
+
+second.stage("statistics").status    # "reused"
+second.stage("search").status        # "recomputed"
+second.stage("search").because       # ("thresholds",)
+second.work.ci_tests_reused          # requests answered from a retained statistic
+adapter.outcome                      # the discovered structure, with its unresolved edges
+```
+
+`data` maps every searched variable to a one-dimensional float array. `adapter.plan(contract,
+data)` returns the same per-stage decisions without executing anything.
+
+**Reading the result.** `run` returns a `RunReport`: one `PlanEntry` per stage
+(`status` is `"reused"` or `"recomputed"`, and `because` names the changed inputs), the
+observed `work`, and whether the outcome changed. `adapter.outcome` is an `Outcome`: the
+structure in its class (`structure_class`), its `edges`, the `unresolved_edges` with their
+reasons, `search_incomplete`, `orientation_conflict`, and two identities
+(`structure_identity`, `result_identity`). No estimate, interval or posterior is produced:
+the outcome is a discovered structure and an account of the work, and `fully_directed` does
+not make it more than an estimate of the graph.
+
+The rest of this page is the reference for that behaviour: what a contract fixes, what each
+change reuses, how the structure reaches later stages, the row-split constructions that give
+an effect after discovery, and the refusals.
+
+The portable state is exported as the artifact kind `selective_discovery_v1`. The Python
+surface is `antecedent.selective_discovery`; the Rust implementation is in
+`antecedent_discovery::selective`.
 
 ## Frozen contracts
 
@@ -120,8 +157,8 @@ of an equivalence class is never reported as the discovered graph.
   `Graph` input of the stage planner. It requires a structure with no unresolved edge or
   an explicitly declared completion (a label and an identity; recorded as a declaration,
   not a discovery), and it refuses a search that exhausted a bound.
-* `add_discovery_claims` places the discovery stages in the claim-level invalidation
-  graph. New data recomputes the graph and everything resting on it (the structure is
+* `add_discovery_claims` (Python: `SelectiveDiscovery.add_claims`) places the discovery
+  stages in the claim-level invalidation graph. New data recomputes the graph and everything resting on it (the structure is
   reused and the fit is not retained); a threshold change keeps the statistics and
   recomputes what rests on the graph; a changed structure or completion recomputes; an
   exhausted search bound makes the graph unsupported and withdraws every claim resting
@@ -146,7 +183,10 @@ the request. Three decisions are recorded:
 3. **Multi-population discovery is out.** A pooled or per-population search carries its
    own invariance and identification assumptions, which belong to the transport
    contract and are not inferable from data. The contract refuses a second population or
-   multi-dataset constraints with `route_not_supported`.
+   multi-dataset constraints with `route_not_supported`. `PerPopulationDiscovery` runs one
+   declared static contract separately on each population's rows, with one retained store
+   per population and no row or statistic crossing populations; its report of differing
+   edges is descriptive and is not a selection diagram.
 
 ## Hold an accepted graph and estimate from it repeatedly
 
@@ -435,6 +475,29 @@ The graph recovered on one table is an estimate: sufficiency and faithfulness ca
 from the table discovery ran on, so these conditions are the family the coverage was measured
 over, never a per-table certificate.
 
+## Refusals
+
+A scientific refusal on this surface is a `SelectiveDiscoveryRefusal` (a
+[structured refusal](reference/refusal-codes.md#structured-refusals-and-their-remedies))
+with a registered `code`, a namespaced `detail` and a `remedy`. The `selective_discovery.*`
+details, with what would support each request, are listed under
+[Discovered structure and per-population discovery](reference/refusal-codes.md#discovered-structure-and-per-population-discovery).
+
+| You asked for | Code | Why |
+| --- | --- | --- |
+| background knowledge that contradicts itself, names an unsearched variable, or has no meaning for the algorithm | `invalid_argument`, `unknown_variable`, `option_not_applicable` | a statement is honoured or refused, never ignored |
+| a second population or multi-dataset constraints in one contract | `route_not_supported` | cross-population assumptions belong to the transport contract |
+| a recovery or error-rate statement about the output graph (`request_recovery_claim`) | `not_supported` | faithfulness and causal sufficiency cannot be tested on the data discovery ran on |
+| an interval for an estimate computed on the rows discovery used (`request_downstream_interval`) | `not_supported` | no construction with a measured coverage |
+| a selection diagram, or a graph stage identity, from a structure with unresolved edges or an exhausted search bound | `discovered_structure_unresolved` | an estimate with open edges is not a declared graph; the refusal lists the edges and bounds |
+| reuse inside a score-based search (`request_score_search_reuse`) | `route_not_supported` | reuse is constraint based |
+| a resume without the raw data, on other data, under another contract, or from an unusable receipt | `discovery_statistics_invalid` | the replay must reach the recorded result identity |
+| a row split that leaves a part empty, repeats or exceeds rows, names an excluded row, or carries weights the declared test does not read | `invalid_argument`, `option_not_applicable` | see [Splitting rows](#splitting-rows-filter-then-split) |
+
+An algorithm failure or a cancellation raises `CausalDiscoveryError`. After any refusal,
+failure or cancellation the adapter's retained state, outcome and identities are exactly as
+they were.
+
 ## Lifecycle
 
 * **prepare / estimate:** a contract and data produce an outcome and a plan; accepting
@@ -474,12 +537,14 @@ interval, no posterior). Paradigm: neither Frequentist nor Bayesian output is pr
 
 ## Python surface
 
-`antecedent.selective_discovery`: `StaticContract`, `TemporalContract`, `Link` (shared with
+`antecedent.selective_discovery`: `StaticContract`, `TemporalContract` (and `replace`, which
+returns a contract with named fields changed), `Link` (shared with
 `antecedent.discovery`, which also holds `BackgroundKnowledge`), `discover_on_split` (with `weights=` and
 `mask=`) and `SampleSplit` (`receipt`, `verify`, `verify_source`, `analysis_row_ids`,
 `analysis_weights`, `analysis_effective_sample_size`), `SelectiveDiscovery`
-(`run`, `plan`, `outcome`, `export_state`, `resume`, `request_recovery_claim`,
+(`run`, `plan`, `outcome`, `export_state`, `resume`, `add_claims`,
+`accepted_graph_stage_identity`, `request_recovery_claim`,
 `request_downstream_interval`, `request_selection_diagram`), `sample_split_effect` and `SplitEffect` (with `measure`), `sample_split_parent_set_effect` and `ParentSetEffect` (with `measure`), `Outcome` (structure with
 `unresolved_edges`, `directed_edges`, evidence, bounded-search receipts), `RunReport` and
 `WorkUnits`, `inspect_selective_discovery_artifact`, `consume_selective_discovery_artifact`,
-`request_score_search_reuse` and `SelectiveDiscoveryRefusal`. Contract seeds default to 0.
+`request_score_search_reuse`, `PerPopulationDiscovery` and `SelectiveDiscoveryRefusal`. Contract seeds default to 0.

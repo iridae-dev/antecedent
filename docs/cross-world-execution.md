@@ -1,9 +1,61 @@
 # Compute cross-world quantities in stages
 
+Compute a quantity that compares one unit across several worlds: a counterfactual given what
+was observed (`P(Y_{do(X=0)} = 1 | X = 1)`), a joint event over worlds, or a natural or
+path-specific contrast. Use this route when you can declare the whole structural model: finite
+variables, every mechanism table and the law of every exogenous (noise) term. The answer is then
+an exact computation under that model. Model adequacy is a premise, not a check, and a model
+whose mechanisms are not declared is refused as not identified.
+
+## Ask a counterfactual of a declared model
+
+A hidden frailty `u` (frail with probability 0.3) decides both who is treated, `x = u`, and how
+the outcome responds, `y = x xor u`. For a patient observed treated, what is the probability of
+`y = 1` had they not been treated?
+
+```python
+from antecedent import cross_world_execution as cw
+from antecedent.outcomes import require_success
+
+model = cw.FiniteSCM(
+    population="clinic",
+    history="current_regime",
+    exogenous=(cw.ExogenousTerm("u", (0.7, 0.3)),),
+    variables=(
+        cw.FiniteVariable("x", 2, (), "u", (0, 1)),
+        # table[u * 2 + x]: u = 0 gives y = x, u = 1 gives y = 1 - x.
+        cw.FiniteVariable("y", 2, ("x",), "u", (0, 1, 1, 0)),
+    ),
+)
+request = cw.CrossWorldRequest(
+    scm=model,
+    units=(cw.FactualUnit("patient", {"x": 1}),),
+    worlds=(cw.World("untreated", {"x": 0}), cw.World("treated", {"x": 1})),
+    quantity=cw.probability("untreated", "y", 1),
+)
+executor = cw.CrossWorldExecutor()
+result = require_success(executor.execute(request))
+print(result.value, result.label, result.matrix_row)   # 1.0, a point-only label, the matrix row
+print(result.work)                                     # abductions, abductions_reused, ...
+```
+
+`result.value` is the mean over units of the requested quantity; `result.units` holds each
+unit's value and the probability of its evidence. The value here is 1: observing `x = 1` reveals
+`u = 1`, and the same `u` is read in the untreated world. `label` states that the result is a
+point with no interval. Quantities are built with `cw.probability`, `cw.joint_probability` and
+`cw.mean_contrast`; a `cw.World` may carry `cw.WorldRoute`s for natural and path-specific
+contrasts. `cw.seal(request)` executes and returns an exportable `CrossWorldExecution`
+([export and resume](#export-and-resume)). The complete script is
+[`examples/python/shared_exogenous_counterfactual.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/shared_exogenous_counterfactual.py)
+([`examples/rust/shared_exogenous_counterfactual.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/shared_exogenous_counterfactual.rs) in Rust).
+
+## Stages and reuse
+
 Cross-world quantities (counterfactuals, natural and path-specific contrasts,
-temporal counterfactuals) are computed by one staged pipeline whose stages are
-kept separate so a change of one input rebuilds only the stages that depend on
-it.
+temporal counterfactuals) are computed by one staged pipeline. The stages are
+kept separate so that a change of one input rebuilds only the stages that depend on
+it: calling the same executor again with new worlds or a new quantity reuses the
+abduction, and `work["abductions"]` is then 0.
 
 | Stage | What it is | Canonical dependencies |
 |---|---|---|
@@ -27,7 +79,9 @@ not committed, and a failed call leaves retained abductions unchanged.
 The matrix is checked data (`parity/cross_world_capability.toml`, compared with
 `antecedent_counterfactual::selective::matrix::ROWS` by a test). A request
 outside an executed row is a scientific refusal naming the unmet dimension and
-the declaration that would open it; it is not a cache miss.
+the declaration that would open it; it is not a cache miss. In Python,
+`cw.capability_matrix()` returns the rows and `cw.decide(...)` returns the row a
+request falls in or raises its refusal.
 
 | Row | Status |
 |---|---|
@@ -38,10 +92,10 @@ the declaration that would open it; it is not a cache miss.
 | fixed-population two-slice temporal counterfactual | executed, staged with abduction reuse |
 | fixed-population temporal counterfactual, any horizon and any number of named action histories | executed, staged with abduction reuse (`GeneralTemporalExecutor`); sealed as `temporal_counterfactual_general_v1`. The two-slice, two-history route is sealed as `temporal_counterfactual_v1` |
 | transported static additive linear path-specific | keeps its own theorem-scoped route |
-| transported cross-world execution | closed: `not_supported`, prerequisites named |
+| transported cross-world execution | closed: `route_not_supported` (`cross_world_execution.no_transported_row_derivation`), prerequisites named |
 | latent confounding without declared mechanisms, nonparametric ADMG | closed: `cross_world_not_identified` |
 | declared model whose joint exogenous space exceeds the enumeration bound | executed by exact variable elimination (`exogenous_method = variable_elimination`); `route_not_supported` (`cross_world_execution.elimination_bound_exceeded`) only when the elimination order needs a table above its bound |
-| incompatible history, soft interventions, fitting a finite SCM from data | closed |
+| incompatible history, soft interventions, fitting a finite SCM from data | closed: `route_not_supported` |
 
 ## The finite SCM rows
 
@@ -74,9 +128,9 @@ value per joint state, every mechanism that reads it sees that value, in the
 factual world and in every counterfactual world. A patient observed treated is
 thereby known to carry the hidden state that also shaped the outcome, and the
 counterfactual outcome inherits it; replacing the shared term by independent
-noise gives a different answer (see `examples/python/shared_exogenous_counterfactual.py`).
+noise gives a different answer: 0.3 instead of 1 in the example above.
 
-Three situations are kept apart in refusals:
+Two situations are kept apart in refusals:
 
 - A model whose mechanisms or exogenous law are not declared (a nonparametric
   ADMG, or latent confounding to be fitted from data) does not identify a
@@ -87,9 +141,11 @@ Three situations are kept apart in refusals:
   bound (`cross_world_execution.elimination_bound_exceeded`), or a request outside
   an executed row, is unsupported execution, not non-identification:
   `route_not_supported`.
-- Intervals are not extended to shared terms: the whole-path coverage design
-  covers one exogenous term per variable, so a shared-term model reads a point
-  only.
+
+The whole-path coverage design measured one exogenous term per variable. A
+shared-term model is therefore outside the measured class: its
+[measured interval](#readings-and-calibration) is reported with a calibration
+status that says so.
 
 Whether draws may be paired is decided only by the joint-law rule
 (`check_propagation`): a quantity over several worlds needs the aligned
@@ -110,25 +166,35 @@ Bounds (registered in `parity/limits.toml`):
 ## Readings and calibration
 
 Every result is `point_only` from an exact computation (enumeration or variable elimination) on a declared model; model
-adequacy is a premise, not a check. A posterior reading and a sampled posterior
-(`ExogenousInference::PosteriorSampling`) are closed with `not_supported`:
-the mechanisms are declared and the exogenous posterior is enumerated exactly, so
-there is no parameter uncertainty a posterior could describe, and sampling only
-adds Monte Carlo error to an exact value. The unqualified `interval()` is closed.
+adequacy is a premise, not a check. Three readings are closed, each with its own code:
 
-`measured_interval(unit_sampling)` reads an interval through a declared unit
-sampling from the derived whole-path spread:
-
-| Unit sampling | Interval for | Variance |
+| Reading | Code | Why |
 | --- | --- | --- |
-| `independent_sample` | the population mean of the unit counterfactual probabilities | `s^2 / n` of the unit values |
-| `fixed_units` | the mean of the realized counterfactual outcomes of these units | `sum v_i / n^2` |
+| the unqualified `interval()` | `sampling_dependence_unknown` | an interval needs a declared unit sampling |
+| a posterior (`posterior()`) | `uncertainty_representation_insufficient` | the mechanisms are declared and the exogenous posterior is enumerated exactly, so there is no parameter uncertainty a posterior could describe |
+| a sampled abduction (`ExogenousInference::PosteriorSampling`) | `estimator_inference_mismatch` | sampling only adds Monte Carlo error to an exactly computable value |
 
-Both are normal intervals at 0.95, are conditional on the declared mechanisms
-being the truth, and are supported only by a currently attesting whole-path
-coverage record for the model class (at most three variables of two to four
-levels, exact enumeration, the mechanisms' own population), the quantity, the unit
-sampling and the unit count; otherwise they refuse with `not_supported`.
+`measured_interval(unit_sampling)` on a sealed execution reads an interval through a
+declared unit sampling from the derived whole-path spread. With `n` units, `s^2` the
+sample variance of the unit values and `v_i` the posterior predictive variance of unit `i`:
+
+| Unit sampling | Interval for | Variance | Quantile |
+| --- | --- | --- | --- |
+| `independent_sample` | the population mean of the unit counterfactual probabilities | `s^2 / n` | Student t, `n - 1` degrees of freedom |
+| `fixed_units` | the mean of the realized counterfactual outcomes of these units | `sum v_i / n^2` | normal |
+
+Both are 0.95 intervals conditional on the declared mechanisms being the truth. The
+interval is always reported together with a `calibration` entry and `record_id`: the
+entry says whether a current whole-path coverage record measured this model class,
+quantity, unit sampling and unit count, or the request lies outside what was measured.
+The measured class is at most three variables of at most four levels with one
+exogenous term per variable; a larger model or a shared term is reported with that
+status, not withheld. The interval is refused for a sampled abduction
+(`estimator_inference_mismatch`), a transported target population
+(`transport_not_certified`) and a sampling that determines no variance, such as a
+single unit under `independent_sample` (`uncertainty_representation_insufficient`).
+`whole_path_uncertainty(unit_sampling)` returns the spread itself, labelled
+`uncalibrated_spread`, with every source of uncertainty listed.
 
 Measured design (`cross_world_interval_calibration.rs`): response-type finite
 Markovian SCMs with unit-level evidence of the observed treatment and outcome, the
@@ -143,6 +209,15 @@ exogenous states (with semantic stream-coordinate digests) and the numbers. A
 consumer replays everything with a fresh executor and refuses on any
 difference; the replayed executor is returned so an action-only change resumes
 from its abduction. The artifact claims a point only.
+
+```python
+sealed = require_success(cw.seal(request))
+replayed = require_success(
+    cw.consume_cross_world_execution_artifact(sealed.to_bytes(), expected_identity=sealed.identity)
+)
+assert replayed.result.value == sealed.value
+resumed = cw.CrossWorldExecutor.from_artifact(sealed.to_bytes(), expected_identity=sealed.identity)
+```
 
 ## Discretize a Gaussian composition into a finite model
 
@@ -186,6 +261,9 @@ The discretized value is point-only: no interval, posterior or calibration, and 
 
 ### What is refused, and the remedy
 
+These details are registered under
+[finite-SCM discretization](reference/refusal-codes.md#finite-scm-discretization).
+
 | Refused request | Detail | Remedy |
 | --- | --- | --- |
 | Levels not declared or outside 2..=64 | `discretized_scm.levels_undeclared`, `levels_out_of_range` | Declare levels per variable |
@@ -196,6 +274,28 @@ The discretized value is point-only: no interval, posterior or calibration, and 
 | A paradigm the route is closed to | `paradigm_parity.paradigm_not_supported` | Use the paradigm the parity row names |
 | Bytes that are truncated, of another version, or whose premises or claimed numbers no longer re-derive | `discretized_scm_artifact.malformed`, `version_unsupported`, `rederivation_refused`, `claimed_numbers_differ`, `identity_mismatch` | Export again from the producing composition |
 | A finite-table or non-linear-Gaussian composition exported | `discretized_scm_artifact.not_exportable` | Export from a linear-Gaussian composition |
+
+## Refusals of the finite routes
+
+Refusals raise `cw.CrossWorldExecutionRefusal`, a
+[structured refusal](reference/refusal-codes.md#structured-refusals-and-their-remedies):
+branch on `reason_code` and `detail`, and read `remedy`.
+
+| Code | When |
+| --- | --- |
+| `cross_world_not_identified` | mechanisms or the exogenous law are not declared (`cross_world_execution.mechanisms_not_declared`, `cross_world_execution.latent_confounding_not_identified`) |
+| `joint_law_required` | a quantity over several worlds with `independent_world_noise` or an undeclared coupling |
+| `route_not_supported` | a request outside an executed row (transported execution, incompatible history, soft interventions, fitting from data) or an elimination table above its bound |
+| `sampling_dependence_unknown`, `uncertainty_representation_insufficient`, `estimator_inference_mismatch`, `transport_not_certified` | a closed reading; see [readings and calibration](#readings-and-calibration) |
+
+The whole-path uncertainty details (`cross_world_uncertainty.*`) are listed under
+[composed spread, whole path, evidence overlap and interface contracts](reference/refusal-codes.md#composed-spread-whole-path-evidence-overlap-and-interface-contracts).
+
+## Related
+
+- [Interventions and worlds](concepts/interventions-and-worlds.md)
+- [Fit and query a structural causal model](guides/gcm-estimands.md)
+- [Refusals](concepts/refusals.md)
 
 ## References
 

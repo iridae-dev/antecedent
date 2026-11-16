@@ -1,8 +1,17 @@
 # Discover, attribute and simulate as compiled queries
 
-Ask a structural question (what graph do these data support, which node explains this change, what would this model generate) and get the answer in the same form as any other study: a program with a stable identity, a prepared handle, and a result stamped with that identity. The contract and claim can be read off it like any other study, and a discovered structure can flow into a downstream study only through the review gate described below.
+Use this page when you write Rust against the `antecedent` crate and want a structural
+answer (the graph a search returns, the node that explains a change, the draws a fitted model
+generates) in the same form as any other study: a program with a stable identity, a prepared
+handle, and a result stamped with that identity whose contract and claim you can read. It
+also describes the only path by which a discovered structure reaches a downstream study, the
+review gate. Python users reach the same routes through the bindings listed under
+[Python](#python).
 
-These routes run and report what they ran. They are not cells of the [support matrix](../support-matrix.md) and make no coverage claim: a result states the method and its declared inference.
+These routes run and report what they ran. They are not cells of the
+[support matrix](../support-matrix.md) and make no coverage claim: a result states the method
+and its declared inference, and a discovered graph is an estimate, not an established
+structure.
 
 ## The three query kinds
 
@@ -35,7 +44,9 @@ assert_eq!(&*contract.query_kind, "Discover");
 
 `CompiledExecution` is the prepared handle together with the result it stamped.
 `Study::prepare` and `PreparedStudy::estimate_retained` do the same work in two
-steps.
+steps. `contract.query_kind` names the query kind (`"Discover"` here), `execution.result()`
+holds the payload of the table above, and the claim seals that execution: the review gate
+below accepts a result only together with the claim that seals it.
 
 ## Inference is declared by the method
 
@@ -124,6 +135,35 @@ output, pinned dependencies and implementation kind. Running locally is allowed.
 Decoding such a record back into a query, which is what export or replay does, is
 refused with `policy_callback_not_portable`, and the refusal names the next step:
 declare the callback from self-contained source.
+
+## Refusals
+
+| Request | Outcome |
+| --- | --- |
+| `StudyBuilder::inference`, refuters, validators, bootstrap or estimator options on a discovery study | refused at build (`option_not_applicable`); the method declares its own inference |
+| a result that no prepared handle stamped, or a claim that seals a different execution, handed to the review gate | refused |
+| leftover marks at the review gate without acceptance | refused; pass `true` to accept them, as Python's `accept_discovered=True` does |
+| `AcceptedPosterior::map_dag` on a temporal posterior | refused; a temporal posterior has no single static DAG |
+| a wrapped pre-fitted model run on other rows | refused; such a model is never refitted |
+| an admission pool too small for the rows, variables, lag and draws | `CausalError::Resource` with a next-attempt hint |
+| a cancelled context | `CausalError::Cancelled` |
+| decoding a query that holds an in-process callback (export or replay) | `policy_callback_not_portable`; see [other registered refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes) |
+
+How refusals reach your code, and the fields to branch on, are in
+[Refusals](../concepts/refusals.md).
+
+## Examples
+
+- [`examples/rust/gcm_do.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/gcm_do.rs)
+  and
+  [`examples/rust/intrinsic_influence.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/intrinsic_influence.rs)
+  run a simulation and an attribution study through `CompiledExecution::run`.
+- [`examples/rust/discover_then_estimate.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/discover_then_estimate.rs)
+  and
+  [`examples/python/discover_then_estimate.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discover_then_estimate.py)
+  run discovery once, then estimate repeatedly from an accepted graph without rediscovering.
+  Both write the accepted DAG by hand to stand in for a reviewer's decision, so neither passes
+  through the review gate.
 
 ## Related behaviour
 

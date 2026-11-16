@@ -6,9 +6,17 @@ If you are new to feedback models, work through [one feedback system, three ques
 
 Every answer is conditional on the specified or fitted model. Nothing here identifies a causal structure nonparametrically, and the statistical outputs carry no nominal coverage claim. [The development notes](../development/cyclic-systems.md) record the mathematical scope of each family.
 
+| Task | Start from |
+| --- | --- |
+| Solve a specified linear loop under interventions | `LinearCyclicModel.worlds` ([tutorial](../tutorials/feedback-three-questions.md)) |
+| Solve a specified nonlinear loop, with shared disturbances | [`EquilibriumModel.worlds`](#model-nonlinear-systems-and-shared-disturbances) |
+| Fit mechanisms from equilibrium data with known clamps | [`EquilibriumModel.prepare`](#fit-a-loop-from-clamp-experiments) |
+| Fit continuous-time linear dynamics from trajectories | [`OuMechanisms.fit_trajectories`](#fit-a-continuous-time-ou-model-from-trajectories) |
+| Simulate or fit a nonlinear stochastic differential equation | [`StochasticDifferentialEquation`](#simulate-and-fit-a-nonlinear-stochastic-differential-equation) |
+
 ## Read a world's answer
 
-`model.worlds([...], component_id=..., source_id=..., certifying_evidence=[...])` prepares the retained program and `prepared.interventions()` executes it. Each world reports its certificate, the route that solved it, and any failed or withheld mass. A clamp that leaves no unique solution is a `no_solution` world with failed mass one, never a dropped world; reading its mean raises `CyclicRefusal` whose `next_attempt` names what to try. `Set` is a hard clamp, `Shift` an additive shock on the disturbance with feedback still active, and `Soft` a named mechanism replacement.
+On a `LinearCyclicModel`, `model.worlds([...], component_id=..., source_id=..., certifying_evidence=[...])` prepares the retained program and `prepared.interventions()` executes it. Each world reports its certificate, the route that solved it, and any failed or withheld mass. A clamp that leaves no unique solution is a `no_solution` world with failed mass one, never a dropped world; reading its mean raises `CyclicRefusal` whose `next_attempt` names what to try. `Set` is a hard clamp, `Shift` an additive shock on the disturbance with feedback still active, and `Soft` a named mechanism replacement.
 
 `source_id` records where the model came from. It does not certify the component: `certifying_evidence` must name other evidence, and `certificate="report_uncertified"` answers a uniquely solvable world while marking it uncertified.
 
@@ -16,8 +24,11 @@ Every answer is conditional on the specified or fitted model. Nothing here ident
 
 `EquilibriumModel` takes named `Equation` mechanisms (identity, tanh, sine or ReLU
 activations, or a portable compositional expression) and a row-major joint
-disturbance covariance. Worlds share the disturbance draws you supply, so a
-counterfactual and its factual world see the same noise.
+disturbance covariance. Each `Equation(id, intercept, weights, activation)` is the
+simultaneous equation of one variable: the intercept plus the activation applied to the
+weighted sum of the variables, plus that variable's disturbance. Worlds share the
+disturbance draws you supply (one row per joint draw), so a counterfactual and its factual
+world see the same noise.
 
 ```python
 from antecedent.cyclic import Equation, EquilibriumModel, Set, World
@@ -35,6 +46,11 @@ worlds = require_success(feedback.worlds(
 ).interventions())
 print(worlds[0].draws("b"), worlds[1].draws("b"))
 ```
+
+Each entry of `draws` is the equilibrium value of `b` for one disturbance row; a row with no
+unique solution keeps its slot as `None` and counts toward the world's failed mass. In world 0
+the loop is active (`a = 0.4 b + e_a`, `b = 0.5 a + e_b`); in world 1 `a` is clamped at 2, its
+equation is deleted, and `b = 1.0` on both rows.
 
 Numerical initialization is never a selection law. When a system has several
 equilibria, the weights over roots must be declared; none are inferred from solver
@@ -61,13 +77,16 @@ result = require_success(prepared.execute())
 result.to_dict()["fit"]["converged"]
 ```
 
-`examples/python/general_cyclic_systems.py` is the complete runnable version: an
-independent generator of overlapping loops, a held-out joint intervention and a
-shared-noise counterfactual. `examples/python/cyclic_paper_experiments.py`
+In this fragment `template` is an `EquilibriumModel` holding the starting parameter values,
+`joint_clamps` a list of `{"variable": index, "value": number}` clamps and `rows` the
+training rows. [`examples/python/general_cyclic_systems.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/general_cyclic_systems.py) is the complete runnable
+version: an independent generator of overlapping loops, a held-out joint intervention and a
+shared-noise counterfactual. [`examples/python/cyclic_paper_experiments.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/cyclic_paper_experiments.py)
 reproduces the published synthetic protocols with their deviations stated. For a
 linear law recovered from clamp experiments, use `prepare_experimental_recovery`
-with an explicit draw origin; `inspect()` reports the rows a clamp design leaves
-unresolved before any fit.
+with an explicit draw origin
+([`examples/python/recovered_feedback_law.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/recovered_feedback_law.py)); `inspect()` reports the rows a clamp
+design leaves unresolved before any fit.
 
 ## Fit a continuous-time OU model from trajectories
 
@@ -83,6 +102,7 @@ components with no direct observation are reported with their filtered uncertain
 
 ```python
 from antecedent.cyclic import OuMechanisms, OuObservationModel, OuPredictionDesign, OuTrajectory
+from antecedent.outcomes import require_success
 
 prepared = OuMechanisms(("a", "b"), drift, forcing, factor).fit_trajectories(
     [OuTrajectory("unit-0", times, values)],      # irregular times, vector observations
@@ -155,6 +175,7 @@ from antecedent.cyclic import (
     SdeAction, SdeContrast, SdeInput, SdeSimulation, SdeTrajectory, SdeWorld,
     StochasticDifferentialEquation,
 )
+from antecedent.outcomes import require_success
 
 sir = StochasticDifferentialEquation.epidemic(population=1000.0, beta=0.6, amplitude=0.3, gamma=0.25)
 lockdown = SdeWorld("lockdown", inputs=(SdeInput("season", (0.0,), (-1.0,), envelope=(-1.0, 1.0)),))
@@ -265,8 +286,26 @@ boxes stay inside robust utility bounds, and impossible posterior evidence refus
 a decision. See [decisions](../decisions.md) and [composition](../composition.md).
 
 Rust uses `Study::prepare_cyclic` and `Study::prepare_cyclic_family` on the same
-`PreparedStudy` handle; see [cyclic systems for developers](../development/cyclic-systems.md).
+`PreparedStudy` handle; see [cyclic systems for developers](../development/cyclic-systems.md)
+and [`examples/rust/feedback_three_questions.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/feedback_three_questions.rs).
 
+## Refusals and failed worlds
+
+A world that cannot be solved is an outcome, not an exception: it keeps its slot with status
+`no_solution` or `withheld` and its failed mass, and only reading a value from it raises
+`CyclicRefusal`, whose `next_attempt` names what to try. A numerical failure inside the solver
+budgets (non-convergence, a singular Jacobian) is likewise a retained world outcome. Requests
+that cannot run at all are refused with a registered code
+([list](../reference/refusal-codes.md#other-registered-refusal-codes)):
+
+| Code | When |
+| --- | --- |
+| `solver_jacobian_nnz_budget`, `solver_block_size_budget`, `solver_factor_fill_budget`, `solver_iteration_budget`, `solver_wall_clock_budget`, `solver_model_order_budget` | a solve exceeds the corresponding `SolvePolicy` bound, or (`solver_model_order_budget`) the number of variables exceeds an admitted bound such as the dense disturbance covariance's |
+| `dynamics_not_identified` | a trajectory design that does not identify a requested coordinate (no unit observed at two times, a singular information matrix, unobserved transitions) |
+| `route_not_supported` | a model outside a family's certified scope, with a namespaced detail such as `sde.unbounded_growth`, `sde.milstein_noncommutative`, `sde.action_time_off_grid` or `sde.input_outside_certified_envelope` |
+
+An SDE fit additionally refuses `sde_fit.observation_interval_too_coarse` and
+`sde_fit.degenerate_transition`, described [above](#simulate-and-fit-a-nonlinear-stochastic-differential-equation).
 
 ## Related
 
