@@ -23,7 +23,7 @@ use antecedent::discovery::{
 };
 use antecedent::{CompiledExecution, DiscoveredStructure, DiscoverySpec, Study};
 use antecedent_core::{CausalRng, DiscoveryMethod, ExecutionContext, VariableId};
-use antecedent_data::TabularData;
+use antecedent_data::{SamplingRegularity, TableView, TabularData, TimeIndex, TimeSeriesData};
 
 fn v(raw: u32) -> VariableId {
     VariableId::from_raw(raw)
@@ -350,5 +350,115 @@ fn pooled_sampled_posteriors_are_the_mixture_of_the_per_imputation_draw_sets() {
         let notes = &pooled.diagnostics().notes;
         assert_eq!(notes.iter().filter(|note| note.starts_with("imputation ")).count(), 3);
         assert!(notes.iter().any(|note| note.contains("equal_weight_mixture_of_per_imputation")));
+    });
+}
+
+fn lag1_series(n: usize, seed: u64) -> TimeSeriesData {
+    let mut rng = CausalRng::from_seed(seed);
+    let mut normal = || {
+        let u1 = rng.next_f64().max(1e-12);
+        let u2 = rng.next_f64();
+        (-2.0 * u1.ln()).sqrt() * (std::f64::consts::TAU * u2).cos()
+    };
+    let mut x = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for t in 1..n {
+        x[t] = normal();
+        y[t] = 0.8 * x[t - 1] + 0.2 * normal();
+    }
+    let data = TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
+    TimeSeriesData::try_new(
+        data.storage().clone(),
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap()
+}
+
+/// A pooled template posterior is the hand mixture keyed by atom and lag mask, its lagged
+/// marginals are the means of the per-imputation ones, and posteriors over different lag
+/// windows (or a template beside a static posterior) are refused.
+#[test]
+fn a_pooled_dbn_posterior_is_the_hand_mixture_keyed_by_atom_and_lag_mask() {
+    on_large_stack("pooled-dbn", || {
+        let params = BayesianDiscoverParams::default();
+        let schedule = antecedent::discovery::GraphMcmcSchedule::default();
+        let vars = vec![v(0), v(1)];
+        let series: Vec<TimeSeriesData> =
+            [41_u64, 42, 43].iter().map(|&seed| lag1_series(200, seed)).collect();
+        let singles: Vec<GraphPosterior> = series
+            .iter()
+            .map(|one| {
+                antecedent::discovery::discover_dbn_posterior(
+                    one,
+                    &vars,
+                    &params,
+                    1,
+                    false,
+                    &schedule,
+                    &ctx(),
+                )
+                .unwrap()
+            })
+            .collect();
+        let pooled = antecedent::discovery::discover_pooled_dbn_posterior(
+            &series,
+            &vars,
+            &params,
+            1,
+            false,
+            &schedule,
+            &ctx(),
+        )
+        .unwrap();
+
+        let key = |posterior: &GraphPosterior, index: usize| {
+            (
+                posterior.atoms()[index].clone(),
+                posterior.lag_masks().expect("a template posterior has lag masks")[index].clone(),
+            )
+        };
+        let mut by_template: HashMap<(AdjacencyMask, AdjacencyMask), f64> = HashMap::new();
+        for posterior in &singles {
+            let total: f64 = posterior.weights().iter().sum();
+            for (index, weight) in posterior.weights().iter().enumerate() {
+                *by_template.entry(key(posterior, index)).or_insert(0.0) += weight / total / 3.0;
+            }
+        }
+        assert_eq!(pooled.n_graphs(), by_template.len());
+        let mass: f64 = pooled.weights().iter().sum();
+        for (index, weight) in pooled.weights().iter().enumerate() {
+            let expected = by_template[&key(&pooled, index)];
+            assert!((weight / mass - expected).abs() <= 1e-12, "template {index}");
+        }
+        assert_eq!(pooled.max_lag(), Some(1));
+        let lagged = pooled.lagged_edge_marginals().expect("lagged marginals pool");
+        for (cell, value) in lagged.iter().enumerate() {
+            let mean: f64 =
+                singles.iter().map(|p| p.lagged_edge_marginals().unwrap()[cell]).sum::<f64>() / 3.0;
+            assert!((value - mean).abs() <= 1e-12, "lagged cell {cell}");
+        }
+
+        // Different lag windows do not pool, and neither does a template with a static posterior.
+        let wider = antecedent::discovery::discover_dbn_posterior(
+            &series[0],
+            &vars,
+            &params,
+            2,
+            false,
+            &schedule,
+            &ctx(),
+        )
+        .unwrap();
+        assert!(GraphPosterior::pooled_over_imputations(&[singles[0].clone(), wider]).is_err());
+        let static_one = antecedent::discovery::discover_exact_dag_posterior(
+            &chain_table(100, 3),
+            &three()[..2],
+            &params,
+            &ctx(),
+        )
+        .unwrap();
+        assert!(
+            GraphPosterior::pooled_over_imputations(&[singles[0].clone(), static_one]).is_err()
+        );
     });
 }

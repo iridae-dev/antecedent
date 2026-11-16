@@ -2341,3 +2341,10 @@ evidence_assertion = "pooled_sampled_posteriors_are_the_mixture_of_the_per_imput
 kind = "posterior"
 fixtures = []
 why = "The structure-MCMC posterior pooled across imputations equals the hand-computed equal-weight mixture of the per-imputation draw sets graph by graph, is tagged with the pooling method, and keeps each imputation's diagnostics."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/structure_prior_routes.rs"
+evidence_assertion = "a_pooled_dbn_posterior_is_the_hand_mixture_keyed_by_atom_and_lag_mask"
+kind = "known_truth"
+fixtures = []
+why = "The bounded-lag template posterior pooled across series equals the hand mixture keyed by atom and lag mask, its lagged marginals are the means of the per-imputation ones, and posteriors over different lag windows are refused."

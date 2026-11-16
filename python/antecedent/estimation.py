@@ -1324,6 +1324,10 @@ class _PreparedEngine(Generic[ResultT]):
         TemporalMediation prepare on a ``TemporalDag`` or lagged edge list; a
         Frequentist ``TemporalMediationEffect`` with ``bootstrap=None`` follows the
         same ``latency`` tier for its shared circular-block replicates.
+        ``imputations`` is a sequence of completed tables (series for ``DbnPosterior``) beside a
+        posterior-search ``discovery=``: the search is pooled across them in the engine and the
+        study mixes over the pooled posterior (see :mod:`antecedent.discovery`).
+
         ``discovery=ExactDagPosterior()`` / ``DbnPosterior()`` / a constructed
         ``GraphPosterior`` compiles the supported graph-posterior cells
         (AverageEffect / ConditionalEffect / ResponseCurve / one-coordinate

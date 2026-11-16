@@ -501,6 +501,13 @@ def analyze(
         Static: ``PC`` / ``GES`` / ``LiNGAM`` / ``NOTEARS`` / ``FCI`` / ``RFCI``.
         Temporal: ``PCMCI`` / ``PCMCIPlus`` / ``LPCMCI`` / ``JPCMCIPlus`` / ``RPCMCI``.
         Graph-posterior cells also accept a constructed ``GraphPosterior``.
+    imputations:
+        Completed tables (completed series for ``DbnPosterior``), one per imputation of a
+        measurement or missing-data model. With ``discovery=`` a posterior search
+        (``ExactDagPosterior``, ``OrderMcmc``, ``StructureMcmc``, ``CiScreenedPosterior`` or
+        ``DbnPosterior``), the search runs on every table, the equal-weight mixture of the
+        posteriors is pooled in the engine, and the effect is mixed over it, so the data's
+        uncertainty widens the structure uncertainty. Cannot be combined with ``graph=``.
         One-shot script convenience — discovery runs at compile time. For
         interactive / spreadsheet estimate clicks, discover once into
         :class:`antecedent.AcceptedGraph` (or hold a reviewed graph) and pass
