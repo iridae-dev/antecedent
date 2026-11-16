@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "92af7b41d77af97d9172cae5682579c3e3cbfa03144611ea5761a31a6c8a75b2",
+  "gate_sha256": "04e56c2ed4e12cf96bad00d04402f0e71d0169b5402674494d36f212d9d221c1",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "3419a75c1ba2f918a15d7326d821e35032f26ad7befbc7df00ff395cb02c9fc4",
+  "label_audit_sha256": "d953935eb8b8a9527c55d5acc743ea308c698fa9a2d9fed01f0bfe1710f23daf",
   "groups": [
     {
       "index": 1,
@@ -8591,6 +8591,21 @@
     {
       "index": 1714,
       "label": "local_designs_statements_calibration: bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio_under_ar2_errors",
+      "grid": true
+    },
+    {
+      "index": 1715,
+      "label": "transport_weighted_target_calibration: gaussian_kernel_transported_estimate_covers_across_bandwidths",
+      "grid": true
+    },
+    {
+      "index": 1716,
+      "label": "transport_weighted_target_calibration: epanechnikov_kernel_transported_estimate_covers_across_bandwidths",
+      "grid": true
+    },
+    {
+      "index": 1717,
+      "label": "transport_weighted_target_calibration: tricube_kernel_transported_estimate_covers_across_bandwidths",
       "grid": true
     }
   ],

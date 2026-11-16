@@ -2128,3 +2128,101 @@ fn temporal_composed_prior_conflict_and_alpha_grid() {
     assert!(summary.effect_means.iter().all(|m| m.is_finite()));
     let _ = &mut est; // keep mut for parity with execute path
 }
+
+#[test]
+fn prior_bank_weighted_target() {
+    use std::sync::Arc;
+
+    use antecedent_prob::{
+        ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, KernelFamily, PriorSet,
+        PriorSpec, ProbError, TransportKernel, TransportPolicy, WeightedTarget,
+        apply_weighted_target_transport,
+    };
+
+    let expected = load_expected_json(&fixture_dir("prior_bank_weighted_target"));
+    let tol = expected["tol"].as_f64().unwrap();
+    let source_variance = expected["source_variance"].as_f64().unwrap();
+    let floats = |value: &serde_json::Value| -> Vec<f64> {
+        value.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
+    };
+    let source = || {
+        let mut prior = PriorSet::new();
+        prior.push(PriorSpec::GaussianCoefficients(
+            GaussianCoefficientPrior::shared(
+                1,
+                expected["source_mean"].as_f64().unwrap(),
+                source_variance,
+            )
+            .unwrap(),
+        ));
+        ExternalPriorSource {
+            id: Arc::from("src"),
+            prior,
+            weight: ExternalPriorWeight::power(0.5).unwrap(),
+            ess: None,
+        }
+    };
+    let policy = TransportPolicy::InvariantConditionalOutcome;
+
+    let k = &expected["kernel_weights"];
+    let distances = floats(&k["distances"]);
+    let bandwidth = k["bandwidth"].as_f64().unwrap();
+    for (name, family) in [
+        ("gaussian", KernelFamily::Gaussian),
+        ("epanechnikov", KernelFamily::Epanechnikov),
+        ("tricube", KernelFamily::Tricube),
+    ] {
+        let got = TransportKernel::new(family, bandwidth).unwrap().weights(&distances).unwrap();
+        for (g, w) in got.iter().zip(floats(&k[name])) {
+            assert!((g - w).abs() < tol, "{name}: {g} vs {w}");
+        }
+    }
+
+    let r = &expected["graded_rows"];
+    let n = r["n_rows"].as_u64().unwrap() as usize;
+    let effects: Vec<f64> = (0..n).map(|i| i as f64).collect();
+    let weights: Vec<f64> = (0..n).map(|i| i as f64 + 1.0).collect();
+    let target = WeightedTarget::from_row_weights(effects, weights).unwrap();
+    let (out, overlap) =
+        apply_weighted_target_transport(&[source()], policy, &target, None).unwrap();
+    let coef = out[0].prior.gaussian_coefficients().unwrap();
+    assert!((coef.mean[0] - r["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!((overlap.kish_ess - r["expected_kish_ess"].as_f64().unwrap()).abs() < tol);
+    let added = r["expected_sampling_variance"].as_f64().unwrap();
+    assert!((coef.variance[0] - (source_variance + added)).abs() < tol);
+
+    let nb = &expected["neighbourhood_rows"];
+    let rows = nb["n_rows"].as_u64().unwrap() as usize;
+    let inside = nb["neighbourhood_rows"].as_u64().unwrap() as usize;
+    let effects: Vec<f64> = (0..rows)
+        .map(|i| {
+            if i < inside {
+                nb["inside_effect"].as_f64().unwrap()
+            } else {
+                nb["outside_effect"].as_f64().unwrap()
+            }
+        })
+        .collect();
+    let weights: Vec<f64> = (0..rows).map(|i| if i < inside { 1.0 } else { 0.0 }).collect();
+    let target = WeightedTarget::from_row_weights(effects, weights).unwrap();
+    let (out, overlap) =
+        apply_weighted_target_transport(&[source()], policy, &target, None).unwrap();
+    let coef = out[0].prior.gaussian_coefficients().unwrap();
+    assert!((coef.mean[0] - nb["expected_mean"].as_f64().unwrap()).abs() < tol);
+    let variance_added = nb["expected_variance_added"].as_f64().unwrap();
+    assert!((coef.variance[0] - (source_variance + variance_added)).abs() < tol);
+    assert!((overlap.kish_ess - nb["expected_kish_ess"].as_f64().unwrap()).abs() < tol);
+
+    let f = &expected["refusals"];
+    let thin = f["equal_weight_rows_below_floor"].as_u64().unwrap() as usize;
+    let target = WeightedTarget::from_row_weights(
+        (0..thin).map(|i| i as f64).collect::<Vec<_>>(),
+        vec![1.0; thin],
+    )
+    .unwrap();
+    let error = apply_weighted_target_transport(&[source()], policy, &target, None).unwrap_err();
+    match error {
+        ProbError::Refused { code, .. } => assert_eq!(code, f["code"].as_str().unwrap()),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}

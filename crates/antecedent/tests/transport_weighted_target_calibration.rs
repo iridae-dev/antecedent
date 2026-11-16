@@ -25,10 +25,13 @@ use antecedent_prob::{
     PriorSpec, TransportKernel, TransportPolicy, WeightedTarget, apply_weighted_target_transport,
 };
 use common::calibration::{
-    CoverageTally, gaussian, grid_n, grid_seed, map_replicates, n_sim, stream_seed, uniform,
+    Construction, CoverageTally, RecordKey, ScopeFacts, gaussian, grid_n, grid_seed,
+    map_replicates, n_sim, stream_seed, uniform,
 };
 
 const LEVEL: f64 = 0.95;
+const INTERVAL: &str = "reweighted_mean_wald";
+const DGP: &str = "planted_neighbourhood_effect_with_kernel_weighted_target_closed_form_mean";
 const Z: f64 = 1.959_963_984_540_054;
 const TAU: f64 = 1.5;
 const OUTSIDE_SHIFT: f64 = 3.0;
@@ -79,18 +82,54 @@ fn interval(family: KernelFamily, bandwidth: f64, n: usize, seed: u64) -> Option
     Some((mean - Z * sd, mean + Z * sd))
 }
 
-fn assert_coverage_over(family: KernelFamily, bandwidths: &[f64]) {
+fn construction(family: KernelFamily) -> Construction {
+    Construction {
+        query: "WeightedTargetTransportedPrior".into(),
+        graph_class: "Dag".into(),
+        structure: "fixed".into(),
+        modality: "tabular".into(),
+        inference: "Frequentist".into(),
+        estimator: format!("weighted_target_transport.{}_kernel_weighted_mean", family.id()),
+        interval_method: INTERVAL.into(),
+        se_kind: "weighted_mean_sampling_variance".into(),
+        dependence: "independent_by_design".into(),
+        posterior: String::new(),
+        functional: "kernel_weighted_neighbourhood_mean_effect".into(),
+        identification: "point".into(),
+        reported_level: LEVEL,
+    }
+}
+
+fn assert_coverage_over(
+    test: &'static str,
+    dgp: &'static str,
+    family: KernelFamily,
+    bandwidths: &[f64],
+) {
     let n = grid_n(BASE_ROWS);
     for &bandwidth in bandwidths {
         let runs = map_replicates(n_sim(), |rep| {
             interval(family, bandwidth, n, grid_seed(SEED_BASE + rep))
         });
-        let mut tally = CoverageTally::new(
-            format!("transported estimate under a {} kernel, bandwidth {bandwidth}", family.id()),
-            LEVEL,
-        );
+        let mut tally =
+            CoverageTally::for_record(RecordKey { test, dgp, interval: INTERVAL }, LEVEL)
+                .labelled(format!("bandwidth {bandwidth}"));
         for run in runs {
-            tally.record(run, TAU);
+            let Some(band) = run else {
+                tally.skip();
+                continue;
+            };
+            tally.bind_validation(
+                &construction(family),
+                ScopeFacts {
+                    row_count: n as u64,
+                    replicates_ok: None,
+                    posterior_draws: None,
+                    unidentified_mass: 0.0,
+                },
+                "not_applicable",
+            );
+            tally.record(Some(band), TAU);
         }
         tally.assert();
     }
@@ -99,19 +138,34 @@ fn assert_coverage_over(family: KernelFamily, bandwidths: &[f64]) {
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn gaussian_kernel_transported_estimate_covers_across_bandwidths() {
-    assert_coverage_over(KernelFamily::Gaussian, &[0.03, 0.06, 0.1]);
+    assert_coverage_over(
+        "gaussian_kernel_transported_estimate_covers_across_bandwidths",
+        DGP,
+        KernelFamily::Gaussian,
+        &[0.03, 0.06, 0.1],
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn epanechnikov_kernel_transported_estimate_covers_across_bandwidths() {
-    assert_coverage_over(KernelFamily::Epanechnikov, &[0.06, 0.12, 0.25]);
+    assert_coverage_over(
+        "epanechnikov_kernel_transported_estimate_covers_across_bandwidths",
+        DGP,
+        KernelFamily::Epanechnikov,
+        &[0.06, 0.12, 0.25],
+    );
 }
 
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn tricube_kernel_transported_estimate_covers_across_bandwidths() {
-    assert_coverage_over(KernelFamily::Tricube, &[0.06, 0.12, 0.25]);
+    assert_coverage_over(
+        "tricube_kernel_transported_estimate_covers_across_bandwidths",
+        DGP,
+        KernelFamily::Tricube,
+        &[0.06, 0.12, 0.25],
+    );
 }
 
 #[test]

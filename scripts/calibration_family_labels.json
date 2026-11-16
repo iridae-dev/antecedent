@@ -2810,6 +2810,25 @@
       "review": "Finite source-declared transport construction/target cases and confidence."
     },
     {
+      "path": "crates/antecedent/tests/transport_weighted_target_calibration.rs",
+      "sha256": "5eedd1e90a02da619d43e67b238121bff510f7eee1a2ad51f3c5164d16212b33",
+      "labelled_calls": [
+        {
+          "line": 116,
+          "call": ".labelled(",
+          "argument": "format!(\"bandwidth {bandwidth}\")"
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 115,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: INTERVAL }, LEVEL"
+        }
+      ],
+      "review": "Fixed planted-neighbourhood design with a declared kernel family and a source-declared bandwidth grid per test; the bandwidth labels and the record key are fixed in source."
+    },
+    {
       "path": "crates/antecedent/tests/typed_transported_mechanism_interval_calibration.rs",
       "sha256": "64ffec67c6b95b025ff9c95931d2ffe936d77d924cb63a0ac924dbfad6ba6f99",
       "labelled_calls": [],

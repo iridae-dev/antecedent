@@ -1,0 +1,62 @@
+{
+  "tol": 1e-10,
+  "source_mean": 9.0,
+  "source_variance": 0.25,
+  "kernel_weights": {
+    "bandwidth": 2.0,
+    "distances": [
+      0.0,
+      0.5,
+      1.0,
+      1.5,
+      2.0,
+      3.0
+    ],
+    "gaussian": [
+      1.0,
+      0.9692332344763441,
+      0.8824969025845955,
+      0.7548396019890073,
+      0.6065306597126334,
+      0.32465246735834974
+    ],
+    "epanechnikov": [
+      1.0,
+      0.9375,
+      0.75,
+      0.4375,
+      0.0,
+      0.0
+    ],
+    "tricube": [
+      1.0,
+      0.9538536071777344,
+      0.669921875,
+      0.19322586059570312,
+      0.0,
+      0.0
+    ]
+  },
+  "graded_rows": {
+    "n_rows": 40,
+    "effect": "i",
+    "weight": "i + 1",
+    "expected_mean": 26.0,
+    "expected_kish_ess": 30.37037037037037,
+    "expected_sampling_variance": 2.3970731707317072
+  },
+  "neighbourhood_rows": {
+    "n_rows": 100,
+    "neighbourhood_rows": 40,
+    "inside_effect": 2.0,
+    "outside_effect": 5.0,
+    "expected_mean": 2.0,
+    "expected_variance_added": 0.0,
+    "expected_kish_ess": 40.0
+  },
+  "refusals": {
+    "code": "transport_target_overlap_failed",
+    "equal_weight_rows_below_floor": 15,
+    "absolute_ess_floor": 20
+  }
+}
