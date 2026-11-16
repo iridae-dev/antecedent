@@ -238,3 +238,60 @@ fn a_study_without_a_target_keeps_the_default_mixture_rule() {
             .all(|d| d.code.as_ref() != "estimate.graph_posterior.weighted_target_mixture")
     );
 }
+
+// ---- the Bayesian path ----------------------------------------------------------------------
+
+fn bayesian() -> antecedent::inference::InferenceMode {
+    antecedent::inference::InferenceMode::Bayesian(
+        antecedent::inference::BayesianConfig::conjugate().n_draws(2_000).prior_scale(100.0),
+    )
+}
+
+fn single_bayesian_mean(edges: &[(usize, usize)]) -> f64 {
+    let result = Study::tabular(data())
+        .graph(dag(edges))
+        .inference(bayesian())
+        .refute(RefuteSuite::None)
+        .weighted_target(target())
+        .query(query())
+        .build()
+        .unwrap()
+        .run(&ctx())
+        .unwrap();
+    result.estimate().as_effect().unwrap().ate
+}
+
+#[test]
+fn the_bayesian_route_equals_the_hand_mixture_of_per_structure_posteriors() {
+    let result = Study::tabular(data())
+        .graph_posterior(posterior())
+        .inference(bayesian())
+        .refute(RefuteSuite::None)
+        .weighted_target(target())
+        .query(query())
+        .build()
+        .unwrap()
+        .run(&ctx())
+        .unwrap();
+    // The structure the target's covariate cannot be adjusted in is refused: its mass is
+    // reported as unanswered and not redistributed.
+    let structural = result.structural_response.as_ref().expect("the structural mixture");
+    assert!(
+        (structural.unevaluable_mass - MASSES[2]).abs() < 1e-9,
+        "unanswered mass {}",
+        structural.unevaluable_mass
+    );
+    let published = result.posterior.as_ref().expect("a Bayesian mixture posterior");
+    assert!((published.unevaluable_mass - MASSES[2]).abs() < 1e-9);
+
+    let answered = MASSES[0] + MASSES[1];
+    let mean_a = single_bayesian_mean(&structures()[0]);
+    let mean_b = single_bayesian_mean(&structures()[1]);
+    let hand = (MASSES[0] * mean_a + MASSES[1] * mean_b) / answered;
+    let effect = result.estimate().as_effect().unwrap();
+    assert!(
+        (effect.ate - hand).abs() < 1e-3,
+        "route {} against the hand mixture {hand} of {mean_a} and {mean_b}",
+        effect.ate
+    );
+}

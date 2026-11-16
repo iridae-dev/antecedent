@@ -31,6 +31,9 @@ struct GraphPosteriorBayesianPrepared {
     prepared: std::collections::HashMap<u64, PreparedBayesianProblem>,
     anchor: BayesianGraphPosteriorPriorAnchor,
     envelope_conflict: Option<antecedent_prob::ConflictSummary>,
+    /// Absolute posterior mass of the identified atoms whose preparation refused for the
+    /// declared target population: reported as unevaluable mass, never redistributed.
+    refused_mass: f64,
 }
 
 /// Fitted atoms of a Bayesian graph-posterior envelope and its primary estimand.
@@ -47,6 +50,10 @@ struct GraphPosteriorBayesianMixInput<'a> {
     graphs: &'a WeightedGraphSamples,
     identified_graphs: &'a WeightedGraphSamples,
     subsample_drop: &'a InteractiveSubsampleDrop,
+    /// Whether a target population was declared (the atoms estimate one quantity on it).
+    targeted: bool,
+    /// Mass of the atoms that refused for the declared target.
+    refused_mass: f64,
 }
 
 /// Mixed Bayesian graph-posterior envelope: posterior, scalar estimate, and the mix policy.
@@ -75,7 +82,13 @@ fn mix_graph_posterior_bayesian_envelope(
     envelope_conflict: Option<antecedent_prob::ConflictSummary>,
     fitted: &mut GraphPosteriorBayesianFits,
 ) -> Result<GraphPosteriorBayesianMix, CausalError> {
-    let GraphPosteriorBayesianMixInput { graphs, identified_graphs, subsample_drop } = *input;
+    let GraphPosteriorBayesianMixInput {
+        graphs,
+        identified_graphs,
+        subsample_drop,
+        targeted,
+        refused_mass,
+    } = *input;
     let GraphPosteriorBayesianFits { per_graph, atoms, primary_estimand, primary_identification } =
         fitted;
     let (primary_estimand, primary_identification) =
@@ -88,6 +101,15 @@ fn mix_graph_posterior_bayesian_envelope(
     )
     .map_err(CausalError::from)?;
     report_subsampled_out_mass(&mut posterior, identified_graphs, subsample_drop);
+    if refused_mass > 0.0 {
+        let total = identified_graphs.total_weight();
+        if total.is_finite() && total > 0.0 {
+            posterior.unevaluable_mass = refused_mass / total;
+            if posterior.unevaluable_mass > antecedent_core::POSTERIOR_MASS_TOLERANCE {
+                posterior.identification = IdentificationStatus::GraphDependent;
+            }
+        }
+    }
     retain_envelope_assumptions(&mut posterior, atoms);
     if let Some(summary) = envelope_conflict {
         posterior = with_conflict_summary(posterior, summary);
@@ -106,14 +128,22 @@ fn mix_graph_posterior_bayesian_envelope(
         })
         .collect();
     let unidentified_mass = identified_graphs.unidentified_mass();
-    let mixed = mix_graph_posterior_identified_atoms(
-        identified_graphs,
-        &atom_values,
-        unidentified_mass,
-        0.0,
-        subsample_drop.mass,
-        0,
-    );
+    let mixed = if targeted {
+        mix_graph_posterior_atoms_same_quantity(
+            identified_graphs,
+            &atom_values,
+            (unidentified_mass, refused_mass, subsample_drop.mass),
+        )
+    } else {
+        mix_graph_posterior_identified_atoms(
+            identified_graphs,
+            &atom_values,
+            unidentified_mass,
+            0.0,
+            subsample_drop.mass,
+            0,
+        )
+    };
     if mixed.mixable_scalar {
         estimate.ate = mixed.ate;
     } else {
@@ -692,8 +722,13 @@ impl super::super::Study {
             mut prepared,
             anchor,
             envelope_conflict,
+            refused_mass,
         } =
             self.prepare_graph_posterior_bayesian_atoms(data, query, &identified, &est, &cfg, ctx)?;
+        // A declared target is `Some` mass (possibly zero) so the mixture states one quantity.
+        let refused_mass = (!conditional
+            && !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved))
+        .then_some(refused_mass);
         let mut fitted = Self::fit_graph_posterior_bayesian_atoms(
             &est,
             &graphs,
@@ -707,6 +742,8 @@ impl super::super::Study {
                 graphs: &graphs,
                 identified_graphs: &identified.graphs,
                 subsample_drop: &subsample_drop,
+                targeted: refused_mass.is_some(),
+                refused_mass: refused_mass.unwrap_or(0.0),
             },
             envelope_conflict,
             &mut fitted,
@@ -819,7 +856,10 @@ impl super::super::Study {
             .iter()
             .map(|atom| (atom.key, atom.estimand.clone(), atom.identification.clone()))
             .collect();
-        let original_anchor_key = fit_atoms.first().map(|(key, _, _)| *key);
+        let mut original_anchor_key: Option<u64> = None;
+        let targeted = !conditional
+            && !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved);
+        let registry = self.declared.population_registry.as_ref();
         let mut envelope_prior: Option<PriorSet> = None;
         let mut envelope_conflict: Option<antecedent_prob::ConflictSummary> = None;
 
@@ -831,15 +871,36 @@ impl super::super::Study {
             let (key, estimand, _) = &fit_atoms[i];
             let prep = if conditional {
                 let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
-                est.prepare_conditional(data, estimand, &q)
+                est.prepare_conditional(data, estimand, &q).map_err(CausalError::from)
             } else {
-                est.prepare(data, estimand, query)
-            }
-            .map_err(CausalError::from)?;
+                est.prepare_for_population(data, estimand, query, registry)
+                    .map_err(CausalError::from)
+            };
+            // A declared target answers every structure it can; a structure whose preparation
+            // refuses for the target (not a cancellation or a resource stop) is unanswered.
+            let prep = match prep {
+                Ok(prep) => Some(prep),
+                Err(error)
+                    if targeted
+                        && !matches!(
+                            error,
+                            CausalError::Cancelled { .. } | CausalError::Resource { .. }
+                        ) =>
+                {
+                    None
+                }
+                Err(error) => return Err(error),
+            };
             Ok::<_, CausalError>((*key, prep))
         })?;
-        for (i, (key, prep)) in preps.into_iter().enumerate() {
-            if i == 0 {
+        let mut refused_keys = std::collections::HashSet::new();
+        for (key, prep) in preps {
+            let Some(prep) = prep else {
+                refused_keys.insert(key);
+                continue;
+            };
+            if original_anchor_key.is_none() {
+                original_anchor_key = Some(key);
                 let anchor =
                     super::super::BayesianGraphPosteriorPriorAnchor::resolve(key, cfg, &prep, ctx)?;
                 envelope_prior = anchor.prior;
@@ -847,6 +908,30 @@ impl super::super::Study {
             }
             prepared.entry(key).or_insert(prep);
         }
+        // Refused structures leave the mixture without a fit and keep their mass as unevaluable.
+        refused_keys.retain(|key| !prepared.contains_key(key));
+        let mut refused_mass = 0.0;
+        let graphs = if refused_keys.is_empty() {
+            graphs
+        } else {
+            let flags: Vec<antecedent_prob::GraphIdentFlag> = graphs
+                .identified
+                .iter()
+                .zip(graphs.graph_keys.iter())
+                .zip(graphs.weights.iter())
+                .map(|((flag, key), weight)| {
+                    if *flag == antecedent_prob::GraphIdentFlag::Identified
+                        && refused_keys.contains(key)
+                    {
+                        refused_mass += *weight;
+                        antecedent_prob::GraphIdentFlag::Unidentified
+                    } else {
+                        *flag
+                    }
+                })
+                .collect();
+            WeightedGraphSamples { identified: Arc::from(flags), ..graphs }
+        };
         let mut subsample_notes = Vec::new();
         let (graphs, subsample_drop) = interactive_subsample_graphs_accounted(
             self.latency_mode,
@@ -882,6 +967,7 @@ impl super::super::Study {
             prepared,
             anchor,
             envelope_conflict,
+            refused_mass,
         })
     }
 

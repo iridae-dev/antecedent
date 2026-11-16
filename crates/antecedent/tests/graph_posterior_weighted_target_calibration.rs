@@ -20,8 +20,11 @@
 mod common;
 
 use antecedent::inference::{KernelFamily, TransportKernel};
-use antecedent::{EstimatorId, RefuteSuite, Study, WeightedTargetDeclaration};
-use antecedent_core::{AverageEffectQuery, ExecutionContext, StreamDomain, VariableId};
+use antecedent::{
+    AverageEffectQuery, BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study,
+    WeightedTargetDeclaration,
+};
+use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::adjacency_mask::{AdjacencyMask, set_edge};
 use antecedent_discovery::{GraphPosterior, SamplingSummary};
@@ -31,8 +34,10 @@ use common::calibration::{
     Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, grid_seed,
     map_replicates, n_sim,
 };
+use common::calibration_bind::{bind_reported, constructions};
 
 const INTERVAL: &str = "analytic_wald";
+const POSTERIOR_INTERVAL: &str = "posterior_quantile";
 const DGP: &str =
     "planted_heterogeneous_effect_two_identifying_structures_kernel_target_closed_form";
 const Z95: f64 = 1.959_963_984_540_054;
@@ -77,9 +82,8 @@ fn posterior() -> Option<GraphPosterior> {
     .ok()
 }
 
-/// One replicate: the analytic interval of the structure-averaged kernel-weighted effect, or
-/// `None` when the target is refused.
-fn interval(centre: f64, bandwidth: f64, n: usize, seed: u64) -> Option<(f64, f64)> {
+/// The planted table of one replicate.
+fn replicate_table(n: usize, seed: u64) -> Option<TabularData> {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x33);
     let mut columns = vec![vec![0.0; n]; 4];
     for i in 0..n {
@@ -95,19 +99,30 @@ fn interval(centre: f64, bandwidth: f64, n: usize, seed: u64) -> Option<(f64, f6
     let names = ["t", "y", "z", "w"];
     let borrowed: Vec<(&str, &[f64])> =
         names.iter().zip(&columns).map(|(name, values)| (*name, values.as_slice())).collect();
-    let data = TabularData::from_f64_columns(borrowed).ok()?;
-    let declaration = WeightedTargetDeclaration::kernel(
+    TabularData::from_f64_columns(borrowed).ok()
+}
+
+fn declaration(centre: f64, bandwidth: f64) -> Option<WeightedTargetDeclaration> {
+    WeightedTargetDeclaration::kernel(
         TransportKernel::new(KernelFamily::Gaussian, bandwidth).ok()?,
         vec![VariableId::from_raw(2)],
         vec![centre],
         None,
     )
-    .ok()?;
-    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    let result = Study::tabular(data)
+    .ok()
+}
+
+fn effect_query() -> AverageEffectQuery {
+    AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+}
+
+/// One replicate: the analytic interval of the structure-averaged kernel-weighted effect, or
+/// `None` when the target is refused.
+fn interval(centre: f64, bandwidth: f64, n: usize, seed: u64) -> Option<(f64, f64)> {
+    let result = Study::tabular(replicate_table(n, seed)?)
         .graph_posterior(posterior()?)
-        .query(query)
-        .weighted_target(declaration)
+        .query(effect_query())
+        .weighted_target(declaration(centre, bandwidth)?)
         .estimator(EstimatorId::Aipw)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
@@ -121,6 +136,34 @@ fn interval(centre: f64, bandwidth: f64, n: usize, seed: u64) -> Option<(f64, f6
     }
     let half = Z95 * effect.se_analytic();
     Some((effect.ate - half, effect.ate + half))
+}
+
+/// One Bayesian replicate: the posterior's 95% interval of the structure-averaged effect and
+/// the construction the runtime reports for it.
+type Reported = Vec<(Construction, ScopeFacts, &'static str)>;
+
+fn posterior_interval(
+    centre: f64,
+    bandwidth: f64,
+    n: usize,
+    seed: u64,
+) -> Option<((f64, f64), Reported)> {
+    let study = Study::tabular(replicate_table(n, seed)?)
+        .graph_posterior(posterior()?)
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(1_000)))
+        .query(effect_query())
+        .weighted_target(declaration(centre, bandwidth)?)
+        .refute(RefuteSuite::None)
+        .build()
+        .ok()?;
+    let result = study.run(&ExecutionContext::for_tests(seed)).ok()?;
+    let posterior = result.posterior.as_ref()?;
+    let (lower, upper) = (posterior.summaries.q025[0], posterior.summaries.q975[0]);
+    if !(lower.is_finite() && upper.is_finite() && lower <= upper) {
+        return None;
+    }
+    let reported = constructions(&study.inspect().ok()?, &result);
+    Some(((lower, upper), reported))
 }
 
 fn construction() -> Construction {
@@ -200,5 +243,47 @@ fn a_target_far_from_the_rows_is_refused_on_every_replicate() {
     let n = BASE_ROWS / 2;
     for rep in 0..20 {
         assert!(interval(6.0, 0.3, n, grid_seed(SEED_BASE + rep)).is_none());
+    }
+}
+
+fn assert_posterior_coverage_over(test: &'static str, centre: f64, bandwidths: &[f64]) {
+    let n = grid_n(BASE_ROWS);
+    for &bandwidth in bandwidths {
+        let truth = 1.0 + centre / (1.0 + bandwidth * bandwidth);
+        let runs = map_replicates(n_sim(), |rep| {
+            posterior_interval(centre, bandwidth, n, grid_seed(SEED_BASE + rep))
+        });
+        let mut tally = CoverageTally::for_record(
+            RecordKey { test, dgp: DGP, interval: POSTERIOR_INTERVAL },
+            REPORTED_LEVEL,
+        )
+        .labelled(format!("centre {centre} bandwidth {bandwidth}"));
+        for run in runs {
+            let Some((band, reported)) = run else {
+                tally.skip();
+                continue;
+            };
+            bind_reported(&mut tally, &reported);
+            tally.record(Some(band), truth);
+        }
+        tally.assert();
+    }
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn graph_posterior_weighted_target_credible_interval_covers_across_bandwidths() {
+    assert_posterior_coverage_over(
+        "graph_posterior_weighted_target_credible_interval_covers_across_bandwidths",
+        0.5,
+        &[0.5, 1.0, 2.0],
+    );
+}
+
+#[test]
+fn a_target_far_from_the_rows_is_refused_under_bayesian_inference() {
+    let n = BASE_ROWS / 2;
+    for rep in 0..20 {
+        assert!(posterior_interval(6.0, 0.3, n, grid_seed(SEED_BASE + rep)).is_none());
     }
 }

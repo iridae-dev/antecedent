@@ -2390,3 +2390,10 @@ evidence_assertion = "the_selection_is_recorded_and_a_diffuse_prior_leaves_the_w
 kind = "known_truth"
 fixtures = []
 why = "A prior-regularized cross-fitted AIPW estimate for a kernel-weighted target equals the unregularized one when the sources are diffuse, and the selected discount is recorded in the assumptions of the result."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/graph_posterior_weighted_target.rs"
+evidence_assertion = "the_bayesian_route_equals_the_hand_mixture_of_per_structure_posteriors"
+kind = "known_truth"
+fixtures = []
+why = "Under Bayesian inference a structure posterior studied for a kernel-weighted target has the posterior mean of the hand mixture of the single-structure posteriors over the answered mass (the model-based effect with treatment interactions centred at the weighted covariate means), and the mass of a structure the target cannot be estimated in is reported as unevaluable."

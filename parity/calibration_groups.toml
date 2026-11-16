@@ -14695,3 +14695,11 @@ target = "graph_posterior_weighted_target_calibration"
 tests = ["graph_posterior_weighted_target_interval_covers_under_thin_overlap"]
 ignored = true
 grid = true
+
+[[group]]
+label = "graph_posterior_weighted_target_calibration: graph_posterior_weighted_target_credible_interval_covers_across_bandwidths"
+package = "antecedent"
+target = "graph_posterior_weighted_target_calibration"
+tests = ["graph_posterior_weighted_target_credible_interval_covers_across_bandwidths"]
+ignored = true
+grid = true
