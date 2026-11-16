@@ -204,6 +204,9 @@ pub(crate) fn validate_query_ids(
         Q::Transport(wire) => {
             validate_response_query_ids(&wire.response, variable_count)?;
             validate_ids(wire.source_experiments.iter().copied(), variable_count)?;
+            if let Some(target) = &wire.weighted_target {
+                validate_ids(target.covariates.iter().copied(), variable_count)?;
+            }
             if let Some(catalog) = &wire.catalog {
                 for environment in &catalog.environments {
                     validate_ids(

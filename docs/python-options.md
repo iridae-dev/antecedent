@@ -87,7 +87,11 @@ Rust kind is population-scoped carries the same keyword-only field
 `PulseEffect`, `SustainedEffect`, `InterventionResponse`, `ResponseCurve` and
 the six derivative queries) and accepts the `antecedent.population` types
 (`AllRows`, `Treated`, `Untreated`, `Named`, `Rows`, `CustomDistribution`, with
-named and custom targets bound by `population_registry=`). `None` means the
+named and custom targets bound by `population_registry=`; `AverageEffect` also
+takes the weighted targets `target_kernel(...)` and `target_row_weights(...)`,
+resolved against the analysed table and reported on `result.weighted_target`,
+see [weighted target populations](guides/transport/weighted-target-population.md)).
+`None` means the
 all-observed population. The Rust study builder supports the declaration: an
 `AverageEffect` estimates the targets its estimator supports (AIPW and the
 propensity estimators take treated, untreated, predicate and custom-distribution

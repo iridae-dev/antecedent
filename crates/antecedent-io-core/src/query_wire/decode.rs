@@ -901,8 +901,43 @@ pub fn transport_query_from_wire(w: &TransportQueryWire) -> Result<TransportQuer
             .with_catalog(catalog.to_catalog()?)
             .map_err(|e| IoError::Convert(e.to_string()))?;
     }
+    if let Some(target) = &w.weighted_target {
+        let identity = hex_identity(&target.identity).ok_or_else(|| {
+            IoError::Convert("weighted target identity is not 32 hex bytes".into())
+        })?;
+        query = query
+            .with_weighted_target(antecedent_core::TransportWeightedTarget {
+                identity,
+                covariates: vars_from_raw(&target.covariates),
+                min_ess_fraction_bits: target.min_ess_fraction_bits,
+                kernel: target.kernel.as_ref().map(|kernel| {
+                    antecedent_core::TransportTargetKernel {
+                        family: kernel.family.as_str().into(),
+                        bandwidth_bits: kernel.bandwidth_bits,
+                        center_bits: kernel.center_bits.clone().into(),
+                        scale_bits: kernel.scale_bits.clone().into(),
+                    }
+                }),
+            })
+            .map_err(|e| IoError::Convert(e.to_string()))?;
+    }
     query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
     Ok(query)
+}
+
+/// The 32 bytes of a lowercase or uppercase hex identity.
+fn hex_identity(text: &str) -> Option<[u8; 32]> {
+    let bytes = text.as_bytes();
+    if bytes.len() != 64 {
+        return None;
+    }
+    let mut out = [0_u8; 32];
+    for (index, pair) in bytes.chunks(2).enumerate() {
+        let high = (pair[0] as char).to_digit(16)?;
+        let low = (pair[1] as char).to_digit(16)?;
+        out[index] = u8::try_from(high * 16 + low).ok()?;
+    }
+    Some(out)
 }
 
 /// Decode and validate a randomized interference query.

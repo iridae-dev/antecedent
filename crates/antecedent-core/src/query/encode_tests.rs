@@ -2003,3 +2003,38 @@ fn a_structure_prior_changes_the_identity_only_when_set_and_is_validated() {
     invalid(&|p| p.soft_tier_log_penalty = Some(-1.0));
     invalid(&|p| p.default_edge = Some(0.0));
 }
+
+fn weighted_target(identity_byte: u8) -> crate::TransportWeightedTarget {
+    crate::TransportWeightedTarget {
+        identity: [identity_byte; 32],
+        covariates: Arc::from([v(2)]),
+        min_ess_fraction_bits: 0.05_f64.to_bits(),
+        kernel: None,
+    }
+}
+
+#[test]
+fn a_transport_weighted_target_enters_the_identity_only_when_declared() {
+    let plain = transport();
+    let mut also_plain = transport();
+    also_plain.weighted_target = None;
+    assert_eq!(digest(&plain), digest(&also_plain));
+    let first = transport().with_weighted_target(weighted_target(1)).unwrap();
+    let second = transport().with_weighted_target(weighted_target(2)).unwrap();
+    assert_ne!(digest(&plain), digest(&first));
+    assert_ne!(digest(&first), digest(&second));
+    assert_eq!(
+        digest(&first),
+        digest(&transport().with_weighted_target(weighted_target(1)).unwrap())
+    );
+}
+
+#[test]
+fn a_weighted_target_without_covariates_or_with_a_bad_floor_is_refused() {
+    let mut none = weighted_target(1);
+    none.covariates = Arc::from([]);
+    assert!(transport().with_weighted_target(none).is_err());
+    let mut bad = weighted_target(1);
+    bad.min_ess_fraction_bits = 1.5_f64.to_bits();
+    assert!(transport().with_weighted_target(bad).is_err());
+}

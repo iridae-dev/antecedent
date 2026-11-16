@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "f1a51766631d9358e9f9ea98f5f589dec3585e3b298c0ff3a37a80e229992692",
+  "gate_sha256": "1c039a8aebe29ccc93de28aa3b8eb83a0f0f85dc0117b3d4d5cef9bbb1771f97",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "5ef31e946c3629844d7cf46dfe30ad0fa994ea0d2bc96205f1812fdf31b75e6f",
+  "label_audit_sha256": "e4123102b55f1f7fbe17198b9f1ea857b0a2b40601380a6b99ee504121a37073",
   "groups": [
     {
       "index": 1,
@@ -8761,6 +8761,61 @@
     {
       "index": 1748,
       "label": "measured_exposure_calibration: measured_exposure_repeat_codings_rubin_l95",
+      "grid": true
+    },
+    {
+      "index": 1749,
+      "label": "antecedent-discovery: pooled_marginals_are_reliable_under_regression_imputation_of_a_hidden_column",
+      "grid": false
+    },
+    {
+      "index": 1750,
+      "label": "antecedent-discovery: pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors",
+      "grid": false
+    },
+    {
+      "index": 1751,
+      "label": "count_conjugate_calibration: exceedance_route_covers_under_the_stated_prior",
+      "grid": true
+    },
+    {
+      "index": 1752,
+      "label": "count_conjugate_calibration: count_rate_route_covers_under_the_stated_prior",
+      "grid": true
+    },
+    {
+      "index": 1753,
+      "label": "dml_outcome_prior_calibration: dml_composed_prior_informative_interval",
+      "grid": true
+    },
+    {
+      "index": 1754,
+      "label": "dml_outcome_prior_calibration: dml_composed_prior_misspecified_interval",
+      "grid": true
+    },
+    {
+      "index": 1755,
+      "label": "dml_outcome_prior_calibration: aipw_composed_prior_informative_interval",
+      "grid": true
+    },
+    {
+      "index": 1756,
+      "label": "weighted_target_effect_calibration: weighted_target_effect_interval_covers_across_bandwidths",
+      "grid": true
+    },
+    {
+      "index": 1757,
+      "label": "weighted_target_effect_calibration: weighted_target_effect_interval_covers_under_thin_overlap",
+      "grid": true
+    },
+    {
+      "index": 1758,
+      "label": "weighted_target_transport_calibration: weighted_target_transport_interval_covers_across_bandwidths",
+      "grid": true
+    },
+    {
+      "index": 1759,
+      "label": "weighted_target_transport_calibration: weighted_target_transport_interval_covers_under_thin_overlap",
       "grid": true
     }
   ],

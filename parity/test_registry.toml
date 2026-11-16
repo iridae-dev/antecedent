@@ -24005,6 +24005,34 @@ path = "crates/antecedent/tests/transport_weighted_target_calibration.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "weighted-target-effect"
+crate = "antecedent"
+cargo_target = "weighted_target_effect"
+path = "crates/antecedent/tests/weighted_target_effect.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "weighted-target-effect-calibration"
+crate = "antecedent"
+cargo_target = "weighted_target_effect_calibration"
+path = "crates/antecedent/tests/weighted_target_effect_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "weighted-target-trial-transport"
+crate = "antecedent"
+cargo_target = "weighted_target_trial_transport"
+path = "crates/antecedent/tests/weighted_target_trial_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "weighted-target-transport-calibration"
+crate = "antecedent"
+cargo_target = "weighted_target_transport_calibration"
+path = "crates/antecedent/tests/weighted_target_transport_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "local-ratio-design-error-model"
 crate = "antecedent-estimate"
 cargo_target = "lib"

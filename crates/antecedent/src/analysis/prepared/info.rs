@@ -740,6 +740,12 @@ impl PreparedStudy {
         self.analysis.declared.population_registry.as_ref()
     }
 
+    /// The weighted target population declared at build, with its overlap diagnostics.
+    #[must_use]
+    pub fn weighted_target_report(&self) -> Option<&crate::WeightedTargetReport> {
+        self.analysis.declared.weighted_target.as_deref()
+    }
+
     /// Borrow the caller validators frozen at preparation.
     ///
     /// Host bindings may wrap these on an execution-local clone before calling

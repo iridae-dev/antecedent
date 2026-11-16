@@ -580,6 +580,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "randomized_effect",
         "transport",
         "transport_overlap",
+        "weighted_target",
         # Supported GCM attribution cells
         "anomaly",
         "change_attribution",

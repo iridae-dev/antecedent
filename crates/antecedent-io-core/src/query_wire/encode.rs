@@ -611,6 +611,17 @@ pub fn transport_query_to_wire(q: &TransportQuery) -> Result<TransportQueryWire,
         source_population: q.source_population.to_string(),
         target_population: q.target_population.to_string(),
         source_experiments: vars_to_raw(&q.source_experiments),
+        weighted_target: q.weighted_target.as_ref().map(|target| crate::WeightedTargetWire {
+            identity: antecedent_core::to_hex(&target.identity),
+            covariates: vars_to_raw(&target.covariates),
+            min_ess_fraction_bits: target.min_ess_fraction_bits,
+            kernel: target.kernel.as_ref().map(|kernel| crate::TargetKernelWire {
+                family: kernel.family.to_string(),
+                bandwidth_bits: kernel.bandwidth_bits,
+                center_bits: kernel.center_bits.to_vec(),
+                scale_bits: kernel.scale_bits.to_vec(),
+            }),
+        }),
     })
 }
 

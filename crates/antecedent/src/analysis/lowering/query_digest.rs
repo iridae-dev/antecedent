@@ -253,6 +253,9 @@ fn audit_identification_inputs(study: &Study) {
         // sampling design.
         overlap_policy: _,
         population_registry: _,
+        // Reported beside the result; its weights are in the registry the query is digested with.
+        weighted_target: _,
+        weighted_transport: _,
         participants: _,
         missing: _,
         sampling_design: _,

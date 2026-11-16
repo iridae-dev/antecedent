@@ -337,6 +337,7 @@ def is_scientific_refusal(error: BaseException) -> bool:
             "row_weights_bound_to_snapshot",
             "treatment_level_undeclared",
             "population_not_estimable",
+            "transport_target_overlap_failed",
             "stratum_too_sparse",
             "policy_dependency_circular",
             "policy_dependency_unavailable",

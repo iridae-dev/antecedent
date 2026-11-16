@@ -573,6 +573,9 @@ pub enum TransportFault {
     /// Refused: `source_experiments` disagree with the evidence catalog
     #[error("source_experiments disagree with the evidence catalog")]
     SourceExperimentsDisagree,
+    /// Refused: a weighted target must name covariates and a floor in [0, 1]
+    #[error("a weighted target must name its covariates and an ESS-fraction floor in [0, 1]")]
+    WeightedTarget,
     /// Refused: source and target population keys must be non-empty and distinct
     #[error("source and target population keys must be non-empty and distinct")]
     PopulationKeys,

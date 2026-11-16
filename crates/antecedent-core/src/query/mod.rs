@@ -127,7 +127,7 @@ pub use temporal_design::{
     OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
     TemporalDoseTarget, TemporalRegimeMethod,
 };
-pub use transport::TransportQuery;
+pub use transport::{TransportQuery, TransportTargetKernel, TransportWeightedTarget};
 pub use transport_catalog::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
     EvidenceProjection, EvidenceRegime, FactorNeed, InterventionAssignment, LawOrigin,

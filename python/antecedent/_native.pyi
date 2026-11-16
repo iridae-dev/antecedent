@@ -1537,6 +1537,7 @@ class PreparedAnalysis:
         self, policy_json: str, *, seed: int = 1, threads: int | None = None
     ) -> str: ...
     def fork(self) -> PreparedAnalysis: ...
+    def weighted_target_report(self) -> dict[str, Any] | None: ...
     def reconfigure_execution(
         self, *, seed: int = 1, threads: int | None = None
     ) -> PreparedAnalysis: ...
@@ -3601,6 +3602,20 @@ def estimate_trial_transport(
     seed: int = 0,
     cancel: CancellationToken | None = None,
 ) -> TrialTransportResult: ...
+def estimate_trial_weighted_target(
+    identification: TransportIdentificationResult,
+    outcome: NDArray[np.float64],
+    treatment: list[bool],
+    trial: list[bool],
+    selection_probability: NDArray[np.float64],
+    treatment_probability: NDArray[np.float64],
+    covariate_names: list[str],
+    covariates: Sequence[NDArray[np.float64]],
+    target: dict[str, Any],
+    *,
+    mu0: NDArray[np.float64] | None = None,
+    mu1: NDArray[np.float64] | None = None,
+) -> dict[str, Any]: ...
 def estimate_network_interference(
     outcome: NDArray[np.float64],
     assignment: list[bool],

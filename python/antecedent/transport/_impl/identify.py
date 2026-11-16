@@ -18,6 +18,9 @@ from ..._native import (
     estimate_trial_transport as _estimate_trial_transport,
 )
 from ..._native import (
+    estimate_trial_weighted_target as _estimate_trial_weighted_target,
+)
+from ..._native import (
     identify_transport as _identify_transport,
 )
 from ..._native import (
@@ -79,6 +82,11 @@ class TransportQuery:
     trial: str | None = None
     selection_probability: str | None = None
     treatment_probability: str | None = None
+    #: A weighted target population (:func:`antecedent.population.target_kernel` or
+    #: :func:`antecedent.population.target_row_weights`) over covariate columns of the analysed
+    #: table. The target is then the non-participant rows reweighted by it, behind the overlap
+    #: gates of the weighted target; ``None`` keeps the labelled target population.
+    target: object | None = None
     kind: Literal["transport"] = field(default="transport", init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -95,6 +103,16 @@ class TransportQuery:
                 raise CausalValueError("source_experiments disagree with the evidence catalog")
             if not explicit:
                 coerce_fields(self, source_experiments=tuple(derived))
+        if self.target is not None:
+            from ...population import WeightedPopulation
+
+            if not isinstance(self.target, WeightedPopulation):
+                raise CausalTypeError("target= takes target_kernel(...) or target_row_weights(...)")
+            if self.trial is None:
+                raise CausalValueError(
+                    "a weighted target reads the trial columns: pass trial=, "
+                    "selection_probability= and treatment_probability="
+                )
         columns = (self.trial, self.selection_probability, self.treatment_probability)
         if any(column is not None for column in columns):
             if any(column is None for column in columns):
@@ -234,6 +252,15 @@ class TrialTransportEstimate:
     provenance: Mapping[str, Any] = field(
         default_factory=lambda: {"operation_ids": ["estimate.trial_to_target"]}
     )
+    #: Delta-method standard errors of the IPW and AIPW contrasts for a weighted target;
+    #: ``None`` for the unweighted target.
+    ipw_se: float | None = None
+    aipw_se: float | None = None
+    #: The weighted target population the estimate is about, with its overlap diagnostics
+    #: (:class:`antecedent.population.WeightedTargetReport`) and the overlap of the trial rows
+    #: with it in ``trial_overlap``; ``None`` for the unweighted target.
+    weighted_target: Any = None
+    trial_overlap: Any = None
 
 
 def _response_args(query: object) -> dict[str, Any]:
@@ -632,6 +659,8 @@ def estimate_trial_effect(
     *,
     mu0: Sequence[float] | None = None,
     mu1: Sequence[float] | None = None,
+    target: Any = None,
+    covariates: Mapping[str, Sequence[float]] | None = None,
     execution: Execution | None = None,
 ) -> TrialTransportEstimate:
     """Estimate a trial-to-target binary-treatment contrast by IPW and optional AIPW.
@@ -658,6 +687,15 @@ def estimate_trial_effect(
 
     The positional order is ``(treatment, outcome)``, matching Antecedent's
     scalar causal-query convention.
+
+    ``target`` makes the target population a weighted target
+    (:func:`antecedent.population.target_kernel` or
+    :func:`antecedent.population.target_row_weights`): the non-participant rows reweighted by
+    a kernel over covariate distance, or by declared row weights. ``covariates`` names the
+    columns (one value per row, trial and target rows alike) the declaration reads. The
+    estimate carries delta-method standard errors, the weighted target's overlap diagnostics
+    and the overlap of the trial rows with it; a target with no overlap is refused with
+    ``transport_target_overlap_failed`` and a next attempt.
     """
 
     if not isinstance(identification, TransportIdentification):
@@ -666,6 +704,22 @@ def estimate_trial_effect(
         )
     if (mu0 is None) != (mu1 is None):
         raise CausalValueError("mu0 and mu1 must be supplied together")
+    if target is not None:
+        return _weighted_target_estimate(
+            identification,
+            target,
+            covariates,
+            treatment=treatment,
+            outcome=outcome,
+            trial=trial,
+            selection_probability=selection_probability,
+            treatment_probability=treatment_probability,
+            mu0=mu0,
+            mu1=mu1,
+            execution=execution,
+        )
+    if covariates is not None:
+        raise CausalValueError("covariates are read only with a weighted target=")
     raw = call_native(
         execution,
         _estimate_trial_transport,
@@ -698,4 +752,72 @@ def estimate_trial_effect(
                 raw.treatment_extreme_weight_count,
             ),
         ),
+    )
+
+
+def _weighted_target_estimate(
+    identification: TransportIdentification,
+    target: Any,
+    covariates: Mapping[str, Sequence[float]] | None,
+    *,
+    treatment: Sequence[bool],
+    outcome: Sequence[float],
+    trial: Sequence[bool],
+    selection_probability: Sequence[float],
+    treatment_probability: Sequence[float],
+    mu0: Sequence[float] | None,
+    mu1: Sequence[float] | None,
+    execution: Execution | None,
+) -> TrialTransportEstimate:
+    """The trial contrast for a weighted target; the native facade owns every number."""
+    from ...population import WeightedPopulation, WeightedTargetReport
+
+    if not isinstance(target, WeightedPopulation):
+        raise CausalTypeError("target= takes target_kernel(...) or target_row_weights(...)")
+    if not covariates:
+        raise CausalValueError("a weighted target needs covariates= naming the columns it reads")
+    names = [str(name) for name in covariates]
+    arrays = [np.asarray(covariates[name], dtype=np.float64) for name in covariates]
+    raw = call_native(
+        execution,
+        _estimate_trial_weighted_target,
+        identification._native,
+        np.asarray(outcome, dtype=np.float64),
+        list(treatment),
+        list(trial),
+        np.asarray(selection_probability, dtype=np.float64),
+        np.asarray(treatment_probability, dtype=np.float64),
+        names,
+        arrays,
+        target._declaration(names),
+        memory=None,
+        cancel=None,
+        mu0=None if mu0 is None else np.asarray(mu0, dtype=np.float64),
+        mu1=None if mu1 is None else np.asarray(mu1, dtype=np.float64),
+    )
+    report = WeightedTargetReport._from_native(raw["report"], names)
+    from ...priors import TargetOverlap
+
+    return TrialTransportEstimate(
+        raw["rule"],
+        raw["ipw"],
+        raw["aipw"],
+        TransportOverlapReport(
+            OverlapDiagnostic(
+                raw["selection_probability_min"],
+                raw["selection_probability_max"],
+                raw["selection_effective_sample_size"],
+                raw["selection_extreme_weight_count"],
+            ),
+            OverlapDiagnostic(
+                raw["treatment_probability_min"],
+                raw["treatment_probability_max"],
+                raw["treatment_effective_sample_size"],
+                raw["treatment_extreme_weight_count"],
+            ),
+        ),
+        ipw_se=raw["ipw_se"],
+        aipw_se=raw["aipw_se"],
+        weighted_target=report,
+        trial_overlap=TargetOverlap._from_native(raw["report"]["trial_overlap"]),
     )

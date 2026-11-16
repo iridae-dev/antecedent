@@ -31,7 +31,65 @@ pub struct TransportQuery {
     /// Optional supplied evidence catalog. Absent means the compatibility view
     /// is the entire experimental setting.
     pub catalog: Option<EvidenceCatalog>,
+    /// A weighted target population over the target rows (a kernel over covariate distance, or
+    /// declared row weights). Absent keeps the labelled target population and every existing
+    /// identity: nothing is encoded for it.
+    pub weighted_target: Option<TransportWeightedTarget>,
 }
+
+/// The kernel of a weighted transport target, as declared.
+///
+/// Reals are carried as their IEEE bits so the declaration is hashed and compared exactly.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TransportTargetKernel {
+    /// Kernel family id (`gaussian`, `epanechnikov` or `tricube`).
+    pub family: Arc<str>,
+    /// Bandwidth bits.
+    pub bandwidth_bits: u64,
+    /// Center coordinate bits, one per covariate.
+    pub center_bits: Arc<[u64]>,
+    /// Scale bits, one per covariate.
+    pub scale_bits: Arc<[u64]>,
+}
+
+/// A weighted target population of a trial-to-target transport.
+///
+/// The target is the non-participant rows reweighted by a function of `covariates`. The
+/// `identity` is the digest of the declaration and the exact weight bits, so two targets that
+/// weight the rows differently never share a query identity. A kernel target carries its
+/// declaration so an artifact replays the same target against its data; explicit row weights
+/// are caller data like the trial columns, verified against `identity`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TransportWeightedTarget {
+    /// Digest of the declaration and the exact weight bits.
+    pub identity: [u8; 32],
+    /// Covariates the weights are a function of.
+    pub covariates: Arc<[VariableId]>,
+    /// Bits of the ESS-fraction floor of the overlap gate.
+    pub min_ess_fraction_bits: u64,
+    /// The declared kernel; `None` for explicit row weights.
+    pub kernel: Option<TransportTargetKernel>,
+}
+
+impl CanonicalEncode for TransportWeightedTarget {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.bytes(&self.identity);
+        encode_variable_set(writer, &self.covariates);
+        writer.word(self.min_ess_fraction_bits);
+        match &self.kernel {
+            Some(kernel) => {
+                writer.word(1).text(&kernel.family).word(kernel.bandwidth_bits);
+                writer.words(&kernel.center_bits).words(&kernel.scale_bits);
+            }
+            None => {
+                writer.word(0);
+            }
+        }
+    }
+}
+
+/// Domain tag of the weighted-target section of a transport query's encoding.
+const WEIGHTED_TARGET_TAG: u64 = 0x7767_7474_6172_6774;
 
 /// Every field is written. `source_experiments` is a variable set (it is
 /// compared to the catalog as a set) and is encoded in ascending id order.
@@ -41,6 +99,11 @@ impl CanonicalEncode for TransportQuery {
         writer.text(&self.source_population).text(&self.target_population);
         encode_variable_set(writer, &self.source_experiments);
         encode_option(writer, self.catalog.as_ref());
+        // Written only when declared, so a query without a weighted target keeps its identity.
+        if let Some(target) = &self.weighted_target {
+            writer.word(WEIGHTED_TARGET_TAG);
+            target.encode(writer);
+        }
     }
 }
 
@@ -59,6 +122,7 @@ impl TransportQuery {
             target_population: target_population.into(),
             source_experiments: source_experiments.into(),
             catalog: None,
+            weighted_target: None,
         }
     }
 
@@ -81,6 +145,21 @@ impl TransportQuery {
             self.source_experiments = derived;
         }
         self.catalog = Some(catalog);
+        Ok(self)
+    }
+
+    /// Declare a weighted target population for the target rows.
+    ///
+    /// # Errors
+    ///
+    /// [`QueryError::InvalidTransport`] when the target names no covariate or its floor is
+    /// outside `[0, 1]`.
+    pub fn with_weighted_target(
+        mut self,
+        target: TransportWeightedTarget,
+    ) -> Result<Self, QueryError> {
+        target.validate()?;
+        self.weighted_target = Some(target);
         Ok(self)
     }
 
@@ -123,6 +202,9 @@ impl TransportQuery {
         if experiments.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err(QueryError::InvalidTransport(TransportFault::SourceExperimentsNotUnique));
         }
+        if let Some(target) = &self.weighted_target {
+            target.validate()?;
+        }
         if let Some(catalog) = &self.catalog {
             catalog.validate()?;
             let derived = catalog.source_experiment_variables(&self.source_population);
@@ -131,6 +213,27 @@ impl TransportQuery {
                     TransportFault::SourceExperimentsDisagree,
                 ));
             }
+        }
+        Ok(())
+    }
+}
+
+impl TransportWeightedTarget {
+    /// The ESS-fraction floor.
+    #[must_use]
+    pub fn min_ess_fraction(&self) -> f64 {
+        f64::from_bits(self.min_ess_fraction_bits)
+    }
+
+    /// Validate the covariates and the floor.
+    ///
+    /// # Errors
+    ///
+    /// [`QueryError::InvalidTransport`] for no covariates, or a floor outside `[0, 1]`.
+    pub fn validate(&self) -> Result<(), QueryError> {
+        let floor = self.min_ess_fraction();
+        if self.covariates.is_empty() || !(0.0..=1.0).contains(&floor) {
+            return Err(QueryError::InvalidTransport(TransportFault::WeightedTarget));
         }
         Ok(())
     }

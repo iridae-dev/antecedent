@@ -1282,8 +1282,8 @@ pub use antecedent_prob::{
 /// Row-weighted target populations and kernel transport weights.
 pub use antecedent_prob::{
     BandwidthSensitivityRow, KernelFamily, TARGET_MIN_ESS_FRACTION, TargetOverlap, TransportKernel,
-    WeightedTarget, apply_weighted_target_transport, compose_with_weighted_target_transport,
-    kernel_bandwidth_sensitivity,
+    WeightedTarget, apply_weighted_target_transport, check_weights_overlap,
+    compose_with_weighted_target_transport, kernel_bandwidth_sensitivity,
 };
 /// Conjugate Beta-Binomial and Gamma-Poisson count posteriors.
 pub use antecedent_prob::{BetaBinomialPosterior, GammaPoissonPosterior};

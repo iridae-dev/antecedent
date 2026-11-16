@@ -26,6 +26,7 @@ const KEYS: &[&str] = &[
     "target_population",
     "population_predicates",
     "population_distributions",
+    "weighted_target",
     "cancel",
     "on_progress",
     "inference",
@@ -198,6 +199,8 @@ pub(crate) struct PrepareOptions {
     pub validators: Vec<Arc<dyn CustomEffectValidator>>,
     pub target_population: Option<TargetPopulation>,
     pub registry: Option<PopulationRegistry>,
+    /// A weighted target population, resolved by the facade against the table at build.
+    pub weighted_target: Option<antecedent::WeightedTargetDeclaration>,
     pub cancel: Option<antecedent::execution::CancellationToken>,
     pub progress: Option<Arc<dyn antecedent::execution::ProgressSink>>,
     pub inference: InferenceSpec,
@@ -267,6 +270,9 @@ impl PrepareOptions {
             predicates.as_ref().map(|value| value.cast::<PyDict>()).transpose()?,
             distributions.as_ref().map(|value| value.cast::<PyDict>()).transpose()?,
         )?;
+        let weighted_target = item("weighted_target")?
+            .map(|value| crate::weighted_target_api::parse(value.cast::<PyDict>()?))
+            .transpose()?;
         let cancel = item("cancel")?
             .map(|value| {
                 value
@@ -358,6 +364,7 @@ impl PrepareOptions {
             validators,
             target_population,
             registry,
+            weighted_target,
             cancel,
             progress,
             inference,
@@ -502,6 +509,9 @@ impl PrepareOptions {
         if let Some(registry) = &self.registry {
             builder = builder.population_registry(registry.clone());
         }
+        if let Some(target) = &self.weighted_target {
+            builder = builder.weighted_target(target.clone());
+        }
         if let Some(participants) = &self.participants {
             builder = builder.participants(participants.clone());
         }
@@ -528,6 +538,7 @@ impl PrepareOptions {
             validators: self.validators.clone(),
             target_population: None,
             registry: self.registry.clone(),
+            weighted_target: self.weighted_target.clone(),
             cancel: None,
             progress: None,
             inference: InferenceSpec::default(),

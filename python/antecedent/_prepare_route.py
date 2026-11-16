@@ -839,6 +839,12 @@ class _PrepareRoute:
                     "TransportQuery on analyze reads its trial columns: pass trial=, "
                     "selection_probability= and treatment_probability="
                 )
+            if query.target is not None:
+                raise CausalUnsupportedError(
+                    "a weighted target population applies to a trial-to-target transport on one "
+                    "selection diagram; a graph posterior does not carry it",
+                    reason_code="option_not_applicable",
+                )
             response = _response_args(query.query)
             native = _NativePreparedAnalysis.prepare_graph_posterior_transport(
                 self.names,
@@ -2356,6 +2362,8 @@ class _PrepareRoute:
                 "selection_probability= and treatment_probability="
             )
         response = _response_args(query.query)
+        if query.target is not None:
+            self.options["weighted_target"] = query.target._declaration(self.names)
         native = _NativePreparedAnalysis.prepare_transport(
             self.names,
             self.columns,

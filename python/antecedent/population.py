@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from numbers import Integral
@@ -14,6 +15,7 @@ from .outcomes import Outcome, capture_outcome
 
 if TYPE_CHECKING:
     from .prepared import PreparedAnalysis
+    from .priors import TargetOverlap, TransportKernel
     from .results import AnalysisResult
 
 
@@ -204,6 +206,229 @@ class CustomDistribution(Population):
         return {"kind": "custom_distribution", "id": _id(self.distribution_id, "distribution_id")}
 
 
+class WeightedPopulation(Population):
+    """Base class of target populations declared as a weighting over the analysed rows.
+
+    A weighted population is a declaration only. The native study resolves it against the
+    analysed table at build: it computes the weights, applies the overlap gate (positivity,
+    the Kish effective-sample-size floor of 20 rows, the ESS fraction floor) and registers the
+    weights as the study's custom target distribution. The result reports it as
+    ``result.weighted_target``. It is not a wire population by itself;
+    :func:`coerce_target_population` refuses it where no table is available to resolve it.
+    """
+
+    __slots__ = ()
+
+    def _declaration(self, names: Sequence[str]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def _wire(self) -> dict[str, object]:
+        raise CausalUnsupportedError(
+            "a weighted target population (target_row_weights / target_kernel) is resolved "
+            "against the analysed table and applies to AverageEffect through "
+            "analyze()/prepare(); this entry point has no table to resolve it against",
+            reason_code="option_not_applicable",
+        )
+
+
+def _column_ids(declared: Sequence[str], names: Sequence[str]) -> list[int]:
+    missing = [n for n in declared if n not in names]
+    if missing:
+        raise CausalValueError(
+            f"the weighted target depends on {missing}, which are not columns of the analysed "
+            f"table; columns are {sorted(names)}"
+        )
+    return [list(names).index(n) for n in declared]
+
+
+@dataclass(frozen=True, slots=True)
+class RowWeights(WeightedPopulation):
+    """Explicit per-row target weights, one per analysed row in table order.
+
+    ``depends_on`` names the covariates the weights are a function of. They must be members of
+    the certified adjustment set (never the treatment or its descendants), so the weighted
+    standardization is valid for the declared target. ``min_ess_fraction`` is the floor on the
+    weights' Kish effective sample size as a share of the rows (default 0.05); the absolute
+    floor of 20 effective rows is never relaxed.
+    """
+
+    weights: tuple[float, ...]
+    depends_on: tuple[str, ...]
+    min_ess_fraction: float | None = None
+
+    def _declaration(self, names: Sequence[str]) -> dict[str, Any]:
+        return {
+            "kind": "row_weights",
+            "weights": list(self.weights),
+            "covariates": _column_ids(self.depends_on, names),
+            "min_ess_fraction": self.min_ess_fraction,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class KernelTarget(WeightedPopulation):
+    """A target neighbourhood declared as a kernel over a covariate distance.
+
+    Row ``i`` has distance ``d_i = sqrt(sum_j ((x_ij - center_j) / scale_j) ** 2)`` to the
+    declared ``center`` over ``covariates``, and weight ``kernel(d_i)`` (family and bandwidth
+    from the declared :class:`~antecedent.priors.TransportKernel`). Family, bandwidth, center
+    and scale are part of the declaration reported on the result; the weights they produce
+    enter the query identity.
+    """
+
+    kernel: TransportKernel
+    covariates: tuple[str, ...]
+    center: tuple[float, ...]
+    scale: tuple[float, ...]
+    min_ess_fraction: float | None = None
+
+    def _declaration(self, names: Sequence[str]) -> dict[str, Any]:
+        return {
+            "kind": "kernel",
+            "family": str(self.kernel.family),
+            "bandwidth": float(self.kernel.bandwidth),
+            "covariates": _column_ids(self.covariates, names),
+            "center": list(self.center),
+            "scale": list(self.scale),
+            "min_ess_fraction": self.min_ess_fraction,
+        }
+
+
+@dataclass(frozen=True)
+class WeightedTargetReport:
+    """The weighted target population a result is about, with its overlap diagnostics.
+
+    ``declaration`` is the declared kernel (family, bandwidth, covariates, center, scale) or
+    the declared covariates of explicit weights; ``identity`` is the digest of the declaration
+    and the exact weight bits; ``overlap`` is the support / Kish ESS / largest single-row share
+    of the weights over the analysed rows. The native study computes all of it.
+    """
+
+    declaration: Mapping[str, Any]
+    identity: str
+    distribution_id: int
+    overlap: TargetOverlap
+    min_ess_fraction: float
+    assumption: str
+    #: For a trial-to-target transport, the overlap of the weights the trial rows carry toward
+    #: the target; ``None`` for the target of an average effect.
+    trial_overlap: TargetOverlap | None = None
+
+    @classmethod
+    def _from_native(cls, raw: Mapping[str, Any], names: Sequence[str]) -> WeightedTargetReport:
+        from .priors import TargetOverlap
+
+        declaration: dict[str, Any] = {
+            "kind": raw["kind"],
+            "covariates": [names[i] for i in raw["covariates"]],
+        }
+        if raw["kind"] == "kernel":
+            declaration.update(
+                family=raw["family"],
+                bandwidth=raw["bandwidth"],
+                center=list(raw["center"]),
+                scale=list(raw["scale"]),
+            )
+        return cls(
+            declaration=declaration,
+            identity=str(raw["identity"]),
+            distribution_id=int(raw["distribution_id"]),
+            overlap=TargetOverlap._from_native(raw["overlap"]),
+            min_ess_fraction=float(raw["min_ess_fraction"]),
+            assumption=str(raw["assumption"]),
+            trial_overlap=(
+                TargetOverlap._from_native(raw["trial_overlap"])
+                if raw.get("trial_overlap")
+                else None
+            ),
+        )
+
+    def assumptions(self) -> tuple[str, ...]:
+        """The assumption statements the target adds to the result's assumptions."""
+        return (self.assumption,)
+
+    def to_dict(self) -> dict[str, Any]:
+        """The report as plain data."""
+        o = self.overlap
+        return {
+            "declaration": dict(self.declaration),
+            "identity": self.identity,
+            "distribution_id": self.distribution_id,
+            "min_ess_fraction": self.min_ess_fraction,
+            "overlap": {
+                "n_rows": o.n_rows,
+                "n_support": o.n_support,
+                "support_fraction": o.support_fraction,
+                "kish_ess": o.kish_ess,
+                "ess_fraction": o.ess_fraction,
+                "max_weight_share": o.max_weight_share,
+            },
+        }
+
+
+def target_row_weights(
+    weights: Sequence[float],
+    *,
+    depends_on: Sequence[str],
+    min_ess_fraction: float | None = None,
+) -> RowWeights:
+    """Declare a target population as explicit per-row weights over named covariates."""
+    values = tuple(float(w) for w in weights)
+    names = tuple(str(n) for n in depends_on)
+    if not values:
+        raise CausalValueError("target row weights must be non-empty")
+    if not names:
+        raise CausalValueError(
+            "target row weights need a nonempty depends_on naming the covariates they are a "
+            "function of"
+        )
+    return RowWeights(values, names, min_ess_fraction)
+
+
+def target_kernel(
+    kernel: TransportKernel,
+    *,
+    center: Mapping[str, float],
+    scale: Mapping[str, float] | None = None,
+    min_ess_fraction: float | None = None,
+) -> KernelTarget:
+    """Declare a target neighbourhood as a kernel over the distance to ``center``.
+
+    ``center`` maps each covariate to its coordinate in the target; ``scale`` (default 1 for
+    every covariate) divides the coordinate differences, so a bandwidth is in scaled units.
+    """
+    if not center:
+        raise CausalValueError("a kernel target needs a nonempty center naming its covariates")
+    names = tuple(str(n) for n in center)
+    scales = {str(k): float(v) for k, v in (scale or {}).items()}
+    unknown = sorted(set(scales) - set(names))
+    if unknown:
+        raise CausalValueError(f"scale names covariates the center does not declare: {unknown}")
+    centre = tuple(float(center[n]) for n in center)
+    scale_values = tuple(scales.get(n, 1.0) for n in names)
+    if any(not math.isfinite(c) for c in centre):
+        raise CausalValueError("kernel target center coordinates must be finite")
+    if any(not math.isfinite(v) or v <= 0.0 for v in scale_values):
+        raise CausalValueError("kernel target scales must be finite and > 0")
+    return KernelTarget(kernel, names, centre, scale_values, min_ess_fraction)
+
+
+def weighted_target_declaration(
+    query: Any, names: Sequence[str]
+) -> tuple[Any, dict[str, Any] | None]:
+    """Split a weighted target population off ``query`` for the native study.
+
+    Returns ``(query, declaration)``. A query without a weighted target comes back unchanged
+    with no declaration. Otherwise the query is returned with the all-observed population and
+    the declaration (covariates as column indices) is what the native study resolves: it
+    computes the weights, gates the overlap and names the custom distribution itself.
+    """
+    population = getattr(query, "target_population", None)
+    if not isinstance(population, WeightedPopulation):
+        return query, None
+    return replace(query, target_population=None), population._declaration(names)
+
+
 def target_all() -> AllRows:
     return AllRows()
 
@@ -278,18 +503,25 @@ def registry_wire(
 __all__ = [
     "AllRows",
     "CustomDistribution",
+    "KernelTarget",
     "Named",
     "Population",
     "PopulationRegistry",
+    "RowWeights",
     "Rows",
     "Treated",
     "Untreated",
+    "WeightedPopulation",
+    "WeightedTargetReport",
     "coerce_target_population",
     "registry_wire",
     "replay_retarget",
+    "weighted_target_declaration",
     "target_all",
     "target_custom_distribution",
+    "target_kernel",
     "target_named",
+    "target_row_weights",
     "target_rows",
     "target_treated",
     "target_untreated",

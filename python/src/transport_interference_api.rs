@@ -1261,6 +1261,101 @@ fn estimate_trial_transport(
     })
 }
 
+/// Transport a trial contrast to a weighted target population: the target is the
+/// non-participant rows reweighted by the declared kernel or row weights over the covariate
+/// columns, behind the facade's overlap gate. The semantics are the facade's.
+#[pyfunction]
+#[pyo3(signature = (
+    identification, outcome, treatment, trial, selection_probability, treatment_probability,
+    covariate_names, covariates, target, *, mu0=None, mu1=None
+))]
+#[allow(clippy::too_many_arguments)]
+fn estimate_trial_weighted_target<'py>(
+    py: Python<'py>,
+    identification: PyRef<'_, TransportIdentificationResult>,
+    outcome: PyReadonlyArray1<'_, f64>,
+    treatment: Vec<bool>,
+    trial: Vec<bool>,
+    selection_probability: PyReadonlyArray1<'_, f64>,
+    treatment_probability: PyReadonlyArray1<'_, f64>,
+    covariate_names: Vec<String>,
+    covariates: Vec<PyReadonlyArray1<'_, f64>>,
+    target: &Bound<'py, pyo3::types::PyDict>,
+    mu0: Option<PyReadonlyArray1<'_, f64>>,
+    mu1: Option<PyReadonlyArray1<'_, f64>>,
+) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
+    use pyo3::types::PyDict;
+    if mu0.is_some() != mu1.is_some() {
+        return Err(crate::value_err("mu0 and mu1 must be supplied together"));
+    }
+    if covariate_names.len() != covariates.len() {
+        return Err(crate::value_err("covariate_names and covariates differ in length"));
+    }
+    let declaration = crate::weighted_target_api::parse(target)?;
+    let to_vec = |values: &PyReadonlyArray1<'_, f64>| values.as_array().iter().copied().collect();
+    let y: Vec<f64> = to_vec(&outcome);
+    let selection: Vec<f64> = to_vec(&selection_probability);
+    let propensity: Vec<f64> = to_vec(&treatment_probability);
+    let mu0: Option<Vec<f64>> = mu0.as_ref().map(to_vec);
+    let mu1: Option<Vec<f64>> = mu1.as_ref().map(to_vec);
+    let columns: Vec<Vec<f64>> = covariates.iter().map(to_vec).collect();
+    let certificate = identification.identification.clone();
+    let rule = match &certificate {
+        TransportIdentification::Transportable { certificate, .. } => certificate.rule.to_string(),
+        _ => String::new(),
+    };
+    let result = detach_catch(py, move || {
+        let pairs: Vec<(&str, &[f64])> = covariate_names
+            .iter()
+            .map(String::as_str)
+            .zip(columns.iter().map(Vec::as_slice))
+            .collect();
+        let table = antecedent::prelude::TabularData::from_f64_columns(pairs)
+            .map_err(crate::value_err_display)?;
+        let regressions = mu0.as_deref().zip(mu1.as_deref());
+        antecedent::transport_trial_to_weighted_target(
+            &declaration,
+            &table,
+            &certificate,
+            &y,
+            &treatment,
+            &trial,
+            &selection,
+            &propensity,
+            regressions,
+        )
+        .map_err(py_err)
+    })?;
+    let estimate = result.estimate;
+    let out = PyDict::new(py);
+    out.set_item("rule", rule)?;
+    out.set_item("ipw", estimate.effect.ipw)?;
+    out.set_item("aipw", estimate.effect.aipw)?;
+    out.set_item("ipw_se", estimate.ipw_se)?;
+    out.set_item("aipw_se", estimate.aipw_se)?;
+    let overlap = &estimate.effect.overlap;
+    for (prefix, diagnostic) in
+        [("selection", &overlap.selection), ("treatment", &overlap.treatment)]
+    {
+        out.set_item(format!("{prefix}_probability_min"), diagnostic.probability_min)?;
+        out.set_item(format!("{prefix}_probability_max"), diagnostic.probability_max)?;
+        out.set_item(format!("{prefix}_effective_sample_size"), diagnostic.effective_sample_size)?;
+        out.set_item(format!("{prefix}_extreme_weight_count"), diagnostic.extreme_weight_count)?;
+    }
+    let report = crate::weighted_target_api::report_to_dict(py, &result.report)?;
+    let trial_overlap = PyDict::new(py);
+    let t = &estimate.trial_overlap;
+    trial_overlap.set_item("n_rows", t.n_rows)?;
+    trial_overlap.set_item("n_support", t.n_support)?;
+    trial_overlap.set_item("support_fraction", t.support_fraction)?;
+    trial_overlap.set_item("kish_ess", t.kish_ess)?;
+    trial_overlap.set_item("ess_fraction", t.ess_fraction)?;
+    trial_overlap.set_item("max_weight_share", t.max_weight_share)?;
+    report.set_item("trial_overlap", trial_overlap)?;
+    out.set_item("report", report)?;
+    Ok(out)
+}
+
 #[pyfunction]
 #[pyo3(signature = (
     outcome, assignment, edges, assignment_kind, assignment_probabilities, treated,
@@ -1432,6 +1527,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(identify_transport, m)?)?;
     m.add_function(wrap_pyfunction!(roundtrip_expr_arena, m)?)?;
     m.add_function(wrap_pyfunction!(estimate_trial_transport, m)?)?;
+    m.add_function(wrap_pyfunction!(estimate_trial_weighted_target, m)?)?;
     m.add_function(wrap_pyfunction!(estimate_transport_response_grid, m)?)?;
     m.add_function(wrap_pyfunction!(estimate_network_interference, m)?)?;
     Ok(())

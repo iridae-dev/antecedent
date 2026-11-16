@@ -2736,6 +2736,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "vector_treatment.unknown_contrast_coefficient",
     "vector_treatment.weights_need_robust_covariance",
     "vector_treatment.wrong_contract",
+    "weighted_target.overlap_failed",
 ];
 
 /// Detail id and the reason codes it is refused under, sorted by id.
@@ -5470,6 +5471,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("vector_treatment.unknown_contrast_coefficient", &["invalid_argument"]),
     ("vector_treatment.weights_need_robust_covariance", &["option_not_applicable"]),
     ("vector_treatment.wrong_contract", &["route_not_supported"]),
+    ("weighted_target.overlap_failed", &["transport_target_overlap_failed"]),
 ];
 
 /// The reason codes `detail` is refused under, or `None` for an unregistered id.
@@ -11687,4 +11689,10 @@ pub mod vector_treatment {
     pub const WEIGHTS_NEED_ROBUST_COVARIANCE: &str = "vector_treatment.weights_need_robust_covariance";
     /// Detail `vector_treatment.wrong_contract`.
     pub const WRONG_CONTRACT: &str = "vector_treatment.wrong_contract";
+}
+
+/// Details in the `weighted_target` family.
+pub mod weighted_target {
+    /// Detail `weighted_target.overlap_failed`.
+    pub const OVERLAP_FAILED: &str = "weighted_target.overlap_failed";
 }

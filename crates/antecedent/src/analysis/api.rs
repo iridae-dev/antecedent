@@ -13,6 +13,10 @@ pub use super::structure_route::{
     DiscoveredStructure, DiscoveryPayload, DiscoverySpec, MechanismProgram, SimulationOutcome,
     SimulationPayload, accept_discovered, accept_discovered_posterior, panel_of_units,
 };
+pub use super::weighted_target::{
+    ResolvedWeightedTarget, WeightedTargetDeclaration, WeightedTargetReport, WeightedTargetSpec,
+    WeightedTrialTransport, transport_trial_to_weighted_target,
+};
 pub use super::{
     ActionConstraint, ActionOutcome, ActionReason, ActionSpec, ActionStatus, EnumeratedStatus,
     ForwardEvaluation, ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope,

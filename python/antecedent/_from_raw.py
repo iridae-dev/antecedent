@@ -1525,6 +1525,25 @@ def _wrap_ate(
             slices=slices,
             joint_posterior=bool(getattr(raw, "mediation_joint_posterior", False)),
         )
+    # A declared weighted target population adds its declaration and overlap diagnostics to the
+    # result; a result without one carries exactly the assumptions and provenance it always did.
+    weighted_target = None
+    target_names = getattr(prepared, "_weighted_target_names", None)
+    if target_names is not None:
+        from .population import WeightedTargetReport
+
+        weighted_target = WeightedTargetReport._from_native(
+            prepared._native.weighted_target_report(), target_names
+        )
+    assumptions = getattr(raw, "assumptions", None)
+    provenance: dict[str, Any] = {
+        "node_count": raw.provenance_node_count,
+        "worker_threads": getattr(raw, "worker_threads", None),
+        "expected_python_crossings": getattr(raw, "expected_python_crossings", None),
+    }
+    if weighted_target is not None:
+        assumptions = [*(assumptions or ()), *weighted_target.assumptions()]
+        provenance["weighted_target"] = weighted_target.to_dict()
     # ResultModel accepts private retained handles outside its public Pydantic fields.
     return AnalysisResult(  # type: ignore[call-arg]
         certificate=json.loads(certificate_json) if certificate_json else None,
@@ -1608,7 +1627,8 @@ def _wrap_ate(
         unit_effect_intervals_method=getattr(raw, "unit_effect_intervals_method", None),
         unit_extrapolative=getattr(raw, "unit_extrapolative", None),
         counterfactual_contrasts=_counterfactual_contrasts_from_raw(raw),
-        assumptions=getattr(raw, "assumptions", None),
+        assumptions=assumptions,
+        weighted_target=weighted_target,
         support=getattr(raw, "support_diagnostics", None),
         mediation=mediation,
         mediation_grid=mediation_grid,
@@ -1643,11 +1663,7 @@ def _wrap_ate(
             {"route": route, "outcome": outcome, "failed": failed, "unevaluable_mass": mass}
             for route, outcome, failed, mass in getattr(raw, "route_diagnostics", ())
         ),
-        provenance={
-            "node_count": raw.provenance_node_count,
-            "worker_threads": getattr(raw, "worker_threads", None),
-            "expected_python_crossings": getattr(raw, "expected_python_crossings", None),
-        },
+        provenance=provenance,
         plan=_plan_from_raw(raw),
         evidence_status=getattr(raw, "evidence_status", None),
         would_refuse=tuple(

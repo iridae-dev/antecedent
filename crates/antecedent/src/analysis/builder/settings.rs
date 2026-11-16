@@ -50,6 +50,12 @@ pub(super) struct Declarations {
     pub(super) overlap_policy: Option<OverlapPolicy>,
     /// Optional bindings for named predicates / custom target distributions.
     pub(super) population_registry: Option<PopulationRegistry>,
+    /// The resolved weighted target population, when one was declared: its weights are the
+    /// registered custom distribution the query names.
+    pub(super) weighted_target: Option<Arc<super::super::weighted_target::WeightedTargetReport>>,
+    /// The weights of a weighted target of a trial-to-target transport study.
+    pub(super) weighted_transport:
+        Option<Arc<super::super::weighted_target::WeightedTransportWeights>>,
     /// Participant labels bound to the rows of the data (digests only).
     pub(super) participants: Option<antecedent_io::ParticipantBindingWire>,
     /// Declared handling of missing values; `None` leaves each route on its own default.

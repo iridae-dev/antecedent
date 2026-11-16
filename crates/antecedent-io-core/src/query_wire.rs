@@ -1677,6 +1677,38 @@ pub struct TransportQueryWire {
     pub target_population: String,
     /// Source experimental variables.
     pub source_experiments: Vec<u32>,
+    /// Declared weighted target population; omitted when the target is the labelled population.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weighted_target: Option<WeightedTargetWire>,
+}
+
+/// Weighted transport target wire form.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct WeightedTargetWire {
+    /// Lowercase hex of the 32-byte identity of the declaration and the weight bits.
+    pub identity: String,
+    /// Covariates the weights are a function of.
+    pub covariates: Vec<u32>,
+    /// IEEE bits of the ESS-fraction floor.
+    pub min_ess_fraction_bits: u64,
+    /// Declared kernel; omitted for explicit row weights.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kernel: Option<TargetKernelWire>,
+}
+
+/// Declared kernel of a weighted transport target.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TargetKernelWire {
+    /// Kernel family id.
+    pub family: String,
+    /// Bandwidth bits.
+    pub bandwidth_bits: u64,
+    /// Center coordinate bits.
+    pub center_bits: Vec<u64>,
+    /// Scale bits.
+    pub scale_bits: Vec<u64>,
 }
 
 /// Known assignment design wire form.
@@ -2729,6 +2761,43 @@ mod tests {
             },
         ));
         assert_rt(&interference);
+    }
+
+    #[test]
+    fn a_transport_weighted_target_round_trips_and_is_absent_when_unset() {
+        let plain = TransportQuery::new(
+            antecedent_core::ResponseQuery::new(antecedent_core::ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: antecedent_core::ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    antecedent_core::GridSpec::Values(Arc::from([0.0, 1.0])),
+                ),
+            }),
+            "trial",
+            "target",
+            [VariableId::from_raw(0)],
+        );
+        let wire = transport_query_to_wire(&plain).unwrap();
+        assert!(
+            !serde_json::to_string(&wire).unwrap().contains("weighted_target"),
+            "an unset target adds nothing to the wire"
+        );
+        let target = antecedent_core::TransportWeightedTarget {
+            identity: [7; 32],
+            covariates: Arc::from([VariableId::from_raw(2)]),
+            min_ess_fraction_bits: 0.05_f64.to_bits(),
+            kernel: Some(antecedent_core::TransportTargetKernel {
+                family: Arc::from("gaussian"),
+                bandwidth_bits: 0.5_f64.to_bits(),
+                center_bits: Arc::from([1.0_f64.to_bits()]),
+                scale_bits: Arc::from([1.0_f64.to_bits()]),
+            }),
+        };
+        let declared = plain.with_weighted_target(target.clone()).unwrap();
+        let bytes = to_cbor(&transport_query_to_wire(&declared).unwrap()).unwrap();
+        let decoded: TransportQueryWire = from_cbor(&bytes).unwrap();
+        let back = transport_query_from_wire(&decoded).unwrap();
+        assert_eq!(back.weighted_target, Some(target));
     }
 
     #[test]

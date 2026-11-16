@@ -210,6 +210,7 @@ mod sequential_evaluation_api;
 mod temporal_design_api;
 mod tiered_identify_api;
 mod unsupported_design_api;
+mod weighted_target_api;
 pub(crate) use registry::transport_defaults;
 mod interface_adapters_api;
 mod interface_contract_api;

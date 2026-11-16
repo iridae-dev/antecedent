@@ -14647,3 +14647,35 @@ target = "dml_outcome_prior_calibration"
 tests = ["aipw_composed_prior_informative_interval"]
 ignored = true
 grid = true
+
+[[group]]
+label = "weighted_target_effect_calibration: weighted_target_effect_interval_covers_across_bandwidths"
+package = "antecedent"
+target = "weighted_target_effect_calibration"
+tests = ["weighted_target_effect_interval_covers_across_bandwidths"]
+ignored = true
+grid = true
+
+[[group]]
+label = "weighted_target_effect_calibration: weighted_target_effect_interval_covers_under_thin_overlap"
+package = "antecedent"
+target = "weighted_target_effect_calibration"
+tests = ["weighted_target_effect_interval_covers_under_thin_overlap"]
+ignored = true
+grid = true
+
+[[group]]
+label = "weighted_target_transport_calibration: weighted_target_transport_interval_covers_across_bandwidths"
+package = "antecedent"
+target = "weighted_target_transport_calibration"
+tests = ["weighted_target_transport_interval_covers_across_bandwidths"]
+ignored = true
+grid = true
+
+[[group]]
+label = "weighted_target_transport_calibration: weighted_target_transport_interval_covers_under_thin_overlap"
+package = "antecedent"
+target = "weighted_target_transport_calibration"
+tests = ["weighted_target_transport_interval_covers_under_thin_overlap"]
+ignored = true
+grid = true
