@@ -270,6 +270,7 @@ _ESTIMATE_REFUSAL_CODES = frozenset(
         "option_not_applicable",
         "estimator_inference_mismatch",
         "positivity_violated",
+        "transport_target_overlap_failed",
     }
 )
 

@@ -1312,3 +1312,30 @@ entry_points = ["analyze", "prepare"]
 binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_execution_cancellation_reaches_transport_plan"
+
+# A measured exposure is dispatched before preparation: the declaration imputes the exposure,
+# one study is prepared per draw, and the pooled result carries the declaration's identity. The
+# result is a MeasuredAnalysis, not an exported contract, so these rows are observed on the
+# measured analysis itself rather than through a contract key.
+[[parameter]]
+name = "measurement"
+entry_points = ["analyze", "prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_measurement_reaches_plan"
+
+[[parameter]]
+name = "measurement_draws"
+entry_points = ["analyze", "prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_measurement_draws_reaches_plan"
+
+# Completed tables pool a posterior-search discovery in the engine; the study mixes over the
+# pooled posterior, whose algorithm id names the pooling.
+[[parameter]]
+name = "imputations"
+entry_points = ["analyze", "prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_imputations_reaches_plan"

@@ -709,3 +709,77 @@ def test_loaded_scalar_result_has_no_implicit_empirical_msm_authority():
     loaded = require_success(ant.load(bytes(live.export())))
     with pytest.raises(CausalTypeError, match="AverageEffect analysis result"):
         loaded.msm_sensitivity(data=_data(), lambda_max=2.0)
+
+
+# --- measured exposure and pooled imputations ----------------------------------------------
+
+
+def _measured(declaration_rates=(0.85, 0.9), **kwargs):
+    from antecedent import exposure_measurement as em
+    from antecedent import measurement_exposure as mx
+    from antecedent.measurement_models import BinaryRates
+
+    rng = np.random.default_rng(3)
+    z = rng.normal(size=600)
+    x = (rng.random(600) < 1 / (1 + np.exp(-0.3 * z))).astype(float)
+    y = 1.0 + 2.0 * x + 0.5 * z + rng.normal(size=600)
+    se, sp = declaration_rates
+    w = np.where(x == 1, rng.random(600) < se, rng.random(600) >= sp).astype(float)
+    declaration = em.MisclassifiedExposure(
+        "x", mx.ExposureError.shared(BinaryRates(se, sp)), covariates=("z",)
+    )
+    outcome = ant.analyze(
+        {"x": w, "y": y, "z": z},
+        graph=[("z", "x"), ("z", "y"), ("x", "y")],
+        query=ant.AverageEffect(treatment="x", outcome="y"),
+        measurement=declaration,
+        execution=ant.Execution(seed=3),
+        **kwargs,
+    )
+    return declaration, require_success(outcome)
+
+
+def test_measurement_reaches_plan():
+    from antecedent import exposure_measurement as em
+
+    declaration, measured = _measured()
+    other, other_measured = _measured((0.8, 0.95))
+    assert isinstance(measured, em.MeasuredAnalysis)
+    assert measured.measurement is declaration
+    identity = measured.identities["declaration_identity"]
+    assert identity != other_measured.identities["declaration_identity"]
+    assert other_measured.measurement is other
+
+
+def test_measurement_draws_reaches_plan():
+    _, few = _measured(measurement_draws=4)
+    _, many = _measured(measurement_draws=9)
+    assert len(few.analyses) == 4 and few.exposure.draw_count == 4
+    assert len(many.analyses) == 9 and many.exposure.draw_count == 9
+
+
+def test_imputations_reaches_plan():
+    from antecedent.discovery import ExactDagPosterior
+
+    tables = [_data(n=150, seed=seed) for seed in (1, 2, 3)]
+    outcome = ant.analyze(
+        tables[0],
+        discovery=ExactDagPosterior(),
+        imputations=tables,
+        query=ant.AverageEffect(treatment="t", outcome="y"),
+        inference=Bayesian(backend="conjugate", n_draws=64),
+        refute=False,
+        execution=ant.Execution(seed=1),
+    )
+    require_success(outcome)
+    pooled = outcome.study._declarations["discovery"]
+    assert pooled.algorithm.startswith("pooled_imputations")
+    single = ant.prepare(
+        tables[0],
+        discovery=ExactDagPosterior(),
+        query=ant.AverageEffect(treatment="t", outcome="y"),
+        inference=Bayesian(backend="conjugate", n_draws=64),
+        refute=False,
+        execution=ant.Execution(seed=1),
+    )
+    assert not str(single._declarations["discovery"].algorithm).startswith("pooled_imputations")

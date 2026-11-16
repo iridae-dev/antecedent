@@ -11,7 +11,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
-from antecedent.errors import CausalUnsupportedError
+from antecedent.errors import CausalEstimateError
 from antecedent.outcomes import require_success
 from antecedent.population import target_kernel, target_row_weights
 from antecedent.priors import TransportKernel
@@ -88,9 +88,10 @@ def test_constant_weights_equal_the_unweighted_contrast():
 def test_a_target_without_overlap_refuses_with_a_next_attempt():
     rows = _rows(6000, 5)
     far = target_kernel(TransportKernel("gaussian", 0.2), center={"z": 7.0})
-    with pytest.raises(CausalUnsupportedError, match="Next attempt") as caught:
+    with pytest.raises(
+        CausalEstimateError, match="transport_target_overlap_failed: .*Next attempt"
+    ):
         _estimate(far, rows)
-    assert caught.value.reason_code == "transport_target_overlap_failed"
 
 
 def test_an_unweighted_estimate_carries_no_weighted_target():
