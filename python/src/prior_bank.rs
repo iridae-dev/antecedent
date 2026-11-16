@@ -1089,7 +1089,7 @@ fn alpha_options(
     folds: usize,
     grid: Option<Vec<f64>>,
     level: f64,
-    n_bootstrap: u32,
+    discrepancy_bound: Option<f64>,
     seed: u64,
 ) -> PyResult<antecedent::inference::AlphaSelectionOptions> {
     let criterion = match criterion {
@@ -1106,7 +1106,7 @@ fn alpha_options(
         options.grid = grid;
     }
     options.level = level;
-    options.n_bootstrap = n_bootstrap;
+    options.discrepancy_bound = discrepancy_bound;
     options.seed = seed;
     Ok(options)
 }
@@ -1122,8 +1122,8 @@ fn report_dict<'py>(
     d.set_item("level", report.level)?;
     d.set_item("interval", report.interval)?;
     d.set_item("conditional_interval", report.conditional_interval)?;
-    d.set_item("n_bootstrap", report.n_bootstrap)?;
-    d.set_item("bootstrap_alpha_counts", report.bootstrap_alpha_counts.clone())?;
+    d.set_item("uniform_interval", report.uniform_interval)?;
+    d.set_item("discrepancy_bound", report.discrepancy_bound)?;
     let rows = PyList::empty(py);
     for row in &report.sensitivity {
         let r = PyDict::new(py);
@@ -1142,7 +1142,7 @@ fn report_dict<'py>(
 #[pyfunction(name = "select_beta_power_prior_alpha")]
 #[pyo3(signature = (
     source_successes, source_trials, outcomes, base_alpha, base_beta, *,
-    criterion="empirical_bayes", folds=5, grid=None, level=0.95, n_bootstrap=200, seed=0,
+    criterion="empirical_bayes", folds=5, grid=None, level=0.95, discrepancy_bound=None, seed=0,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn select_beta_power_prior_alpha_py<'py>(
@@ -1156,10 +1156,10 @@ fn select_beta_power_prior_alpha_py<'py>(
     folds: usize,
     grid: Option<Vec<f64>>,
     level: f64,
-    n_bootstrap: u32,
+    discrepancy_bound: Option<f64>,
     seed: u64,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let options = alpha_options(criterion, folds, grid, level, n_bootstrap, seed)?;
+    let options = alpha_options(criterion, folds, grid, level, discrepancy_bound, seed)?;
     let source = antecedent::inference::BetaSource {
         base: antecedent::inference::BetaHyperparameters { alpha: base_alpha, beta: base_beta },
         successes: source_successes,
@@ -1174,7 +1174,7 @@ fn select_beta_power_prior_alpha_py<'py>(
 #[pyfunction(name = "select_gamma_power_prior_alpha")]
 #[pyo3(signature = (
     source_total_count, source_exposure, counts, base_shape, base_rate, *,
-    criterion="empirical_bayes", folds=5, grid=None, level=0.95, n_bootstrap=200, seed=0,
+    criterion="empirical_bayes", folds=5, grid=None, level=0.95, discrepancy_bound=None, seed=0,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn select_gamma_power_prior_alpha_py<'py>(
@@ -1188,10 +1188,10 @@ fn select_gamma_power_prior_alpha_py<'py>(
     folds: usize,
     grid: Option<Vec<f64>>,
     level: f64,
-    n_bootstrap: u32,
+    discrepancy_bound: Option<f64>,
     seed: u64,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let options = alpha_options(criterion, folds, grid, level, n_bootstrap, seed)?;
+    let options = alpha_options(criterion, folds, grid, level, discrepancy_bound, seed)?;
     let source = antecedent::inference::GammaSource {
         base: antecedent::inference::GammaHyperparameters { shape: base_shape, rate: base_rate },
         total_count: source_total_count,
@@ -1207,7 +1207,7 @@ fn select_gamma_power_prior_alpha_py<'py>(
 #[pyo3(signature = (
     sources, baseline_mean, baseline_variance, x, y, functional, *,
     known_residual_variance=None, criterion="empirical_bayes", folds=5, grid=None,
-    level=0.95, n_bootstrap=200, seed=0,
+    level=0.95, discrepancy_bound=None, seed=0,
 ))]
 #[allow(clippy::too_many_arguments)]
 fn select_linear_power_prior_alpha_py<'py>(
@@ -1223,7 +1223,7 @@ fn select_linear_power_prior_alpha_py<'py>(
     folds: usize,
     grid: Option<Vec<f64>>,
     level: f64,
-    n_bootstrap: u32,
+    discrepancy_bound: Option<f64>,
     seed: u64,
 ) -> PyResult<Bound<'py, PyDict>> {
     let srcs = sources_from_list(sources)?;
@@ -1237,7 +1237,7 @@ fn select_linear_power_prior_alpha_py<'py>(
         return Err(crate::value_err("design rows must all have the same length"));
     }
     let flat: Vec<f64> = x.into_iter().flatten().collect();
-    let options = alpha_options(criterion, folds, grid, level, n_bootstrap, seed)?;
+    let options = alpha_options(criterion, folds, grid, level, discrepancy_bound, seed)?;
     let target = antecedent::inference::LinearTarget {
         x: &flat,
         y: &y,

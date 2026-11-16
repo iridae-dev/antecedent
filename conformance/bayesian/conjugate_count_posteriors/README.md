@@ -22,7 +22,6 @@ discount chosen from how well a source predicts the target.
 fit refuses a prior set that carries one rather than ignoring it, and a prior never
 upgrades identification.
 
-Multiprecision quantile, CDF and predictive references, the selection-aware
-interval and the linear-target marginal likelihood are checked in
+Multiprecision quantile, CDF and predictive references, the bias-aware and uniform intervals and the linear-target marginal likelihood are checked in
 `crates/antecedent-prob/tests/conjugate_counts_oracle.rs` against
 `crates/antecedent-prob/tests/oracle_data/conjugate_counts_reference.py`.

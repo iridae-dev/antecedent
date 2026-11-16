@@ -1284,16 +1284,25 @@ class AlphaSensitivity:
 class SelectedAlpha:
     """A power-prior discount chosen from out-of-sample fit, and its estimate.
 
-    ``selected_alpha`` maximizes the criterion over the grid. ``interval`` is
-    the interval of the whole select-then-estimate procedure: the selection is
-    rerun on every bootstrap resample, so the spread of the chosen ``alpha``
-    widens it. ``conditional_interval`` treats ``selected_alpha`` as fixed in
-    advance and is narrower; do not report it as the uncertainty of the
-    estimate. ``sensitivity`` gives the estimate at every grid ``alpha``.
+    ``selected_alpha`` maximizes the criterion over the grid and ``estimate`` is the
+    posterior mean there. ``conditional_interval`` treats ``selected_alpha`` as fixed
+    in advance and is not the uncertainty of the estimate. Two intervals stay valid
+    under the selection:
 
-    No data-driven discount covers uniformly across every source/target
-    discrepancy; the coverage of ``interval`` is measured by repeated
-    sampling over a stated range of discrepancies, not assumed.
+    * ``uniform_interval`` is the target-only interval widened to contain the
+      estimate. It covers at ``level`` whatever the source/target discrepancy, and
+      cannot be narrower than the target-only interval (no interval that covers for
+      every discrepancy can).
+    * ``interval`` is the bias-aware interval around ``estimate`` when a
+      ``discrepancy_bound`` was declared: the source's prior means are assumed to lie
+      within that bound of the truth, and the worst-case bias of the pooled estimator
+      plus a critical value that holds for whichever ``alpha`` the data select covers
+      at ``level`` for every discrepancy up to the bound. It is narrower than the
+      target-only interval when the bound is small. The bound is an assumption,
+      recorded here; beyond it no coverage is claimed. Without a bound,
+      ``interval`` is ``uniform_interval``.
+
+    ``sensitivity`` gives the estimate at every grid ``alpha``.
     """
 
     criterion: Literal["empirical_bayes", "cross_validated"]
@@ -1303,8 +1312,8 @@ class SelectedAlpha:
     interval: tuple[float, float]
     conditional_interval: tuple[float, float]
     sensitivity: tuple[AlphaSensitivity, ...]
-    bootstrap_alpha_counts: tuple[int, ...]
-    n_bootstrap: int
+    uniform_interval: tuple[float, float]
+    discrepancy_bound: float | None
 
 
 def _selected_from_native(d: Mapping[str, Any]) -> SelectedAlpha:
@@ -1328,8 +1337,10 @@ def _selected_from_native(d: Mapping[str, Any]) -> SelectedAlpha:
             )
             for r in d["sensitivity"]
         ),
-        bootstrap_alpha_counts=tuple(int(c) for c in d["bootstrap_alpha_counts"]),
-        n_bootstrap=int(d["n_bootstrap"]),
+        uniform_interval=(float(d["uniform_interval"][0]), float(d["uniform_interval"][1])),
+        discrepancy_bound=(
+            None if d["discrepancy_bound"] is None else float(d["discrepancy_bound"])
+        ),
     )
 
 
@@ -1343,7 +1354,7 @@ def select_alpha_beta_binomial(
     folds: int = 5,
     grid: Sequence[float] | None = None,
     level: float = 0.95,
-    n_bootstrap: int = 200,
+    discrepancy_bound: float | None = None,
     seed: int = 0,
 ) -> SelectedAlpha:
     """Choose the power-prior discount of a source proportion from target fit.
@@ -1353,7 +1364,9 @@ def select_alpha_beta_binomial(
     ``outcomes`` are the target trials. ``criterion`` is ``"empirical_bayes"``
     (maximize the marginal likelihood) or ``"cross_validated"`` (maximize the
     ``folds``-fold log predictive density). ``grid`` defaults to 21 equally
-    spaced points on ``[0, 1]``. A hand-set discount needs no selection: build
+    spaced points on ``[0, 1]`` and must start at ``0``. ``discrepancy_bound``
+    declares how far the source proportion is assumed to lie from the truth
+    (see :class:`SelectedAlpha`). A hand-set discount needs no selection: build
     the prior directly and call :func:`beta_binomial_posterior`.
     """
     return _selected_from_native(
@@ -1367,7 +1380,7 @@ def select_alpha_beta_binomial(
             folds=int(folds),
             grid=None if grid is None else [float(g) for g in grid],
             level=float(level),
-            n_bootstrap=int(n_bootstrap),
+            discrepancy_bound=None if discrepancy_bound is None else float(discrepancy_bound),
             seed=int(seed),
         )
     )
@@ -1383,7 +1396,7 @@ def select_alpha_gamma_poisson(
     folds: int = 5,
     grid: Sequence[float] | None = None,
     level: float = 0.95,
-    n_bootstrap: int = 200,
+    discrepancy_bound: float | None = None,
     seed: int = 0,
 ) -> SelectedAlpha:
     """Choose the power-prior discount of a source rate from target fit.
@@ -1404,7 +1417,7 @@ def select_alpha_gamma_poisson(
             folds=int(folds),
             grid=None if grid is None else [float(g) for g in grid],
             level=float(level),
-            n_bootstrap=int(n_bootstrap),
+            discrepancy_bound=None if discrepancy_bound is None else float(discrepancy_bound),
             seed=int(seed),
         )
     )
@@ -1423,7 +1436,7 @@ def select_alpha_linear(
     folds: int = 5,
     grid: Sequence[float] | None = None,
     level: float = 0.95,
-    n_bootstrap: int = 200,
+    discrepancy_bound: float | None = None,
     seed: int = 0,
 ) -> SelectedAlpha:
     """Choose the power-prior discount of external Gaussian sources.
@@ -1434,7 +1447,9 @@ def select_alpha_linear(
     (one row per unit), ``y`` the outcomes and ``functional`` the weights ``c``
     of the reported linear functional ``c'beta``. The residual variance is
     known when ``known_residual_variance`` is given, else Inv-Gamma with the
-    library's weakly informative default.
+    library's weakly informative default. ``discrepancy_bound`` declares how far
+    every source's prior means are assumed to lie from the true coefficients, in
+    coefficient units (see :class:`SelectedAlpha`).
     """
     return _selected_from_native(
         _select_alpha_linear(
@@ -1449,7 +1464,7 @@ def select_alpha_linear(
             folds=int(folds),
             grid=None if grid is None else [float(g) for g in grid],
             level=float(level),
-            n_bootstrap=int(n_bootstrap),
+            discrepancy_bound=None if discrepancy_bound is None else float(discrepancy_bound),
             seed=int(seed),
         )
     )

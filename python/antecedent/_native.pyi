@@ -5019,7 +5019,7 @@ def select_beta_power_prior_alpha(
     folds: int = 5,
     grid: list[float] | None = None,
     level: float = 0.95,
-    n_bootstrap: int = 200,
+    discrepancy_bound: float | None = None,
     seed: int = 0,
 ) -> dict[str, Any]: ...
 def select_gamma_power_prior_alpha(
@@ -5033,7 +5033,7 @@ def select_gamma_power_prior_alpha(
     folds: int = 5,
     grid: list[float] | None = None,
     level: float = 0.95,
-    n_bootstrap: int = 200,
+    discrepancy_bound: float | None = None,
     seed: int = 0,
 ) -> dict[str, Any]: ...
 def select_linear_power_prior_alpha(
@@ -5049,7 +5049,7 @@ def select_linear_power_prior_alpha(
     folds: int = 5,
     grid: list[float] | None = None,
     level: float = 0.95,
-    n_bootstrap: int = 200,
+    discrepancy_bound: float | None = None,
     seed: int = 0,
 ) -> dict[str, Any]: ...
 

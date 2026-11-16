@@ -19,17 +19,16 @@
 //!   measures how far a wrong prior pulls the interval, not a claim that the interval covers.
 //! * `selected_alpha_*`: the whole select-then-estimate procedure of
 //!   `antecedent_prob::select_linear_power_prior` (five-fold cross-validated discount on an
-//!   11-point grid, 100 bootstrap resamples of the selection, known residual variance 1). The
-//!   target is a balanced two-arm regression with effect `1`; the source is an external Gaussian
-//!   prior four times as informative as the target whose mean is displaced from the truth by a
-//!   multiple `d` of the target's effect standard error. Cells:
-//!   `d = 0` (a matching source) must cover at least nominally; `d = 8` (a clear conflict) must
-//!   cover nominally because the selection discounts the source; at the moderate
-//!   discrepancies `d = 1` and `d = 2` the procedure is scored against trusting the source
-//!   outright, which it must not lose to, and the coverage of the selected, the full-trust
-//!   (`α = 1`) and the target-only (`α = 0`) intervals is printed. No data-driven discount covers
-//!   uniformly over every discrepancy; the moderate cells name that boundary and assert only
-//!   the comparison.
+//!   11-point grid, known residual variance 1) and of `select_beta_power_prior`. The linear
+//!   target is a balanced two-arm regression with effect `1`; the source is an external
+//!   Gaussian prior four times as informative as the target whose mean is displaced from the
+//!   truth by a multiple `d` of the target's effect standard error. The reported interval
+//!   must cover at least nominally in every cell: the uniform interval (no declared bound)
+//!   at `d = 0, 1, 2, 4, 8`, and the bias-aware interval under a declared bound of one
+//!   standard error at `d = 0, 0.5, 1`, where it must also be narrower than the target-only
+//!   interval. Full-trust (`α = 1`) and target-only (`α = 0`) coverage are printed as
+//!   diagnostics. The count model is scored the same way against truths near and far from
+//!   the source proportion.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -52,9 +51,7 @@ use antecedent_prob::{
     GaussianCoefficientPrior, LinearTarget, PriorSet, PriorSpec, select_beta_power_prior,
     select_linear_power_prior,
 };
-use calibration::{
-    CoverageTally, REPORTED_LEVEL, coverage_mcse, grid_n, grid_seed, map_replicates, n_sim,
-};
+use calibration::{CoverageTally, REPORTED_LEVEL, grid_n, grid_seed, map_replicates, n_sim};
 
 const LEVEL: f64 = REPORTED_LEVEL;
 const SEED_BETA: u64 = 4_117_001;
@@ -222,26 +219,38 @@ const EFFECT: f64 = 1.0;
 const INTERCEPT: f64 = 0.5;
 /// Rows of the target regression before the sample-size grid.
 const BASE_ROWS: usize = 60;
-const SELECTION_RESAMPLES: u32 = 100;
+/// Source displacements, in target effect standard errors, scored for the uniform interval.
+const DISPLACEMENTS: [f64; 5] = [0.0, 1.0, 2.0, 4.0, 8.0];
+/// Displacements within the declared bound (one target effect standard error).
+const BOUNDED_DISPLACEMENTS: [f64; 3] = [0.0, 0.5, 1.0];
 
 fn selection_grid() -> Vec<f64> {
     (0..=10).map(|i| f64::from(i) / 10.0).collect()
 }
 
-/// Intervals of one replicate: the whole procedure, the same data at `α = 1` (full trust in
-/// the source) and at `α = 0` (target only).
-struct Triple {
-    selected: (f64, f64),
+/// Intervals of one replicate on the same data.
+struct Quad {
+    /// The reported interval (bias-aware when a bound was declared, else uniform).
+    reported: (f64, f64),
+    /// The target-only interval widened to the estimate.
+    uniform: (f64, f64),
+    /// The same data at `α = 1` (full trust in the source), a diagnostic.
     full_trust: (f64, f64),
+    /// The same data at `α = 0` (target only), a diagnostic.
     target_only: (f64, f64),
 }
 
-/// Standard errors of the target's effect coefficient: `2 / √n` for the balanced design.
+/// Standard error of the target's effect coefficient: `2 / √n` for the balanced design.
 fn effect_se(rows: usize) -> f64 {
     2.0 / (rows as f64).sqrt()
 }
 
-fn selected_replicate(rows: usize, discrepancy: f64, seed: u64) -> Option<Triple> {
+fn selected_replicate(
+    rows: usize,
+    discrepancy: f64,
+    bound: Option<f64>,
+    seed: u64,
+) -> Option<Quad> {
     let mut rng = rng(seed);
     let x: Vec<f64> = (0..rows).flat_map(|i| [1.0, (i % 2) as f64]).collect();
     let y: Vec<f64> = (0..rows)
@@ -268,7 +277,7 @@ fn selected_replicate(rows: usize, discrepancy: f64, seed: u64) -> Option<Triple
     }];
     let mut options = AlphaSelectionOptions::new(AlphaCriterion::CrossValidated { folds: 5 });
     options.grid = selection_grid();
-    options.n_bootstrap = SELECTION_RESAMPLES;
+    options.discrepancy_bound = bound;
     options.seed = seed;
     let report = select_linear_power_prior(
         &sources,
@@ -281,25 +290,31 @@ fn selected_replicate(rows: usize, discrepancy: f64, seed: u64) -> Option<Triple
         let r = report.sensitivity[index];
         (r.lower, r.upper)
     };
-    Some(Triple {
-        selected: report.interval,
+    Some(Quad {
+        reported: report.interval,
+        uniform: report.uniform_interval,
         full_trust: row(report.sensitivity.len() - 1),
         target_only: row(0),
     })
 }
 
-fn score_cell(rows: usize, discrepancy: f64, seed: u64) -> [CoverageTally; 3] {
+/// Tallies of the reported, uniform, full-trust and target-only intervals over one cell.
+fn score_cell(rows: usize, discrepancy: f64, bound: Option<f64>, seed: u64) -> [CoverageTally; 4] {
     let mut tallies = [
-        CoverageTally::new(format!("selected_alpha_d{discrepancy}"), LEVEL),
+        CoverageTally::new(format!("selected_alpha_reported_d{discrepancy}"), LEVEL),
+        CoverageTally::new(format!("selected_alpha_uniform_d{discrepancy}"), LEVEL),
         CoverageTally::new(format!("full_trust_d{discrepancy}"), LEVEL),
         CoverageTally::new(format!("target_only_d{discrepancy}"), LEVEL),
     ];
-    for triple in map_replicates(n_sim(), |rep| selected_replicate(rows, discrepancy, seed + rep)) {
-        match triple {
-            Some(t) => {
-                tallies[0].record(Some(t.selected), EFFECT);
-                tallies[1].record(Some(t.full_trust), EFFECT);
-                tallies[2].record(Some(t.target_only), EFFECT);
+    for quad in
+        map_replicates(n_sim(), |rep| selected_replicate(rows, discrepancy, bound, seed + rep))
+    {
+        match quad {
+            Some(q) => {
+                tallies[0].record(Some(q.reported), EFFECT);
+                tallies[1].record(Some(q.uniform), EFFECT);
+                tallies[2].record(Some(q.full_trust), EFFECT);
+                tallies[3].record(Some(q.target_only), EFFECT);
             }
             None => tallies.iter_mut().for_each(CoverageTally::skip),
         }
@@ -307,51 +322,57 @@ fn score_cell(rows: usize, discrepancy: f64, seed: u64) -> [CoverageTally; 3] {
     tallies
 }
 
-#[test]
-#[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn selected_alpha_covers_when_the_source_matches() {
-    let rows = grid_n(BASE_ROWS);
-    let [selected, ..] = score_cell(rows, 0.0, SEED_SELECTED);
-    selected.assert_at_least();
+fn print_cell(label: &str, tallies: &[CoverageTally; 4]) {
+    eprintln!(
+        "selected-alpha {label}: reported {:.3} (mean length {:.3}), uniform {:.3} ({:.3}), \
+         full-trust {:.3}, target-only {:.3} ({:.3})",
+        tallies[0].rate(),
+        tallies[0].mean_length(),
+        tallies[1].rate(),
+        tallies[1].mean_length(),
+        tallies[2].rate(),
+        tallies[3].rate(),
+        tallies[3].mean_length(),
+    );
 }
 
+/// With no declared bound the reported interval is the uniform interval, which covers at
+/// the nominal level at every displacement of the source, however large.
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn selected_alpha_covers_under_a_clear_source_conflict() {
+fn selected_alpha_uniform_interval_covers_at_every_discrepancy() {
     let rows = grid_n(BASE_ROWS);
-    let [selected, ..] = score_cell(rows, 8.0, SEED_SELECTED + 1_000);
-    selected.assert();
+    for (i, discrepancy) in DISPLACEMENTS.into_iter().enumerate() {
+        let tallies = score_cell(rows, discrepancy, None, SEED_SELECTED + 1_000 * i as u64);
+        print_cell(&format!("uniform d={discrepancy} rows={rows}"), &tallies);
+        tallies[0].assert_at_least();
+    }
 }
 
+/// With a declared bound of one target standard error the bias-aware interval covers at the
+/// nominal level at every displacement inside the bound, and is narrower than the
+/// target-only interval there.
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
-fn selected_alpha_is_not_beaten_by_full_trust_at_moderate_discrepancy() {
+fn selected_alpha_bias_aware_interval_covers_within_the_declared_bound() {
     let rows = grid_n(BASE_ROWS);
-    for (i, discrepancy) in [1.0_f64, 2.0].into_iter().enumerate() {
-        let [selected, full_trust, target_only] =
-            score_cell(rows, discrepancy, SEED_SELECTED + 2_000 + 1_000 * i as u64);
-        eprintln!(
-            "selected-alpha boundary d={discrepancy} rows={rows}: selected {:.3} full-trust {:.3} \
-             target-only {:.3} (selected mean length {:.3}, target-only {:.3})",
-            selected.rate(),
-            full_trust.rate(),
-            target_only.rate(),
-            selected.mean_length(),
-            target_only.mean_length(),
-        );
-        let slack = 3.0 * coverage_mcse(selected.attempts(), LEVEL);
+    let bound = effect_se(rows);
+    for (i, discrepancy) in BOUNDED_DISPLACEMENTS.into_iter().enumerate() {
+        let tallies =
+            score_cell(rows, discrepancy, Some(bound), SEED_SELECTED + 10_000 + 1_000 * i as u64);
+        print_cell(&format!("bias-aware d={discrepancy} bound={bound:.3} rows={rows}"), &tallies);
         assert!(
-            selected.rate() + slack >= full_trust.rate(),
-            "d={discrepancy}: selected coverage {} is below full trust {}",
-            selected.rate(),
-            full_trust.rate()
+            tallies[0].mean_length() < tallies[3].mean_length(),
+            "d={discrepancy}: the bias-aware interval is not narrower than the target-only one"
         );
+        tallies[0].assert_at_least();
     }
 }
 
 fn selected_beta_replicate(
     theta: f64,
     trials: usize,
+    bound: Option<f64>,
     seed: u64,
 ) -> Option<((f64, f64), (f64, f64))> {
     let mut rng = rng(seed);
@@ -363,52 +384,52 @@ fn selected_beta_replicate(
     };
     let mut options = AlphaSelectionOptions::new(AlphaCriterion::CrossValidated { folds: 5 });
     options.grid = selection_grid();
-    options.n_bootstrap = SELECTION_RESAMPLES;
+    options.discrepancy_bound = bound;
     options.seed = seed;
     let report = select_beta_power_prior(source, &outcomes, &options).ok()?;
-    let full_trust = report.sensitivity.last().map(|r| (r.lower, r.upper))?;
-    Some((report.interval, full_trust))
+    Some((report.interval, report.uniform_interval))
 }
 
-/// Source proportion 0.3 from 1,000 trials. A matching target (θ = 0.3) must be covered at
-/// least nominally; a clear conflict (θ = 0.6) must not lose to trusting the source.
+/// Source proportion 0.3 from 1,000 trials. The uniform interval (Clopper-Pearson of the
+/// target trials, widened to the estimate) covers at every truth; with a declared bound of
+/// 0.05 the bias-aware interval covers at truths 0.3 and 0.34, inside it.
 #[test]
 #[ignore = "calibration: run via scripts/measure_calibration.sh"]
 fn selected_alpha_beta_binomial_covers_across_discrepancy() {
     let trials = grid_n(100);
-    for (i, (truth, matched)) in [(0.3, true), (0.6, false)].into_iter().enumerate() {
-        let mut selected = CoverageTally::new(format!("selected_alpha_beta_theta{truth}"), LEVEL);
-        let mut full_trust = CoverageTally::new(format!("full_trust_beta_theta{truth}"), LEVEL);
-        let cell = map_replicates(n_sim(), |rep| {
-            selected_beta_replicate(truth, trials, SEED_SELECTED_BETA + 1_000 * i as u64 + rep)
-        });
-        for pair in cell {
+    let cells: [(f64, Option<f64>); 5] =
+        [(0.3, None), (0.45, None), (0.7, None), (0.3, Some(0.05)), (0.34, Some(0.05))];
+    for (i, (truth, bound)) in cells.into_iter().enumerate() {
+        let mut reported =
+            CoverageTally::new(format!("selected_alpha_beta_theta{truth}_bound{bound:?}"), LEVEL);
+        let mut uniform = CoverageTally::new(format!("uniform_beta_theta{truth}"), LEVEL);
+        for pair in map_replicates(n_sim(), |rep| {
+            selected_beta_replicate(
+                truth,
+                trials,
+                bound,
+                SEED_SELECTED_BETA + 1_000 * i as u64 + rep,
+            )
+        }) {
             match pair {
                 Some((a, b)) => {
-                    selected.record(Some(a), truth);
-                    full_trust.record(Some(b), truth);
+                    reported.record(Some(a), truth);
+                    uniform.record(Some(b), truth);
                 }
                 None => {
-                    selected.skip();
-                    full_trust.skip();
+                    reported.skip();
+                    uniform.skip();
                 }
             }
         }
         eprintln!(
-            "selected-alpha beta-binomial theta={truth} trials={trials}: selected {:.3} full-trust {:.3}",
-            selected.rate(),
-            full_trust.rate()
+            "selected-alpha beta-binomial theta={truth} bound={bound:?} trials={trials}: \
+             reported {:.3} (mean length {:.3}), uniform {:.3} ({:.3})",
+            reported.rate(),
+            reported.mean_length(),
+            uniform.rate(),
+            uniform.mean_length()
         );
-        if matched {
-            selected.assert_at_least();
-        } else {
-            let slack = 3.0 * coverage_mcse(selected.attempts(), LEVEL);
-            assert!(
-                selected.rate() + slack >= full_trust.rate(),
-                "theta={truth}: selected coverage {} is below full trust {}",
-                selected.rate(),
-                full_trust.rate()
-            );
-        }
+        reported.assert_at_least();
     }
 }

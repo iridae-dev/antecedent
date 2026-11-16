@@ -395,22 +395,33 @@ with a mixture weight is refused.
 The result reports the chosen `α`, the estimate, and a **sensitivity table**: the
 criterion's score, the estimate and the credible interval at every grid `α`.
 
-### The interval accounts for the selection
+### Intervals that stay valid under the selection
 
 `α` is chosen from the data, so a posterior interval at the chosen `α` treats it as
-fixed in advance and is too narrow whenever the data cannot pin `α` down. The reported
-`interval` is the interval of the whole select-then-estimate procedure: the selection is
-rerun on every bootstrap resample of the target rows, the posterior of the functional
-given the original data at each resample's chosen `α` is one component of an equal-weight
-mixture, and the interval is the mixture's quantiles. The narrower `conditional_interval`
-at the chosen `α` is reported beside it and is not the uncertainty of the estimate.
+fixed in advance. It is reported as `conditional_interval` and is not the uncertainty of
+the estimate. Two intervals account for the selection:
 
-No data-driven discount covers uniformly across every source/target discrepancy: a
-source far more precise than the target and wrong by a fraction of the target's standard
-error cannot be told from a correct one. The coverage of the interval is measured by
-repeated sampling at a matching source and at a clear conflict, and at moderate
-discrepancies the procedure is only compared with trusting the source outright; those
-measurements bound what is claimed.
+- **`uniform_interval`** is the target-only interval (exact binomial or Poisson for the
+  count models) widened to contain the estimate. It does not use the source, so it covers
+  at the credible level for **every** source/target discrepancy. It cannot be narrower than
+  the target-only interval: no interval that covers at the nominal level for every
+  discrepancy can be, because the data that would tell a matching source from a discrepant
+  one are the target data themselves.
+- **`interval` with a declared `discrepancy_bound τ`** is a bias-aware interval around the
+  estimate at the selected `α`. The source's prior means are assumed to lie within `τ` of
+  the true coefficients (the rate or proportion, for the count models). It adds the
+  worst-case bias of the pooled estimator under that bound to a critical value taken as the
+  maximum over the whole `α` grid, so it holds whichever `α` the data select, and covers at
+  the credible level for every discrepancy up to `τ` while staying narrower than the
+  target-only interval when `τ` is small. `τ` is an assumption, recorded in the report like
+  a hand-set `α`; beyond it no coverage is claimed. Without `τ`, `interval` is the uniform
+  interval.
+
+For the linear target the coverage is exact for a known residual variance (an Inv-Gamma
+residual variance plugs in the OLS estimate); the count models use the normal
+approximation of the sufficient statistic for the bias-aware width. Coverage of both
+intervals is measured by repeated sampling at source displacements from zero to eight
+target standard errors, and the full-trust and target-only coverage are printed beside it.
 
 ## Supported transport policies
 

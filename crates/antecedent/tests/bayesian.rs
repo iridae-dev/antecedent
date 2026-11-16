@@ -1720,7 +1720,6 @@ fn conjugate_count_posteriors() {
     let target: Vec<bool> = (0..n as usize).map(|i| i < k as usize).collect();
     let mut options = AlphaSelectionOptions::new(AlphaCriterion::EmpiricalBayes);
     options.grid = grid;
-    options.n_bootstrap = 50;
     let report = select_beta_power_prior(
         BetaSource {
             base: BetaHyperparameters { alpha: base_a, beta: base_b },

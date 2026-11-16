@@ -1110,21 +1110,27 @@ def test_gamma_poisson_posterior_is_the_closed_form():
 def test_selected_alpha_discounts_a_conflicting_source_and_reports_the_table():
     base = antecedent.priors.BetaHyperparameters(alpha=1.0, beta=1.0)
     outcomes = [i < 12 for i in range(60)]
-    selected = antecedent.priors.select_alpha_beta_binomial(
-        90, 100, outcomes, base=base, n_bootstrap=60, seed=3
-    )
+    selected = antecedent.priors.select_alpha_beta_binomial(90, 100, outcomes, base=base, seed=3)
     assert selected.selected_alpha < 0.2
     assert len(selected.sensitivity) == 21
     assert selected.sensitivity[0].alpha == 0.0
-    assert selected.interval[0] < selected.estimate < selected.interval[1]
-    assert sum(selected.bootstrap_alpha_counts) == 60
+    assert selected.interval[0] <= selected.estimate <= selected.interval[1]
+    assert selected.interval == selected.uniform_interval
+    assert selected.discrepancy_bound is None
+    bounded = antecedent.priors.select_alpha_beta_binomial(
+        300, 1000, [i < 30 for i in range(100)], base=base, discrepancy_bound=0.02
+    )
+    assert bounded.discrepancy_bound == 0.02
+    assert (bounded.interval[1] - bounded.interval[0]) < (
+        bounded.uniform_interval[1] - bounded.uniform_interval[0]
+    )
 
 
-def test_selected_alpha_refuses_a_mixture_source_and_too_few_resamples():
+def test_selected_alpha_refuses_a_mixture_source_and_a_grid_without_zero():
     base = antecedent.priors.BetaHyperparameters(alpha=1.0, beta=1.0)
-    with pytest.raises(ValueError, match="bootstrap"):
+    with pytest.raises(ValueError, match="start at 0"):
         antecedent.priors.select_alpha_beta_binomial(
-            3, 10, [True, False, True], base=base, n_bootstrap=5
+            3, 10, [True, False, True], base=base, grid=[0.5, 1.0]
         )
     source = antecedent.priors.ExternalPriorSourceSpec(
         id="s",
@@ -1141,5 +1147,4 @@ def test_selected_alpha_refuses_a_mixture_source_and_too_few_resamples():
             [1.0, 2.0, 1.5, 0.5, 1.0, 1.2],
             [1.0],
             known_residual_variance=1.0,
-            n_bootstrap=50,
         )
