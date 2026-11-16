@@ -1454,7 +1454,7 @@ impl Study {
     }
 
     /// Start a builder over irregular event data, aligned onto a regular duration grid
-    /// (§5.4) immediately — eagerly, at the call site, rather than deferred to `build()`.
+    /// immediately — eagerly, at the call site, rather than deferred to `build()`.
     /// Integer-lag algorithms then run on the aligned series; raw event indices are never
     /// treated as lags.
     ///
