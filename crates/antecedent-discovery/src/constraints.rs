@@ -766,8 +766,8 @@ impl DiscoveryConstraints {
     /// The statements are checked for consistency ([`Self::validate`] does the same), every
     /// variable they name must be searched, and each statement must have a meaning for the
     /// search: a static search has no lags, a lagged search cannot honour a required link
-    /// outside its lag window, and a parent limit is refused where the algorithm returns an
-    /// equivalence class (see [`KnowledgeScope`]).
+    /// outside its lag window. Every search enforces a parent limit, so no scope refuses one
+    /// (see [`KnowledgeScope`]).
     ///
     /// # Errors
     ///
