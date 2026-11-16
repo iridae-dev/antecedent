@@ -2,7 +2,23 @@
 
 Antecedent 3.0 separates preparing an analysis from executing it. A prepared study is immutable: you branch it with `rebind` (new observations) or `reconfigure` (new declarations) and execute each branch with `estimate`. Every execution returns an `Outcome` that holds the answer or a typed scientific refusal. Seeds, threads, cancellation and resource limits belong to one `Execution` object, and statistical budgets belong to an inference declaration.
 
-Work through the sections in order. Each gives the 2.4 form, the 3.0 form and what the change buys you. Python blocks are executed against a small known-truth data set; Rust has its own section; stored artifacts have one compatibility table.
+## Who needs to act
+
+| If you | Read |
+| --- | --- |
+| Call `analyze` or `prepare` from Python with loose `seed=`, `threads=`, `cancel=`, `bootstrap=` or `latency=` arguments | [Configure execution and inference](#configure-execution-and-inference) |
+| Re-estimate, refresh or re-query a study through its own mutable methods | [Prepare, branch and execute](#prepare-branch-and-execute) |
+| Catch exceptions for scientific refusals, or read fields straight off a result | [Handle outcomes and refusals](#handle-outcomes-and-refusals) |
+| Write or read artifacts with `.artifact()`, `export_artifact` or a `consume_*` call | [Export and load](#export-and-load) |
+| Use transport preparation entries or `TransportControls` | [Application-owned execution policy and transport](#application-owned-execution-policy-and-transport) |
+| Build against the Rust crates | [Rust](#rust); update the toolchain to 1.97 first |
+| Match refusal reason codes in your own code | The refusal-reasons row of [artifact compatibility](#artifact-compatibility) |
+| Keep stored artifacts or digests from 2.4 or earlier | [Artifact compatibility](#artifact-compatibility) |
+| Compare numbers with a 2.4 run | [Behaviour changes](#behaviour-changes-that-can-alter-an-answer-or-turn-it-into-a-refusal) |
+
+The Python package keeps no deprecated aliases for the retired forms: a call that uses one fails at the call, it does not run with different semantics. Python support is unchanged (CPython 3.11 through 3.14).
+
+Each section gives the 2.4 form, the 3.0 form and the reason for the change. The Python examples continue an application that already has `frame`, `new_data`, `graph`, `query` and `other_query`. Rust has its own section, and stored artifacts have one compatibility table.
 
 ## Update in this order
 
@@ -11,7 +27,29 @@ Work through the sections in order. Each gives the 2.4 form, the 3.0 form and wh
 3. Replace mutable study methods with `ant.prepare`, `ant.estimate`, `ant.rebind` and `ant.reconfigure`, and keep the returned `Outcome`.
 4. Decide where a scientific refusal should stay a returned value and where your application wants an exception.
 5. Replace `.artifact()` conversions with `.export()` and pass the producer's `expectation` to `ant.load`.
-6. Regenerate stored artifacts named in the [compatibility table](#artifact-compatibility).
+6. Rename the refusal reason codes your code matches (`*_not_licensed` to `*_not_supported`).
+7. Regenerate stored artifacts named in the [compatibility table](#artifact-compatibility).
+8. Rerun studies touched by a [behaviour change](#behaviour-changes-that-can-alter-an-answer-or-turn-it-into-a-refusal) and compare.
+
+## Find affected call sites
+
+These searches list the retired forms in your own code. Each match maps to the section named in the comment.
+
+```sh
+# Mutable study methods and retired fields: "Prepare, branch and execute", "Export and load"
+grep -rnE '\.(refresh|reprepare|inspect_plan|export_artifact|artifact)\(|\.last_result|\.artifact\b|return_posterior_artifact' --include='*.py' .
+
+# Retired entry points: "Prepare, branch and execute", "Run shared-fit batches", transport
+grep -rnE 'Prepared(Analysis|Batch)\.prepare|\.prepare_cells\(|prepare_(exact|statistical|response_grid|trial)\(|TransportControls|controls=|latency=' --include='*.py' .
+
+# Acceptance fields and refusal codes: "Export and load", "Artifact compatibility"
+grep -rnE 'acceptance\.(verified|sealed|unresolved)|accepts_as_verified_program|_not_licensed|claim_license_withdrawn|interface_contract_calibration_not_held' .
+
+# Rust: "Rust"
+grep -rnE '\.refresh\(|consume_analysis_result|verified_references|accepts_as_verified_program' --include='*.rs' .
+```
+
+Loose `seed=`, `threads=`, `cancel=` and `bootstrap=` arguments have no reliable search pattern, because the same keywords are valid inside `ant.Execution(...)` and `ant.Frequentist(...)`. Run your test suite: each remaining loose argument fails at its call.
 
 ## Configure execution and inference
 
@@ -38,6 +76,20 @@ The default seed is now 1; earlier operations that defaulted to 0 reproduce thei
 | Discovery run implicitly by `analyze(..., discovery=PC(...))` | `accepted = ant.discovery.discover(data, method=PC(...), accept_discovered=True)`, then `ant.prepare(data, graph=accepted, ...)`. |
 | `identify.estimate(stage, data)` | `stage.prepare(data, inference=..., execution=...)`, then `ant.estimate(...)`. |
 
+In 2.4 one mutable study carried the execution arguments and its latest result:
+
+```py
+from antecedent.estimation import PreparedAnalysis
+
+study = PreparedAnalysis.prepare(
+    frame, graph=graph, query=query, bootstrap=25, seed=19, threads=4,
+)
+result = study.estimate()
+updated_result = study.estimate(new_data)  # the study now holds the new data and result
+```
+
+In 3.0 preparation returns an immutable study, each branch is a new study, and each execution returns its own `Outcome`:
+
 ```python
 import antecedent as ant
 
@@ -53,7 +105,7 @@ alternative = ant.reconfigure(study, query=other_query)
 updated_result = ant.estimate(updated)
 ```
 
-This block continues an application with its own `frame`, `new_data`, `graph` and queries. Branching does not execute the branch or change earlier results, so `result` still answers the original data after `updated_result` is computed. `study.rebind(...)`, `study.reconfigure(...)` and `study.estimate()` call the same functions. Read `updated.reuse` to see which work a branch retained and which it invalidated.
+Branching does not execute the branch or change earlier results, so `result` still answers the original data after `updated_result` is computed. `study.rebind(...)`, `study.reconfigure(...)` and `study.estimate()` call the same functions. Read `updated.reuse` to see which work a branch retained and which it invalidated.
 
 Array and frame inputs enter owned storage, so later mutation of your source cannot change a prepared study. Keep one `ant.data.table(...)` handle to reuse across compatible preparations.
 
@@ -117,7 +169,7 @@ The graph declares an unmeasured common cause of `treatment` and `outcome`, so t
 | `study.export_artifact(payload="query")` / `study.export_artifact()` | `outcome.export(quantity="query")` / `outcome.export(quantity="record")` |
 | `return_posterior_artifact=True`, `result.posterior.artifact` | `result.export(quantity="posterior")` after normal execution. |
 | `cyclic_result.artifact`, `.report` | `bytes(result.export())`, `result.to_dict()` |
-| `advanced.consume_exact(artifact).estimate()` | `ant.load(artifact)`; a consumed artifact is a checked read model and is not re-estimated. |
+| `advanced.consume_exact(artifact).estimate()` | `ant.load(artifact)`. `advanced.consume_exact` remains and reads the same artifact; either way the consumed value is a checked read model with no `estimate()`. |
 
 ```python
 artifact = result.export()
@@ -125,7 +177,19 @@ loaded = ant.load(bytes(artifact), expected=artifact.expectation)
 print(loaded.acceptance)
 ```
 
-Keep `artifact.expectation` on the producing side and pass it as `expected=`; an expectation read from the incoming container is not independent evidence of what you expected. Loading runs the format's independent native consumer. For an analysis result it checks that the artifact is intact and recomputes nothing; a result you just produced needs no replay. For one that came from outside your own authoring, call `loaded.replay()` or pass `ant.load(..., replay=True)` to recompute its published numbers. A loaded value has no live study or data (`loaded.study is None`); read `loaded.acceptance` for intactness, replay, identity binding and resume standing. `acceptance.status` is `loaded`, `replayed` or `unavailable`; before 3.0 the same standing was spelled `verified` or `sealed`. On an analysis result, `acceptance.verified`, `acceptance.sealed`, `acceptance.replayable` and `acceptance.unresolved` are gone; other artifact families read `acceptance.replayed` in place of `acceptance.verified`. A replay that does not reach `replayed` lists `acceptance.not_replayable` (evidence the artifact does not carry) apart from `acceptance.mismatches` (parts that were recomputed and differ). `artifacts.accept(data)` returns `intact` and `integrity`; with `replay=True` it adds `replayed`, `not_replayable` and `mismatches` in place of `accepts_as_verified_program` and `unresolved`. An artifact whose body carries refutation reports used to load with no answer; it now keeps its answer and its replay names the refutation replay as not replayable. An outcome with several possible exports needs an explicit `quantity=`.
+Keep `artifact.expectation` on the producing side and pass it as `expected=`; an expectation read from the incoming container is not independent evidence of what you expected. An outcome with several possible exports needs an explicit `quantity=`.
+
+Loading runs the format's independent native consumer. A loaded value has no live study or data (`loaded.study is None`). For an analysis result, loading checks that the artifact is intact and recomputes nothing, so a result you just produced needs no replay. For one that came from outside your own authoring, call `loaded.replay()` or pass `ant.load(..., replay=True)` to recompute its published numbers.
+
+Read `loaded.acceptance` for intactness, replay, identity binding and resume standing:
+
+| 2.4 | 3.0 |
+| --- | --- |
+| `acceptance.status` of `verified` or `sealed` | `acceptance.status` is `loaded`, `replayed` or `unavailable`. |
+| `acceptance.verified` | `acceptance.replayed`. |
+| `acceptance.sealed`, `.replayable` and `.unresolved` on an analysis result | Removed. After a replay that does not reach `replayed`, `acceptance.not_replayable` lists evidence the artifact does not carry and `acceptance.mismatches` lists parts that were recomputed and differ. |
+| `artifacts.accept(data)` returning `accepts_as_verified_program` and `unresolved` | It returns `intact` and `integrity`; with `replay=True` it adds `replayed`, `not_replayable` and `mismatches`. |
+| An artifact whose body carries refutation reports loads with no answer | It keeps its answer, and its replay names the refutation replay as not replayable. |
 
 Policy-program artifacts keep their encoding and need the original ordered variable names at load: `ant.load(data, context=ant.artifacts.LoadContext(supplied_sources={"names": names}))`.
 
@@ -265,13 +329,16 @@ The three query types are in `antecedent.transport.advanced`; `TransportEvaluati
 
 The treatment-model nuisance score posterior is now an explicit fitting operation on the prepared study (`study.treatment_score_posterior(...)`, or `nuisance_scores.treatment_score_posterior(study, ...)`). Preparation and inspection do not fit it, and its seed comes from `Execution`.
 
+`dose_grid_posterior` and `consume_dose_grid_posterior_artifact` take an optional `execution=Execution(threads=..., limits=ResourceLimits(memory_bytes=...), cancel=...)`; omitting it keeps the default policy. Resource and cancellation refusals raise the existing typed errors.
+
 ## Rust
 
 The minimum supported Rust version is 1.97 (edition 2024); 2.4 built on 1.85. Update the toolchain before building: `rust-toolchain.toml` pins it and the workspace declares it as `rust-version`.
 
 | 2.4 | 3.0 |
 | --- | --- |
-| `PreparedStudy::refresh`, `refresh_series`, `refresh_panel`, `refresh_multi_env` | `rebind_data`, `rebind_series`, `rebind_panel`, `rebind_multi_env`, each returning a new prepared study; a failed rebind leaves the old handle intact. |
+| `PreparedStudy::refresh` on tabular data | `rebind_data`, which returns a new prepared study; a failed rebind leaves the old handle intact. |
+| `PreparedStudy::refresh_series`, `refresh_panel`, `refresh_multi_env` as the only way to change observations | `rebind_series`, `rebind_panel` and `rebind_multi_env` branch onto new observations without fitting and return a new prepared study. The three `refresh_*` methods remain: they take `&mut self`, re-estimate, and update the handle only when estimation succeeds. |
 | Physical plans built as struct literals | Obtain plans from the compiler. `PreparedStudy::compiled_linear_program()` inspects the retained scientific target, identification and operators without fitting, and preparation consumes that exact product instead of identifying again. |
 | `FlagshipWorkflow::decision()` returning a value | It returns a result. `DecisionAuthority::withdraw_source` records trust loss with a reason; withdrawal and supersession invalidate dependent decision access, recalculation and export. |
 | Version 1 decision export | `export_decision()` writes a version 2 envelope with the replay payload, identity, ledger result identity and source revisions. `load_decision` needs the caller's current `DecisionAuthority`; an embedded old ledger cannot authorize an artifact. |
@@ -286,8 +353,6 @@ The minimum supported Rust version is 1.97 (edition 2024); 2.4 built on 1.85. Up
 | `ExecutionContext::map_indexed`, `map_indexed_with_scratch` and `map_indexed_with_scratch_if_free` returning the task error | They return `MapExecutionError<E>`: match `Work(error)` for the task's own error and `Admission(error)` for cancellation, an admission refusal or a worker that could not start. No work runs after a refused reservation. |
 | Replacing or mutating a result's execution stamp | `result.executed_contract()` returns it read-only; the engine attaches it. To run another validation suite, request it through the study or prepared execution. `ExecutedContract` literals supply the new `inspection_data_snapshot` field. |
 | `MissingDeclaration`, `PlannedParent` and `PlannedMechanism` struct literals | Supply their new fields (imputation domains; the semantic coordinates of a mechanism plan), or use the constructors. |
-
-Python's `dose_grid_posterior` and `consume_dose_grid_posterior_artifact` take an optional `execution=Execution(threads=..., limits=ResourceLimits(memory_bytes=...), cancel=...)`; omitting it keeps the default policy. Resource and cancellation refusals raise the existing typed errors.
 
 `mean_source`, `law_source` and `project_*_source` carry scientific permission into decision and search use; `numerical_*` accessors expose values without that permission. Frozen-fit replay keeps aligned draw slots and failures. Retained and returned results hold their memory reservations until their last owner is dropped; these are allocation quotes, not process memory measurements.
 
