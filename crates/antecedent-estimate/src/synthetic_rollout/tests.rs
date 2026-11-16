@@ -221,7 +221,9 @@ fn unconverged_simplex_is_an_optimizer_failure_not_support_or_interval() {
     let subnormal = super::fit_simplex(&[tiny], &[vec![0.0], vec![2.0 * tiny]], None).unwrap();
     assert!((subnormal[1] - 0.5).abs() < 1e-9);
 
-    assert!(super::fit_simplex_with_limit(&target, &donors, None, 0).is_err());
+    // With no first-order iterations the active-face polish alone must certify the optimum.
+    let polished = super::fit_simplex_with_limit(&target, &donors, None, 0).unwrap();
+    assert!(squared_misfit(&target, &donors, &polished) <= 1e-14, "{polished:?}");
     let panel = super::Panel {
         labels: vec!["treated".into(), "a".into(), "b".into()],
         periods: vec![0, 1, 2],
@@ -526,4 +528,32 @@ fn candidate_refit_equals_a_fresh_gram_computation() {
             assert!(relative_gap(&updated, &direct) < 1e-7, "weights theta={theta}");
         }
     }
+}
+
+fn squared_misfit(target: &[f64], donors: &[Vec<f64>], weights: &[f64]) -> f64 {
+    target.iter().enumerate().map(|(t, y)| (y - super::synthetic(donors, weights, t)).powi(2)).sum()
+}
+
+#[test]
+fn polish_certifies_the_optimum_when_donors_outnumber_pre_periods() {
+    // Six donors over three pre-periods: the Gram matrix is singular and the minimizer is a
+    // face of the simplex, not a point; the objective at the optimum is still unique.
+    let target = [0.3, 1.1, -0.4];
+    let donors = vec![
+        vec![0.0, 1.0, 0.0],
+        vec![1.0, 0.0, -1.0],
+        vec![0.5, 2.0, 0.5],
+        vec![-0.2, 0.9, -0.6],
+        vec![0.4, 1.3, -0.1],
+        vec![0.9, 0.2, 0.3],
+    ];
+    let full = super::fit_simplex(&target, &donors, None).unwrap();
+    let polished = super::fit_simplex_with_limit(&target, &donors, None, 0).unwrap();
+    for weights in [&full, &polished] {
+        assert!(weights.iter().all(|w| *w >= 0.0), "{weights:?}");
+        assert!((weights.iter().sum::<f64>() - 1.0).abs() < 1e-12, "{weights:?}");
+    }
+    let (a, b) =
+        (squared_misfit(&target, &donors, &full), squared_misfit(&target, &donors, &polished));
+    assert!((a - b).abs() <= 1e-10 * (1.0 + a), "{a} vs {b}");
 }
