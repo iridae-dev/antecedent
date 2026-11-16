@@ -49,6 +49,10 @@ class BernoulliAssignment:
 
 @dataclass(frozen=True, slots=True)
 class CompleteRandomization:
+    """Complete randomization: exactly ``treated`` units (a positive count) are assigned to
+    treatment, uniformly at random.
+    """
+
     treated: int
 
     def __post_init__(self) -> None:
@@ -58,6 +62,12 @@ class CompleteRandomization:
 
 @dataclass(frozen=True, slots=True)
 class ClusterRandomization:
+    """Cluster randomization: ``treated_clusters`` of the clusters are treated as wholes.
+
+    ``clusters`` gives each unit's cluster label (nonempty); ``treated_clusters`` is the
+    positive number of clusters assigned to treatment.
+    """
+
     clusters: Sequence[int]
     treated_clusters: int
 
@@ -148,6 +158,14 @@ class ObservedExposureDesign:
 
 @dataclass(frozen=True, slots=True)
 class SaturationEffectEstimate:
+    """One effect of a two-stage saturation design.
+
+    ``horvitz_thompson`` and ``hajek`` are the two point estimates; ``conservative_variance``
+    is a covariance-free variance bound, not an interval. The unit and cluster counts give the
+    exposed support at each level, and ``minimum_exposure_probability`` the smallest exposure
+    probability used in weighting.
+    """
+
     horvitz_thompson: float
     hajek: float
     conservative_variance: float
@@ -160,6 +178,13 @@ class SaturationEffectEstimate:
 
 @dataclass(frozen=True, slots=True)
 class SaturationEffects:
+    """Direct, spillover and total effects under a two-stage saturation design.
+
+    Each is a :class:`SaturationEffectEstimate`. ``uncertainty_semantics`` and ``assumptions``
+    state what the variance bounds cover and the assumptions the effects rest on; no
+    confidence interval or calibration claim is made.
+    """
+
     direct: SaturationEffectEstimate
     spillover: SaturationEffectEstimate
     total: SaturationEffectEstimate
@@ -174,6 +199,14 @@ class SaturationEffects:
 
 @dataclass(frozen=True, slots=True)
 class ObservationalNetworkExposureEstimate:
+    """An observational network-exposure contrast weighted by supplied exposure propensities.
+
+    ``horvitz_thompson`` and ``hajek`` are the point estimates and ``cluster_robust_variance``
+    a cluster sandwich variance treating the supplied propensities as fixed; no interval is
+    reported. The counts give the exposed support; ``assumptions`` lists the identifying
+    assumptions, including no unmeasured network confounding.
+    """
+
     horvitz_thompson: float
     hajek: float
     cluster_robust_variance: float
@@ -220,12 +253,18 @@ class WeightedNeighborExposure:
 
 @dataclass(frozen=True, slots=True)
 class ExposureLevel:
+    """An exposure value: the unit's ``own`` treatment and its ``neighbors`` exposure (default
+    ``0.0``), on the scale of the query's exposure mapping.
+    """
+
     own: float
     neighbors: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
 class ExposureContrast:
+    """The contrast of ``outcome`` between two distinct exposure levels, ``from_`` and ``to``."""
+
     outcome: str
     from_: ExposureLevel
     to: ExposureLevel
@@ -310,6 +349,10 @@ class NetworkEdge:
 
 @dataclass(frozen=True, slots=True)
 class RandomizationContrast:
+    """A design-based exposure contrast: Horvitz-Thompson and Hajek estimates and a
+    conservative (covariance-free) variance bound.
+    """
+
     horvitz_thompson: float
     hajek: float
     conservative_variance: float
@@ -335,6 +378,13 @@ class InterferencePointwiseInterval:
 
 @dataclass(frozen=True, slots=True)
 class InterferenceEstimate:
+    """The result of :func:`estimate`: a randomized exposure contrast on a fixed network.
+
+    Read ``contrast`` (:class:`RandomizationContrast`), then ``pointwise_interval`` (or
+    ``interval_unavailable_reason``) and ``support``. ``uncertainty_semantics`` states what the
+    variance covers; ``support_status`` marks the result as an unsupported point utility.
+    """
+
     contrast: RandomizationContrast
     from_probability_method: str
     to_probability_method: str

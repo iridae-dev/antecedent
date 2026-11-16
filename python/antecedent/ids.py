@@ -1,4 +1,22 @@
-"""Typed identifier / estimator / latency / refute wire ids (Pythonic enums)."""
+"""Named choices for ``prepare`` and ``analyze``: identification, estimator, profile, refutation.
+
+Each class is a string enum whose values are the engine's stable ids, so a member and its string
+are interchangeable (``Estimator.AIPW == "aipw"``). Pass them as ``identifier=``,
+``estimator=`` and ``refute=`` to :func:`antecedent.prepare` or :func:`antecedent.analyze`, and
+:class:`Latency` members as ``profile=`` on :class:`~antecedent.Frequentist` or
+:class:`~antecedent.Bayesian`. A choice that does not fit the query or structure is refused when
+the study is prepared, never silently replaced.
+
+Example::
+
+    outcome = antecedent.analyze(
+        data,
+        graph=graph,
+        query=antecedent.AverageEffect(treatment="t", outcome="y"),
+        estimator=antecedent.Estimator.AIPW,
+        refute=antecedent.Refute.PLACEBO,
+    )
+"""
 
 from __future__ import annotations
 
@@ -6,7 +24,39 @@ from enum import StrEnum
 
 
 class Identifier(StrEnum):
-    """Identification strategies (wire ids match Rust ``IdentifierId``)."""
+    """The identification strategy: how the estimand is expressed in terms of observed data.
+
+    Pass as ``identifier=``. Leaving it ``None`` lets the engine choose for the query and
+    structure. The values are the ids of the Rust ``IdentifierId``.
+
+    * ``BACKDOOR_ADJUSTMENT`` -- backdoor adjustment-set search.
+    * ``BACKDOOR_EFFICIENT`` -- efficient (optimal) backdoor adjustment set.
+    * ``FRONTDOOR`` -- front-door identification.
+    * ``IV`` -- instrumental-variable identification.
+    * ``RD_SHARP`` -- sharp regression discontinuity.
+    * ``TEMPORAL_BACKDOOR_UNFOLDED`` -- backdoor adjustment on the unfolded temporal graph.
+    * ``TEMPORAL_IV_UNFOLDED`` -- lagged instrument on the unfolded window graph.
+    * ``GENERALIZED_ADJUSTMENT`` -- generalized adjustment, valid for a CPDAG or PAG class.
+    * ``GENERAL_ID`` -- Shpitser-Pearl general identification on an ADMG.
+    * ``PATH_SPECIFIC_NATURAL`` -- path-restricted natural effects.
+    * ``RESPONSE_BACKDOOR`` -- pairwise backdoor identification of response functionals.
+    * ``GCM_PARAMETRIC`` -- structural-mechanism identification of counterfactuals.
+    * ``TRANSPORT_SID`` -- conservative single-source transport identification.
+    * ``INTERFERENCE_DESIGN`` -- the assignment design identifies the exposure contrast.
+    * ``RANDOMIZED_DESIGN`` -- randomized assignment identifies the intention-to-treat effect.
+    * ``PARALLEL_TRENDS`` -- difference-in-differences under parallel untreated trends.
+    * ``CONVEX_DONOR_COUNTERFACTUAL`` -- synthetic control: a convex combination of donor
+      outcomes is the untreated counterfactual.
+    * ``CONVEX_UNIT_TIME_TRENDS`` -- synthetic difference-in-differences: convex unit and time
+      weights reproduce the untreated trend.
+    * ``FUZZY_RD_LOCAL_RATIO`` -- fuzzy regression discontinuity: the outcome jump over the
+      treatment-receipt jump at the cutoff.
+    * ``REGRESSION_KINK_LOCAL_RATIO`` -- regression kink: the outcome slope change over the dose
+      slope change at the cutoff.
+    * ``POLICY_CONTINUOUS_DOSE_EXCHANGEABILITY`` -- conditional dose response under a supplied
+      density and group exchangeability.
+    * ``AUTO`` -- every applicable estimand, with no silent estimator choice.
+    """
 
     BACKDOOR_ADJUSTMENT = "backdoor.adjustment"
     BACKDOOR_EFFICIENT = "backdoor.efficient"
@@ -33,7 +83,24 @@ class Identifier(StrEnum):
 
 
 class Estimator(StrEnum):
-    """Estimation strategies (wire ids match Rust ``EstimatorId``)."""
+    """The estimator that computes the identified estimand from data.
+
+    Pass as ``estimator=``; ``None`` selects the engine's default for the identified estimand. A
+    typed configuration from :mod:`antecedent.estimators` (for example ``Aipw(...)``) can be passed
+    instead when the estimator takes options. The values are the ids of the Rust ``EstimatorId``
+    and are the names results report as their estimator.
+
+    The ids are grouped by prefix: ``linear.``, ``glm.``, ``propensity.``, ``aipw``, ``dml``,
+    ``dr.learner`` and ``causal.forest`` for adjustment estimators; ``frontdoor.``, ``iv.``,
+    ``rd.`` and ``local_ratio`` for front-door, instrumental and discontinuity designs;
+    ``panel_did`` and ``synthetic_control`` for panel designs; ``randomized.`` for experiments;
+    ``temporal.`` and ``longitudinal.`` for time series and sequential regimes; ``response.``
+    for response curves and derivatives; ``interference.``, ``transport.`` and ``gcm.`` for those
+    families. An id containing ``bayesian`` is the Bayesian counterpart and needs
+    :class:`~antecedent.Bayesian` inference. Which estimator is supported for which query,
+    structure and inference is listed in the support matrix; an unsupported combination is
+    refused (``route_not_supported`` or ``estimator_inference_mismatch``).
+    """
 
     LINEAR_ADJUSTMENT_ATE = "linear.adjustment.ate"
     PROPENSITY_WEIGHTING = "propensity.weighting"
@@ -134,7 +201,23 @@ class Estimator(StrEnum):
 
 
 class Latency(StrEnum):
-    """Latency tiers (wire ids match Rust ``LatencyMode``)."""
+    """Scientific budget profile: how much computation default replicate counts may use.
+
+    Pass a member (or its string) as ``profile=`` on :class:`~antecedent.Frequentist` or
+    :class:`~antecedent.Bayesian`. The estimand, identification status and recorded assumptions
+    are the same across profiles; only defaults you leave unset change (bootstrap replicates,
+    posterior draws, validation depth, backends allowed), and the result reports what was used.
+    Explicit counts always take precedence.
+
+    * ``INTERACTIVE`` -- analytic standard errors or conjugate / Laplace posteriors with few
+      draws; no bootstrap, cheap refutation, no HMC.
+    * ``STANDARD`` -- the engine's standard defaults (199 bootstrap replicates, 1000 posterior
+      draws, placebo and random-common-cause refutation).
+    * ``REPORT`` -- more posterior draws and the full validation suite; HMC allowed. The bootstrap
+      count (200) is effectively the standard one.
+
+    The values are the ids of the Rust ``LatencyMode``.
+    """
 
     INTERACTIVE = "interactive"
     STANDARD = "standard"
@@ -142,12 +225,21 @@ class Latency(StrEnum):
 
 
 class Refute(StrEnum):
-    """Refutation suite ids.
+    """The refutation suite run alongside an estimate.
 
-    Call sites also accept ``bool`` at the ``False`` value only (meaning "no
-    refutation"); ``refute=True`` is rejected — it names no suite, so pass a
-    member of this enum (or the equivalent string) instead. See
-    :func:`antecedent._coerce.coerce_refute`.
+    Pass as ``refute=`` to :func:`antecedent.prepare` or :func:`antecedent.analyze`, or as
+    ``suite=`` to :func:`antecedent.prepared.refute` after estimation. Refutation checks try to
+    falsify the estimate (for example with a placebo treatment); passing them does not prove the
+    identifying assumptions.
+
+    * ``FULL`` -- the full suite.
+    * ``PLACEBO`` -- placebo checks.
+    * ``CHEAP`` -- the inexpensive checks.
+    * ``NONE`` -- no refutation.
+
+    ``refute=False`` also means no refutation. ``refute=True`` raises
+    :class:`~antecedent.errors.CausalTypeError` (``reason_code="invalid_argument"``) because it
+    names no suite.
     """
 
     FULL = "full"

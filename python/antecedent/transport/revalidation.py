@@ -38,7 +38,8 @@ identity the caller holds.
 * :class:`TransportClaimState` holds the current scene and advances it only when a revalidation
   succeeds, so a refused refresh leaves the state unchanged.
 * :meth:`TransportRevalidation.export` writes the claim-level verification as
-  ``composition_verification_v1``; :func:`antecedent.composition_verification.consume` replays
+  ``composition_verification_v1``;
+  :func:`antecedent.composition_verification.consume_composition_verification_artifact` replays
   the classification from the bytes.
 
 Rust owns the identities, the classification, the sealed verification and every refusal; this

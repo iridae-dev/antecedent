@@ -89,6 +89,23 @@ def host_status_of_operation(applicability: str, readiness: str | None = None) -
     """Host status of an operation from its wire names; ``None`` for an unregistered name."""
 
 class CausalError(Exception):
+    """Base class of every error the engine raises.
+
+    Catch it to handle any library error. Invalid input raises
+    :class:`~antecedent.errors.CausalTypeError` or :class:`~antecedent.errors.CausalValueError`;
+    operational failures raise subclasses such as ``CausalCancelledError``,
+    ``CausalResourceError`` and ``CausalSerializationError``. Scientific refusals are normally
+    returned on an outcome (``outcome.refusal``) rather than raised; when one is raised (for
+    example by :func:`antecedent.outcomes.require_success`) it is a subclass such as
+    :class:`~antecedent.errors.EffectNotIdentified`.
+
+    * ``remedy`` -- what the caller can change to get past a refusal, or ``None``.
+    * ``refusal_fields`` -- structured refusal fields (stage, subject, counts, implicated
+      columns, remedy), or ``None``.
+    * ``route_diagnostics`` -- route-native diagnostics the refusal carries, one mapping per
+      record; empty otherwise.
+    """
+
     # What the caller can change to get past a refusal, when it names one;
     # ``None`` otherwise (a class default every subclass inherits).
     remedy: str | None
@@ -168,8 +185,23 @@ class CausalUnsupportedError(CausalError): ...
 class CausalCancelledError(CausalError): ...
 
 class CancellationToken:
-    def cancel(self) -> None: ...
-    def is_cancelled(self) -> bool: ...
+    """A cooperative cancellation flag shared with a running operation.
+
+    Pass it as ``Execution(cancel=token)``; calling :meth:`cancel` from another thread stops the
+    operation at its next check, which then raises ``CausalCancelledError``. A token stays
+    cancelled once cancelled; use a new token for the next run.
+
+    Example::
+
+        token = antecedent.CancellationToken()
+        execution = antecedent.Execution(cancel=token)
+        # in another thread: token.cancel()
+    """
+
+    def cancel(self) -> None:
+        """Request cancellation of every operation running under this token."""
+    def is_cancelled(self) -> bool:
+        """Return whether :meth:`cancel` has been called."""
 
 class ArrowLoadInfo:
     row_count: int
@@ -4449,14 +4481,41 @@ def decode_posterior_artifact(bytes: list[int] | bytes) -> PosteriorArtifact: ..
 def encode_posterior_artifact(artifact: PosteriorArtifact) -> bytes: ...
 
 class Dag:
+    """A directed acyclic graph over named variables: the causal structure of a static study.
+
+    An edge ``(a, b)`` declares that ``a`` is a direct cause of ``b``; a missing edge declares
+    that there is none. Every common cause of two modelled variables must be in the graph;
+    when one is unmeasured, use :class:`Admg` instead (``latent_project`` builds one). Pass it as
+    ``graph=`` to :func:`antecedent.prepare` or :func:`antecedent.analyze`; a plain list of
+    ``(cause, effect)`` pairs is accepted there too.
+
+    ``len(dag)`` is the node count, ``name in dag`` tests node membership, and iteration yields
+    node names in stable order. Interchange: DOT, JSON, GML and NetworkX node-link and adjacency
+    formats (``from_*`` / ``to_*``).
+
+    Example::
+
+        dag = antecedent.Dag.from_edges(["z", "t", "y"], [("z", "t"), ("z", "y"), ("t", "y")])
+        dag.d_separated("t", "y", ["z"])        # False: t -> y remains open
+    """
+
     @classmethod
-    def from_edges(cls, names: list[str], edges: list[tuple[str, str]]) -> Dag: ...
+    def from_edges(cls, names: list[str], edges: list[tuple[str, str]]) -> Dag:
+        """Build a DAG from unique, nonempty node ``names`` and directed ``(cause, effect)`` edges.
+
+        Raises ``CausalGraphError`` for an edge naming an unknown node, and an error for an edge
+        that would create a cycle or a repeated or empty name.
+        """
     @classmethod
     def from_dot(cls, dot: str) -> Dag: ...
-    def nodes(self) -> list[str]: ...
-    def edges(self) -> list[tuple[str, str]]: ...
-    def parents(self, name: str) -> list[str]: ...
-    def children(self, name: str) -> list[str]: ...
+    def nodes(self) -> list[str]:
+        """Node names, in the order given at construction."""
+    def edges(self) -> list[tuple[str, str]]:
+        """Directed edges as ``(cause, effect)`` pairs."""
+    def parents(self, name: str) -> list[str]:
+        """Direct causes of ``name``."""
+    def children(self, name: str) -> list[str]:
+        """Direct effects of ``name``."""
     def node_count(self) -> int: ...
     def to_dot(self) -> str: ...
     @classmethod
@@ -4471,10 +4530,20 @@ class Dag:
     @classmethod
     def from_networkx_adjacency(cls, json: str) -> Dag: ...
     def to_networkx_adjacency(self) -> str: ...
-    def d_separated(self, x: str, y: str, z: list[str] | None = None) -> bool: ...
-    def latent_project(self, observed: list[str]) -> Admg: ...
+    def d_separated(self, x: str, y: str, z: list[str] | None = None) -> bool:
+        """Whether ``x`` and ``y`` are d-separated given the set ``z`` (default empty)."""
+    def latent_project(self, observed: list[str]) -> Admg:
+        """Project out every variable not in ``observed``; returns the latent projection as an :class:`Admg`."""
 
 class Cpdag:
+    """A completed partially directed acyclic graph: a Markov equivalence class of DAGs.
+
+    Directed edges are shared by every DAG in the class; an undirected edge ``a - b`` is
+    oriented differently by different members. Typically the output of a constraint-based
+    discovery run. Identification on a CPDAG either holds for every member or reports the
+    dependence on the unresolved orientations.
+    """
+
     @classmethod
     def from_directed_undirected(
         cls,
@@ -4489,12 +4558,16 @@ class Cpdag:
         edges: list[tuple[str, str, str]],
     ) -> Cpdag: ...
     def nodes(self) -> list[str]: ...
-    def edges(self) -> list[tuple[str, str, str]]: ...
+    def edges(self) -> list[tuple[str, str, str]]:
+        """Edges as ``(a, b, kind)`` with ``kind`` one of ``"directed"``, ``"undirected"``, ``"conflict"`` or ``"other"``."""
     def parents(self, name: str) -> list[str]: ...
     def children(self, name: str) -> list[str]: ...
-    def undirected_neighbors(self, name: str) -> list[str]: ...
-    def try_into_dag(self) -> Dag: ...
-    def is_mec_member(self, dag: Dag) -> bool: ...
+    def undirected_neighbors(self, name: str) -> list[str]:
+        """Nodes joined to ``name`` by an undirected edge."""
+    def try_into_dag(self) -> Dag:
+        """Return the DAG when every edge is directed; raises otherwise."""
+    def is_mec_member(self, dag: Dag) -> bool:
+        """Whether ``dag`` belongs to the equivalence class this CPDAG represents."""
     def node_count(self) -> int: ...
     @classmethod
     def from_dot(cls, dot: str) -> Cpdag: ...
@@ -4510,6 +4583,13 @@ class Cpdag:
     def to_networkx_node_link(self) -> str: ...
 
 class Pag:
+    """A partial ancestral graph: an equivalence class of MAGs, allowing latent confounding.
+
+    Each edge end carries a mark: ``"tail"``, ``"arrow"``, ``"circle"`` (undetermined) or
+    ``"conflict"``. Typically the output of FCI-family discovery. Build one with
+    ``from_marked_edges(names, [(a, b, mark_at_a, mark_at_b), ...])``.
+    """
+
     @classmethod
     def from_marked_edges(
         cls,
@@ -4517,8 +4597,10 @@ class Pag:
         edges: list[tuple[str, str, str, str]],
     ) -> Pag: ...
     def nodes(self) -> list[str]: ...
-    def neighbors(self, name: str) -> list[tuple[str, str, str]]: ...
-    def directed_children(self, name: str) -> list[str]: ...
+    def neighbors(self, name: str) -> list[tuple[str, str, str]]:
+        """Adjacent nodes of ``name`` with the edge marks, as ``(neighbor, mark_at_name, mark_at_neighbor)``."""
+    def directed_children(self, name: str) -> list[str]:
+        """Nodes ``c`` with a fully directed edge ``name -> c``."""
     def node_count(self) -> int: ...
     @classmethod
     def from_dot(cls, dot: str) -> Pag: ...
@@ -4554,6 +4636,15 @@ class Pag:
 def pag_completions(pag: Pag, max_completions: int = 64) -> tuple[list[Pag], str]: ...
 
 class Admg:
+    """An acyclic directed mixed graph: directed causal edges plus bidirected latent confounding.
+
+    A bidirected edge ``a <-> b`` declares an unmeasured common cause of ``a`` and ``b``. Use it
+    instead of a :class:`Dag` whenever a confounder is not observed; identification then uses
+    strategies valid under latent confounding (for example front-door or general
+    identification). Build one with ``from_edges(names, directed, bidirected)`` or with
+    ``Dag.latent_project(observed)``.
+    """
+
     @classmethod
     def from_edges(
         cls,
@@ -4564,7 +4655,8 @@ class Admg:
     def nodes(self) -> list[str]: ...
     def parents(self, name: str) -> list[str]: ...
     def children(self, name: str) -> list[str]: ...
-    def bidirected_neighbors(self, name: str) -> list[str]: ...
+    def bidirected_neighbors(self, name: str) -> list[str]:
+        """Nodes joined to ``name`` by a bidirected (latent-confounding) edge."""
     def node_count(self) -> int: ...
     @classmethod
     def from_dot(cls, dot: str) -> Admg: ...
@@ -4578,7 +4670,8 @@ class Admg:
     @classmethod
     def from_networkx_node_link(cls, json: str) -> Admg: ...
     def to_networkx_node_link(self) -> str: ...
-    def m_separated(self, x: str, y: str, z: list[str] | None = None) -> bool: ...
+    def m_separated(self, x: str, y: str, z: list[str] | None = None) -> bool:
+        """Whether ``x`` and ``y`` are m-separated given the set ``z`` (default empty)."""
 
 class TemporalAdmg:
     @classmethod
@@ -4595,14 +4688,30 @@ class TemporalAdmg:
     ) -> tuple[list[tuple[str, int, str, int]], list[tuple[str, int, str, int]]]: ...
 
 class TemporalDag:
+    """A directed acyclic graph over lagged variables: the causal structure of a time series.
+
+    A node is a variable at a lag, ``(name, lag)`` with ``lag = 0`` the current step and
+    ``lag = k`` the step ``t - k``. Pass it as ``graph=`` with a temporal query such as
+    :class:`~antecedent.PulseEffect`.
+
+    Example::
+
+        g = antecedent.TemporalDag.from_lagged_edges(
+            ["x", "y"], [("x", 1, "y", 0), ("y", 1, "y", 0)]
+        )                                       # x[t-1] -> y[t], y[t-1] -> y[t]
+    """
+
     @classmethod
     def from_lagged_edges(
         cls,
         names: list[str],
         edges: list[tuple[str, int, str, int]],
-    ) -> TemporalDag: ...
-    def nodes(self) -> list[tuple[str, int]]: ...
-    def edges(self) -> list[tuple[str, int, str, int]]: ...
+    ) -> TemporalDag:
+        """Build from variable ``names`` and edges ``(source, source_lag, target, target_lag)``."""
+    def nodes(self) -> list[tuple[str, int]]:
+        """Lagged nodes as ``(name, lag)`` pairs."""
+    def edges(self) -> list[tuple[str, int, str, int]]:
+        """Directed edges as ``(source, source_lag, target, target_lag)``."""
     def node_count(self) -> int: ...
 
 class TemporalCpdag:

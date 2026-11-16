@@ -1,4 +1,22 @@
-"""Reusable execution policies with shared native admission accounting."""
+"""Execution policies: seed, threads, resource limits, cancellation and observers.
+
+An :class:`Execution` says how a computation is run, never what is computed. Scientific
+choices (query, estimator, inference, bootstrap or draw counts) are declared elsewhere; an
+``Execution`` is passed as ``execution=`` to :func:`antecedent.prepare`,
+:func:`antecedent.analyze` and most other entry points, and can be reused across them, in
+which case its memory limit is shared.
+
+Example::
+
+    token = antecedent.CancellationToken()
+    execution = antecedent.Execution(
+        seed=7,
+        threads=4,
+        limits=antecedent.ResourceLimits(memory_bytes=2 * 1024**3),
+        cancel=token,
+    )
+    outcome = antecedent.analyze(data, graph=graph, query=query, execution=execution)
+"""
 
 from __future__ import annotations
 
@@ -25,10 +43,19 @@ def _integer(value: int | None, name: str, *, positive: bool = False) -> None:
 
 @dataclass(frozen=True, slots=True)
 class ResourceLimits:
-    """Maximum admitted native memory; None permits an unlimited pool.
+    """The memory an :class:`Execution` may admit.
 
-    Reusing an Execution shares its native pool across concurrent operations and
-    retained products. The limit is not a process RSS estimate or a measurement.
+    * ``memory_bytes`` -- upper bound, in bytes, on the native memory admitted under the
+      execution: owned data copies, retained products and working storage. Default ``None`` is
+      unlimited. A request that would exceed the bound is refused before the allocation is made.
+
+    Every operation that reuses the same ``Execution`` draws on one shared pool, including
+    concurrent operations and the results they retain. The bound governs what the engine admits;
+    it is not an estimate or measurement of the process's resident memory.
+
+    Raises:
+        CausalTypeError: when ``memory_bytes`` is not an integer.
+        CausalValueError: when it is negative or exceeds the unsigned 64-bit range.
     """
 
     memory_bytes: int | None = None
@@ -91,7 +118,19 @@ class RandomizationTestLimits:
 
 @dataclass(frozen=True, slots=True)
 class CachePolicy:
-    """Permission for semantic reuse, independently of numerical equivalence."""
+    """Whether results of identical sub-computations may be reused, and how much may be kept.
+
+    * ``mode`` -- ``"bounded"`` (default), ``"unbounded"`` or ``"disabled"``.
+    * ``max_bytes`` -- size bound of a bounded cache in bytes (default ``4_000_000``). It must be
+      set for ``"bounded"`` and ``None`` for the other modes.
+
+    The policy grants or withholds permission to reuse; it does not change any computed number.
+    Use the constructors :meth:`disabled`, :meth:`bounded` and :meth:`unbounded`.
+
+    Raises:
+        CausalValueError: when ``mode`` is not one of the three names, or ``max_bytes`` does not
+            match the mode.
+    """
 
     mode: Literal["disabled", "bounded", "unbounded"] = "bounded"
     max_bytes: int | None = 4_000_000
@@ -105,48 +144,82 @@ class CachePolicy:
 
     @classmethod
     def disabled(cls) -> CachePolicy:
+        """Return a policy that permits no reuse."""
         return cls("disabled", None)
 
     @classmethod
     def bounded(cls, max_bytes: int) -> CachePolicy:
+        """Return a policy that permits reuse within ``max_bytes`` bytes."""
         return cls("bounded", max_bytes)
 
     @classmethod
     def unbounded(cls) -> CachePolicy:
+        """Return a policy that permits reuse without a size bound."""
         return cls("unbounded", None)
 
 
 @dataclass(frozen=True, slots=True)
 class Execution:
-    """Execution settings shared by preparation, execution and exploration.
+    """How a computation runs: seed, threads, limits, cancellation and observers.
 
-    Scientific declarations and statistical budgets belong to the query,
-    estimator and inference objects. Observers are bound to each executing run;
-    retaining this policy never retains a completed run's exception scope.
+    Pass it as ``execution=``. The default ``Execution()`` uses seed 1, the engine's default
+    thread count, no memory limit and a bounded cache. An execution is immutable; to change one
+    on a prepared study use ``antecedent.reconfigure(study, execution=...)``.
 
-    ``callback_failure_capacity`` bounds how many distinct callback failures one
-    executing run retains so each can be attributed to its original exception
-    (default 256, nonnegative). A run that exceeds it still fails with its own
-    error; only the original-exception attribution of the surplus is dropped.
+    Scientific declarations and statistical budgets belong to the query, estimator and inference
+    objects, not here.
 
-    ``pulse_extrapolation_ranges`` bounds how far a ``PulseEffect`` may extrapolate: the
-    active level may lie at most this many observed treatment ranges (``max - min``)
-    beyond the observed treatment interval (default ``None``, the engine's 10 ranges).
-    A level inside the bound but outside the observed interval is computed and named in
-    the result's support diagnostics with its distance in ranges and standard
-    deviations; a level beyond the bound is refused with ``positivity_violated``. The
-    control level is never refused, since a control of 0 outside the data is how a pulse
-    is written.
+    Fields:
 
-    ``exposure_probability_work_limit`` bounds total logical operations for the
-    exposure-probability procedure. None selects the engine default (4 billion);
-    requests over the bound are refused without reducing their draw count.
-    ``hmc_work_limit`` bounds total HMC sampling and diagnostic work. None selects
-    the engine default (4 billion); a higher value authorizes more work without
-    changing the requested sampling schedule. ``temporal_materialization`` sets
-    finite temporal expansion limits; None selects the engine defaults.
-    ``randomization_test`` sets the finite Fisher row-visit ceiling; None selects
-    the engine default of one billion.
+    * ``seed`` -- seed of every random stream (cross-fitting folds, bootstrap, posterior draws).
+      Nonnegative integer, default ``1``. The same seed, data and declarations reproduce the same
+      streams.
+    * ``threads`` -- worker threads, a positive integer; default ``None`` uses the engine's
+      default.
+    * ``limits`` -- a :class:`ResourceLimits` (default: unlimited memory).
+    * ``cache`` -- a :class:`CachePolicy` (default: bounded at 4 MB).
+    * ``kernels`` -- numerical kernel selection: ``"auto"`` (default, the production policy),
+      ``"portable"`` (optimized kernels without architecture-specific SIMD) or ``"scalar"``
+      (scalar kernels only).
+    * ``cancel`` -- a :class:`~antecedent.CancellationToken`; calling its ``cancel()`` from
+      another thread stops the running operation, which raises
+      :class:`~antecedent.errors.CausalCancelledError`. Default ``None``.
+    * ``on_progress`` -- callable ``(fraction, stage)`` invoked as work proceeds, with
+      ``fraction`` in ``[0, 1]`` and ``stage`` a stage name. Default ``None``.
+    * ``on_stage`` -- callable receiving the stage events of an estimate on routes that stream
+      them. Routes that do not are refused with ``stage_stream_unavailable`` rather than run
+      silently without it. Default ``None``.
+    * ``callback_failure_capacity`` -- how many distinct callback failures one run retains so
+      that each can be attributed to its original exception (default ``256``, nonnegative). A run
+      that exceeds it still fails with its own error; only the attribution of the surplus is
+      dropped.
+    * ``pulse_extrapolation_ranges`` -- how far a :class:`~antecedent.PulseEffect` may
+      extrapolate: the active level may lie at most this many observed treatment ranges
+      (``max - min``) beyond the observed treatment interval. Default ``None`` is the engine's 10
+      ranges. A level inside the bound but outside the observed interval is computed and named in
+      the result's support diagnostics with its distance in ranges and standard deviations; a
+      level beyond the bound is refused with ``positivity_violated``. The control level is never
+      refused, since a control of 0 outside the data is how a pulse is written.
+    * ``exposure_probability_work_limit`` -- bound on the total logical operations of the
+      exposure-probability procedure. ``None`` selects the engine default (4 billion); a request
+      over the bound is refused without reducing its draw count.
+    * ``hmc_work_limit`` -- bound on total HMC sampling and diagnostic work. ``None`` selects the
+      engine default (4 billion); a higher value authorizes more work without changing the
+      requested sampling schedule.
+    * ``temporal_materialization`` -- a :class:`TemporalMaterializationLimits`; ``None`` selects
+      the engine defaults.
+    * ``randomization_test`` -- a :class:`RandomizationTestLimits`; ``None`` selects the engine
+      default of one billion row visits.
+
+    ``cancel``, ``on_progress`` and ``on_stage`` do not take part in equality or ``repr``.
+    Observers are bound to each run; keeping the policy does not keep a completed run's
+    exceptions alive.
+
+    Raises:
+        CausalTypeError: when a field has the wrong type (for example ``cancel`` is not a
+            ``CancellationToken`` or an observer is not callable).
+        CausalValueError: when a number is outside its range or ``kernels`` is not one of the
+            three names.
     """
 
     seed: int = 1

@@ -1,12 +1,17 @@
-"""Versioned accepted-graph session handle for artifact-first interactive UX.
+"""The accepted causal structure: a versioned graph you discover or review once and reuse.
 
-Discover once (or accept a reviewed graph), hold the artifact here, then run
-many estimate clicks via :meth:`analyze` / :meth:`prepare`. Rediscovery is
-**explicit only** — changing bootstrap, prior scale, treatment levels, or
-latency never re-enters discovery.
+Run a discovery configuration once with its ``accept(data)`` method (see
+:mod:`antecedent.discovery`), or wrap a reviewed or hand-authored graph with
+:meth:`AcceptedGraph.from_graph`, then pass the :class:`AcceptedGraph` as ``graph=`` to as many
+:func:`antecedent.prepare` / :func:`antecedent.analyze` calls as you like. Rediscovery is
+explicit only: changing bootstrap, prior scale, treatment levels or the inference profile never
+re-runs discovery; only :meth:`AcceptedGraph.rediscover` does.
 
-Contrast with one-shot ``analyze(..., discovery=...)`` (script convenience;
-refused under ``latency="interactive"``).
+Example::
+
+    accepted = antecedent.discovery.PC().accept(data)
+    print(accepted.pending)                     # edges still awaiting orientation review
+    outcome = accepted.analyze(data, antecedent.AverageEffect(treatment="t", outcome="y"))
 """
 
 from __future__ import annotations
@@ -190,10 +195,28 @@ def _interactive_inference(inference: Frequentist | Bayesian | None) -> Frequent
 
 
 class AcceptedGraph:
-    """Versioned accepted CPDAG/PAG/DAG/temporal completion for estimate-only clicks.
+    """A versioned causal structure accepted for repeated analysis.
 
-    Estimate and prepare never call discovery. Only :meth:`rediscover`
-    or constructing a new handle may replace structure and bump :attr:`version`.
+    Holds a ``Dag``, ``Cpdag``, ``Pag``, ``Admg``, a temporal graph or class, or an edge list,
+    with the discovery algorithm and background knowledge it came from. Pass it as ``graph=``
+    to :func:`antecedent.prepare` or :func:`antecedent.analyze`, or call :meth:`analyze` /
+    :meth:`prepare` on it. Estimation and preparation never run discovery; only
+    :meth:`rediscover`, :meth:`replace` and :meth:`review` produce a new structure, each as a new
+    handle with :attr:`version` increased by one.
+
+    * ``graph`` -- the structure.
+    * ``version`` -- a positive integer, default ``1``.
+    * ``algorithm_id`` -- the discovery algorithm that produced it, or ``None`` for a
+      hand-authored graph.
+    * ``background_knowledge`` -- digest of the background knowledge used in discovery, or
+      ``None``.
+
+    Usually built by a discovery configuration's ``accept(data)``, by :meth:`from_graph` or by
+    :meth:`from_json`. ``len(accepted)`` is the node count, iteration yields edges, and
+    ``name in accepted`` / ``(source, target) in accepted`` test nodes and directed edges.
+
+    Raises:
+        CausalValueError: when ``version`` is below 1.
     """
 
     __slots__ = ("_graph", "_version", "_algorithm_id", "_background_knowledge")
@@ -215,14 +238,17 @@ class AcceptedGraph:
 
     @property
     def graph(self) -> _GraphTypes:
+        """The held causal structure."""
         return self._graph
 
     @property
     def version(self) -> int:
+        """Version of the structure; starts at 1 and increases with each replacement."""
         return self._version
 
     @property
     def algorithm_id(self) -> str | None:
+        """The discovery algorithm that produced the structure, or ``None`` when hand-authored."""
         return self._algorithm_id
 
     @property
@@ -244,7 +270,11 @@ class AcceptedGraph:
         algorithm_id: str | None = None,
         version: int = 1,
     ) -> AcceptedGraph:
-        """Hold a reviewed or hand-authored graph artifact."""
+        """Accept a reviewed or hand-authored graph.
+
+        ``algorithm_id`` records where the graph came from (default ``None``); ``version``
+        defaults to ``1``.
+        """
         return cls(graph, version=version, algorithm_id=algorithm_id)
 
     @classmethod
@@ -255,7 +285,16 @@ class AcceptedGraph:
         algorithm_id: str,
         version: int = 1,
     ) -> AcceptedGraph:
-        """Accept a standalone ``discover_*`` result into a session artifact."""
+        """Accept the result of a discovery run as the structure.
+
+        ``result`` is a discovery result from :mod:`antecedent.discovery`; ``algorithm_id`` names
+        the algorithm (required; ``"pcmci"``, ``"pcmci+"`` and ``"lpcmci"`` produce temporal
+        graphs). Prefer a discovery configuration's ``accept(data)``, which runs and accepts in
+        one step through the review gate.
+
+        Raises:
+            CausalValueError: when ``algorithm_id`` is empty.
+        """
         if not algorithm_id:
             raise CausalValueError("algorithm_id is required for discovery provenance")
         algo = algorithm_id.lower().replace("pcmci_plus", "pcmci+")
@@ -276,7 +315,10 @@ class AcceptedGraph:
         *,
         algorithm_id: str | None = None,
     ) -> AcceptedGraph:
-        """Explicit structure replace (bumps version). Returns a new handle."""
+        """Return a new handle holding ``graph``, with :attr:`version` increased by one.
+
+        ``algorithm_id`` defaults to the current one. This handle is unchanged.
+        """
         return AcceptedGraph(
             graph,
             version=self._version + 1,
@@ -291,7 +333,12 @@ class AcceptedGraph:
         *,
         execution: Execution | None = None,
     ) -> AcceptedGraph:
-        """User-triggered rediscovery; never called by estimate / prepare."""
+        """Run ``discovery`` on ``data`` and return a new handle with :attr:`version` increased.
+
+        ``discovery`` is a single-table discovery configuration from :mod:`antecedent.discovery`
+        (PCMCI, PCMCI+ and LPCMCI produce temporal graphs); ``execution`` is the
+        :class:`~antecedent.Execution` it runs under. Preparation and estimation never call this.
+        """
         if isinstance(discovery, (PCMCI, PCMCIPlus, LPCMCI)):
             result, algo = run_temporal_discovery(data, discovery, execution=execution)
             graph: _GraphTypes = _result_to_temporal_graph(result, algo)
@@ -360,11 +407,17 @@ class AcceptedGraph:
         execution: Execution | None = None,
         **declarations: Any,
     ) -> Outcome[Any]:
-        """Prepare and estimate on accepted structure through the common lifecycle.
+        """Prepare and estimate ``query`` on ``data`` with this structure as ``graph=``.
 
-        The interactive inference profile preserves native estimate-click defaults. Statistical
-        budgets belong to inference; execution controls belong to ``Execution``.
-        Discovery remains an explicit separate operation.
+        Equivalent to :func:`antecedent.analyze` with ``graph=self``; other keyword arguments are
+        passed through. When ``inference`` is omitted or has no ``profile``, the
+        ``"interactive"`` profile is applied, so default replicate counts are the fast ones;
+        give an explicit profile or count to change that. Returns an
+        :class:`~antecedent.Outcome`.
+
+        Raises:
+            CausalUnsupportedError: when ``discovery=`` is passed; call :meth:`rediscover` to
+                replace the structure.
         """
         from .prepared import analyze
 
@@ -391,7 +444,15 @@ class AcceptedGraph:
         execution: Execution | None = None,
         **declarations: Any,
     ) -> PreparedAnalysis[Any]:
-        """Bind an immutable study without fitting, sampling or rediscovery."""
+        """Prepare ``query`` on ``data`` with this structure as ``graph=``, without fitting.
+
+        Equivalent to :func:`antecedent.prepare` with ``graph=self``, with the same
+        ``"interactive"`` profile default as :meth:`analyze`. Returns a
+        :class:`~antecedent.PreparedAnalysis`.
+
+        Raises:
+            CausalUnsupportedError: when ``discovery=`` is passed.
+        """
         from .prepared import prepare
 
         if declarations.get("discovery") is not None:
@@ -409,7 +470,11 @@ class AcceptedGraph:
         )
 
     def to_json(self) -> str:
-        """Serialize for durable hold (JSON interchange, not CBOR wire)."""
+        """Return the accepted structure as a JSON string (format ``causal.AcceptedGraph/v1``).
+
+        Includes the graph, version, algorithm and background-knowledge digest; read it back
+        with :meth:`from_json`.
+        """
         kind, payload = _encode_graph(self._graph)
         wire: dict[str, Any] = {
             "format": "causal.AcceptedGraph/v1",
@@ -424,7 +489,11 @@ class AcceptedGraph:
 
     @classmethod
     def from_json(cls, s: str) -> AcceptedGraph:
-        """Restore from :meth:`to_json`."""
+        """Rebuild an accepted structure from the output of :meth:`to_json`.
+
+        Raises:
+            CausalValueError: when the string is not in the ``causal.AcceptedGraph/v1`` format.
+        """
         obj = json.loads(s)
         if obj.get("format") != "causal.AcceptedGraph/v1":
             raise CausalValueError(f"unsupported AcceptedGraph format: {obj.get('format')!r}")
