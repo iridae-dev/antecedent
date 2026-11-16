@@ -202,10 +202,10 @@ impl WeightedTargetDeclaration {
                     ProbError::Refused {
                         code: code @ "transport_target_overlap_failed",
                         message,
-                    } => CausalError::from(ProbError::Refused {
+                    } => CausalError::Estimate(antecedent_estimate::EstimationError::refused(
                         code,
-                        message: format!("weighted_target.overlap_failed: {message}"),
-                    }),
+                        format!("weighted_target.overlap_failed: {message}"),
+                    )),
                     other => CausalError::from(other),
                 },
             )?;
@@ -284,10 +284,10 @@ impl WeightedTargetDeclaration {
         let gate = |rows: &[f64]| {
             check_weights_overlap(rows, self.min_ess_fraction).map_err(|error| match error {
                 ProbError::Refused { code: code @ "transport_target_overlap_failed", message } => {
-                    CausalError::from(ProbError::Refused {
+                    CausalError::Estimate(antecedent_estimate::EstimationError::refused(
                         code,
-                        message: format!("weighted_target.overlap_failed: {message}"),
-                    })
+                        format!("weighted_target.overlap_failed: {message}"),
+                    ))
                 }
                 other => CausalError::from(other),
             })

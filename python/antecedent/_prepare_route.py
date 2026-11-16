@@ -626,7 +626,12 @@ class _PrepareRoute:
     # -- graph posterior ------------------------------------------------------
     def _graph_posterior(self) -> tuple[Any, Any]:
         query, discovery = self.query, self.discovery
-        self._refuse_ids("PreparedAnalysis graph-posterior discovery (per posterior atom)")
+        if self.options.get("weighted_target") is not None:
+            # A declared target population runs the requested estimator on every atom (the
+            # targeted mixture); the compiler checks the pairing.
+            self._select_ids()
+        else:
+            self._refuse_ids("PreparedAnalysis graph-posterior discovery (per posterior atom)")
         if self.frame is not None and self.frame["kind"] != "events":
             raise CausalUnsupportedError(
                 "graph-posterior cells are supported on one table, one series, or one event "
