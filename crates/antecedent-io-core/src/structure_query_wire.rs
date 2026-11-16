@@ -11,7 +11,8 @@ use antecedent_core::{
     AttributeQuery, AttributeTarget, CausalQuery, ChangeAttributionQuery, ChangeEstimator,
     ChangeMeasure, DiscoverQuery, DiscoveryMethod, InfluenceAllocation, Intervention,
     InterventionSequence, IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration,
-    ScreenWeight, SearchBounds, SearchSchedule, SimulateQuery, SimulationTarget, VariableId,
+    ScreenWeight, SearchBounds, SearchSchedule, SimulateQuery, SimulationTarget,
+    StructurePriorSpec, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -25,7 +26,65 @@ fn fit_usize(value: u64) -> Result<usize, IoError> {
     usize::try_from(value).map_err(|_| IoError::TooLarge)
 }
 
+/// Wire form of [`StructurePriorSpec`]. Every field is absent from the document when unset.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct StructurePriorWire {
+    /// Independent inclusion probability of every edge the map does not list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edge_inclusion: Option<f64>,
+    /// `[from, to, probability]` of each listed directed edge (raw variable ids).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edges: Vec<(u32, u32, f64)>,
+    /// Inclusion probability of the edges not listed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_edge: Option<f64>,
+    /// Soft tiers of raw variable ids, earliest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub soft_tiers: Vec<Vec<u32>>,
+    /// Log-penalty of an edge against the soft tier order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub soft_tier_log_penalty: Option<f64>,
+}
+
+impl StructurePriorWire {
+    fn from_domain(prior: &StructurePriorSpec) -> Self {
+        Self {
+            edge_inclusion: prior.edge_inclusion,
+            edges: prior.edges.iter().map(|(from, to, p)| (from.raw(), to.raw(), *p)).collect(),
+            default_edge: prior.default_edge,
+            soft_tiers: prior.soft_tiers.iter().map(|tier| vars_to_raw(tier)).collect(),
+            soft_tier_log_penalty: prior.soft_tier_log_penalty,
+        }
+    }
+
+    fn to_domain(&self) -> StructurePriorSpec {
+        StructurePriorSpec {
+            edge_inclusion: self.edge_inclusion,
+            edges: self
+                .edges
+                .iter()
+                .map(|&(from, to, p)| (VariableId::from_raw(from), VariableId::from_raw(to), p))
+                .collect(),
+            default_edge: self.default_edge,
+            soft_tiers: self.soft_tiers.iter().map(|tier| vars_from_raw(tier)).collect(),
+            soft_tier_log_penalty: self.soft_tier_log_penalty,
+        }
+    }
+}
+
+fn prior_to_wire(prior: Option<&StructurePriorSpec>) -> Option<StructurePriorWire> {
+    prior.map(StructurePriorWire::from_domain)
+}
+
+fn prior_from_wire(prior: Option<&StructurePriorWire>) -> Option<StructurePriorSpec> {
+    prior.map(StructurePriorWire::to_domain)
+}
+
 /// Wire form of [`DiscoveryMethod`].
+///
+/// A method that declares no structure prior keeps its original document form; the `*_with_prior`
+/// forms and the optional `prior` member exist only when a prior is declared.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "snake_case")]
@@ -72,19 +131,40 @@ pub enum DiscoveryMethodWire {
     },
     /// Exact DAG posterior.
     ExactDagPosterior,
+    /// Exact DAG posterior under a per-edge prior.
+    ExactDagPosteriorWithPrior {
+        /// The declared structure prior.
+        prior: StructurePriorWire,
+    },
     /// Exact DAG posterior edge marginals.
     ExactDagMarginals,
+    /// Exact DAG posterior edge marginals under a per-edge prior.
+    ExactDagMarginalsWithPrior {
+        /// The declared structure prior.
+        prior: StructurePriorWire,
+    },
     /// Order MCMC.
     OrderMcmc {
         /// Convergence-diagnostics gate.
         diagnostics_gate: bool,
+        /// The declared structure prior, when there is one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        prior: Option<StructurePriorWire>,
     },
     /// Structure MCMC.
     StructureMcmc,
+    /// Structure MCMC under a per-edge prior.
+    StructureMcmcWithPrior {
+        /// The declared structure prior.
+        prior: StructurePriorWire,
+    },
     /// CI-screened posterior.
     CiScreenedPosterior {
         /// Candidate weighting (`none`, `bayes_factor`, `posterior_dependence`).
         weight: String,
+        /// The declared structure prior, when there is one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        prior: Option<StructurePriorWire>,
     },
     /// CI screen, then exact marginals of the focus neighbourhood.
     ScreenedExactMarginals {
@@ -96,11 +176,17 @@ pub enum DiscoveryMethodWire {
         in_probability: f64,
         /// Prior inclusion probability of any other pair.
         out_probability: f64,
+        /// The declared structure prior, when there is one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        prior: Option<StructurePriorWire>,
     },
     /// DBN template posterior.
     DbnPosterior {
         /// Force MCMC.
         force_mcmc: bool,
+        /// The declared structure prior, when there is one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        prior: Option<StructurePriorWire>,
     },
     /// Exact posterior over PAG classes of Gaussian maximal ancestral graphs.
     ExactPagPosterior,
@@ -142,28 +228,41 @@ impl DiscoveryMethodWire {
             DiscoveryMethod::Rpcmci { min_regime_len } => {
                 Self::Rpcmci { min_regime_len: *min_regime_len }
             }
-            DiscoveryMethod::ExactDagPosterior => Self::ExactDagPosterior,
-            DiscoveryMethod::ExactDagMarginals => Self::ExactDagMarginals,
-            DiscoveryMethod::OrderMcmc { diagnostics_gate } => {
-                Self::OrderMcmc { diagnostics_gate: *diagnostics_gate }
-            }
-            DiscoveryMethod::StructureMcmc => Self::StructureMcmc,
-            DiscoveryMethod::CiScreenedPosterior { weight } => {
-                Self::CiScreenedPosterior { weight: weight.as_str().into() }
-            }
+            DiscoveryMethod::ExactDagPosterior { prior } => match prior_to_wire(prior.as_ref()) {
+                Some(prior) => Self::ExactDagPosteriorWithPrior { prior },
+                None => Self::ExactDagPosterior,
+            },
+            DiscoveryMethod::ExactDagMarginals { prior } => match prior_to_wire(prior.as_ref()) {
+                Some(prior) => Self::ExactDagMarginalsWithPrior { prior },
+                None => Self::ExactDagMarginals,
+            },
+            DiscoveryMethod::OrderMcmc { diagnostics_gate, prior } => Self::OrderMcmc {
+                diagnostics_gate: *diagnostics_gate,
+                prior: prior_to_wire(prior.as_ref()),
+            },
+            DiscoveryMethod::StructureMcmc { prior } => match prior_to_wire(prior.as_ref()) {
+                Some(prior) => Self::StructureMcmcWithPrior { prior },
+                None => Self::StructureMcmc,
+            },
+            DiscoveryMethod::CiScreenedPosterior { weight, prior } => Self::CiScreenedPosterior {
+                weight: weight.as_str().into(),
+                prior: prior_to_wire(prior.as_ref()),
+            },
             DiscoveryMethod::ScreenedExactMarginals {
                 focus,
                 max_variables,
                 in_probability,
                 out_probability,
+                prior,
             } => Self::ScreenedExactMarginals {
                 focus: vars_to_raw(focus),
                 max_variables: *max_variables,
                 in_probability: *in_probability,
                 out_probability: *out_probability,
+                prior: prior_to_wire(prior.as_ref()),
             },
-            DiscoveryMethod::DbnPosterior { force_mcmc } => {
-                Self::DbnPosterior { force_mcmc: *force_mcmc }
+            DiscoveryMethod::DbnPosterior { force_mcmc, prior } => {
+                Self::DbnPosterior { force_mcmc: *force_mcmc, prior: prior_to_wire(prior.as_ref()) }
             }
             DiscoveryMethod::ExactPagPosterior => Self::ExactPagPosterior,
             DiscoveryMethod::PagMcmc => Self::PagMcmc,
@@ -200,13 +299,24 @@ impl DiscoveryMethodWire {
             Self::Rpcmci { min_regime_len } => {
                 DiscoveryMethod::Rpcmci { min_regime_len: *min_regime_len }
             }
-            Self::ExactDagPosterior => DiscoveryMethod::ExactDagPosterior,
-            Self::ExactDagMarginals => DiscoveryMethod::ExactDagMarginals,
-            Self::OrderMcmc { diagnostics_gate } => {
-                DiscoveryMethod::OrderMcmc { diagnostics_gate: *diagnostics_gate }
+            Self::ExactDagPosterior => DiscoveryMethod::ExactDagPosterior { prior: None },
+            Self::ExactDagPosteriorWithPrior { prior } => {
+                DiscoveryMethod::ExactDagPosterior { prior: Some(prior.to_domain()) }
             }
-            Self::StructureMcmc => DiscoveryMethod::StructureMcmc,
-            Self::CiScreenedPosterior { weight } => DiscoveryMethod::CiScreenedPosterior {
+            Self::ExactDagMarginals => DiscoveryMethod::ExactDagMarginals { prior: None },
+            Self::ExactDagMarginalsWithPrior { prior } => {
+                DiscoveryMethod::ExactDagMarginals { prior: Some(prior.to_domain()) }
+            }
+            Self::OrderMcmc { diagnostics_gate, prior } => DiscoveryMethod::OrderMcmc {
+                diagnostics_gate: *diagnostics_gate,
+                prior: prior_from_wire(prior.as_ref()),
+            },
+            Self::StructureMcmc => DiscoveryMethod::StructureMcmc { prior: None },
+            Self::StructureMcmcWithPrior { prior } => {
+                DiscoveryMethod::StructureMcmc { prior: Some(prior.to_domain()) }
+            }
+            Self::CiScreenedPosterior { weight, prior } => DiscoveryMethod::CiScreenedPosterior {
+                prior: prior_from_wire(prior.as_ref()),
                 weight: match weight.as_str() {
                     "none" => ScreenWeight::None,
                     "bayes_factor" => ScreenWeight::BayesFactor,
@@ -223,15 +333,18 @@ impl DiscoveryMethodWire {
                 max_variables,
                 in_probability,
                 out_probability,
+                prior,
             } => DiscoveryMethod::ScreenedExactMarginals {
                 focus: vars_from_raw(focus),
                 max_variables: *max_variables,
                 in_probability: *in_probability,
                 out_probability: *out_probability,
+                prior: prior_from_wire(prior.as_ref()),
             },
-            Self::DbnPosterior { force_mcmc } => {
-                DiscoveryMethod::DbnPosterior { force_mcmc: *force_mcmc }
-            }
+            Self::DbnPosterior { force_mcmc, prior } => DiscoveryMethod::DbnPosterior {
+                force_mcmc: *force_mcmc,
+                prior: prior_from_wire(prior.as_ref()),
+            },
             Self::ExactPagPosterior => DiscoveryMethod::ExactPagPosterior,
             Self::PagMcmc => DiscoveryMethod::PagMcmc,
             Self::ClassPosterior { base } => {
@@ -1290,7 +1403,7 @@ mod tests {
     fn the_structure_and_model_queries_round_trip() {
         round_trip(&CausalQuery::Discover(DiscoverQuery::new(
             vec![v(0), v(1), v(2)],
-            DiscoveryMethod::CiScreenedPosterior { weight: ScreenWeight::BayesFactor },
+            DiscoveryMethod::CiScreenedPosterior { weight: ScreenWeight::BayesFactor, prior: None },
             SearchBounds {
                 alpha: 0.05,
                 max_cond_size: 2,
@@ -1315,7 +1428,9 @@ mod tests {
         )));
         round_trip(&CausalQuery::Discover(DiscoverQuery::new(
             vec![v(0), v(1), v(2)],
-            DiscoveryMethod::ClassPosterior { base: Box::new(DiscoveryMethod::StructureMcmc) },
+            DiscoveryMethod::ClassPosterior {
+                base: Box::new(DiscoveryMethod::StructureMcmc { prior: None }),
+            },
             SearchBounds {
                 alpha: 0.0,
                 max_cond_size: 0,
@@ -1324,6 +1439,55 @@ mod tests {
                 configuration: [5; 32],
             },
         )));
+        let prior = StructurePriorSpec {
+            edge_inclusion: Some(0.25),
+            edges: Arc::from([(v(0), v(1), 0.1), (v(1), v(2), 0.7)]),
+            default_edge: Some(0.3),
+            soft_tiers: Arc::from([Arc::from([v(0)]), Arc::from([v(1), v(2)])]),
+            soft_tier_log_penalty: Some(2.0),
+        };
+        for method in [
+            DiscoveryMethod::ExactDagPosterior { prior: Some(prior.clone()) },
+            DiscoveryMethod::ExactDagMarginals { prior: Some(prior.clone()) },
+            DiscoveryMethod::OrderMcmc { diagnostics_gate: true, prior: Some(prior.clone()) },
+            DiscoveryMethod::StructureMcmc { prior: Some(prior.clone()) },
+            DiscoveryMethod::CiScreenedPosterior {
+                weight: ScreenWeight::None,
+                prior: Some(prior.clone()),
+            },
+            DiscoveryMethod::DbnPosterior { force_mcmc: false, prior: Some(prior.clone()) },
+            DiscoveryMethod::ClassPosterior {
+                base: Box::new(DiscoveryMethod::StructureMcmc { prior: Some(prior.clone()) }),
+            },
+        ] {
+            round_trip(&CausalQuery::Discover(DiscoverQuery::new(
+                vec![v(0), v(1), v(2)],
+                method,
+                SearchBounds {
+                    alpha: 0.0,
+                    max_cond_size: 0,
+                    max_lag: 0,
+                    schedule: Some(SearchSchedule { chains: 2, warmup: 5, draws: 10, thin: 1 }),
+                    configuration: [6; 32],
+                },
+            )));
+        }
+        // A method without a prior keeps its original document form.
+        let plain = DiscoveryMethodWire::from_domain(&DiscoveryMethod::OrderMcmc {
+            diagnostics_gate: true,
+            prior: None,
+        });
+        assert_eq!(
+            serde_json::to_string(&plain).expect("serialize"),
+            r#"{"order_mcmc":{"diagnostics_gate":true}}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&DiscoveryMethodWire::from_domain(
+                &DiscoveryMethod::ExactDagPosterior { prior: None }
+            ))
+            .expect("serialize"),
+            r#""exact_dag_posterior""#
+        );
         round_trip(&CausalQuery::Attribute(AttributeQuery::new(AttributeTarget::Anomaly(
             AnomalyAttributionQuery::new(vec![v(1)], 10),
         ))));

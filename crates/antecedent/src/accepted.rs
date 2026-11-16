@@ -348,6 +348,9 @@ pub struct StructureProvenance {
     pub review: Arc<str>,
     /// Pending marks the review resolved.
     pub resolved_marks: u64,
+    /// The per-edge prior probabilities and soft tiers the posterior is a posterior under, as
+    /// the query declared them; `None` when the search declared none.
+    pub structure_prior: Option<Arc<str>>,
 }
 
 impl StructureProvenance {
@@ -366,6 +369,10 @@ impl StructureProvenance {
             .bytes(&self.claim)
             .text(&self.review)
             .word(self.resolved_marks);
+        // Written only when declared, so a record of a search without one keeps its digest.
+        if let Some(statement) = &self.structure_prior {
+            writer.text(statement);
+        }
         writer.finish()
     }
 }

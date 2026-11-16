@@ -193,37 +193,72 @@ pub(super) fn take_supplied_posterior(
         .transpose()
 }
 
+/// The default Bayesian parameters of a search over the schema's variables, under the per-edge
+/// prior and soft tiers the study declared, if any.
+fn declared_params(
+    prior: Option<&crate::bayesian::PriorArgs>,
+    schema: &CausalSchema,
+    vars: &[antecedent::prelude::VariableId],
+) -> PyResult<BayesianDiscoverParams> {
+    match prior {
+        None => Ok(BayesianDiscoverParams::default()),
+        Some(prior) => {
+            let names: Vec<String> =
+                schema.variables().iter().map(|v| v.name.to_string()).collect();
+            prior.clone().params_over(&names, vars)
+        }
+    }
+}
+
 pub(super) fn exact_dag_posterior(
     supplied: Option<antecedent::discovery::GraphPosterior>,
     data: &TabularData,
+    req: &PrepareRequest,
     ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<antecedent::discovery::GraphPosterior> {
+    let prior = req.opts.structure_prior.as_ref();
     if let Some(gp) = supplied {
+        if prior.is_some() {
+            return Err(crate::value_err(
+                "a supplied posterior is not fitted, so a structure prior describes a search \
+                 that never ran; drop the prior",
+            ));
+        }
         return Ok(gp);
     }
     let vars: Vec<_> = data.schema().variables().iter().map(|v| v.id).collect();
+    let params = declared_params(prior, data.schema(), &vars)?;
     compiled_posterior(
-        DiscoverySpec::exact_dag_posterior(BayesianDiscoverParams::default()),
+        DiscoverySpec::exact_dag_posterior(params),
         crate::compiled_route_api::DiscoverInput::Tabular(data.clone()),
         &vars,
         ctx,
+        prior.is_some().then_some(req),
     )
 }
 
 /// The posterior a compiled structure-posterior search returns.
+///
+/// With `declared_on`, the search ran under a per-edge prior the caller declared: the accepted
+/// posterior, which states that prior in its provenance, is kept on the request so the study
+/// built from the posterior carries the statement. A search without one leaves it untouched.
 fn compiled_posterior(
     spec: DiscoverySpec,
     input: crate::compiled_route_api::DiscoverInput,
     variables: &[antecedent::prelude::VariableId],
     ctx: &antecedent::prelude::ExecutionContext,
+    declared_on: Option<&PrepareRequest>,
 ) -> PyResult<antecedent::discovery::GraphPosterior> {
-    let (posterior, _route) =
+    let (posterior, route) =
         crate::discovery_api::compiled_search(spec, input, variables, ctx, |structure| {
             match structure {
                 DiscoveredStructure::Posterior(posterior) => Some(posterior),
                 _ => None,
             }
         })?;
+    if let Some(req) = declared_on {
+        req.accepted_posterior.set(Some(route.accepted_posterior()?));
+    }
     Ok(posterior)
 }
 
@@ -240,9 +275,17 @@ pub(super) fn dbn_posterior(
     n_chains: u32,
     n_warmup: u32,
     mcmc_draws: u32,
+    req: &PrepareRequest,
     ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<antecedent::discovery::GraphPosterior> {
+    let prior = req.opts.structure_prior.as_ref();
     if let Some(gp) = supplied {
+        if prior.is_some() {
+            return Err(crate::value_err(
+                "a supplied posterior is not fitted, so a structure prior describes a search \
+                 that never ran; drop the prior",
+            ));
+        }
         // A supplied posterior is not fitted, so fitting options that differ from the
         // defaults describe a search that never ran.
         if max_lag != DBN_DEFAULT_MAX_LAG
@@ -261,16 +304,13 @@ pub(super) fn dbn_posterior(
     let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
     crate::bridge::check_mcmc_schedule(n_chains, n_warmup, mcmc_draws, 1)?;
     let schedule = GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
+    let params = declared_params(prior, series.schema(), &vars)?;
     compiled_posterior(
-        DiscoverySpec::dbn_posterior(
-            BayesianDiscoverParams::default(),
-            max_lag,
-            force_mcmc,
-            schedule,
-        ),
+        DiscoverySpec::dbn_posterior(params, max_lag, force_mcmc, schedule),
         crate::compiled_route_api::DiscoverInput::Series(series.clone()),
         &vars,
         ctx,
+        prior.is_some().then_some(req),
     )
 }
 
@@ -291,10 +331,12 @@ pub(super) fn finish_static_graph_posterior(
              Bayesian g-computation per atom; a configured Frequentist estimator does not apply",
         ));
     }
-    let builder = with_response_options(
-        Study::tabular(data).graph_posterior(gp).query(query),
-        response_options,
-    );
+    let study = Study::tabular(data);
+    let study = match req.accepted_posterior.take() {
+        Some(accepted) => study.accepted_graph_posterior(accepted),
+        None => study.graph_posterior(gp),
+    };
+    let builder = with_response_options(study.query(query), response_options);
     let builder = apply_estimator(req.opts.apply_budget_for(builder, spec.is_some()), None, spec)?;
     let builder = req.opts.apply_inference(builder)?;
     req.compile_with(builder, false, ctx)
@@ -314,7 +356,11 @@ pub(super) fn finish_series_graph_posterior(
     ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<PyPreparedAnalysis> {
     req.refuse_prior("a DBN graph-posterior mixture")?;
-    let mut builder = Study::series(series).graph_posterior(gp);
+    let study = Study::series(series);
+    let mut builder = match req.accepted_posterior.take() {
+        Some(accepted) => study.accepted_graph_posterior(accepted),
+        None => study.graph_posterior(gp),
+    };
     builder = match query {
         SeriesGraphQuery::Temporal(q) => builder.temporal_query(q),
         SeriesGraphQuery::Mediation(q) => builder.query(CausalQuery::Mediation(q)),

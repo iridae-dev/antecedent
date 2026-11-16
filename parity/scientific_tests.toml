@@ -2313,3 +2313,24 @@ evidence_assertion = "the_screened_route_runs_the_exact_marginals_on_the_selecte
 kind = "known_truth"
 fixtures = []
 why = "The CI-screened route selects the focus variable's skeleton neighbourhood and runs the exact marginals on it with the screen as per-edge priors, stating the marginals are conditional on the screen."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/structure_prior_routes.rs"
+evidence_assertion = "a_declared_prior_is_the_query_the_engine_and_the_hand_reweighting"
+kind = "known_truth"
+fixtures = []
+why = "A per-edge prior and soft tiers declared on the compiled exact posterior are carried by the query, equal the engine posterior bit for bit, equal the uniform posterior reweighted by the hand-computed prior factors over every DAG on three nodes, and are stated in the accepted posterior's provenance."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/structure_prior_routes.rs"
+evidence_assertion = "a_pooled_posterior_is_the_hand_mixture_of_the_per_imputation_exact_posteriors"
+kind = "known_truth"
+fixtures = []
+why = "The posterior pooled across imputations equals the hand-computed equal-weight mixture of the per-imputation exact posteriors, graph by graph, and its edge marginals are the means of theirs."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/structure_prior_routes.rs"
+evidence_assertion = "pooled_exact_marginals_are_the_means_of_the_per_imputation_marginals"
+kind = "known_truth"
+fixtures = []
+why = "The exact marginals pooled across imputations are the means of the per-imputation marginals, and the pooled normalizer is the log of the mean of the per-imputation normalizers."

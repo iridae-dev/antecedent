@@ -108,6 +108,12 @@ from ._native import (
     discover_pcmci_plus as _discover_pcmci_plus,
 )
 from ._native import (
+    discover_pooled_exact_dag_marginals as _discover_pooled_exact_dag_marginals,
+)
+from ._native import (
+    discover_pooled_exact_dag_posterior as _discover_pooled_exact_dag_posterior,
+)
+from ._native import (
     discover_rfci as _discover_rfci,
 )
 from ._native import (
@@ -144,6 +150,8 @@ _NATIVE_WITHOUT_CANCEL = frozenset(
         "discover_pag_mcmc",
         "discover_exact_pag_posterior",
         "discover_exact_dag_marginals",
+        "discover_pooled_exact_dag_posterior",
+        "discover_pooled_exact_dag_marginals",
         "discover_order_mcmc",
         "discover_structure_mcmc",
         "discover_ci_screened_posterior",
@@ -1463,6 +1471,31 @@ def _prior_wire(prior: StructurePrior | None) -> dict[str, Any]:
     return {} if prior is None else {"prior": prior._wire()}
 
 
+def _imputed_tables(imputations: Any) -> list[tuple[list[str], list[Any]]]:
+    """Coerce a sequence of completed tables, checking they state one set of variables."""
+    if isinstance(imputations, (str, bytes, Mapping)) or hasattr(imputations, "to_numpy"):
+        raise CausalTypeError(
+            "imputations takes a sequence of completed tables, one per imputation, not one table"
+        )
+    try:
+        tables = list(imputations)
+    except TypeError as error:
+        raise CausalTypeError(
+            "imputations takes a sequence of completed tables, one per imputation"
+        ) from error
+    if not tables:
+        raise CausalValueError("imputations needs at least one completed table")
+    coerced = [coerce_data(table) for table in tables]
+    names = coerced[0][0]
+    for index, (other, _) in enumerate(coerced[1:], start=1):
+        if other != names:
+            raise CausalValueError(
+                f"imputation {index} names variables {other} but imputation 0 names {names}; "
+                "every imputation must state the same variables in the same order"
+            )
+    return coerced
+
+
 @dataclass(frozen=True)
 class ExactDagMarginals:
     """Exact edge marginals of the Gaussian-BIC DAG posterior of 7 to 15 variables.
@@ -1484,6 +1517,7 @@ class ExactDagMarginals:
     log_evidence: float
     _matrix: tuple[tuple[float, ...], ...]
     conditional_on_screen: str | None = None
+    pooled_over_imputations: int | None = None
 
     def edge_marginal_matrix(self) -> list[list[float]]:
         """The exact edge marginals as a list of rows: ``[i][j]`` is ``P(i -> j)``, in the order of
@@ -1529,8 +1563,22 @@ class ExactDagPosterior:
         return {"algorithm": "exact_dag_posterior", **_prior_wire(self.prior)}
 
     def run(
-        self, data: Any, *, execution: Execution | None = None
+        self,
+        data: Any = None,
+        *,
+        execution: Execution | None = None,
+        imputations: Sequence[Any] | None = None,
     ) -> GraphPosterior | ExactDagMarginals:
+        """Run the exact posterior on the data.
+
+        ``imputations`` (instead of ``data``) is a sequence of completed tables, one per
+        imputation of the measurement or missing-data model: the posterior is run on each and
+        the result is the equal-weight mixture of the per-imputation posteriors (the mean of
+        their edge marginals above six variables), so the data's own uncertainty widens the
+        structure posterior.
+        """
+        if imputations is not None or data is None:
+            return self._run_pooled(data, imputations, execution)
         names, cols = coerce_data(data)
         if len(names) <= EXACT_ENUMERATION_MAX_VARIABLES:
             return _run_native(
@@ -1542,6 +1590,40 @@ class ExactDagPosterior:
         n = len(names)
         matrix = tuple(tuple(flat[i * n : (i + 1) * n]) for i in range(n))
         return ExactDagMarginals(list(names), n, log_evidence, matrix)
+
+    def _run_pooled(
+        self, data: Any, imputations: Any, execution: Execution | None
+    ) -> GraphPosterior | ExactDagMarginals:
+        """The posterior pooled across imputations, computed by the engine."""
+        if data is not None:
+            raise CausalValueError("give data or imputations, not both")
+        if imputations is None:
+            raise CausalValueError(
+                "run needs data, or imputations= (a sequence of completed tables)"
+            )
+        tables = _imputed_tables(imputations)
+        names = tables[0][0]
+        columns = [cols for _, cols in tables]
+        if len(names) <= EXACT_ENUMERATION_MAX_VARIABLES:
+            return _run_native(
+                execution,
+                _discover_pooled_exact_dag_posterior,
+                names,
+                columns,
+                **_prior_kwargs(self.prior),
+            )
+        flat, log_evidence = _run_native(
+            execution,
+            _discover_pooled_exact_dag_marginals,
+            names,
+            columns,
+            **_prior_kwargs(self.prior),
+        )
+        n = len(names)
+        matrix = tuple(tuple(flat[i * n : (i + 1) * n]) for i in range(n))
+        return ExactDagMarginals(
+            list(names), n, log_evidence, matrix, pooled_over_imputations=len(columns)
+        )
 
 
 @dataclass(frozen=True)

@@ -155,6 +155,136 @@ impl CanonicalEncode for ScreenWeight {
     }
 }
 
+/// The tag that precedes a method's canonical encoding when it carries a structure prior.
+///
+/// No method tag reaches this word, so a method without a prior encodes exactly as it always
+/// has and a method with one can never encode like another.
+const STRUCTURE_PRIOR_TAG: u64 = 64;
+
+/// A declared prior over DAG structures, by variable id, beyond the single global edge
+/// probability: per-edge inclusion probabilities and a soft tier order.
+///
+/// The prior is modular: every factor multiplies the weight of a directed edge, so the exact
+/// dynamic programme and the order, structure and template samplers use it with no other change.
+/// Hard background knowledge (forbidden, required and tiered edges) is a separate statement that
+/// enters through the search configuration; a hard constraint always wins over a factor here.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StructurePriorSpec {
+    /// Independent Bernoulli inclusion probability of every edge the map does not list.
+    pub edge_inclusion: Option<f64>,
+    /// `(from, to, p)`: the prior probability that the directed edge `from -> to` is present.
+    pub edges: Arc<[(VariableId, VariableId, f64)]>,
+    /// Inclusion probability of the edges `edges` does not list.
+    pub default_edge: Option<f64>,
+    /// Soft tiers, earliest first: a present edge from a later tier into an earlier one has its
+    /// prior odds multiplied by `exp(-soft_tier_log_penalty)`.
+    pub soft_tiers: Arc<[Arc<[VariableId]>]>,
+    /// Log-penalty of an edge against the soft tier order; `Some` exactly when tiers are listed.
+    pub soft_tier_log_penalty: Option<f64>,
+}
+
+impl StructurePriorSpec {
+    /// Whether the prior states nothing beyond the uniform prior.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.edge_inclusion.is_none()
+            && self.edges.is_empty()
+            && self.default_edge.is_none()
+            && self.soft_tiers.is_empty()
+            && self.soft_tier_log_penalty.is_none()
+    }
+
+    /// The prior as a stable statement: the per-edge probabilities and the soft tiers, in
+    /// the order declared. Variables are written by id (`v3->v4`).
+    #[must_use]
+    pub fn statement(&self) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        if let Some(p) = self.edge_inclusion {
+            parts.push(format!("edge_inclusion={p}"));
+        }
+        if !self.edges.is_empty() {
+            let edges: Vec<String> = self
+                .edges
+                .iter()
+                .map(|(from, to, p)| format!("v{}->v{}:{p}", from.raw(), to.raw()))
+                .collect();
+            parts.push(format!("edges=[{}]", edges.join(",")));
+        }
+        if let Some(p) = self.default_edge {
+            parts.push(format!("default_edge={p}"));
+        }
+        if !self.soft_tiers.is_empty() {
+            let tiers: Vec<String> = self
+                .soft_tiers
+                .iter()
+                .map(|tier| {
+                    let members: Vec<String> =
+                        tier.iter().map(|v| format!("v{}", v.raw())).collect();
+                    format!("[{}]", members.join(","))
+                })
+                .collect();
+            parts.push(format!("soft_tiers=[{}]", tiers.join(",")));
+            if let Some(penalty) = self.soft_tier_log_penalty {
+                parts.push(format!("soft_tier_log_penalty={penalty}"));
+            }
+        }
+        parts.join(";")
+    }
+
+    /// Whether the declaration is consistent over `variables`: probabilities in `(0, 1)`, no
+    /// self edge, no edge listed twice, a finite non-negative penalty exactly when tiers are
+    /// listed, and every named variable among those searched.
+    fn is_valid_over(&self, variables: &[VariableId]) -> bool {
+        let probability = |p: f64| p.is_finite() && p > 0.0 && p < 1.0;
+        let searched = |v: &VariableId| variables.contains(v);
+        if self.edge_inclusion.is_some_and(|p| !probability(p))
+            || self.default_edge.is_some_and(|p| !probability(p))
+        {
+            return false;
+        }
+        let mut seen: Vec<(VariableId, VariableId)> = Vec::with_capacity(self.edges.len());
+        for &(from, to, p) in self.edges.iter() {
+            if from == to
+                || !probability(p)
+                || !searched(&from)
+                || !searched(&to)
+                || seen.contains(&(from, to))
+            {
+                return false;
+            }
+            seen.push((from, to));
+        }
+        match (self.soft_tiers.is_empty(), self.soft_tier_log_penalty) {
+            (true, None) => true,
+            (false, Some(penalty)) => {
+                penalty.is_finite()
+                    && penalty >= 0.0
+                    && self.soft_tiers.iter().all(|tier| tier.iter().all(searched))
+            }
+            _ => false,
+        }
+    }
+}
+
+/// Edges in id order (a per-edge map is a set), then every other field.
+impl CanonicalEncode for StructurePriorSpec {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.opt_real(self.edge_inclusion);
+        let mut edges = self.edges.to_vec();
+        edges.sort_by_key(|(from, to, _)| (from.raw(), to.raw()));
+        writer.word(count(edges.len()));
+        for (from, to, p) in edges {
+            writer.word(u64::from(from.raw())).word(u64::from(to.raw())).real(p);
+        }
+        writer.opt_real(self.default_edge);
+        writer.word(count(self.soft_tiers.len()));
+        for tier in self.soft_tiers.iter() {
+            encode_variables(writer, tier);
+        }
+        writer.opt_real(self.soft_tier_log_penalty);
+    }
+}
+
 /// A structure-search method and the options that change what it returns.
 ///
 /// The conditional-independence test, multiple-testing rule, background
@@ -202,20 +332,33 @@ pub enum DiscoveryMethod {
         min_regime_len: Option<u32>,
     },
     /// Exact DAG posterior by enumeration (small graphs).
-    ExactDagPosterior,
+    ExactDagPosterior {
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
+    },
     /// Exact DAG posterior edge marginals (medium graphs, no atoms).
-    ExactDagMarginals,
+    ExactDagMarginals {
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
+    },
     /// Order MCMC DAG posterior.
     OrderMcmc {
         /// Refuse a chain set whose convergence diagnostics fail.
         diagnostics_gate: bool,
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
     },
     /// Structure MCMC DAG posterior.
-    StructureMcmc,
+    StructureMcmc {
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
+    },
     /// PC-skeleton screening followed by structure MCMC.
     CiScreenedPosterior {
         /// Soft weighting of the screened candidates.
         weight: ScreenWeight,
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
     },
     /// CI screen of every variable, then exact edge marginals of the focus variables'
     /// skeleton neighbourhood under the screen's per-edge prior. The marginals are conditional
@@ -229,11 +372,15 @@ pub enum DiscoveryMethod {
         in_probability: f64,
         /// Prior inclusion probability of an edge between any other pair.
         out_probability: f64,
+        /// Per-edge prior the caller lists; an edge it lists keeps its value over the screen's.
+        prior: Option<StructurePriorSpec>,
     },
     /// Bounded-lag DBN template posterior.
     DbnPosterior {
         /// Sample by MCMC even where exact enumeration is feasible.
         force_mcmc: bool,
+        /// Per-edge prior and soft tiers; `None` is the uniform prior.
+        prior: Option<StructurePriorSpec>,
     },
     /// Exact posterior over PAG classes of the Gaussian maximal ancestral graphs of a few
     /// variables (latent confounding allowed), scored by BIC.
@@ -276,10 +423,10 @@ impl DiscoveryMethod {
             Self::Lpcmci => "lpcmci",
             Self::JpcmciPlus => "jpcmci_plus",
             Self::Rpcmci { .. } => "rpcmci",
-            Self::ExactDagPosterior => "exact_dag_posterior",
-            Self::ExactDagMarginals => "exact_dag_marginals",
+            Self::ExactDagPosterior { .. } => "exact_dag_posterior",
+            Self::ExactDagMarginals { .. } => "exact_dag_marginals",
             Self::OrderMcmc { .. } => "order_mcmc",
-            Self::StructureMcmc => "structure_mcmc",
+            Self::StructureMcmc { .. } => "structure_mcmc",
             Self::CiScreenedPosterior { .. } => "ci_screened_posterior",
             Self::ScreenedExactMarginals { .. } => "screened_exact_marginals",
             Self::DbnPosterior { .. } => "dbn_posterior",
@@ -294,11 +441,11 @@ impl DiscoveryMethod {
     #[must_use]
     pub const fn inference(&self) -> DiscoveryInference {
         match self {
-            Self::ExactDagPosterior
-            | Self::ExactDagMarginals
+            Self::ExactDagPosterior { .. }
+            | Self::ExactDagMarginals { .. }
             | Self::ScreenedExactMarginals { .. }
             | Self::OrderMcmc { .. }
-            | Self::StructureMcmc
+            | Self::StructureMcmc { .. }
             | Self::CiScreenedPosterior { .. }
             | Self::DbnPosterior { .. }
             | Self::ExactPagPosterior
@@ -330,11 +477,11 @@ impl DiscoveryMethod {
             Self::PcmciPlus | Self::JpcmciPlus => DiscoveredClass::TemporalCpdag,
             Self::Lpcmci => DiscoveredClass::TemporalPag,
             Self::Rpcmci { .. } => DiscoveredClass::RegimeTemporalCpdags,
-            Self::ExactDagPosterior
+            Self::ExactDagPosterior { .. }
             | Self::OrderMcmc { .. }
-            | Self::StructureMcmc
+            | Self::StructureMcmc { .. }
             | Self::CiScreenedPosterior { .. } => DiscoveredClass::DagPosterior,
-            Self::ExactDagMarginals | Self::ScreenedExactMarginals { .. } => {
+            Self::ExactDagMarginals { .. } | Self::ScreenedExactMarginals { .. } => {
                 DiscoveredClass::DagEdgeMarginals
             }
             Self::DbnPosterior { .. } => DiscoveredClass::TemporalDagPosterior,
@@ -389,11 +536,31 @@ impl DiscoveryMethod {
             _ => matches!(
                 self,
                 Self::OrderMcmc { .. }
-                    | Self::StructureMcmc
+                    | Self::StructureMcmc { .. }
                     | Self::CiScreenedPosterior { .. }
                     | Self::DbnPosterior { .. }
                     | Self::PagMcmc
             ),
+        }
+    }
+
+    /// The per-edge prior and soft tiers the search runs under, if it declares any.
+    ///
+    /// A wrapper reports the prior of the search it wraps.
+    #[must_use]
+    pub fn structure_prior(&self) -> Option<&StructurePriorSpec> {
+        match self {
+            Self::ExactDagPosterior { prior }
+            | Self::ExactDagMarginals { prior }
+            | Self::OrderMcmc { prior, .. }
+            | Self::StructureMcmc { prior }
+            | Self::CiScreenedPosterior { prior, .. }
+            | Self::ScreenedExactMarginals { prior, .. }
+            | Self::DbnPosterior { prior, .. } => prior.as_ref(),
+            Self::ClassPosterior { base } | Self::BootstrapStability { base, .. } => {
+                base.structure_prior()
+            }
+            _ => None,
         }
     }
 }
@@ -401,6 +568,18 @@ impl DiscoveryMethod {
 /// The tag, then every option that changes the search.
 impl CanonicalEncode for DiscoveryMethod {
     fn encode(&self, writer: &mut CanonicalWriter) {
+        // A prior leads the encoding behind a tag no method uses; none leaves it untouched.
+        if let Self::ExactDagPosterior { prior: Some(prior) }
+        | Self::ExactDagMarginals { prior: Some(prior) }
+        | Self::OrderMcmc { prior: Some(prior), .. }
+        | Self::StructureMcmc { prior: Some(prior) }
+        | Self::CiScreenedPosterior { prior: Some(prior), .. }
+        | Self::ScreenedExactMarginals { prior: Some(prior), .. }
+        | Self::DbnPosterior { prior: Some(prior), .. } = self
+        {
+            writer.word(STRUCTURE_PRIOR_TAG);
+            prior.encode(writer);
+        }
         match self {
             Self::Pc => {
                 writer.word(1);
@@ -435,23 +614,23 @@ impl CanonicalEncode for DiscoveryMethod {
             Self::Rpcmci { min_regime_len } => {
                 writer.word(11).opt_word(min_regime_len.map(u64::from));
             }
-            Self::ExactDagPosterior => {
+            Self::ExactDagPosterior { .. } => {
                 writer.word(12);
             }
-            Self::ExactDagMarginals => {
+            Self::ExactDagMarginals { .. } => {
                 writer.word(13);
             }
-            Self::OrderMcmc { diagnostics_gate } => {
+            Self::OrderMcmc { diagnostics_gate, .. } => {
                 writer.word(14).word(flag(*diagnostics_gate));
             }
-            Self::StructureMcmc => {
+            Self::StructureMcmc { .. } => {
                 writer.word(15);
             }
-            Self::CiScreenedPosterior { weight } => {
+            Self::CiScreenedPosterior { weight, .. } => {
                 writer.word(16);
                 weight.encode(writer);
             }
-            Self::DbnPosterior { force_mcmc } => {
+            Self::DbnPosterior { force_mcmc, .. } => {
                 writer.word(17).word(flag(*force_mcmc));
             }
             Self::ScreenedExactMarginals {
@@ -459,6 +638,7 @@ impl CanonicalEncode for DiscoveryMethod {
                 max_variables,
                 in_probability,
                 out_probability,
+                ..
             } => {
                 writer.word(22).word(u64::from(*max_variables));
                 writer.real(*in_probability).real(*out_probability);
@@ -584,9 +764,9 @@ fn method_fault(method: &DiscoveryMethod) -> Option<DiscoverFault> {
         }
         DiscoveryMethod::Ges { max_subset: Some(0), .. } => Some(DiscoverFault::GesSubsetCap),
         DiscoveryMethod::ClassPosterior { base } => match &**base {
-            DiscoveryMethod::ExactDagPosterior
+            DiscoveryMethod::ExactDagPosterior { .. }
             | DiscoveryMethod::OrderMcmc { .. }
-            | DiscoveryMethod::StructureMcmc
+            | DiscoveryMethod::StructureMcmc { .. }
             | DiscoveryMethod::CiScreenedPosterior { .. }
             | DiscoveryMethod::DbnPosterior { .. } => method_fault(base),
             _ => Some(DiscoverFault::ClassPosteriorBase),
@@ -673,6 +853,10 @@ impl DiscoverQuery {
         }
         if let Some(fault) = method_fault(&self.method) {
             return invalid(fault);
+        }
+        if self.method.structure_prior().is_some_and(|prior| !prior.is_valid_over(&self.variables))
+        {
+            return invalid(DiscoverFault::StructurePrior);
         }
         if self.method.samples_posterior() {
             match self.bounds.schedule {

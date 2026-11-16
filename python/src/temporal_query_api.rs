@@ -323,13 +323,16 @@ impl PyPreparedAnalysis {
                             settings.n_chains,
                             settings.n_warmup,
                             settings.n_draws,
+                            &req,
                             &ctx,
                         )?
                     };
-                    let builder = with_response_options(
-                        antecedent::Study::series(series).graph_posterior(gp).query(query),
-                        response_options,
-                    );
+                    let study = antecedent::Study::series(series);
+                    let study = match req.accepted_posterior.take() {
+                        Some(accepted) => study.accepted_graph_posterior(accepted),
+                        None => study.graph_posterior(gp),
+                    };
+                    let builder = with_response_options(study.query(query), response_options);
                     let builder = crate::temporal_api::apply_class_completion_options(
                         builder,
                         class_prior_ordered,

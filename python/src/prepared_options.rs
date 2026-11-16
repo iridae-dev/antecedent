@@ -38,6 +38,7 @@ const KEYS: &[&str] = &[
     "estimator",
     "retain_joint_horizons",
     "fallback",
+    "structure_prior",
 ];
 
 /// Declared inference: mode plus the Bayesian prior and draw budget.
@@ -207,6 +208,9 @@ pub(crate) struct PrepareOptions {
     pub retain_joint_horizons: bool,
     /// The descriptive fallback to run on a study refused for identification, when declared.
     pub fallback: Option<crate::fallback_stage_api::FallbackDeclaration>,
+    /// Per-edge prior probabilities and soft tiers of the structure posterior a graph-posterior
+    /// route searches; read by those routes only.
+    pub structure_prior: Option<crate::bayesian::PriorArgs>,
 }
 
 impl PrepareOptions {
@@ -326,6 +330,9 @@ impl PrepareOptions {
                 crate::fallback_stage_api::FallbackDeclaration::parse(value.cast::<PyDict>()?)
             })
             .transpose()?;
+        let structure_prior = item("structure_prior")?
+            .map(|value| crate::bayesian::PriorArgs::from_dict(value.cast::<PyDict>()?))
+            .transpose()?;
         Ok(Self {
             data_diagnostics: item("data_diagnostics")?
                 .map(|value| {
@@ -350,6 +357,7 @@ impl PrepareOptions {
             estimator,
             retain_joint_horizons,
             fallback,
+            structure_prior,
         })
     }
 
@@ -517,6 +525,7 @@ impl PrepareOptions {
             estimator: self.estimator,
             retain_joint_horizons: self.retain_joint_horizons,
             fallback: None,
+            structure_prior: None,
         };
         without_bootstrap.apply(builder)
     }

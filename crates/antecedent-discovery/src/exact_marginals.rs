@@ -81,6 +81,78 @@ pub struct ExactDagMarginals {
     pub conditional_on_screen: Option<Arc<str>>,
 }
 
+impl ExactDagMarginals {
+    /// The marginals pooled across imputations: the means of the per-imputation edge
+    /// marginals (the marginals of the equal-weight mixture of the per-imputation posteriors)
+    /// and the log of the mean of the per-imputation normalizers.
+    ///
+    /// # Errors
+    ///
+    /// No marginals, or marginals over different variable counts or selections.
+    pub fn pooled_over_imputations(parts: &[Self]) -> Result<Self, DiscoveryError> {
+        let first = parts.first().ok_or_else(|| {
+            DiscoveryError::unsupported("pooling over imputations needs at least one marginal set")
+        })?;
+        if parts.iter().any(|p| p.n_vars != first.n_vars || p.variables != first.variables) {
+            return Err(DiscoveryError::unsupported(
+                "the imputations' marginals are over different variables",
+            ));
+        }
+        let share = 1.0 / parts.len() as f64;
+        let mut edge = vec![0.0; first.edge_marginals.len()];
+        for part in parts {
+            for (cell, value) in edge.iter_mut().zip(part.edge_marginals.iter()) {
+                *cell += share * value;
+            }
+        }
+        let top = parts.iter().map(|p| p.log_evidence).fold(f64::NEG_INFINITY, f64::max);
+        let mean: f64 = parts.iter().map(|p| share * (p.log_evidence - top).exp()).sum();
+        Ok(Self {
+            n_vars: first.n_vars,
+            edge_marginals: Arc::from(edge),
+            log_evidence: top + mean.ln(),
+            variables: first.variables.clone(),
+            conditional_on_screen: first.conditional_on_screen.clone(),
+        })
+    }
+}
+
+impl ExactDagMarginals {
+    /// The marginals pooled across imputations: the means of the per-imputation edge
+    /// marginals (the marginals of the equal-weight mixture of the per-imputation posteriors)
+    /// and the log of the mean of the per-imputation normalizers.
+    ///
+    /// # Errors
+    ///
+    /// No marginals, or marginals over different variable counts or selections.
+    pub fn pooled_over_imputations(parts: &[Self]) -> Result<Self, DiscoveryError> {
+        let first = parts.first().ok_or_else(|| {
+            DiscoveryError::unsupported("pooling over imputations needs at least one marginal set")
+        })?;
+        if parts.iter().any(|p| p.n_vars != first.n_vars || p.variables != first.variables) {
+            return Err(DiscoveryError::unsupported(
+                "the imputations' marginals are over different variables",
+            ));
+        }
+        let share = 1.0 / parts.len() as f64;
+        let mut edge = vec![0.0; first.edge_marginals.len()];
+        for part in parts {
+            for (cell, value) in edge.iter_mut().zip(part.edge_marginals.iter()) {
+                *cell += share * value;
+            }
+        }
+        let top = parts.iter().map(|p| p.log_evidence).fold(f64::NEG_INFINITY, f64::max);
+        let mean: f64 = parts.iter().map(|p| share * (p.log_evidence - top).exp()).sum();
+        Ok(Self {
+            n_vars: first.n_vars,
+            edge_marginals: Arc::from(edge),
+            log_evidence: top + mean.ln(),
+            variables: first.variables.clone(),
+            conditional_on_screen: first.conditional_on_screen.clone(),
+        })
+    }
+}
+
 /// Exact `P(i → j)` of the Gaussian-BIC DAG posterior of `variables`.
 ///
 /// The prior, its edge probabilities and every constraint (forbidden and required edges,

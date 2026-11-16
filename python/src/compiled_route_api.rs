@@ -248,6 +248,9 @@ fn provenance_map(provenance: &antecedent::StructureProvenance) -> HashMap<Strin
     out.insert("claim".to_owned(), hex(&provenance.claim));
     out.insert("review".to_owned(), provenance.review.to_string());
     out.insert("resolved_marks".to_owned(), provenance.resolved_marks.to_string());
+    if let Some(statement) = &provenance.structure_prior {
+        out.insert("structure_prior".to_owned(), statement.to_string());
+    }
     out.insert("digest".to_owned(), hex(&provenance.digest()));
     out
 }
@@ -294,6 +297,13 @@ impl RouteRecord {
             out.insert("calibration_reason".to_owned(), reason.to_string());
         }
         Ok(out)
+    }
+
+    /// The structure posterior the route searched, accepted with its provenance.
+    pub(crate) fn accepted_posterior(
+        &self,
+    ) -> PyResult<antecedent::analysis::structure_route::AcceptedPosterior> {
+        self.execution.accept_posterior(&self.ctx).map_err(py_err)
     }
 
     /// Accept the structure posterior the route searched and return the provenance the

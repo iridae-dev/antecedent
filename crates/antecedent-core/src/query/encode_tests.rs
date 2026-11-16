@@ -1513,12 +1513,15 @@ fn every_discover_field_reaches_the_bytes() {
             &|q| q.method = DiscoveryMethod::PagMcmc,
             &|q| {
                 q.method = DiscoveryMethod::ClassPosterior {
-                    base: Box::new(DiscoveryMethod::StructureMcmc),
+                    base: Box::new(DiscoveryMethod::StructureMcmc { prior: None }),
                 };
             },
             &|q| {
                 q.method = DiscoveryMethod::ClassPosterior {
-                    base: Box::new(DiscoveryMethod::OrderMcmc { diagnostics_gate: true }),
+                    base: Box::new(DiscoveryMethod::OrderMcmc {
+                        diagnostics_gate: true,
+                        prior: None,
+                    }),
                 };
             },
             &|q| q.bounds.alpha = 0.01,
@@ -1551,7 +1554,7 @@ fn a_wrapped_search_declares_what_it_wraps() {
     assert!(stability(DiscoveryMethod::Pc, 1).validate().is_err());
     assert!(stability(DiscoveryMethod::Pc, 10_001).validate().is_ok());
     assert!(stability(DiscoveryMethod::Rpcmci { min_regime_len: None }, 50).validate().is_ok());
-    assert!(stability(DiscoveryMethod::StructureMcmc, 50).validate().is_err());
+    assert!(stability(DiscoveryMethod::StructureMcmc { prior: None }, 50).validate().is_err());
     assert!(
         stability(DiscoveryMethod::DirectLingam { prune_threshold: f64::NAN }, 50)
             .validate()
@@ -1571,15 +1574,19 @@ fn a_wrapped_search_declares_what_it_wraps() {
         query.bounds.schedule = scheduled.then_some(schedule);
         query
     };
-    let posterior = class(DiscoveryMethod::StructureMcmc, true);
+    let posterior = class(DiscoveryMethod::StructureMcmc { prior: None }, true);
     assert!(posterior.validate().is_ok());
     assert_eq!(posterior.inference(), DiscoveryInference::Bayesian);
     assert_eq!(posterior.output(), DiscoveredClass::CpdagPosterior);
     assert!(posterior.method.samples_posterior());
-    assert!(class(DiscoveryMethod::StructureMcmc, false).validate().is_err());
-    assert!(class(DiscoveryMethod::ExactDagPosterior, false).validate().is_ok());
-    assert!(class(DiscoveryMethod::ExactDagMarginals, false).validate().is_err());
-    assert!(class(DiscoveryMethod::DbnPosterior { force_mcmc: false }, true).validate().is_ok());
+    assert!(class(DiscoveryMethod::StructureMcmc { prior: None }, false).validate().is_err());
+    assert!(class(DiscoveryMethod::ExactDagPosterior { prior: None }, false).validate().is_ok());
+    assert!(class(DiscoveryMethod::ExactDagMarginals { prior: None }, false).validate().is_err());
+    assert!(
+        class(DiscoveryMethod::DbnPosterior { force_mcmc: false, prior: None }, true)
+            .validate()
+            .is_ok()
+    );
     assert!(class(DiscoveryMethod::Pc, false).validate().is_err());
 }
 
@@ -1671,9 +1678,12 @@ fn the_new_kinds_validate_their_declarations() {
     repeated.variables = Arc::from([v(0), v(0)]);
     assert!(repeated.validate().is_err());
     let mut unscheduled = discover();
-    unscheduled.method = DiscoveryMethod::StructureMcmc;
+    unscheduled.method = DiscoveryMethod::StructureMcmc { prior: None };
     assert!(unscheduled.validate().is_err());
-    assert_eq!(DiscoveryMethod::StructureMcmc.inference(), DiscoveryInference::Bayesian);
+    assert_eq!(
+        DiscoveryMethod::StructureMcmc { prior: None }.inference(),
+        DiscoveryInference::Bayesian
+    );
     assert_eq!(DiscoveryMethod::PcmciPlus.output(), DiscoveredClass::TemporalCpdag);
     assert!(DiscoveredClass::Pag.is_equivalence_class());
     assert!(!DiscoveredClass::CpdagPosterior.is_equivalence_class());
@@ -1951,4 +1961,45 @@ fn a_joint_baseline_must_intervene_on_the_variables_the_active_world_does() {
     let three = CounterfactualQuery::new(v(2), vec![set(0, 1.0), set(1, 1.0)])
         .with_joint_control([set(0, 0.0), set(1, 0.0), set(2, 0.0)]);
     assert!(three.validate().is_err());
+}
+
+#[test]
+fn a_structure_prior_changes_the_identity_only_when_set_and_is_validated() {
+    let mut plain = discover();
+    plain.method = DiscoveryMethod::ExactDagPosterior { prior: None };
+    let mut tiered = plain.clone();
+    let prior = StructurePriorSpec {
+        edge_inclusion: None,
+        edges: Arc::from([(v(0), v(1), 0.2)]),
+        default_edge: Some(0.4),
+        soft_tiers: Arc::from([Arc::from([v(0)]), Arc::from([v(1)])]),
+        soft_tier_log_penalty: Some(1.5),
+    };
+    tiered.method = DiscoveryMethod::ExactDagPosterior { prior: Some(prior.clone()) };
+    assert!(tiered.validate().is_ok());
+    assert_ne!(digest(&plain), digest(&tiered));
+    let mut moved = tiered.clone();
+    let mut other = prior.clone();
+    other.edges = Arc::from([(v(0), v(1), 0.3)]);
+    moved.method = DiscoveryMethod::ExactDagPosterior { prior: Some(other) };
+    assert_ne!(digest(&tiered), digest(&moved));
+    assert_eq!(tiered.method.structure_prior(), Some(&prior));
+    assert!(plain.method.structure_prior().is_none());
+    let invalid = |edit: &dyn Fn(&mut StructurePriorSpec)| {
+        let mut bad = prior.clone();
+        edit(&mut bad);
+        let mut query = plain.clone();
+        query.method = DiscoveryMethod::ExactDagPosterior { prior: Some(bad) };
+        assert!(matches!(
+            query.validate(),
+            Err(QueryError::InvalidDiscover(DiscoverFault::StructurePrior))
+        ));
+    };
+    invalid(&|p| p.edges = Arc::from([(v(0), v(1), 1.0)]));
+    invalid(&|p| p.edges = Arc::from([(v(0), v(0), 0.5)]));
+    invalid(&|p| p.edges = Arc::from([(v(0), v(1), 0.5), (v(0), v(1), 0.4)]));
+    invalid(&|p| p.edges = Arc::from([(v(0), v(9), 0.5)]));
+    invalid(&|p| p.soft_tier_log_penalty = None);
+    invalid(&|p| p.soft_tier_log_penalty = Some(-1.0));
+    invalid(&|p| p.default_edge = Some(0.0));
 }

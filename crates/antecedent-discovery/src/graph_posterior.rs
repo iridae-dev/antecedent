@@ -896,6 +896,95 @@ impl GraphPosterior {
 }
 
 impl GraphPosterior {
+    /// The posterior pooled across imputations of the data: the equal-weight mixture over the
+    /// imputations of each imputation's own structure posterior.
+    ///
+    /// Structure is selected afresh on every imputed table, so the pooled mass of a graph is
+    /// `(1/K) * sum_k w_k(graph)`, and the pooled edge marginals are the means of the
+    /// per-imputation marginals. The mixture is what widens the structure uncertainty by the
+    /// uncertainty in the data itself: a graph that only some imputations support keeps the
+    /// share of them that do. Every posterior must be over the same variables, in the same
+    /// order, with DAG atoms and no lag template.
+    ///
+    /// # Errors
+    ///
+    /// No posterior, a posterior over another variable count, over atoms that are not DAGs, or
+    /// a lagged template posterior.
+    pub fn pooled_over_imputations(posteriors: &[Self]) -> Result<Self, DiscoveryError> {
+        let first = posteriors.first().ok_or_else(|| {
+            DiscoveryError::unsupported("pooling over imputations needs at least one posterior")
+        })?;
+        let n = first.n_vars;
+        for posterior in posteriors {
+            if posterior.n_vars != n {
+                return Err(DiscoveryError::unsupported(
+                    "the imputations' posteriors are over different variable counts",
+                ));
+            }
+            if posterior.atom_kind != GraphPosteriorAtomKind::Dag {
+                return Err(DiscoveryError::unsupported(
+                    "only posteriors over DAG atoms pool across imputations",
+                ));
+            }
+            if posterior.max_lag.is_some()
+                || posterior.lag_masks.is_some()
+                || posterior.lag_bidirected_masks.is_some()
+            {
+                return Err(DiscoveryError::unsupported(
+                    "a lagged template posterior does not pool across imputations",
+                ));
+            }
+        }
+        let share = 1.0 / posteriors.len() as f64;
+        let mut slot: std::collections::HashMap<AdjacencyMask, usize> =
+            std::collections::HashMap::new();
+        let mut atoms: Vec<AdjacencyMask> = Vec::new();
+        let mut mass: Vec<f64> = Vec::new();
+        for posterior in posteriors {
+            let total: f64 = posterior.weights.iter().sum();
+            for (atom, &weight) in posterior.atoms.iter().zip(posterior.weights.iter()) {
+                let at = *slot.entry(atom.clone()).or_insert_with(|| {
+                    atoms.push(atom.clone());
+                    mass.push(0.0);
+                    atoms.len() - 1
+                });
+                mass[at] += share * weight / total;
+            }
+        }
+        let total: f64 = mass.iter().sum();
+        let weights: Vec<f64> = mass.iter().map(|m| m / total).collect();
+        let square: f64 = weights.iter().map(|w| w * w).sum();
+        let ess = if square > 0.0 { 1.0 / square } else { 1.0 };
+        let (edge, orientation) = accumulate_marginals(n, &weights, &atoms);
+        let mut diagnostics = first.diagnostics.clone();
+        diagnostics.converged = posteriors.iter().all(|p| p.diagnostics.converged);
+        diagnostics.notes.push(Arc::from(format!(
+            "pooled_over_imputations imputations={} \
+             method=equal_weight_mixture_of_per_imputation_posteriors atoms={}",
+            posteriors.len(),
+            atoms.len()
+        )));
+        let rejected_invalid = posteriors.iter().map(|p| p.rejected_invalid).sum();
+        let pooled = Self::from_atoms(
+            n,
+            weights,
+            atoms,
+            edge,
+            orientation,
+            SamplingSummary { ess, diagnostics, rejected_invalid },
+        )?;
+        let shared = first
+            .algorithm
+            .as_ref()
+            .filter(|label| posteriors.iter().all(|p| p.algorithm.as_ref() == Some(*label)));
+        Ok(match shared {
+            Some(algorithm) => pooled.with_algorithm(format!("pooled_imputations({algorithm})")),
+            None => pooled.with_algorithm("pooled_imputations"),
+        })
+    }
+}
+
+impl GraphPosterior {
     /// The posterior over temporal equivalence classes a bounded-lag template posterior induces.
     ///
     /// Each template is unrolled to a window of `2L + 1` time slots of the `p` variables

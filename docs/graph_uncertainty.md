@@ -255,6 +255,27 @@ kept get one probability, the others a low one, and a caller's own per-edge prob
 is kept. In Python this is `ScreenedExactMarginals(focus=("y",), max_variables=12).run(data)`, which returns `ExactDagMarginals` over the selected variables; in Rust it is a compiled search, `DiscoverySpec::screened_exact_marginals`. The result states that its marginals are **conditional on the screen**: variables outside
 the set are not conditioned on, and no marginal is that of the full posterior.
 
+**The prior is part of the compiled query.** The Bayesian search methods that take a prior
+(`ExactDagPosterior`, `ExactDagMarginals`, `OrderMcmc`, `StructureMcmc`, `CiScreenedPosterior`,
+`ScreenedExactMarginals`, `DbnPosterior`, and a class posterior over them) carry it as a
+`StructurePriorSpec` in the core `DiscoveryMethod`, and the wire form carries it only when set, so a
+search without a prior keeps its query, wire document and configuration digest. The lowered
+program names the per-edge probabilities and soft tiers in its prior, and the provenance of the
+accepted posterior records them (`structure_prior`). In Python,
+`analyze(..., discovery=ExactDagPosterior(prior=...))` runs the search under the prior inside the
+study and the graph-posterior estimate is taken over that posterior; the result's contract states
+the prior.
+
+**Posterior pooled across imputations.** When the data are themselves uncertain (missing cells,
+corrected measurements), search each completed table and pool: the pooled mass of a graph is the
+mean of its per-imputation masses, and the pooled edge marginals are the means of the
+per-imputation marginals, so the data's uncertainty widens the structure uncertainty.
+`ExactDagPosterior(...).run(imputations=[table_1, ..., table_K])` returns the pooled posterior
+(a `GraphPosterior` tagged `pooled_imputations(exact_dag_posterior)`, or pooled `ExactDagMarginals`
+above six variables), computed in Rust by `discover_pooled_exact_dag_posterior` and
+`discover_pooled_exact_dag_marginals`. It is an ordinary graph posterior downstream. Monte-Carlo
+errors of a sampled posterior are not propagated through the mixture.
+
 ## Uncertainty over a discovered structure
 
 A frequentist search (PC, FCI, GES, LiNGAM, NOTEARS, PCMCI) returns one structure and no

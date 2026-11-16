@@ -75,7 +75,7 @@ pub use did::{
 };
 pub use discover::{
     DiscoverQuery, DiscoveredClass, DiscoveryInference, DiscoveryMethod, ScreenWeight,
-    SearchBounds, SearchSchedule,
+    SearchBounds, SearchSchedule, StructurePriorSpec,
 };
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::{QueryError, RandomizedEffectFault};
