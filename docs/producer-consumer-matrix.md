@@ -1,7 +1,9 @@
 # Producer and consumer matrix
 
-Which object can be given to which decision-side consumer, by which route, and what is
-refused. The rule behind every cell: **a consumer never infers a joint law, a posterior or a
+This page lists which result object (a producer) can be given to which decision-side
+consumer, by which route, and what is refused. Each matrix row is one producer and each
+column one consumer; the cell says whether the pair is DIRECT, needs an ADAPTER or is REFUSED
+([reading a cell](#reading-a-cell)). The rule behind every cell: **a consumer never infers a joint law, a posterior or a
 causal response from a neighbouring object.** A mean is not an outcome distribution, a point
 estimate is not a response, a posterior summary is not a prior signal, and a decision result is
 not a source. Every route in the matrix is point-only; no matrix cell is an interval, a coverage
@@ -73,8 +75,8 @@ requiring an exception, with the exact type where the consumer types its input
 | `whole_path_account` | a whole-path uncertainty account of a finite Markovian cross-world execution (an uncalibrated spread of the unit values under a declared unit sampling, bound to the execution it was derived from) | `CrossWorldExecution.whole_path_uncertainty(unit_sampling)` (`WholePathAccount`) |
 <!-- generated:producer-consumer:producers:end -->
 
-`failed_contract` is outside the original producer inventory; it is added so that the `repair`
-column has a DIRECT route. "External bound claim" is read as a bound external claim
+`failed_contract` is a failed identification contract rather than a result; it is listed so
+that the `repair` column has a DIRECT route. "External bound claim" is read as a bound external claim
 (`BoundExternalClaim`); a partial-identification interval is a separate field
 (`IdentifiedBound`) of a sensitivity artifact, not a producer here.
 

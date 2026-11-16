@@ -1,6 +1,12 @@
 # Python API
 
-New to Antecedent? Start with the [Python quickstart](start/first-analysis.md). For configuration details, use the [workflow reference](python-options.md).
+This page is the index to the Python reference: the generated symbol reference, the guides that
+document each area by task, and a table of every public module. In the module table, each row
+gives the module name as imported under `antecedent`, one line on what it does, and the page
+that covers it by task.
+
+New to Antecedent? Start with the [Python quickstart](start/first-analysis.md). For options and
+defaults, use the [workflow reference](python-options.md).
 
 <!-- pdoc adds this sibling directory after MkDocs builds the narrative. -->
 <strong><a href="../python/antecedent.html">Browse the Python API</a></strong>
@@ -8,15 +14,6 @@ New to Antecedent? Start with the [Python quickstart](start/first-analysis.md). 
 Read the Docs builds this reference from the matching Antecedent release (and
 falls back to the checked-out source only before that release reaches PyPI).
 The link stays within the documentation version you are reading.
-
-`discovery.GraphPosterior.from_graphs()` requires atoms of one graph class and
-matching variable order. Its packed ADMG representation supports bow-free
-graphs: a pair may carry a directed edge or a bidirected edge, but cannot carry
-both. A bow raises an argument error rather than dropping its directed edge or
-changing the posterior's scientific identity. Use an explicit `Admg` with
-`identify(graph=..., query=...)` or `prepare(data, graph=..., query=...)` to
-retain such a graph; identification can still refuse an unidentifiable effect.
-This encoding limit does not prohibit bows in the native ADMG graph model.
 
 To generate a local reference for the installed package, run:
 
@@ -71,6 +68,7 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `artifacts` | Durable format-0.5 artifacts for causal queries and results | [artifacts.md](artifacts.md) |
 | `attribution` | Attribution helpers | [guides/intrinsic-influence.md](guides/intrinsic-influence.md) |
 | `categorical_treatment` | Categorical treatments: ordered and unordered regimes with a declared reference | [guides/treatment-levels.md](guides/treatment-levels.md) |
+| `choice_inference` | Qualified prior reuse, pooled and hierarchical posteriors, stopping decisions, exact operating characteristics, EVSI study ranking and replayable result artifacts for repeated categorical choices | [choice-evidence.md](choice-evidence.md) |
 | `citations` | Cite the methods behind a result: sources, caveats and the provenance records they come from | [guides/citing-a-study.md](guides/citing-a-study.md) |
 | `cohort_decision` | A retained fitted effect model decides for a declared cohort | [decision-reliability.md](decision-reliability.md) |
 | `cohort_pushdown` | Cohort-checked column projection and filter pushdown over a table or a table file | [guides/large-tables.md](guides/large-tables.md) |
@@ -85,6 +83,7 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `cyclic` | Nonlinear cyclic equilibrium SCMs with retained Rust execution and replay | [tutorials/feedback-three-questions.md](tutorials/feedback-three-questions.md) |
 | `data_diagnostics` | Fit-free advisory data diagnostics, evaluated by the Rust engine | [guides/data-diagnostics.md](guides/data-diagnostics.md) |
 | `data` | Owned immutable data constructors and explicit conversion probes | [start/first-analysis.md](start/first-analysis.md) |
+| `decision_evidence` | Joint experimental outcomes, derived decision quantities, assumption ranges and robust / assumption-dependent / unresolved decisions | [decision-evidence.md](decision-evidence.md) |
 | `decision_reliability` | Reliability of sampled and adaptively selected decisions | [decision-reliability.md](decision-reliability.md) |
 | `decision_robust` | Admissibility rules and robustness for decisions under structural uncertainty | [sensitivity-and-robustness.md](sensitivity-and-robustness.md) |
 | `decision` | Declare a decision problem and evaluate it on aligned joint draws | [decisions.md](decisions.md) |
@@ -100,8 +99,6 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `errors` | The exception surface: `CausalError` and its concrete subclasses | [reference/refusal-codes.md](reference/refusal-codes.md) |
 | `estimation` | High-level estimation entry points | [python-options.md](python-options.md) |
 | `estimators` | Typed front-end over the `estimator_config=` dict kwarg | [python-options.md](python-options.md) |
-| `choice_inference` | Qualified prior reuse, pooled and hierarchical posteriors, stopping decisions, exact operating characteristics, EVSI study ranking and replayable result artifacts for repeated categorical choices | [choice-evidence.md](choice-evidence.md) |
-| `decision_evidence` | Joint experimental outcomes, derived decision quantities, assumption ranges and robust / assumption-dependent / unresolved decisions | [decision-evidence.md](decision-evidence.md) |
 | `evidence_ledger` | The evidence ledger: which evidence contributed to a result, how it overlaps, and what changed | [evidence-ledger.md](evidence-ledger.md) |
 | `execution_attempt` | Diagnostic work observations around one original synchronous native execution | [recalculation-capabilities.md](recalculation-capabilities.md) |
 | `execution` | Reusable execution policies with shared native admission accounting | [python-options.md](python-options.md) |
@@ -128,7 +125,7 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `interference` | Randomization designs and exposure mappings for interference queries | [guides/designs/interference-and-network-exposure.md](guides/designs/interference-and-network-exposure.md) |
 | `intervention_callbacks` | Batch callbacks for intervention programs | [guides/intervention-programs.md](guides/intervention-programs.md) |
 | `intervention_programs` | Closed-form intervention programs for fitted graphical causal models | [guides/intervention-programs.md](guides/intervention-programs.md) |
-| `intervention` | Typed intervention specifications for :class:`InterventionResponse` | [causal-responses.md](causal-responses.md) |
+| `intervention` | Typed intervention specifications for `InterventionResponse` | [causal-responses.md](causal-responses.md) |
 | `intrinsic_influence` | Intrinsic causal influence: how much of a target's variance each noise term explains | [guides/intrinsic-influence.md](guides/intrinsic-influence.md) |
 | `inverse_query` | Generalized finite inverse decision query | [guides/inverse-outcome.md](guides/inverse-outcome.md) |
 | `inverse_sources` | Forward sources of an inverse query, and the associational observational route | [guides/inverse-outcome.md](guides/inverse-outcome.md) |
@@ -212,5 +209,16 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `vector_treatment` | Joint vector-treatment coefficients | [guides/treatment-levels.md](guides/treatment-levels.md) |
 
 Every stage module is also reachable lazily from the root, for example `antecedent.design`, without a separate import.
+
+## Graph posteriors over ADMGs
+
+`discovery.GraphPosterior.from_graphs()` requires atoms of one graph class and
+matching variable order. Its packed ADMG representation supports bow-free
+graphs: a pair may carry a directed edge or a bidirected edge, but cannot carry
+both. A bow raises an argument error rather than dropping its directed edge or
+changing the posterior's scientific identity. Use an explicit `Admg` with
+`identify(graph=..., query=...)` or `prepare(data, graph=..., query=...)` to
+retain such a graph; identification can still refuse an unidentifiable effect.
+This encoding limit does not prohibit bows in the native ADMG graph model.
 
 For Rust, use `cargo doc -p antecedent --open` for this checkout, or visit the [published crate reference](https://docs.rs/antecedent/3.0.0/antecedent/).

@@ -1,5 +1,16 @@
 # Artifact format
 
+An artifact is the portable, versioned byte record of a result, query, posterior or other
+scientific product: `outcome.export()` writes one and `ant.load(...)` consumes it. This page
+is the reference for how to persist and load artifacts from Python, the container layout, the
+artifact kinds and their sections, and migration between format versions. In the kind tables,
+each row is one artifact kind and the named sections its container holds.
+
+For a task-led introduction, read [artifacts and handoff](guides/build/artifacts-and-handoff.md);
+*loaded*, *replayed* and *identity-bound* are defined in the [glossary](concepts/glossary.md).
+
+## Format version
+
 Library package version is tracked independently from the durable artifact format.
 The durable format is **`FormatVersion { major: 0, minor: 5 }`**
 (`antecedent_io::STABLE_FORMAT`). Format 0.5 includes the identified-set interval
@@ -47,8 +58,6 @@ independent JSON-safe editable copy.
 
 See [the notebook-to-system journey](guides/notebook-to-system.md) and
 [the migration guide](migration.md).
-
-<a id="package-15-payloads"></a>
 
 ## Score tables and distribution payloads
 
@@ -235,7 +244,7 @@ report = loaded.inspect().to_dict()
 assert bytes(loaded.export()) == bytes(encoded)
 
 # Rebinding the study does not change this execution or its archive.
-# The second click is estimate(rebind(study, data=...)); a second analyze() re-prepares.
+# To run on new data, estimate(rebind(study, data=...)); a second analyze() re-prepares.
 updated = ant.estimate(ant.rebind(result.study, data=new_data))
 assert result.export() == encoded
 ```
@@ -363,10 +372,11 @@ NetworkX `undirected=true`. ADMG bidirected edges use DOT `dir=both` / GML
 `bidirected 1` / NetworkX `bidirected=true`. PAG circle/conflict marks use
 `mark_a` / `mark_b` attributes.
 
-### Interactive / artifact-first (discovery off the estimate click)
+### Interactive / artifact-first (discovery off the estimate path)
 
-Discovery is evidence and is **not** on the interactive estimate path. Preferred
-spreadsheet / dashboard spine:
+Discovery is evidence and is **not** on the interactive estimate path. For an
+interactive host such as a spreadsheet or dashboard, run discovery once and
+estimate from the accepted graph:
 
 ```text
 ant.discovery.discover(data, method=..., accept_discovered=True)  once  →  AcceptedGraph
@@ -378,7 +388,7 @@ ant.discovery.discover(data, method=..., accept_discovered=True)  once  →  Acc
 
 Static graphs: Dag / Cpdag / Pag / Admg. Temporal completions: `TemporalDag`
 (and reviewed `TemporalCpdag` / `TemporalPag`) from PCMCI / PCMCI+ / LPCMCI —
-estimate-only pulse clicks never re-run discovery.
+estimating a pulse on the accepted graph never re-runs discovery.
 
 Discovery is always an explicit, executed step. `ant.prepare` and `ant.analyze` refuse an
 unexecuted discovery configuration and name `ant.discovery.discover` as the remedy; with

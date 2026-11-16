@@ -4,7 +4,7 @@ You can follow a numerical claim in Antecedent from its source method to the cal
 
 Antecedent's development applies high-assurance engineering principles. The practical question behind that approach is: **what evidence supports this particular answer?** A published method, a passing test and a measured interval answer different parts of that question. The records keep those distinctions available for review.
 
-For the shorter introduction, read [Assurance](../concepts/assurance.md). For interpreting an analysis you have already run, start with [Results are claims](../concepts/results-are-claims.md).
+For the shorter introduction, read [Assurance](../concepts/assurance.md). For interpreting an analysis you have already run, start with [Results are claims](../concepts/results-are-claims.md). The first two sections define the evidence model and how its records are earned; the rest of the guide is the worked AIPW and arrow-strength example.
 
 ## The evidence model
 
@@ -14,7 +14,7 @@ Every reported answer rests on one small model. Five terms carry it; other pages
 | --- | --- | --- |
 | **Supported** | A unit has a provenance record and an executed independent scientific check (known truth, an analytic value, or a reference implementation) with a current passing record in the scientific-records ledger. A change to anything a check depends on makes its record owed and the unit `not_supported` until it is re-earned on a development machine (see [Earning and checking the records](#earning-and-checking-the-records)). A unit that reports an interval also has an independent construction check of that interval. A unit is a support-matrix cell, a graphless design-family row, or a capability outside the matrix. | The route runs. |
 | **`not_supported`** | A unit lacks that evidence, including a current passing record of a check it cites (the missing evidence reads `owed: <selector>`). A failing check is never recorded, so it leaves the unit here. | A release build refuses with reason `not_supported`, a detail, and the missing evidence. |
-| **Scientific refusal** | The question is not identified, is a typed n/a, has an invalid declaration or input, names no such method, is numerically impossible, exceeds a resource limit, or is cancelled. | Refuses in every build, with its own reason code, never `not_supported`. |
+| **Scientific refusal** | The question is not identified, is a typed n/a, has an invalid declaration or input, names no such method, or is numerically impossible. A run that exceeds a resource limit or is cancelled is an operational failure, not a scientific statement, but it is likewise never `not_supported`. | Refuses in every build, with its own reason code, never `not_supported`. |
 | **Calibration status** | `calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`, derived from coverage records. | Attached to every reported interval. It never refuses and never changes support; `measured_below_nominal` only annotates the result. |
 | **Development build** | Cargo feature `development`. In Python, build with `scripts/dev_python.sh` and read `antecedent.build_flavor()`. | Runs `not_supported` routes. Results carry `would_refuse` (the code, the detail and the missing evidence). Release consumers refuse development-stamped artifacts. |
 

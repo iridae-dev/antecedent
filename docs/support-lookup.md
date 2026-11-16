@@ -1,5 +1,10 @@
 # Find a supported analysis cell
 
+This page lists every supported graph-based analysis cell and lets you filter them. Each row is
+one cell, a combination of query, graph class, structure source (explicit, accepted or a graph posterior),
+inference and validation setting, with the estimator routes that run it; a combination with no
+row is not supported.
+
 Choose the exact query, graph class, structure source, inference and validation settings. This view filters **supported graph-based cells** from the same generated registry used by the native support matrix; it does not decide whether your graph is true or your observations have adequate support. Each reported interval carries a calibration status (`calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`), which annotates the result and never decides whether the cell runs.
 
 <div id="support-lookup">

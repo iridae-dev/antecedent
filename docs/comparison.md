@@ -1,29 +1,30 @@
 # Antecedent and other causal libraries
 
-This page is a selection aid, not a competitor benchmark. It describes
-Antecedent from contracts verified in this repository and links to other
-projects for capabilities that may fit a different workflow. Claims about
-another project should be checked against that project's current documentation.
+This page helps you choose between Antecedent and DoWhy, EconML, Tigramite or causal-learn for
+a given workflow. It is a selection aid, not a benchmark: it describes Antecedent from
+contracts checked in this repository, states where each other project may fit better, and
+makes no performance comparison. Check any statement about another project against that
+project's current documentation.
 
-Antecedent is an identification-first Rust engine with Python bindings. Its
-distinctive workflow is to keep the query, graph class, identification status,
-empirical support, inference mode, and validation contract explicit through
-estimation.
+Antecedent is an identification-first Rust engine with Python bindings. It keeps the query,
+graph class, identification status, empirical support, inference mode and validation
+contract explicit through estimation. The terms *identified*, *supported* and *calibration
+status* are used here as defined in the [glossary](concepts/glossary.md).
 
 ## How Antecedent is different: epistemic type safety
 
-Antecedent is built to make certain scientifically invalid transformations as difficult as type errors are in a programming language.
+Antecedent is built to make certain scientifically invalid substitutions as hard to make as type errors are in a programming language: the two things are represented as different kinds of object.
 
-For example, Antecedent explicitly tries to prevent these equivalences:
+It aims to keep these pairs distinct:
 
-- `estimated == identified`
-- `confidence interval == structural uncertainty`
-- `discovered graph == known graph`
-- `search failed == impossible`
-- `implemented algorithm == supported scientific claim`
-- `same numeric answer == same causal analysis`
+- an estimated quantity and an identified one;
+- a confidence interval and structural uncertainty;
+- a discovered graph and a known graph;
+- a search that stopped and a proof that no answer exists;
+- an implemented algorithm and a supported scientific claim;
+- the same numeric answer and the same causal analysis.
 
-That means that a result isn't fundamentally:
+A result is therefore not only:
 
 ```
 ATE = 0.23 ± 0.04
@@ -48,11 +49,9 @@ Claim:
     answer shape = point | bounds | partial | response | ...
 ```
 
-Antecedent explicitly has result shapes such as point, bounds, partial, response, structured, and unavailable. It does not want a partially identified problem to become a scalar simply because a consumer expects a float.
+The answer kinds are `point`, `bounds`, `partial`, `response`, `structured`, `policy_value`, `distribution`, `associational`, `refused` and `unavailable` (see [results are claims](concepts/results-are-claims.md#answer-shapes)). A partially identified problem returns bounds or a partial answer; it is not reduced to a scalar because a consumer expects a float.
 
-That distinction is much deeper than having better diagnostics.
-
-Compared to a typical causal influence library:
+The table contrasts this design with an estimator-oriented workflow in general terms. The left column is a generalisation, not a description of any one library; individual projects differ, and several offer explicit identification or refutation steps.
 
 | Dimension              | Typical estimator-oriented library                 | Antecedent                                                                                      |
 | ---------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -63,12 +62,12 @@ Compared to a typical causal influence library:
 | Graph                  | Often absent or a DAG                              | DAG / ADMG / CPDAG / PAG / temporal classes remain semantically distinct                        |
 | Discovery              | Often separate package                             | Discovery produces **evidence**, not automatic truth                                            |
 | Structural uncertainty | Often resolved before estimation                   | Can propagate through to bounds/envelopes/partial answers                                       |
-| Unsupported case       | Error, NaN, undefined use, or documentation caveat | **Typed refusal with reason**                                                                   |
-| Uncertainty            | Usually sampling/model CI                          | Sampling, graph, orientation, identification, mechanism, regime, measurement etc. kept separate |
+| Unsupported case       | Often an error or a documentation caveat           | **Typed refusal with a registered reason code**                                                 |
+| Uncertainty            | Usually sampling/model CI                          | Sampling, parameter, structural, assumption and numerical uncertainty kept separate             |
 | Output                 | Estimate/model                                     | **Claim + contract + diagnostics + provenance**                                                 |
-| Reuse                  | Refit estimator                                    | Re-execute a compiled `Study`                                                                   |
-| Serialization          | Model/result pickle/object                         | Versioned semantic artifact intended to preserve claim meaning                                  |
-| Correctness evidence   | Tests                                              | Tests + provenance + external oracles + conformance + calibration records                       |
+| Reuse                  | Refit estimator                                    | Branch a prepared study with `rebind` or `reconfigure`; `branch.reuse` names what was retained  |
+| Serialization          | Model/result pickle/object                         | Versioned artifact that carries the claim's contract and identities                             |
+| Correctness evidence   | Project-specific                                   | Tests, method provenance records, independent checks and scoped calibration records ([assurance](concepts/assurance.md)) |
 
 
 ## What Antecedent is supported to run
@@ -237,7 +236,7 @@ covers a binary-treatment linear SCM at one sample size; it does not support
 nonlinear-provider or CATE interval calibration. Read each result's calibration status and matching coverage record;
 coverage for a marginal ATE does not support pointwise CATE intervals.
 
-That is not a 12-estimator EconML clone:
+This is not a reimplementation of EconML's estimator set:
 learners never choose the adjustment set, and the EconML handoff remains
 an identification-set export.
 
@@ -287,7 +286,7 @@ downstream analysis is supported, not applicable, or refused.
 
 The following are current product boundaries or explicit matrix refusals:
 
-- no 12-estimator EconML clone (native DML, DRLearner, and honest causal-forest CATE; the EconML adapter emits a set, not a learner);
+- no reimplementation of EconML's estimator set (native DML, DRLearner, and honest causal-forest CATE; the EconML adapter emits a set, not a learner);
 - no plotting module;
 - no R, Julia, or JavaScript bindings;
 - no complete PAG-native ID/IDC;

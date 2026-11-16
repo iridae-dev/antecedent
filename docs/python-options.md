@@ -1,7 +1,14 @@
 # Python workflow reference
 
-Start with the [Python quickstart](start/first-analysis.md) for a complete example.
-Use this page when you need to configure or integrate an analysis.
+This page lists the options of the Python workflow by task: preparing and inspecting a study,
+choosing a population, configuring estimators and inference, branching, and exporting. Each
+section names the option, its default, what it changes in the result and the refusal code you get
+when it does not apply.
+
+Start with the [Python quickstart](start/first-analysis.md) for a complete example. Snippets
+assume `import antecedent as ant`; refusal codes are explained in the
+[refusal code reference](reference/refusal-codes.md), and terms such as *supported* and
+*calibration status* in the [glossary](concepts/glossary.md).
 
 ## Prepare explicitly when useful
 
@@ -55,11 +62,14 @@ retargeting without prepared scores returns `score_table_unavailable`.
 
 ### Refusal codes
 
-A refusal carries a registered `reason_code` (and `error.report.code`). An
+A returned refusal carries its registered code as `outcome.refusal.code`; a raised
+one carries it as `error.reason_code` (and `error.report.code`). The
+[refusal code reference](reference/refusal-codes.md) lists each code with its remedy. An
 estimator that does not implement the requested inference is refused with
-`estimator_inference_mismatch`; a question with no identified estimand raises
-`antecedent.errors.EffectNotIdentified` with `identification_status` and
-`search_complete`.
+`estimator_inference_mismatch`; a question with no identified estimand is refused with
+`effect_not_identified`, and the retained `antecedent.errors.EffectNotIdentified`
+(`outcome.refusal.raise_error()` raises it) carries `identification_status`,
+`search_complete` and `search_capped`.
 
 `result.inspect().to_dict()` and `ant.load(result.export()).inspect().to_dict()`
 report the same portable record: `contract` is the exported contract section,
@@ -287,13 +297,16 @@ The propensity-score estimators (`PropensityWeighting`, `PropensityMatching`,
 `PropensityStratification`, `DistanceMatching` and `Aipw` in
 `antecedent.estimators`) take `overlap=Overlap(clip=..., trim=...)`, or the
 `estimator_config` key `overlap={"clip": ..., "trim": ...}`. By default
-propensities are clipped into `[0.01, 0.99]` and no unit is trimmed, and
-`Overlap()` spells out that default. `clip` bounds the propensities used in
+propensities are clipped into `[0.01, 0.99]` and no unit is trimmed; `DML` and
+`DRLearner` also accept `overlap=`. `Overlap()` declares the default bounds explicitly and
+computes the same estimate, with one difference: without a declared policy a propensity
+within 1e-8 of 0 or 1 refuses as `positivity_violated`, while `Overlap()` lets the clip
+govern those rows. `clip` bounds the propensities used in
 the weights, and `trim` drops units whose propensity lies outside
 `[trim, 1 - trim]`. Trimming narrows the population the effect describes.
 `None` turns either one off. A non-default policy changes the inference-binding
 identity and is part of the calibration key, so it reports
-`not_measured` unless a coverage record measured that policy.
+`outside_measured_scope` or `not_measured` unless a coverage record measured that policy.
 
 ## Penalize the AIPW propensity
 

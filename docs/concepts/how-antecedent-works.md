@@ -56,14 +56,17 @@ An `Outcome` holds either the result or a typed scientific refusal. Operational 
 
 ## What travels with a result
 
-Four questions travel with every claim:
+Five questions travel with every claim, each in its own slot of `result.inspect()`:
 
 | Question | Meaning |
 | --- | --- |
 | Identification | Do the assumptions and available evidence determine the requested quantity? |
 | Support | Does the actual data cover the population, intervention or region the answer needs? |
-| Uncertainty | What remains uncertain, which sources are represented, and what supports a reported interval? |
+| Uncertainty | What remains uncertain, which sources are represented, and how was any interval constructed? |
+| Calibration | Does a coverage record that still applies to this code support the reported interval? An annotation on the interval; it never decides whether the route runs |
 | Assumptions | What was taken as given to make the claim? |
+
+Support in this table is empirical: whether the observations cover the request. Whether the route itself is *supported* (has provenance and a passing independent check, so a release build runs it) is a property of the route, recorded beside the result; see [assurance](assurance.md).
 
 The slots stay distinct. A predictive model cannot create identification, more rows cannot repair a missing causal assumption, a diagnostic cannot prove a graph, and a prior cannot turn structural nonidentification into an identified effect. [Results are claims](results-are-claims.md) describes how to read them together.
 
