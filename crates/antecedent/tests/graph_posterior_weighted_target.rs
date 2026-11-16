@@ -296,26 +296,89 @@ fn the_bayesian_route_equals_the_hand_mixture_of_per_structure_posteriors() {
     );
 }
 
-#[test]
-fn bayesian_refuters_refuse_a_declared_target_with_a_reason() {
-    for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
-        let outcome = Study::tabular(data())
-            .graph_posterior(posterior())
-            .inference(bayesian())
-            .refute(suite)
-            .weighted_target(target())
-            .query(query())
-            .build()
-            .and_then(|study| study.run(&ctx()));
-        let error = outcome.expect_err("a refuter cannot re-estimate a weighted target");
-        assert!(error.to_string().contains("weighted target"), "{error}");
+/// A posterior whose one structure identifies the planted effect with the target's covariate in
+/// the adjustment set, so every refuter replicate has that structure to re-estimate.
+fn refutable_posterior() -> GraphPosterior {
+    let masks = [mask_of(&structures()[0])];
+    let mut marginals = vec![0.0; 9];
+    for &(a, b) in &structures()[0] {
+        marginals[a * 3 + b] = 1.0;
     }
-    // The same refuters run for all rows.
-    Study::tabular(data())
-        .graph_posterior(posterior())
-        .inference(bayesian())
-        .refute(RefuteSuite::Cheap)
-        .query(query())
-        .build()
-        .unwrap();
+    GraphPosterior::from_atoms(
+        3,
+        vec![1.0],
+        masks,
+        marginals.clone(),
+        marginals,
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("weighted_target_refuters"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap()
+    .with_algorithm("weighted_target_refuters")
+}
+
+fn refuted(bayes: bool, suite: RefuteSuite) -> StudyResult {
+    let builder = Study::tabular(data())
+        .graph_posterior(refutable_posterior())
+        .refute(suite)
+        .weighted_target(target())
+        .query(query());
+    let builder =
+        if bayes { builder.inference(bayesian()) } else { builder.estimator(estimator()) };
+    builder.build().unwrap().run(&ctx()).unwrap()
+}
+
+fn report<'a>(result: &'a StudyResult, id: &str) -> &'a antecedent_validate::RefutationReport {
+    result
+        .refutations
+        .iter()
+        .find(|report| &*report.refuter == id)
+        .unwrap_or_else(|| panic!("no {id} report in {:?}", result.refutations))
+}
+
+/// The all-rows effect of the planted `tau(z) = 1 + 0.5 z` is about 1; the kernel target around
+/// `z = 0.5` has a larger one, so a refuter that re-estimated all rows would sit near 1.
+fn assert_targeted(result: &StudyResult, id: &str) {
+    let reported = report(result, id);
+    let targeted = result.estimate().as_effect().unwrap().ate;
+    assert!(
+        (reported.refuted_ate - targeted).abs() < 0.15,
+        "{id} re-estimated {} against the targeted effect {targeted}",
+        reported.refuted_ate
+    );
+    assert!(
+        (reported.refuted_ate - 1.0).abs() > 0.1,
+        "{id} re-estimated {}, the all-rows effect",
+        reported.refuted_ate
+    );
+}
+
+#[test]
+fn every_refuter_re_estimates_the_targeted_effect_under_frequentist_inference() {
+    let result = refuted(false, RefuteSuite::Full);
+    assert_targeted(&result, "random.common_cause");
+    assert_targeted(&result, "data.subset");
+    // The placebo treatments centre on zero whatever the population.
+    assert!(report(&result, "placebo.treatment").refuted_ate.abs() < 0.3);
+}
+
+#[test]
+fn every_refuter_re_estimates_the_targeted_effect_under_bayesian_inference() {
+    let result = refuted(true, RefuteSuite::Full);
+    assert_targeted(&result, "random.common_cause");
+    assert_targeted(&result, "data.subset");
+    assert!(report(&result, "placebo.treatment").refuted_ate.abs() < 0.3);
+}
+
+#[test]
+fn the_cheap_and_placebo_suites_run_for_a_target_too() {
+    for bayes in [false, true] {
+        for suite in [RefuteSuite::Cheap, RefuteSuite::PlaceboAndRcc] {
+            let result = refuted(bayes, suite);
+            assert!(!result.refutations.is_empty(), "{suite:?} under bayes={bayes}");
+        }
+    }
 }

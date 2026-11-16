@@ -1381,6 +1381,19 @@ impl EnvelopeRefutation<'_> {
         workspace: &mut EstimationWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
+        self.run_targeted(None, atoms, workspace, ctx)
+    }
+
+    /// [`Self::run`] where, for a declared weighted target, every atom's refuters re-estimate
+    /// the targeted effect through `refits` (the atom's estimand under the study's estimator,
+    /// the registered weights, the overlap gate re-checked on the rows a replicate keeps).
+    pub(super) fn run_targeted(
+        self,
+        refits: Option<&Arc<crate::analysis::targeted_refit::TargetedRefits>>,
+        atoms: &[EnvelopeRefuteAtom],
+        workspace: &mut EstimationWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
         let Self { data, query, suite, estimator, custom, temporal: temporal_frame } = self;
         if matches!(suite, RefuteSuite::None) && custom.is_empty() {
             return Ok((Vec::new(), Vec::new()));
@@ -1409,6 +1422,7 @@ impl EnvelopeRefutation<'_> {
                 }),
                 _ => None,
             };
+            let refit = refits.map(|refits| refits.refit_for(&atom.estimand));
             let outcomes = RefutationRun {
                 data,
                 estimand: &atom.estimand,
@@ -1419,7 +1433,7 @@ impl EnvelopeRefutation<'_> {
                 custom,
                 temporal,
             }
-            .outcomes(workspace, None, ctx)?;
+            .outcomes_with(refit.as_deref(), workspace, None, ctx)?;
             per_atom.push((atom.weight, ValidationSuite::reports_only(&outcomes)));
             for (validator, reason) in ValidationSuite::not_applicable_only(&outcomes) {
                 na_weight

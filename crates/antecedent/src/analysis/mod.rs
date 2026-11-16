@@ -169,6 +169,7 @@ pub mod fallback;
 pub mod file_table;
 mod finite_discrete;
 pub mod scope_refusals;
+mod targeted_refit;
 mod weighted_target;
 pub use finite_discrete::{FiniteDiscreteContrast, finite_discrete_contrast};
 pub(crate) mod four_way;

@@ -273,6 +273,8 @@ struct GraphPosteriorFrequentistRoute<'a> {
     /// atoms with no directed path from the treatment to the outcome, whose effect is exactly
     /// zero on every population and which are therefore not fitted.
     no_path_keys: Option<&'a std::collections::HashSet<u64>>,
+    /// The declared overlap floor of a weighted target, re-checked by every refuter replicate.
+    target_min_ess: Option<f64>,
 }
 
 impl GraphPosteriorFrequentistRoute<'_> {
@@ -730,17 +732,6 @@ impl super::super::Study {
         let conditional = matches!(self.query, CausalQuery::ConditionalEffect(_));
         let targeted = !conditional
             && !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved);
-        if targeted && !matches!(self.settings.refute, RefuteSuite::None) {
-            return Err(crate::unsupported_reason!(
-                "option_not_applicable",
-                "the Bayesian refuters refit each structure on perturbed rows (placebo \
-                 treatments, a random common cause, row subsets) with the all-rows population, \
-                 so none of them re-estimates the effect on a declared weighted target: the \
-                 target's weights belong to the analysed rows and do not follow a perturbed \
-                 table. Next attempt: declare refute=none for the targeted effect and refute \
-                 the same structures for all rows, or use the frequentist mixture"
-            ));
-        }
         let zero_keys = targeted.then(|| atoms_without_directed_path(gp, query));
 
         let (identified, identify_cached) =
@@ -1110,6 +1101,15 @@ impl super::super::Study {
             graph_dependent,
         } = *input;
         let mut refute_ws = EstimationWorkspace::default();
+        // A declared target: the refuters re-estimate the targeted effect.
+        let refits = crate::analysis::targeted_refit::TargetedRefits::new(
+            query,
+            self.declared.population_registry.as_ref(),
+            self.declared.weighted_target.as_ref().map(|report| report.min_ess_fraction()),
+            crate::analysis::targeted_refit::RefitEngine::Bayesian(Box::new(est.clone())),
+        );
+        let refute_query =
+            refits.as_ref().map_or_else(|| query.clone(), |refits| refits.all_rows_query());
         let mut refutations = match self.settings.refute {
             RefuteSuite::None => Vec::new(),
             RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc | RefuteSuite::Full => {
@@ -1123,13 +1123,18 @@ impl super::super::Study {
                 for group in groups {
                     let (atom_reports, mut notes) = EnvelopeRefutation {
                         data,
-                        query,
+                        query: &refute_query,
                         suite: self.settings.refute,
                         estimator: "bayesian.gcomp",
                         custom: &self.declared.custom_validators,
                         temporal: None,
                     }
-                    .run(group, &mut refute_ws, ctx)?;
+                    .run_targeted(
+                        refits.as_ref(),
+                        group,
+                        &mut refute_ws,
+                        ctx,
+                    )?;
                     if graph_dependent {
                         notes.retain(|d| d.code.as_ref() != "refute.envelope.effect_mixture");
                     }
@@ -1276,6 +1281,11 @@ impl super::super::Study {
             estimator_id,
             conditional,
             no_path_keys: no_path_keys.as_ref(),
+            target_min_ess: self
+                .declared
+                .weighted_target
+                .as_ref()
+                .map(|report| report.min_ess_fraction()),
         };
         let atoms =
             Self::estimate_graph_posterior_frequentist_atoms(&route, &identified, &graphs, ctx)?;
@@ -1475,6 +1485,19 @@ impl super::super::Study {
         let GraphPosteriorFrequentistRoute { data, query, run, estimator_id, .. } = *route;
         let estimator = estimator_id.as_str();
         let mut refute_ws = EstimationWorkspace::default();
+        // A declared target: the refuters re-estimate the targeted effect.
+        let refits = crate::analysis::targeted_refit::TargetedRefits::new(
+            query,
+            run.population_registry,
+            route.target_min_ess,
+            crate::analysis::targeted_refit::RefitEngine::Frequentist {
+                spec: run.spec.clone(),
+                overlap_policy: run.overlap_policy,
+            },
+        );
+        let refute_query =
+            refits.as_ref().map_or_else(|| query.clone(), |refits| refits.all_rows_query());
+        let query = &refute_query;
         let (refutations, na_diagnostics) = if graph_dependent {
             let mut reports = Vec::new();
             let mut notes = Vec::new();
@@ -1490,7 +1513,12 @@ impl super::super::Study {
                     custom: run.custom_validators,
                     temporal: None,
                 }
-                .run(std::slice::from_ref(atom), &mut refute_ws, ctx)?;
+                .run_targeted(
+                    refits.as_ref(),
+                    std::slice::from_ref(atom),
+                    &mut refute_ws,
+                    ctx,
+                )?;
                 reports.append(&mut per_atom);
                 notes.append(&mut per_notes);
             }
@@ -1513,7 +1541,7 @@ impl super::super::Study {
                 custom: run.custom_validators,
                 temporal: None,
             }
-            .run(refute_atoms, &mut refute_ws, ctx)?
+            .run_targeted(refits.as_ref(), refute_atoms, &mut refute_ws, ctx)?
         };
         Ok((refutations, na_diagnostics))
     }

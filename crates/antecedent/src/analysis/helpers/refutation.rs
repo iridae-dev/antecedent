@@ -87,6 +87,19 @@ impl RefutationRun<'_> {
         propensity: Option<&mut antecedent_stats::PropensityWorkspace>,
         ctx: &ExecutionContext,
     ) -> Result<Vec<antecedent_validate::ValidationOutcome>, CausalError> {
+        self.outcomes_with(None, workspace, propensity, ctx)
+    }
+
+    /// [`Self::outcomes`] where every refuter that re-estimates the effect on perturbed rows
+    /// does so through `refit` (the study's own estimator on its declared target) instead of
+    /// the default adjustment regression.
+    pub(crate) fn outcomes_with(
+        self,
+        refit: Option<&dyn antecedent_validate::common::EffectRefit>,
+        workspace: &mut EstimationWorkspace,
+        propensity: Option<&mut antecedent_stats::PropensityWorkspace>,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<antecedent_validate::ValidationOutcome>, CausalError> {
         let problem = RefutationProblem::new(
             self.data,
             self.estimand,
@@ -95,6 +108,10 @@ impl RefutationRun<'_> {
             Some(self.estimator),
             self.temporal,
         );
+        let problem = match refit {
+            Some(refit) => problem.with_effect_refit(refit),
+            None => problem,
+        };
         let mut validation = match self.suite {
             RefuteSuite::None => {
                 if self.custom.is_empty() {
