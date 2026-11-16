@@ -2260,6 +2260,41 @@
       "id": "quasi.synthetic_control",
       "status": "supported",
       "missing_evidence": []
+    },
+    {
+      "id": "measurement.exposure_misclassification",
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
+    },
+    {
+      "id": "measurement.soft_exposure",
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
+    },
+    {
+      "id": "measurement.detection_dependent_prevalence",
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
+    },
+    {
+      "id": "measurement.repeat_codings_latent_class",
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
+    },
+    {
+      "id": "estimate.outcome_nuisance_prior",
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
     }
   ]
 }

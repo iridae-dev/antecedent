@@ -6179,10 +6179,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -6194,10 +6192,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -6209,10 +6205,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -6224,10 +6218,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "ResponseCurve",
@@ -11588,10 +11580,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -11603,10 +11593,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -11618,10 +11606,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -11633,10 +11619,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "ResponseCurve",
@@ -33045,10 +33029,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33060,10 +33042,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33075,10 +33055,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33090,10 +33068,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33105,10 +33081,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33120,10 +33094,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33135,10 +33107,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33150,10 +33120,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33165,10 +33133,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33180,10 +33146,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33195,10 +33159,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33210,10 +33172,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33225,10 +33185,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33240,10 +33198,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33255,10 +33211,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
@@ -33270,10 +33224,8 @@
       "estimators": [
         "functional.distribution"
       ],
-      "status": "not_supported",
-      "missing_evidence": [
-        "no independent check: reference_review stale artifact: crates/antecedent/tests/temporal_admg_route_evidence.rs"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "query": "InterventionalDistribution",
