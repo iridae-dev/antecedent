@@ -24,7 +24,7 @@ original numeric intervention scale, without a physical unit claim or conversion
 
 ```python
 import numpy as np
-from antecedent import AverageEffect, ResponseCurve, analyze, decision
+from antecedent import ResponseCurve, analyze, decision
 from antecedent.joint_distribution import ScientificQuantity
 
 rng = np.random.default_rng(23)
@@ -268,7 +268,10 @@ code its refusal carries.
 
 Every detail is a plain string literal of the form `namespace.snake_case`, never
 built with `format!`, so it can be matched against the declared refusals. A missing source lists the needed representations, comma-joined, in
-`expected`.
+`expected`. The common decision refusals and their remedies are listed in
+[structured refusals and their remedies](reference/refusal-codes.md#structured-refusals-and-their-remedies)
+and, for transported and inverse sources, in
+[transported decisions and inverse forward sources](reference/refusal-codes.md#transported-decisions-and-inverse-forward-sources).
 
 ### Provenance chain and mean-only sources
 
@@ -506,8 +509,10 @@ status `closed_calibration_not_measured`: no interval is produced.
 
 ## What these routes do not claim
 
-- No route here produces a calibrated interval, credible interval or coverage
-  statement.
+- No route in the tables above produces a calibrated interval, credible interval
+  or coverage statement. The measured interval of a natively fitted cohort-mean
+  contrast is described under
+  [cohort-mean treatment contrast](#cohort-mean-treatment-contrast-of-a-fitted-effect-model).
 - A structural or assumption range is a range over declared cases. It is never
   a probability.
 - A route that composes an external value keeps that value's trust label
@@ -518,9 +523,7 @@ status `closed_calibration_not_measured`: no interval is produced.
   [external scientific objects](guides/build/scientific-interfaces.md) and
   [joint distributions](joint-distributions.md).
 
-For a complete marketing investigation using a shared panel fit, see [beyond the marketing mix](tutorials/beyond-marketing-mix.md).
-
-### Decide robustly from explicit joint scenarios
+## Decide robustly from explicit joint scenarios
 
 Use this when you can write down a handful of scenarios, each a finite law over the outcomes of
 your actions, and you want the action that holds up across all of them. The scenarios must
@@ -536,7 +539,7 @@ invariant-best action, declares an unfinished search, and replays the sealed res
 
 <!-- example: examples/python/robust_joint_scenarios.py -->
 
-#### Walk-through
+### Walk-through
 
 1. **Declare the scenarios.** Each scenario is a `JointDistributionArtifact` whose rows are
    joint states, wrapped in `decision_robust.Claim.evaluated(...)` with a support label.
@@ -556,7 +559,7 @@ Rust exposes the same path through `JointScenarioCarrier::checked`,
 `Study::compile_for_robust_decision` or `PreparedStudy::compile_for_robust_decision`, and
 `CompiledRobustDecision::execute`.
 
-#### Policies
+### Policies
 
 The route supports `maximin` (the action with the best worst case over the scenarios),
 `require_invariant_best_action` (an action only if it is uniquely best in every scenario; when
@@ -565,7 +568,7 @@ the scenarios disagree the verdict names the leaders and chooses nothing) and `r
 compiler does not support refuse with `decision_joint_scenarios.carrier`. Quantity and support
 failures keep the robust engine's own refusal details.
 
-#### An unfinished search is incomplete
+### An unfinished search is incomplete
 
 If you declare `exhaustive=False`, or a scenario is unidentified or unevaluated, the verdict is
 incomplete and chooses nothing. The result still reports the values of the scenarios that were
@@ -573,7 +576,7 @@ evaluated, their support, and the probability mass left unresolved. That mass ap
 you declared priors for the scenarios. Completion counts are kept as counts and never become
 probabilities.
 
-#### What the result claims
+### What the result claims
 
 Every result carries `conditional_on_declared_joint_scenarios` and `native_verified=false`.
 
@@ -583,7 +586,7 @@ Every result carries `conditional_on_declared_joint_scenarios` and `native_verif
   complete or that each table describes the world.
 - The route adds no sampling interval or calibration claim.
 
-#### Artifacts, loading and limits
+### Artifacts, loading and limits
 
 The source frame `ANTE-JOINT-SCENARIOS-1` holds the typed laws, causal identities, support,
 dependence and search standing. Loading it requires a separately retained source identity
@@ -596,3 +599,10 @@ study or resume a fit.
 The source is limited to 64 MiB and 256 scenarios. The terminal allows at most 256 actions and
 256 constraints, and its result frame at most 128 MiB. Evaluation, export and consumption honor
 cancellation and execution memory limits.
+
+## Where next
+
+- [Decide under uncertainty](tutorials/decide-under-uncertainty.md): the worked story from a causal result to a choice
+- [Decide from mixed evidence](guides/mixed-decisions.md) and [inverse queries](guides/inverse-outcome.md)
+- [Rank the next study](design-ranking.md) and [decision reliability](decision-reliability.md)
+- [Beyond the marketing mix](tutorials/beyond-marketing-mix.md): a complete investigation using a shared panel fit

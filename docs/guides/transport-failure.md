@@ -2,6 +2,8 @@
 
 A transport question can fail to produce a number for six different reasons, and each has a different remedy. Antecedent keeps them apart so you can tell whether to collect evidence, change the diagram, accept a weaker claim or give the search more room. A not-certified outcome is a conservative refusal, not a proof that transport is impossible.
 
+This page covers the declared-graph transport question of [Carry an effect to another population](transport/carry-an-effect.md); the other transport pages, listed under [which transport page answers your question](transport/carry-an-effect.md#which-transport-page-answers-your-question), each end with the refusals of their own routes. Every reason code and its remedy is in [refusal codes](../reference/refusal-codes.md#structured-refusals-and-their-remedies).
+
 | Outcome | Where to read it | A neighbouring success |
 | --- | --- | --- |
 | Not certified | `ident.certificate["identification_status"] == "not_certified"`, `ident.inspect().identification` | [Exact-law success](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/transport_exact.py) |

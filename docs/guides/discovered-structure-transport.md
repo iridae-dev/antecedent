@@ -4,6 +4,37 @@ You can transport an effect when the graph is itself an estimate: a CPDAG or PAG
 
 You declare the selection targets, the variables whose mechanisms may differ between populations. They are never inferred from differences between per-population discoveries.
 
+Use this page when discovery produced the structure. With a graph you declare yourself, start at [Carry an effect to another population](transport/carry-an-effect.md), which also lists [which transport page answers which question](transport/carry-an-effect.md#which-transport-page-answers-your-question).
+
+## Ask what every member of the class says
+
+`discover_and_transport` runs discovery under a declared contract and returns the transport verdict of every member of the discovered class. Here `x`, `m` and `y` are columns of one table, and `m` is the variable whose mechanism may differ between the trial and the clinic:
+
+```python
+from antecedent import selective_discovery as sd
+from antecedent.transport import discovered
+
+contract = sd.StaticContract(variables=("x", "m", "y"), algorithm="pc", seed=0)
+result = discovered.discover_and_transport(
+    contract,
+    {"x": x, "m": m, "y": y},
+    outcome="y",
+    treatment="x",
+    grid=[0.0, 1.0],
+    selection_targets=["m"],
+    source_population="trial",
+    target_population="clinic",
+    source_experiments=["x"],
+)
+result.envelope.kind            # "structural_envelope"
+result.envelope.status          # "identified_in_every_member", "members_disagree", ...
+result.envelope.formulas_agree
+for member in result.envelope.members:
+    print(member.directed_edges, member.verdict, member.formula or member.reason)
+```
+
+The query is the target mean of `outcome` under `do(treatment = a)` at each grid value `a`. The envelope computes no number: it says which members certify that query and with which formula. It holds under the assumptions listed on `result.envelope.assumptions` (causal sufficiency, faithfulness, correct conditional-independence tests within the search bounds, and the selection targets you declared), none of which this route can check. A refused request raises `DiscoveredTransportRefusal`, which names every unresolved pair. To get a number, use the [estimate route](#estimates-a-point-a-structural-range-or-a-refusal).
+
 ## Routes
 
 | You hold | Python entry (`antecedent.transport.discovered` unless noted) | You get |
@@ -19,7 +50,7 @@ Tests that exercise these paths: `python/tests/test_discovered_transport.py`, `t
 
 ## Structural envelope
 
-A CPDAG stands for every DAG in a Markov equivalence class, and which member is true is not determined by data. The route enumerates the class within a member bound and returns each member's transport verdict side by side. This structural envelope is not a point, interval or bound, and it is not weighted. Read its status:
+A CPDAG stands for every DAG in a Markov equivalence class, and which member is true is not determined by data. The route enumerates the class within a member bound and returns each member's transport verdict side by side. This structural envelope is not a point, interval or bound, and it is not weighted. Read its status (Rust variant names; the Python `status` string is the same name in snake case, such as `identified_in_every_member`):
 
 - `IdentifiedInEveryMember`: enumeration finished and every member is certified. Check `formulas_agree`: if the formulas differ, the class does not determine the estimand's expression and the graph must be resolved before estimating.
 - `NotIdentifiedInEveryMember`: no member is certified. This is the conservative not-certified reading, not a proof of non-transportability.
@@ -62,13 +93,15 @@ One declared discovery contract is run on each population's rows separately, wit
 
 ## Discover on one half, analyse on the other
 
-`discover_on_split` partitions exchangeable rows into a discovery table and an analysis table by a declared rule, with a `SampleSplitReceipt` a consumer re-derives. The binding supports a statement for an analysis that treats the selected graph as given. A table that is not the receipt's analysis rows is refused.
+`discover_on_split` partitions exchangeable rows into a discovery table and an analysis table by a declared rule, with a receipt a consumer re-derives (Python `SplitReceipt`, Rust `SampleSplitReceipt`). The binding supports a statement for an analysis that treats the selected graph as given. A table that is not the receipt's analysis rows is refused.
 
 `sample_split_effect` is the whole-method construction with a measured coverage property: split, PC with the partial-correlation test, a resolved structure accepted, and the treatment's effect adjusted for its parents on the analysis half. Its interval is attested by `SplitEffect.measure` from a coverage record and is a statement about the method over the measured family (linear-Gaussian, causally sufficient, faithful, fully orientable class, five to seven variables), not about one dataset's graph. Faithfulness and causal sufficiency cannot be tested from the table discovery ran on, so a per-dataset recovery claim stays closed.
 
 For ten to twenty variables with undirected edges elsewhere in the class, `sample_split_parent_set_effect` accepts the class when every edge incident to the treatment is oriented (the same way under every choice among conflicting colliders), lists the other unresolved edges without completing them, and reports the total effect (linear) or the intervention mean ratio (log-linear). See [selective discovery](../selective-discovery.md) for the conditions it is measured under.
 
 ## What is refused, and what to do
+
+The details below belong to the `discovered_transport.*` and `selective_discovery.*` namespaces, shown without the prefix where the row names a transport request. Every `discovered_transport` detail carries the code `discovered_structure_unresolved`, except `evidence_invalid`, which is `invalid_argument`. The complete list with remedies is in [refusal codes: discovered structure and per-population discovery](../reference/refusal-codes.md#discovered-structure-and-per-population-discovery).
 
 | Refused request | Reason code or detail | Next step |
 | --- | --- | --- |
@@ -90,7 +123,7 @@ For ten to twenty variables with undirected edges elsewhere in the class, `sampl
 
 ## Related
 
-- [Carry an effect to another population](transport/carry-an-effect.md)
+- [Carry an effect to another population](transport/carry-an-effect.md), with the [list of transport pages](transport/carry-an-effect.md#which-transport-page-answers-your-question)
 - [Graph uncertainty](../graph_uncertainty.md) and [selective discovery](../selective-discovery.md)
 - [Discovery background knowledge](discovery-background-knowledge.md)
 - [When transport fails](transport-failure.md)

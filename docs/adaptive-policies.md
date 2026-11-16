@@ -6,6 +6,33 @@ variable, or a value several steps back. Antecedent searches a bounded family of
 such rules and evaluates every candidate through a compatible causal response
 model, so the best rule is compared with the best fixed schedule on the same draws.
 
+Use it when you have a fitted temporal response model (for example a graphical causal model from
+`antecedent.gcm.fit_gcm`) and want to know whether reacting to what you observe beats committing
+to a schedule. The Python module is `antecedent.adaptive_policy`.
+
+```python
+from antecedent import adaptive_policy as ap
+
+families = [
+    ap.Schedule("schedule", steps=10, action_bounds=(0.0, 1.0)),
+    ap.Threshold(
+        "threshold", feature=0, action_bounds=(0.0, 1.0),
+        features=[ap.Feature(variable="y", range=(-4.0, 4.0))],
+    ),
+]
+model = ap.ModelSource(action="a", outcome="y", horizon=10, observed=["y"], target=0.0, quadratic=1.0)
+result = ap.search_model(fitted, families, model, baseline=0)
+result.standing.label            # "fitted_model_optimization"
+result.selected_family           # best feasible family on the optimisation draws, or None
+result.selection_optimism        # in-sample minus held-out value of the selected policy
+result.contrasts                 # paired differences against the schedule baseline
+```
+
+The objective is the expected discounted sum of stage utilities over the horizon, by default
+with stage utility `-(over * max(y - target, 0) + under * max(target - y, 0) + quadratic * (y -
+target)^2 + action_linear * |a| + action_quadratic * a^2)`; `objective="lower_tail_mean"` with
+`tail_alpha` scores the mean of the worst `tail_alpha` share of draws instead.
+
 ## Declare a family
 
 A family names the features a rule may read, the rule's shape and a closed box for
@@ -79,6 +106,8 @@ optimistic. The held-out value is computed on independent draws or held-out unit
 selection never touched, and the difference is reported as `selection_optimism`. When the
 study design supplies neither, `held_out="required"` refuses
 (`adaptive_policy_heldout_unsupported`) and `held_out="preferred"` flags the result.
+
+The three refusal codes are described under [other registered refusal codes](reference/refusal-codes.md#other-registered-refusal-codes).
 
 ## Independent reference
 

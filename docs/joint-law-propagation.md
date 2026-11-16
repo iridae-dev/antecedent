@@ -4,7 +4,33 @@ Unrelated posterior or bootstrap draws are never paired by index. A row pairing
 is the statement that the rows are realizations of one joint law, and one rule
 decides whether that statement is supported:
 `antecedent_contract::check_propagation`. Everything that composes uncertain
-inputs goes through it.
+inputs goes through it. In Python the rule and its routes are
+`antecedent.joint_law_propagation`.
+
+Use this page when you combine two or more uncertain estimates (a sum, a
+contrast, a product, a ratio) and need to know what the combination's
+uncertainty may claim. For example, two estimates computed from the same rows
+share evidence, so their weighted sum needs the covariance between them:
+
+```python
+from antecedent import joint_law_propagation as jl
+from antecedent.outcomes import require_success
+
+shared = [
+    jl.MomentInput("study_a", "rows-1-500", 0.10),   # id, evidence identity, mean
+    jl.MomentInput("study_c", "rows-1-500", 0.20),
+]
+claim = require_success(jl.linear_moments(
+    "weighted_sum", shared, [0.5, 0.5], [[0.004, 0.001], [0.001, 0.006]],
+    dependence="covariance", covariance_id="shared-rows",
+))
+claim.value("mean"), claim.value("variance")   # 0.15 and a' Sigma a
+claim.label                                     # "point_only": no interval is claimed
+```
+
+Declaring the two inputs independent instead (`dependence="declared_independent"`)
+is refused with `evidence_double_counted`, because they carry one evidence
+identity; `dependence="unknown"` is refused with `sampling_dependence_unknown`.
 
 ## The rule
 
@@ -34,16 +60,16 @@ independent marginals has no alignment identity at all.
 
 Each route is a separate support row with its own refusal.
 
-* **Linear moments.** `Var(sum a_i X_i) = a' Sigma a`, exact. The covariance is
+* **Linear moments** (`linear_moments`, `aligned_linear`). `Var(sum a_i X_i) = a' Sigma a`, exact. The covariance is
   supplied, computed from aligned draws, or diagonal for distinct evidence.
   A covariance that is not symmetric positive semidefinite is refused, not
   repaired.
-* **Aligned joint law.** The row mean of a closed functional (product, ratio,
+* **Aligned joint law** (`aligned_functional`). The row mean of a closed functional (product, ratio,
   minimum, maximum, squared difference) of two aligned columns. For a
   correlated pair `E[XY] = rho s_x s_y + mu_x mu_y`. The result is a labelled
   point value of the draws; Monte Carlo error is not reported as an interval.
-* **Known-weight mixture.** Law of total variance: `within + between`.
-* **Dependence envelope.** The extremes over every coupling of two marginals:
+* **Known-weight mixture** (`mixture`). Law of total variance: `within + between`.
+* **Dependence envelope** (`dependence_envelope`, `correlation_range`). The extremes over every coupling of two marginals:
   * `P(X + Y <= t)` is between `sup_x max(F(x) + G(t - x) - 1, 0)` and
     `inf_x min(F(x) + G(t - x), 1)` (Makarov 1982; Rueschendorf 1982);
     differences by negation of one marginal.
@@ -106,5 +132,4 @@ mixtures, envelopes and transported pieces are outside that design: no record ma
 Makarov, G. D. (1982), Theory of Probability and its Applications 26(4),
 803-806, doi:10.1137/1126086. Rueschendorf, L. (1982), Advances in Applied
 Probability 14(3), 623-632, doi:10.2307/1426677. Frechet (1951), Hoeffding
-(1940), Lorentz (1953) and Tchen (1980) are cited by name; no DOI was verified
-for them.
+(1940), Lorentz (1953) and Tchen (1980) are cited by name, without a DOI.

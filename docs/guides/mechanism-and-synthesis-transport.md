@@ -9,11 +9,37 @@ You can carry a fitted mechanism from a source population into a target populati
 | Native plus transported summaries pooled, borrowed or used as a prior | `antecedent_design::transported_synthesis::synthesize_transported` | `TransportedSynthesis`: point and model variance |
 | Surrogate bridge carried to another population | `antecedent_design::transported_bridge::TransportedSurrogateBridge` | A bridge contract checked against a selection diagram |
 
-A transported
-mechanism composition reaches an inverse query as a carried, extrapolative
-claim (see [inverse queries and decisions](inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources)); a
-transported response reaches a decision through
-`antecedent.transported_response`.
+Use this page when what you carry is a fitted mechanism, a summary or a surrogate relation, not a response identified from source experiments. For that question, and for the list of all transport pages, see [Carry an effect to another population](transport/carry-an-effect.md#which-transport-page-answers-your-question).
+
+Python entries: `antecedent.typed_mechanism_transport` for the typed route (below), and `antecedent.mechanism_composition` for the linear-Gaussian carry. A transported mechanism composition reaches an inverse query as a carried, extrapolative claim (see [inverse queries and decisions](inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources)); a transported response reaches a decision through `antecedent.transported_response`.
+
+## Carry typed mechanisms into a target model
+
+Fit each mechanism in the source, refit in the target the ones a selection node points into, and ask the transported composition for a contrast. In this sketch `source_data` and `target_data` are column mappings, and `source_income` is a source fit made the same way as `source_demand`:
+
+```python
+from antecedent import typed_mechanism_transport as tmt
+
+demand = tmt.MechanismSpecification(
+    "demand", parents=("price", "income"), family="poisson", mean=tmt.Polynomial(degree=2)
+)
+source_demand = tmt.fit_typed_mechanism(demand, source_data, population="source")
+target_demand = source_demand.refit_in_target(target_data, population="target")
+
+transport = tmt.TypedTransport(
+    source_population="source",
+    target_population="target",
+    selection_nodes=(tmt.SelectionNode("S", ("demand",)),),   # demand's mechanism may differ
+    dependence=tmt.TypedDependence.independent_by_design("disjoint samples"),
+)
+transported = tmt.transport_typed_mechanisms(
+    transport, [source_income, source_demand], [target_demand]
+)
+estimate = transported.mean_contrast(tmt.MeanContrast.mean_at("demand", {"price": 2.0}))
+transported.receipt             # which mechanisms were carried and which refitted
+```
+
+The contrast is `sum_k w_k E[outcome | do(arm_k)]` in the target composition, here the single mean `E[demand | do(price = 2)]`, computed by Monte Carlo over the structural model. `transported.receipt` lists the carried and the refitted variables; support is `extrapolative` and inference `point_only`. `transported.interval(contrast)` returns the first-order interval with calibration `not_measured`. The rules behind each step are in [nonlinear and non-Gaussian mechanism transport](#nonlinear-and-non-gaussian-mechanism-transport). A runnable use of this route, including the refusal of a shifted mechanism with no target fit, is [`synthetic_users_launch.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/synthetic_users_launch.py).
 
 ## Mechanism transport
 
@@ -119,6 +145,8 @@ and it stays an unresolved obligation of the derived claim. The bridge remains
 point-only.
 
 ## What is refused, and what to do
+
+Every detail below, with its reason code and remedy, is listed in [refusal codes: mechanism transport, synthesis and bridge premise](../reference/refusal-codes.md#mechanism-transport-synthesis-and-bridge-premise).
 
 | Refused request | Reason code or detail | Next step |
 | --- | --- | --- |

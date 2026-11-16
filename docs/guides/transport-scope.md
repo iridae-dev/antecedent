@@ -1,6 +1,6 @@
 # Transport limits by route
 
-Each transport route answers one family of questions under a stated theorem scope and size limits. This page says, route by route, what it decides, what it leaves undecided and the bounds it runs within. Start with [Carry an effect to another population](transport/carry-an-effect.md) for the task; come here when a route refuses or you need to know whether your question fits one.
+Each transport route answers one family of questions under a stated theorem scope and size limits. This page says, route by route, what it decides, what it leaves undecided and the bounds it runs within. Start with [Carry an effect to another population](transport/carry-an-effect.md) for the task, and its list of [which transport page answers your question](transport/carry-an-effect.md#which-transport-page-answers-your-question); come here when a route refuses or you need to know whether your question fits one.
 
 Two ideas recur.
 
@@ -21,7 +21,7 @@ The numeric bounds below distinguish native search limits, artifact intake defau
 | Two-step temporal sequence | Classical sID on a two-slice unrolled diagram, deciding the whole `do(A_1=a_1, A_2=a_2)`; sound and incomplete; exact and point-only | `prepare_temporal_transport_sequence` ([below](#two-step-temporal-sequences)) |
 | ADMG conditional transport | Sound and incomplete; default artifact intake admits at most {{bound:transport.admg_conditional.artifact_max_observed}} observed variables; exact and point-only | `identify_admg_conditional_transport` ([below](#admg-conditional-transport)) |
 
-The stage routes are separate from the `analyze` cell: `analyze` runs the supported trial-IPW `TransportQuery` on an explicit `Admg` (see the [support matrix](../support-matrix.md)), and the routes on this page run through their own prepare, estimate, export and consume stages.
+The stage routes are separate from `analyze`: `analyze` runs the `transport.Transport` question and the supported trial-IPW `TransportQuery` cell on an explicit `Admg` (see [Carry an effect to another population](transport/carry-an-effect.md#run-a-transport-question) and the [support matrix](../support-matrix.md)), and the routes on this page run through their own prepare, estimate, export and consume stages.
 
 ## Finite scenario envelopes
 

@@ -2,7 +2,9 @@
 
 Choose among coordinated intervention programs under budgets and restrictions, using a fitted joint response. The fitted response supplies the objective; you declare which controls may move, their bounds, their costs and any hard restrictions. Antecedent then ranks a finite candidate set, or searches a continuous schedule space, and reports what the search establishes.
 
-Start from a retained `PanelResult` (see [fit and compare coordinated intervention programs](joint-intervention-responses.md)). Every call below evaluates that frozen fit without refitting.
+Start from a retained `PanelResult` (see [fit and compare coordinated intervention programs](joint-intervention-responses.md)). Every call below evaluates that frozen fit without refitting. In the snippets, `result` is that `PanelResult` over three channels `a`, `b` and `c` scheduled for 24 weeks, and `Execution` is `antecedent.Execution`. A runnable ranking under a budget is in [`beyond_marketing_mix.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/beyond_marketing_mix.py).
+
+The objective is the declared affine utility `utility_offset + utility_scale * R(w)` of the fitted response functional `R(w)` of program `w` (by default `"terminal_mean"`, the fitted mean outcome in the last scheduled period), and the cost of a program is the sum over its controls of `unit_cost` times the control's level.
 
 ## Two different claims
 

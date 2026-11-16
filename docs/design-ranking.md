@@ -125,6 +125,20 @@ ranking.candidate("two-flips").evsi <= ranking.evpi
 (`examples/python/rank_designs_evsi.py` runs this fixture. Its oracle: with
 `n = 2`, `EVSI = 1/16` and `EVPI = 1/8`.)
 
+The quantities, for a state `theta` with the declared prior, actions `a` with
+utility `u(a, theta) = intercept_a + slope_a * theta`, and the observation `S` a
+candidate study would produce:
+
+- `EVSI = E_S[max_a E[u(a, theta) | S]] - max_a E[u(a, theta)]`, the expected gain
+  from deciding after seeing `S` rather than now;
+- `EVPI = E_theta[max_a u(a, theta)] - max_a E[u(a, theta)]`, the gain from
+  learning `theta` exactly, an upper bound on every EVSI;
+- `net_value = EVSI - cost * utility_per_cost`, the EVSI less the study cost in
+  utility units under the `CostMap`.
+
+In the coin fixture deciding now is worth 0 (both actions have expected utility
+0), and knowing the bias is worth `1/2 * 1/4 = 1/8`.
+
 The declaration types:
 
 - `DesignDecision(contract, actions, prior, utility_units)`: the terminal action
