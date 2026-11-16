@@ -1,9 +1,11 @@
 # Describe the data and plan evidence when the effect is not identified
 
-A causal query the declared structure does not identify ends in a typed refusal. The refusal is
-the answer to the causal question, and it stays so. Two things are still worth having beside it:
-a plain description of what the observed data show, and the evidence that would make the causal
-question answerable. Both are opt-in, and neither replaces the refusal.
+Use this page when `ant.analyze(...)` refuses a causal query because the declared graph does
+not identify it (`effect_not_identified`, `cross_world_not_identified`) and you still need
+something to report or a way forward. The refusal is the answer to the causal question, and
+it stays so. Two things are available beside it: a description of what the observed data
+show, labelled noncausal, and the evidence that would make the causal question answerable.
+Both are opt-in through `on_refusal="describe"`, and neither replaces the refusal.
 
 ```python
 import numpy as np
@@ -61,7 +63,9 @@ Each of `associational` and `evidence_plan` is either present or a `FallbackUnav
 registered code, a stable `fallback.*` detail and the next attempt: no association form exists for
 the query kind (a counterfactual, a distribution), a variable is not measured, the data are a
 panel, the declared graph is not a directed or bidirected one, or the declared graph identifies
-the effect (so the refusal came from the estimator and no structural gap is owed).
+the effect (so the refusal came from the estimator and no structural gap is owed). The
+details and their codes are tabulated under
+[an opt-in description beside the refusal](../reference/refusal-codes.md#an-opt-in-description-beside-the-refusal).
 
 ## Ranking the options that would close the gap
 
@@ -85,7 +89,13 @@ plan.best.labels, plan.best.gate     # each option is checked by the theorem of 
 
 The plan is hypothetical identification, not an estimate: the ordering is `point_only` and its
 calibration `not_measured`. Plan again over other candidates, or with a declared value and cost
-map, with `antecedent.design.evidence_plan(outcome.evidence_plan.contract, ...)`.
+map, with `antecedent.design.evidence_plan(outcome.evidence_plan.contract, ...)`. Refusals of
+the plan itself are listed under
+[ranked evidence plans](../reference/refusal-codes.md#ranked-evidence-plans).
+
+Runnable example: [`examples/python/evidence_plan.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/evidence_plan.py)
+orders declared studies for a not-identified effect, values them net of cost and checks the
+plan against a hand computation.
 
 ## What the description is not
 
@@ -95,7 +105,6 @@ not the effect of an intervention, it is not identified, and it ranks no action;
 bridge refuses it wherever a causal quantity is required. `repr`, `explain()` and `report()` of the
 described object say so, and the host record (`antecedent.host.fallback_response`) shows
 `causal_status: unsupported` beside the status of the noncausal claim.
-
 
 ## Describe the observed data directly
 
@@ -206,3 +215,10 @@ match study.analyze_with_fallback(&FallbackRequest::default(), &ctx)? {
 
 Pass `FallbackRequest { evidence: Some(request) }` to rank declared studies. Any other error
 (`CausalError::Cancelled`, a resource limit, a capped search) is returned as the error it is.
+
+## Where next
+
+* [Recover from refusals](refusal-recipes.md) for the general refusal-handling pattern.
+* [Rank further studies](../design-ranking.md) for valuing candidate studies against a decision.
+* [Compare raw and adjusted estimates](descriptive-comparison.md) for the other descriptive
+  computations in `antecedent.descriptive`.

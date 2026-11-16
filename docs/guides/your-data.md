@@ -1,6 +1,8 @@
 # Bring your own table
 
-Start with a small reviewed table and an explicit scientific question. The recipe below creates a temporary CSV so it can run without shipping a dataset; replace that path with your own file.
+Use this guide to run a first analysis on a table of your own: a CSV, a pandas frame, a mapping of column name to NumPy array, or an Arrow table. You need Antecedent installed ([installation](../start/installation.md)), a causal graph you can defend for the treatment and outcome, and a table whose analysis columns are numeric. If you have not run an analysis before, read [your first analysis](../start/first-analysis.md) first.
+
+The recipe below writes a temporary CSV so that it runs without a shipped dataset; replace that path with your own file. Source: [`examples/python/your_data.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/your_data.py).
 
 ## Declare the meaning before estimating
 
@@ -15,7 +17,7 @@ Start with a small reviewed table and an explicit scientific question. The recip
 
 <!-- example: examples/python/your_data.py -->
 
-The estimate should be close to 2 in this simulated table. The recipe rejects missing required values rather than silently filling or dropping them. For your data, choose and document an observation policy before preparing the analysis; see [the observation contract](../observation-contract.md).
+The simulated effect is 2 and the script checks that the estimate lies within 0.3 of it. `study.inspect()` reports what preparation established before any fit; `result.answer.value` is the estimate and `result.value.calibration.status` says whether a measured coverage record supports its interval (see [read a result](../start/reading-a-result.md)). On your table the estimate is an effect only under the graph you declare; nothing in the recipe tests that graph. The recipe stops at a missing required value rather than silently filling or dropping it. For your data, choose and document an observation policy before preparing the analysis; see [the observation contract](../observation-contract.md).
 
 Use numeric columns for this recipe and inspect categorical encodings before generalizing it. See [Python workflow options](../python-options.md) for populations and data settings, and [preflight diagnostics](preflight-diagnostics.md) for fit-free checks.
 
@@ -33,7 +35,7 @@ A required column that is missing, and a selected column name that occurs twice 
 
 ## Files and large tables
 
-`analyze`, `prepare` and `ant.rebind(study, data=...)` also take a Parquet file, a directory of Parquet files, or an Arrow IPC file or stream, by path or as a handle from `antecedent.data.from_parquet` / `from_arrow_ipc`. Only the columns above are decoded, in bounded chunks charged to the admission pool; see [Parquet, Arrow IPC and large tables](large-tables.md).
+`analyze`, `prepare` and `ant.rebind(study, data=...)` also take a Parquet file, a directory of Parquet files, or an Arrow IPC file or stream, by path or as a handle from `antecedent.data.from_parquet` / `from_arrow_ipc`. Only the columns above are decoded, in bounded chunks charged to the admission pool; see [Parquet, Arrow IPC and large tables](large-tables.md). A path with an unrecognized extension that is not a directory is refused with `reason_code="invalid_argument"`.
 
 ## Cluster identifiers
 
@@ -46,3 +48,10 @@ The prepared study freezes the labels and a digest of their row assignment, and 
 ## Rebind or prepare again?
 
 `ant.rebind` keeps the prepared scientific question and retained design. For named experimental assignments and IDs, supply outcome-only updates when the design is unchanged. Changed assignments, IDs, row order, graph or query require the corresponding explicit new preparation. [Notebook to system](notebook-to-system.md) demonstrates both operations and a refused design change.
+
+## Where next
+
+- [Missing values](missing-data.md): declare a missing-data policy instead of stopping at the first missing cell.
+- [Sampling weights](sampling-weights.md) and [clusters](clustered-dml.md): rows that are not an independent, equally weighted sample.
+- [Check a table before estimating](preflight-diagnostics.md) and [data quality diagnostics](data-diagnostics.md): fit-free checks.
+- [Refusal codes and remedies](../reference/refusal-codes.md): what a refusal's `code`, `detail` and `remedy` mean.

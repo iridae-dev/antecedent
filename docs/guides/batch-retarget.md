@@ -1,11 +1,20 @@
 # Answer many effects at once and retarget a family of claims
 
-A batch answers many average-effect questions on one table. Its entry points take the same
-typed estimator configurations as `analyze`, and a completed batch can **retarget** a
-declared family of claims to caller-declared populations and report their joint covariance
-and named contrasts. The points and plug-in covariance are `point_only`; the 95% max-t
-simultaneous band of a complete family is supported only at the coordinate its coverage
-record measures (see [The simultaneous interval](#the-simultaneous-interval)).
+Use a batch when several average-effect questions share one table and graph: the batch
+prepares them together, shares the nuisance fits that are provably identical, and returns
+one result per question. A completed batch can then **retarget** a declared family of
+claims to populations you declare by row weights, without refitting, and report their joint
+covariance and named contrasts. The points and plug-in covariance are `point_only`; the 95%
+max-t simultaneous band of a complete family is supported only at the coordinate its
+coverage record measures (see [The simultaneous interval](#the-simultaneous-interval)).
+
+| Step | Python | What you get |
+| --- | --- | --- |
+| Answer several questions in one call | `ant.estimation.analyze_many` | `Outcome[BatchResult]`, one member per query |
+| Prepare first, estimate later | `ant.estimation.prepare_many`, then `ant.estimate(study)` | a `PreparedBatch`, then `Outcome[BatchResult]` |
+| Retarget a family of claims | `batch.retarget(claims, contrasts)` | a `BatchRetarget` report: points, joint covariance, contrasts, failed members |
+
+The batch entry points take the same typed estimator configurations as `analyze`.
 
 ## Typed estimator configurations
 
@@ -87,8 +96,28 @@ assert batch.member(0).inspect().data_snapshot_id != updated.member(0).inspect()
 assert report.snapshot_id == batch.retarget_snapshot()
 ```
 
+### Read the report
+
+| Field or method | Meaning |
+| --- | --- |
+| `report.claims`, `report.contrasts` | one `RetargetMember` each: `name`, `status` (`ok`, `point_only` or `failed`), `value`, `std_error`, and the refusal code, detail and message of a failed member |
+| `report.complete`, `report.failed_members`, `report.point_only_members` | whether every member has a point and covariance, and which do not |
+| `report.covariance_between(a, b)` | the plug-in score covariance of two claims |
+| `report.simultaneous_interval()` | the max-t band of a complete family; a typed refusal otherwise |
+| `report.complete_family()` | the report itself when the family is complete; a typed refusal otherwise |
+| `report.snapshot_id`, `report.scores_source`, `report.estimator_fingerprint` | the row snapshot, the origin of the scores and the estimator identity the claims rest on |
+| `report.to_rows()` | one tidy row per claim and contrast (see [Tidy export](#tidy-export)) |
+
+A `std_error` is the square root of a plug-in score variance. It is not an interval, and it
+carries no coverage claim.
+
+### Estimand
+
 A claim reweights one plan's cross-fitted score table `phi` (an `AllObserved` iid AIPW or
-cell-AIPW plan) under fixed declared row weights `w`: `theta = sum w phi / sum w`. The same
+cell-AIPW plan) under fixed declared row weights `w`: `theta = sum w phi / sum w`, where
+`phi_r` is row `r`'s score contrast. With weights that are fixed functions of certified
+adjustment covariates, `theta` estimates the average effect in the population the weights
+describe; uniform weights return the fitted average effect. The same
 plan may appear in several claims (a contrast of two declared holders) and several plans may
 share the family. `depends_on` is checked exactly as for a single `retarget`.
 
@@ -226,8 +255,38 @@ digest of the declared family, snapshot, scores source and estimator fingerprint
 the refusal code, detail and message of a failed member, `diagnostics`, `scores_source`,
 `snapshot_id`, `estimator_fingerprint` and `nuisance_provenance`.
 
+## Refusals
+
+A malformed family refuses the whole call; a member that cannot be retargeted is reported as
+`failed` inside the report with its own code and detail. Every refusal carries the fields described in
+[refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies).
+
+| What happened | Code | Detail |
+| --- | --- | --- |
+| The plan kept no score table | `score_table_unavailable` | `batch_retarget.scores_unavailable`, `batch_retarget.scores_unavailable_after_estimate` |
+| Claims read plans on different row snapshots | `row_weights_bound_to_snapshot` | `batch_retarget.mixed_snapshot` |
+| Weights are aligned with another row snapshot | `invalid_argument` | `batch_retarget.incompatible_target` |
+| An empty family, a duplicate or unknown claim name, a malformed contrast, or scores that do not match the plans | `invalid_argument` | `batch_retarget.empty_family`, `batch_retarget.duplicate_name`, `batch_retarget.unknown_claim`, `batch_retarget.invalid_contrast`, `batch_retarget.scores_mismatch` |
+| The weighted overlap gate fails for a member | `positivity_violated` | `batch_retarget.weighted_overlap_failed` |
+| A quantile or exceedance claim | `route_not_supported` | `batch_retarget.functional_not_supported` |
+| A contrast reads a failed claim | `route_not_supported` | `batch_retarget.contrast_member_failed` |
+| A complete-family request on a family with a failed member | `route_not_supported` | `batch_retarget.partial_family` |
+| A complete-family request on a family with a point-only member | `route_not_supported` | `batch_retarget.point_only_member` |
+| A mixed iid and cluster family, or a correlation that is not unit-diagonal positive semidefinite | `route_not_supported` | `batch_retarget.covariance_unavailable` |
+| A simultaneous level outside `(0, 1)` | `invalid_argument` | `batch_retarget.max_t_invalid_level` |
+| Too few draws for the level, or more than the memory budget admits | `invalid_argument` | `batch_retarget.max_t_draws_out_of_range` |
+| The execution was cancelled | `cancelled_no_claim` | `batch_retarget.cancelled` |
+
 ## Not in this cell
 
 DR-Learner and CausalForest keep their own inferential cells; no score table or interval is
 inferred from a CATE prediction. Quantile and exceedance claims keep the single-claim
 `retarget`. The family covariance and contrast standard errors carry no coverage claim.
+
+## Related pages
+
+- Runnable example of preparing, rebinding and reconfiguring a batch:
+  [`examples/python/branch_and_reuse.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/branch_and_reuse.py).
+- [Reuse DML scores to retarget](dml-scores.md): the score table a DML, DR-Learner or CausalForest plan contributes.
+- [Clusters](clustered-dml.md): the cluster-DML plans a clustered family is built from.
+- [Penalized propensity for AIPW](penalized-aipw.md): the penalized configurations a batch accepts.

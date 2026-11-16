@@ -1,9 +1,31 @@
 # Estimate responses, derivatives and outcome distributions
 
-For retargeting, outcome distributions and non-additive joint interventions, see [Retarget, outcome distributions and joint interventions](#retarget-outcome-distributions-and-joint-interventions) below.
+Use this page when the question is a function or a distribution, not one binary contrast: how
+the mean outcome changes along a continuous dose, how steep that curve is at a point, what the
+outcome distribution is under each arm, or what the outcome level is under a stated intervention
+law. You need a table, a graph (or an accepted discovery artifact) and
+[a first analysis](start/first-analysis.md) behind you.
 
-Antecedent treats a continuous causal response as more than a collection of
-binary contrasts. The scalar Python constructors take the treatment first and the outcome second:
+| You want | Query | Section |
+|---|---|---|
+| The mean outcome at each dose on a grid | `ResponseCurve` | [Read the result](#read-the-result-on-separate-axes) |
+| The slope, elasticity or average derivative of that curve | `PointDerivative`, `Elasticity`, `SemiElasticity`, `AverageDerivative`, `DirectionalDerivative`, `ResponseJacobian` | [Curves, derivatives, and elasticities](#curves-derivatives-and-elasticities) |
+| The mean outcome under a set, shifted or random intervention | `InterventionResponse` | [Intervention responses](#intervention-responses) |
+| The outcome distribution or a quantile under each arm | `AverageEffect(..., outcome_functional=ExceedanceGrid(...))` or `outcome_functional=Quantile(tau)` | [Read a CDF and its supported bands](#read-a-cdf-and-its-supported-bands) |
+| The effect in a reweighted population without refitting | `study.retarget(weights, depends_on=...)` | [Prepare once, change the target population](#prepare-once-change-the-target-population) |
+| A response over dose and horizon in a time series | `ResponseCurve(..., horizons=...)`, `TemporalQuery` | [Temporal simultaneous bands](#temporal-simultaneous-bands) |
+| The response of a censored or selected outcome | `ResponseCurve(..., observation=..., observation_assumptions=...)` | [Observation is not outcome](#observation-is-not-outcome) |
+
+Throughout, `A` is the treatment (dose), `Y` the outcome, `Z` the adjustment set the graph
+certifies, and `m(a) = E[Y | do(A=a)]` the mean response: the mean outcome if every unit's dose
+were set to `a`. A response curve estimates `m` on a grid you supply; the derivative queries
+estimate functionals of `m`. Identification of `m` from observational data assumes the graph is
+correct (so that `Z` blocks confounding), consistency, no interference, and positivity: units
+with covariates `Z` are observed near every requested dose.
+
+## Estimate a response curve
+
+The scalar Python constructors take the treatment first and the outcome second:
 
 ```python
 query = antecedent.ResponseCurve(
@@ -12,7 +34,19 @@ query = antecedent.ResponseCurve(
     grid=[0.5, 1.0, 1.5, 2.0],
 )
 result = antecedent.analyze(data, graph=dag, query=query)
+view = result.value
+print(view.estimate)                                   # m(a) at each grid point
+print(view.uncertainty.lower, view.uncertainty.upper)  # pointwise interval at each grid point
+print(view.support.status, view.support.warnings)
 ```
+
+The grid must be explicit and increasing. Each returned value estimates `m(a)` at one grid point,
+and the interval beside it is pointwise: it covers that one point, not the whole curve. The
+runnable script
+[`continuous_causal_response.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/continuous_causal_response.py)
+walks through supported doses, response values and derivatives, and
+[`temporal_response_curve.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/temporal_response_curve.py)
+does the same over dose and horizon.
 
 The same complete-observation curve can use the staged workflow
 when identification should be inspected before the data are estimated:
@@ -23,9 +57,8 @@ print(identified.status, identified.adjustment_set)
 result = identified.estimate(data)
 ```
 
-The first positional name is the treatment and the second is the outcome.
-Scientific and numerical options are keyword-only. The same convention applies
-to `PointDerivative`, `Elasticity`, `SemiElasticity`, and
+Scientific and numerical options are keyword-only. The treatment-then-outcome
+order also applies to `PointDerivative`, `Elasticity`, `SemiElasticity`, and
 `AverageDerivative`. `DirectionalDerivative` and `ResponseJacobian` accept
 treatment and outcome sequences in that order.
 
@@ -58,9 +91,10 @@ A response result deliberately keeps four judgments separate:
    It screens for gaps inside the marginal ranges; it is not a guarantee that
    the response is identified or well estimated at that point.
 3. `uncertainty.kind` says what the interval means. Pointwise intervals cover
-   one grid point at a time. The Frequentist Kennedy-DR estimator can instead request a fixed-grid
-   simultaneous band with `response_options(...)`; Python uses
-   `estimator_config={"bandwidth": ..., "simultaneous_replicates": ...}`.
+   one grid point at a time. The Frequentist Kennedy-DR estimator can instead publish a fixed-grid
+   simultaneous band: in Python pass
+   `estimator_config={"bandwidth": ..., "simultaneous_replicates": ...}`; in Rust set the same
+   fields through the builder's `response_options(...)`.
    The explicit bandwidth is required: Antecedent does not silently invent an
    undersmoothing rule. The band uses a deterministic Rademacher multiplier
    construction conditional on the cross-fitted pseudo-outcome. It does not
@@ -464,7 +498,7 @@ refused here.
 
 ## Row-diagnostic export contract
 
-`response_options={"export_row_diagnostics": True}` (Rust:
+`estimator_config={"export_row_diagnostics": True}` on a `ResponseCurve` (Rust:
 `ContinuousResponseOptions::export_row_diagnostics`) adds three channels to
 `support.diagnostics`. Off by default; the estimate is identical either way.
 Once exported, these are scientific objects users will compute on, so their
@@ -900,9 +934,12 @@ Under Frequentist inference, `Set`, `Shift`, `Bernoulli`, `Gaussian`, and
 `Categorical` evaluate plug-in mean responses. A sequence of specifications requests a joint intervention. The
 estimator fits an additive outcome model and averages predictions under the
 requested policy. `Bernoulli` and `Categorical` laws are summed exactly over
-their support; a `Gaussian` law is integrated by 48-node Gauss-Hermite
-quadrature per policy (deterministic, exact for polynomial dose effects of
-degree up to 95), which is valid because the outcome model is additive, so each
+their support. A `Gaussian` law is integrated by a deterministic composite rule
+per policy: the fitted spline is constant beyond its boundary knots, so the two
+tails carry their exact normal mass there, and each knot interval within ten
+standard deviations of the mean is cut into pieces no wider than one standard
+deviation, each integrated by an eight-point Gauss-Legendre rule. Integrating
+each policy separately is valid because the outcome model is additive, so each
 policy enters only through its own marginal law. Its canonical strategy is
 `response.intervention_gcomp`, distinct from the Kennedy curve estimator. The result is deliberately
 marked extrapolative: observed marginal bounds are reported, but joint policy
@@ -947,7 +984,7 @@ their explicit assumption contract is satisfied. Selected-outcome AIPW
 cross-fits both its nuisance models, and refuses a fold whose training rows
 cannot support them rather than falling back to an in-sample fit. These paths
 return a point curve with `uncertainty.kind == "none"`
-and a `joint_uncertainty_unavailable` warning: correcting observation and then
+and a `response.observation_joint_uncertainty_unavailable` warning: correcting observation and then
 smoothing a curve does not make the component standard errors a valid joint
 band. Observation-aware subset validation likewise fails closed, because the
 two stages are not refit jointly. Observation-adjusted derivatives, interval
@@ -969,3 +1006,30 @@ sampling uncertainty even when all counterfactual fitted row means are equal.
 Class-aware static responses combine these scores using frozen graph weights
 and original row IDs. Curve joint-covariance scores are `N` times the local-WLS
 contributions documented above; the diagnostic export itself is not rescaled.
+
+## Refusals you can meet
+
+A response request that the route cannot honour raises `CausalUnsupportedError` instead of
+returning the nearest answer it could compute. The ones a first-time user meets most often:
+
+| Request | Why it refuses | What to change |
+|---|---|---|
+| `refute="cheap"`, `"full"` or a scalar refuter suite on a response query | Those suites refute one scalar average effect; a function-valued response has no such check. | Pass `refute="none"`. |
+| `discovery=` together with a response query | Discovery is reviewed and accepted before estimation, not run inside it. | [Accept the graph first](#compose-discovery-artifacts-and-response-curves) and pass it as `graph=`. |
+| `PointDerivative`, `Elasticity` or `SemiElasticity` without a bandwidth | No default bandwidth targets a slope. | Pass `estimator_config={"bandwidth": ...}`. |
+| A positive `Frequentist(bootstrap=...)` on a static or Bayesian response, or on `cell.aipw` | The replicate count applies to Frequentist temporal surfaces only. | Omit `bootstrap`, or pass `bootstrap=0`. |
+| A derivative on a `Cpdag`, `Pag`, latent-confounded `Admg` or `TemporalAdmg` in a release build | The cell has no supporting evidence (`not_supported`). | Use an explicit or accepted DAG, or check the [support matrix](support-matrix.md). |
+| A coefficient prior or prior transfer on a derivative | No mapping onto the derivative's parameterization exists. | Fit without the prior. |
+| A retarget whose weights depend on the treatment or its descendants, or re-executed on another snapshot (`row_weights_bound_to_snapshot`) | The weights would no longer define a population of the prepared study. | Declare weights that depend only on adjustment variables, on the snapshot they were built for. |
+| An observation mechanism, assumption and estimator combination outside the [observation contract](observation-contract.md) | The response of the recorded proxy is not the response of the scientific outcome. | Declare a supported pair, or analyse complete observations. |
+
+Read `reason_code`, `detail` and `remedy` on the raised error; the codes are listed in
+[refusal codes and remedies](reference/refusal-codes.md#other-registered-refusal-codes), and
+[recover from refusals](guides/refusal-recipes.md) shows the handling pattern.
+
+## Next steps
+
+- [Answer and retarget a family of effects](guides/batch-retarget.md) and [reuse DML scores to retarget](guides/dml-scores.md) build on the retargeting shown above; [`retarget_adjusted_fit.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/retarget_adjusted_fit.py) is the matching script.
+- [Heterogeneous effects and policies](guides/heterogeneous-effects-and-policies.md) covers a dose response within baseline groups.
+- [Several treatment levels](guides/treatment-levels.md) covers a discrete treatment with more than two levels.
+- [Read a result](start/reading-a-result.md) explains calibration statuses and the uncertainty kinds named here.

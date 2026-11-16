@@ -1,10 +1,16 @@
 # Analyze Parquet, Arrow IPC and tables larger than memory
 
-An analysis can start from a file instead of an in-memory table. Antecedent reads
-Apache Parquet files, directories of Parquet files that share one schema, Arrow IPC
-files (Feather version 2) and Arrow IPC streams. Opening a file reads its schema and
-footer only; the rows are read later, in bounded chunks, and only for the columns an
-analysis needs.
+Use this guide when your data are in a file rather than an in-memory table, or when the
+table does not fit in memory. Antecedent reads Apache Parquet files, directories of
+Parquet files that share one schema, Arrow IPC files (Feather version 2) and Arrow IPC
+streams. Opening a file reads its schema and footer only; the rows are read later, in
+bounded chunks, and only for the columns an analysis needs. The estimate from a file is
+the estimate from the same rows in memory; the file changes how rows are read, not what
+is estimated or assumed.
+
+Runnable example: [`examples/python/parquet_e2e.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/parquet_e2e.py)
+analyzes a Parquet file, compares the result with the in-memory one, and streams a
+summary through a memory pool smaller than the table.
 
 ## Open a file
 
@@ -22,13 +28,15 @@ result = ant.analyze(orders, query=ant.AverageEffect("t", "y"), graph=[("z", "t"
 `analyze`, `prepare`, and `ant.rebind(study, data=...)`
 also take the path itself (`"orders.parquet"`, a `pathlib.Path`, or a directory). A path
 whose extension is not `.parquet`, `.parq`, `.pq`, `.arrow`, `.feather`, `.ipc` or
-`.arrows`, and that is not a directory, is refused with `reason_code="invalid_argument"`.
+`.arrows`, and that is not a directory, is refused with `reason_code="invalid_argument"`
+(a `CausalValueError`; see [refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies)).
 Arrow C streams (`__arrow_c_stream__` exporters such as PyArrow, Polars and DuckDB
 tables) are accepted too.
 
 The handle is a read-only mapping of column name to array. Indexing one name reads that
 column; `read(columns)` reads several in one pass. `from_parquet(path, columns=[...])`
-hides every other column.
+hides every other column, and refuses a name that is not in the file or is repeated.
+`from_arrow_ipc(path, stream=True)` reads a stream whatever the extension.
 
 ## Which columns are read
 
@@ -85,7 +93,7 @@ appearance. Null cells are validity masks: a missing float cell is invalid and h
 
 ## Memory: chunks, quotes and refusals
 
-Each chunk (65,536 rows by default; `chunk_rows=`) is charged to the admission pool
+Each chunk (65,536 rows by default; set `chunk_rows=` on `from_parquet` or `from_arrow_ipc`) is charged to the admission pool
 before it is decoded and again before its library-owned columns are built.
 `execution=Execution(limits=ResourceLimits(memory_bytes=...))` bounds that pool, and the execution's `cancel` token stops a read. When the pool cannot hold one chunk the read is
 refused with the bytes needed, the bytes available and the next attempt (a smaller
@@ -94,7 +102,8 @@ size their writer chose, so a batch larger than the chunk quote is charged as so
 it is decoded and refused when the pool cannot hold it.
 
 A route that needs the whole table resident is quoted first: `quote(columns)` returns
-the bytes of the resident columns, their masks, one chunk of scratch and the copy that
+a `MemoryQuote` (`total_bytes`, `resident_bytes`, `chunk_bytes`, `chunk_rows`) covering
+the resident columns, their masks, one chunk of scratch and the copy that
 seals each column. When the pool is smaller, the read is refused before reading with
 `CausalResourceError` whose `remedy` names the two next attempts: stream a
 sufficient-statistics summary route, or raise the pool.
@@ -109,13 +118,22 @@ and leverage and residual checks:
 
 ```python
 summary = orders.summarize_weighted_gaussian(["t", "z"], "y", weight="w", batch_rows=65_536)
+summary.design_columns        # names in coefficient order
 summary.coefficients          # intercept first
 summary.robust_covariance     # HC0
+summary.rows_used, summary.rows_dropped
 ```
 
+The coefficients are a weighted least-squares regression of the response on the
+covariates. They describe that regression; they are not an identified causal effect
+unless you separately justify the adjustment set, which an `analyze` call with a graph
+does and this summary does not. The `HC0` covariance is heteroskedasticity-consistent for
+independent rows; the summary reports no interval and no calibration status.
+
 Covariates, response and weight must be float, integer or boolean columns. A missing
-value is refused with its column and row unless `missing="complete_case"`, which leaves
-the row out and counts it in `rows_dropped`. From Rust the same route is
+value is refused with its column and row (`missing="refuse"`, the default) unless
+`missing="complete_case"`, which leaves the row out and counts it in `rows_dropped`.
+`intercept=False` omits the intercept. From Rust the same route is
 `antecedent::analysis::file_table::summarize_weighted_gaussian`.
 
 ## Row ids above `2**32`

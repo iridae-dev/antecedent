@@ -1,10 +1,34 @@
 # Estimate with sampling weights
 
-A sampling weight `s_i` says how many population units row `i` stands for (an inverse
-inclusion probability, possibly calibrated). Declaring weights changes **what is estimated**
-and **how uncertain it is**, so every route that reads them follows one contract, and a route
-that cannot honour the contract refuses the weights (`option_not_applicable`,
-`sampling_weights.route_unsupported`) instead of ignoring them.
+Use this guide when your rows come from a survey or another sample with unequal inclusion
+probabilities, and you want the effect in the population the sample represents rather than
+among the sampled units. A sampling weight `s_i` says how many population units row `i` stands
+for (an inverse inclusion probability, possibly calibrated). You need a numeric weight column,
+or one weight per row, and a route that reads weights (the table below).
+
+```python
+import antecedent as ant
+from antecedent.estimators import LinearAdjustment
+
+result = ant.analyze(
+    data,                                   # holds columns t, y, z and the weight column w
+    graph=[("z", "t"), ("z", "y"), ("t", "y")],
+    query=ant.AverageEffect("t", "y"),
+    estimator=LinearAdjustment(weights="w"),
+)
+result.answer.value                         # the effect in the weighted population
+weights = result.value.estimate.sampling_weights
+weights.rows_used, weights.zero_weight_rows
+weights.effective_sample_size, weights.design_effect
+weights.target_population
+```
+
+Declaring weights changes **what is estimated** ([the weighted population](#what-is-estimated))
+and **how uncertain it is** ([the variance](#variance)), so every route that reads them follows
+one contract, and a route that cannot honour the contract refuses the weights
+(`option_not_applicable`, detail `sampling_weights.route_unsupported`) instead of ignoring them.
+The identifying assumptions of the query are unchanged; the weights add the assumption that
+they are the inverse inclusion probabilities of the design, up to a common scale.
 
 ## Declaring weights
 
@@ -21,6 +45,11 @@ that cannot honour the contract refuses the weights (`option_not_applicable`,
 | `DRLearner` | `weights="w"` | prior-weighted nuisances and final stage, weighted marginal ATE |
 | `RandomizedEffect` | `weights="w"` | weighted Hajek means per arm (Bernoulli and complete designs) |
 | `PanelDifferenceInDifferences` | `weights="w"` | weighted group means of the change scores (balanced panel) |
+
+The first nine rows are estimators (`antecedent.estimators`); `RandomizedEffect` and
+`PanelDifferenceInDifferences` are queries and take `weights=` themselves, as does the temporal
+`PulseEffect` (see [where weights are refused](#where-weights-are-refused)).
+`PanelDifferenceInDifferences` and `PulseEffect` accept a column name only.
 
 `weights` names a numeric column of the table passed to `analyze` / `prepare`, or gives one
 weight per row. The weights belong to the original rows: a row dropped as incomplete or outside
@@ -46,7 +75,9 @@ estimator, or drop them from the table).
 
 ## What is estimated
 
-The **weighted population**: the population the declared weights represent. An average
+The **weighted population**: the population the declared weights represent. With `τ_i` the
+unit-level effect of row `i` (the difference of its potential outcomes under the two treatment
+values of the query), an average
 effect under weights is `Σ s_i τ_i / Σ s_i` for the weighted finite population and the
 corresponding functional of the super-population when rows are independent draws from a
 design with inclusion probabilities `1 / s_i`. The estimate does not speak for the sampled
@@ -71,11 +102,19 @@ finite-population correction is made.
 
 A row of weight zero stands for no population unit. It is **excluded and counted**
 (`zero_weight_rows`), and the estimate equals the one computed on the table with those rows
-deleted (exactly for the deterministic routes, except the temporal window: its block bootstrap resamples the time axis, and deleting a window would join windows that are not adjacent, so zero-weight windows stay in the sequence, contribute no score and are counted — the point estimate is unchanged, its bootstrap SE reflects the resampled time axis; the cross-fitted AIPW assigns folds from the
-original row index, so it agrees up to fold noise). A negative, NaN or infinite weight is
-refused, naming the first offending row (`sampling_weights_invalid`,
-`sampling_weights.invalid`); so are all-zero weights, a declaration that does not cover the
-table's rows, and weights with no positive row left after the other selections.
+deleted. The equality is exact for the deterministic routes, with two qualifications:
+
+- The temporal window's block bootstrap resamples the time axis, and deleting a window would
+  join windows that are not adjacent. Zero-weight windows therefore stay in the sequence,
+  contribute no score and are counted; the point estimate is unchanged and the bootstrap
+  standard error reflects the resampled time axis.
+- The cross-fitted AIPW assigns folds from the original row index, so it agrees up to fold noise.
+
+A negative, NaN or infinite weight is refused, naming the first offending row (code
+`sampling_weights_invalid`, detail `sampling_weights.invalid`; see
+[other registered refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes));
+so are all-zero weights, a declaration that does not cover the table's rows, and weights with
+no positive row left after the other selections.
 
 ## Variance
 
@@ -197,10 +236,12 @@ a linear effect on the analysis part with those weights as sampling weights, adj
 declared set (typically the treatment's parents in the discovered graph). Its estimand is the
 effect in the weighted population the analysis part represents, **conditional on the selected
 graph** (discovery saw none of these rows); weights are normalized to mean one over the rows
-used; the standard error defaults to the sampling-weighted HC3 sandwich (`estimate_analysis_effect_hc1` gives HC1), or the cluster sandwich over
-declared analysis-part clusters; rows of weight zero are excluded and counted; and the Kish
+used; the standard error defaults to the sampling-weighted HC3 sandwich (`estimate_analysis_effect_hc1` gives HC1), or the cluster
+sandwich over declared analysis-part clusters; rows of weight zero are excluded and counted; and the Kish
 size is reported. The result carries the binding that ties it to the split receipt and the
-discovery. Its interval method returns a computed Student interval labelled not_measured; whole-procedure records belong to the exact declared discovery/split/variance recipe and do not supply automatic calibration authority to an arbitrary split.
+discovery. Its interval method returns a computed Student interval whose calibration status is
+`not_measured`; coverage records belong to the exact declared discovery, split and variance
+recipe and do not extend to an arbitrary split.
 
 In Python, estimate on the analysis part with `weights=split.analysis_weights`:
 
@@ -211,3 +252,10 @@ result = ant.analyze(
     split.analysis, graph=graph, query=query, estimator=LinearAdjustment(weights=split.analysis_weights)
 )
 ```
+
+## Where next
+
+- [Clusters](clustered-dml.md): rows that share a sampling or assignment unit.
+- [Missing values](missing-data.md): how dropped rows are accounted for.
+- [Discover, then estimate](../selective-discovery.md): the sample split whose analysis part is weighted above.
+- [Refusal codes and remedies](../reference/refusal-codes.md): reading `code`, `detail` and `remedy` on a refusal.

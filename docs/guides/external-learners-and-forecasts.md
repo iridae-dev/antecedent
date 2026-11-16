@@ -1,9 +1,30 @@
 # External learners and forecasts
 
-Antecedent can execute explicitly registered third-party providers as nuisance learners or
-forecast producers. A provider remains externally attested unless independent fixtures verify
-the exact request. Verification of one fold, prediction, or forecast origin does not verify a
-different request. Provider receipts remain attached to the returned result.
+Use this guide when a model from another package should supply the nuisance functions of an
+average-effect estimate (the outcome regressions and the propensity), or should produce
+forecasts that you then score. Antecedent runs such a model only as an explicitly registered
+**provider** in a `ProviderRegistry` (see [connect scientific components](build/scientific-interfaces.md)), and
+keeps the provider's receipt on every result.
+
+| Task | Entry point |
+| --- | --- |
+| Average effect of a binary treatment with external nuisance models | `antecedent.external_learners.dml_ate` and its `aipw_ate`, `dr_learner_ate`, `causal_forest_ate` variants |
+| Held-out nuisance predictions only, no effect | `antecedent.external_learners.cross_fit_aipw` |
+| Rolling-origin forecasts to assess | `antecedent.forecasting.rolling`, then [`predictive_assessment.assess`](../predictive-assessment.md) |
+
+## What a provider result establishes
+
+A provider remains externally attested unless independent fixtures verify the exact request.
+Verification of one fold, prediction, or forecast origin does not verify a different request.
+
+A provider's declared prior training data is not independently authenticated. For pretrained
+models, leave prior training lineage unknown unless you can supply its complete observation
+identities. Ordinary shuffled cross-fitting is not appropriate for time-dependent rows: the
+external nuisance entry points raise `CausalValueError` for `fold_policy="temporal"`, because
+they have no forward-only fitting contract.
+
+## Resources and cancellation
+
 Provider calls through one registry are serialized, and Antecedent admits its bridge data copies;
 provider-internal threads, devices, memory, model artifacts, retained receipts, and external
 service calls are not bounded by that admission. Pass `execution=Execution(limits=ResourceLimits(memory_bytes=...))`
@@ -12,12 +33,6 @@ An already active shared execution budget is preserved; a request for a smaller 
 limit is refused rather than replacing that shared pool.
 Cancellation is cooperative: an in-progress provider call must return before the run can stop;
 the cancelled run publishes no partial estimate.
-
-A provider's declared prior training data is not independently authenticated. For pretrained
-models, leave prior training lineage unknown unless you can supply its complete observation
-identities. Ordinary shuffled cross-fitting is not appropriate for time-dependent rows: the
-external nuisance entry points refuse `fold_policy="temporal"`, because they have no
-forward-only fitting contract.
 
 ## Nuisance learner
 
@@ -72,12 +87,39 @@ assert abs(result.estimate - 2.0) < 1e-10
 assert len(result.receipts) == 6
 ```
 
-`dml_ate` identifies the supplied static DAG before fitting. It supports AIPW and partially
-linear DML scores. `aipw_ate` provides the five-fold, untrimmed all-observed AIPW route with
+The fixture has no confounder and an exact effect of 2, so `result.estimate` is 2 to
+rounding. The provider here fits a constant; it only shows the interface.
+
+### Estimand and assumptions
+
+`dml_ate` identifies the supplied static DAG before fitting and estimates the average
+treatment effect `E[Y(1) - Y(0)]` of the binary treatment over the supplied rows, adjusting
+for the identified set reported in `result.adjustment_set`. The graph is your causal
+assumption; the route does not test it. The point also assumes overlap and that the provider's
+out-of-fold predictions estimate the conditional outcome means and the propensity.
+
+### Read the estimate
+
+| Field | Meaning |
+| --- | --- |
+| `estimate` | the cross-fitted point estimate |
+| `standard_error` | the IID cross-fitted score standard error; valid only under the declared graph and the usual nuisance-rate conditions, which are not checked for an external learner |
+| `adjustment_set`, `row_ids`, `fold_ids` | the identified adjustment columns, the analysed rows and each row's fold |
+| `cate`, `cate_standard_errors` | per-row values for the estimators that produce them, otherwise `None` |
+| `assumptions` | the assumptions the route records |
+| `provenance`, `receipts` | one entry per fold and nuisance model, linking each fit and prediction to its provider receipt |
+
+A standard error is not an interval: the result carries no confidence interval and no
+calibration status.
+
+### Estimators and settings
+
+`dml_ate` supports AIPW and partially linear DML scores (`score="aipw"`, the default, or
+`score="partially_linear"`), with `folds=5` by default. `aipw_ate` provides the five-fold, untrimmed all-observed AIPW route with
 IID analytic inference and no bootstrap. `dr_learner_ate` uses the external first-stage models
 with a built-in linear CATE final stage. `causal_forest_ate` uses them for the forest's marginal
-ATE; its CATE trees remain native. Unsupported settings are refused rather than silently
-substituted. Sampling weights require both nuisance providers to declare weight support; the
+ATE; its CATE trees remain native. A score other than `"aipw"` is accepted only with
+`estimator="dml"`. Unsupported settings are refused rather than silently substituted. Sampling weights require both nuisance providers to declare weight support; the
 forest route does not support weights. `cross_fit_aipw` exposes held-out nuisance predictions
 without making a causal estimate.
 
@@ -150,3 +192,10 @@ The aggregate assessment source hashes those receipts and is conservatively exte
 it does not promote the batch to verified merely because an individual request was verified.
 Per-origin fit declarations ensure an observation used at a later origin does not by itself
 make an earlier forecast in-sample. Unknown lineage remains unverified.
+
+## Related pages
+
+- [Connect scientific components](build/scientific-interfaces.md): the provider specification and registry rules.
+- [Assess a predictive law](../predictive-assessment.md): scores, dependence declarations and held-out requirements for the forecasts produced here.
+- [Sampling weights](sampling-weights.md): what a weighted estimate targets.
+- [Refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies): the fields a refusal carries.
