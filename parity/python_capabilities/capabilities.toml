@@ -11461,6 +11461,16 @@ test = "python/tests/test_structure_prior.py::test_an_unknown_variable_in_the_pr
 assertion_scopes = ["test_an_unknown_variable_in_the_prior_is_refused"]
 dimensions = ["refusal"]
 assertion_contract = "A per-edge prior naming a variable the data do not have is refused naming the variable."
+[[capability.evidence]]
+test = "python/tests/test_structure_prior.py::test_the_screened_route_selects_the_focus_neighbourhood_and_states_its_condition"
+assertion_scopes = ["test_the_screened_route_selects_the_focus_neighbourhood_and_states_its_condition"]
+dimensions = ["success", "controls"]
+assertion_contract = "ScreenedExactMarginals around one variable of two planted chains selects that variable's chain, returns exact marginals over the selection with both chain pairs adjacent above 0.9 and the unadjacent pair below 0.5, and states that the marginals are conditional on the CI screen."
+[[capability.evidence]]
+test = "python/tests/test_structure_prior.py::test_the_screened_route_refuses_what_the_exact_route_cannot_hold"
+assertion_scopes = ["test_the_screened_route_refuses_what_the_exact_route_cannot_hold"]
+dimensions = ["refusal"]
+assertion_contract = "A set size above the exact ceiling, no focus variable, an edge probability of one and an unknown focus variable are each refused."
 
 [[capability]]
 id = "analysis.association.AssociationPayload"

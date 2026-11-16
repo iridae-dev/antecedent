@@ -8,9 +8,12 @@ import numpy as np
 import pytest
 from antecedent.discovery import (
     BackgroundKnowledge,
+    CiScreenedPosterior,
+    DbnPosterior,
     EquivalenceClassPosterior,
     ExactDagPosterior,
     OrderMcmc,
+    ScreenedExactMarginals,
     StructureMcmc,
     StructurePrior,
 )
@@ -138,3 +141,61 @@ def test_the_wire_carries_the_prior_only_when_one_is_set() -> None:
     assert "prior" not in StructureMcmc()._wire()
     wire = StructureMcmc(prior=StructurePrior(default_edge_probability=0.2))._wire()
     assert wire["prior"] == {"default_edge_probability": 0.2}
+
+
+def _two_chains(rows: int = 400, seed: int = 9) -> dict[str, np.ndarray]:
+    """``a -> b -> c`` and ``d -> e`` beside three noise variables."""
+    rng = np.random.default_rng(seed)
+    a = rng.normal(size=rows)
+    b = 0.9 * a + rng.normal(size=rows)
+    c = 0.9 * b + rng.normal(size=rows)
+    d = rng.normal(size=rows)
+    e = 0.9 * d + rng.normal(size=rows)
+    noise = {f"n{i}": rng.normal(size=rows) for i in range(3)}
+    return {"a": a, "b": b, "c": c, "d": d, "e": e, **noise}
+
+
+def test_the_screened_route_selects_the_focus_neighbourhood_and_states_its_condition() -> None:
+    data = _two_chains()
+    result = ScreenedExactMarginals(focus=("b",), max_variables=3).run(data)
+    assert result.names == ["a", "b", "c"]
+    assert result.conditional_on_screen is not None
+    assert "conditional on the CI screen" in result.conditional_on_screen
+    matrix = np.asarray(result.edge_marginal_matrix())
+    assert matrix[0, 1] + matrix[1, 0] > 0.9
+    assert matrix[1, 2] + matrix[2, 1] > 0.9
+    assert matrix[0, 2] + matrix[2, 0] < 0.5
+
+
+def test_the_screened_route_refuses_what_the_exact_route_cannot_hold() -> None:
+    with pytest.raises((CausalValueError, CausalTypeError)):
+        ScreenedExactMarginals(focus=("b",), max_variables=16)
+    with pytest.raises(CausalValueError):
+        ScreenedExactMarginals(focus=())
+    with pytest.raises(CausalValueError):
+        ScreenedExactMarginals(focus=("b",), in_probability=1.0)
+    with pytest.raises(Exception, match="unknown focus"):
+        ScreenedExactMarginals(focus=("zzz",), max_variables=3).run(_two_chains())
+
+
+def test_a_callers_edge_probability_is_kept_by_the_screened_route() -> None:
+    data = _two_chains()
+    plain = ScreenedExactMarginals(focus=("b",), max_variables=3).run(data)
+    stated = ScreenedExactMarginals(
+        focus=("b",),
+        max_variables=3,
+        prior=StructurePrior(edge_probabilities={("c", "b"): 0.001}),
+    ).run(data)
+    assert stated.names == plain.names
+    assert stated.edge_marginal_matrix()[2][1] < plain.edge_marginal_matrix()[2][1]
+
+
+def test_ci_screened_and_dbn_posteriors_carry_the_prior() -> None:
+    prior = StructurePrior(default_edge_probability=0.1)
+    assert CiScreenedPosterior(prior=prior)._wire()["prior"] == {"default_edge_probability": 0.1}
+    assert DbnPosterior(prior=prior)._wire()["prior"] == {"default_edge_probability": 0.1}
+    assert "prior" not in CiScreenedPosterior()._wire()
+    assert "prior" not in DbnPosterior()._wire()
+    data = _two_chains()
+    sparse = CiScreenedPosterior(prior=StructurePrior(default_edge_probability=0.02)).run(data)
+    assert sparse.n_vars == len(data)

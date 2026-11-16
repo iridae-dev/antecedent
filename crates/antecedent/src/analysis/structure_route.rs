@@ -304,6 +304,31 @@ impl DiscoverySpec {
         spec
     }
 
+    /// CI screen of every variable, then exact edge marginals of the `focus` variables'
+    /// skeleton neighbourhood (at most `max_variables`) with the screen as a per-edge prior.
+    /// The marginals are conditional on the screen.
+    #[must_use]
+    pub fn screened_exact_marginals(
+        params: BayesianDiscoverParams,
+        screen: StaticDiscoverParams,
+        focus: impl Into<Arc<[VariableId]>>,
+        max_variables: u32,
+        in_probability: f64,
+        out_probability: f64,
+        ci_label: impl Into<Arc<str>>,
+    ) -> Self {
+        Self::new(
+            DiscoveryMethod::ScreenedExactMarginals {
+                focus: focus.into(),
+                max_variables,
+                in_probability,
+                out_probability,
+            },
+            SearchParams::Screened { bayesian: params, screen },
+            ci_label,
+        )
+    }
+
     /// Bounded-lag DBN template posterior.
     #[must_use]
     pub fn dbn_posterior(
@@ -487,6 +512,7 @@ impl DiscoverySpec {
                 | DiscoveryMethod::OrderMcmc { .. }
                 | DiscoveryMethod::StructureMcmc
                 | DiscoveryMethod::CiScreenedPosterior { .. }
+                | DiscoveryMethod::ScreenedExactMarginals { .. }
                 | DiscoveryMethod::DbnPosterior { .. } => true,
                 DiscoveryMethod::ClassPosterior { base }
                 | DiscoveryMethod::BootstrapStability { base, .. } => uses_dag_bic(base),
@@ -786,7 +812,11 @@ impl DiscoveredStructure {
             Self::TemporalPag(result) => Some(&*result.algorithm.id),
             Self::Regimes(result) => Some(&*result.algorithm.id),
             Self::Posterior(posterior) => posterior.algorithm().map(|algorithm| &**algorithm),
-            Self::EdgeMarginals(_) => Some("exact_dag_marginals"),
+            Self::EdgeMarginals(marginals) => Some(if marginals.conditional_on_screen.is_some() {
+                "screened_exact_marginals"
+            } else {
+                "exact_dag_marginals"
+            }),
             Self::Stability(_) | Self::RegimeStability(_) => Some("bootstrap_stability"),
         }
     }

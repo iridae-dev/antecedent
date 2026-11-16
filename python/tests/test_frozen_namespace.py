@@ -366,6 +366,7 @@ _EXPECTED_STAGE_ALL = {
         "StructureMcmc",
         "StructurePrior",
         "RegimeStabilityResult",
+        "ScreenedExactMarginals",
         "StructureStabilityResult",
         "cpdag_oriented_edges",
         "discovery_algorithm",

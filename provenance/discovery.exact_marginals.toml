@@ -15,6 +15,7 @@ implementation_deviations = [
  "The posterior is the exact normalization of a Gaussian-BIC approximation with the uniform or independent-Bernoulli edge prior and the declared constraints, not an exact Bayesian marginal posterior; the marginals are exact for that distribution.",
  "Only edge marginals and the normalizing constant are computed; no graph atoms are produced, so the result cannot feed an effect mixture.",
  "The recursion is evaluated in double precision with the log-domain subset sums scaled by the best DAG weight of each node set; its cancellation error is bounded by the number of terms, about 1e-12 at 12 variables, and is checked against an independent enumeration to 1e-9.",
+ "A per-edge or soft-tier prior is computed by a separate branch of the prior table; a prior that sets neither takes the original global-probability branch, so the numbers of the earlier priors are unchanged to the bit.",
  "The size is limited to at most 12 variables: each marginal needs one 3^n pass.",
 ]
 
@@ -27,20 +28,20 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "exact_dag_marginals in crates/antecedent-discovery/src/exact_marginals.rs: the per-node factors exp(local Gaussian BIC + log prior) of every parent set, the sink-removal recursion with inclusion-exclusion for the normalizing constant, its restriction to parent sets containing an edge for the edge marginals, and the log evidence, under the uniform and independent-Bernoulli graph priors with a parent cap and forbidden and required edges. The local score itself is the library's Gaussian BIC in crates/antecedent-state/src/graph_score.rs (also exercised). Not the samplers, tiers, lagged links, or other score families."
-assumptions = ["The graph prior of a Bernoulli(p) edge prior is a product over ordered pairs that are not forbidden: log p for a present edge, log(1-p) for an absent one; the uniform prior is flat over the valid DAGs.", "The Gaussian BIC local score is -n/2 (1 + ln 2 pi + ln(RSS/n)) - (|Pa|+1)/2 ln n with RSS from least squares on an intercept and the parents."]
+scope = "exact_dag_marginals in crates/antecedent-discovery/src/exact_marginals.rs: the per-node factors exp(local Gaussian BIC + log prior) of every parent set, the sink-removal recursion with inclusion-exclusion for the normalizing constant, its restriction to parent sets containing an edge for the edge marginals, and the log evidence, under the uniform and independent-Bernoulli graph priors, a sparse per-edge inclusion map with a default for unlisted edges, a soft tier penalty on edges against a declared order, a parent cap and forbidden and required edges (the last two win over the soft factors). The local score itself is the library's Gaussian BIC in crates/antecedent-state/src/graph_score.rs (also exercised). Not the samplers, tiers, lagged links, or other score families."
+assumptions = ["The graph prior of a Bernoulli(p) edge prior is a product over ordered pairs that are not forbidden: log p for a present edge, log(1-p) for an absent one; the uniform prior is flat over the valid DAGs. A per-edge map replaces the pair term by log p_ij / log(1-p_ij) for the listed ordered pairs (unlisted pairs take the map default, then the global probability, then a neutral term); a soft tier adds -penalty to the present term of a pair from a later tier into an earlier one. All of these are products over ordered pairs, so the per-node factor is the same sum over candidate parents and the recursion is unchanged.", "The Gaussian BIC local score is -n/2 (1 + ln 2 pi + ln(RSS/n)) - (|Pa|+1)/2 ln n with RSS from least squares on an intercept and the parents."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
 redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), itertools and random from the Python standard library, imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 limitations = "Six data sets of 40 to 400 rows on four or five nodes (uniform prior; Bernoulli(0.2) prior with a parent cap of two; Bernoulli(0.5) prior with two forbidden edges; a forbidden and a required edge; a near-collinear pair of nodes differing by noise of 0.001; local scores of order a thousand nats), each enumerated over every labelled DAG (543 on four nodes, 29,281 on five) with 60-digit scores from 3-decimal data. Larger graphs, tiers, lagged links and non-Gaussian score families are not enumerated; the existing wide-graph tests cover 5 to 12 variables against a separate double-precision implementation. The reference script is not run in a locked, isolated environment and is not wired into any gate."
 sources = ["https://www.jmlr.org/papers/volume5/koivisto04a/koivisto04a.pdf", "https://arxiv.org/abs/1205.2630", "https://doi.org/10.1214/aos/1176344136", "https://mpmath.org/"]
 findings_resolved = ["The log evidence agrees to 1e-9 relative and every one of the n^2 edge marginals to 1e-9 absolute with the brute-force sum over all DAGs on all six data sets, including the Bernoulli prior with a cap, forbidden and required edges, and the near-collinear design. No defect found.", "The earlier tests compare against a double-precision enumeration for the uniform prior and the parent cap only; this review adds the normalizing constant, the Bernoulli prior and the edge constraints, and an independent multiprecision score."]
-record_sha256 = "20c7a9506cb4ca8aa08852fad3fd93ef9c5aa98f0943289a22f96291a9352cf8"
+record_sha256 = "70829072f438716061e23dbbe1aad6dcdc469162b929d9edbe7552a8ff40939a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_marginals.rs"
 items = ["const EXACT_MARGINAL_WORK_BUDGET", "fn exact_dag_marginals", "fn exact_marginal_work", "fn fold_subsets", "fn log_add", "fn marginals_from_factors", "fn scaled_total", "struct ExactDagMarginals"]
-sha256 = "39e701878a39673ca3b92b870a9dc6ae5bce19045332738b210b67322f9a0c58"
+sha256 = "4fa79b9c59721984df4a5ef0ab53a16374c21f5fecb6efa8b2dc9e5b9ee2934e"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -63,3 +64,15 @@ sha256 = "69a505abe52e21bee4ee580fb780226ffd2716ca31da94b410ae897def715d08"
 role = "fixture"
 path = "crates/antecedent-discovery/tests/oracle_data/exact_marginals_reference.json"
 sha256 = "589a30a9e940cc29ef795ef541fb1d3acbedd5b075f9f3679a02448562394fdd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/edge_prior.rs"
+items = ["fn pair_logs", "fn refuse", "fn validate", "struct EdgePriors", "struct SoftTiers"]
+sha256 = "fcbbe8e22f725c2b1a641da172723794b425ed4bef2c467c123d10a644c40cba"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-discovery/tests/edge_prior_reference.rs"
+items = ["fn per_edge_marginals_equal_brute_force_enumeration_over_all_dags", "fn soft_tier_penalty_is_the_hand_computed_posterior_ratio", "fn hard_tiers_win_over_soft_tiers", "fn reweighted_marginals", "fn enumerated", "fn listed_edges", "fn edge_prior_probability", "fn against_order"]
+sha256 = "2671502d5f4ecdc8ebf91d4673cd9e07e51175e5f1244ee2959dc8a5d3e9c563"

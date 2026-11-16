@@ -1026,7 +1026,11 @@ fn discover_structure_mcmc(
     thin=1,
     seed=1,
     threads=None,
-    equivalence_classes=false
+    equivalence_classes=false,
+    edge_priors=None,
+    edge_prior_default=None,
+    soft_tiers=None,
+    soft_tier_penalty=None
 ))]
 fn discover_ci_screened_posterior(
     py: Python<'_>,
@@ -1044,6 +1048,10 @@ fn discover_ci_screened_posterior(
     seed: u64,
     threads: Option<u32>,
     equivalence_classes: bool,
+    edge_priors: Option<Vec<(String, String, f64)>>,
+    edge_prior_default: Option<f64>,
+    soft_tiers: Option<Vec<Vec<String>>>,
+    soft_tier_penalty: Option<f64>,
 ) -> PyResult<PyGraphPosterior> {
     crate::bridge::check_count(
         "max_cond_size",
@@ -1074,15 +1082,15 @@ fn discover_ci_screened_posterior(
             knowledge: antecedent::discovery::BackgroundKnowledge::default(),
         };
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin)?;
+        let mut params = bayesian_params();
+        PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty }.apply(
+            &mut params,
+            &names,
+            &variables,
+        )?;
         let (post, route) = compiled_search(
             over_classes(
-                DiscoverySpec::ci_screened_posterior(
-                    bayesian_params(),
-                    screen,
-                    schedule,
-                    soft,
-                    ci_label,
-                ),
+                DiscoverySpec::ci_screened_posterior(params, screen, schedule, soft, ci_label),
                 equivalence_classes,
             ),
             DiscoverInput::Tabular(data),
@@ -1091,6 +1099,123 @@ fn discover_ci_screened_posterior(
             posterior_of,
         )?;
         Ok(PyGraphPosterior::from_rust(names, post).with_route(route))
+    })
+}
+
+/// CI screen of every variable, then exact edge marginals of the focus variables' skeleton
+/// neighbourhood (at most `max_variables`, itself at most 15) with the screen as a per-edge prior.
+///
+/// Returns the selected variable names, the row-major `P(i -> j)` over them, the log normalizing
+/// constant and the statement that the marginals are conditional on the screen.
+#[pyfunction]
+#[pyo3(signature = (
+    names,
+    columns,
+    focus,
+    *,
+    max_variables=12,
+    in_probability=0.5,
+    out_probability=0.02,
+    alpha=0.05,
+    fdr=true,
+    ci=None,
+    max_cond_size=2,
+    seed=1,
+    threads=None,
+    edge_priors=None,
+    edge_prior_default=None,
+    soft_tiers=None,
+    soft_tier_penalty=None
+))]
+fn discover_screened_exact_marginals(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<NumericColumn<'_>>,
+    focus: Vec<String>,
+    max_variables: u32,
+    in_probability: f64,
+    out_probability: f64,
+    alpha: f64,
+    fdr: bool,
+    ci: Option<String>,
+    max_cond_size: usize,
+    seed: u64,
+    threads: Option<u32>,
+    edge_priors: Option<Vec<(String, String, f64)>>,
+    edge_prior_default: Option<f64>,
+    soft_tiers: Option<Vec<Vec<String>>>,
+    soft_tier_penalty: Option<f64>,
+) -> PyResult<(Vec<String>, Vec<f64>, f64, String)> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
+    let ci_name = ci.unwrap_or_else(|| "parcorr".to_string());
+    let ci_label = ci_name.to_ascii_lowercase();
+    let ci_impl = if ci_name.eq_ignore_ascii_case("parcorr") {
+        std::sync::Arc::new(PartialCorrelation)
+            as std::sync::Arc<dyn antecedent::inference::ConditionalIndependence + Send + Sync>
+    } else {
+        resolve_ci(&ci_name, None).map_err(py_err)?
+    };
+    let batch = numeric_columns_to_batch(&names, &columns)?;
+    drop(columns);
+    detach_catch(py, move || {
+        let (data, variables) = tabular_from_batch(&batch)?;
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let screen = StaticDiscoverParams {
+            alpha,
+            max_cond_size,
+            fdr: fdr.then(|| FdrAdjustment::bh().with_exclude_contemporaneous(false)),
+            ci: ci_impl,
+            screen_pc: false,
+            max_subset: None,
+            knowledge: antecedent::discovery::BackgroundKnowledge::default(),
+        };
+        let focus_ids = focus
+            .iter()
+            .map(|name| {
+                names
+                    .iter()
+                    .position(|candidate| candidate == name)
+                    .map(|index| variables[index])
+                    .ok_or_else(|| crate::value_err(format!("unknown focus variable {name:?}")))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let mut params = bayesian_params();
+        PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty }.apply(
+            &mut params,
+            &names,
+            &variables,
+        )?;
+        let (marginals, _route) = compiled_search(
+            DiscoverySpec::screened_exact_marginals(
+                params,
+                screen,
+                focus_ids,
+                max_variables,
+                in_probability,
+                out_probability,
+                ci_label,
+            ),
+            DiscoverInput::Tabular(data),
+            &variables,
+            &ctx,
+            |structure| match structure {
+                DiscoveredStructure::EdgeMarginals(marginals) => Some(marginals),
+                _ => None,
+            },
+        )?;
+        let selected = marginals
+            .variables
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .map(|variable| names[variable.as_usize()].clone())
+            .collect();
+        let statement = marginals.conditional_on_screen.as_deref().unwrap_or_default().to_owned();
+        Ok((selected, marginals.edge_marginals.to_vec(), marginals.log_evidence, statement))
     })
 }
 
@@ -1109,7 +1234,11 @@ fn discover_ci_screened_posterior(
     seed=1,
     threads=None,
     unit_lengths=None,
-    equivalence_classes=false
+    equivalence_classes=false,
+    edge_priors=None,
+    edge_prior_default=None,
+    soft_tiers=None,
+    soft_tier_penalty=None
 ))]
 fn discover_dbn_posterior(
     py: Python<'_>,
@@ -1125,6 +1254,10 @@ fn discover_dbn_posterior(
     threads: Option<u32>,
     unit_lengths: Option<Vec<usize>>,
     equivalence_classes: bool,
+    edge_priors: Option<Vec<(String, String, f64)>>,
+    edge_prior_default: Option<f64>,
+    soft_tiers: Option<Vec<Vec<String>>>,
+    soft_tier_penalty: Option<f64>,
 ) -> PyResult<PyGraphPosterior> {
     let _ = thin; // DBN engine schedule has no thin; kept for API symmetry.
     let ingested = crate::columns_to_ingested(&names, &columns, unit_lengths.as_deref())?;
@@ -1145,9 +1278,15 @@ fn discover_dbn_posterior(
                 (DiscoverInput::Series(series), variables)
             }
         };
+        let mut params = bayesian_params();
+        PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty }.apply(
+            &mut params,
+            &names,
+            &variables,
+        )?;
         let (post, route) = compiled_search(
             over_classes(
-                DiscoverySpec::dbn_posterior(bayesian_params(), max_lag, force_mcmc, schedule),
+                DiscoverySpec::dbn_posterior(params, max_lag, force_mcmc, schedule),
                 equivalence_classes,
             ),
             input,
@@ -1169,6 +1308,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(discover_order_mcmc, m)?)?;
     m.add_function(wrap_pyfunction!(discover_structure_mcmc, m)?)?;
     m.add_function(wrap_pyfunction!(discover_ci_screened_posterior, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_screened_exact_marginals, m)?)?;
     m.add_function(wrap_pyfunction!(discover_dbn_posterior, m)?)?;
     Ok(())
 }

@@ -152,6 +152,7 @@ const DISCOVERY_ALGORITHMS: &[DiscoveryAlgorithm] = &[
     run_order_mcmc,
     run_structure_mcmc,
     run_ci_screened_posterior,
+    run_screened_exact_marginals,
     run_dbn_posterior,
 ];
 
@@ -452,6 +453,36 @@ fn run_ci_screened_posterior(
         search.ctx,
     )?;
     Ok(Some(DiscoveredStructure::Posterior(found)))
+}
+
+fn run_screened_exact_marginals(
+    search: &Search<'_>,
+) -> Result<Option<DiscoveredStructure>, CausalError> {
+    let (
+        DiscoveryMethod::ScreenedExactMarginals {
+            focus,
+            max_variables,
+            in_probability,
+            out_probability,
+        },
+        SearchParams::Screened { bayesian, screen },
+        DiscoverData::Tabular(d),
+    ) = (&search.spec.method, &search.spec.search, search.data)
+    else {
+        return Ok(None);
+    };
+    let found = crate::discovery::discover_screened_exact_marginals(
+        d,
+        search.vars,
+        focus,
+        *max_variables as usize,
+        bayesian,
+        screen,
+        *in_probability,
+        *out_probability,
+        search.ctx,
+    )?;
+    Ok(Some(DiscoveredStructure::EdgeMarginals(found)))
 }
 
 fn run_dbn_posterior(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, CausalError> {

@@ -117,6 +117,9 @@ from ._native import (
     discover_rpcmci_stability as _discover_rpcmci_stability,
 )
 from ._native import (
+    discover_screened_exact_marginals as _discover_screened_exact_marginals,
+)
+from ._native import (
     discover_structure_mcmc as _discover_structure_mcmc,
 )
 from ._validate import count as _count
@@ -144,6 +147,7 @@ _NATIVE_WITHOUT_CANCEL = frozenset(
         "discover_order_mcmc",
         "discover_structure_mcmc",
         "discover_ci_screened_posterior",
+        "discover_screened_exact_marginals",
         "discover_dbn_posterior",
     }
 )
@@ -1463,7 +1467,9 @@ def _prior_wire(prior: StructurePrior | None) -> dict[str, Any]:
 class ExactDagMarginals:
     """Exact edge marginals of the Gaussian-BIC DAG posterior of 7 to 15 variables.
 
-    ``edge_marginal_matrix()[i][j]`` is ``P(i -> j)``, exact for the BIC pseudo-posterior with the
+    ``edge_marginal_matrix()[i][j]`` is ``P(i -> j)`` over ``names`` (the variables of the run, or
+    the screened selection of :class:`ScreenedExactMarginals`, whose ``conditional_on_screen``
+    states that every number is conditional on the CI screen), exact for the BIC pseudo-posterior with the
     edge prior of the run (uniform unless a :class:`StructurePrior` was given; no sampling
     error). ``log_evidence`` is the log pseudo-posterior
     normalizer ``log sum_G exp(score(G))``, with Gaussian score equal to -BIC/2 including
@@ -1477,6 +1483,7 @@ class ExactDagMarginals:
     n_vars: int
     log_evidence: float
     _matrix: tuple[tuple[float, ...], ...]
+    conditional_on_screen: str | None = None
 
     def edge_marginal_matrix(self) -> list[list[float]]:
         """The exact edge marginals as a list of rows: ``[i][j]`` is ``P(i -> j)``, in the order of
@@ -1780,6 +1787,7 @@ class CiScreenedPosterior:
     n_warmup: int = 300
     n_draws: int = 600
     thin: int = 1
+    prior: StructurePrior | None = None
     kind: Literal["ci_screened_posterior"] = "ci_screened_posterior"
 
     algorithm_id: ClassVar[str] = "ci_screened_posterior"
@@ -1796,6 +1804,7 @@ class CiScreenedPosterior:
             "n_warmup": self.n_warmup,
             "mcmc_draws": self.n_draws,
             "thin": self.thin,
+            **_prior_wire(self.prior),
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
@@ -1820,6 +1829,7 @@ class CiScreenedPosterior:
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
             thin=self.thin,
+            **_prior_kwargs(self.prior),
         )
 
 
@@ -1835,6 +1845,9 @@ class DbnPosterior:
     and ``PulseEffect``/``SustainedEffect`` to mix temporal effect draws, or
     with ``inference=Frequentist()`` to mix atom estimates under a shared
     circular-block SE whose replicate count follows ``bootstrap`` / the latency tier.
+
+    ``prior`` (a :class:`StructurePrior`) prices each ``(from, to)`` pair alike at the
+    contemporaneous edge and at every lag.
     """
 
     max_lag: int = 1
@@ -1842,6 +1855,7 @@ class DbnPosterior:
     n_chains: int = 2
     n_warmup: int = 200
     n_draws: int = 400
+    prior: StructurePrior | None = None
     kind: Literal["dbn_posterior"] = "dbn_posterior"
 
     algorithm_id: ClassVar[str] = "dbn_posterior"
@@ -1854,6 +1868,7 @@ class DbnPosterior:
             "n_chains": self.n_chains,
             "n_warmup": self.n_warmup,
             "mcmc_draws": self.n_draws,
+            **_prior_wire(self.prior),
         }
 
     def run(self, data: Any, *, execution: Execution | None = None) -> GraphPosterior:
@@ -1875,7 +1890,85 @@ class DbnPosterior:
             n_chains=self.n_chains,
             n_warmup=self.n_warmup,
             n_draws=self.n_draws,
+            **_prior_kwargs(self.prior),
         )
+
+
+@dataclass(frozen=True)
+class ScreenedExactMarginals:
+    """Exact edge marginals of the neighbourhood a CI screen picks around variables of interest.
+
+    The exact marginals stop at 15 variables, but they apply per question: the conditional-
+    independence screen runs on every variable, ``focus`` and the variables nearest to it in the
+    screen's skeleton (at most ``max_variables``, itself at most 15) are selected, and the exact
+    dynamic programme runs on them with the screen as a per-edge prior: both directions of a pair
+    the screen kept get ``in_probability``, every other pair ``out_probability``. Probabilities a
+    ``prior`` (:class:`StructurePrior`) lists for an edge keep their value.
+
+    ``run`` returns :class:`ExactDagMarginals` over the selected variables, with
+    ``conditional_on_screen`` stating that every number is conditional on the screen: variables
+    outside the set are not conditioned on, and no marginal is that of the full posterior.
+    """
+
+    focus: tuple[str, ...]
+    max_variables: int = 12
+    in_probability: float = 0.5
+    out_probability: float = 0.02
+    alpha: float = 0.05
+    fdr: bool = True
+    ci: str = "parcorr"
+    max_cond_size: int = 2
+    prior: StructurePrior | None = None
+    kind: Literal["screened_exact_marginals"] = "screened_exact_marginals"
+
+    algorithm_id: ClassVar[str] = "screened_exact_marginals"
+
+    def __post_init__(self) -> None:
+        focus = (self.focus,) if isinstance(self.focus, str) else tuple(self.focus)
+        if not focus:
+            raise CausalValueError("focus must name at least one variable")
+        for name in focus:
+            _variable_name(name, "a focus variable")
+        object.__setattr__(self, "focus", focus)
+        _probability(self.in_probability, "in_probability")
+        _probability(self.out_probability, "out_probability")
+        limit = EXACT_MARGINALS_MAX_VARIABLES
+        _count(self.max_variables, "max_variables", minimum=len(focus), maximum=limit)
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "algorithm": "screened_exact_marginals",
+            "focus": list(self.focus),
+            "max_variables": self.max_variables,
+            "in_probability": self.in_probability,
+            "out_probability": self.out_probability,
+            "alpha": self.alpha,
+            "fdr": self.fdr,
+            "ci": self.ci,
+            "max_cond_size": self.max_cond_size,
+            **_prior_wire(self.prior),
+        }
+
+    def run(self, data: Any, *, execution: Execution | None = None) -> ExactDagMarginals:
+        names, cols = coerce_data(data)
+        selected, flat, log_evidence, statement = _run_native(
+            execution,
+            _discover_screened_exact_marginals,
+            names,
+            cols,
+            list(self.focus),
+            max_variables=self.max_variables,
+            in_probability=self.in_probability,
+            out_probability=self.out_probability,
+            alpha=self.alpha,
+            fdr=self.fdr,
+            ci=self.ci,
+            max_cond_size=self.max_cond_size,
+            **_prior_kwargs(self.prior),
+        )
+        n = len(selected)
+        matrix = tuple(tuple(flat[i * n : (i + 1) * n]) for i in range(n))
+        return ExactDagMarginals(list(selected), n, log_evidence, matrix, statement)
 
 
 @dataclass(frozen=True)
@@ -1940,6 +2033,7 @@ class EquivalenceClassPosterior:
                 n_warmup=base.n_warmup,
                 n_draws=base.n_draws,
                 equivalence_classes=True,
+                **_prior_kwargs(base.prior),
             )
         names, cols = coerce_data(data)
         if isinstance(base, ExactDagPosterior):
@@ -2003,6 +2097,7 @@ class EquivalenceClassPosterior:
             n_draws=base.n_draws,
             thin=base.thin,
             equivalence_classes=True,
+            **_prior_kwargs(base.prior),
         )
 
 
@@ -2401,6 +2496,7 @@ __all__ = [
     "StructureMcmc",
     "StructurePrior",
     "RegimeStabilityResult",
+    "ScreenedExactMarginals",
     "StructureStabilityResult",
     "cpdag_oriented_edges",
     "discover",

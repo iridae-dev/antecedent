@@ -728,7 +728,7 @@ pub fn discover_screened_exact_marginals(
     in_probability: f64,
     out_probability: f64,
     ctx: &ExecutionContext,
-) -> Result<ScreenedMarginals, CausalError> {
+) -> Result<ExactDagMarginals, CausalError> {
     let eng = CiScreenedPosterior::new()
         .with_constraints(static_pc_constraints(screen.alpha, screen.max_cond_size))
         .with_ci(Arc::clone(&screen.ci))
@@ -736,7 +736,7 @@ pub fn discover_screened_exact_marginals(
     let mut eng = eng;
     eng.fdr = static_fdr(screen);
     let mut ws = DiscoveryWorkspace::default();
-    Ok(eng.screen_then_exact_marginals(
+    let screened = eng.screen_then_exact_marginals(
         data,
         variables,
         focus,
@@ -747,7 +747,8 @@ pub fn discover_screened_exact_marginals(
         params.score_family,
         &mut ws,
         ctx,
-    )?)
+    )?;
+    Ok(screened.marginals)
 }
 
 /// Bounded-lag DBN template posterior from a time series (Gaussian BIC).

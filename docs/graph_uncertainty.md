@@ -242,6 +242,8 @@ change of algorithm:
   or the odds factor in (0, 1)). A hard tier (`BackgroundKnowledge.tiers`) wins: the edge it forbids
   has no prior factor at all, so declaring the same order softly beside it changes nothing.
 
+`StructurePrior` is accepted by `ExactDagPosterior`, `OrderMcmc`, `StructureMcmc`, `CiScreenedPosterior` and `DbnPosterior` (which prices a `(from, to)` pair alike at the contemporaneous edge and at every lag).
+
 Without either factor the prior, the scores and the samplers are exactly those described above.
 
 **Screen, then exact marginals, at scale.** Above 15 variables the exact marginals do not apply to
@@ -250,7 +252,7 @@ the whole problem, but they apply per question. `CiScreenedPosterior::screen_the
 in the screen's skeleton (at most `max_variables`, itself at most `EXACT_MARGINAL_MAX_NODES`), and
 runs the exact dynamic programme on that set with the screen as a per-edge prior: pairs the screen
 kept get one probability, the others a low one, and a caller's own per-edge probability for an edge
-is kept. The result states that its marginals are **conditional on the screen**: variables outside
+is kept. In Python this is `ScreenedExactMarginals(focus=("y",), max_variables=12).run(data)`, which returns `ExactDagMarginals` over the selected variables; in Rust it is a compiled search, `DiscoverySpec::screened_exact_marginals`. The result states that its marginals are **conditional on the screen**: variables outside
 the set are not conditioned on, and no marginal is that of the full posterior.
 
 ## Uncertainty over a discovered structure

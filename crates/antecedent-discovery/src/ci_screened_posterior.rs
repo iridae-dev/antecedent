@@ -398,7 +398,7 @@ impl CiScreenedPosterior {
                 log_penalty: soft.log_penalty,
             }),
         };
-        let marginals = crate::exact_marginals::exact_dag_marginals(
+        let mut marginals = crate::exact_marginals::exact_dag_marginals(
             data,
             &subset,
             &subset_prior,
@@ -414,11 +414,15 @@ impl CiScreenedPosterior {
             n,
             screened_in_pairs,
         );
+        let selected: Arc<[VariableId]> = Arc::from(subset);
+        let statement: Arc<str> = Arc::from(statement);
+        marginals.variables = Some(Arc::clone(&selected));
+        marginals.conditional_on_screen = Some(Arc::clone(&statement));
         Ok(ScreenedMarginals {
-            variables: Arc::from(subset),
+            variables: selected,
             marginals,
             screened_in_pairs,
-            conditional_on_screen: Arc::from(statement),
+            conditional_on_screen: statement,
         })
     }
 }

@@ -2703,7 +2703,7 @@ counterpart_design = "static"
 id = "discovery.static"
 target = "Discover"
 graph_class = "Dag,Cpdag,Pag"
-design_time_model = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
+design_time_model = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior,screened_exact_marginals (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
 inference = "Frequentist,Bayesian (declared by the method)"
 uncertainty = "frequentist: none (exact evaluation of the search's decision rule) unless wrapped by bootstrap_stability, which re-runs the search on row resamples drawn under the declared sampling design and tabulates per-pair, per-mark and per-structure selection frequencies (a bootstrap distribution of the search, not a posterior); Bayesian: structure posterior under the declared prior and Gaussian BIC score (order MCMC may declare the Laplace-noise BIC score), enumeration or MCMC with the schedule's draws, or, through class_posterior, the same posterior over Markov equivalence classes (DAG mass summed per CPDAG). Coverage harness of the credible set of equivalence classes of the exact DAG posterior (class_posterior over exact_dag_posterior, three variables, from 75 rows), held to at least nominal (fitted_model_calibration: discovery_static_exact_class_posterior_credible_set_coverage); order MCMC, structure MCMC, the CI-screened and PAG posteriors and the stability frequencies have none and say so"
 decision_ports = "unlisted"
@@ -19075,7 +19075,7 @@ estimator = "unlisted"
 identifier = []
 lowering = []
 inference = "frequentist"
-design_time_model = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
+design_time_model = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior,screened_exact_marginals (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
 status = "capability"
 structures = []
 validations = []
@@ -19103,7 +19103,7 @@ estimator = "unlisted"
 identifier = []
 lowering = []
 inference = "bayesian"
-design_time_model = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
+design_time_model = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior,screened_exact_marginals (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
 status = "capability"
 structures = []
 validations = []

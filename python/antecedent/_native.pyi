@@ -4019,7 +4019,30 @@ def discover_ci_screened_posterior(
     seed: int = 1,
     threads: int | None = None,
     equivalence_classes: bool = False,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
 ) -> GraphPosterior: ...
+def discover_screened_exact_marginals(
+    names: list[str],
+    columns: Sequence[NDArray[np.float64]],
+    focus: list[str],
+    *,
+    max_variables: int = 12,
+    in_probability: float = 0.5,
+    out_probability: float = 0.02,
+    alpha: float = 0.05,
+    fdr: bool = True,
+    ci: str | None = None,
+    max_cond_size: int = 2,
+    seed: int = 1,
+    threads: int | None = None,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
+) -> tuple[list[str], list[float], float, str]: ...
 def discover_dbn_posterior(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
@@ -4034,6 +4057,10 @@ def discover_dbn_posterior(
     threads: int | None = None,
     unit_lengths: list[int] | None = None,
     equivalence_classes: bool = False,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
 ) -> GraphPosterior: ...
 def mediation_effects_summary(
     names: list[str],
