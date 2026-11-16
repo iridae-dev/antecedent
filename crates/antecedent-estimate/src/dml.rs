@@ -14,6 +14,7 @@ use antecedent_learn::{
 use crate::adjustment::EffectEstimate;
 use crate::arm::TreatmentArm;
 use crate::cluster_dml_aipw::{ClusterDml, DeclaredUnits};
+use crate::dml_outcome_prior::OutcomePriorSource;
 use crate::error::EstimationError;
 use crate::learn_nuisance::{
     AipwPredictions, NuisanceDesign, aipw_scores, cached_aipw_nuisances, cross_fit_nuisance,
@@ -81,6 +82,12 @@ pub struct DmlAte {
     /// score is averaged under them, and the standard error is that of the weighted score.
     /// A weighted fit keeps no row-identified score table, so it is not retargetable.
     pub sampling_weights: Option<SamplingWeights>,
+    /// A Gaussian coefficient prior on the per-arm outcome-regression nuisance (AIPW score
+    /// only). Each fold fits the posterior mode of the arm's linear outcome model centred on
+    /// the prior mean instead of the [`Self::outcome`] learner; the doubly robust correction,
+    /// the cross-fitting and the influence-function interval are unchanged. `None` runs the
+    /// configured outcome learner exactly as without a prior.
+    pub outcome_prior: Option<OutcomePriorSource>,
 }
 
 impl Default for DmlAte {
@@ -108,7 +115,16 @@ impl DmlAte {
                 second_source: None,
             },
             sampling_weights: None,
+            outcome_prior: None,
         }
+    }
+
+    /// Regularize the per-arm outcome-regression nuisance with a coefficient prior (see
+    /// [`Self::outcome_prior`]). The prior shapes efficiency and never identification.
+    #[must_use]
+    pub fn with_outcome_prior(mut self, prior: OutcomePriorSource) -> Self {
+        self.outcome_prior = Some(prior);
+        self
     }
 
     /// Declare sampling weights for every row of the source table.
@@ -264,6 +280,7 @@ impl DmlAte {
         if matches!(self.score, DmlScore::Aipw) {
             require_binary_treatment(problem)?;
         }
+        self.require_outcome_prior_scope()?;
         let estimate = match self.score {
             DmlScore::Aipw => self.fit_aipw(problem, ctx, assumptions),
             DmlScore::PartiallyLinear => self.fit_plr(problem, ctx, assumptions),
@@ -312,6 +329,14 @@ impl DmlAte {
         }
         if matches!(self.score, DmlScore::Aipw) {
             require_binary_treatment(problem)?;
+        }
+        if self.outcome_prior.is_some() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "an outcome-nuisance prior regularizes the built-in per-arm outcome regression; \
+                 caller-supplied learner factories replace that regression, so declare either \
+                 the prior or the factories",
+            ));
         }
         crate::learn_nuisance::declare_unverified_factories(&mut assumptions, "dml");
         let ids = retained_fold_ids(problem, self.folds, ctx)?;
@@ -438,6 +463,14 @@ impl DmlAte {
                 "population linear DML requires IID AIPW",
             ));
         }
+        if self.outcome_prior.is_some() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "the population linear interval corrects a ridge outcome fit and does not cover \
+                 a prior-regularized outcome nuisance; use the cross-fitted influence-function \
+                 interval",
+            ));
+        }
         let ridge = match self.outcome {
             LearnerSpec::Linear(_) => 0.0,
             LearnerSpec::Ridge(spec) => spec.lambda,
@@ -483,18 +516,126 @@ impl DmlAte {
             return Err(EstimationError::data_msg("DML requires at least two folds"));
         }
         require_binary_treatment(problem)?;
+        if let Some(prior) = &self.outcome_prior {
+            self.require_outcome_prior_scope()?;
+            let (nuisance, _, _) = self.prior_nuisances(prior, problem, ctx)?;
+            let mut table = aipw_score_table(
+                problem,
+                &nuisance,
+                self.folds,
+                [self.outcome, self.treatment],
+                "dml",
+            )?;
+            table.nuisance_provenance = self.prior_provenance(prior, problem);
+            return Ok(Some(table));
+        }
         let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
         aipw_score_table(problem, &nuisance, self.folds, [self.outcome, self.treatment], "dml")
             .map(Some)
     }
 
+    /// Refuse the combinations an outcome-nuisance prior does not cover.
+    fn require_outcome_prior_scope(&self) -> Result<(), EstimationError> {
+        if self.outcome_prior.is_none() {
+            return Ok(());
+        }
+        if !matches!(self.score, DmlScore::Aipw) {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "an outcome-nuisance prior regularizes the per-arm outcome regressions of the \
+                 AIPW score; the partially linear score fits one outcome model with no arm \
+                 coefficients, so use the AIPW score",
+            ));
+        }
+        if self.units.spec.is_some() {
+            return Err(EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "an outcome-nuisance prior is not combined with a whole-cluster cross-fit \
+                 declaration; fit the prior under independent rows",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Hydrate the prior over the problem's design columns and cross-fit the AIPW nuisances
+    /// with the prior-regularized per-arm outcome regressions. Returns the nuisance bundle,
+    /// the hydrated prior and the design names the prior was mapped onto.
+    fn prior_nuisances(
+        &self,
+        prior: &OutcomePriorSource,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+    ) -> Result<(AipwPredictions, antecedent_prob::PriorSet, Arc<[Arc<str>]>), EstimationError>
+    {
+        let names = problem.design_names.clone().ok_or_else(|| {
+            EstimationError::unsupported_coded(
+                antecedent_core::reason_code!("route_not_supported"),
+                "the prepared problem carries no design column names to map the outcome-nuisance \
+                 prior onto; prepare it from a table with `DmlAte::prepare`",
+            )
+        })?;
+        let hydrated = prior.hydrate(&names)?;
+        let factory = antecedent_learn::GaussianPriorRegression::new(hydrated.clone())
+            .map_err(crate::learn_nuisance::learn_err)?;
+        let nuisance = crate::learn_nuisance::prior_outcome_aipw_nuisances(
+            problem,
+            &factory,
+            self.treatment,
+            self.folds,
+            ctx,
+        )?;
+        Ok((nuisance, hydrated, names))
+    }
+
+    /// Score-table provenance of a prior-regularized fit: the prior replaces the outcome
+    /// learner's identity.
+    fn prior_provenance(
+        &self,
+        prior: &OutcomePriorSource,
+        problem: &PreparedPropensityProblem,
+    ) -> Arc<str> {
+        Arc::from(format!(
+            "{DML_CROSSFIT_PROVENANCE};route=dml;outcome={};treatment={}{}",
+            prior.identity_key(),
+            self.treatment.identity(),
+            match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
+                (None, Some(units)) =>
+                    crate::cluster_dml_aipw::provenance_suffix(units, problem.fold_unit_kind),
+                _ => String::new(),
+            }
+        ))
+    }
+
     fn fit_aipw(
         &self,
         problem: &PreparedPropensityProblem,
         ctx: &ExecutionContext,
-        assumptions: AssumptionSet,
+        mut assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        if let Some(prior) = &self.outcome_prior {
+            let (nuisance, hydrated, names) = self.prior_nuisances(prior, problem, ctx)?;
+            for record in prior.assumptions(&hydrated, &names) {
+                assumptions.push(record);
+            }
+            let marginal = aipw_marginal_from_nuisance(problem, &nuisance, assumptions)?;
+            let mut effect = attach_crossfit_aipw_table(
+                marginal.effect,
+                problem,
+                &nuisance,
+                CrossfitAipwTableContext {
+                    folds: self.folds,
+                    learners: [self.outcome, self.treatment],
+                    route: "dml",
+                    seed: ctx.rng.master_seed(),
+                    clipped: &marginal.ehat,
+                },
+            )?;
+            if let Some(table) = effect.scores.table.as_mut() {
+                table.nuisance_provenance = self.prior_provenance(prior, problem);
+            }
+            return Ok(effect);
+        }
         let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
         let marginal = aipw_marginal_from_nuisance(problem, &nuisance, assumptions)?;

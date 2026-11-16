@@ -23858,3 +23858,31 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_release_body.py"
 gates = ["inventory"]
+
+[[test]]
+id = "dml-outcome-prior-calibration"
+crate = "antecedent"
+cargo_target = "dml_outcome_prior_calibration"
+path = "crates/antecedent/tests/dml_outcome_prior_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "dml-outcome-prior-reference"
+crate = "antecedent-estimate"
+cargo_target = "dml_outcome_prior_reference"
+path = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-dml-outcome-prior-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/dml_outcome_prior.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-learn-src-prior-regression-rs"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/prior_regression.rs"
+gates = ["inventory", "named"]

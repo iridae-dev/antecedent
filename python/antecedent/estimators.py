@@ -44,13 +44,16 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Final, Literal
+from typing import TYPE_CHECKING, Any, Final, Literal
 
 from ._defaults import OMITTED
 from ._penalty import bounded_penalty_list
 from .errors import CausalValueError
 from .ids import Estimator
 from .learners import LearnerSpec, _learner_wire
+
+if TYPE_CHECKING:
+    from .priors import PriorMapping
 
 SeKind = Literal[
     "homoskedastic",
@@ -114,6 +117,29 @@ def _validate_bootstrap(bootstrap: int | None) -> None:
     # test suite) — rejecting it here would break that pattern for no reason.
     if bootstrap is not None and bootstrap < 0:
         raise ValueError(f"bootstrap must be a non-negative int, got {bootstrap!r}")
+
+
+def _validate_outcome_prior(prior_from: object, mapping: object) -> None:
+    """Fail fast on an outcome-nuisance prior the native parser would refuse less specifically."""
+    from .priors import ComposedPrior, PriorMapping  # noqa: PLC0415
+
+    if isinstance(prior_from, ComposedPrior):
+        raise CausalValueError(
+            "DML(prior_from=...) takes a posterior artifact (result.posterior.artifact); a "
+            "ComposedPrior is a prior over a Bayesian g-computation design, not over the "
+            "outcome regression",
+            reason_code="quantity_semantics_mismatch",
+        )
+    if prior_from is not None and not isinstance(prior_from, (bytes, bytearray, memoryview)):
+        raise CausalValueError(
+            f"DML prior_from must be posterior artifact bytes, got {type(prior_from).__name__}"
+        )
+    if prior_from is not None and len(prior_from) == 0:
+        raise CausalValueError("DML prior_from artifact is empty")
+    if mapping is not None and prior_from is None:
+        raise CausalValueError("DML mapping requires prior_from")
+    if mapping is not None and not isinstance(mapping, PriorMapping):
+        raise CausalValueError(f"DML mapping must be a PriorMapping, got {mapping!r}")
 
 
 def _validate_positive(name: str, value: float | None) -> None:
@@ -1274,6 +1300,23 @@ class DML:
     and standard error; no interval is published). ``cluster_ids`` / ``multiway_ids``
     without a unit declaration, and the partially linear score with one, refuse
     ``route_not_supported`` instead of being ignored.
+
+    ``prior_from`` is a posterior artifact (``result.posterior.artifact``) whose coefficient
+    summaries regularize the per-arm outcome-regression nuisance of the AIPW score: in every
+    cross-fit fold each arm's outcome model is the posterior mode of the linear regression
+    under the Gaussian coefficient prior, centred on the prior mean, instead of the ``outcome``
+    learner. The doubly robust correction, the cross-fitting and the influence-function
+    interval are unchanged, so the prior shapes the efficiency of the estimate and never its
+    identification: a correct propensity keeps the estimate consistent under any prior. The
+    prior's source digest and mapping are recorded in the result's assumptions and the score
+    table provenance. ``mapping`` maps the artifact's coefficients onto the outcome-regression
+    columns (``intercept`` then ``coef_<covariate>`` per adjustment variable, no treatment
+    coefficient): ``None`` takes the artifact's declared mapping, else the identical
+    coefficient subspace; use :meth:`~antecedent.priors.PriorMapping.named_parameters` when the
+    source also carries a treatment coefficient. A prior whose coordinates do not map is
+    refused (``quantity_semantics_mismatch``) naming the declaration to make. It is
+    available for the AIPW score under independent rows; the partially linear score,
+    whole-cluster cross-fitting and caller-supplied learners refuse it.
     """
 
     learner: LearnerSpec | str | None = None
@@ -1285,11 +1328,23 @@ class DML:
     other_levels: OtherLevelsName = "refuse"
     cluster_dml: ClusterDml | None = None
     weights: str | Sequence[float] | None = None
+    prior_from: bytes | None = None
+    mapping: PriorMapping | None = None
 
     def __post_init__(self) -> None:
         if self.cluster_dml is not None and not isinstance(self.cluster_dml, ClusterDml):
             raise CausalValueError(f"cluster_dml must be a ClusterDml, got {self.cluster_dml!r}")
         _validate_weights(self.weights)
+        _validate_outcome_prior(self.prior_from, self.mapping)
+        if self.prior_from is not None and self.score == "partially_linear":
+            raise CausalValueError(
+                "DML(prior_from=...) regularizes the per-arm outcome regressions of the AIPW "
+                "score; use score='aipw' (reason=route_not_supported)"
+            )
+        if self.prior_from is not None and self.cluster_dml is not None:
+            raise CausalValueError(
+                "DML(prior_from=...) is not combined with cluster_dml (reason=route_not_supported)"
+            )
         if self.cluster_dml is not None and self.score == "partially_linear":
             raise CausalValueError(
                 "DML(cluster_dml=...) needs the AIPW score (reason=route_not_supported)"
@@ -1320,6 +1375,10 @@ class DML:
         if self.cluster_dml is not None:
             out["cluster_dml"] = self.cluster_dml._wire()
         out.update(_wire_weights(self.weights))
+        if self.prior_from is not None:
+            out["prior_artifact"] = bytes(self.prior_from)
+        if self.mapping is not None:
+            out["prior_mapping"] = self.mapping.to_dict()
         return _omit_empty(out)
 
 

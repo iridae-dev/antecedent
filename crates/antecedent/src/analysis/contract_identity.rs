@@ -229,7 +229,15 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         EstimatorSpec::Dml(cfg) => EstimatorSpecWire::Dml(EstimatorConfigWire {
             folds: Some(u32::try_from(cfg.folds).unwrap_or(u32::MAX)),
             outcome: Some(cfg.outcome.name().into()),
-            outcome_config: Some(learner_identity(cfg.outcome)),
+            // A declared outcome-nuisance prior (its source digest and mapping) changes the
+            // science, so it extends the outcome identity; omitted by default so existing
+            // digests are unchanged.
+            outcome_config: Some(match &cfg.outcome_prior {
+                Some(prior) => {
+                    format!("{};{}", learner_identity(cfg.outcome), prior.identity_key())
+                }
+                None => learner_identity(cfg.outcome),
+            }),
             treatment: Some(cfg.treatment.name().into()),
             treatment_config: Some(learner_identity(cfg.treatment)),
             score: Some(match (cfg.score, cfg.units.spec.as_ref()) {

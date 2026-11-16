@@ -296,6 +296,38 @@ fn require_populated_arms(treatment: &[f64]) -> Result<(), EstimationError> {
     ))
 }
 
+/// The cross-fitted AIPW nuisances of `problem` with the per-arm outcome regressions fitted by
+/// `outcome` (a prior-regularized regression) and the propensity by the `treatment` spec.
+///
+/// Nothing is cached: the outcome factory carries a prior the cache key does not name.
+pub(crate) fn prior_outcome_aipw_nuisances(
+    problem: &crate::propensity::PreparedPropensityProblem,
+    outcome: &dyn LearnerFactory,
+    treatment: LearnerSpec,
+    folds: usize,
+    ctx: &ExecutionContext,
+) -> Result<AipwPredictions, EstimationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(nuisance_cancelled());
+    }
+    require_populated_arms(&problem.treatment)?;
+    let fold_ids = retained_fold_ids(problem, folds, ctx)?;
+    let admit = crate::propensity::admits_boundary_saturation(problem.overlap);
+    antecedent_learn::aipw_crossfit::cross_fit_aipw_nuisances_with_outcome_factory(
+        outcome,
+        treatment,
+        NuisanceDesign::of(problem).plain(),
+        &problem.outcome,
+        &problem.treatment,
+        (folds, fold_ids),
+        ctx,
+        problem.sampling_weights.as_ref().map(|s| &*s.weights),
+        admit,
+    )
+    .map_err(aipw_cross_fit_error)
+    .map_err(propensity_nuisance_error)
+}
+
 /// The learner-backed cross-fitted nuisances of `problem`, fit once per key.
 ///
 /// The key is derived from the design, outcome and treatment columns, the weights, the row

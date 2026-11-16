@@ -319,6 +319,37 @@ fn get_f64_list(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<Option<Vec<f64>
     })
 }
 
+/// The declared outcome-nuisance prior of a cross-fitted AIPW estimate: a posterior artifact
+/// (`prior_artifact`, bytes) and the optional mapping of its coefficients onto the outcome
+/// regression (`prior_mapping`). The artifact is decoded here; mapping it onto the design
+/// columns happens when the problem is prepared.
+fn build_outcome_prior(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<antecedent::estimate::OutcomePriorSource>> {
+    let artifact = dict.get_item("prior_artifact")?.filter(|value| !value.is_none());
+    let mapping = dict.get_item("prior_mapping")?.filter(|value| !value.is_none());
+    let Some(artifact) = artifact else {
+        if mapping.is_some() {
+            return Err(crate::value_err(
+                "estimator_config['prior_mapping'] requires prior_artifact",
+            ));
+        }
+        return Ok(None);
+    };
+    let bytes: Vec<u8> = artifact.extract().map_err(|_| {
+        crate::value_err(format!(
+            "estimator_config['prior_artifact'] must be bytes, got {}",
+            type_name(&artifact)
+        ))
+    })?;
+    let mapping = mapping
+        .map(|value| crate::prior_bank::mapping_from_dict(value.cast::<PyDict>()?))
+        .transpose()?;
+    antecedent::inference::outcome_prior_source_from_artifact(&bytes, mapping.as_ref())
+        .map(Some)
+        .map_err(crate::py_err)
+}
+
 /// The declared per-source-row sampling weights, validated as a weighted population: a
 /// negative, NaN or infinite weight (named by its row) or all-zero weights are refused here.
 fn build_sampling_weights(
@@ -1202,6 +1233,9 @@ fn build_configured_spec(
             declare_units(&mut est.units, build_cluster_dml(dict)?);
             if let Some(weights) = sampling_weights {
                 est = est.with_sampling_weights(weights);
+            }
+            if let Some(prior) = build_outcome_prior(dict)? {
+                est = est.with_outcome_prior(prior);
             }
             est.into()
         }

@@ -14324,3 +14324,27 @@ target = "local_designs_statements_calibration"
 tests = ["bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio_under_ar2_errors"]
 ignored = true
 grid = true
+
+[[group]]
+label = "dml_outcome_prior_calibration: dml_outcome_prior_weak_interval"
+package = "antecedent"
+target = "dml_outcome_prior_calibration"
+tests = ["dml_outcome_prior_weak_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dml_outcome_prior_calibration: dml_outcome_prior_informative_interval"
+package = "antecedent"
+target = "dml_outcome_prior_calibration"
+tests = ["dml_outcome_prior_informative_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dml_outcome_prior_calibration: dml_outcome_prior_misspecified_interval"
+package = "antecedent"
+target = "dml_outcome_prior_calibration"
+tests = ["dml_outcome_prior_misspecified_interval"]
+ignored = true
+grid = true

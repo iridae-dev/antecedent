@@ -42,6 +42,7 @@ pub mod logistic;
 #[cfg(feature = "ml-neural")]
 pub mod neural;
 pub mod posterior_prediction;
+pub mod prior_regression;
 pub mod recipes;
 pub mod ridge;
 pub mod spec;
@@ -79,6 +80,7 @@ pub use logistic::RidgeLogisticLearner;
 pub use posterior_prediction::{
     PosteriorPrediction, PosteriorPredictionDiagnostics, PosteriorPredictionProvenance,
 };
+pub use prior_regression::GaussianPriorRegression;
 #[cfg(test)]
 pub(crate) use ridge::RidgeLearner;
 #[cfg(test)]

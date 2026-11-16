@@ -67,6 +67,7 @@ mod cyclic_optim;
 mod design_compile;
 pub mod design_width;
 pub mod dml;
+mod dml_outcome_prior;
 pub mod dr;
 pub mod effect_constancy;
 pub mod effect_estimate;
@@ -311,6 +312,7 @@ pub use descriptive_comparison::{
     raw_contrast, refuse_column_attribution, transform_mean_pair,
 };
 pub use dml::{DmlAte, DmlScore};
+pub use dml_outcome_prior::{OUTCOME_PRIOR_ASSUMPTION_ID, OutcomePriorSource};
 pub use dr::{CateProfile, DrLearner, PointwiseCateEstimate};
 pub use empirical_table::{
     BayesianTransportLawProvider, EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP, EMPIRICAL_TABLE_PLUGIN,

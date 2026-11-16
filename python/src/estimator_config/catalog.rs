@@ -163,6 +163,8 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "other_levels",
             "cluster_dml",
             "source_sampling_weights",
+            "prior_artifact",
+            "prior_mapping",
         ],
     ),
     (

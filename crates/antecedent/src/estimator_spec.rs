@@ -308,11 +308,14 @@ impl EstimatorSpec {
 
     /// The suffix a declared non-default AIPW propensity nuisance (a ridge or lasso penalty,
     /// or a GLM-to-penalized fallback) adds to the calibration key's functional label, so an
-    /// interval measured under one nuisance never binds to another; `None` otherwise.
+    /// interval measured under one nuisance never binds to another; `None` otherwise. A
+    /// cross-fitted DML under an outcome-nuisance prior carries `outcome=gaussian_prior`, so its
+    /// interval never binds to the unregularized outcome nuisance either.
     #[must_use]
     pub fn propensity_calibration_label(&self) -> Option<String> {
         match self {
             Self::Aipw(cfg) => cfg.propensity.calibration_label(),
+            Self::Dml(cfg) if cfg.outcome_prior.is_some() => Some("outcome=gaussian_prior".into()),
             Self::PropensityWeighting(cfg) if cfg.covariate_balance => {
                 Some("weighting=balanced_linear_hc3".into())
             }

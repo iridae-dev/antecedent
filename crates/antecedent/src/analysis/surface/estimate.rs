@@ -113,7 +113,7 @@ pub use antecedent_estimate::{
     DEFAULT_RIDGE_GRID, NuisanceFallback, PropensityNuisance, RidgeTuning,
 };
 /// Partially linear DML and cross-fitted AIPW via `antecedent-learn`.
-pub use antecedent_estimate::{DmlAte, DmlScore};
+pub use antecedent_estimate::{DmlAte, DmlScore, OutcomePriorSource};
 /// `antecedent-estimate` items at the crate root.
 pub use antecedent_estimate::{FittedEffect, IdentifiedSetIntervalMethod, LearnerSpec};
 /// Bootstrap orchestration: standard errors.
