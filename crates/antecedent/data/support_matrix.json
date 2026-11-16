@@ -3464,7 +3464,8 @@
       "validation": "none",
       "route_estimator": "linear.adjustment.ate",
       "estimators": [
-        "linear.adjustment.ate"
+        "linear.adjustment.ate",
+        "aipw"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -3477,7 +3478,8 @@
       "validation": "cheap",
       "route_estimator": "linear.adjustment.ate",
       "estimators": [
-        "linear.adjustment.ate"
+        "linear.adjustment.ate",
+        "aipw"
       ],
       "status": "supported",
       "missing_evidence": []
@@ -3490,7 +3492,8 @@
       "validation": "full",
       "route_estimator": "linear.adjustment.ate",
       "estimators": [
-        "linear.adjustment.ate"
+        "linear.adjustment.ate",
+        "aipw"
       ],
       "status": "supported",
       "missing_evidence": []

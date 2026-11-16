@@ -499,7 +499,12 @@ impl super::Study {
             let q = antecedent_core::ConditionalEffectQuery::try_new(query_est.clone())?;
             est.prepare_conditional(data_est, estimand_est, &q)
         } else {
-            est.prepare(data_est, estimand_est, query_est)
+            est.prepare_for_population(
+                data_est,
+                estimand_est,
+                query_est,
+                self.declared.population_registry.as_ref(),
+            )
         }
         .map_err(CausalError::from)?;
         let (resolved_prior, conflict_summary) =
@@ -920,7 +925,12 @@ impl super::Study {
                 let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
                 est.prepare_conditional(data, estimand, &q)
             } else {
-                est.prepare(data, estimand, query)
+                est.prepare_for_population(
+                    data,
+                    estimand,
+                    query,
+                    self.declared.population_registry.as_ref(),
+                )
             }
             .map_err(CausalError::from)?;
             // Per-completion filter: incompatible catalogs refuse rather than

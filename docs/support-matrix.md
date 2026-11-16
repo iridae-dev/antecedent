@@ -20,7 +20,7 @@ Of those cells, **1434** are typed impossibilities and
 
 ## Supported units
 
-**Supported units: 3163 (matrix cells 2776, graphless rows 108, capabilities outside the matrix 279); not supported: 5 (owed records only 0, other 5).**
+**Supported units: 3163 (matrix cells 2776, graphless rows 108, capabilities outside the matrix 279); not supported: 9 (owed records only 0, other 9).**
 
 A *supported unit* is one scientific combination, and one rule decides it: a
 provenance record plus an executed independent scientific check (known truth, an

@@ -662,7 +662,14 @@ fn refuse_estimator_target_mismatch(
             } else {
                 crate::support::effective_graph_class(graph, query)
             };
-            Site { class, tier, posterior: graph_posterior }
+            // A declared target population runs the requested estimator on every atom
+            // (the targeted mixture), so the fixed-estimator posterior rule does not apply.
+            let targeted = matches!(
+                query,
+                CausalQuery::AverageEffect(q)
+                    if matches!(q.target_population, antecedent_core::TargetPopulation::CustomDistribution(_))
+            );
+            Site { class, tier, posterior: graph_posterior && !targeted }
         })
     };
     let verdict = estimator_targets(query, &carry.settings.inference, site(query), estimator);

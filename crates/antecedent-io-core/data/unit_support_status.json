@@ -967,6 +967,13 @@
       "missing_evidence": []
     },
     {
+      "id": "estimate.weighted_target_effect",
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
+    },
+    {
       "id": "estimate.dml_score_covariance",
       "status": "supported",
       "missing_evidence": []
@@ -2290,7 +2297,28 @@
       ]
     },
     {
+      "id": "measurement.measured_exposure_effect",
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
+    },
+    {
       "id": "estimate.outcome_nuisance_prior",
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
+    },
+    {
+      "id": "prior.composed_named_coordinates",
+      "status": "not_supported",
+      "missing_evidence": [
+        "no provenance: no provenance record names this capability or its modules"
+      ]
+    },
+    {
+      "id": "association.conjugate_count_posterior",
       "status": "not_supported",
       "missing_evidence": [
         "no provenance: no provenance record names this capability or its modules"

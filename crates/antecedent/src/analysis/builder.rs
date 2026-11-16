@@ -1478,6 +1478,31 @@ impl StudyBuilder {
         );
         *population = antecedent_core::TargetPopulation::CustomDistribution(id);
         self.declared.weighted_target = Some(Arc::new(resolved.report));
+        // An explicitly configured estimator reads the target's weights from its own
+        // registry: hand it the one the target was registered in.
+        let registry = self.declared.population_registry.clone();
+        match self.declared.estimator_spec.as_mut() {
+            Some(EstimatorSpec::Aipw(cfg)) => cfg.population_registry.clone_from(&registry),
+            Some(EstimatorSpec::PropensityWeighting(cfg)) => {
+                cfg.population_registry.clone_from(&registry);
+            }
+            Some(EstimatorSpec::PropensityStratification(cfg)) => {
+                cfg.population_registry.clone_from(&registry);
+            }
+            Some(EstimatorSpec::LinearAdjustmentAte(cfg)) => {
+                cfg.population_registry.clone_from(&registry)
+            }
+            Some(EstimatorSpec::GlmAdjustment(cfg)) => {
+                cfg.population_registry.clone_from(&registry)
+            }
+            Some(EstimatorSpec::PropensityMatching(cfg)) => {
+                cfg.population_registry.clone_from(&registry)
+            }
+            Some(EstimatorSpec::DistanceMatching(cfg)) => {
+                cfg.population_registry.clone_from(&registry)
+            }
+            _ => {}
+        }
         Ok(())
     }
 

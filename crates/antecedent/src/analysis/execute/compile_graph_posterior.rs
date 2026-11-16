@@ -179,6 +179,20 @@ impl super::Study {
         q: &AverageEffectQuery,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
+        // A declared target population runs the requested estimator on every atom (the
+        // targeted mixture); every other query keeps the sealed linear adjustment.
+        let targeted_frequentist = self
+            .declared
+            .estimator_spec
+            .as_deref()
+            .map(crate::estimator_spec::EstimatorSpec::id)
+            .filter(|_| {
+                matches!(
+                    q.target_population,
+                    antecedent_core::TargetPopulation::CustomDistribution(_)
+                )
+            })
+            .unwrap_or(EstimatorId::LinearAdjustmentAte);
         let n_vars = u32::try_from(data.schema().len()).map_err(|_| CausalError::Compile {
             message: "too many variables for graph-posterior compile".into(),
         })?;
@@ -196,14 +210,14 @@ impl super::Study {
             ) => (
                 IdentifierId::GeneralizedAdjustment,
                 match &self.settings.inference {
-                    InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
+                    InferenceMode::Frequentist => targeted_frequentist,
                     InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
                 },
             ),
             _ => (
                 IdentifierId::BackdoorAdjustment,
                 match &self.settings.inference {
-                    InferenceMode::Frequentist => EstimatorId::LinearAdjustmentAte,
+                    InferenceMode::Frequentist => targeted_frequentist,
                     InferenceMode::Bayesian(_) => EstimatorId::BayesianGcomp,
                 },
             ),
