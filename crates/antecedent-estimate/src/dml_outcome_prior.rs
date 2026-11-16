@@ -16,7 +16,9 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
     PriorAssumption,
 };
-use antecedent_prob::{PosteriorQuantityKind, PriorSet};
+use antecedent_prob::{
+    AlphaSelectionOptions, ExternalPriorSource, PosteriorQuantityKind, PriorSet,
+};
 
 use crate::bayesian::{HydrateMapping, HydrateSource, HydrateTarget, hydrate_prior};
 use crate::error::EstimationError;
@@ -52,6 +54,26 @@ pub struct OutcomePriorSource {
     /// posterior artifact; see [`NamedOutcomePrior`]. When set, `quantities`, `mean`, `sd`,
     /// `coefficient_covariance` and `mapping` are unused.
     pub composed: Option<NamedOutcomePrior>,
+    /// A power-prior discount still to be selected from the analysed table (see
+    /// [`AlphaSelectionRequest`]). A source that carries one is a declaration, not a prior:
+    /// the study resolves it against its own table when it is built, and no estimator fits
+    /// with an unresolved one.
+    pub selection: Option<AlphaSelectionRequest>,
+}
+
+/// External sources for the outcome regression and the rule that selects their common
+/// power-prior discount from the table a study analyses.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AlphaSelectionRequest {
+    /// The external sources; every one takes the selected discount.
+    pub sources: Vec<ExternalPriorSource>,
+    /// The prior the sources compose onto.
+    pub baseline: PriorSet,
+    /// Coefficient names of the composed prior: `intercept`, then `coef_<column>` per adjusted
+    /// column.
+    pub coefficient_names: Vec<Arc<str>>,
+    /// The selection rule, grid, level, discrepancy bound and seed.
+    pub options: AlphaSelectionOptions,
 }
 
 /// A Gaussian coefficient prior on the conjugate scale `V0` whose coordinates may be named.
@@ -102,7 +124,28 @@ impl OutcomePriorSource {
             mapping,
             identity: identity.into(),
             composed: None,
+            selection: None,
         })
+    }
+
+    /// A declaration of a power-prior discount to be selected from the analysed table: the
+    /// study resolves it against its own table (see [`AlphaSelectionRequest`]).
+    #[must_use]
+    pub fn from_alpha_selection(request: AlphaSelectionRequest) -> Self {
+        let identity = format!(
+            "alpha_selection:blake3:{}",
+            antecedent_core::identity::blake3_hex(format!("{request:?}").as_bytes())
+        );
+        Self {
+            quantities: Vec::new(),
+            mean: Vec::new(),
+            sd: Vec::new(),
+            coefficient_covariance: None,
+            mapping: HydrateMapping::IdenticalCoefficientSubspace,
+            identity: Arc::from(identity),
+            composed: None,
+            selection: Some(request),
+        }
     }
 
     /// A source from a composed prior whose coordinates are named (or positional).
@@ -151,6 +194,7 @@ impl OutcomePriorSource {
             mapping: HydrateMapping::IdenticalCoefficientSubspace,
             identity: identity.into(),
             composed: Some(NamedOutcomePrior { names, prior }),
+            selection: None,
         })
     }
 
@@ -207,6 +251,15 @@ impl OutcomePriorSource {
     /// names, or a named pair naming a coefficient the source or the design does not have. The
     /// refusal names the declaration that would map them.
     pub(crate) fn hydrate(&self, design_names: &[Arc<str>]) -> Result<PriorSet, EstimationError> {
+        if self.selection.is_some() {
+            return Err(crate::util::refuse(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
+                "the outcome-nuisance prior is a declared alpha selection that no study has \
+                 resolved against its table; build the study (it selects the discount on the \
+                 analysed table) or resolve the selection first",
+            ));
+        }
         if let Some(composed) = &self.composed {
             return composed.hydrate(design_names);
         }

@@ -232,6 +232,15 @@ impl Default for AipwAte {
     }
 }
 
+/// The population an assembled cross-fitted score table is summarized for.
+#[derive(Clone, Copy)]
+struct CrossfitTarget<'a> {
+    /// Target weights; `None` is every row equally.
+    weights: Option<&'a [f64]>,
+    /// Whether a failed weighted-overlap check refuses the fit.
+    refuse_overlap: bool,
+}
+
 impl AipwAte {
     /// Defaults: 200 bootstrap replicates, clip = 0.01, no trim.
     #[must_use]
@@ -945,11 +954,38 @@ impl AipwAte {
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
         self.require_prior_scope(problem)?;
-        crate::DmlAte::new()
+        let dml = crate::DmlAte::new()
             .with_folds(crate::crossfit_aipw::DEFAULT_AIPW_FOLDS)
             .with_overlap(problem.overlap)
-            .with_outcome_prior(prior.clone())
-            .fit(problem, ctx, assumptions)
+            .with_outcome_prior(prior.clone());
+        if matches!(problem.target_population, TargetPopulation::CustomDistribution(_)) {
+            return self.fit_custom_with_prior(&dml, problem, ctx, assumptions);
+        }
+        dml.fit(problem, ctx, assumptions)
+    }
+
+    /// The prior-regularized cross-fitted ATE standardized to a custom target distribution: the
+    /// per-arm scores of the prior-regularized outcome nuisance, weighted by the declared target
+    /// weights, with the overlap gate and influence-function interval of the unregularized
+    /// custom route.
+    fn fit_custom_with_prior(
+        &self,
+        dml: &crate::DmlAte,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        mut assumptions: AssumptionSet,
+    ) -> Result<EffectEstimate, EstimationError> {
+        let weights = problem
+            .score_weights()
+            .ok_or_else(|| EstimationError::data_msg("missing custom target weights"))?;
+        let table = dml.prior_score_table(problem, ctx, &mut assumptions)?;
+        self.assemble_crossfit_scores(
+            problem,
+            ctx,
+            assumptions,
+            CrossfitTarget { weights: Some(&weights), refuse_overlap: true },
+            (table, crate::crossfit_aipw::NuisanceFit::default()),
+        )
     }
 
     /// Refuse every configuration an outcome-nuisance prior does not cover.
@@ -976,14 +1012,18 @@ impl AipwAte {
             || self.cluster_dml.is_some()
             || !self.propensity.is_default()
             || self.glm_options != GlmOptions::default()
-            || !matches!(problem.target_population, TargetPopulation::AllObserved)
+            || !matches!(
+                problem.target_population,
+                TargetPopulation::AllObserved | TargetPopulation::CustomDistribution(_)
+            )
             || trim_of(problem.overlap).is_some()
         {
             return Err(EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("route_not_supported"),
-                "an outcome-nuisance prior covers the untrimmed all-observed cross-fitted mean \
-                 ATE with IID analytic inference, no bootstrap and default built-in nuisance \
-                 options; declare bootstrap_replicates = 0 and drop the other options",
+                "an outcome-nuisance prior covers the untrimmed cross-fitted mean ATE of the \
+                 observed rows or of a declared weighted target, with IID analytic inference, no \
+                 bootstrap and default built-in nuisance options; declare bootstrap_replicates \
+                 = 0 and drop the other options",
             ));
         }
         Ok(())
@@ -1289,7 +1329,27 @@ impl AipwAte {
         refuse_overlap: bool,
     ) -> Result<EffectEstimate, EstimationError> {
         let fold_seed = ctx.rng.master_seed();
-        let (table, nuisance) = self.crossfit_table(problem, true, ctx, Some(fold_seed))?;
+        let built = self.crossfit_table(problem, true, ctx, Some(fold_seed))?;
+        self.assemble_crossfit_scores(
+            problem,
+            ctx,
+            assumptions,
+            CrossfitTarget { weights, refuse_overlap },
+            built,
+        )
+    }
+
+    /// Summarize, contrast and publish a built cross-fitted score table for the target.
+    fn assemble_crossfit_scores(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        assumptions: AssumptionSet,
+        target: CrossfitTarget<'_>,
+        (table, nuisance): (crate::scores::ScoreTable, crate::crossfit_aipw::NuisanceFit),
+    ) -> Result<EffectEstimate, EstimationError> {
+        let CrossfitTarget { weights, refuse_overlap } = target;
+        let fold_seed = ctx.rng.master_seed();
         let crate::crossfit_aipw::NuisanceFit { selections, fallback } = nuisance;
         let n_folds = table.n_folds as usize;
         let report = PenalizedReport {
