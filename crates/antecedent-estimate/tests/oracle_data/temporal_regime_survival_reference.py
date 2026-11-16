@@ -1,28 +1,33 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["mpmath"]
+# dependencies = ["mpmath", "numpy"]
 # ///
-"""Inverse-probability-weighted survival under static regimes, at 50 digits.
+"""Parametric g-formula survival under static regimes: 50-digit model fits, quadrature-exact integral.
 
 Regenerate with:  uv run --script temporal_regime_survival_reference.py > temporal_regime_survival_reference.json
 
 Person-period rows k = 0, 1, ... (kept while k < K) carry the confounder L_k, the treatment A_k, the
-censoring indicator C_k and, when uncensored, the event indicator Y_k.  Two pooled logistic models
-are fitted by maximum likelihood (Newton's method at 50 digits):
-  treatment   P(A_k = 1 | 1, L_k, A_{k-1}, k/K)     (A_{-1} = 0),
-  censoring   P(C_k = 1 | 1, L_k, A_k, k/K)          (omitted when no row is censored).
-For a regime a in {1, 0} a subject contributes while its observed treatments equal a:
-  W_k = prod_{j<=k} 1/(P(A_j = a | ...) (1 - P(C_j = 1 | L_j, a, j))),
-the weighted discrete hazard of period k is h_k = sum_i W_ik Y_ik / sum_i W_ik over the subjects that
-are regime-consistent and uncensored at k (a subject censored in period k contributes nothing to it),
-and S_a(K) = prod_k (1 - h_k).  The estimate is [S_1 - S_0, S_1, S_0]; the smallest fitted probability
-of a regime-consistent action over all regime-consistent rows is also written.  The synthetic data
-are drawn from a sequential structural model with an LCG; values are written as the nearest binary64.
-Repository-authored (MIT OR Apache-2.0); mpmath is BSD-3-Clause.
+censoring indicator C_k and, when uncensored, the event indicator Y_k.  Three models are fitted by
+maximum likelihood at 50 digits:
+  hazard      P(Y_k = 1 | 1, L_k, A_k, k/K) pooled logistic on the uncensored rows (Newton's method),
+  transition  L_k = [1, L_{k-1}, A_{k-1}, k/K] b + sigma e on rows k >= 1 (least squares; sigma^2 is the
+              residual sum of squares over the number of rows, the Gaussian maximum likelihood scale),
+  treatment   P(A_k = 1 | 1, L_k, A_{k-1}, k/K)   (A_{-1} = 0), used only for the smallest fitted
+              probability of a regime-consistent action over all regime-consistent rows.
+For a regime a in {1, 0} every subject's baseline L_0 is carried through the fitted transition law
+with A = a and S_a(K) is the subject average of E[prod_k (1 - h_k(L_k, a))], the expectation over the
+Gaussian innovations evaluated by nested Gauss-Hermite quadrature (converged to 1e-9; checked here).
+The estimate is [S_1 - S_0, S_1, S_0].  The product evaluates the same expectation by Monte Carlo on
+16 fixed innovation paths per subject shared by both regimes, so it differs from the quadrature value
+by Monte Carlo error only: `monte_carlo_tolerance` is five times the standard deviation of that error
+over 400 independent innovation draws of the same scheme (per coordinate, absolute).  The synthetic
+data are drawn from a sequential structural model with an LCG; values are written as the nearest
+binary64.  Repository-authored (MIT OR Apache-2.0); mpmath is BSD-3-Clause, numpy is BSD-3-Clause.
 """
 import json
 from math import exp as fexp, log, sqrt, cos, pi
 
+import numpy as np
 from mpmath import mp, mpf, matrix, lu_solve, exp
 
 mp.dps = 50
@@ -85,42 +90,103 @@ def prob(beta, row):
     return 1 / (1 + exp(-sum(b * r for b, r in zip(beta, row))))
 
 
+def ols(rows, y):
+    p = len(rows[0])
+    gram, rhs = matrix(p, p), [mpf(0)] * p
+    for r, yi in zip(rows, y):
+        for i in range(p):
+            rhs[i] += r[i] * yi
+            for j in range(p):
+                gram[i, j] += r[i] * r[j]
+    beta = list(lu_solve(gram, matrix(rhs)))
+    rss = sum((yi - sum(b * x for b, x in zip(beta, r))) ** 2 for r, yi in zip(rows, y))
+    return beta, mp.sqrt(rss / len(y))
+
+
+NODES, WEIGHTS = np.polynomial.hermite_e.hermegauss(20)
+WEIGHTS = WEIGHTS / WEIGHTS.sum()
+FINE_NODES, FINE_WEIGHTS = np.polynomial.hermite_e.hermegauss(28)
+FINE_WEIGHTS = FINE_WEIGHTS / FINE_WEIGHTS.sum()
+PATHS = 16
+
+
+def expit(x):
+    return 1.0 / (1.0 + np.exp(-x))
+
+
+def integrated_survival(l0, arm, horizon, bh, bl, sd, nodes, weights):
+    """E[prod_k (1 - h_k)] by nested Gauss-Hermite quadrature, vectorised over the node grid."""
+    l = np.full(1, l0)
+    w = np.ones(1)
+    surv = np.ones(1)
+    for k in range(horizon):
+        if k > 0:
+            l = (bl[0] + bl[1] * l + bl[2] * arm + bl[3] * k / horizon)[:, None] + sd * nodes[None, :]
+            w = (w[:, None] * weights[None, :]).ravel()
+            surv = np.repeat(surv, len(nodes))
+            l = l.ravel()
+        surv = surv * (1 - expit(bh[0] + bh[1] * l + bh[2] * arm + bh[3] * k / horizon))
+    return float((w * surv).sum())
+
+
+def monte_carlo_survival(l0, arm, horizon, bh, bl, sd, noise):
+    """The product's scheme: one fixed innovation path per (subject, draw), shared by both regimes."""
+    total = 0.0
+    for m in range(PATHS):
+        l, s = l0, 1.0
+        for k in range(horizon):
+            if k > 0:
+                l = bl[0] + bl[1] * l + bl[2] * arm + bl[3] * k / horizon + sd * noise[m, k]
+            s *= 1 - expit(bh[0] + bh[1] * l + bh[2] * arm + bh[3] * k / horizon)
+        total += s
+    return total / PATHS
+
+
 def run(name, subjects, horizon, floor):
     kept = [s[:horizon] for s in subjects]
-    tx, ty, cx, cy = [], [], [], []
+    tx, ty, hx, hy, lx, ly = [], [], [], [], [], []
     for s in kept:
         for k, r in enumerate(s):
             prev = s[k - 1]["A"] if k else 0
             tx.append([mpf(1), mpf(r["L"]), mpf(prev), mpf(k) / horizon])
             ty.append(mpf(r["A"]))
-            cx.append([mpf(1), mpf(r["L"]), mpf(r["A"]), mpf(k) / horizon])
-            cy.append(mpf(r["C"]))
+            if not r["C"]:
+                hx.append([mpf(1), mpf(r["L"]), mpf(r["A"]), mpf(k) / horizon])
+                hy.append(mpf(r["Y"]))
+            if k:
+                lx.append([mpf(1), mpf(s[k - 1]["L"]), mpf(s[k - 1]["A"]), mpf(k) / horizon])
+                ly.append(mpf(r["L"]))
     beta_a = logit(tx, ty)
-    beta_c = logit(cx, cy) if any(v > 0 for v in cy) else None
-    surv, minimum = {}, mpf(1)
+    beta_h = logit(hx, hy)
+    beta_l, sigma = ols(lx, ly)
+    minimum = mpf(1)
     for arm in (1, 0):
-        num, den = [mpf(0)] * horizon, [mpf(0)] * horizon
         for s in kept:
-            cum = mpf(1)
             for k, r in enumerate(s):
                 if r["A"] != arm:
                     break
                 prev = s[k - 1]["A"] if k else 0
                 p1 = prob(beta_a, [mpf(1), mpf(r["L"]), mpf(prev), mpf(k) / horizon])
-                p_arm = p1 if arm else 1 - p1
-                minimum = min(minimum, p_arm)
-                cum /= p_arm
-                if beta_c is not None:
-                    pc = prob(beta_c, [mpf(1), mpf(r["L"]), mpf(arm), mpf(k) / horizon])
-                    cum /= max(1 - pc, mpf(floor))
-                if r["C"]:
-                    break
-                num[k] += cum * r["Y"]
-                den[k] += cum
-        s_arm = mpf(1)
-        for k in range(horizon):
-            s_arm *= 1 - num[k] / den[k]
-        surv[arm] = s_arm
+                minimum = min(minimum, p1 if arm else 1 - p1)
+    bh = [float(b) for b in beta_h]
+    bl = [float(b) for b in beta_l]
+    sd = float(sigma)
+    l0s = [s[0]["L"] for s in kept]
+    surv = {}
+    for arm in (1, 0):
+        values = [integrated_survival(l0, arm, horizon, bh, bl, sd, NODES, WEIGHTS) for l0 in l0s]
+        fine = [integrated_survival(l0, arm, horizon, bh, bl, sd, FINE_NODES, FINE_WEIGHTS) for l0 in l0s]
+        assert max(abs(a - b) for a, b in zip(values, fine)) < 1e-9, "quadrature has not converged"
+        surv[arm] = sum(fine) / len(fine)
+    estimate = [surv[1] - surv[0], surv[1], surv[0]]
+    errors = []
+    rng = np.random.default_rng(20240607)
+    for _ in range(400):
+        noise = rng.standard_normal((len(l0s), PATHS, horizon))
+        a1 = np.mean([monte_carlo_survival(l0, 1, horizon, bh, bl, sd, noise[i]) for i, l0 in enumerate(l0s)])
+        a0 = np.mean([monte_carlo_survival(l0, 0, horizon, bh, bl, sd, noise[i]) for i, l0 in enumerate(l0s)])
+        errors.append([a1 - a0 - estimate[0], a1 - estimate[1], a0 - estimate[2]])
+    tolerance = [float(5 * np.std(np.array(errors)[:, j], ddof=1)) for j in range(3)]
     rows = []
     for u, s in enumerate(subjects):
         for k, r in enumerate(s):
@@ -128,7 +194,7 @@ def run(name, subjects, horizon, floor):
                          "event": bool(r["Y"]), "L": r["L"]})
     return {
         "name": name, "horizon": horizon, "floor": floor, "rows": rows,
-        "estimate": [float(surv[1] - surv[0]), float(surv[1]), float(surv[0])],
+        "estimate": estimate, "monte_carlo_tolerance": tolerance,
         "minimum_regime_probability": float(minimum),
         "person_periods": len(tx), "subjects": len(kept),
     }

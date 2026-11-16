@@ -475,7 +475,7 @@
     {
       "family": "temporal_design",
       "design": "regime_survival",
-      "method": "whole_procedure_subject_bootstrap_refitting_treatment_and_censoring_models",
+      "method": "whole_procedure_subject_bootstrap_refitting_hazard_and_confounder_transition_models",
       "inference_claim": "pointwise_95_percentile_interval",
       "status": "supported",
       "missing_evidence": []

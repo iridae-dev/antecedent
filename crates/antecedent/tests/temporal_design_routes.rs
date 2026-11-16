@@ -1534,7 +1534,7 @@ fn resampled_row(design: &'static str, posterior: bool) -> SupportRowCase {
             (false, false) => "whole_procedure_cluster_bootstrap_percentile",
             (false, true) => "bayesian_bootstrap_over_units_weighted_quantile",
             (true, false) => {
-                "whole_procedure_subject_bootstrap_refitting_treatment_and_censoring_models"
+                "whole_procedure_subject_bootstrap_refitting_hazard_and_confounder_transition_models"
             }
             (true, true) => "joint_likelihood_parametric_g_formula_posterior",
         },

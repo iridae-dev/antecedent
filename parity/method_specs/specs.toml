@@ -2366,11 +2366,11 @@ provenance = [
   "estimate.temporal_regime_survival",
 ]
 api_review = "parity/public_api/antecedent-estimate.txt: 8 of 8 public items reviewed"
-identifying_result = "weighted product-limit contrast of two treatment trajectories"
-assumptions = "Censoring weights are finite and positive. A subject does not re-enter the risk set. The interval is not calibrated."
+identifying_result = "g-formula survival contrast of two treatment trajectories"
+assumptions = "The pooled hazard and Gaussian confounder-transition working models are correctly specified. A subject does not re-enter the risk set. The interval is not calibrated."
 sampling_units = "subjects observed across periods"
-estimator = "IPW pooled hazards with a whole-procedure subject bootstrap refitting the treatment and censoring models: Survival under static treatment regimes from discrete-time subject trajectories with time-varying confounding."
-diagnostics = "an empty weighted risk set is refused"
+estimator = "parametric g-formula (pooled logistic hazard, Gaussian confounder transition) with a whole-procedure subject bootstrap refitting both models: Survival under static treatment regimes from discrete-time subject trajectories with time-varying confounding."
+diagnostics = "a regime no uncensored subject follows is refused"
 failure_policy = "Execution refuses with a typed error naming the unmet premise."
 references = [
   "Static and temporal parity",

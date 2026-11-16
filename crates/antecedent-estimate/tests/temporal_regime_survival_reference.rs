@@ -1,13 +1,16 @@
-//! Regime survival (always-treat and never-treat) against a 50-digit reference.
+//! Regime survival (always-treat and never-treat) against a multiprecision g-formula reference.
 //!
 //! `oracle_data/temporal_regime_survival_reference.py` (frozen in the JSON beside it) simulates
 //! person-period trajectories with time-varying confounding and censoring, fits the pooled
-//! logistic treatment and censoring models by maximum likelihood in multiprecision arithmetic and
-//! forms the cumulative inverse-probability weights of regime-consistent, uncensored rows, the
-//! weighted period hazards and their product, for follow-up truncated at the horizon, with no
-//! censoring at all (the censoring model is then absent), under strong confounding and with 36
-//! subjects. The product reaches the same survival curves through its own weighting loop; its
-//! subject bootstrap is exercised only for shape because its draws come from a seeded stream.
+//! logistic hazard (uncensored rows), the Gaussian linear confounder transition and the pooled
+//! logistic treatment model by maximum likelihood in multiprecision arithmetic and integrates the
+//! g-formula over the Gaussian innovations by nested Gauss-Hermite quadrature, for follow-up
+//! truncated at the horizon, with no censoring at all, under strong confounding and with 36
+//! subjects. The product evaluates the same integral on 16 fixed Monte Carlo paths per subject,
+//! so its point values are held to the quadrature values within the Monte Carlo tolerance the
+//! oracle measures for exactly that scheme (five standard deviations); the smallest regime
+//! probability is deterministic and held to 1e-6. Its subject bootstrap is exercised only for
+//! shape because its draws come from a seeded stream.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -69,7 +72,7 @@ fn regime_survival_matches_the_multiprecision_reference() {
             Ok(fit) => fit,
             Err(error) => {
                 // The interval refits the models in every subject-bootstrap replicate and the
-                // fit refuses when more than five percent of them lose regime support; the point
+                // fit refuses when more than five percent of them cannot be refitted; the point
                 // is then not published. Only designs thin enough to lose support may refuse.
                 let text = error.to_string();
                 assert!(
@@ -82,8 +85,14 @@ fn regime_survival_matches_the_multiprecision_reference() {
             }
         };
         let want = case["estimate"].as_array().unwrap();
+        let tolerance = case["monte_carlo_tolerance"].as_array().unwrap();
         for (j, label) in ["difference", "always_treat", "never_treat"].iter().enumerate() {
-            close(fit.estimate[j], want[j].as_f64().unwrap(), 1e-6, &format!("{name} {label}"));
+            let (expected, allowed) = (want[j].as_f64().unwrap(), tolerance[j].as_f64().unwrap());
+            assert!(
+                (fit.estimate[j] - expected).abs() <= allowed,
+                "{name} {label}: {} vs {expected} (Monte Carlo tolerance {allowed})",
+                fit.estimate[j]
+            );
         }
         close(
             fit.minimum_regime_probability,

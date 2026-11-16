@@ -8,8 +8,9 @@
 //! intervals (whole-procedure cluster bootstrap for the quantile functional; a bias-aware
 //! interval and band for the local-quadratic dose grid); Bayesian inference reports the cluster
 //! Bayesian-bootstrap posterior of the same functional. Regime survival reads observational
-//! trajectories: its frequentist interval refits the treatment and censoring models in every
-//! subject-bootstrap replicate, and its posterior is the joint-likelihood parametric g-formula.
+//! trajectories: its frequentist estimate is the plug-in parametric g-formula and its interval
+//! refits the hazard and confounder-transition models in every subject-bootstrap replicate, and
+//! its posterior is the joint-likelihood parametric g-formula.
 //! A fit whose design, method and observed support match a row of the graphless support table
 //! states the row in a coded diagnostic; every other fit is unsupported. Every section's
 //! calibration is `not_measured`.
@@ -1307,8 +1308,11 @@ fn design_assumptions(query: &TemporalDesignQuery) -> antecedent_core::Assumptio
         ));
         assumptions.push(declared(
             "pooled_period_models",
-            "the treatment, censoring and hazard laws are pooled logistic in the current \
-             confounders, the current or previous treatment and the scaled period",
+            "the hazard law is pooled logistic in the current confounders, the current treatment \
+             and the scaled period and each confounder's transition is Gaussian linear in the \
+             previous confounders, the previous treatment and the scaled period; the \
+             frequentist estimate rests on these two laws, the Bayesian posterior also carries \
+             pooled logistic treatment and censoring laws that only report positivity",
         ));
     } else if let TemporalAssignment::ObservationalRegime { method, .. } = &query.assignment {
         assumptions.push(declared(

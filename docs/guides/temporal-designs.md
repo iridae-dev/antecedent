@@ -69,7 +69,7 @@ unpaired and counted.
 | `dose` (`smoothed_curve`) | kernel-smoothed response on a grid | plus a sup-t band | same |
 | `dose` (`local_quadratic`) | local-quadratic level or derivative of the dose response | bias-aware interval and band under a declared `curvature_bound` | posterior of the bandwidth projection; the bias bound is reported beside it |
 | `two_arm` with `quantile_level` | quantile of the outcome law under the excursion, per arm, and its difference | whole-procedure cluster bootstrap (`bootstrap=` at least 99) | Bayesian bootstrap over units |
-| `regime_survival` | survival at `horizon` under always-treat and never-treat, and the difference | inverse-probability weighted hazards; the subject bootstrap refits the treatment and censoring models (`bootstrap=` at least 99) | joint-likelihood parametric g-formula |
+| `regime_survival` | survival at `horizon` under always-treat and never-treat, and the difference | parametric g-formula (pooled logistic hazard, Gaussian confounder transition); the subject bootstrap refits both models (`bootstrap=` at least 99) | joint-likelihood parametric g-formula |
 | `observational_excursion` | the excursion effect and arm means of an observed decision with no recorded assignment law | pooled logistic assignment model on the `history` columns; the unit bootstrap refits it in every replicate (`bootstrap=` at least 99) | weighted-likelihood bootstrap: Dirichlet unit weights, the assignment model refitted per draw |
 | `observational_regime` | mean end-of-follow-up outcome under an active and a reference whole treatment path, and their difference, under time-varying confounding | unit bootstrap refitting every per-period treatment model and outcome regression (`bootstrap=` at least 99) | weighted-likelihood bootstrap: Dirichlet unit weights, every model refitted per draw |
 
@@ -160,9 +160,13 @@ Rows per subject run `0, 1, 2, ...` while at risk: confounders at the start of t
 treatment, then censoring during the period (`censored = 1`, event unobserved) or the event.
 The target is `S_1(K) - S_0(K)`. Sequential exchangeability of treatment and censoring given
 the measured history, positivity of both regimes (the floor `min_probability`) and consistency
-are declared, not checked. The frequentist interval refits the pooled logistic treatment and
-censoring models in every subject-bootstrap replicate, so the nuisance fits are inside it.
-The Bayesian posterior factorizes the trajectory likelihood
+are declared, not checked. The frequentist estimate is the plug-in parametric g-formula: a pooled
+logistic hazard on the uncensored person-periods and a Gaussian linear confounder transition
+are fitted by maximum likelihood, each subject's baseline confounders are carried forward under
+each regime on fixed random paths shared across regimes, and the fitted hazards are multiplied
+out. The interval refits both models in every subject-bootstrap replicate and takes the
+percentile interval, so the model fits are inside it. The treatment model is fitted only to
+hold the regime probabilities to the floor. The Bayesian posterior factorizes the trajectory likelihood
 into a conjugate Gaussian confounder transition and Laplace pooled-logistic treatment,
 censoring and hazard laws, and evaluates the parametric g-formula per draw with common random
 numbers across regimes; the treatment and censoring posteriors report the share of draws below

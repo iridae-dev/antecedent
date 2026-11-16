@@ -243,7 +243,7 @@ impl CheckedTemporalDesignOperation {
             uncertainty: if posterior {
                 "joint_likelihood_parametric_g_formula_posterior"
             } else {
-                "whole_procedure_subject_bootstrap_refitting_treatment_and_censoring_models"
+                "whole_procedure_subject_bootstrap_refitting_hazard_and_confounder_transition_models"
             },
         })
     }

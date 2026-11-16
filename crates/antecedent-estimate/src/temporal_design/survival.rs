@@ -15,13 +15,21 @@
 //!
 //! # Frequentist procedure
 //!
-//! Pooled logistic models of treatment `P(A_k | L_k, A_{k-1}, k)` and censoring
-//! `P(C_k | L_k, A_k, k)` give cumulative inverse-probability weights of regime-consistent,
-//! uncensored person-periods; the weighted discrete hazard of each period is the weighted event
-//! share, and survival is the product of one minus the hazards. The uncertainty is a
-//! whole-procedure subject bootstrap: every replicate resamples subjects with replacement and
-//! refits both models before recomputing the weights and hazards, so the propensity and
-//! censoring fits are inside the interval. Its coverage is not measured here.
+//! The plug-in parametric g-formula. A pooled logistic discrete-time hazard
+//! `P(Y_k | L_k, A_k, k)` (fitted on uncensored person-periods, which censoring leaves
+//! unselected under sequential exchangeability) and a Gaussian linear confounder transition
+//! `L_{k,c} | L_{k-1}, A_{k-1}, k` (weighted least squares with its maximum-likelihood residual
+//! scale) are fitted by maximum likelihood. Survival under a regime carries every subject's
+//! observed baseline confounders forward through the fitted transition law under that regime on
+//! a fixed set of standard-normal innovation paths (common random numbers across both regimes,
+//! the point fit and every bootstrap replicate) and averages the product of one minus the fitted
+//! hazards. The uncertainty is a whole-procedure subject bootstrap: every replicate resamples
+//! subjects with replacement and refits both models before re-evaluating the g-formula, and the
+//! interval is the percentile interval of the replicates. A treatment model is fitted on the
+//! point fit only to report the smallest regime-consistent action probability and to hold it to
+//! the declared floor; it does not enter the estimate. Cumulative inverse-probability weights
+//! are not used because their heavy-tailed variance breaks the interval's coverage under low
+//! overlap. Its coverage is measured by the temporal-design calibration suites.
 //!
 //! # Bayesian procedure
 //!
@@ -42,13 +50,18 @@
 
 use antecedent_core::{ExecutionContext, StreamDomain};
 
-use super::linalg::{GaussianRegression, LogisticFit, fit_gaussian, fit_logistic, lower_times};
+use super::linalg::{
+    GaussianRegression, LogisticFit, cholesky, cholesky_solve, fit_gaussian, fit_logistic,
+    lower_times,
+};
 use super::{PosteriorSummary, invalid, summarize_draws};
 use crate::error::EstimationError;
 use crate::util::refuse;
 
 /// Stream key of the subject bootstrap.
 const BOOTSTRAP_STREAM: u64 = 0x5A1F_B007_0000_0000;
+/// Stream key of the frequentist g-formula path innovations.
+const GFORMULA_STREAM: u64 = 0x5A1F_6F0A_0000_0000;
 /// Stream key of the posterior g-formula draws.
 const POSTERIOR_STREAM: u64 = 0x5A1F_6F00_0000_0000;
 /// Largest share of bootstrap replicates allowed to fail.
@@ -236,109 +249,278 @@ pub struct SurvivalFit {
     pub person_periods: usize,
 }
 
-/// The person-period design of the treatment and censoring models, built once per fit.
+/// Monte Carlo paths of the confounder law per subject in the g-formula evaluation.
+const GFORMULA_PATHS: usize = 16;
+
+/// The person-period design of the hazard and confounder-transition models, built once per fit.
 ///
 /// Each subject's rows are contiguous, so a bootstrap replicate gathers the rows of the
 /// subjects it drew instead of rebuilding every feature vector.
 struct ProcedureDesign {
     width: usize,
-    /// `[start, end)` person-period rows of subject `i` are `offsets[i]..offsets[i + 1]`.
-    offsets: Vec<usize>,
-    treatment_x: Vec<f64>,
-    treatment_y: Vec<f64>,
-    censoring_x: Vec<f64>,
-    censoring_y: Vec<f64>,
+    /// Uncensored person-period rows of subject `i` are `hazard_offsets[i]..hazard_offsets[i + 1]`.
+    hazard_offsets: Vec<usize>,
+    hazard_x: Vec<f64>,
+    hazard_y: Vec<f64>,
+    /// Period-to-period transition rows of subject `i` (periods `k >= 1`).
+    transition_offsets: Vec<usize>,
+    transition_x: Vec<f64>,
+    /// One response column per confounder, row-aligned with `transition_x`.
+    transition_y: Vec<Vec<f64>>,
 }
 
 impl ProcedureDesign {
     fn new(data: &Trajectories) -> Self {
-        let (mut tx, mut ty) = (Vec::new(), Vec::new());
-        let (mut cx, mut cy) = (Vec::new(), Vec::new());
-        let mut offsets = Vec::with_capacity(data.subjects.len() + 1);
-        offsets.push(0);
+        let (mut hx, mut hy, mut lx) = (Vec::new(), Vec::new(), Vec::new());
+        let mut ly: Vec<Vec<f64>> = vec![Vec::new(); data.confounders];
+        let mut transition_rows = 0_usize;
+        let mut hazard_offsets = vec![0];
+        let mut transition_offsets = vec![0];
         for subject in &data.subjects {
             for k in 0..subject.treatment.len() {
-                data.treatment_features(subject, k, &mut tx);
-                ty.push(f64::from(u8::from(subject.treatment[k])));
-                data.current_features(&subject.confounders[k], subject.treatment[k], k, &mut cx);
-                cy.push(f64::from(u8::from(subject.censored[k])));
+                if !subject.censored[k] {
+                    data.current_features(
+                        &subject.confounders[k],
+                        subject.treatment[k],
+                        k,
+                        &mut hx,
+                    );
+                    hy.push(f64::from(u8::from(subject.event[k])));
+                }
+                if k > 0 {
+                    data.transition_features(
+                        &subject.confounders[k - 1],
+                        subject.treatment[k - 1],
+                        k,
+                        &mut lx,
+                    );
+                    for (c, column) in ly.iter_mut().enumerate() {
+                        column.push(subject.confounders[k][c]);
+                    }
+                    transition_rows += 1;
+                }
             }
-            offsets.push(ty.len());
+            hazard_offsets.push(hy.len());
+            transition_offsets.push(transition_rows);
         }
         Self {
             width: data.width(),
-            offsets,
-            treatment_x: tx,
-            treatment_y: ty,
-            censoring_x: cx,
-            censoring_y: cy,
+            hazard_offsets,
+            hazard_x: hx,
+            hazard_y: hy,
+            transition_offsets,
+            transition_x: lx,
+            transition_y: ly,
         }
     }
 }
 
-/// The weighted procedure on subject weights (multiplicities in a bootstrap replicate).
-#[cfg(test)]
-fn ipw_procedure(
-    data: &Trajectories,
-    subject_weights: Option<&[f64]>,
-    floor: f64,
-) -> Result<([f64; 3], f64), EstimationError> {
-    ipw_procedure_on(data, &ProcedureDesign::new(data), subject_weights, floor)
+/// Standard-normal innovations of the g-formula paths, drawn once per fit and shared by the
+/// point fit and every bootstrap replicate (common random numbers), so the Monte Carlo error of
+/// the evaluation is a fixed part of the estimator rather than extra interval noise.
+struct PathNoise {
+    values: Vec<f64>,
+    subjects: usize,
+    steps: usize,
+    confounders: usize,
 }
 
-/// [`ipw_procedure`] on a prebuilt design.
+impl PathNoise {
+    fn draw(data: &Trajectories, ctx: &ExecutionContext) -> Self {
+        let subjects = data.subjects.len();
+        let steps = data.horizon.saturating_sub(1);
+        let confounders = data.confounders;
+        let mut values = vec![0.0; GFORMULA_PATHS * subjects * steps * confounders];
+        let mut rng = ctx.rng.stream_for(StreamDomain::Resample, GFORMULA_STREAM);
+        antecedent_kernels::fill_standard_normal(&mut rng, &mut values);
+        Self { values, subjects, steps, confounders }
+    }
+
+    /// Innovations of path `path` of subject `i` at period `k >= 1`.
+    fn at(&self, path: usize, i: usize, k: usize) -> &[f64] {
+        let start = ((path * self.subjects + i) * self.steps + (k - 1)) * self.confounders;
+        &self.values[start..start + self.confounders]
+    }
+}
+
+/// Maximum-likelihood fits of the working models of the g-formula.
+struct OutcomeModels {
+    hazard: Vec<f64>,
+    /// Per confounder: coefficients on `[1, L_{k-1}, A_{k-1}, k/K]` and the residual sd.
+    transitions: Vec<(Vec<f64>, f64)>,
+}
+
 #[allow(
     clippy::float_cmp,
     reason = "a subject absent from a bootstrap replicate has a weight of exactly zero"
 )]
-fn ipw_procedure_on(
+fn fit_outcome_models(
     data: &Trajectories,
     design: &ProcedureDesign,
     subject_weights: Option<&[f64]>,
-    floor: f64,
-) -> Result<([f64; 3], f64), EstimationError> {
+) -> Result<OutcomeModels, EstimationError> {
     let width = design.width;
     let weight = |i: usize| subject_weights.map_or(1.0, |weights| weights[i]);
-    let (mut tx, mut ty, mut tw) = (Vec::new(), Vec::new(), Vec::new());
-    let (mut cx, mut cy, mut cw) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut hx, mut hy, mut hw) = (Vec::new(), Vec::new(), Vec::new());
     for i in 0..data.subjects.len() {
         let w = weight(i);
         if w == 0.0 {
             continue;
         }
-        let (start, end) = (design.offsets[i], design.offsets[i + 1]);
-        tx.extend_from_slice(&design.treatment_x[start * width..end * width]);
-        ty.extend_from_slice(&design.treatment_y[start..end]);
-        cx.extend_from_slice(&design.censoring_x[start * width..end * width]);
-        cy.extend_from_slice(&design.censoring_y[start..end]);
-        tw.resize(tw.len() + (end - start), w);
-        cw.resize(cw.len() + (end - start), w);
+        let (start, end) = (design.hazard_offsets[i], design.hazard_offsets[i + 1]);
+        hx.extend_from_slice(&design.hazard_x[start * width..end * width]);
+        hy.extend_from_slice(&design.hazard_y[start..end]);
+        hw.resize(hw.len() + (end - start), w);
     }
-    let treatment = fit_logistic(&tx, width, &ty, Some(&tw), 0.0)?;
-    let censoring = if cy.iter().any(|value| *value > 0.0) {
-        Some(fit_logistic(&cx, width, &cy, Some(&cw), 0.0)?)
-    } else {
-        None
-    };
-    let mut survival = [1.0_f64; 2];
-    let mut minimum = 1.0_f64;
-    let mut features = Vec::with_capacity(width);
-    for (arm_index, arm) in [true, false].into_iter().enumerate() {
-        let mut numerator = vec![0.0; data.horizon];
-        let mut denominator = vec![0.0; data.horizon];
-        for (i, subject) in data.subjects.iter().enumerate() {
+    let hazard = fit_logistic(&hx, width, &hy, Some(&hw), 0.0)?.coefficients;
+    let mut transitions = Vec::new();
+    if data.horizon > 1 && data.confounders > 0 {
+        let mut precision = vec![0.0; width * width];
+        let mut xty = vec![vec![0.0; width]; data.confounders];
+        let mut total = 0.0;
+        for i in 0..data.subjects.len() {
             let w = weight(i);
             if w == 0.0 {
                 continue;
             }
-            let mut cumulative = 1.0;
+            for row in design.transition_offsets[i]..design.transition_offsets[i + 1] {
+                let x = &design.transition_x[row * width..(row + 1) * width];
+                total += w;
+                for a in 0..width {
+                    for b in 0..width {
+                        precision[a * width + b] += w * x[a] * x[b];
+                    }
+                    for (c, column) in xty.iter_mut().enumerate() {
+                        column[a] += w * x[a] * design.transition_y[c][row];
+                    }
+                }
+            }
+        }
+        if total < (width + 1) as f64 {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "regime_survival.too_few_transitions",
+                "too few observed period-to-period transitions to fit the confounder law",
+            ));
+        }
+        let factor = cholesky(&precision, width)
+            .ok_or_else(|| EstimationError::stats_msg("the confounder regression is singular"))?;
+        for (c, column) in xty.iter().enumerate() {
+            let coefficients = cholesky_solve(&factor, width, column);
+            let mut rss = 0.0;
+            for i in 0..data.subjects.len() {
+                let w = weight(i);
+                if w == 0.0 {
+                    continue;
+                }
+                for row in design.transition_offsets[i]..design.transition_offsets[i + 1] {
+                    let x = &design.transition_x[row * width..(row + 1) * width];
+                    let fitted: f64 = coefficients.iter().zip(x).map(|(a, b)| a * b).sum();
+                    rss += w * (design.transition_y[c][row] - fitted).powi(2);
+                }
+            }
+            let sd = (rss / total).sqrt();
+            if !sd.is_finite() {
+                return Err(EstimationError::stats_msg(
+                    "a confounder residual scale is not finite",
+                ));
+            }
+            transitions.push((coefficients, sd));
+        }
+    }
+    Ok(OutcomeModels { hazard, transitions })
+}
+
+/// The plug-in parametric g-formula on subject weights (multiplicities in a bootstrap
+/// replicate): both models refit by maximum likelihood, then each subject's baseline
+/// confounders are carried forward through the fitted law under each regime on the shared
+/// innovations and the fitted hazards multiplied out.
+#[allow(
+    clippy::float_cmp,
+    reason = "a subject absent from a bootstrap replicate has a weight of exactly zero"
+)]
+fn gformula_procedure_on(
+    data: &Trajectories,
+    design: &ProcedureDesign,
+    noise: &PathNoise,
+    subject_weights: Option<&[f64]>,
+) -> Result<[f64; 3], EstimationError> {
+    let models = fit_outcome_models(data, design, subject_weights)?;
+    let mut survival = [0.0_f64; 2];
+    let mut total = 0.0;
+    let mut features = Vec::with_capacity(design.width);
+    let mut path = vec![0.0; data.confounders];
+    let mut previous = vec![0.0; data.confounders];
+    for (i, subject) in data.subjects.iter().enumerate() {
+        let w = subject_weights.map_or(1.0, |weights| weights[i]);
+        if w == 0.0 {
+            continue;
+        }
+        total += w;
+        for (arm_index, arm) in [true, false].into_iter().enumerate() {
+            let mut mean = 0.0;
+            for draw in 0..GFORMULA_PATHS {
+                path.copy_from_slice(&subject.confounders[0]);
+                let mut surviving = 1.0_f64;
+                for k in 0..data.horizon {
+                    if k > 0 {
+                        previous.copy_from_slice(&path);
+                        let innovations = noise.at(draw, i, k);
+                        for (c, (coefficients, sd)) in models.transitions.iter().enumerate() {
+                            features.clear();
+                            data.transition_features(&previous, arm, k, &mut features);
+                            let expected: f64 =
+                                coefficients.iter().zip(&features).map(|(a, b)| a * b).sum();
+                            path[c] = expected + sd * innovations[c];
+                        }
+                    }
+                    features.clear();
+                    data.current_features(&path, arm, k, &mut features);
+                    surviving *= 1.0 - probability_of(&models.hazard, &features);
+                }
+                mean += surviving;
+            }
+            survival[arm_index] += w * mean / GFORMULA_PATHS as f64;
+        }
+    }
+    let (treated, untreated) = (survival[0] / total, survival[1] / total);
+    if !(treated.is_finite() && untreated.is_finite()) {
+        return Err(EstimationError::stats_msg("a g-formula survival value is not finite"));
+    }
+    Ok([treated - untreated, treated, untreated])
+}
+
+fn probability_of(coefficients: &[f64], features: &[f64]) -> f64 {
+    let eta: f64 = coefficients.iter().zip(features).map(|(a, b)| a * b).sum();
+    antecedent_kernels::sigmoid(eta)
+}
+
+/// Declared-assumption checks of the point fit: every regime has support in the data and its
+/// fitted action probability stays above the floor. The treatment law does not enter the
+/// g-formula; this is the positivity diagnostic and the smallest regime probability reported.
+fn regime_positivity(data: &Trajectories, floor: f64) -> Result<f64, EstimationError> {
+    let width = data.width();
+    let (mut tx, mut ty) = (Vec::new(), Vec::new());
+    for subject in &data.subjects {
+        for k in 0..subject.treatment.len() {
+            data.treatment_features(subject, k, &mut tx);
+            ty.push(f64::from(u8::from(subject.treatment[k])));
+        }
+    }
+    let treatment = fit_logistic(&tx, width, &ty, None, 0.0)?;
+    let mut minimum = 1.0_f64;
+    let mut features = Vec::with_capacity(width);
+    for arm in [true, false] {
+        let mut at_risk = vec![0_usize; data.horizon];
+        let mut events = vec![0_usize; data.horizon];
+        for subject in &data.subjects {
             for k in 0..subject.treatment.len() {
                 if subject.treatment[k] != arm {
                     break;
                 }
                 features.clear();
                 data.treatment_features(subject, k, &mut features);
-                let p_treat = probability(&treatment, &features);
+                let p_treat = probability_of(&treatment.coefficients, &features);
                 let p_arm = if arm { p_treat } else { 1.0 - p_treat };
                 minimum = minimum.min(p_arm);
                 if p_arm < floor {
@@ -352,71 +534,37 @@ fn ipw_procedure_on(
                         ),
                     ));
                 }
-                cumulative /= p_arm;
-                if let Some(model) = &censoring {
-                    features.clear();
-                    data.current_features(&subject.confounders[k], arm, k, &mut features);
-                    let p_censor = probability(model, &features);
-                    cumulative /= censor_survival(p_censor, floor)?;
-                }
                 if subject.censored[k] {
                     break;
                 }
-                numerator[k] += w * cumulative * f64::from(u8::from(subject.event[k]));
-                denominator[k] += w * cumulative;
+                at_risk[k] += 1;
+                events[k] += usize::from(subject.event[k]);
             }
         }
-        survival[arm_index] = risk_survival(&numerator, &denominator, arm)?;
-    }
-    Ok(([survival[0] - survival[1], survival[0], survival[1]], minimum))
-}
-
-fn censor_survival(p_censor: f64, floor: f64) -> Result<f64, EstimationError> {
-    let probability = 1.0 - p_censor;
-    if !probability.is_finite() || probability < floor {
-        return Err(refuse(
-            antecedent_core::reason_code!("positivity_violated"),
-            "regime_survival.positivity",
-            &format!(
-                "a regime-consistent uncensoring probability {probability} is below the floor {floor}"
-            ),
-        ));
-    }
-    Ok(probability)
-}
-
-fn risk_survival(events: &[f64], at_risk: &[f64], arm: bool) -> Result<f64, EstimationError> {
-    let mut survival = 1.0;
-    for (k, (events, at_risk)) in events.iter().zip(at_risk).enumerate() {
-        if *at_risk <= 0.0 {
-            if survival == 0.0 {
-                continue;
+        for k in 0..data.horizon {
+            let extinct = k > 0 && at_risk[k - 1] > 0 && events[k - 1] == at_risk[k - 1];
+            if at_risk[k] == 0 && !extinct {
+                return Err(refuse(
+                    antecedent_core::reason_code!("arm_not_populated"),
+                    "regime_survival.no_regime_support",
+                    &format!(
+                        "no uncensored subject followed the {} regime through period {k}",
+                        if arm { "always-treat" } else { "never-treat" }
+                    ),
+                ));
             }
-            return Err(refuse(
-                antecedent_core::reason_code!("arm_not_populated"),
-                "regime_survival.no_regime_support",
-                &format!(
-                    "no uncensored subject followed the {} regime through period {k}",
-                    if arm { "always-treat" } else { "never-treat" }
-                ),
-            ));
         }
-        survival *= 1.0 - events / at_risk;
     }
-    Ok(survival)
+    Ok(minimum)
 }
 
-fn probability(fit: &LogisticFit, features: &[f64]) -> f64 {
-    let eta: f64 = fit.coefficients.iter().zip(features).map(|(a, b)| a * b).sum();
-    antecedent_kernels::sigmoid(eta)
-}
-
-/// Frequentist regime survival with a whole-procedure subject bootstrap.
+/// Frequentist regime survival: the plug-in parametric g-formula with a whole-procedure subject
+/// bootstrap.
 ///
 /// # Errors
 /// Fewer than [`MIN_REPLICATES`] replicates, a positivity floor outside `(0, 0.5]`, a model fit
-/// that fails, a period no regime-consistent subject reaches, more than five percent failed
-/// replicates, admission or cancellation.
+/// that fails, a regime no subject follows, a regime probability below the floor, more than
+/// five percent failed replicates, admission or cancellation.
 pub fn fit_regime_survival(
     data: &Trajectories,
     floor: f64,
@@ -430,18 +578,25 @@ pub fn fit_regime_survival(
         return Err(refuse(
             antecedent_core::reason_code!("required_option_missing"),
             "regime_survival.bootstrap_replicates",
-            "the regime survival interval refits the treatment and censoring models in every \
-             subject-bootstrap replicate and needs at least 99 replicates. Next attempt: set \
-             bootstrap_replicates to 99 or more",
+            "the regime survival interval refits the hazard and confounder-transition models in \
+             every subject-bootstrap replicate and needs at least 99 replicates. Next attempt: \
+             set bootstrap_replicates to 99 or more",
         ));
     }
-    let design = ProcedureDesign::new(data);
-    let (estimate, minimum) = ipw_procedure_on(data, &design, None, floor)?;
     let n = data.subjects();
     let _lease = crate::util::admit_array::<f64>(ctx, replicates, 3 + n)?;
+    let _noise_lease = crate::util::admit_array::<f64>(
+        ctx,
+        GFORMULA_PATHS * n,
+        data.horizon.max(1) * data.confounders.max(1),
+    )?;
+    let minimum = regime_positivity(data, floor)?;
+    let design = ProcedureDesign::new(data);
+    let noise = PathNoise::draw(data, ctx);
+    let estimate = gformula_procedure_on(data, &design, &noise, None)?;
     let (mut columns, failed) =
         super::bootstrap_unit_draws(n, replicates, BOOTSTRAP_STREAM, ctx, |counts| {
-            ipw_procedure_on(data, &design, Some(counts), floor).ok().map(|(values, _)| values)
+            gformula_procedure_on(data, &design, &noise, Some(counts)).ok()
         })?;
     if failed as f64 > MAX_FAILED_SHARE * replicates as f64 {
         return Err(refuse(
@@ -449,8 +604,8 @@ pub fn fit_regime_survival(
             "regime_survival.bootstrap_failures",
             &format!(
                 "{failed} of {replicates} subject-bootstrap replicates could not refit the \
-                 procedure (positivity or regime support). Next attempt: more subjects, a \
-                 shorter horizon or a lower floor"
+                 procedure (separated hazard model or too few transitions). Next attempt: more \
+                 subjects or a shorter horizon"
             ),
         ));
     }
@@ -678,26 +833,6 @@ pub fn fit_regime_survival_posterior(
 mod tests {
     use super::*;
 
-    #[test]
-    #[allow(
-        clippy::float_cmp,
-        reason = "the fixed reference fixture preserves its exact values and bounded setup"
-    )]
-    fn censoring_positivity_and_extinguished_risk_sets_are_explicit() {
-        assert_eq!(censor_survival(0.5, 0.1).unwrap(), 0.5);
-        assert_eq!(
-            censor_survival(0.95, 0.1).unwrap_err().reason_code(),
-            Some("positivity_violated")
-        );
-        assert!(censor_survival(f64::NAN, 0.1).is_err());
-        assert_eq!(risk_survival(&[2.0, 0.0], &[2.0, 0.0], true).unwrap(), 0.0);
-        assert_eq!(
-            risk_survival(&[1.0, 0.0], &[2.0, 0.0], false).unwrap_err().reason_code(),
-            Some("arm_not_populated")
-        );
-        assert_eq!(risk_survival(&[1.0, 1.0], &[2.0, 2.0], true).unwrap(), 0.25);
-    }
-
     fn uniform(seed: u64) -> f64 {
         let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ 0x3C6E_F372_FE94_F82B;
         state ^= state >> 31;
@@ -744,52 +879,29 @@ mod tests {
     }
 
     #[test]
-    #[allow(
-        clippy::float_cmp,
-        reason = "the fixed reference fixture preserves its exact values and bounded setup"
-    )]
-    fn actual_ipw_extinction_and_low_uncensoring_are_not_silently_mishandled() {
-        let (unit, period, treat, mut cens, mut event, l) = trajectories(1500, 4);
+    fn unsupported_regimes_and_thin_overlap_are_refused() {
+        let (unit, period, mut treat, cens, event, l) = trajectories(1500, 4);
         let columns = vec![l];
-        for row in 0..unit.len() {
-            let last = row + 1 == unit.len() || unit[row + 1] != unit[row];
-            if last && !cens[row] {
-                event[row] = true;
-            }
-        }
-        let rows = TrajectoryRows {
-            unit: &unit,
-            period: &period,
-            treatment: &treat,
-            censored: &cens,
-            event: &event,
-            confounders: &columns,
+        let rows = |treat: &[bool]| {
+            Trajectories::new(
+                TrajectoryRows {
+                    unit: &unit,
+                    period: &period,
+                    treatment: treat,
+                    censored: &cens,
+                    event: &event,
+                    confounders: &columns,
+                },
+                4,
+            )
+            .unwrap()
         };
-        let extinct = Trajectories::new(rows, 5).unwrap();
-        let (estimate, _) = ipw_procedure(&extinct, None, 0.02).unwrap();
-        assert_eq!(estimate, [0.0, 0.0, 0.0]);
-
-        // Reclassify almost all subjects' final observation as censored. The
-        // original mixed treatment and history design still fits both models.
-        for row in 0..unit.len() {
-            let last = row + 1 == unit.len() || unit[row + 1] != unit[row];
-            if last && unit[row] % 20 != 0 {
-                cens[row] = true;
-                event[row] = false;
-            }
-        }
-        let rows = TrajectoryRows {
-            unit: &unit,
-            period: &period,
-            treatment: &treat,
-            censored: &cens,
-            event: &event,
-            confounders: &columns,
-        };
-        let low_support = Trajectories::new(rows, 4).unwrap();
-        let error = ipw_procedure(&low_support, None, 0.2).unwrap_err();
+        // A floor at its ceiling cannot hold for confounded treatment.
+        let error = regime_positivity(&rows(&treat), 0.5).unwrap_err();
         assert_eq!(error.reason_code(), Some("positivity_violated"));
-        assert!(error.to_string().contains("uncensoring probability"));
+        // Nobody ever treated: the treatment law separates and the regime has no support.
+        treat.fill(false);
+        assert!(regime_positivity(&rows(&treat), 0.0001).is_err());
     }
 
     /// Monte Carlo truth of `S_1(K) - S_0(K)` from the generating law.
