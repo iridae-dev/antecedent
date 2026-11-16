@@ -51,8 +51,8 @@ mod common;
 mod fixture;
 
 use antecedent::analysis::joint_panel::designs::{
-    JointDesignSourceBinding, PreparedNativeJointDesign, joint_design_world_identity,
-    replay_native_joint_design,
+    JointDesignSourceBinding, NativeJointDesignResult, PreparedNativeJointDesign,
+    joint_design_world_identity, replay_native_joint_design,
 };
 use antecedent::analysis::joint_panel::selection::instrumented::{
     InstrumentedDomainGeneration, InstrumentedDoseControl, InstrumentedSelectionRequest,
@@ -1794,13 +1794,7 @@ fn assert_close(actual: f64, expected: f64, tolerance: f64) {
     );
 }
 
-/// Eight equally weighted units alternate between two programs at probability one half. The
-/// inverse-probability scores of the contrast are -2, 6, -4, 10, 0, 8, -6, 12: mean 3,
-/// sample variance 328 / 7, so the variance of the mean is 328 / 56 and the interval is
-/// 3 -/+ t(0.975, 7) sqrt(328 / 56) with t(0.975, 7) = 2.364624.
-#[test]
-fn native_contrast_reading_is_the_hand_computed_interval_and_is_keyed_by_its_support() {
-    let ctx = ExecutionContext::for_tests(901);
+fn eight_unit_geo_result(ctx: &ExecutionContext) -> (NativeJointDesignResult, Vec<f64>) {
     let (mut recipe, _, contrast) = weighted_geo_fixture(8);
     let JointDesignRecipe::Randomized { units, .. } = &mut recipe else {
         unreachable!("randomized template")
@@ -1809,8 +1803,40 @@ fn native_contrast_reading_is_the_hand_computed_interval_and_is_keyed_by_its_sup
         unit.population_weight = 1.0;
         unit.outcome = outcome;
     }
-    let prepared = PreparedNativeJointDesign::compile(recipe, &ctx).unwrap();
-    let result = prepared.execute(JointDesignInference::Frequentist, &ctx).unwrap();
+    let prepared = PreparedNativeJointDesign::compile(recipe, ctx).unwrap();
+    (prepared.execute(JointDesignInference::Frequentist, ctx).unwrap(), contrast)
+}
+
+fn switchback_history_result(
+    repeats: usize,
+    ctx: &ExecutionContext,
+) -> (NativeJointDesignResult, Vec<f64>) {
+    let (mut recipe, _, contrast) = switchback_fixture(repeats);
+    let JointDesignRecipe::Switchback { sequences, .. } = &mut recipe else {
+        unreachable!("switchback template")
+    };
+    for sequence in sequences.iter_mut() {
+        let history = &sequence.schedules[sequence.realized];
+        let (past, arm) = (history[0], history[1]);
+        sequence.outcomes = vec![
+            0.0,
+            (2 * (arm & 1) + 3 * (arm >> 1) + 4 * (arm & 1) * (arm >> 1)) as f64
+                + 1.5 * (past & 1) as f64
+                + 2.0 * (past >> 1) as f64,
+        ];
+    }
+    let prepared = PreparedNativeJointDesign::compile(recipe, ctx).unwrap();
+    (prepared.execute(JointDesignInference::Frequentist, ctx).unwrap(), contrast)
+}
+
+/// Eight equally weighted units alternate between two programs at probability one half. The
+/// inverse-probability scores of the contrast are -2, 6, -4, 10, 0, 8, -6, 12: mean 3,
+/// sample variance 328 / 7, so the variance of the mean is 328 / 56 and the interval is
+/// 3 -/+ t(0.975, 7) sqrt(328 / 56) with t(0.975, 7) = 2.364624.
+#[test]
+fn native_contrast_reading_is_the_hand_computed_interval_and_is_keyed_by_its_support() {
+    let ctx = ExecutionContext::for_tests(901);
+    let (result, contrast) = eight_unit_geo_result(&ctx);
     let reading = result.contrast_interval_reading(&contrast, LEVEL).unwrap();
     let radius = 2.364_624_251_592_785 * (328.0_f64 / 56.0).sqrt();
     assert_close(reading.bounds[0], 3.0 - radius, 1e-6);
@@ -1820,7 +1846,6 @@ fn native_contrast_reading_is_the_hand_computed_interval_and_is_keyed_by_its_sup
     assert_eq!(reading.basis.row_count, 8);
     // Four units per program is below the 32 the equal-weight interval was measured at.
     assert_eq!(&*reading.basis.dependence, "equal_weights_sparse_programs");
-    assert_ne!(reading.calibration.status.as_str(), "calibrated");
     assert!(result.contrast_interval_reading(&contrast, 1.5).is_err());
     let bytes = result.export_artifact().unwrap();
     assert_eq!(*result.law(), replay_native_joint_design(&bytes, &ctx).unwrap());
@@ -1829,30 +1854,28 @@ fn native_contrast_reading_is_the_hand_computed_interval_and_is_keyed_by_its_sup
     for (repeats, support) in
         [(4, "sequences_per_history_below_32"), (32, "sequences_per_history_at_least_32")]
     {
-        let (mut recipe, _, contrast) = switchback_fixture(repeats);
-        let JointDesignRecipe::Switchback { sequences, .. } = &mut recipe else {
-            unreachable!("switchback template")
-        };
-        for sequence in sequences.iter_mut() {
-            let history = &sequence.schedules[sequence.realized];
-            let (past, arm) = (history[0], history[1]);
-            sequence.outcomes = vec![
-                0.0,
-                (2 * (arm & 1) + 3 * (arm >> 1) + 4 * (arm & 1) * (arm >> 1)) as f64
-                    + 1.5 * (past & 1) as f64
-                    + 2.0 * (past >> 1) as f64,
-            ];
-        }
-        let prepared = PreparedNativeJointDesign::compile(recipe, &ctx).unwrap();
-        let result = prepared.execute(JointDesignInference::Frequentist, &ctx).unwrap();
+        let (result, contrast) = switchback_history_result(repeats, &ctx);
         let reading = result.contrast_interval_reading(&contrast, LEVEL).unwrap();
         assert_close(0.5 * (reading.bounds[0] + reading.bounds[1]), 4.0, 1e-6);
         assert_eq!(&*reading.basis.dependence, support);
         assert_eq!(reading.basis.row_count, 16 * repeats as u64);
-        if repeats < 32 {
-            assert_ne!(reading.calibration.status.as_str(), "calibrated");
-        }
     }
+}
+
+/// The eight-unit geo experiment and the switchback below its measured support are
+/// annotated as not calibrated; the annotation is read from the result, not from the
+/// interval.
+#[test]
+fn native_contrast_reading_carries_its_calibration_annotation() {
+    let ctx = ExecutionContext::for_tests(901);
+    // Four units per program is below the 32 the equal-weight interval was measured at.
+    let (result, contrast) = eight_unit_geo_result(&ctx);
+    let reading = result.contrast_interval_reading(&contrast, LEVEL).unwrap();
+    assert_ne!(reading.calibration.status.as_str(), "calibrated");
+    // A switchback below 32 sequences per requested history is not calibrated.
+    let (result, contrast) = switchback_history_result(4, &ctx);
+    let reading = result.contrast_interval_reading(&contrast, LEVEL).unwrap();
+    assert_ne!(reading.calibration.status.as_str(), "calibrated");
 }
 
 /// The synthetic posterior is keyed by whether the declared prior mean of the residual
@@ -1926,11 +1949,6 @@ fn selected_value_readings_are_the_heldout_normal_interval() {
     assert_eq!(&*reading.basis.interval_method, "heldout_normal_approximation");
     assert_eq!(&*reading.basis.functional, "selected_program_value");
     assert_eq!(reading.basis.row_count, 240);
-    // No record is measured at a 50% level.
-    assert_ne!(
-        result.selected_value_reading(0.5).unwrap().calibration.status.as_str(),
-        "calibrated"
-    );
     let refusal = result.selected_value_reading(1.5).unwrap_err().to_string();
     assert!(refusal.contains("joint_response.reading_level_invalid"), "{refusal}");
     let bytes = result.export().unwrap();
@@ -1949,6 +1967,18 @@ fn selected_value_readings_are_the_heldout_normal_interval() {
     assert_eq!(
         replay_instrumented_selection(&bytes, Some(&request), &ctx).unwrap().report(),
         result.report()
+    );
+}
+
+/// A selected-value reading at a 50% level is annotated as not calibrated: no record is
+/// measured there.
+#[test]
+fn selected_value_reading_carries_its_calibration_annotation() {
+    let ctx = ExecutionContext::for_tests(903);
+    let result = randomized_selection(7, 240, 0.2).execute(10, 0.01, &ctx).unwrap();
+    assert_ne!(
+        result.selected_value_reading(0.5).unwrap().calibration.status.as_str(),
+        "calibrated"
     );
 }
 
@@ -1998,7 +2028,19 @@ fn population_reference_region_is_the_bonferroni_region_of_each_mode() {
     }
     assert_eq!(&*reading.basis.interval_method, "bonferroni_equal_tailed_posterior");
     assert_eq!(reading.basis.posterior_draws, Some(2048));
-    // No record is measured at a joint 50% level.
+    posterior.prepared().consume_current(&posterior.export_artifact().unwrap(), &ctx).unwrap();
+}
+
+/// A region at a joint 50% level is annotated as not calibrated: no record is measured
+/// there.
+#[test]
+fn population_reference_region_carries_its_calibration_annotation() {
+    let ctx = ExecutionContext::for_tests(904);
+    let (posterior, bindings) = reference_decomposition_design(false, 0x0028_F100, 512);
+    let (population, diagram) = population_change(&bindings);
+    let scope = ScientificConsumptionScope::IdentifiedCausal;
+    let decomposition =
+        posterior.decompose_population_reference(&population, &diagram, scope, &ctx).unwrap();
     assert_ne!(
         posterior
             .population_reference_region(&decomposition, 0.5)
@@ -2008,7 +2050,6 @@ fn population_reference_region_is_the_bonferroni_region_of_each_mode() {
             .as_str(),
         "calibrated"
     );
-    posterior.prepared().consume_current(&posterior.export_artifact().unwrap(), &ctx).unwrap();
 }
 
 /// The updated interval is the weighted 2.5% and 97.5% quantiles of the contrast over the
@@ -2049,7 +2090,15 @@ fn updated_contrast_reading_is_the_weighted_equal_tailed_interval() {
         .unwrap_err()
         .to_string();
     assert!(refusal.contains("joint_response.reading_level_invalid"), "{refusal}");
-    // No record is measured at a 50% level.
+    // The updated law and its source design replay for a current consumer.
+    let _ = experiment_update_reading(&chain);
+}
+
+/// An updated contrast reading at a 50% level is annotated as not calibrated: no record is
+/// measured there.
+#[test]
+fn updated_contrast_reading_carries_its_calibration_annotation() {
+    let chain = experiment_update_replicate(3, 64);
     assert_ne!(
         chain
             .fit
@@ -2060,6 +2109,4 @@ fn updated_contrast_reading_is_the_weighted_equal_tailed_interval() {
             .as_str(),
         "calibrated"
     );
-    // The updated law and its source design replay for a current consumer.
-    let _ = experiment_update_reading(&chain);
 }

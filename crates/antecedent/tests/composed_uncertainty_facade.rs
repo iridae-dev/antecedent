@@ -267,17 +267,36 @@ fn a_spread_of_unpaired_draws_or_on_a_mismatched_route_is_refused() {
 
 // ------------------------------------------------------------------ interval
 
+fn contrast_claim() -> antecedent::analysis::joint_law_propagation::PropagationClaim {
+    let (x, y) = pair("snap-enum", 1);
+    propagate_aligned_linear_spread(PropagationOperation::Contrast, (1.0, -1.0), &x, &y, &ctx())
+        .expect("spread")
+}
+
+/// The calibration annotation of a composed interval: its label, the record resolved under
+/// the composed coordinate and the status below the measured size.
+#[test]
+fn a_composed_interval_carries_its_calibration_annotation() {
+    let claim = contrast_claim();
+    let support = claim.check_composed_interval("normal_approximation", 200).expect("interval");
+    assert_eq!(support.label(), "measured_interval");
+    // Calibration annotates: a record under the composed coordinate resolves, else the
+    // interval is reported with the status that names why not.
+    if let Some(id) = support.record_id() {
+        assert!(id.starts_with("cov.composed_quantity."));
+    }
+    // Below the measured size the interval is still reported, annotated as not calibrated
+    // there.
+    let small = claim.check_composed_interval("normal_approximation", 100).expect("small");
+    assert_ne!(
+        small.calibration().status,
+        antecedent_io::contract_section::CalibrationStatus::Calibrated
+    );
+}
+
 #[test]
 fn a_composed_interval_is_reported_with_its_calibration_at_its_coordinate() {
-    let (x, y) = pair("snap-enum", 1);
-    let claim = propagate_aligned_linear_spread(
-        PropagationOperation::Contrast,
-        (1.0, -1.0),
-        &x,
-        &y,
-        &ctx(),
-    )
-    .expect("spread");
+    let claim = contrast_claim();
     let coordinate = claim.coordinate_id().expect("coordinate");
     assert_eq!(coordinate, "contrast|aligned_joint_law|estimate,estimate");
     // The caller supplies no record: the registry decides. The key is the claim's own
@@ -291,26 +310,16 @@ fn a_composed_interval_is_reported_with_its_calibration_at_its_coordinate() {
     // The normal approximation of a linear contrast of aligned draws is built from the
     // claim's mean -0.7 and variance 1.61 (independent closed form): z(0.975) = 1.959964.
     let support = claim.check_composed_interval("normal_approximation", 200).expect("interval");
-    assert_eq!(support.label(), "measured_interval");
     assert!((support.nominal_level() - 0.95).abs() < 1e-12);
     let half = 1.959_963_984_540_054 * 1.61_f64.sqrt();
     let (lower, upper) = support.bounds().expect("bounds");
     assert!((lower - (-0.7 - half)).abs() < 1e-6, "lower {lower}");
     assert!((upper - (-0.7 + half)).abs() < 1e-6, "upper {upper}");
-    // Calibration annotates: a record under the composed coordinate resolves, else the
-    // interval is reported with the status that names why not.
-    if let Some(id) = support.record_id() {
-        assert!(id.starts_with("cov.composed_quantity."));
-    }
 
-    // Below the measured size the interval is still reported, annotated as not calibrated
-    // there; a construction without draws in the claim reports its status without bounds.
+    // Below the measured size the interval is still reported; a construction without draws
+    // in the claim reports no bounds.
     let small = claim.check_composed_interval("normal_approximation", 100).expect("small");
     assert!(small.bounds().is_some());
-    assert_ne!(
-        small.calibration().status,
-        antecedent_io::contract_section::CalibrationStatus::Calibrated
-    );
     let other = claim
         .check_composed_interval("aligned_draw_equal_tail_exchangeable_rank", 200)
         .expect("construction");
