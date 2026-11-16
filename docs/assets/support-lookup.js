@@ -7,7 +7,9 @@
     if (!response.ok) throw new Error("Registry unavailable");
     return response.json();
   }).then(registry => {
-    const rows = registry.supported;
+    // The registry also lists cells whose evidence is missing (status not_supported); the
+    // lookup shows only cells that are supported.
+    const rows = registry.supported.filter(row => row.status === "supported");
     const fields = ["query", "graph_class", "structure", "inference", "validation"];
     const labels = ["Query", "Graph class", "Structure source", "Inference", "Validation"];
     const filters = fields.map((field, index) => {
