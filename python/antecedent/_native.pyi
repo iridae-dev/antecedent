@@ -3871,6 +3871,10 @@ def discover_exact_dag_posterior(
     seed: int = 1,
     threads: int | None = None,
     equivalence_classes: bool = False,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
 ) -> GraphPosterior: ...
 def discover_pag_mcmc(
     names: list[str],
@@ -3897,6 +3901,10 @@ def discover_exact_dag_marginals(
     max_parents: int | None = None,
     seed: int = 1,
     threads: int | None = None,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
 ) -> tuple[list[float], float]: ...
 def discover_bootstrap_stability(
     names: list[str],
@@ -3973,6 +3981,10 @@ def discover_order_mcmc(
     threads: int | None = None,
     equivalence_classes: bool = False,
     noise: str = "gaussian",
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
 ) -> GraphPosterior: ...
 def discover_structure_mcmc(
     names: list[str],
@@ -3986,6 +3998,10 @@ def discover_structure_mcmc(
     seed: int = 1,
     threads: int | None = None,
     equivalence_classes: bool = False,
+    edge_priors: list[list[object]] | None = None,
+    edge_prior_default: float | None = None,
+    soft_tiers: list[list[str]] | None = None,
+    soft_tier_penalty: float | None = None,
 ) -> GraphPosterior: ...
 def discover_ci_screened_posterior(
     names: list[str],

@@ -33,6 +33,7 @@ use antecedent_state::GraphScoreFamily;
 
 use crate::adjacency_mask::AdjacencyMask;
 use crate::constraints::DiscoveryConstraints;
+use crate::edge_prior::{EdgePriors, SoftTiers};
 use crate::engine::DiscoveryWorkspace;
 use crate::graph_posterior::{GraphPosterior, GraphPrior};
 use crate::order_mcmc::OrderMcmc;
@@ -196,17 +197,30 @@ fn marginal_error(reported: f64, exact: f64, effective_draws: Option<f64>) -> f6
 /// its worst difference from the exact marginals and the outcome of each gate criterion, so a
 /// disagreement is visibly either withheld (correct) or published (a failure). All published
 /// disagreements are listed before the test fails.
-#[allow(clippy::too_many_lines, reason = "one replicate loop printing every comparison in order")]
 fn assert_marginals_match_the_exact_posterior(
     label: &str,
     n: usize,
     max_parents: usize,
     sampler: GatedSampler,
 ) {
+    assert_marginals_match_the_exact_posterior_under(
+        &format!("{label} max_parents={max_parents}"),
+        n,
+        &design_prior(max_parents),
+        sampler,
+    );
+}
+
+/// [`assert_marginals_match_the_exact_posterior`] under any prior.
+#[allow(clippy::too_many_lines, reason = "one replicate loop printing every comparison in order")]
+fn assert_marginals_match_the_exact_posterior_under(
+    label: &str,
+    n: usize,
+    prior: &GraphPrior,
+    sampler: GatedSampler,
+) {
     let vars: Vec<VariableId> =
         (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect();
-    let prior = design_prior(max_parents);
-    let label = &format!("{label} max_parents={max_parents}");
     let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
     let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
     let mut truth_bins: Vec<BinCells> = Vec::new();
@@ -215,13 +229,13 @@ fn assert_marginals_match_the_exact_posterior(
         let (cols, truth) = sparse_sem(n, N_ROWS, 0x00ED_6E00 + rep);
         let data = crate::test_tables::continuous_table(&name_refs, cols);
         let ctx = ExecutionContext::for_tests(9_000 + rep);
-        let Some(post) = sampler(false, &data, &vars, &prior, &ctx) else {
+        let Some(post) = sampler(false, &data, &vars, prior, &ctx) else {
             println!("exact-posterior-match {label} n={n} rep={rep} sampler error");
             continue;
         };
         let published = post.diagnostics().converged;
         let exact =
-            crate::exact_dag_marginals(&data, &vars, &prior, GraphScoreFamily::GaussianBic, &ctx)
+            crate::exact_dag_marginals(&data, &vars, prior, GraphScoreFamily::GaussianBic, &ctx)
                 .unwrap();
         let mcse = post.edge_mcse().expect("a posterior reports its mcse");
         let n_eff = chain_effective_draws(&post, &exact.edge_marginals);
@@ -448,6 +462,262 @@ fn order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps() {
             order_sampler_long,
         );
     }
+}
+
+/// Variables of the per-edge designs that compare a sampler with the exact marginals.
+const PER_EDGE_SAMPLER_VARIABLES: usize = 10;
+/// Variables of the per-edge reliability designs (the exact marginals are cheap here).
+const RELIABILITY_VARIABLES: usize = 6;
+/// Replicates of a reliability design.
+const RELIABILITY_REPLICATES: u64 = 400;
+/// Pairs a reliability bin needs before its residual is judged.
+const RELIABILITY_MIN_CELLS: f64 = 200.0;
+/// Standard errors a reliability bin's pooled residual may sit from zero.
+const RELIABILITY_MAX_Z: f64 = 3.5;
+/// Log-penalty the soft-tier designs charge an edge against the declared order.
+const SOFT_TIER_PENALTY: f64 = 1.5;
+
+fn variable_ids(n: usize) -> Vec<VariableId> {
+    (0..n).map(|i| VariableId::from_raw(u32::try_from(i).unwrap())).collect()
+}
+
+/// A sparse per-edge map for `n` variables: a few pairs the prior believes in at `0.35`, a few it
+/// doubts at `0.02`, the rest at the design's [`EDGE_INCLUSION`].
+fn per_edge_map(n: usize) -> EdgePriors {
+    let v = variable_ids(n);
+    let mut edges = Vec::new();
+    for i in 0..n {
+        for j in 0..n {
+            if i == j {
+                continue;
+            }
+            match (i + 2 * j) % 7 {
+                0 => edges.push((v[i], v[j], 0.35)),
+                3 => edges.push((v[i], v[j], 0.02)),
+                _ => {}
+            }
+        }
+    }
+    EdgePriors::new(edges).with_default(EDGE_INCLUSION)
+}
+
+/// Two soft tiers: the first half of the variables, then the second.
+fn half_tiers(n: usize) -> SoftTiers {
+    let v = variable_ids(n);
+    let first: std::sync::Arc<[VariableId]> = v[..n / 2].to_vec().into();
+    let second: std::sync::Arc<[VariableId]> = v[n / 2..].to_vec().into();
+    SoftTiers::with_log_penalty(vec![first, second], SOFT_TIER_PENALTY)
+}
+
+fn per_edge_prior(n: usize, max_parents: usize) -> GraphPrior {
+    design_prior(max_parents).with_edge_priors(per_edge_map(n))
+}
+
+fn soft_tier_prior(n: usize, max_parents: usize) -> GraphPrior {
+    design_prior(max_parents).with_soft_tiers(half_tiers(n))
+}
+
+fn per_edge_and_soft_tier_prior(n: usize, max_parents: usize) -> GraphPrior {
+    per_edge_prior(n, max_parents).with_soft_tiers(half_tiers(n))
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn structure_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors() {
+    assert_marginals_match_the_exact_posterior_under(
+        "structure_mcmc per_edge",
+        PER_EDGE_SAMPLER_VARIABLES,
+        &per_edge_and_soft_tier_prior(PER_EDGE_SAMPLER_VARIABLES, MAX_PARENTS),
+        structure_sampler_gated,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn order_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors() {
+    assert_marginals_match_the_exact_posterior_under(
+        "order_mcmc per_edge",
+        PER_EDGE_SAMPLER_VARIABLES,
+        &per_edge_and_soft_tier_prior(PER_EDGE_SAMPLER_VARIABLES, MAX_PARENTS),
+        order_sampler_gated,
+    );
+}
+
+/// The prior probability an edge `from -> to` is present under `prior`, as the posterior's prior
+/// states it (listed probability, else the default, else the global one; a soft tier scales the
+/// odds of an edge against the order by `exp(-penalty)`).
+fn prior_edge_probability(prior: &GraphPrior, n: usize, from: usize, to: usize) -> f64 {
+    let v = variable_ids(n);
+    let base = prior
+        .edge_priors
+        .as_ref()
+        .and_then(|map| {
+            map.edges
+                .iter()
+                .find(|&&(a, b, _)| a == v[from] && b == v[to])
+                .map(|&(_, _, p)| p)
+                .or(map.default)
+        })
+        .or(prior.edge_inclusion)
+        .unwrap_or(0.5);
+    let Some(soft) = &prior.soft_tiers else { return base };
+    let tier_of = |x: VariableId| soft.tiers.iter().position(|tier| tier.contains(&x));
+    match (tier_of(v[from]), tier_of(v[to])) {
+        (Some(a), Some(b)) if a > b => {
+            let odds = base / (1.0 - base) * (-soft.log_penalty).exp();
+            odds / (1.0 + odds)
+        }
+        _ => base,
+    }
+}
+
+/// A DAG drawn from `prior`: every ordered pair independently present with its prior
+/// probability, redrawn until the graph is acyclic and within the parent cap, which is the
+/// prior restricted to the DAGs it is a prior over.
+fn draw_dag_from_prior(prior: &GraphPrior, n: usize, rng: &mut CausalRng) -> AdjacencyMask {
+    loop {
+        let mut mask = AdjacencyMask::EMPTY;
+        for from in 0..n {
+            for to in 0..n {
+                if from != to && rng.next_f64() < prior_edge_probability(prior, n, from, to) {
+                    mask.set_edge(n, from, to, true);
+                }
+            }
+        }
+        let within_cap = prior.constraints.max_parents.is_none_or(|cap| {
+            (0..n).all(|v| crate::adjacency_mask::parents_of(&mask, n, v).len() <= cap)
+        });
+        if within_cap && crate::adjacency_mask::mask_is_dag(&mask, n) {
+            return mask;
+        }
+    }
+}
+
+/// Linear-Gaussian rows over the DAG `truth` (coefficient magnitudes `0.5` to `1`).
+fn rows_from_dag(
+    truth: &AdjacencyMask,
+    n: usize,
+    rows: usize,
+    rng: &mut CausalRng,
+) -> Vec<Vec<f64>> {
+    // Topological order by repeatedly taking a node whose parents are all placed.
+    let mut order: Vec<usize> = Vec::with_capacity(n);
+    while order.len() < n {
+        let next = (0..n)
+            .find(|&v| {
+                !order.contains(&v)
+                    && (0..n).all(|u| !truth.has_edge(n, u, v) || order.contains(&u))
+            })
+            .expect("a DAG has a source among the unplaced nodes");
+        order.push(next);
+    }
+    let mut coefficient = vec![vec![0.0; n]; n];
+    for from in 0..n {
+        for to in 0..n {
+            if from != to && truth.has_edge(n, from, to) {
+                let sign = if rng.next_f64() < 0.5 { -1.0 } else { 1.0 };
+                coefficient[from][to] = sign * (0.5 + 0.5 * rng.next_f64());
+            }
+        }
+    }
+    let mut cols = vec![vec![0.0; rows]; n];
+    for row in 0..rows {
+        for &node in &order {
+            let mean: f64 = (0..n).map(|p| coefficient[p][node] * cols[p][row]).sum();
+            cols[node][row] = mean + normal(rng);
+        }
+    }
+    cols
+}
+
+/// Edge-marginal reliability under data drawn from the posterior's own prior.
+///
+/// Each replicate draws a DAG from `prior`, simulates rows from it, computes the exact marginals
+/// under `prior`, and bins every directed-edge marginal against whether the edge was drawn. Among
+/// edges reported at `p`, a fraction near `p` should be present: each bin's pooled residual
+/// `sum (observed - predicted)` must lie within [`RELIABILITY_MAX_Z`] cluster-robust standard
+/// errors of zero (clusters are replicates, whose edges share one dataset), for every bin of at
+/// least [`RELIABILITY_MIN_CELLS`] edges.
+fn assert_edge_marginals_reliable_under_draws_from_the_prior(label: &str, prior: &GraphPrior) {
+    let n = RELIABILITY_VARIABLES;
+    let vars = variable_ids(n);
+    let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
+    let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let mut replicates: Vec<BinCells> = Vec::new();
+    for rep in 0..RELIABILITY_REPLICATES {
+        let mut rng = CausalRng::from_seed(0x00ED_9E00 + rep);
+        let truth = draw_dag_from_prior(prior, n, &mut rng);
+        let cols = rows_from_dag(&truth, n, N_ROWS, &mut rng);
+        let data = crate::test_tables::continuous_table(&name_refs, cols);
+        let ctx = ExecutionContext::for_tests(7_000 + rep);
+        let exact =
+            crate::exact_dag_marginals(&data, &vars, prior, GraphScoreFamily::GaussianBic, &ctx)
+                .unwrap();
+        let mut cells = [(0.0, 0.0, 0.0); N_BINS];
+        for from in 0..n {
+            for to in 0..n {
+                if from == to {
+                    continue;
+                }
+                let p = exact.edge_marginals[from * n + to];
+                let bin = ((p * N_BINS as f64) as usize).min(N_BINS - 1);
+                cells[bin].0 += 1.0;
+                cells[bin].1 += p;
+                cells[bin].2 += f64::from(u8::from(truth.has_edge(n, from, to)));
+            }
+        }
+        replicates.push(cells);
+    }
+    let pooled = pool(&replicates);
+    let mut failures = Vec::new();
+    for (bin, &(cells, predicted, observed)) in pooled.iter().enumerate() {
+        if cells == 0.0 {
+            continue;
+        }
+        let residual = observed - predicted;
+        let spread: f64 = replicates.iter().map(|r| (r[bin].2 - r[bin].1).powi(2)).sum();
+        let z = if spread > 0.0 { residual / spread.sqrt() } else { 0.0 };
+        println!(
+            "edge-reliability {label} bin={bin} cells={cells} predicted={:.4} observed={:.4} z={z:.2}",
+            predicted / cells,
+            observed / cells
+        );
+        if cells >= RELIABILITY_MIN_CELLS && z.abs() > RELIABILITY_MAX_Z {
+            failures.push(format!("bin {bin}: {cells} edges, z = {z:.2}"));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{label}: edge marginals are not reliable under draws from the prior: {}",
+        failures.join("; ")
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn per_edge_prior_marginals_are_reliable_under_draws_from_the_prior() {
+    assert_edge_marginals_reliable_under_draws_from_the_prior(
+        "per_edge",
+        &per_edge_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn soft_tier_marginals_are_reliable_under_draws_from_the_prior() {
+    assert_edge_marginals_reliable_under_draws_from_the_prior(
+        "soft_tiers",
+        &soft_tier_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior() {
+    assert_edge_marginals_reliable_under_draws_from_the_prior(
+        "per_edge_and_soft_tiers",
+        &per_edge_and_soft_tier_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
+    );
 }
 
 /// Replicates of the diagnostic below that run the exact computation only (cheap).

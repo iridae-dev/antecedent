@@ -364,6 +364,7 @@ _EXPECTED_STAGE_ALL = {
         "RPCMCI",
         "RpcmciDiscoverySummary",
         "StructureMcmc",
+        "StructurePrior",
         "RegimeStabilityResult",
         "StructureStabilityResult",
         "cpdag_oriented_edges",

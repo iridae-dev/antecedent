@@ -11434,7 +11434,7 @@ assertion_contract = "A single dependent series has no temporal treatment score:
 
 [[capability]]
 id = "discovery.GraphMcmcSchedule"
-rust = ["export:antecedent::query::SearchSchedule", "export:antecedent::discovery::GraphPrior", "export:antecedent::discovery::SamplingSummary", "export:antecedent::discovery::StructureMcmc", "export:antecedent::state::GraphScoreData", "export:antecedent::discovery::OrderMcmc", "export:antecedent::discovery::adjacency_mask_from_cpdag", "export:antecedent::discovery::CiSoftWeight", "export:antecedent::state::GraphScoreFamily"]
+rust = ["export:antecedent::query::SearchSchedule", "export:antecedent::discovery::GraphPrior", "export:antecedent::discovery::EdgePriors", "export:antecedent::discovery::SoftTiers", "export:antecedent::discovery::ScreenedMarginals", "export:antecedent::discovery::SamplingSummary", "export:antecedent::discovery::StructureMcmc", "export:antecedent::state::GraphScoreData", "export:antecedent::discovery::OrderMcmc", "export:antecedent::discovery::adjacency_mask_from_cpdag", "export:antecedent::discovery::CiSoftWeight", "export:antecedent::state::GraphScoreFamily"]
 rust_types = ["antecedent::discovery::GraphMcmcSchedule", "antecedent::discovery::BayesianDiscoverParams"]
 status = "covered"
 owner = "Python API integration: antecedent::discovery"
@@ -11451,6 +11451,16 @@ test = "python/tests/test_structure_uncertainty_routes.py::test_a_template_poste
 assertion_scopes = ["test_a_template_posterior_collapses_onto_temporal_classes"]
 dimensions = ["success", "branch"]
 assertion_contract = "A template posterior with a declared lag and a short schedule (2 chains, 50 warmup, 100 draws) collapses onto Cpdag classes whose weights sum to 1."
+[[capability.evidence]]
+test = "python/tests/test_structure_prior.py::test_a_soft_tier_shifts_mass_toward_the_declared_order_without_forbidding"
+assertion_scopes = ["test_a_soft_tier_shifts_mass_toward_the_declared_order_without_forbidding"]
+dimensions = ["success", "controls"]
+assertion_contract = "A soft tier with log-penalty 4 lowers the exact marginal of the edge against the declared order below the unpenalised posterior while leaving it positive, so the penalty is a prior and not a prohibition."
+[[capability.evidence]]
+test = "python/tests/test_structure_prior.py::test_an_unknown_variable_in_the_prior_is_refused"
+assertion_scopes = ["test_an_unknown_variable_in_the_prior_is_refused"]
+dimensions = ["refusal"]
+assertion_contract = "A per-edge prior naming a variable the data do not have is refused naming the variable."
 
 [[capability]]
 id = "analysis.association.AssociationPayload"

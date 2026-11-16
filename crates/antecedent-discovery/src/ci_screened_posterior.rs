@@ -166,7 +166,7 @@ impl CiScreenedPosterior {
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        prior.validate_edge_inclusion()?;
+        prior.validate_for(variables)?;
         let effective = merge_screening_constraints(&self.constraints, &prior.constraints)?;
         let merged_caller_constraints = !prior.constraints.required.is_empty()
             || !prior.constraints.forbidden.is_empty()
@@ -221,6 +221,205 @@ impl CiScreenedPosterior {
             prior.edge_inclusion,
         )?;
         Ok(post)
+    }
+}
+
+/// The exact edge marginals of a variable set a CI screen picked, with the screen's edges as
+/// per-edge priors.
+///
+/// Every number is conditional on the screen: the variables outside `variables` were left out,
+/// and a pair the screen did not keep carries the low prior probability it was given, so a
+/// marginal here is not the marginal of the full posterior.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScreenedMarginals {
+    /// The variables the exact computation ran on, in the order of the input variables. The
+    /// marginals are indexed by position in this list.
+    pub variables: Arc<[VariableId]>,
+    /// Exact marginals over `variables` under the screen-derived per-edge prior.
+    pub marginals: crate::exact_marginals::ExactDagMarginals,
+    /// Pairs of `variables` the screen kept (undirected).
+    pub screened_in_pairs: usize,
+    /// Statement that the marginals are conditional on the screen.
+    pub conditional_on_screen: Arc<str>,
+}
+
+impl CiScreenedPosterior {
+    /// Screen a wide variable set, then compute exact edge marginals on a small set around the
+    /// variables of interest.
+    ///
+    /// The CI screen runs on all `variables`. The posterior set is `focus` plus the variables
+    /// nearest to it in the screen's skeleton (breadth first, ties by position), at most
+    /// `max_variables` of them. On that set the exact dynamic program runs with the screen as a
+    /// per-edge prior: both directions of a pair the screen kept get `in_probability`, every
+    /// other pair gets `out_probability`. Edges the caller's own [`GraphPrior::edge_priors`] list
+    /// keep the caller's probability. The exact ceiling
+    /// ([`crate::EXACT_MARGINAL_MAX_NODES`]) then applies to the selected set, per question,
+    /// not to the number of variables screened.
+    ///
+    /// # Errors
+    ///
+    /// An empty or unknown `focus`, more focus variables than `max_variables`, a
+    /// `max_variables` above the exact ceiling, probabilities outside `(0, 1)`, an invalid
+    /// prior, screening failures, or the exact computation's refusals.
+    #[allow(clippy::too_many_arguments, reason = "one screened question, stated field by field")]
+    pub fn screen_then_exact_marginals(
+        &self,
+        data: &TabularData,
+        variables: &[VariableId],
+        focus: &[VariableId],
+        max_variables: usize,
+        prior: &GraphPrior,
+        in_probability: f64,
+        out_probability: f64,
+        score_family: GraphScoreFamily,
+        workspace: &mut DiscoveryWorkspace,
+        ctx: &ExecutionContext,
+    ) -> Result<ScreenedMarginals, DiscoveryError> {
+        prior.validate_for(variables)?;
+        let bad = |p: f64| !(p > 0.0 && p < 1.0);
+        if bad(in_probability) || bad(out_probability) {
+            return Err(DiscoveryError::Refused {
+                code: antecedent_core::reason_code!("invalid_argument"),
+                message: "structure_posterior.edge_prior_probability: the screened-in and \
+                          screened-out edge probabilities must lie in (0, 1)"
+                    .to_owned(),
+            });
+        }
+        if max_variables == 0 || max_variables > crate::exact_marginals::EXACT_MARGINAL_MAX_NODES {
+            return Err(DiscoveryError::unsupported(
+                "screen-then-exact marginals take between 1 and EXACT_MARGINAL_MAX_NODES \
+                 (15) variables per question",
+            ));
+        }
+        let focus_idx: Vec<usize> = focus
+            .iter()
+            .map(|v| {
+                variables.iter().position(|c| c == v).ok_or_else(|| {
+                    DiscoveryError::unsupported(
+                        "a focus variable is not among the variables screened",
+                    )
+                })
+            })
+            .collect::<Result<_, _>>()?;
+        if focus_idx.is_empty() || focus_idx.len() > max_variables {
+            return Err(DiscoveryError::unsupported(
+                "screen-then-exact marginals need at least one focus variable and no more \
+                 than max_variables",
+            ));
+        }
+
+        let effective = merge_screening_constraints(&self.constraints, &prior.constraints)?;
+        let (mut pairs, sepsets) =
+            pc_skeleton_pairs(&effective, self, data, variables, workspace, ctx)?;
+        if self.retain_undecided {
+            readmit_undecided_pairs(&mut pairs, &sepsets, &effective, data, variables)?;
+        }
+        let n = variables.len();
+        let mut neighbours = vec![Vec::new(); n];
+        for &(a, b) in &pairs {
+            neighbours[a as usize].push(b as usize);
+            neighbours[b as usize].push(a as usize);
+        }
+        // Breadth-first from the focus: nearest variables first, ties by position.
+        let mut chosen = vec![false; n];
+        let mut frontier: Vec<usize> = Vec::new();
+        for &i in &focus_idx {
+            if !chosen[i] {
+                chosen[i] = true;
+                frontier.push(i);
+            }
+        }
+        let mut count = frontier.len();
+        while !frontier.is_empty() && count < max_variables {
+            let mut next: Vec<usize> = frontier
+                .iter()
+                .flat_map(|&i| neighbours[i].iter().copied())
+                .filter(|&j| !chosen[j])
+                .collect();
+            next.sort_unstable();
+            next.dedup();
+            next.truncate(max_variables - count);
+            for &j in &next {
+                chosen[j] = true;
+            }
+            count += next.len();
+            frontier = next;
+        }
+        let selected: Vec<usize> = (0..n).filter(|&i| chosen[i]).collect();
+        let subset: Vec<VariableId> = selected.iter().map(|&i| variables[i]).collect();
+
+        let kept: HashSet<(usize, usize)> =
+            pairs.iter().map(|&(a, b)| (a as usize, b as usize)).collect();
+        let index = crate::constraints::ConstraintIndex::compile(&effective);
+        let caller: std::collections::HashMap<(VariableId, VariableId), f64> = prior
+            .edge_priors
+            .as_ref()
+            .map(|map| map.edges.iter().map(|&(a, b, p)| ((a, b), p)).collect())
+            .unwrap_or_default();
+        let mut edges = Vec::new();
+        let mut screened_in_pairs = 0usize;
+        for (pos_a, &a) in selected.iter().enumerate() {
+            for (pos_b, &b) in selected.iter().enumerate() {
+                if a == b {
+                    continue;
+                }
+                if pos_a < pos_b && kept.contains(&(a.min(b), a.max(b))) {
+                    screened_in_pairs += 1;
+                }
+                if index
+                    .is_forbidden(&effective, crate::graph_posterior::static_link(variables, a, b))
+                {
+                    continue;
+                }
+                let screened = kept.contains(&(a.min(b), a.max(b)));
+                let p = caller.get(&(variables[a], variables[b])).copied().unwrap_or(if screened {
+                    in_probability
+                } else {
+                    out_probability
+                });
+                edges.push((variables[a], variables[b], p));
+            }
+        }
+        let subset_prior = GraphPrior {
+            constraints: effective,
+            edge_inclusion: prior.edge_inclusion,
+            edge_priors: Some(crate::edge_prior::EdgePriors::new(edges)),
+            soft_tiers: prior.soft_tiers.as_ref().map(|soft| crate::edge_prior::SoftTiers {
+                tiers: soft
+                    .tiers
+                    .iter()
+                    .map(|tier| {
+                        Arc::from(
+                            tier.iter().copied().filter(|v| subset.contains(v)).collect::<Vec<_>>(),
+                        )
+                    })
+                    .collect::<Vec<Arc<[VariableId]>>>()
+                    .into(),
+                log_penalty: soft.log_penalty,
+            }),
+        };
+        let marginals = crate::exact_marginals::exact_dag_marginals(
+            data,
+            &subset,
+            &subset_prior,
+            score_family,
+            ctx,
+        )?;
+        let statement = format!(
+            "conditional on the CI screen: the exact marginals cover {} of {} screened variables \
+             ({} of their pairs kept by the screen, each given prior probability {in_probability} \
+             per direction against {out_probability} for the rest); variables outside the set \
+             are not conditioned on and no marginal here is the marginal of the full posterior",
+            subset.len(),
+            n,
+            screened_in_pairs,
+        );
+        Ok(ScreenedMarginals {
+            variables: Arc::from(subset),
+            marginals,
+            screened_in_pairs,
+            conditional_on_screen: Arc::from(statement),
+        })
     }
 }
 

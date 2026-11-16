@@ -8,9 +8,9 @@ use antecedent::discovery::adjacency_mask::{
     mask_is_dag,
 };
 use antecedent::discovery::{
-    AdjacencyMask, BayesianDiscoverParams, CiSoftWeight, GraphMcmcSchedule,
+    AdjacencyMask, BayesianDiscoverParams, CiSoftWeight, EdgePriors, GraphMcmcSchedule,
     GraphPosterior as RustGraphPosterior, GraphPosteriorAtomKind, InferenceDiagnostics,
-    SamplingSummary, StaticDiscoverParams, n_directed_edges,
+    SamplingSummary, SoftTiers, StaticDiscoverParams, n_directed_edges,
 };
 use antecedent::discovery_defaults::resolve_ci;
 use antecedent::graph::Cpdag as RustCpdag;
@@ -612,6 +612,69 @@ fn bayesian_params_capped(max_parents: Option<usize>) -> BayesianDiscoverParams 
     params
 }
 
+/// Per-edge prior probabilities and soft tiers of a posterior search, by variable name.
+///
+/// `edge_priors` lists `(from, to, probability)`; `edge_prior_default` is the probability of the
+/// unlisted edges. `soft_tiers` lists variable names, earliest tier first, and
+/// `soft_tier_penalty` is the log-penalty charged to a present edge against that order.
+#[derive(Default)]
+struct PriorArgs {
+    edge_priors: Option<Vec<(String, String, f64)>>,
+    edge_prior_default: Option<f64>,
+    soft_tiers: Option<Vec<Vec<String>>>,
+    soft_tier_penalty: Option<f64>,
+}
+
+impl PriorArgs {
+    /// Set the per-edge map and soft tiers on `params`, resolving names against `names`
+    /// (`variables[i]` is the variable of `names[i]`).
+    fn apply(
+        self,
+        params: &mut BayesianDiscoverParams,
+        names: &[String],
+        variables: &[antecedent::prelude::VariableId],
+    ) -> PyResult<()> {
+        let resolve = |name: &str| -> PyResult<antecedent::prelude::VariableId> {
+            names
+                .iter()
+                .position(|candidate| candidate == name)
+                .map(|index| variables[index])
+                .ok_or_else(|| crate::value_err(format!("unknown variable {name:?} in the prior")))
+        };
+        if self.edge_priors.is_some() || self.edge_prior_default.is_some() {
+            let mut edges = Vec::new();
+            for (from, to, probability) in self.edge_priors.unwrap_or_default() {
+                edges.push((resolve(&from)?, resolve(&to)?, probability));
+            }
+            let mut priors = EdgePriors::new(edges);
+            priors.default = self.edge_prior_default;
+            params.prior = params.prior.clone().with_edge_priors(priors);
+        }
+        match (self.soft_tiers, self.soft_tier_penalty) {
+            (None, None) => {}
+            (Some(tiers), Some(penalty)) => {
+                let mut resolved: Vec<std::sync::Arc<[antecedent::prelude::VariableId]>> =
+                    Vec::new();
+                for tier in tiers {
+                    let members =
+                        tier.iter().map(|name| resolve(name)).collect::<PyResult<Vec<_>>>()?;
+                    resolved.push(members.into());
+                }
+                params.prior = params
+                    .prior
+                    .clone()
+                    .with_soft_tiers(SoftTiers::with_log_penalty(resolved, penalty));
+            }
+            _ => {
+                return Err(crate::value_err(
+                    "soft tiers need both the tiers and a penalty".to_owned(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 /// The local score a posterior search runs under: Gaussian noise (the default, invariant
 /// within a Markov equivalence class) or Laplace noise (which orients what non-Gaussian noise
 /// orients).
@@ -656,7 +719,18 @@ fn parse_soft_weight(name: &str) -> PyResult<CiSoftWeight> {
 /// Larger graphs: use `discover_order_mcmc`, `discover_structure_mcmc`, or
 /// `discover_ci_screened_posterior`.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, seed=1, threads=None, equivalence_classes=false))]
+#[pyo3(signature = (
+    names,
+    columns,
+    *,
+    seed=1,
+    threads=None,
+    equivalence_classes=false,
+    edge_priors=None,
+    edge_prior_default=None,
+    soft_tiers=None,
+    soft_tier_penalty=None,
+))]
 fn discover_exact_dag_posterior(
     py: Python<'_>,
     names: Vec<String>,
@@ -664,17 +738,24 @@ fn discover_exact_dag_posterior(
     seed: u64,
     threads: Option<u32>,
     equivalence_classes: bool,
+    edge_priors: Option<Vec<(String, String, f64)>>,
+    edge_prior_default: Option<f64>,
+    soft_tiers: Option<Vec<Vec<String>>>,
+    soft_tier_penalty: Option<f64>,
 ) -> PyResult<PyGraphPosterior> {
     let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let mut params = bayesian_params();
+        PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty }.apply(
+            &mut params,
+            &names,
+            &variables,
+        )?;
         let (post, route) = compiled_search(
-            over_classes(
-                DiscoverySpec::exact_dag_posterior(bayesian_params()),
-                equivalence_classes,
-            ),
+            over_classes(DiscoverySpec::exact_dag_posterior(params), equivalence_classes),
             DiscoverInput::Tabular(data),
             &variables,
             &ctx,
@@ -748,7 +829,18 @@ fn discover_pag_mcmc(
 /// Returns the row-major `P(i -> j)` (`from * n + to`) and the log normalizing constant. No
 /// graph atoms exist at this size.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, max_parents=None, seed=1, threads=None))]
+#[pyo3(signature = (
+    names,
+    columns,
+    *,
+    max_parents=None,
+    seed=1,
+    threads=None,
+    edge_priors=None,
+    edge_prior_default=None,
+    soft_tiers=None,
+    soft_tier_penalty=None,
+))]
 fn discover_exact_dag_marginals(
     py: Python<'_>,
     names: Vec<String>,
@@ -756,14 +848,24 @@ fn discover_exact_dag_marginals(
     max_parents: Option<usize>,
     seed: u64,
     threads: Option<u32>,
+    edge_priors: Option<Vec<(String, String, f64)>>,
+    edge_prior_default: Option<f64>,
+    soft_tiers: Option<Vec<Vec<String>>>,
+    soft_tier_penalty: Option<f64>,
 ) -> PyResult<(Vec<f64>, f64)> {
     let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let mut params = bayesian_params_capped(max_parents);
+        PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty }.apply(
+            &mut params,
+            &names,
+            &variables,
+        )?;
         let (marginals, _route) = compiled_search(
-            DiscoverySpec::exact_dag_marginals(bayesian_params_capped(max_parents)),
+            DiscoverySpec::exact_dag_marginals(params),
             DiscoverInput::Tabular(data),
             &variables,
             &ctx,
@@ -793,7 +895,11 @@ fn discover_exact_dag_marginals(
     seed=1,
     threads=None,
     equivalence_classes=false,
-    noise="gaussian"
+    noise="gaussian",
+    edge_priors=None,
+    edge_prior_default=None,
+    soft_tiers=None,
+    soft_tier_penalty=None
 ))]
 fn discover_order_mcmc(
     py: Python<'_>,
@@ -809,6 +915,10 @@ fn discover_order_mcmc(
     threads: Option<u32>,
     equivalence_classes: bool,
     noise: &str,
+    edge_priors: Option<Vec<(String, String, f64)>>,
+    edge_prior_default: Option<f64>,
+    soft_tiers: Option<Vec<Vec<String>>>,
+    soft_tier_penalty: Option<f64>,
 ) -> PyResult<PyGraphPosterior> {
     let family = score_family_of(noise)?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
@@ -819,6 +929,11 @@ fn discover_order_mcmc(
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin)?;
         let mut params = bayesian_params_capped(max_parents);
         params.score_family = family;
+        PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty }.apply(
+            &mut params,
+            &names,
+            &variables,
+        )?;
         let (post, route) = compiled_search(
             over_classes(
                 DiscoverySpec::order_mcmc(params, schedule, require_diagnostics_gate),
@@ -848,7 +963,11 @@ fn discover_order_mcmc(
     max_parents=None,
     seed=1,
     threads=None,
-    equivalence_classes=false
+    equivalence_classes=false,
+    edge_priors=None,
+    edge_prior_default=None,
+    soft_tiers=None,
+    soft_tier_penalty=None
 ))]
 fn discover_structure_mcmc(
     py: Python<'_>,
@@ -862,6 +981,10 @@ fn discover_structure_mcmc(
     seed: u64,
     threads: Option<u32>,
     equivalence_classes: bool,
+    edge_priors: Option<Vec<(String, String, f64)>>,
+    edge_prior_default: Option<f64>,
+    soft_tiers: Option<Vec<Vec<String>>>,
+    soft_tier_penalty: Option<f64>,
 ) -> PyResult<PyGraphPosterior> {
     let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -869,11 +992,14 @@ fn discover_structure_mcmc(
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin)?;
+        let mut params = bayesian_params_capped(max_parents);
+        PriorArgs { edge_priors, edge_prior_default, soft_tiers, soft_tier_penalty }.apply(
+            &mut params,
+            &names,
+            &variables,
+        )?;
         let (post, route) = compiled_search(
-            over_classes(
-                DiscoverySpec::structure_mcmc(bayesian_params_capped(max_parents), schedule),
-                equivalence_classes,
-            ),
+            over_classes(DiscoverySpec::structure_mcmc(params, schedule), equivalence_classes),
             DiscoverInput::Tabular(data),
             &variables,
             &ctx,

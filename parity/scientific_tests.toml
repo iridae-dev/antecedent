@@ -2278,3 +2278,38 @@ evidence_assertion = "the_margin_interval_equals_the_independent_delta_method_tr
 kind = "known_truth"
 fixtures = ["conformance/design/decision_margin_interval"]
 why = "The derived margin interval equals the closed-form delta-method contrast, standard error and interval of the fixture on cluster, complete, matched-pair and switchback constructions."
+
+[[test]]
+evidence_test = "crates/antecedent-discovery/tests/edge_prior_reference.rs"
+evidence_assertion = "per_edge_marginals_equal_brute_force_enumeration_over_all_dags"
+kind = "known_truth"
+fixtures = []
+why = "Exact DP marginals under a per-edge inclusion prior equal the hand-weighted enumeration of every DAG on 3, 4 and 5 nodes."
+
+[[test]]
+evidence_test = "crates/antecedent-discovery/tests/edge_prior_reference.rs"
+evidence_assertion = "soft_tier_penalty_is_the_hand_computed_posterior_ratio"
+kind = "known_truth"
+fixtures = []
+why = "The soft-tier penalty multiplies each DAG's posterior weight by exp(-penalty) per edge against the order, and the exact marginals equal the hand-reweighted enumeration."
+
+[[test]]
+evidence_test = "crates/antecedent-discovery/tests/edge_prior_reference.rs"
+evidence_assertion = "hard_tiers_win_over_soft_tiers"
+kind = "known_truth"
+fixtures = []
+why = "A soft tier declared beside the same hard tiers leaves the exact marginals and evidence unchanged."
+
+[[test]]
+evidence_test = "crates/antecedent-discovery/tests/edge_prior_reference.rs"
+evidence_assertion = "order_and_structure_samplers_match_the_exact_marginals_under_per_edge_priors"
+kind = "posterior"
+fixtures = []
+why = "Order and structure MCMC marginals under per-edge priors and soft tiers within 0.03+5 MCSE of the exact marginals."
+
+[[test]]
+evidence_test = "crates/antecedent-discovery/tests/edge_prior_reference.rs"
+evidence_assertion = "the_screened_route_runs_the_exact_marginals_on_the_selected_variables"
+kind = "known_truth"
+fixtures = []
+why = "The CI-screened route selects the focus variable's skeleton neighbourhood and runs the exact marginals on it with the screen as per-edge priors, stating the marginals are conditional on the screen."

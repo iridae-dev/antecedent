@@ -18491,6 +18491,13 @@ path = "crates/antecedent-discovery/tests/exact_marginals_reference.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "discovery-edge-prior-reference"
+crate = "antecedent-discovery"
+cargo_target = "edge_prior_reference"
+path = "crates/antecedent-discovery/tests/edge_prior_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "estimate-staggered-did-reference"
 crate = "antecedent-estimate"
 cargo_target = "staggered_did_reference"
