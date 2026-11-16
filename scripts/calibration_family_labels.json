@@ -2983,6 +2983,25 @@
       "review": "Literal interval-construction versions; no labels selected using calibration outcomes."
     },
     {
+      "path": "crates/antecedent/tests/weighted_target_effect_calibration.rs",
+      "sha256": "4931d6aeb211328159b4dcc53a24a4f30061be0fb4db63664373b0acb156368c",
+      "labelled_calls": [
+        {
+          "line": 114,
+          "call": ".labelled(",
+          "argument": "format!(\"centre {centre} bandwidth {bandwidth}\")"
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 110,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL },\n            REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Fixed planted heterogeneous-effect design with a Gaussian kernel target at a source-declared centre and a source-declared bandwidth grid per test; the centre and bandwidth labels, the closed-form truth and the record key are fixed in source."
+    },
+    {
       "path": "crates/antecedent/tests/z_transport_surrogate_calibration.rs",
       "sha256": "37ef9b6e92244c83850549be0a06647445d3c0aa6dab8d5fd66ee1dce2b75eb8",
       "labelled_calls": [],

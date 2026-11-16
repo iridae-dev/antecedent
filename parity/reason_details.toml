@@ -16307,6 +16307,12 @@ family = "vector_treatment"
 codes = ["route_not_supported"]
 meaning = "A consumer holds an expected identity and a stored or recomputed identity field (snapshot, adjustment set, coefficient order, design, covariance kind, contrasts, null or result) differs."
 
+[[detail]]
+id = "weighted_target.overlap_failed"
+family = "weighted_target"
+codes = ["transport_target_overlap_failed"]
+meaning = "A target population declared as row weights or a kernel has no support among the analysed rows, a Kish effective sample size below the floor, or a smaller share of the rows than declared; the refusal names a next attempt."
+
 
 [[detail]]
 id = "decision_evaluation.analytic_law_unsupported"

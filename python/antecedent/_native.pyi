@@ -5070,6 +5070,11 @@ def transport_kernel_weights(
     bandwidth: float,
     unit_distances: list[float],
 ) -> list[float]: ...
+def target_weights_overlap(
+    weights: list[float],
+    *,
+    min_ess_fraction: float | None = None,
+) -> dict[str, Any]: ...
 def transport_bandwidth_sensitivity(
     kernel_family: str,
     bandwidths: list[float],

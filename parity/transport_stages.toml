@@ -3251,6 +3251,48 @@ notes = "Claims over score tables built on different complete-case rows have no 
 route = "antecedent.PreparedBatch.scores_unavailable"
 notes = "A plan with no score table (prepared or after an estimate) fails its members; prepare-time rows are never substituted for an estimate's rows."
 
+# ---- estimate.weighted_target_effect ---------------------------------------------------------
+# The effect for a target population declared as row weights or a kernel over a covariate
+# distance, with overlap diagnostics and a refusal when the rows do not cover it
+# (parity/capability_records.toml).
+
+[[routes]]
+route = "antecedent.analyze.weighted_target"
+graph = "backdoor_adjustment_dag"
+evidence = "analysed_table_and_declared_target_weights"
+functional = "weighted_target_mean_effect"
+guarantee = "plug_in_weighted_influence_interval_with_overlap_gate"
+reference = "docs/guides/transport/weighted-target-population.md"
+limits = "AverageEffect on one table under AIPW or propensity weighting; weights that are functions of certified adjustment covariates; fixed declared weights, iid rows, positivity of the weighted target on both arms; weight-estimation uncertainty excluded; a target without overlap is refused."
+evidence_test = "crates/antecedent/tests/weighted_target_effect.rs"
+evidence_assertion = "a_kernel_neighbourhood_effect_equals_the_closed_form_weighted_effect"
+
+[[routes]]
+route = "antecedent.population.target_kernel"
+graph = "backdoor_adjustment_dag"
+evidence = "analysed_table_and_declared_kernel"
+functional = "kernel_neighbourhood_weights_over_covariate_distance"
+guarantee = "plug_in_weighted_influence_interval_with_overlap_gate"
+reference = "docs/guides/transport/weighted-target-population.md"
+limits = "Gaussian, Epanechnikov or tricube kernel over the scaled distance of declared covariates to a declared center; the family, bandwidth, center and scale are reported on the result."
+evidence_test = "python/tests/test_weighted_target_population.py"
+evidence_assertion = "test_kernel_neighbourhood_effect_equals_the_closed_form_weighted_effect"
+
+[[routes]]
+route = "antecedent.population.target_row_weights"
+graph = "backdoor_adjustment_dag"
+evidence = "analysed_table_and_declared_row_weights"
+functional = "declared_row_weights_over_named_covariates"
+guarantee = "plug_in_weighted_influence_interval_with_overlap_gate"
+reference = "docs/guides/transport/weighted-target-population.md"
+limits = "One finite non-negative weight per analysed row in table order, with the covariates they depend on named."
+evidence_test = "python/tests/test_weighted_target_population.py"
+evidence_assertion = "test_kernel_and_explicit_weights_with_the_same_weights_give_the_same_effect"
+
+[[routes]]
+route = "antecedent.analyze.weighted_target_overlap"
+notes = "A weighted target with no support, a Kish effective sample size below 20 rows or the declared fraction of the rows, or a failing per-arm weighted overlap gate is refused with a next attempt and no interval."
+
 # ---- estimate.dml_score_covariance -----------------------------------------------------------
 # Cross-fitted AIPW score tables of the DML, DR-Learner and CausalForest average effect, retargeted
 # through the E3 family (parity/capability_records.toml). Point-only; no interval.

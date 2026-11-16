@@ -3461,6 +3461,10 @@ class vector_treatment:  # noqa: N801
     WRONG_CONTRACT: Final = "vector_treatment.wrong_contract"
 
 
+class weighted_target:  # noqa: N801
+    OVERLAP_FAILED: Final = "weighted_target.overlap_failed"
+
+
 ALL: Final[tuple[str, ...]] = (
     "adaptive_inference.analysis_invalid",
     "adaptive_inference.analysis_route_mismatch",
@@ -6192,6 +6196,7 @@ ALL: Final[tuple[str, ...]] = (
     "vector_treatment.unknown_contrast_coefficient",
     "vector_treatment.weights_need_robust_covariance",
     "vector_treatment.wrong_contract",
+    "weighted_target.overlap_failed",
 )
 
 CODES: Final[dict[str, tuple[str, ...]]] = {
@@ -8983,4 +8988,5 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "vector_treatment.unknown_contrast_coefficient": ("invalid_argument",),
     "vector_treatment.weights_need_robust_covariance": ("option_not_applicable",),
     "vector_treatment.wrong_contract": ("route_not_supported",),
+    "weighted_target.overlap_failed": ("transport_target_overlap_failed",),
 }

@@ -114,6 +114,7 @@ nav:
     - Exchange joint distributions: joint-distributions.md
   - Transport:
     - Carry an effect to another population: guides/transport/carry-an-effect.md
+    - Weighted target populations: guides/transport/weighted-target-population.md
     - Through uncertain or discovered structure: guides/discovered-structure-transport.md
     - Counterfactual and sampled quantities: transport-counterfactuals.md
     - Into decisions and measurement models: guides/transported-decisions-and-measurement.md

@@ -135,7 +135,12 @@ from .policy import (
     MultiActionPolicyValue,
     PolicyValue,
 )
-from .population import coerce_target_population
+from .population import (
+    WeightedPopulation,
+    WeightedTargetReport,
+    coerce_target_population,
+    resolve_weighted_population,
+)
 from .quasi import (
     AugmentedPanelDiD,
     CovariateAdjustedDiD,
@@ -1199,6 +1204,8 @@ class _PreparedEngine(Generic[ResultT]):
         # Declared treatment labels of a label-coded binary treatment; later tables are
         # encoded by the same declaration before ingest.
         self._treatment_labels: TreatmentLabels | None = None
+        # The resolved weighted target population this study is about, when one was declared.
+        self._weighted_target: WeightedTargetReport | None = None
         self._seed = seed
         self._threads = threads
         self._controls = controls or _Controls()
@@ -1230,6 +1237,7 @@ class _PreparedEngine(Generic[ResultT]):
             "_batch_family",
             "_identifier_bindings",
             "_treatment_labels",
+            "_weighted_target",
             "_preparation_request",
             "_named_design_bindings",
             "_declared_query",
@@ -1849,6 +1857,18 @@ class _PreparedEngine(Generic[ResultT]):
                 data, analysis_columns(query, graph, estimator_config, missing=missing_policy)
             )
             table_names = tuple(names) if frame is None else None
+        weighted_target = None
+        if isinstance(getattr(query, "target_population", None), WeightedPopulation):
+            if table_names is None:
+                raise CausalUnsupportedError(
+                    "a weighted target population is declared over the rows of one analysed "
+                    "table; this route (frames and design queries) reads its units from the "
+                    "design",
+                    reason_code="option_not_applicable",
+                )
+            query, population_registry, weighted_target = resolve_weighted_population(
+                query, names, columns, population_registry
+            )
         predicates, distributions = registry_wire(population_registry)
         population = coerce_target_population(getattr(query, "target_population", None))
         options: dict[str, Any] = {
@@ -1932,6 +1952,7 @@ class _PreparedEngine(Generic[ResultT]):
         )
         prepared._identifier_bindings = identifier_bindings
         prepared._treatment_labels = treatment_labels
+        prepared._weighted_target = weighted_target
         if on_stage is not None and not native.streams_stages():
             raise CausalUnsupportedError(
                 "on_stage streams identify, estimate_point, uncertainty and validate for one "

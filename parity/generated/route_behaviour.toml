@@ -705,6 +705,19 @@ routes = [
 ]
 
 [[record]]
+id = "estimate.weighted_target_effect"
+status = "supported"
+refusals = [
+  { code = "transport_target_overlap_failed", detail = "weighted_target.overlap_failed" },
+]
+routes = [
+  { route = "antecedent.analyze.weighted_target", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.population.target_kernel", stage = "prepare", status = "supported", claim = "interval" },
+  { route = "antecedent.population.target_row_weights", stage = "prepare", status = "supported", claim = "interval" },
+  { route = "antecedent.analyze.weighted_target_overlap", stage = "evaluate", status = "closed", reason_code = "transport_target_overlap_failed", claim = "interval" },
+]
+
+[[record]]
 id = "estimate.dml_score_covariance"
 status = "supported"
 refusals = [

@@ -6,11 +6,12 @@ Use this page when you have a causal graph you are willing to declare, evidence 
 
 ## Which transport page answers your question
 
-Nine pages cover transport. Each answers one kind of question; start from the row that matches yours.
+Ten pages cover transport. Each answers one kind of question; start from the row that matches yours.
 
 | Your question | Page |
 | --- | --- |
 | You have a declared graph and want a target response or effect from source experiments | This page |
+| The target is a neighbourhood of your own rows (row weights, or a kernel over covariate distance), not a labelled population, and you want its effect with overlap diagnostics and a refusal when the rows do not cover it | [Ask for the effect in a weighted target population](weighted-target-population.md) |
 | The graph is not known: a discovered class of graphs, a PAG with latent variables, or a temporal class | [Transport through uncertain or discovered structure](../discovered-structure-transport.md) |
 | You want a path-specific or counterfactual quantity in the target, a counterfactual probability from counts, or the reasons behind a range over scenario graphs | [Transport counterfactual and sampled quantities](../../transport-counterfactuals.md) |
 | You hold a retained effect model, a measurement model, a policy, an adaptive trial or a provider's output and want to use it in a decision | [Transport into decisions and measurement models](../transported-decisions-and-measurement.md) |

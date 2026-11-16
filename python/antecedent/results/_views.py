@@ -1167,6 +1167,12 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: TransportQuery: trial-selection and within-trial treatment overlap,
     #: reported separately (the transported IPW is ``estimate.ate``).
     transport_overlap: TransportOverlapReport | None = None
+    #: A weighted target population (``target_row_weights`` / ``target_kernel``): the
+    #: declaration, its identity and the overlap diagnostics (support, Kish ESS, largest
+    #: single-row weight share) of the weighting over the analysed rows
+    #: (:class:`antecedent.population.WeightedTargetReport`). ``None`` for every other
+    #: target population.
+    weighted_target: Any | None = None
     #: Transport lineage (formula, provider, bindings) when the query
     #: was ``transport.Transport``. Specialist views stay on ``transport.distribution``.
     transport: Any = None
