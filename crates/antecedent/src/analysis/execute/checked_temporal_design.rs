@@ -1276,6 +1276,13 @@ fn standard(assumption: Assumption) -> AssumptionRecord {
     }
 }
 
+/// The working models of regime survival: the g-formula rests on the hazard and
+/// confounder-transition laws; the treatment law only reports positivity.
+const POOLED_PERIOD_MODELS: &str = "the hazard law is pooled logistic in the current confounders, \
+     the current treatment and the scaled period, and each confounder's transition is Gaussian \
+     linear in the previous confounders, the previous treatment and the scaled period; a pooled \
+     logistic treatment law reports positivity";
+
 /// Declared assumptions of the design.
 fn design_assumptions(query: &TemporalDesignQuery) -> antecedent_core::AssumptionSet {
     let mut assumptions = antecedent_core::AssumptionSet::default();
@@ -1306,14 +1313,7 @@ fn design_assumptions(query: &TemporalDesignQuery) -> antecedent_core::Assumptio
             "each period's treatment and censoring are independent of the potential event times \
              given the measured confounder and treatment history (declared, not checked)",
         ));
-        assumptions.push(declared(
-            "pooled_period_models",
-            "the hazard law is pooled logistic in the current confounders, the current treatment \
-             and the scaled period and each confounder's transition is Gaussian linear in the \
-             previous confounders, the previous treatment and the scaled period; the \
-             frequentist estimate rests on these two laws, the Bayesian posterior also carries \
-             pooled logistic treatment and censoring laws that only report positivity",
-        ));
+        assumptions.push(declared("pooled_period_models", POOLED_PERIOD_MODELS));
     } else if let TemporalAssignment::ObservationalRegime { method, .. } = &query.assignment {
         assumptions.push(declared(
             "sequential_exchangeability_given_measured_history",
