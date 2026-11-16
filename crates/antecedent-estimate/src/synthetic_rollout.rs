@@ -47,6 +47,15 @@ const PLACEBO_OPERATION: u64 = 0x5359_4e52_0001;
 /// Iteration cap and tolerance of the accelerated simplex fit.
 const SIMPLEX_ITERATIONS: usize = 5_000;
 const SIMPLEX_TOLERANCE: f64 = 1e-10;
+/// Largest duality gap (objective suboptimality certificate, in the normalized objective whose
+/// scale is the operands' largest spread) at which the active-face polish accepts a fit.
+const POLISH_GAP: f64 = 1e-12;
+/// Active-set rounds of the polish.
+const POLISH_ROUNDS: usize = 400;
+/// Proximal weight of the polish, relative to the mean Hessian diagonal. It makes each face
+/// system solvable when the donors outnumber the pre-periods (a singular Gram matrix) and
+/// vanishes at the fixed point, so the polished fit is the unregularized minimizer.
+const POLISH_PROXIMAL: f64 = 1e-6;
 
 /// Grid points and bisection steps of the conformal test inversion.
 const GRID_POINTS: usize = 41;
@@ -273,7 +282,7 @@ fn fit_simplex_rowwise_with_limit(
     if !step.is_finite() {
         return Err(());
     }
-    projected_gradient(problem.k, step, start, iterations, |weights| {
+    projected_gradient(problem.k, step, start, iterations, None, |weights| {
         rowwise_gradient(&problem, weights)
     })
 }
@@ -292,7 +301,8 @@ fn fit_simplex_with_limit(
     if !step.is_finite() {
         return Err(());
     }
-    projected_gradient(problem.k, step, start, iterations, |weights| {
+    let curvature = Curvature { gram: &gram, moment: &moment, factor: 1.0 };
+    projected_gradient(problem.k, step, start, iterations, Some(&curvature), |weights| {
         gram_gradient(&gram, &moment, 1.0, weights)
     })
 }
@@ -425,7 +435,8 @@ impl<'a> ShiftedTargetFit<'a> {
         let Some((moment, factor, step)) = self.shifted_moment(theta) else {
             return fit_simplex_with_limit(&self.adjusted(theta), self.donors, start, iterations);
         };
-        projected_gradient(self.k, step, start, iterations, |weights| {
+        let curvature = Curvature { gram: &self.gram, moment: &moment, factor };
+        projected_gradient(self.k, step, start, iterations, Some(&curvature), |weights| {
             gram_gradient(&self.gram, &moment, factor, weights)
         })
     }
@@ -442,6 +453,7 @@ fn projected_gradient(
     step: f64,
     start: Option<&[f64]>,
     iterations: usize,
+    curvature: Option<&Curvature<'_>>,
     gradient: impl Fn(&[f64]) -> Vec<f64>,
 ) -> Result<Vec<f64>, ()> {
     let mut weights = start.map_or_else(|| vec![1.0 / k as f64; k], <[f64]>::to_vec);
@@ -502,7 +514,155 @@ fn projected_gradient(
         };
         weights = next;
     }
+    // The first-order iteration is slow when the donors are nearly collinear or outnumber the
+    // pre-periods (the Gram matrix is then close to singular, and the residual of the fixed
+    // point test shrinks only as fast as its smallest curvature). The problem is a convex
+    // quadratic over the simplex, so a fit whose duality gap is certified small is optimal to
+    // that tolerance whatever the weights' distance to a (non-unique) minimizer.
+    if let Some(curvature) = curvature
+        && let Some(polished) = polish_on_faces(curvature, &weights)
+    {
+        return Ok(polished);
+    }
     Err(())
+}
+
+/// The quadratic of a simplex fit: gradient `2 factor (G w - m)`.
+struct Curvature<'a> {
+    gram: &'a [f64],
+    moment: &'a [f64],
+    factor: f64,
+}
+
+/// Duality gap `g . w - min g` of the weights `w` on the simplex with gradient `g`: an upper
+/// bound on the objective's distance to its minimum, because the objective is convex.
+fn duality_gap(weights: &[f64], gradient: &[f64]) -> f64 {
+    let level = gradient.iter().copied().fold(f64::INFINITY, f64::min);
+    weights.iter().zip(gradient).map(|(w, g)| w * (g - level)).sum()
+}
+
+/// Solve the dense system `matrix x = rhs` (row-major, `n` by `n`) by Gaussian elimination
+/// with partial pivoting; `None` when a pivot vanishes or the solution is not finite.
+fn solve_dense(mut matrix: Vec<f64>, mut rhs: Vec<f64>) -> Option<Vec<f64>> {
+    let n = rhs.len();
+    for column in 0..n {
+        let pivot = (column..n)
+            .max_by(|a, b| matrix[a * n + column].abs().total_cmp(&matrix[b * n + column].abs()))?;
+        let value = matrix[pivot * n + column];
+        if value.abs() < 1e-300 || !value.is_finite() {
+            return None;
+        }
+        if pivot != column {
+            for c in 0..n {
+                matrix.swap(pivot * n + c, column * n + c);
+            }
+            rhs.swap(pivot, column);
+        }
+        for row in column + 1..n {
+            let factor = matrix[row * n + column] / matrix[column * n + column];
+            if factor != 0.0 {
+                for c in column..n {
+                    matrix[row * n + c] -= factor * matrix[column * n + c];
+                }
+                rhs[row] -= factor * rhs[column];
+            }
+        }
+    }
+    let mut solution = vec![0.0_f64; n];
+    for row in (0..n).rev() {
+        let tail: f64 = (row + 1..n).map(|c| matrix[row * n + c] * solution[c]).sum();
+        solution[row] = (rhs[row] - tail) / matrix[row * n + row];
+    }
+    solution.iter().all(|x| x.is_finite()).then_some(solution)
+}
+
+/// A primal active-set method with a proximal term, started from the feasible `start`: each
+/// round solves the equality-constrained problem on the weights currently free (sum one),
+/// walks to it until a weight reaches zero (which leaves the free set) and admits the most
+/// violated zero weight. Returns the weights once their duality gap is at most
+/// [`POLISH_GAP`]; `None` when the rounds run out or a system is singular, so the caller still
+/// refuses an unconverged fit.
+fn polish_on_faces(curvature: &Curvature<'_>, start: &[f64]) -> Option<Vec<f64>> {
+    let k = start.len();
+    let scale = 2.0 * curvature.factor;
+    let hessian = |i: usize, j: usize| scale * curvature.gram[i * k + j];
+    let gradient = |w: &[f64]| gram_gradient(curvature.gram, curvature.moment, curvature.factor, w);
+    let mean_diagonal = (0..k).map(|i| hessian(i, i)).sum::<f64>() / k as f64;
+    let proximal = POLISH_PROXIMAL * mean_diagonal;
+    if !proximal.is_finite() || proximal <= 0.0 {
+        return None;
+    }
+    let mut weights = start.to_vec();
+    let mut free: Vec<bool> = weights.iter().map(|w| *w > 0.0).collect();
+    for _ in 0..POLISH_ROUNDS {
+        let current = gradient(&weights);
+        if current.iter().any(|v| !v.is_finite()) {
+            return None;
+        }
+        if duality_gap(&weights, &current) <= POLISH_GAP {
+            return Some(weights);
+        }
+        let members: Vec<usize> = (0..k).filter(|j| free[*j]).collect();
+        let m = members.len();
+        if m == 0 {
+            return None;
+        }
+        let width = m + 1;
+        let mut system = vec![0.0_f64; width * width];
+        let mut rhs = vec![0.0_f64; width];
+        for (a, &i) in members.iter().enumerate() {
+            for (b, &j) in members.iter().enumerate() {
+                system[a * width + b] = hessian(i, j);
+            }
+            system[a * width + a] += proximal;
+            system[a * width + m] = 1.0;
+            system[m * width + a] = 1.0;
+            rhs[a] = scale * curvature.moment[i] + proximal * weights[i];
+        }
+        rhs[m] = 1.0;
+        let target = solve_dense(system, rhs)?;
+        let mut alpha = 1.0_f64;
+        let mut blocking = None;
+        for (a, &i) in members.iter().enumerate() {
+            let step = target[a] - weights[i];
+            if step < 0.0 {
+                let ratio = weights[i] / -step;
+                if ratio < alpha {
+                    alpha = ratio;
+                    blocking = Some(i);
+                }
+            }
+        }
+        for (a, &i) in members.iter().enumerate() {
+            weights[i] += alpha * (target[a] - weights[i]);
+        }
+        if let Some(i) = blocking {
+            weights[i] = 0.0;
+            free[i] = false;
+        }
+        for w in &mut weights {
+            *w = w.max(0.0);
+        }
+        let total: f64 = weights.iter().sum();
+        if !total.is_finite() || total <= 0.0 {
+            return None;
+        }
+        for w in &mut weights {
+            *w /= total;
+        }
+        if blocking.is_none() {
+            let current = gradient(&weights);
+            let level: f64 = (0..k).filter(|j| free[*j]).map(|j| weights[j] * current[j]).sum();
+            let tolerance = 1e-12 * current.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+            let entering = (0..k)
+                .filter(|j| !free[*j] && current[*j] < level - tolerance)
+                .min_by(|a, b| current[*a].total_cmp(&current[*b]));
+            if let Some(j) = entering {
+                free[j] = true;
+            }
+        }
+    }
+    None
 }
 
 fn synthetic(donors: &[Vec<f64>], weights: &[f64], t: usize) -> f64 {

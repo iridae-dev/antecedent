@@ -35,8 +35,14 @@ const THIN: usize = 5;
 const MAX_RHAT: f64 = 1.05;
 /// Smallest total bulk effective sample size that is accepted.
 const MIN_BULK_ESS: f64 = 100.0;
-/// Pairwise-transfer proposal scales, one chosen uniformly per proposal.
-const STEP_SCALES: [f64; 3] = [0.3, 0.05, 0.01];
+/// Pairwise-transfer proposal scales relative to each pair's own conditional posterior scale,
+/// one chosen uniformly per proposal. The pair's scale unit is the pre-period outcome spread
+/// over the root of the pre-period count times the root mean square of the donors' gap: the
+/// conditional standard deviation of that transfer when the error sd equals the outcome
+/// spread, so the smaller multiples cover error sds down to a thirtieth of it.
+const STEP_SCALES: [f64; 5] = [3.0, 1.0, 0.3, 0.1, 0.03];
+/// Largest absolute transfer a proposal makes.
+const MAX_TRANSFER: f64 = 0.3;
 /// Seed offset that separates the chains.
 const CHAIN_SEED_STRIDE: u64 = 0xD1B5_4A32_D192_ED03;
 
@@ -127,6 +133,31 @@ struct ScPanel {
     post_periods: Vec<i64>,
     target_post: Vec<f64>,
     donor_post: Vec<Vec<f64>>,
+    /// `donors x donors` (row-major): the conditional posterior scale unit of a transfer
+    /// between two donors, which sharpens as pre-periods accumulate and as donors separate.
+    step_units: Vec<f64>,
+}
+
+/// Transfer scale units of every donor pair from the pre-period data alone, so the proposal
+/// stays symmetric and the chain's stationary law is untouched.
+fn transfer_units(target: &[f64], donors: &[Vec<f64>]) -> Vec<f64> {
+    let n = target.len() as f64;
+    let mean = target.iter().sum::<f64>() / n;
+    let spread = (target.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / n).sqrt();
+    let spread = if spread > 0.0 && spread.is_finite() { spread } else { 1.0 };
+    let k = donors.len();
+    let mut units = vec![MAX_TRANSFER; k * k];
+    for i in 0..k {
+        for j in 0..k {
+            let mean_square =
+                donors[i].iter().zip(&donors[j]).map(|(a, b)| (a - b).powi(2)).sum::<f64>() / n;
+            let unit = spread / (n.sqrt() * mean_square.sqrt());
+            if unit.is_finite() {
+                units[i * k + j] = unit.min(MAX_TRANSFER);
+            }
+        }
+    }
+    units
 }
 
 fn parse_panel(
@@ -193,10 +224,14 @@ fn parse_panel(
     let mean_post = |values: &BTreeMap<i64, f64>| {
         post.iter().map(|p| values[p]).sum::<f64>() / post.len() as f64
     };
+    let target_pre: Vec<f64> = pre.iter().map(|p| treated[p]).collect();
+    let donor_pre: Vec<Vec<f64>> =
+        donors.iter().map(|(_, v)| pre.iter().map(|p| v[p]).collect()).collect();
     Ok(ScPanel {
         donors: donors.iter().map(|(unit, _)| (**unit).to_string()).collect(),
-        target_pre: pre.iter().map(|p| treated[p]).collect(),
-        donor_pre: donors.iter().map(|(_, v)| pre.iter().map(|p| v[p]).collect()).collect(),
+        step_units: transfer_units(&target_pre, &donor_pre),
+        target_pre,
+        donor_pre,
         target_post_mean: mean_post(treated),
         donor_post_mean: donors.iter().map(|(_, v)| mean_post(v)).collect(),
         n_post: post.len(),
@@ -250,7 +285,8 @@ fn transfer_step(
     let donors = state.weights.len();
     let i = below(rng, donors);
     let j = (i + 1 + below(rng, donors - 1)) % donors;
-    let scale = STEP_SCALES[below(rng, STEP_SCALES.len())];
+    let scale = (panel.step_units[i * donors + j] * STEP_SCALES[below(rng, STEP_SCALES.len())])
+        .min(MAX_TRANSFER);
     let delta = scale * standard_normal(rng);
     let (wi, wj) = (state.weights[i] + delta, state.weights[j] - delta);
     let uniform = rng.next_f64();
