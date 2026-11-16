@@ -445,6 +445,7 @@ Unsupported environment / unidentified shifts are **not claimed**.
 | source and target populations differ and no `TransportPolicy` was given | `transport_policy_required` |
 | the number of source populations does not match the number of sources | `transport_source_count_mismatch` |
 | transport weights that are not finite, non-negative and normalisable | `transport_invalid_weights` |
+| a target weighted over the source rows that does not overlap them | `transport_target_overlap_failed` |
 | a banked posterior whose coefficient count does not match the target design's | `prior_dimension_mismatch` |
 | a route that fits under the isotropic prior scale and does not hydrate a transferred prior | `prior_transfer_not_hydrated` |
 | a transferred prior onto a non-Gaussian link the Bayesian route cannot carry it to | `likelihood_not_supported` |
@@ -458,6 +459,33 @@ whose `status` is `compatible`, `partial` or `rejected`, with the `reason` for a
 deliberately not refusals: a source in conflict with the data, or with transport weights of
 Kish ESS below 20, keeps its place in the result with `α` forced toward or to 0 and the
 reason recorded.
+
+## Targets defined over the source rows
+
+A target population does not have to be a tag. `compose_external_priors_for_target`
+takes the target as a weighting over the rows that produced `unit_effects`: explicit
+`target_weights` (for example a geometry neighbourhood), or a declared
+`TransportKernel(family, bandwidth)` over `unit_distances`, each row's distance to
+the target. Kernel families are `gaussian` (`exp(-u²/2)`), `epanechnikov`
+(`1 - u²`) and `tricube` (`(1 - u³)³`), with `u = distance / bandwidth` and zero
+weight for `u >= 1` in the compact families.
+
+Compatibility reads the weighting's support and overlap with the source instead of
+tag equality: positivity (some row carries weight), the Kish ESS floor of
+`TRANSPORT_MIN_KISH_ESS = 20`, and a floor on `kish_ess / rows` (default 0.05,
+`min_ess_fraction`; it never lowers the absolute floor). A failing overlap raises
+`ValueError` with a next-attempt message (reason code
+`transport_target_overlap_failed`). The result carries `ComposedPrior.target_overlap`
+(rows, support, Kish ESS, ESS fraction, largest single-row share).
+
+The transported mean and its widening of the source `V0` use the same arithmetic as
+`transport_weights`. A declared kernel is recorded as an assumption whose id carries
+the family and the bandwidth bits, so the kernel is part of the composed prior's
+identity. `transport_bandwidth_sensitivity` reports the weighted mean, its sampling
+variance and the overlap across a set of bandwidths; a bandwidth that fails the overlap
+check is listed with its refusal message instead of dropped. The bandwidth is declared,
+not selected. Tag-defined targets (`target_population` / `source_populations`) keep their
+own path and decisions.
 
 ## Rank studies from prior evidence
 

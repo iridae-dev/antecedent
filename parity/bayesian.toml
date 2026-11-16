@@ -243,6 +243,17 @@ evidence_assertion = "prior_bank_transport"
 notes = "TransportPolicy (InvariantConditionalOutcome / EffectModifiers / Propensity); population-tag mismatch requires policy (error_code=transport_policy_required); optional unit reweight; Propensity without weights → α=0; python_facade=full (TransportPolicy on compose_external_priors); unsupported environment/unidentified shifts not claimed; conformance/bayesian/prior_bank_transport"
 
 [[capabilities]]
+id = "bayes.prior_bank.weighted_target_transport"
+status = "done"
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/bayesian/prior_bank_weighted_target"
+python_facade = "full"
+evidence_test = "crates/antecedent/tests/bayesian.rs"
+evidence_assertion = "prior_bank_weighted_target"
+limitations = "Transports a prior toward a target declared as a weighting over the source rows (explicit row weights or a declared kernel over unit distances); the invariance claim itself is the caller's and is recorded, not tested. Support and overlap are read from the weighting (positivity, Kish ESS floor of 20, ESS fraction floor) and a failing overlap is refused with a next-attempt message. Tag-defined targets keep their own path and decisions."
+notes = "KernelFamily (gaussian / epanechnikov / tricube) + declared bandwidth turn unit distances into weights; the kernel is recorded as an assumption whose id carries the family and bandwidth bits, so it enters the prior identity; transport_bandwidth_sensitivity reports the weighted mean and overlap across a bandwidth set; python_facade=full (compose_external_priors_for_target, TransportKernel, transport_bandwidth_sensitivity)"
+
+[[capabilities]]
 id = "bayes.prior_bank.ess_accounting"
 status = "done"
 evidence_kind = "internal_known_truth"

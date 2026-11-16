@@ -342,7 +342,7 @@ fn transport_assumption(
 /// conjugate `V0` units: the known residual variance, else the Inv-Gamma mean
 /// `β/(α−1)` when it exists, else `1` (the no-residual-scale GLM convention of
 /// [`GaussianCoefficientPrior::absolute_variance`]).
-fn source_residual_sigma2(prior: &PriorSet) -> f64 {
+pub(crate) fn source_residual_sigma2(prior: &PriorSet) -> f64 {
     if let Some(v) = prior.known_residual_variance() {
         return v;
     }
@@ -352,7 +352,7 @@ fn source_residual_sigma2(prior: &PriorSet) -> f64 {
     }
 }
 
-fn replace_coef_moments(
+pub(crate) fn replace_coef_moments(
     prior: &mut PriorSet,
     coef_index: usize,
     mean: f64,

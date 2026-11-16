@@ -60,6 +60,7 @@ GENERATORS = (
     "conformance/bayesian/graph_effect_envelope/reference.py",
     "conformance/bayesian/prior_bank_ess/reference.py",
     "conformance/bayesian/prior_bank_power_mixture/reference.py",
+    "conformance/bayesian/prior_bank_weighted_target/reference.py",
     "conformance/bayesian/prior_conjugate_moment_match/reference.py",
     "conformance/bayesian/conjugate_count_posteriors/reference.py",
     "conformance/estimate/bayesian_structural_transport/reference.py",

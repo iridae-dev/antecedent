@@ -36,6 +36,7 @@ pub mod power_prior_alpha;
 pub mod prior;
 pub(crate) mod streams;
 pub mod transport;
+pub mod transport_target;
 
 pub use backend::{
     BayesDesignRef, BayesFitOptions, BayesFitResult, BayesLikelihood, InferenceBackend,
@@ -78,4 +79,9 @@ pub use prior::{
 pub use transport::{
     POPULATION_TAG_KEY, TRANSPORT_MIN_KISH_ESS, TransportAdjustment, TransportContext,
     TransportError, TransportOutcome, TransportPolicy, apply_transport, compose_with_transport,
+};
+pub use transport_target::{
+    BandwidthSensitivityRow, KernelFamily, TARGET_MIN_ESS_FRACTION, TargetOverlap, TransportKernel,
+    WeightedTarget, apply_weighted_target_transport, compose_with_weighted_target_transport,
+    kernel_bandwidth_sensitivity,
 };

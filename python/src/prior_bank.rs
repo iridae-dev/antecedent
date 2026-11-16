@@ -681,6 +681,164 @@ fn compose_external_priors_py<'py>(
     Ok(d)
 }
 
+fn overlap_to_py<'py>(
+    py: Python<'py>,
+    overlap: &antecedent::inference::TargetOverlap,
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("n_rows", overlap.n_rows)?;
+    d.set_item("n_support", overlap.n_support)?;
+    d.set_item("support_fraction", overlap.support_fraction)?;
+    d.set_item("kish_ess", overlap.kish_ess)?;
+    d.set_item("ess_fraction", overlap.ess_fraction)?;
+    d.set_item("max_weight_share", overlap.max_weight_share)?;
+    Ok(d)
+}
+
+/// Compose priors transported toward a target declared as a weighting over the
+/// source rows (row weights, or a kernel over unit distances). The target's
+/// support and overlap with the source are checked in place of tag equality.
+#[pyfunction(name = "compose_external_priors_for_target")]
+#[pyo3(signature = (
+    sources,
+    baseline_mean,
+    baseline_variance,
+    *,
+    transport,
+    unit_effects,
+    target_weights=None,
+    kernel_family=None,
+    bandwidth=None,
+    unit_distances=None,
+    min_ess_fraction=None,
+    coef_index=None,
+    conflict=None,
+    conflict_signals=None,
+))]
+#[allow(clippy::too_many_arguments)]
+fn compose_external_priors_for_target_py<'py>(
+    py: Python<'py>,
+    sources: &Bound<'py, PyList>,
+    baseline_mean: Vec<f64>,
+    baseline_variance: Vec<f64>,
+    transport: &str,
+    unit_effects: Vec<f64>,
+    target_weights: Option<Vec<f64>>,
+    kernel_family: Option<&str>,
+    bandwidth: Option<f64>,
+    unit_distances: Option<Vec<f64>>,
+    min_ess_fraction: Option<f64>,
+    coef_index: Option<usize>,
+    conflict: Option<&Bound<'py, PyDict>>,
+    conflict_signals: Option<&Bound<'py, PyList>>,
+) -> PyResult<Bound<'py, PyDict>> {
+    use antecedent::inference::{
+        KernelFamily, TransportKernel, WeightedTarget, apply_weighted_target_transport,
+        compose_with_weighted_target_transport,
+    };
+
+    let srcs = sources_from_list(sources)?;
+    let baseline = prior_set_from_moments(&baseline_mean, &baseline_variance)?;
+    if conflict_signals.is_some() && conflict.is_none() {
+        return Err(crate::value_err(
+            "conflict_signals needs a conflict policy; pass conflict or drop the signals",
+        ));
+    }
+    let policy = transport_policy_from_str(transport)?;
+    let mut target = match (target_weights, kernel_family, bandwidth, unit_distances) {
+        (Some(w), None, None, None) => {
+            WeightedTarget::from_row_weights(unit_effects, w).map_err(pyvalue)?
+        }
+        (None, Some(f), Some(b), Some(d)) => {
+            let family = KernelFamily::parse(f).map_err(pyvalue)?;
+            let kernel = TransportKernel::new(family, b).map_err(pyvalue)?;
+            WeightedTarget::from_kernel(unit_effects, &d, kernel).map_err(pyvalue)?
+        }
+        _ => {
+            return Err(crate::value_err(
+                "declare the target as target_weights, or as kernel_family with bandwidth and \
+                 unit_distances",
+            ));
+        }
+    };
+    if let Some(f) = min_ess_fraction {
+        target = target.with_min_ess_fraction(f).map_err(pyvalue)?;
+    }
+    let (prepared, overlap) =
+        apply_weighted_target_transport(&srcs, policy, &target, coef_index).map_err(pyvalue)?;
+    let src_list = sources_to_py_list(py, &prepared)?;
+    let out = if let Some(c) = conflict {
+        let policy_c = conflict_policy_from_dict(Some(c))?
+            .ok_or_else(|| crate::value_err("conflict dict invalid"))?;
+        let signals = conflict_signals_from_list(conflict_signals, prepared.len())?;
+        let (composed, summary) =
+            apply_conflict_and_compose(&prepared, &baseline, &policy_c, &signals)
+                .map_err(pyvalue)?;
+        let d = composed_to_dict(py, &composed)?;
+        with_conflict_fields(&d, &summary)?;
+        d.set_item("conflict", c)?;
+        d
+    } else {
+        let (composed, _) =
+            compose_with_weighted_target_transport(&srcs, &baseline, policy, &target, coef_index)
+                .map_err(pyvalue)?;
+        composed_to_dict(py, &composed)?
+    };
+    out.set_item("sources", src_list)?;
+    out.set_item("target_overlap", overlap_to_py(py, &overlap)?)?;
+    if let Some(k) = target.kernel() {
+        out.set_item("kernel_family", k.family().id())?;
+        out.set_item("kernel_bandwidth", k.bandwidth())?;
+    }
+    Ok(out)
+}
+
+/// Kernel weights for caller-supplied unit distances.
+#[pyfunction(name = "transport_kernel_weights")]
+fn transport_kernel_weights_py(
+    kernel_family: &str,
+    bandwidth: f64,
+    unit_distances: Vec<f64>,
+) -> PyResult<Vec<f64>> {
+    use antecedent::inference::{KernelFamily, TransportKernel};
+    let family = KernelFamily::parse(kernel_family).map_err(pyvalue)?;
+    let kernel = TransportKernel::new(family, bandwidth).map_err(pyvalue)?;
+    kernel.weights(&unit_distances).map_err(pyvalue)
+}
+
+/// Transported-mean sensitivity across a set of declared bandwidths.
+#[pyfunction(name = "transport_bandwidth_sensitivity")]
+#[pyo3(signature = (kernel_family, bandwidths, unit_distances, unit_effects, *, min_ess_fraction=None))]
+fn transport_bandwidth_sensitivity_py<'py>(
+    py: Python<'py>,
+    kernel_family: &str,
+    bandwidths: Vec<f64>,
+    unit_distances: Vec<f64>,
+    unit_effects: Vec<f64>,
+    min_ess_fraction: Option<f64>,
+) -> PyResult<Bound<'py, PyList>> {
+    use antecedent::inference::{KernelFamily, kernel_bandwidth_sensitivity};
+    let family = KernelFamily::parse(kernel_family).map_err(pyvalue)?;
+    let floor = min_ess_fraction.unwrap_or(antecedent::inference::TARGET_MIN_ESS_FRACTION);
+    let rows =
+        kernel_bandwidth_sensitivity(family, &bandwidths, &unit_distances, &unit_effects, floor)
+            .map_err(pyvalue)?;
+    let out = PyList::empty(py);
+    for row in &rows {
+        let d = PyDict::new(py);
+        d.set_item("bandwidth", row.bandwidth)?;
+        d.set_item("weighted_mean", row.weighted_mean)?;
+        d.set_item("mean_variance", row.mean_variance)?;
+        d.set_item("overlap_ok", row.overlap_ok)?;
+        d.set_item("refusal", row.refusal.as_deref())?;
+        if let Some(o) = &row.overlap {
+            d.set_item("overlap", overlap_to_py(py, o)?)?;
+        }
+        out.append(d)?;
+    }
+    Ok(out)
+}
+
 #[pyfunction(name = "conflict_shrink_alpha")]
 #[pyo3(signature = (alpha, *, p_value=None, kl=None, p_min=0.05, kl_scale=1.0))]
 fn shrink_alpha_py(
@@ -1263,6 +1421,9 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(encode_prior_source_meta, m)?)?;
     m.add_function(wrap_pyfunction!(decode_prior_source_meta, m)?)?;
     m.add_function(wrap_pyfunction!(compose_external_priors_py, m)?)?;
+    m.add_function(wrap_pyfunction!(compose_external_priors_for_target_py, m)?)?;
+    m.add_function(wrap_pyfunction!(transport_kernel_weights_py, m)?)?;
+    m.add_function(wrap_pyfunction!(transport_bandwidth_sensitivity_py, m)?)?;
     m.add_function(wrap_pyfunction!(mapped_posterior_transfer_py, m)?)?;
     m.add_function(wrap_pyfunction!(shrink_alpha_py, m)?)?;
     m.add_function(wrap_pyfunction!(beta_from_moments_py, m)?)?;

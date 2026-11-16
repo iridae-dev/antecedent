@@ -1113,6 +1113,12 @@ pub use antecedent_prob::{
     LinearTarget, SelectedAlphaReport, default_alpha_grid, select_beta_power_prior,
     select_gamma_power_prior, select_linear_power_prior,
 };
+/// Row-weighted target populations and kernel transport weights.
+pub use antecedent_prob::{
+    BandwidthSensitivityRow, KernelFamily, TARGET_MIN_ESS_FRACTION, TargetOverlap, TransportKernel,
+    WeightedTarget, apply_weighted_target_transport, compose_with_weighted_target_transport,
+    kernel_bandwidth_sensitivity,
+};
 /// Conjugate Beta-Binomial and Gamma-Poisson count posteriors.
 pub use antecedent_prob::{BetaBinomialPosterior, GammaPoissonPosterior};
 /// Conjugate moment-matching converters: Gaussian summary → Beta / Gamma.

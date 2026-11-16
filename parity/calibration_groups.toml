@@ -14490,3 +14490,27 @@ target = "conjugate_prior_calibration"
 tests = ["selected_alpha_bias_aware_interval_covers_within_the_declared_bound"]
 ignored = true
 grid = true
+
+[[group]]
+label = "transport_weighted_target_calibration: gaussian_kernel_transported_estimate_covers_across_bandwidths"
+package = "antecedent"
+target = "transport_weighted_target_calibration"
+tests = ["gaussian_kernel_transported_estimate_covers_across_bandwidths"]
+ignored = true
+grid = true
+
+[[group]]
+label = "transport_weighted_target_calibration: epanechnikov_kernel_transported_estimate_covers_across_bandwidths"
+package = "antecedent"
+target = "transport_weighted_target_calibration"
+tests = ["epanechnikov_kernel_transported_estimate_covers_across_bandwidths"]
+ignored = true
+grid = true
+
+[[group]]
+label = "transport_weighted_target_calibration: tricube_kernel_transported_estimate_covers_across_bandwidths"
+package = "antecedent"
+target = "transport_weighted_target_calibration"
+tests = ["tricube_kernel_transported_estimate_covers_across_bandwidths"]
+ignored = true
+grid = true

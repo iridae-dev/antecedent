@@ -392,6 +392,11 @@ id = "transport_coef_index_out_of_range"
 applies_to = ["runtime_refusal"]
 meaning = "A coefficient index passed to a transport reweighting is outside the prior's dimension."
 
+[[code]]
+id = "transport_target_overlap_failed"
+applies_to = ["runtime_refusal"]
+meaning = "A target population declared as a weighting over the source rows does not overlap those rows: it has no support among them, or its Kish effective sample size is below the floor."
+
 # Reason codes of the capability records (parity/capability_records.toml). Registered before any route returns them.
 [[code]]
 id = "sampling_dependence_unknown"
