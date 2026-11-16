@@ -1,10 +1,25 @@
 //! Intrinsic causal influence: which noise term drives a target's variance.
 //!
-//! Data from `x -> y -> z` with `y = 2x + e_y` (unit noise) and `z = 1.5y + e_z` (noise scale
-//! 0.5). A study with an `Attribute` query on the supplied DAG fits the mechanisms and splits
-//! the variance of `z`. The total coefficients of the three noise terms on `z` are 3, 1.5 and 1,
-//! so their Shapley shares of `Var(z)` are 9, 2.25 and 0.25. The estimate is nested Monte Carlo
-//! through batch noise replay, and every interval names the one uncertainty component it covers.
+//! Question: how much of the variance of `z` is contributed by the noise of each of its
+//! ancestors and by its own noise?
+//!
+//! Data and truth: 4000 rows from `x -> y -> z` with `y = 2x + e_y` (unit noise) and
+//! `z = 1.5y + e_z` (noise scale 0.5). The total coefficients of the three noise terms on `z`
+//! are 3, 1.5 and 1, so their Shapley shares of `Var(z)` are 9, 2.25 and 0.25.
+//!
+//! A study with an `Attribute` query on the supplied DAG fits the mechanisms and splits the
+//! variance. The estimate is nested Monte Carlo through batch noise replay, and every interval
+//! names the one uncertainty component it covers.
+//!
+//! Asserted: without a declaration that the noise terms are independent the route refuses with
+//! `noise_independence_undeclared`; with it, each share is within tolerance of its closed form,
+//! simulation error is quantified, permutation sampling is not applicable (three sources are
+//! enumerated exactly), mechanism-fit uncertainty is not quantified because it was not
+//! requested, and the shares plus the reported residual equal the total variance.
+//!
+//! What this establishes: the allocation agrees with the closed form on a linear chain. The
+//! shares are statements about the fitted mechanisms under the declared noise independence,
+//! which a DAG cannot certify. An unrequested uncertainty component is unquantified, not zero.
 //!
 //! Run: `cargo run -p antecedent --example intrinsic_influence`
 //! Source: `examples/rust/intrinsic_influence.rs`

@@ -1,12 +1,26 @@
 //! A minimal host with no agent logic: compile, read the status, tell a
 //! supported claim from a refusal, and load an artifact.
 //!
+//! Question: what must an application read, and in which order, before it uses a number the
+//! library returned?
+//!
 //! A host is whatever sits between a caller (a service, a notebook tool, an LLM
 //! tool layer) and the library. This one only enforces the contract: it asks
 //! the capability report before running, runs only what is open, reports the
 //! claim with its status, reports a failure as a coded refusal, and accepts an
 //! artifact only against the identity it retained. It plans nothing and chooses
 //! nothing.
+//!
+//! Data: eight rows in which the binary treatment `t` shifts `y` by about 2, with the graph
+//! `t -> y`.
+//!
+//! Asserted: the host schema carries the contract version this crate was built with; the served
+//! response is `supported` with a point claim within 0.2 of 2; the exported artifact replays as
+//! a supported claim; a refusal renders as an `unsupported` record with its reason code and
+//! family; and altered artifact bytes are never accepted as a supported claim.
+//!
+//! What this establishes: the status vocabulary and the order of checks a host needs. The data
+//! are a toy and the effect is not the subject; the host does not interpret it.
 //!
 //! Run: `cargo run -p antecedent --example reference_host`
 //! Source: `examples/rust/reference_host.rs`

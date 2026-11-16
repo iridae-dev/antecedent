@@ -1,4 +1,5 @@
-//! Typed causal queries (re-exported from `antecedent-core`).
+//! Typed causal queries: what a study is asked to compute, from average effects to transport,
+//! counterfactual and survival questions.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

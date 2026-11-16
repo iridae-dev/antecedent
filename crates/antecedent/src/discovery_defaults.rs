@@ -1,7 +1,9 @@
-//! Shared discovery constraint defaults and CI resolution.
+//! Default constraints of the structure searches and resolution of conditional-independence
+//! test names.
 //!
-//! Single source for `TemporalConstraints` / `DiscoveryConstraints` used by
-//! [`crate::analysis`] and the Python bindings — do not duplicate these blocks.
+//! The default significance level, conditioning-set size and regime length, and the constraint
+//! blocks built from them for PC, PCMCI and J-PCMCI, are defined once here and shared by
+//! [`crate::analysis`] and the Python bindings.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

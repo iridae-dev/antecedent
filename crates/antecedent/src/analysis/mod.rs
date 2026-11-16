@@ -1,4 +1,10 @@
-//! Unified `Study` facade.
+//! The `Study` builder and the analysis routes it compiles to.
+//!
+//! [`crate::Study`] collects data, a structure, a query and options; it compiles to a plan,
+//! prepares to a reusable [`crate::PreparedStudy`], or runs to a [`crate::StudyResult`]. Most
+//! callers need only those crate-root re-exports. The submodules hold the declarations and
+//! results of individual routes (transport, panel designs, decision evidence, adaptive
+//! procedures and others) for callers who use those routes directly.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

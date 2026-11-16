@@ -1,7 +1,8 @@
-//! GCM workflow helpers (fit → sample → CF → anomaly).
+//! Graphical causal models: fit one mechanism per node of a DAG, then sample, compute
+//! counterfactuals and attribute under the fitted model.
 //!
-//! Thin facade over `antecedent-model` / `antecedent-counterfactual` / `antecedent-attribution`
-//! so planners and Python bind once at the library boundary.
+//! The module gathers the fitted-model types of `antecedent-model`, `antecedent-counterfactual`
+//! and `antecedent-attribution` behind one path.
 //!
 //! Attribution and simulation on a fitted model are compiled routes: a study with a
 //! [`antecedent_core::CausalQuery::Attribute`] or

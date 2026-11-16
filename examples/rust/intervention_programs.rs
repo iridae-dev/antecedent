@@ -1,5 +1,11 @@
 //! Intervention programs: a price floor `max(10, 0.85 * price)` as a typed expression.
 //!
+//! Question: what happens to price and demand under a rule that rewrites each unit's price
+//! instead of setting it to a level, and how is such a rule saved and replayed?
+//!
+//! Data: 600 deterministic rows in which demand falls with price (`demand = 50 - 0.8 price` plus
+//! a small ripple) and prices straddle the floor. The graph is `price -> demand`.
+//!
 //! A transform replaces the value a node's mechanism generated; the node keeps its incoming
 //! edges and its noise. The same program is sampled forward, replayed on each factual unit's
 //! own abduced noise, supported per route and valued against the unintervened model, saved as a
@@ -8,6 +14,20 @@
 //!
 //! Sampling, counterfactual execution and the policy value are `Simulate` queries on a study:
 //! the route fits the mechanisms and runs the program, with the selection record on the result.
+//!
+//! Asserted, in the order of the numbered steps in `run`: draws under the policy equal the
+//! hand-applied floor on the same noise; each factual unit's counterfactual price is its floored
+//! price, and a unit whose price rose sells less; simulation and counterfactual routes are
+//! supported while identification refuses with `policy_route_not_supported`; a program that
+//! reads its own descendant refuses with `policy_dependency_circular`; a closed-form program
+//! round-trips under a content identity; a runtime callback matches the expression bit for bit
+//! and refuses to encode with `policy_callback_not_portable`; a recoverable callback replays only
+//! when the supplied source matches its recorded digest; and the policy value is positive
+//! beyond five simulation standard errors.
+//!
+//! What this establishes: the program semantics and their replay guarantees under the fitted
+//! model. A transform is a function of each unit's noise, not a level, so its value has no
+//! observational identification here; the policy value quantifies simulation error only.
 //!
 //! Run: `cargo run -p antecedent --example intervention_programs`
 //! Source: `examples/rust/intervention_programs.rs`

@@ -1,4 +1,7 @@
-//! Physical-plan marking for Python / slow-path callbacks.
+//! Marking of a physical plan that calls back into a host language such as Python.
+//!
+//! A plan that crosses into a callback runs serially, and the crossing is recorded on the plan
+//! with a diagnostic. Language bindings use this; Rust callers rarely need it.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

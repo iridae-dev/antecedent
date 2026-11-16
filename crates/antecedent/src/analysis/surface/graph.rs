@@ -1,4 +1,5 @@
-//! Graph types and construction helpers.
+//! Causal graph types (DAG, CPDAG, ADMG, PAG and their temporal forms), edge marks and
+//! d-separation, for declaring the structure a study assumes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,8 +1,21 @@
 //! Noise replay: keep a model's exogenous noise, fix or redraw some coordinates, evaluate again.
 //!
-//! The chain `a -> b -> c` is linear Gaussian with known coefficients and noise scales, so the
-//! variances once a noise coordinate is fixed have closed forms: with `u_a` fixed,
-//! `Var(b) = sigma_b^2` and `Var(c) = 9 sigma_b^2 + sigma_c^2`.
+//! Question: what happens to downstream variables when one unit-level noise term is held fixed
+//! and the others are redrawn?
+//!
+//! Model and truth: the chain `a -> b -> c` is linear Gaussian with declared coefficients and
+//! noise scales (`a = 1 + e_a`, `b = 0.5 + 2a + e_b`, `c = -1 + 3b + e_c`), so the variances once
+//! a noise coordinate is fixed have closed forms: with `u_a` fixed, `Var(b) = sigma_b^2` and
+//! `Var(c) = 9 sigma_b^2 + sigma_c^2`. No data are fitted.
+//!
+//! Asserted: replaying the stored noise table reproduces the sampled values bit for bit; with
+//! `u_a` fixed at its reference value `a` is constant and the sample variances of `b` and `c`
+//! are within 6% of the closed forms over 20,000 rows; a coalition that reads `u_a` from the
+//! observed table and the rest from a redraw equals writing the observed `u_a` into the redraw.
+//!
+//! What this establishes: noise replay is deterministic and composes as stated, which is the
+//! operation unit-level counterfactuals and noise-based attributions rest on. The mechanisms
+//! are declared, so nothing here depends on estimation.
 //!
 //! Run: `cargo run -p antecedent --example noise_replay`
 //! Source: `examples/rust/noise_replay.rs`

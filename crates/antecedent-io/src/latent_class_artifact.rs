@@ -63,6 +63,10 @@ pub const LATENT_CLASS_ARTIFACT_FEATURE: &str = "latent_class_effects_v1";
 /// Calibration coordinate of the bootstrap standard errors: coverage was not measured.
 pub const LATENT_CLASS_ARTIFACT_CALIBRATION: &str = "not_measured";
 /// Most analysis rows an artifact embedded under the earlier fixed ceiling.
+///
+/// Deprecated and not enforced: the fit has no row ceiling. Bound the computation with the
+/// memory limit of the context passed to [`LatentClassArtifact::seal_with`], and the artifact
+/// size with the export budget of [`LatentClassArtifact::to_bytes_within`].
 #[deprecated(
     since = "2.4.1",
     note = "no longer enforced: the fit has no row ceiling; the export and computation budgets bound the artifact"

@@ -1,4 +1,19 @@
-//! Static ATE: schema + named columns + named DAG → analyze.
+//! Estimate an average treatment effect from a table, a declared graph and a query.
+//!
+//! Question: what is the average effect of the binary treatment `t` on `y` when `z` causes both?
+//!
+//! Data and truth: 200 noise-free rows with `z` evenly spaced on `[0, 1)`, `t = 1` exactly when
+//! `z > 0.5`, and `y = 1 + 2 t + 3 z`. The structural effect of `t` on `y` is 2. The unadjusted
+//! difference in mean `y` between the arms is 3.5, because the arms differ by 0.5 in mean `z`.
+//!
+//! Asserted: the estimate is 2 to within `1e-6`, and the identification status is
+//! `NonparametricallyIdentified`.
+//!
+//! What this establishes: the declared graph identifies the effect by adjustment for `z`, and the
+//! estimator returns the coefficient when the outcome is exactly linear. It says nothing about
+//! noisy data or a misspecified outcome model: `t` is a deterministic function of `z`, so the arms
+//! share no value of `z` and the estimate rests on the linear form. Refutation and the bootstrap
+//! are switched off, so the run reports a point estimate with no uncertainty.
 //!
 //! Run: `cargo run -p antecedent --example ate_quickstart`
 //! Source: `examples/rust/ate_quickstart.rs`
@@ -14,6 +29,7 @@ pub fn run() -> Result<(), CausalError> {
     let t: Vec<f64> = z.iter().map(|&zi| if zi > 0.5 { 1.0 } else { 0.0 }).collect();
     let y: Vec<f64> = t.iter().zip(z.iter()).map(|(&ti, &zi)| 1.0 + 2.0 * ti + 3.0 * zi).collect();
 
+    // The schema names each variable and its role; the data, graph and query all refer to it.
     let schema = CausalSchemaBuilder::new()
         .continuous("t")
         .treatment()
@@ -26,9 +42,13 @@ pub fn run() -> Result<(), CausalError> {
         schema.clone(),
         [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
     )?;
+    // The graph is the causal assumption: z is a common cause of t and y. Identification reads
+    // this structure and the query, not the rows.
     let dag = Dag::from_named_edges(&schema, &[("z", "t"), ("z", "y"), ("t", "y")])?;
     let query = AverageEffectQuery::binary_ate(schema.id_of("t")?, schema.id_of("y")?);
 
+    // No refuters and no bootstrap replicates: a point estimate only. `for_tests(1)` is a serial
+    // execution context with seed 1.
     let result = Study::tabular(data)
         .graph(dag)
         .query(query)

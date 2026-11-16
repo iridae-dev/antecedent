@@ -1,18 +1,32 @@
-//! One-off evaluation of dense versus CSC-style design-matrix materialization for a wide
-//! binary-column adjustment set (the ~3,000-column case).
+//! Dense versus CSC-style design-matrix materialization for a wide binary adjustment set.
 //!
-//! Run with
-//! `cargo run --release -p antecedent-data --example sparse_ingest_eval [-- ROWS COLS DENSITY]`
-//! (defaults: 5000 rows, 3000 binary columns, density 0.02; a few seconds on a laptop).
+//! Question: for an adjustment set of about 3,000 sparse binary columns, how much time and
+//! memory does the dense design the propensity preparer builds cost, compared with a
+//! column-compressed (CSC) pattern read straight from the stored columns?
 //!
-//! It times and counts allocation for the dense path the propensity preparer follows
-//! (complete-case mask, one masked copy per column, a packed column-major design, an owned
-//! `Arc` per column), against a CSC pattern built straight from the stored columns, then
-//! the first use of each (`X'y`). The accepted schema and the estimand are untouched: both
-//! paths read the same `TabularData` and must agree on `X'y` exactly.
+//! Data: by default 5,000 rows of 3,000 binary columns, each 1 with probability 0.02, a binary
+//! treatment `t` and an outcome `y = t + x0 + uniform noise`, drawn from a fixed seed. The
+//! outcome model plays no role: the subject is the cost of building the design, not an effect.
 //!
-//! The CSC here is an evaluation device, not a second panel builder: nothing in the
-//! library consumes it.
+//! It times and counts allocation (through a counting global allocator) for the dense path the
+//! propensity preparer follows (complete-case mask, one masked copy per column, a packed
+//! column-major design, an owned `Arc` per column), against a CSC pattern built straight from
+//! the stored columns, then the first use of each (`X'y`). Each step reports the cost of the
+//! median-time run of three.
+//!
+//! Asserted: scattering the CSC pattern back reproduces the dense design exactly, and both
+//! representations give exactly the same `X'y`.
+//!
+//! What this establishes: the two representations carry the same numbers, so their timings and
+//! memory are a like-for-like comparison on this host. The accepted schema and the estimand are
+//! untouched: both paths read the same `TabularData`. The CSC here is an evaluation device, not
+//! a second panel builder: nothing in the library consumes it.
+//!
+//! Run (defaults: 5000 rows, 3000 binary columns, density 0.02; a few seconds on a laptop):
+//!
+//! ```text
+//! cargo run --release -p antecedent-data --example sparse_ingest_eval [-- ROWS COLS DENSITY]
+//! ```
 
 #![allow(clippy::float_cmp, reason = "binary columns are exactly 0.0 or 1.0 by contract")]
 

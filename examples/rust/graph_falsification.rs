@@ -1,10 +1,21 @@
 //! Graph falsification: is a DAG better than random relabellings of itself?
 //!
-//! Eight variables form four strongly dependent pairs. The graph that joins the pairs is
-//! compared with 300 random relabellings of its nodes on the same data through the local
-//! Markov implications it asserts; nothing is fitted. A graph that pairs the wrong
-//! variables is not better than its relabellings, and a complete graph asserts nothing
-//! that data could contradict.
+//! Question: do the conditional independencies a graph asserts fit the data better than those
+//! of the same graph with its node labels shuffled?
+//!
+//! Data and truth: eight variables form four strongly dependent pairs,
+//! `x(2k+1) = 0.9 x(2k) + 0.45 noise`, 2000 rows. The graph that joins the pairs is compared with
+//! 300 random relabellings of its nodes on the same data through the local Markov implications
+//! it asserts; nothing is fitted.
+//!
+//! Asserted: the graph that joins the true pairs is not rejected (permutation p-value below
+//! 0.05); a graph that pairs independent variables is rejected, with at least six violated
+//! implications; the same seeds reproduce the p-value and every permutation count; and a
+//! complete graph on independent noise is `Uninformative`, because it implies no independence.
+//!
+//! What this establishes: the test can reject a graph whose implied independencies the data
+//! contradict. Not rejecting a graph does not show it correct: Markov-equivalent graphs assert
+//! the same independencies, and a complete graph asserts nothing that data could contradict.
 //!
 //! Run: `cargo run -p antecedent --example graph_falsification`
 //! Source: `examples/rust/graph_falsification.rs`

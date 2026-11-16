@@ -1,4 +1,11 @@
-//! Analysis result artifact.
+//! [`StudyResult`], what [`crate::Study::run`] returns, and the typed estimates of each query
+//! family.
+//!
+//! A result carries the identification, the estimand, the primary estimate and its
+//! uncertainty, the family-specific payload ([`ResultPayload`]), refutation and predictive-check
+//! reports, diagnostics, the support status of the cell that ran, and the provenance of the
+//! method. Read the support status and the interval's calibration status before using a
+//! number.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

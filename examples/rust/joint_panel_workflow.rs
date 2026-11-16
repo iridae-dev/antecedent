@@ -1,6 +1,28 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Actual compiler-owned fits of the independent panel fixture.
-//! The example reports numerical diagnostics and model-conditional response only.
+//! Fit a joint panel response model once and evaluate whole intervention programs under it.
+//!
+//! Question: what does a two-channel panel with carryover predict for complete intervention
+//! programs, and which assignment design identifies those programs?
+//!
+//! Data: the retained conformance panels under `conformance/response/joint_panel/`, parsed by
+//! `joint_panel_fixture.rs`. The first panel assigns doses period by period; the second assigns
+//! whole programs to independent groups. The fixture hides no fitting.
+//!
+//! Steps: for frequentist and for Bayesian inference, `Study::prepare_joint_panel` compiles the
+//! request without fitting, `estimate` fits and evaluates the declared worlds, and a second
+//! `estimate` reuses the checked fit. The last block prepares the whole-program experiment and
+//! reads its identification.
+//!
+//! Asserted: two estimates perform exactly one fit and return the same points; the
+//! whole-program request is an identified claim.
+//!
+//! What this establishes: the printed responses of the first panel are conditional on the fitted
+//! mechanism. Whole-program randomization with a declared exogenous context identifies the
+//! program worlds, and the model fit adds no identification. The intervals are not checked
+//! against the fixture's truth here.
+//!
+//! Run: `cargo run -p antecedent --example joint_panel_workflow`
+//! Source: `examples/rust/joint_panel_workflow.rs`
 mod joint_panel_fixture;
 use antecedent::{Study, analysis::joint_panel::JointPanelFit};
 use antecedent_core::ExecutionContext;
@@ -38,12 +60,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             JointPanelFit::Varying(fit) => println!("actual change attempts: {:?}", fit.attempts),
         }
-        // Re-evaluation reuses the checked fit rather than reconstructing a builder.
+        // A second evaluation reuses the checked fit: the fit count stays at one and the
+        // points are identical.
         let again = prepared.estimate(&ctx)?;
         assert_eq!(prepared.fits_performed(), 1);
         assert_eq!(result.point, again.point);
         println!("fit count after reuse: {}", prepared.fits_performed());
     }
+    // Assigning complete programs at random, with the context declared exogenous, is the design
+    // that identifies a program's effect. Preparation decides this before any fit.
     let ctx = ExecutionContext::production(20_261_021, 1);
     let data = joint_panel_fixture::whole_program_source();
     let mut request =

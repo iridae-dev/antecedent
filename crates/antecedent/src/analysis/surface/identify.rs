@@ -1,4 +1,5 @@
-//! Identification stage types.
+//! Identification results, estimands and the transport and recovery identifiers, for reading
+//! why a query is or is not identified under a declared structure.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,10 +1,25 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Compare an observation, a clamp and a shock on one feedback system.
 //!
-//! The system is `A = 0.4 B + U_A` and `B = 0.5 A + U_B` with independent centered
+//! Question: in a system where `A` and `B` cause each other, how does `B` relate to `A` when `A`
+//! is observed, when `A` is fixed, and when the disturbance of `A` is shifted?
+//!
+//! Model and truth: `A = 0.4 B + U_A` and `B = 0.5 A + U_B` with independent centered
 //! unit-variance disturbances. No data are simulated: each answer is the Gaussian equilibrium
-//! law the stated equations imply, so the three numbers are fixture truths of this model. A
-//! second system shows an intervention with no unique solution, retained as failed mass.
+//! law the stated equations imply, so the three numbers are fixture truths of this model. The
+//! observed slope of `B` on `A` is `1.40625 / 1.8125`, about 0.776. Clamping `A` from 0 to 1
+//! moves the mean of `B` by 0.5, the structural coefficient. A unit shock to `U_A` moves it by
+//! 0.625, because the loop feeds the shock back. A second system, `A = B + C + U_A`,
+//! `B = A + U_B`, `C = A + U_C`, has no unique solution once `C` is clamped.
+//!
+//! Asserted: the three values above; that the clamped worlds are solved in acyclic order and the
+//! shocked world by strongly connected blocks; and that the unsolvable intervention is returned
+//! with failed mass 1, solved mass 0 and a named next attempt.
+//!
+//! What this establishes: observing, clamping and shocking are three different questions with
+//! three different answers on the same equations, and an intervention without a unique
+//! equilibrium stays visible as failed mass. The equations are declared, not estimated, so
+//! nothing here is a statement about data.
 //!
 //! Run: `cargo run -p antecedent --example feedback_three_questions`
 //! Source: `examples/rust/feedback_three_questions.rs`
@@ -65,7 +80,8 @@ fn close(left: f64, right: f64, tolerance: f64) -> bool {
 
 /// Runs the example end to end; `main` calls it and the example test suite runs it.
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
-    // A = 0.4 B + U_A, B = 0.5 A + U_B.
+    // A = 0.4 B + U_A, B = 0.5 A + U_B. World 0 observes; worlds 1 and 2 clamp A, which cuts
+    // the edge into A; world 3 shifts A by one unit and leaves the loop intact.
     let feedback = specification(vec![0.0, 0.4, 0.5, 0.0], 2)?;
     let requests = [
         CyclicWorldRequest::observational(world(0)),
@@ -97,7 +113,8 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     println!("mean change in B when A is clamped from 0 to 1: {:.4}", high - low);
     println!("mean change in B after a unit shock to U_A: {shock:.4}");
 
-    // A = B + C + U_A, B = A + U_B, C = A + U_C.
+    // A = B + C + U_A, B = A + U_B, C = A + U_C. With C clamped, A = B + 1 + U_A and
+    // B = A + U_B have no unique solution, so the world is reported as failed mass.
     let loops = specification(vec![0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0], 3)?;
     let clamped = evaluate_linear_world(
         &loops,

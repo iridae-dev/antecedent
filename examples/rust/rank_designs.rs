@@ -11,13 +11,27 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
-//! Rank candidate experimental designs by identification probability.
+//! Rank candidate next studies by how much they raise the probability of identification.
 //!
-//! Ranking is advisory — it does not auto-rerun analyses. Ranking runs through a
-//! prepared study's contract, which refuses an unsupported study and reports the candidates the
-//! objective cannot score instead of scoring them.
+//! Question: given uncertainty about the graph, which further measurement, environment,
+//! sampling change or intervention is most likely to make the effect identified?
+//!
+//! Inputs: three weighted graph samples (weights 0.5, 0.3, 0.2), of which only the first
+//! identifies the query, and four candidate designs: measure a further variable, observe a
+//! further environment, sample more often, and intervene on the treatment. A small confounded
+//! study (`z -> t`, `z -> y`, `t -> y`) supplies the prepared contract the ranking runs through.
+//!
+//! Asserted: every candidate is either ranked or reported as a violation; at least one is a
+//! violation; the ranking spent a positive Monte Carlo budget.
+//!
+//! What this establishes: ranking is advisory and runs no analysis. It goes through a prepared
+//! study's contract, which refuses an unsupported study, and a candidate the objective cannot
+//! score is reported instead of scored: more observational samples cannot identify a
+//! structurally unidentified effect. The graph weights and unlock sets are declared inputs, not
+//! estimates from data.
 //!
 //! Run: `cargo run -p antecedent --example rank_designs`
+//! Source: `examples/rust/rank_designs.rs`
 
 use std::sync::Arc;
 
@@ -41,6 +55,8 @@ fn candidate_kind(c: &CandidateDesign) -> &'static str {
 
 /// Runs the example end to end; `main` calls it and the example test suite runs it.
 pub fn run() -> Result<(), CausalError> {
+    // Structural uncertainty: three candidate graphs with their weights, and whether each one
+    // identifies the query.
     let graphs = WeightedGraphSamples::new(
         vec![0.5, 0.3, 0.2],
         vec![
@@ -77,6 +93,8 @@ pub fn run() -> Result<(), CausalError> {
         }),
     ];
 
+    // What each design would buy: measuring variable 3 or observing environment 7 makes the
+    // query identifiable under graphs where it currently is not.
     let unlock_vars = [(q, Arc::from([VariableId::from_raw(3)]))];
     let unlock_envs = [(q, Arc::from([EnvironmentId::from_raw(7)]))];
     let ranker = DesignRanker::new().with_config(DesignRankConfig {

@@ -3,12 +3,28 @@
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
 )]
-//! Staged `MediationEffect` and `Counterfactual` on a confounded linear SCM.
+//! Natural direct, natural indirect and total effects, and unit-level counterfactuals, on one
+//! confounded linear model.
 //!
-//! Z confounds A, M, and Y. For control 0.2 vs active 0.8 the structural
-//! contrasts are NDE=1.8, NIE=4.8, total/mean ITE=6.6.
+//! Question: how much of the effect of `a` on `y` passes through the mediator `m`, and what is
+//! each unit's outcome change when `a` moves from 0.2 to 0.8?
+//!
+//! Data and truth: 500 deterministic rows with `m = 2 a + 0.5 z + ...` and
+//! `y = 3 a + 4 m + 5 z + ...`; `z` confounds `a`, `m` and `y`. For control 0.2 against active
+//! 0.8 the structural contrasts are: natural direct effect `3 * 0.6 = 1.8`, natural indirect
+//! effect `2 * 4 * 0.6 = 4.8`, total effect and mean individual effect 6.6.
+//!
+//! Asserted: each mediation contrast is within 0.03 of its truth and is estimated by
+//! `mediation.linear`; the counterfactual query returns 500 unit effects with mean within 0.03
+//! of 6.6, estimated by `gcm.fit`.
+//!
+//! What this establishes: on a linear model with the confounder measured, the mediation and
+//! counterfactual routes agree with the structural coefficients. The decomposition relies on
+//! the linear mechanisms and on `z` being the only common cause; the unit effects are statements
+//! under the fitted mechanisms. The bootstrap and refuters are off.
 //!
 //! Run: `cargo run -p antecedent --example staged_static_kinds`
+//! Source: `examples/rust/staged_static_kinds.rs`
 
 use std::sync::Arc;
 
@@ -76,6 +92,8 @@ pub fn run() -> Result<(), CausalError> {
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("mediation.linear"));
     }
 
+    // The counterfactual query fits a mechanism per node and returns, for every observed unit,
+    // the change in y when a is set to the active level instead of the control level.
     let query = CounterfactualQuery::new(
         VariableId::from_raw(2),
         Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(active))]),
