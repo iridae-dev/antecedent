@@ -18,6 +18,9 @@ from ._native import (
     beta_from_moments as _beta_from_moments,
 )
 from ._native import (
+    compose_count_power_priors as _compose_count_power_priors,
+)
+from ._native import (
     compose_external_priors as _compose_external_priors,
 )
 from ._native import (
@@ -54,6 +57,9 @@ from ._native import (
     prior_catalog_rank as _rank,
 )
 from ._native import (
+    rename_composed_coordinates as _rename_composed_coordinates,
+)
+from ._native import (
     select_beta_power_prior_alpha as _select_alpha_beta,
 )
 from ._native import (
@@ -68,6 +74,7 @@ from ._native import (
 from ._native import (
     transport_kernel_weights as _transport_kernel_weights,
 )
+from .errors import CausalValueError
 
 if TYPE_CHECKING:
     from .joint_distribution import DistributionIdentity, ScientificQuantity
@@ -211,6 +218,14 @@ class ExternalPriorSourceSpec:
     design discount). It is distinct from MCMC effective sample size and from
     Kish importance-weighting ESS (see ``ComposedPrior.kish_ess``) — see
     :mod:`antecedent.priors` module docs.
+
+    ``coefficient_names`` names the coordinates of ``mean`` / ``variance`` (one
+    per coefficient, unique). Named sources compose into a named
+    :class:`ComposedPrior`, which maps **by name** onto a target's coefficient
+    columns: the design columns of ``Bayesian(prior_from=...)``, or the
+    outcome-regression columns (``intercept``, ``coef_<covariate>``) of
+    ``DML(prior_from=...)`` / ``Aipw(prior_from=...)``. Names are never
+    inferred; sources composed together carry the same names or none.
     """
 
     id: str
@@ -218,6 +233,25 @@ class ExternalPriorSourceSpec:
     variance: tuple[float, ...]
     weight: ExternalPriorWeight = field(default_factory=ExternalPriorWeight)
     ess: float | None = None
+    coefficient_names: tuple[str, ...] | None = None
+
+    def __post_init__(self) -> None:
+        names = self.coefficient_names
+        if names is None:
+            return
+        names = tuple(names)
+        object.__setattr__(self, "coefficient_names", names)
+        if len(names) != len(self.mean):
+            raise CausalValueError(
+                f"source {self.id!r} names {len(names)} coefficients but carries {len(self.mean)}"
+                " coordinates; name every coordinate",
+                reason_code="quantity_semantics_mismatch",
+            )
+        if any(not isinstance(n, str) or not n for n in names) or len(set(names)) != len(names):
+            raise CausalValueError(
+                f"source {self.id!r}: coefficient names must be unique non-empty strings",
+                reason_code="quantity_semantics_mismatch",
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -336,6 +370,41 @@ class ComposedPrior:
     #: Support and overlap of the target weighting with the source rows; set
     #: only by :func:`compose_external_priors_for_target`.
     target_overlap: TargetOverlap | None = None
+    #: Names of the coefficient coordinates, carried from the sources'
+    #: ``coefficient_names``. A named prior maps by name onto a target's
+    #: coefficient columns (design columns of a Bayesian g-computation, the
+    #: outcome-regression columns of DML / Aipw); an unnamed one is positional over a
+    #: target of the same width.
+    coefficient_names: tuple[str, ...] | None = None
+    #: The power-prior discount selection this prior was composed at, set only by the
+    #: ``select_alpha_prior_*`` functions: the criterion, the selected alpha and the
+    #: selection-valid interval semantics recorded in the prior's provenance.
+    alpha_selection: SelectedAlpha | None = None
+
+    def with_coefficient_mapping(self, mapping: PriorMapping) -> ComposedPrior:
+        """This prior with its coordinates renamed by a declared ``PriorMapping``.
+
+        ``PriorMapping.named_parameters([(composed_name, target_name), ...])`` renames the paired
+        coordinates; an unpaired coordinate is dropped from the mapping (it is renamed to a name no
+        target column has). ``PriorMapping.identical()`` leaves the names. An effect-functional
+        mapping has no coordinate to land on and is refused.
+        """
+        names = self.coefficient_names
+        if names is None:
+            raise CausalValueError(
+                "a PriorMapping renames the named coordinates of a composed prior; name the "
+                "sources' coefficients (ExternalPriorSourceSpec.coefficient_names) first",
+                reason_code="quantity_semantics_mismatch",
+            )
+        try:
+            renamed = tuple(
+                _rename_composed_coordinates(
+                    list(names), mapping.kind, [list(pair) for pair in mapping.pairs]
+                )
+            )
+        except ValueError as error:
+            raise CausalValueError(str(error), reason_code="quantity_semantics_mismatch") from error
+        return replace(self, coefficient_names=renamed)
 
     def to_native_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -360,10 +429,15 @@ class ComposedPrior:
             d["conflict_p_values"] = list(self.conflict_p_values)
         if self.conflict_kl_values:
             d["conflict_kl_values"] = list(self.conflict_kl_values)
-        if self.assumption_ids:
-            d["assumption_ids"] = list(self.assumption_ids)
+        ids = list(self.assumption_ids)
+        if self.alpha_selection is not None:
+            ids.append(self.alpha_selection.provenance_id())
+        if ids:
+            d["assumption_ids"] = ids
         if self.transport is not None:
             d["transport"] = self.transport.to_wire()
+        if self.coefficient_names is not None:
+            d["coefficient_names"] = list(self.coefficient_names)
         return d
 
 
@@ -381,9 +455,11 @@ class BetaHyperparameters:
       because ``mean`` and ``ess`` alone determine ``alpha`` and ``beta``.
 
     A Beta prior is the prior of the Beta-Binomial backend
-    (:func:`beta_binomial_posterior`, :func:`exceedance_posterior`). It is
-    not a coefficient prior, so it is not accepted by
-    ``compose_external_priors`` or ``Bayesian(prior_from=...)``.
+    (:func:`beta_binomial_posterior`, :func:`exceedance_posterior`) and of a
+    Bayesian conditional or exceedance :class:`~antecedent.Association`
+    (``Bayesian(prior_from=<Beta prior>)``). It is not a coefficient prior, so
+    ``compose_external_priors`` does not take it; :func:`compose_count_priors`
+    composes count sources.
 
     ESS convention: ``ess = alpha + beta - 2``, chosen so the flat reference
     prior ``Beta(1, 1)`` maps to ``ess = 0`` — which is what makes
@@ -433,9 +509,10 @@ class GammaHyperparameters:
       prior-strength ``ess`` exactly; no ``variance`` parameter.
 
     Like :class:`BetaHyperparameters`, this is a count-model prior: it is the
-    prior of the Gamma-Poisson backend (:func:`gamma_poisson_posterior`), not a
-    coefficient prior accepted by ``compose_external_priors`` or
-    ``Bayesian(prior_from=...)``.
+    prior of the Gamma-Poisson backend (:func:`gamma_poisson_posterior`) and of
+    a Bayesian conditional :class:`~antecedent.Association` of a count outcome
+    (``Bayesian(prior_from=<Gamma prior>)``), not a coefficient prior accepted
+    by ``compose_external_priors``.
 
     ESS convention: ``ess = shape - 1``, chosen so the reference exponential
     prior ``Gamma(shape=1, ...)`` maps to ``ess = 0``. Some references
@@ -576,9 +653,31 @@ def _normalize_weights(
                 variance=src.variance,
                 weight=wt,
                 ess=src.ess,
+                coefficient_names=src.coefficient_names,
             )
         )
     return out
+
+
+def _shared_coefficient_names(
+    sources: Sequence[ExternalPriorSourceSpec],
+) -> tuple[str, ...] | None:
+    """The coordinate names every source declares, or ``None`` when none does.
+
+    Sources composed together are coordinates of one prior, so they name them alike: a mix of
+    named and unnamed sources, or different names, is refused rather than guessed.
+    """
+    declared = {s.coefficient_names for s in sources}
+    if declared == {None}:
+        return None
+    if len(declared) != 1 or None in declared:
+        raise CausalValueError(
+            "sources composed together must carry the same coefficient_names (or none): "
+            f"{sorted((s.id, s.coefficient_names) for s in sources if s.coefficient_names)} "
+            "against unnamed or differently named sources",
+            reason_code="quantity_semantics_mismatch",
+        )
+    return next(iter(declared))
 
 
 def populations_from_prior_sources(
@@ -751,6 +850,7 @@ def compose_external_priors(
         baseline_variance=baseline_var,
         conflict=conflict,
         transport=transport,
+        coefficient_names=_shared_coefficient_names(srcs),
     )
 
 
@@ -820,6 +920,7 @@ def compose_external_priors_for_target(
         baseline_variance=baseline_var,
         conflict=conflict,
         transport=transport,
+        coefficient_names=_shared_coefficient_names(srcs),
     )
     return replace(composed, target_overlap=TargetOverlap._from_native(raw["target_overlap"]))
 
@@ -932,6 +1033,7 @@ def _composed_prior_from_native(
     baseline_variance: Sequence[float],
     conflict: ConflictPolicy | None,
     transport: TransportPolicy | None,
+    coefficient_names: tuple[str, ...] | None = None,
 ) -> ComposedPrior:
     out_sources = tuple(srcs)
     if raw.get("sources"):
@@ -951,6 +1053,7 @@ def _composed_prior_from_native(
                         ),
                     ),
                     ess=(None if row.get("ess") is None else float(row["ess"])),
+                    coefficient_names=coefficient_names,
                 )
             )
         out_sources = tuple(rebuilt)
@@ -978,6 +1081,7 @@ def _composed_prior_from_native(
         transport=transport,
         baseline_mean=tuple(float(x) for x in baseline_mean),
         baseline_variance=tuple(float(x) for x in baseline_variance),
+        coefficient_names=coefficient_names,
     )
 
 
@@ -1487,6 +1591,15 @@ class SelectedAlpha:
     uniform_interval: tuple[float, float]
     discrepancy_bound: float | None
 
+    #: Identity of this selection inside the prior composed at its alpha, derived natively: the
+    #: criterion, the selected discount, the credible level and which selection-valid interval the
+    #: report states (``bias_aware`` under a declared discrepancy bound, else ``uniform``).
+    provenance: str = ""
+
+    def provenance_id(self) -> str:
+        """Identity of this selection inside the prior composed at its alpha."""
+        return self.provenance
+
 
 def _selected_from_native(d: Mapping[str, Any]) -> SelectedAlpha:
     return SelectedAlpha(
@@ -1513,6 +1626,7 @@ def _selected_from_native(d: Mapping[str, Any]) -> SelectedAlpha:
         discrepancy_bound=(
             None if d["discrepancy_bound"] is None else float(d["discrepancy_bound"])
         ),
+        provenance=str(d["provenance_id"]),
     )
 
 
@@ -1642,8 +1756,235 @@ def select_alpha_linear(
     )
 
 
+@dataclass(frozen=True)
+class BetaSource:
+    """Source counts of a Beta-Binomial power prior: ``successes`` of ``trials`` at discount ``alpha``."""
+
+    id: str
+    successes: int
+    trials: int
+    alpha: float = 1.0
+
+
+@dataclass(frozen=True)
+class GammaSource:
+    """Source counts of a Gamma-Poisson power prior: ``total_count`` over ``exposure`` at discount ``alpha``."""
+
+    id: str
+    total_count: int
+    exposure: float
+    alpha: float = 1.0
+
+
+@dataclass(frozen=True)
+class ComposedCountPrior:
+    """A composed Beta or Gamma prior of a conjugate count posterior.
+
+    ``hyper`` is the prior: ``Beta(a + sum alpha_k * successes_k, b + sum alpha_k * failures_k)``
+    or ``Gamma(shape + sum alpha_k * count_k, rate + sum alpha_k * exposure_k)`` over the power-prior
+    sources. It is usable wherever a count prior is:
+    ``Bayesian(prior_from=composed)`` on a conditional or exceedance
+    :class:`~antecedent.Association` takes the posterior of each cell in closed form. A
+    prior never upgrades identification: the cell's proportion or rate is a statement about the
+    observed law. ``alpha_selection`` records the selected discount and its selection-valid
+    interval semantics when the prior came from :func:`select_alpha_prior_beta_binomial` or
+    :func:`select_alpha_prior_gamma_poisson`.
+    """
+
+    family: Literal["beta", "gamma"]
+    hyper: BetaHyperparameters | GammaHyperparameters
+    source_ids: tuple[str, ...] = ()
+    alphas_applied: tuple[float, ...] = ()
+    assumption_ids: tuple[str, ...] = ()
+    alpha_selection: SelectedAlpha | None = None
+
+    def to_native_dict(self) -> dict[str, Any]:
+        ids = list(self.assumption_ids)
+        if self.alpha_selection is not None:
+            ids.append(self.alpha_selection.provenance_id())
+        out: dict[str, Any] = {**_count_hyper_dict(self.hyper), "assumption_ids": ids}
+        if self.source_ids:
+            # The native side states the composition in the prior's identity.
+            out["sources"] = [
+                [i, float(a)] for i, a in zip(self.source_ids, self.alphas_applied, strict=True)
+            ]
+        return out
+
+
+def _count_hyper_dict(hyper: BetaHyperparameters | GammaHyperparameters) -> dict[str, Any]:
+    if isinstance(hyper, BetaHyperparameters):
+        return {"family": "beta", "alpha": float(hyper.alpha), "beta": float(hyper.beta)}
+    if isinstance(hyper, GammaHyperparameters):
+        return {"family": "gamma", "shape": float(hyper.shape), "rate": float(hyper.rate)}
+    raise CausalValueError(f"not a count prior: {type(hyper).__name__}")
+
+
+def count_prior_wire(
+    prior: BetaHyperparameters | GammaHyperparameters | ComposedCountPrior,
+) -> dict[str, Any]:
+    """The native declaration of a Beta, Gamma or composed count prior."""
+    if isinstance(prior, ComposedCountPrior):
+        return prior.to_native_dict()
+    return {**_count_hyper_dict(prior), "assumption_ids": []}
+
+
+def _check_discount(alpha: float) -> float:
+    if not 0.0 <= alpha <= 1.0:
+        raise CausalValueError(f"a power-prior discount is in [0, 1], got {alpha!r}")
+    return float(alpha)
+
+
+def compose_count_priors(
+    base: BetaHyperparameters | GammaHyperparameters,
+    sources: Sequence[BetaSource | GammaSource],
+) -> ComposedCountPrior:
+    """Compose count sources into one Beta or Gamma prior by the power prior.
+
+    ``base`` is the prior before the sources; each source adds its counts scaled by its own
+    ``alpha``. Beta sources go with a Beta base and Gamma sources with a Gamma base. The
+    arithmetic and its validation are native.
+    """
+    if isinstance(base, BetaHyperparameters):
+        if not all(isinstance(s, BetaSource) for s in sources):
+            raise CausalValueError("a Beta prior composes BetaSource counts")
+        family: Literal["beta", "gamma"] = "beta"
+        rows = [(float(s.successes), float(s.trials), float(s.alpha)) for s in sources]  # type: ignore[union-attr]
+        first, second = _compose_count_power_priors(family, (base.alpha, base.beta), rows)
+        hyper: BetaHyperparameters | GammaHyperparameters = BetaHyperparameters(first, second)
+    elif isinstance(base, GammaHyperparameters):
+        if not all(isinstance(s, GammaSource) for s in sources):
+            raise CausalValueError("a Gamma prior composes GammaSource counts")
+        family = "gamma"
+        rows = [(float(s.total_count), float(s.exposure), float(s.alpha)) for s in sources]  # type: ignore[union-attr]
+        first, second = _compose_count_power_priors(family, (base.shape, base.rate), rows)
+        hyper = GammaHyperparameters(first, second)
+    else:
+        raise CausalValueError("base must be BetaHyperparameters or GammaHyperparameters")
+    return ComposedCountPrior(
+        family=family,
+        hyper=hyper,
+        source_ids=tuple(s.id for s in sources),
+        alphas_applied=tuple(float(s.alpha) for s in sources),
+    )
+
+
+def select_alpha_prior_linear(
+    sources: Sequence[ExternalPriorSourceSpec],
+    baseline_mean: Sequence[float],
+    baseline_variance: Sequence[float],
+    x: Sequence[Sequence[float]],
+    y: Sequence[float],
+    functional: Sequence[float],
+    **options: Any,
+) -> ComposedPrior:
+    """The composed Gaussian prior at the power-prior discount chosen from target fit.
+
+    Runs :func:`select_alpha_linear` (same arguments and options) and composes every source at
+    the selected alpha over the baseline. The result is an ordinary :class:`ComposedPrior`, usable
+    wherever ``prior_from`` is (``Bayesian``, ``DML``, ``Aipw``); its ``alpha_selection`` is the
+    full :class:`SelectedAlpha` report (criterion, the conditional, uniform and bias-aware
+    intervals, the sensitivity table), and the criterion, selected alpha, level and which
+    selection-valid interval the report states enter the prior's identity.
+    """
+    selection = select_alpha_linear(
+        sources, baseline_mean, baseline_variance, x, y, functional, **options
+    )
+    weight = ExternalPriorWeight(alpha=selection.selected_alpha)
+    composed = compose_external_priors(
+        [replace(s, weight=weight) for s in sources],
+        baseline=(list(baseline_mean), list(baseline_variance)),
+    )
+    return replace(composed, alpha_selection=selection)
+
+
+def select_alpha_prior_beta_binomial(
+    source_successes: int,
+    source_trials: int,
+    outcomes: Sequence[bool],
+    *,
+    base: BetaHyperparameters,
+    criterion: Literal["empirical_bayes", "cross_validated"] = "empirical_bayes",
+    folds: int = 5,
+    grid: Sequence[float] | None = None,
+    level: float = 0.95,
+    discrepancy_bound: float | None = None,
+    seed: int = 0,
+) -> ComposedCountPrior:
+    """The Beta power prior at the discount chosen from target fit (a prior, not a report).
+
+    Native selection and construction: ``Beta(base.alpha + a * k0, base.beta + a * (n0 - k0))``
+    at the selected ``a``, with the selection report as ``alpha_selection``.
+    """
+    raw = _select_alpha_beta(
+        int(source_successes),
+        int(source_trials),
+        [bool(o) for o in outcomes],
+        float(base.alpha),
+        float(base.beta),
+        criterion=criterion,
+        folds=int(folds),
+        grid=None if grid is None else [float(g) for g in grid],
+        level=float(level),
+        discrepancy_bound=None if discrepancy_bound is None else float(discrepancy_bound),
+        seed=int(seed),
+    )
+    selection = _selected_from_native(raw)
+    return ComposedCountPrior(
+        family="beta",
+        hyper=BetaHyperparameters(float(raw["prior"][0]), float(raw["prior"][1])),
+        source_ids=("source",),
+        alphas_applied=(selection.selected_alpha,),
+        alpha_selection=selection,
+    )
+
+
+def select_alpha_prior_gamma_poisson(
+    source_total_count: int,
+    source_exposure: float,
+    counts: Sequence[int],
+    *,
+    base: GammaHyperparameters,
+    criterion: Literal["empirical_bayes", "cross_validated"] = "empirical_bayes",
+    folds: int = 5,
+    grid: Sequence[float] | None = None,
+    level: float = 0.95,
+    discrepancy_bound: float | None = None,
+    seed: int = 0,
+) -> ComposedCountPrior:
+    """The Gamma power prior at the discount chosen from target counts (a prior, not a report)."""
+    raw = _select_alpha_gamma(
+        int(source_total_count),
+        float(source_exposure),
+        [int(c) for c in counts],
+        float(base.shape),
+        float(base.rate),
+        criterion=criterion,
+        folds=int(folds),
+        grid=None if grid is None else [float(g) for g in grid],
+        level=float(level),
+        discrepancy_bound=None if discrepancy_bound is None else float(discrepancy_bound),
+        seed=int(seed),
+    )
+    selection = _selected_from_native(raw)
+    return ComposedCountPrior(
+        family="gamma",
+        hyper=GammaHyperparameters(float(raw["prior"][0]), float(raw["prior"][1])),
+        source_ids=("source",),
+        alphas_applied=(selection.selected_alpha,),
+        alpha_selection=selection,
+    )
+
+
 __all__ = [
     "POPULATION_TAG_KEY",
+    "BetaSource",
+    "ComposedCountPrior",
+    "GammaSource",
+    "compose_count_priors",
+    "count_prior_wire",
+    "select_alpha_prior_beta_binomial",
+    "select_alpha_prior_gamma_poisson",
+    "select_alpha_prior_linear",
     "AlphaSensitivity",
     "BandwidthSensitivityRow",
     "BetaBinomialPosterior",

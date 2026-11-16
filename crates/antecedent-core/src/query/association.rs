@@ -5,6 +5,7 @@ use super::fault::AssociationFault;
 use std::sync::Arc;
 
 use super::QueryError;
+use super::attribution::OrderedFloatBits;
 use crate::canonical_encode::{CanonicalEncode, encode_option, encode_variables};
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
@@ -122,6 +123,31 @@ pub enum AssociationFunctional {
         /// Held-out folds (blocks of consecutive time for a series).
         folds: u32,
     },
+    /// The probability `P(Y > threshold)` that the outcome exceeds `threshold` in each stratum
+    /// (a cell of the predictors and conditioning columns crossed): the conditional law of the
+    /// indicator `1{Y > threshold}`. Under conjugate Bayesian inference with a Beta prior the
+    /// posterior of each cell's exceedance probability is the Beta-Binomial one.
+    Exceedance {
+        /// The threshold `t` of `P(Y > t)`.
+        threshold: OrderedFloatBits,
+    },
+}
+
+impl AssociationFunctional {
+    /// The exceedance functional `P(Y > threshold)` within each stratum.
+    #[must_use]
+    pub fn exceedance(threshold: f64) -> Self {
+        Self::Exceedance { threshold: OrderedFloatBits::from_f64(threshold) }
+    }
+
+    /// The threshold of an [`Self::Exceedance`] functional.
+    #[must_use]
+    pub fn exceedance_threshold(self) -> Option<f64> {
+        match self {
+            Self::Exceedance { threshold } => Some(threshold.to_f64()),
+            _ => None,
+        }
+    }
 }
 
 impl AssociationFunctional {
@@ -134,6 +160,7 @@ impl AssociationFunctional {
             Self::Coefficients => "coefficients",
             Self::Measure(measure) => measure.as_str(),
             Self::Predictive { .. } => "predictive",
+            Self::Exceedance { .. } => "exceedance",
         }
     }
 }
@@ -155,6 +182,9 @@ impl CanonicalEncode for AssociationFunctional {
             }
             Self::Predictive { folds } => {
                 writer.word(4).word(u64::from(*folds));
+            }
+            Self::Exceedance { threshold } => {
+                writer.word(5).real(threshold.to_f64());
             }
         }
     }
@@ -280,6 +310,11 @@ impl AssociationQuery {
         }
         match self.functional {
             AssociationFunctional::Auto | AssociationFunctional::Conditional => {}
+            AssociationFunctional::Exceedance { threshold } => {
+                if !threshold.to_f64().is_finite() {
+                    return Err(QueryError::InvalidOutcomeFunctional);
+                }
+            }
             AssociationFunctional::Coefficients => {
                 if self.predictors.is_empty() {
                     return invalid(AssociationFault::CoefficientsPredictor);

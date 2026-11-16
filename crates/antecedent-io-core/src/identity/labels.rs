@@ -484,6 +484,9 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                     crate::AssociationFunctionalWire::Predictive { folds } => {
                         format!("predictive:{folds}")
                     }
+                    crate::AssociationFunctionalWire::Exceedance { threshold } => {
+                        format!("exceedance:{:016x}", threshold.to_bits())
+                    }
                 },
             ),
             (

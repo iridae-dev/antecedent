@@ -1070,6 +1070,18 @@ name = "association_route"
 path = "tests/association_route.rs"
 
 [[test]]
+name = "association_count_conjugate"
+path = "tests/association_count_conjugate.rs"
+
+[[test]]
+name = "count_conjugate_calibration"
+path = "tests/count_conjugate_calibration.rs"
+
+[[test]]
+name = "named_composed_prior"
+path = "tests/named_composed_prior.rs"
+
+[[test]]
 name = "descriptive_fallback"
 path = "tests/descriptive_fallback.rs"
 

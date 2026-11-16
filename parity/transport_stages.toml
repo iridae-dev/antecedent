@@ -10923,5 +10923,123 @@ route = "antecedent_estimate.AipwAte.outcome_prior_bootstrap"
 notes = "An outcome-nuisance prior on the AIPW estimator with a bootstrap, a trimmed or ATT/ATC target, a non-IID SE or a penalized propensity refuses route_not_supported."
 
 [[routes]]
-route = "antecedent.estimators.DML.composed_prior"
-notes = "A ComposedPrior is refused for the outcome nuisance with quantity_semantics_mismatch: it carries positional moments over a Bayesian design with no coefficient names."
+route = "antecedent.estimators.DML.prior_from_composed"
+graph = "backdoor_adjustment_dag"
+evidence = "complete_case_binary_treatment_rows_with_a_named_composed_prior"
+functional = "untrimmed_all_observed_mean_ate"
+guarantee = "doubly_robust_point_with_prior_regularized_outcome_nuisance"
+reference = "docs/priors.md"
+limits = "Per-arm outcome regressions are the posterior mode under the composed Gaussian coefficient prior in every fold, mapped onto the outcome-regression columns by coordinate name (the treatment coordinate dropped); untrimmed AllObserved mean ATE under IID analytic inference with no bootstrap; the prior shapes efficiency and never identification."
+evidence_test = "python/tests/test_composed_prior_currency.py"
+evidence_assertion = "test_a_named_composed_prior_regularizes_the_outcome_nuisance"
+
+[[routes]]
+route = "antecedent.estimators.Aipw.prior_from_composed"
+graph = "backdoor_adjustment_dag"
+evidence = "complete_case_binary_treatment_rows_with_a_named_composed_prior"
+functional = "untrimmed_all_observed_mean_ate"
+guarantee = "doubly_robust_point_with_prior_regularized_outcome_nuisance"
+reference = "docs/priors.md"
+limits = "Per-arm outcome regressions are the posterior mode under the composed Gaussian coefficient prior in every fold, mapped onto the outcome-regression columns by coordinate name (the treatment coordinate dropped); untrimmed AllObserved mean ATE under IID analytic inference with no bootstrap; the prior shapes efficiency and never identification."
+evidence_test = "python/tests/test_composed_prior_currency.py"
+evidence_assertion = "test_a_named_composed_prior_regularizes_the_outcome_nuisance"
+
+[[routes]]
+route = "antecedent.estimators.DML.composed_prior_unmappable"
+notes = "A composed prior none of whose coordinates names an outcome-regression column, and an effect-functional mapping of a composed prior, are refused quantity_semantics_mismatch naming ExternalPriorSourceSpec.coefficient_names."
+
+[[routes]]
+route = "antecedent_prob.select_coordinates_by_name"
+graph = "backdoor_adjustment_dag"
+evidence = "named_gaussian_composed_prior"
+functional = "coefficient_prior_over_target_columns"
+guarantee = "closed_form_prior_mapping"
+reference = "docs/priors.md"
+limits = "Named Gaussian composed prior mapped by coordinate name onto the design columns of a Bayesian g-computation; coordinates the design lacks are dropped and design columns the sources lack keep the weakly informative baseline; the prior never upgrades identification."
+evidence_test = "python/tests/test_composed_prior_currency.py"
+evidence_assertion = "test_a_named_prior_maps_by_name_onto_the_bayesian_design_and_equals_the_closed_form"
+
+[[routes]]
+route = "antecedent.inference.Bayesian.prior_from_named_composed"
+graph = "backdoor_adjustment_dag"
+evidence = "named_gaussian_composed_prior"
+functional = "coefficient_prior_over_target_columns"
+guarantee = "closed_form_prior_mapping"
+reference = "docs/priors.md"
+limits = "Named Gaussian composed prior mapped by coordinate name onto the design columns of a Bayesian g-computation; coordinates the design lacks are dropped and design columns the sources lack keep the weakly informative baseline; the prior never upgrades identification."
+evidence_test = "python/tests/test_composed_prior_currency.py"
+evidence_assertion = "test_a_named_prior_maps_by_name_onto_the_bayesian_design_and_equals_the_closed_form"
+
+[[routes]]
+route = "antecedent.priors.select_alpha_prior_linear"
+graph = "backdoor_adjustment_dag"
+evidence = "named_gaussian_composed_prior_at_a_selected_discount"
+functional = "coefficient_prior_over_target_columns"
+guarantee = "closed_form_prior_mapping"
+reference = "docs/priors.md"
+limits = "The composition of every source at the discount selected from the target data by empirical Bayes or cross-validated predictive density; the selection, its level and its selection-valid interval semantics (uniform, or bias-aware under a declared discrepancy bound) are recorded in the prior's identity."
+evidence_test = "python/tests/test_composed_prior_currency.py"
+evidence_assertion = "test_an_alpha_selected_prior_is_a_prior_object_with_its_selection_in_the_provenance"
+
+[[routes]]
+route = "antecedent.inference.Bayesian.composed_prior_unmappable"
+notes = "A named composed prior none of whose coordinates names a design column is refused quantity_semantics_mismatch naming ExternalPriorSourceSpec.coefficient_names."
+
+[[routes]]
+route = "antecedent_estimate.AssociationEstimator.count_prior"
+graph = "no_graph_association"
+evidence = "cell_rows_of_an_outcome_column"
+functional = "cell_proportion_or_rate"
+guarantee = "closed_form_conjugate_posterior"
+reference = "docs/priors.md"
+limits = "Closed-form conjugate posterior of each cell of a conditional association (a stratum of the predictors and conditioning columns crossed) under a Beta or Gamma prior on independent unweighted rows; the equal-tailed 95% credible interval and the posterior predictive of one further unit; a descriptive association, never an intervention effect, with the calibration label not_measured until a record is earned."
+evidence_test = "crates/antecedent/tests/association_count_conjugate.rs"
+evidence_assertion = "the_exceedance_of_each_cell_is_the_beta_binomial_posterior_in_closed_form"
+
+[[routes]]
+route = "antecedent.descriptive.Association.exceedance"
+graph = "no_graph_association"
+evidence = "cell_rows_of_an_outcome_column"
+functional = "cell_exceedance_probability"
+guarantee = "closed_form_conjugate_posterior"
+reference = "docs/priors.md"
+limits = "Closed-form conjugate posterior of each cell of a conditional association (a stratum of the predictors and conditioning columns crossed) under a Beta or Gamma prior on independent unweighted rows; the equal-tailed 95% credible interval and the posterior predictive of one further unit; a descriptive association, never an intervention effect, with the calibration label not_measured until a record is earned."
+evidence_test = "python/tests/test_composed_prior_currency.py"
+evidence_assertion = "test_the_exceedance_of_each_cell_is_the_beta_binomial_posterior"
+
+[[routes]]
+route = "antecedent.inference.Bayesian.prior_from_count"
+graph = "no_graph_association"
+evidence = "cell_rows_of_an_outcome_column"
+functional = "cell_proportion_or_rate"
+guarantee = "closed_form_conjugate_posterior"
+reference = "docs/priors.md"
+limits = "Closed-form conjugate posterior of each cell of a conditional association (a stratum of the predictors and conditioning columns crossed) under a Beta or Gamma prior on independent unweighted rows; the equal-tailed 95% credible interval and the posterior predictive of one further unit; a descriptive association, never an intervention effect, with the calibration label not_measured until a record is earned."
+evidence_test = "python/tests/test_composed_prior_currency.py"
+evidence_assertion = "test_the_rate_of_each_count_cell_is_the_gamma_poisson_posterior"
+
+[[routes]]
+route = "antecedent.priors.select_alpha_prior_beta_binomial"
+graph = "no_graph_association"
+evidence = "cell_rows_of_an_outcome_column"
+functional = "cell_proportion_or_rate"
+guarantee = "closed_form_conjugate_posterior"
+reference = "docs/priors.md"
+limits = "The Beta power prior at the discount selected from the target trials; the selection and its interval semantics are recorded in the prior's identity."
+evidence_test = "python/tests/test_composed_prior_currency.py"
+evidence_assertion = "test_a_power_prior_discount_selected_from_the_data_is_a_count_prior"
+
+[[routes]]
+route = "antecedent.priors.select_alpha_prior_gamma_poisson"
+graph = "no_graph_association"
+evidence = "cell_rows_of_an_outcome_column"
+functional = "cell_proportion_or_rate"
+guarantee = "closed_form_conjugate_posterior"
+reference = "docs/priors.md"
+limits = "The Gamma power prior at the discount selected from the target counts; the selection and its interval semantics are recorded in the prior's identity."
+evidence_test = "python/tests/test_composed_prior_currency.py"
+evidence_assertion = "test_a_power_prior_discount_selected_from_the_data_is_a_count_prior"
+
+[[routes]]
+route = "antecedent.inference.Bayesian.count_prior_wrong_route"
+notes = "A Beta or Gamma prior is the prior of a conditional or exceedance Association; any other route refuses it option_not_applicable."

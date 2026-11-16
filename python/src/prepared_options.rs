@@ -53,6 +53,8 @@ pub(crate) struct InferenceSpec {
     pub prior_artifact: Option<Vec<u8>>,
     pub prior_mapping: Option<antecedent::io::PriorMapping>,
     pub composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
+    /// Beta or Gamma prior of a conjugate count posterior (a Bayesian association).
+    pub count_prior: Option<antecedent::inference::PriorSet>,
     /// Outcome likelihood; `None` keeps the Gaussian identity-link default.
     pub likelihood: Option<antecedent::inference::BayesLikelihood>,
     /// Numerical draw controls; `None` leaves the draw count unconstrained.
@@ -87,6 +89,9 @@ impl InferenceSpec {
                     crate::prior_bank::owned_composed_prior_from_dict(value.cast::<PyDict>()?)
                 })
                 .transpose()?,
+            count_prior: item("count_prior")?
+                .map(|value| crate::prior_bank::count_prior_from_dict(value.cast::<PyDict>()?))
+                .transpose()?,
             likelihood: item("likelihood")?
                 .map(|value| parse_likelihood(&value.extract::<String>()?))
                 .transpose()?,
@@ -119,11 +124,19 @@ impl InferenceSpec {
         if spec.prior_artifact.is_some() && spec.composed_prior.is_some() {
             return Err(crate::value_err("choose either prior_artifact or composed_prior"));
         }
+        if spec.count_prior.is_some()
+            && (spec.prior_artifact.is_some() || spec.composed_prior.is_some())
+        {
+            return Err(crate::value_err(
+                "choose either a count prior or a posterior artifact / composed Gaussian prior",
+            ));
+        }
         if !spec.is_bayesian()
             && (spec.n_draws.is_some()
                 || spec.prior_artifact.is_some()
                 || spec.prior_mapping.is_some()
                 || spec.composed_prior.is_some()
+                || spec.count_prior.is_some()
                 || spec.likelihood.is_some()
                 || spec.draw_controls.is_some()
                 || spec.white_innovation.is_some()
@@ -393,6 +406,7 @@ impl PrepareOptions {
             artifact.as_deref(),
             spec.prior_mapping.take(),
             spec.composed_prior.take(),
+            spec.count_prior.take(),
             spec.likelihood.unwrap_or(antecedent::inference::BayesLikelihood::GaussianIdentity),
         )?;
         let builder = match design_model {
@@ -442,6 +456,7 @@ impl PrepareOptions {
             ("prior_artifact", spec.prior_artifact.is_some()),
             ("prior_mapping", spec.prior_mapping.is_some()),
             ("composed_prior", spec.composed_prior.is_some()),
+            ("count_prior", spec.count_prior.is_some()),
         ]
         .into_iter()
         .filter_map(|(name, set)| set.then_some(name))

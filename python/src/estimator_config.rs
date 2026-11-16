@@ -328,6 +328,18 @@ fn build_outcome_prior(
 ) -> PyResult<Option<antecedent::estimate::OutcomePriorSource>> {
     let artifact = dict.get_item("prior_artifact")?.filter(|value| !value.is_none());
     let mapping = dict.get_item("prior_mapping")?.filter(|value| !value.is_none());
+    let composed = dict.get_item("composed_prior")?.filter(|value| !value.is_none());
+    if let Some(composed) = composed {
+        if artifact.is_some() || mapping.is_some() {
+            return Err(crate::value_err(
+                "estimator_config['composed_prior'] is the whole prior: it takes no \
+                 prior_artifact and its coordinate mapping is declared by renaming its \
+                 coefficient names",
+            ));
+        }
+        return crate::prior_bank::outcome_prior_from_composed(composed.cast::<PyDict>()?)
+            .map(Some);
+    }
     let Some(artifact) = artifact else {
         if mapping.is_some() {
             return Err(crate::value_err(

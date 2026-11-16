@@ -352,6 +352,7 @@ pub(crate) use checked_route::{
 };
 pub(crate) use checked_static_cross_world::CheckedStaticCrossWorldOperation;
 mod checked_association;
+pub(crate) use checked_association::count_prior_of;
 mod checked_iv_bounds;
 mod checked_temporal_design;
 pub(crate) use checked_iv_bounds::CheckedIvBoundsOperation;

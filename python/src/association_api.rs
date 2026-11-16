@@ -27,7 +27,22 @@ pub struct AssociationTermSection {
     pub posterior_sd: Option<f64>,
     pub posterior_lower: Option<f64>,
     pub posterior_upper: Option<f64>,
+    pub conjugate: Option<AssociationConjugateSection>,
     pub rows: usize,
+}
+
+/// The closed-form conjugate count posterior of one cell of a Bayesian association.
+#[pyclass(get_all, skip_from_py_object)]
+#[derive(Clone)]
+pub struct AssociationConjugateSection {
+    pub family: String,
+    pub prior: (f64, f64),
+    pub posterior: (f64, f64),
+    pub count: u64,
+    pub exposure: f64,
+    pub log_marginal_likelihood: f64,
+    pub predictive_mean: f64,
+    pub predictive_variance: f64,
 }
 
 /// Resampling behind the standard errors and spreads of a frequentist result.
@@ -114,6 +129,16 @@ impl From<&AssociationPayload> for AssociationSection {
                     posterior_sd: term.posterior.map(|p| p.sd),
                     posterior_lower: term.posterior.map(|p| p.lower),
                     posterior_upper: term.posterior.map(|p| p.upper),
+                    conjugate: term.conjugate.map(|cell| AssociationConjugateSection {
+                        family: cell.family.to_owned(),
+                        prior: cell.prior,
+                        posterior: cell.posterior,
+                        count: cell.count,
+                        exposure: cell.exposure,
+                        log_marginal_likelihood: cell.log_marginal_likelihood,
+                        predictive_mean: cell.predictive_mean,
+                        predictive_variance: cell.predictive_variance,
+                    }),
                     rows: term.rows,
                 })
                 .collect(),
@@ -159,6 +184,7 @@ impl From<&AssociationPayload> for AssociationSection {
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AssociationTermSection>()?;
+    m.add_class::<AssociationConjugateSection>()?;
     m.add_class::<AssociationResamplingSection>()?;
     m.add_class::<AssociationPosteriorSection>()?;
     m.add_class::<AssociationPredictionSection>()?;

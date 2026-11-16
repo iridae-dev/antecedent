@@ -24,7 +24,9 @@ use antecedent_core::{
     AssociationQuery, CausalQuery, LikelihoodModel, OrdinaryBayesianLikelihood, Prior,
     ScoreFrequentist, ScoreModel, VariableId,
 };
-use antecedent_estimate::{AssociationSelection, Modality, bayesian_method, select_analysis};
+use antecedent_estimate::{
+    AssociationSelection, Modality, bayesian_method, count_conjugate_method, select_analysis,
+};
 
 use super::LoweringContext;
 use super::static_response::{
@@ -107,12 +109,14 @@ fn realization(
             posterior: None,
         }),
         InferenceMode::Bayesian(config) => {
-            let method = bayesian_method(selection, query.weight.is_some());
+            let method = crate::analysis::execute::count_prior_of(config)
+                .and_then(|prior| count_conjugate_method(selection, query.weight.is_some(), prior))
+                .unwrap_or_else(|| bayesian_method(selection, query.weight.is_some()));
             let prior =
                 Prior::new(format!("association.prior.{method}")).map_err(declaration_error)?;
             let likelihood = LikelihoodModel::new(format!("association.{analysis}"))
                 .map_err(declaration_error)?;
-            let (algorithm, draws) = if method == "conjugate_normal_inverse_gamma" {
+            let (algorithm, draws) = if method.starts_with("conjugate_") {
                 (PosteriorAlgorithm::Conjugate, 0)
             } else {
                 (PosteriorAlgorithm::BayesianBootstrap, config.n_draws)

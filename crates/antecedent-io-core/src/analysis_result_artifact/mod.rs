@@ -1749,8 +1749,8 @@ mod validate;
 pub use association::{
     ASSOCIATION_ANALYSES, ASSOCIATION_ANALYTIC_UNCERTAINTY, ASSOCIATION_NO_UNCERTAINTY,
     ASSOCIATION_POSTERIOR_UNCERTAINTY, ASSOCIATION_RESAMPLING_UNCERTAINTY,
-    AssociationPosteriorWire, AssociationPredictionWire, AssociationResamplingWire,
-    AssociationTermWire, AssociationWire,
+    AssociationConjugateWire, AssociationPosteriorWire, AssociationPredictionWire,
+    AssociationResamplingWire, AssociationTermWire, AssociationWire,
 };
 pub(crate) use counterfactual_contrasts::validate_outcome_contrasts;
 pub use counterfactual_contrasts::{CounterfactualContrastsWire, OutcomeContrastWire};

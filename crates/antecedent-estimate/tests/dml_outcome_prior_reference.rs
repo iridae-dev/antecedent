@@ -349,3 +349,161 @@ fn a_prior_that_does_not_map_onto_the_outcome_design_is_refused_with_the_next_at
     let refused = plr.fit(&problem, &ctx, AssumptionSet::new()).unwrap_err();
     assert_eq!(refused.reason_code(), Some("route_not_supported"), "{refused}");
 }
+
+// -- Composed external priors with named coordinates ------------------------------------------
+
+mod composed {
+    use antecedent_prob::{
+        ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, KernelFamily, PriorSet,
+        PriorSpec, TransportKernel, TransportPolicy, WeightedTarget,
+        compose_with_weighted_target_transport,
+    };
+
+    use super::{
+        Arc, AssumptionSet, DmlAte, Draw, ExecutionContext, FOLDS, OutcomePriorSource, arm_map,
+        draw, setup,
+    };
+
+    fn gaussian(mean: [f64; 3], variance: [f64; 3]) -> PriorSet {
+        let mut prior = PriorSet::new();
+        prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+            mean: Arc::from(mean.to_vec()),
+            variance: Arc::from(variance.to_vec()),
+        }));
+        prior
+    }
+
+    fn names(items: &[&str]) -> Vec<Arc<str>> {
+        items.iter().map(|name| Arc::from(*name)).collect()
+    }
+
+    /// Two named sources over `[intercept, coef_z2, coef_t0]` transported toward a Gaussian
+    /// kernel target (the transported coordinate is `coef_z2`) and composed by the power prior.
+    fn kernel_weighted() -> antecedent_prob::ComposedPrior {
+        let source = |id: &str, mean: [f64; 3], alpha: f64| ExternalPriorSource {
+            id: Arc::from(id),
+            prior: gaussian(mean, [0.4, 0.3, 0.5]),
+            weight: ExternalPriorWeight::power(alpha).unwrap(),
+            ess: None,
+        };
+        let sources = [source("a", [0.2, 1.0, 1.8], 1.0), source("b", [0.5, 0.6, 2.2], 0.5)];
+        let rows = 40;
+        let effects: Vec<f64> = (0..rows).map(|i| 0.6 + 0.01 * i as f64).collect();
+        let distances: Vec<f64> = (0..rows).map(|i| i as f64 / rows as f64).collect();
+        let kernel = TransportKernel::new(KernelFamily::Gaussian, 1.0).unwrap();
+        let target = WeightedTarget::from_kernel(effects, &distances, kernel).unwrap();
+        let baseline = gaussian([0.0; 3], [100.0; 3]);
+        let (composed, _) = compose_with_weighted_target_transport(
+            &sources,
+            &baseline,
+            TransportPolicy::InvariantConditionalOutcome,
+            &target,
+            Some(1),
+        )
+        .unwrap();
+        composed.with_coefficient_names(names(&["intercept", "coef_z2", "coef_t0"])).unwrap()
+    }
+
+    /// The doubly robust estimate recomputed from the published propensities with the per-fold
+    /// arm models solved by the independent 2 x 2 system of the composed prior's two mapped
+    /// coordinates.
+    fn hand_computed(
+        fit: &antecedent_estimate::EffectEstimate,
+        d: &Draw,
+        mean: [f64; 2],
+        v0: [f64; 2],
+    ) {
+        let n = d.t.len();
+        let table = fit.scores.table.as_ref().expect("a score table");
+        let mut phi = vec![0.0; n];
+        for i in 0..n {
+            let fold = table.fold_ids[i];
+            let in_fold = |j: usize| table.fold_ids[j] == fold;
+            let control: Vec<usize> = (0..n).filter(|&j| !in_fold(j) && d.t[j] < 0.5).collect();
+            let treated: Vec<usize> = (0..n).filter(|&j| !in_fold(j) && d.t[j] > 0.5).collect();
+            let (b0, b1) = (arm_map(&control, d, mean, v0), arm_map(&treated, d, mean, v0));
+            let (mu0, mu1) = (b0[0] + b0[1] * d.z[i], b1[0] + b1[1] * d.z[i]);
+            let mut e = table.propensities[n + i];
+            if let Some(c) = table.propensity_clip {
+                e = e.clamp(c, 1.0 - c);
+            }
+            phi[i] = (mu1 - mu0) + d.t[i] * (d.y[i] - mu1) / e
+                - (1.0 - d.t[i]) * (d.y[i] - mu0) / (1.0 - e);
+        }
+        let expected = phi.iter().sum::<f64>() / n as f64;
+        assert!((fit.ate - expected).abs() <= 1e-9, "{} vs {expected}", fit.ate);
+    }
+
+    #[test]
+    fn a_kernel_weighted_composed_prior_gives_the_hand_computed_map_nuisance_estimate() {
+        let composed = kernel_weighted();
+        let coef = composed.prior.gaussian_coefficients().unwrap();
+        let (mean, v0) = ([coef.mean[0], coef.mean[1]], [coef.variance[0], coef.variance[1]]);
+        let d = draw(80, 4_201);
+        let (data, estimand, query) = setup(&d);
+        let source = OutcomePriorSource::from_composed(
+            composed.coefficient_names.clone(),
+            composed.prior.clone(),
+            "composed:test",
+        )
+        .unwrap();
+        let estimator = DmlAte::new().with_folds(FOLDS).with_outcome_prior(source);
+        let problem = estimator.prepare(&data, &estimand, &query).unwrap();
+        let fit = estimator
+            .fit(&problem, &ExecutionContext::for_tests(4_201), AssumptionSet::new())
+            .unwrap();
+        hand_computed(&fit, &d, mean, v0);
+        // The treatment coordinate has no column in the per-arm regression: it is dropped, and
+        // the name mapping is recorded beside the kernel and the composition.
+        let ids: Vec<String> = fit
+            .provenance
+            .assumptions
+            .entries
+            .iter()
+            .filter_map(|record| match &record.assumption {
+                antecedent_core::Assumption::PriorRestriction(prior) => Some(prior.id.to_string()),
+                _ => None,
+            })
+            .collect();
+        for expected in ["external_prior_name_mapping", "external_composed_prior"] {
+            assert!(ids.iter().any(|id| id == expected), "{expected} in {ids:?}");
+        }
+        let table = fit.scores.table.as_ref().unwrap();
+        assert!(
+            table.nuisance_provenance.contains("mapping=composed:intercept,coef_z2,coef_t0"),
+            "{}",
+            table.nuisance_provenance
+        );
+    }
+
+    #[test]
+    fn an_unnamed_composed_prior_is_positional_and_a_prior_with_no_matching_names_is_refused() {
+        let d = draw(60, 4_202);
+        let (data, estimand, query) = setup(&d);
+        let ctx = ExecutionContext::for_tests(4_202);
+        let two = {
+            let mut prior = PriorSet::new();
+            prior.push(PriorSpec::GaussianCoefficients(
+                GaussianCoefficientPrior::shared(2, 0.5, 0.4).unwrap(),
+            ));
+            prior
+        };
+        let positional =
+            OutcomePriorSource::from_composed(None, two.clone(), "composed:two").unwrap();
+        let estimator = DmlAte::new().with_folds(FOLDS).with_outcome_prior(positional);
+        let problem = estimator.prepare(&data, &estimand, &query).unwrap();
+        let fit = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
+        hand_computed(&fit, &d, [0.5, 0.5], [0.4, 0.4]);
+        let stranger = OutcomePriorSource::from_composed(
+            Some(Arc::from(names(&["alpha", "beta"]))),
+            two,
+            "composed:strangers",
+        )
+        .unwrap();
+        let estimator = DmlAte::new().with_folds(FOLDS).with_outcome_prior(stranger);
+        let problem = estimator.prepare(&data, &estimand, &query).unwrap();
+        let refused = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap_err();
+        assert_eq!(refused.reason_code(), Some("quantity_semantics_mismatch"), "{refused}");
+        assert!(refused.to_string().contains("coefficient_names"), "{refused}");
+    }
+}

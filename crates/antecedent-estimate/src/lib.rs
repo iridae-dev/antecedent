@@ -271,10 +271,10 @@ pub use ar_kernel::kernel_bias_factor;
 pub use arm::TreatmentArm;
 pub use association::{
     AssociationAnalysis, AssociationEstimate, AssociationEstimator, AssociationSelection,
-    AssociationTerm, BayesianSettings, HeldOutCase, MAX_STRATA, MAX_STRATUM_LEVELS, MIN_REPLICATES,
-    Modality, OutcomeKind, PosteriorRecord, PredictionFit, PreparedAssociation, ResamplingRecord,
-    SELECTION_RULE, SPREAD_LEVEL, TermPosterior, bayesian_method, descriptive_assumptions,
-    select_analysis,
+    AssociationTerm, BayesianSettings, ConjugateCell, HeldOutCase, MAX_STRATA, MAX_STRATUM_LEVELS,
+    MIN_REPLICATES, Modality, OutcomeKind, PosteriorRecord, PredictionFit, PreparedAssociation,
+    ResamplingRecord, SELECTION_RULE, SPREAD_LEVEL, TermPosterior, bayesian_method,
+    count_conjugate_method, descriptive_assumptions, select_analysis,
 };
 pub(crate) use bayesian::require_bayesian_n_draws;
 pub use bayesian::{
@@ -312,7 +312,7 @@ pub use descriptive_comparison::{
     raw_contrast, refuse_column_attribution, transform_mean_pair,
 };
 pub use dml::{DmlAte, DmlScore};
-pub use dml_outcome_prior::{OUTCOME_PRIOR_ASSUMPTION_ID, OutcomePriorSource};
+pub use dml_outcome_prior::{NamedOutcomePrior, OUTCOME_PRIOR_ASSUMPTION_ID, OutcomePriorSource};
 pub use dr::{CateProfile, DrLearner, PointwiseCateEstimate};
 pub use empirical_table::{
     BayesianTransportLawProvider, EMPIRICAL_SUPPORT_BAYESIAN_BOOTSTRAP, EMPIRICAL_TABLE_PLUGIN,

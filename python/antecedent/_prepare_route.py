@@ -414,6 +414,15 @@ class _PrepareRoute:
 
     def compile(self) -> tuple[Any, Literal["average", "response_curve", "intervention_response"]]:
         query = self.query
+        if (self.options.get("inference") or {}).get("count_prior") and not isinstance(
+            query, Association
+        ):
+            raise CausalUnsupportedError(
+                f"{type(query).__name__} does not read a Beta or Gamma prior; a count prior is the "
+                "prior of a conditional or exceedance Association "
+                "(Bayesian(prior_from=<Beta or Gamma prior>))",
+                reason_code="option_not_applicable",
+            )
         handler = self._route("pre")
         if handler is not None:
             return getattr(self, handler)()
@@ -1711,7 +1720,11 @@ class _PrepareRoute:
             raise CausalValueError("temporal design columns were not bound at prepare")
         declared = self.options.get("inference") or {}
         if isinstance(self.inference, Bayesian):
-            if declared.get("prior_artifact") is not None or declared.get("composed_prior"):
+            if (
+                declared.get("prior_artifact") is not None
+                or declared.get("composed_prior")
+                or declared.get("count_prior")
+            ):
                 raise _not_applicable("prior_from / composed prior", route)
             # The design's posterior is its own; the conjugate declaration carries the draw
             # count and prior scale without selecting a regression backend.
@@ -1758,7 +1771,11 @@ class _PrepareRoute:
             raise _not_applicable("inference", route)
         declared = self.options.get("inference") or {}
         if isinstance(self.inference, Bayesian):
-            if declared.get("prior_artifact") is not None or declared.get("composed_prior"):
+            if (
+                declared.get("prior_artifact") is not None
+                or declared.get("composed_prior")
+                or declared.get("count_prior")
+            ):
                 raise _not_applicable("prior_from / composed prior", route)
             inference = {
                 "mode": "conjugate",
@@ -1803,12 +1820,15 @@ class _PrepareRoute:
         declared = self.options.get("inference") or {}
         if isinstance(self.inference, Bayesian):
             if declared.get("prior_artifact") is not None or declared.get("composed_prior"):
-                raise _not_applicable("prior_from / composed prior", route)
+                raise _not_applicable("a Gaussian prior_from / composed prior", route)
             inference = {
                 "mode": "conjugate",
                 "n_draws": declared.get("n_draws"),
                 "prior_scale": float(declared.get("prior_scale", 10.0)),
             }
+            if declared.get("count_prior"):
+                # A Beta or Gamma prior makes each cell's posterior the closed-form conjugate one.
+                inference["count_prior"] = declared["count_prior"]
         else:
             inference = {"mode": "frequentist", "prior_scale": 10.0}
         native = _NativePreparedAnalysis.prepare_association(
@@ -1819,6 +1839,7 @@ class _PrepareRoute:
             list(query.conditioning),
             query.functional,
             folds=query.folds if query.functional == "predictive" else None,
+            threshold=query.threshold if query.functional == "exceedance" else None,
             outcome_scale=None if query.outcome_scale == "schema" else query.outcome_scale,
             weight=query.weight,
             refused_after=query.refused_after,

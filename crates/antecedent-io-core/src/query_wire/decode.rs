@@ -855,6 +855,9 @@ pub fn association_query_from_wire(
         AssociationFunctionalWire::Predictive { folds } => {
             AssociationFunctional::Predictive { folds: *folds }
         }
+        AssociationFunctionalWire::Exceedance { threshold } => {
+            AssociationFunctional::exceedance(*threshold)
+        }
     };
     let outcome_scale = match w.outcome_scale.as_deref() {
         None => AssociationOutcome::Schema,

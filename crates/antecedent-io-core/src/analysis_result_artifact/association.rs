@@ -75,8 +75,35 @@ pub struct AssociationTermWire {
     /// Upper end of the equal-tailed posterior interval.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub posterior_upper: Option<f64>,
+    /// The closed-form conjugate count posterior of the cell, with its prior, data and
+    /// posterior predictive; absent for every other construction, so their bodies and digests
+    /// are unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conjugate: Option<AssociationConjugateWire>,
     /// Rows behind this quantity.
     pub rows: u64,
+}
+
+/// The conjugate count posterior of one cell of a Bayesian association.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AssociationConjugateWire {
+    /// `beta_binomial` or `gamma_poisson`.
+    pub family: String,
+    /// Prior hyperparameters: `(alpha, beta)` of the Beta, `(shape, rate)` of the Gamma.
+    pub prior: (f64, f64),
+    /// Posterior hyperparameters, in the same order.
+    pub posterior: (f64, f64),
+    /// Observed successes, or the total count.
+    pub count: u64,
+    /// Observed trials, or the total exposure.
+    pub exposure: f64,
+    /// `ln` marginal likelihood of the cell's data under the prior.
+    pub log_marginal_likelihood: f64,
+    /// Posterior predictive mean of one further unit.
+    pub predictive_mean: f64,
+    /// Posterior predictive variance of one further unit.
+    pub predictive_variance: f64,
 }
 
 /// Resampling behind the standard errors and spreads of a frequentist result.
@@ -102,7 +129,8 @@ pub struct AssociationResamplingWire {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AssociationPosteriorWire {
-    /// `conjugate_normal_inverse_gamma` or `bayesian_bootstrap`.
+    /// `conjugate_normal_inverse_gamma`, `conjugate_beta_binomial`, `conjugate_gamma_poisson`
+    /// or `bayesian_bootstrap`.
     pub method: String,
     /// Draws behind the summaries (zero for the closed-form conjugate marginals).
     pub draws: u64,
@@ -229,7 +257,10 @@ pub(in crate::analysis_result_artifact) fn validate_association(
         && (!(0.0..1.0).contains(&posterior.level)
             || !matches!(
                 posterior.method.as_str(),
-                "conjugate_normal_inverse_gamma" | "bayesian_bootstrap"
+                "conjugate_normal_inverse_gamma"
+                    | "conjugate_beta_binomial"
+                    | "conjugate_gamma_poisson"
+                    | "bayesian_bootstrap"
             ))
     {
         return fail("the posterior record is inconsistent");
@@ -288,6 +319,32 @@ fn validate_terms(section: &AssociationWire) -> Result<(), IoError> {
         let has_posterior = term.posterior_mean.is_some();
         if has_posterior != section.posterior.is_some() {
             return fail("a posterior summary comes with the posterior record and the reverse");
+        }
+        if let Some(cell) = &term.conjugate {
+            let family_ok = matches!(
+                (cell.family.as_str(), section.posterior.as_ref().map(|p| p.method.as_str())),
+                ("beta_binomial", Some("conjugate_beta_binomial"))
+                    | ("gamma_poisson", Some("conjugate_gamma_poisson"))
+            );
+            let reals = [
+                cell.prior.0,
+                cell.prior.1,
+                cell.posterior.0,
+                cell.posterior.1,
+                cell.exposure,
+                cell.log_marginal_likelihood,
+                cell.predictive_mean,
+                cell.predictive_variance,
+            ];
+            if !family_ok
+                || !has_posterior
+                || reals.iter().any(|value| !value.is_finite())
+                || cell.prior.0 <= 0.0
+                || cell.prior.1 <= 0.0
+                || cell.predictive_variance < 0.0
+            {
+                return fail("a conjugate cell is inconsistent with its posterior record");
+            }
         }
         let has_spread = term.spread_lower.is_some() || term.spread_upper.is_some();
         if has_spread && section.resampling.is_none() {

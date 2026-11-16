@@ -556,6 +556,7 @@ _ASSOCIATION_FUNCTIONALS = (
     "pearson_correlation",
     "distance_correlation",
     "predictive",
+    "exceedance",
 )
 _ASSOCIATION_SCALES = ("schema", "continuous", "binary", "count")
 
@@ -578,8 +579,19 @@ class Association:
     ``"conditional"`` (the mean of a real or count outcome, or the probability of a 0/1 outcome,
     in each stratum), ``"coefficients"`` (linear, logistic or Poisson regression by the outcome
     scale), ``"pearson_correlation"`` or ``"distance_correlation"`` (one predictor, nothing held
-    fixed), or ``"predictive"`` (a model scored on ``folds`` held-out folds). ``outcome_scale``
-    declares the scale the schema does not (``"binary"`` for a 0/1 float column, ``"count"``).
+    fixed), or ``"predictive"`` (a model scored on ``folds`` held-out folds), or
+    ``"exceedance"`` (the probability ``P(outcome > threshold)`` in each stratum, the conditional
+    law of the indicator; ``threshold`` is required). ``outcome_scale`` declares the scale the
+    schema does not (``"binary"`` for a 0/1 float column, ``"count"``).
+
+    Under ``Bayesian(prior_from=<Beta prior>)`` a conditional probability of a 0/1 outcome or an
+    exceedance probability gets, in each stratum, the closed-form Beta-Binomial posterior with
+    its credible interval and posterior predictive of one further unit; under
+    ``Bayesian(prior_from=<Gamma prior>)`` a conditional mean of a ``"count"`` outcome gets the
+    Gamma-Poisson posterior of the rate per unit. A prior composed from sources
+    (:func:`~antecedent.priors.compose_count_priors`) or at a power-prior discount selected from
+    the data (:func:`~antecedent.priors.select_alpha_prior_beta_binomial`) is used the same way.
+    These cell posteriors take unweighted independent rows.
 
     The answer describes the observed law: ``result.answer.kind == "associational"``, identification
     is not claimed, and it is never the effect of an intervention or a ranking of actions. Pass
@@ -599,8 +611,10 @@ class Association:
         "pearson_correlation",
         "distance_correlation",
         "predictive",
+        "exceedance",
     ] = "auto"
     folds: int = 5
+    threshold: float | None = None
     outcome_scale: Literal["schema", "continuous", "binary", "count"] = "schema"
     weight: str | None = None
     temporal: bool = False
@@ -640,6 +654,16 @@ class Association:
                 "a correlation relates the outcome to exactly one predictor and holds nothing "
                 "fixed; use functional='coefficients' to adjust for conditioning columns"
             )
+        if self.functional == "exceedance":
+            if (
+                isinstance(self.threshold, bool)
+                or not isinstance(self.threshold, (int, float))
+                or not math.isfinite(self.threshold)
+            ):
+                raise CausalValueError("exceedance needs a finite threshold of P(outcome > t)")
+            object.__setattr__(self, "threshold", float(self.threshold))
+        elif self.threshold is not None:
+            raise CausalValueError("threshold applies only to the exceedance functional")
         if self.functional != "predictive" and self.folds != 5:
             raise CausalValueError("folds applies only to predictive association")
         if self.functional == "predictive" and not 2 <= self.folds <= 20:
@@ -654,6 +678,30 @@ class Association:
             object.__setattr__(self, "refused_after", code)
         if self.refused_after is not None and not 1 <= len(self.refused_after) <= 256:
             raise CausalValueError("refused_after must be 1 to 256 characters")
+
+
+@dataclass(frozen=True, slots=True)
+class AssociationConjugate:
+    """The closed-form conjugate count posterior of one cell of a Bayesian association.
+
+    ``family`` is ``"beta_binomial"`` (the posterior is ``Beta(posterior_a, posterior_b)`` of the
+    cell's proportion, after ``count`` successes in ``exposure`` trials) or ``"gamma_poisson"`` (the
+    posterior is ``Gamma(shape=posterior_a, rate=posterior_b)`` of the rate per unit of exposure,
+    after total count ``count`` over total ``exposure``). ``prior_a`` / ``prior_b`` are the prior
+    in the same order. ``predictive_mean`` / ``predictive_variance`` are those of one further
+    unit of the cell (a success indicator, or a count over one unit of exposure).
+    """
+
+    family: str
+    prior_a: float
+    prior_b: float
+    posterior_a: float
+    posterior_b: float
+    count: int
+    exposure: float
+    log_marginal_likelihood: float
+    predictive_mean: float
+    predictive_variance: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -679,6 +727,7 @@ class AssociationTerm:
     posterior_sd: float | None = None
     posterior_lower: float | None = None
     posterior_upper: float | None = None
+    conjugate: AssociationConjugate | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -749,6 +798,23 @@ class AssociationEstimate:
     is_intervention_effect: bool = False
 
 
+def _conjugate_of(cell: Any) -> AssociationConjugate | None:
+    if cell is None:
+        return None
+    return AssociationConjugate(
+        family=cell.family,
+        prior_a=cell.prior[0],
+        prior_b=cell.prior[1],
+        posterior_a=cell.posterior[0],
+        posterior_b=cell.posterior[1],
+        count=cell.count,
+        exposure=cell.exposure,
+        log_marginal_likelihood=cell.log_marginal_likelihood,
+        predictive_mean=cell.predictive_mean,
+        predictive_variance=cell.predictive_variance,
+    )
+
+
 def association_from_raw(raw: Any) -> AssociationEstimate | None:
     """The :class:`AssociationEstimate` of a native result, or ``None`` for another route."""
     section = getattr(raw, "association", None)
@@ -777,6 +843,7 @@ def association_from_raw(raw: Any) -> AssociationEstimate | None:
                 posterior_sd=term.posterior_sd,
                 posterior_lower=term.posterior_lower,
                 posterior_upper=term.posterior_upper,
+                conjugate=_conjugate_of(term.conjugate),
             )
             for term in section.terms
         ),

@@ -1020,7 +1020,11 @@ pub(crate) fn evaluate_bayesian_prior_sensitivity(
     CausalError,
 > {
     use antecedent_validate::{ExternalAlphaSensitivity, PriorSensitivity};
-    if let Some(ext) = cfg.external_compose.as_ref() {
+    if let Some(ext) = cfg
+        .external_compose
+        .as_ref()
+        .filter(|ext| crate::inference::external_compose_is_positional(ext, prep))
+    {
         let alphas_applied: Arc<[f64]> = posterior.conflict_summary.as_ref().map_or_else(
             || Arc::clone(&ext.composed.alphas_applied),
             |cs| Arc::clone(&cs.alphas_applied),

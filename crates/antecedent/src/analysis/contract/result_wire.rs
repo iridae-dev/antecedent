@@ -612,8 +612,8 @@ pub(crate) fn association_wire(
     payload: &crate::analysis::association::AssociationPayload,
 ) -> antecedent_io::analysis_result_artifact::AssociationWire {
     use antecedent_io::analysis_result_artifact::{
-        AssociationPosteriorWire, AssociationPredictionWire, AssociationResamplingWire,
-        AssociationTermWire, AssociationWire,
+        AssociationConjugateWire, AssociationPosteriorWire, AssociationPredictionWire,
+        AssociationResamplingWire, AssociationTermWire, AssociationWire,
     };
     let estimate = &payload.estimate;
     let terms = estimate
@@ -631,6 +631,16 @@ pub(crate) fn association_wire(
             posterior_sd: term.posterior.map(|posterior| posterior.sd),
             posterior_lower: term.posterior.map(|posterior| posterior.lower),
             posterior_upper: term.posterior.map(|posterior| posterior.upper),
+            conjugate: term.conjugate.map(|cell| AssociationConjugateWire {
+                family: cell.family.to_owned(),
+                prior: cell.prior,
+                posterior: cell.posterior,
+                count: cell.count,
+                exposure: cell.exposure,
+                log_marginal_likelihood: cell.log_marginal_likelihood,
+                predictive_mean: cell.predictive_mean,
+                predictive_variance: cell.predictive_variance,
+            }),
             rows: term.rows as u64,
         })
         .collect();
