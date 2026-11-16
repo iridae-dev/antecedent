@@ -1029,8 +1029,8 @@ class RFCI:
 
 #: Most variables the exact route lists graphs for; above it only edge marginals are exact.
 EXACT_ENUMERATION_MAX_VARIABLES = 6
-#: Most variables the exact route computes edge marginals for.
-EXACT_MARGINALS_MAX_VARIABLES = 12
+#: Most variables the exact route computes edge marginals for (the native work budget).
+EXACT_MARGINALS_MAX_VARIABLES = 15
 
 _ATOM_ONLY = frozenset(
     {"adjacency", "weights", "graph_keys", "n_graphs", "to_weighted_samples", "ess", "atoms"}
@@ -1765,7 +1765,7 @@ def run_static_discovery(
     """
     if not isinstance(discovery, _STATIC_DISCOVERY_TYPES):
         raise CausalTypeError(f"unsupported static discovery type: {type(discovery)!r}")
-    return discovery.run(data), discovery.algorithm_id
+    return discovery.run(data, execution=execution), discovery.algorithm_id
 
 
 def run_temporal_discovery(
@@ -1777,7 +1777,7 @@ def run_temporal_discovery(
     """Dispatch a PCMCI-family discovery config to its ``run()``."""
     if not isinstance(discovery, _TEMPORAL_DISCOVERY_TYPES):
         raise CausalTypeError(f"unsupported temporal discovery type: {type(discovery)!r}")
-    return discovery.run(data), discovery.algorithm_id
+    return discovery.run(data, execution=execution), discovery.algorithm_id
 
 
 def discovery_algorithm(discovery: Any) -> dict[str, Any]:

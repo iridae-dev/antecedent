@@ -1075,20 +1075,6 @@ class MultiArmContrast:
     interval_95: tuple[float, float] | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class MultiArmExperimentEstimate:
-    control: str
-    arm_values: tuple[tuple[str, float], ...]
-    contrasts: tuple[MultiArmContrast, ...]
-    uncertainty: str = "covariance_free_variance_bound_no_interval"
-    support_status: str = "unsupported_direct_estimator_utility"
-    assumptions: tuple[str, ...] = (
-        "known randomized probabilities for every action and unit",
-        "consistency, no interference, and independent assignment units",
-        "each action has positive probability and observed support",
-    )
-
-
 def _binary_assignment(values: Sequence[bool], n: int, name: str) -> list[bool]:
     raw = list(values)
     if len(raw) != n:
@@ -1109,7 +1095,6 @@ __all__ = [
     "ExperimentDesign",
     "MultiArmContrast",
     "MultiArmExperimentDesign",
-    "MultiArmExperimentEstimate",
     "RandomizedEffect",
     "RandomizedExperimentEstimate",
     "RandomizationTest",

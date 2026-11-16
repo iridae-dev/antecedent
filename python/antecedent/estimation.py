@@ -1662,7 +1662,7 @@ class _PreparedEngine(Generic[ResultT]):
             raise CausalUnsupportedError(
                 "discovery= is not on the interactive estimate path; run discovery once "
                 "(Config.accept(data) -> AcceptedGraph), then prepare(graph=..., "
-                "latency='interactive')",
+                "inference=Frequentist(profile='interactive'))",
                 reason_code="option_not_applicable",
             )
         if live_discovery:

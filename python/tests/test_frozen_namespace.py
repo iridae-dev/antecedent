@@ -323,7 +323,6 @@ _EXPECTED_STAGE_ALL = {
         "FixedCUPED",
         "MultiArmContrast",
         "MultiArmExperimentDesign",
-        "MultiArmExperimentEstimate",
         "RandomizedEffect",
         "RandomizedExperimentEstimate",
         "RandomizationTest",
