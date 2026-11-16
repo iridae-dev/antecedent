@@ -1,0 +1,1 @@
+[{"digest":"6f7a4e8bde308f425a8eee46ab91d175ffe0d37e855ec08cb3e87a5cd82d6a65","file":"167a72ac9c5615b592b7185b49b5f3c1f1e13702350ccc0d072de8457d00c518","kind":"rust_items","path":"crates/antecedent/tests/common/fixtures.rs","role":"compile","scopes":[[[],false]],"select":{"inner":[-1],"sig":[72,73]},"table":"548f09207973314313c039f4ff05bdf9fb49fc179a78ccd29388fef4945481b0"}]

@@ -9845,6 +9845,2556 @@ recorded_at = "2026-11-15T05:37:50Z"
 dependency_manifest = "dc57aa2523450a63dd4698d306ac4e67c9e0c0088a8c71a2106e2533d0dd55d5"
 
 [[record]]
+test = "antecedent::supported_compiler::compiler_path_aipw_generalized_adjustment_static_ate_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "4285a1227a20a40be35687cb37c3c755ea0c5e537e0460369d3497ed1a279e50"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_bayesian_gcomp_backdoor_adjustment_graph_posterior_average_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b4ca6d9a538e370fa76191da45fc3943d1f0360412f7635854d74aca2616e986"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_bayesian_gcomp_backdoor_adjustment_static_ate_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "89a884125b56374f7401b524357b4a7dbd1fc5b47097a32de527c79ff826a167"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_bayesian_gcomp_generalized_adjustment_graph_posterior_average_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "18bdad0f27495819151d26b8f7d286b832435a8b6b998d39af82f7989b58d967"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_bayesian_gcomp_generalized_adjustment_static_ate_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "2d460f33e4bb24b566c7182e1cdb095b6e322ef6269d6af3a68063f42a3fdaef"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_bayesian_gcomp_generalized_adjustment_static_ate_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "26675150566612c46e13c8764a69cb24cb2566069252466013ba407a365d8e64"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_bayesian_gcomp_generalized_adjustment_static_ate_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "a89ab683f7bd51a32cd0124da923dffc4fddc64beadd6dd7ab4361f9248aba73"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_bayesian_temporal_gcomp_generalized_adjustment_temporal_effect_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f006421964fa5bba521d66b0459c16d8d0bbfc83111a6fd92d4c17f4b517c7a4"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_bayesian_temporal_gcomp_temporal_backdoor_unfolded_graph_posterior_temporal_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "0285f3ace0b0235233afd7615c839d835f5e0f089f8c764f82b3ba08d6420867"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_bayesian_temporal_gcomp_temporal_backdoor_unfolded_temporal_cross_world_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "c1197666eab35f31271fdb17cf03093783017744e01e5d8411930cca56823be5"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_bayesian_temporal_gcomp_temporal_backdoor_unfolded_temporal_effect_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "9b2468a24081d33d85e0d0cb22c771595f67f2bd8f9d057b30c58b452f91cd10"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_cell_aipw_generalized_adjustment_codetermined_joint"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "c52dd476dcc01a8f9e105e64ee2e1c378569bb351c2c66be404ab74c00e81037"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_conditional_bayesian_backdoor_adjustment_conditional_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "ba40512f653bb8b3322de1224e78d04d42a1dfda41fba7ba150aa772b2208e41"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_conditional_bayesian_backdoor_adjustment_graph_posterior_conditional_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "d03a7b7edac630615188975aca425b17ff239ce53d2b24f0249332a41a4cd567"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_conditional_bayesian_generalized_adjustment_conditional_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b6f7257d230c4c4398aeb4d21fe0b372079b29c47c999f756ad50f4c00f9cdfe"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_conditional_bayesian_generalized_adjustment_conditional_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "42b9069a42c4f30ab9552e5291141b1a7479fce21188c626e8d393b9948a6c77"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_conditional_bayesian_generalized_adjustment_graph_posterior_conditional_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "afae46f83a4fb70822ebc1385f0f286db735ba9172cea67b70861dc01bdb992f"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_conditional_linear_adjustment_backdoor_adjustment_conditional_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "7c53a5ec695a06c22eddf4fddacea7f82c354e8f590c4357f1c7cdfbe30e0247"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_conditional_linear_adjustment_backdoor_adjustment_graph_posterior_conditional_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "31ab567ce3ebcca12a6bf2024e905d00874c09b0c459b20fc6a4cebbe4eac1c2"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_conditional_linear_adjustment_generalized_adjustment_conditional_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "5c8d42f06ccadade3ce7c71c72a2df4d6f953897e3e2e3314bee9ab9f1203462"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_conditional_linear_adjustment_generalized_adjustment_conditional_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "0def6ca918df2edd79956eb79d1af3f73884b22676e4663de991b476f2b98f51"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_conditional_linear_adjustment_generalized_adjustment_graph_posterior_conditional_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "716de81f9389da84c4c521aa8cc3659d78755608e5c88554afb7cee5d2f6d3b1"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_distribution_general_id_distribution_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b55988269a7185916e61dcac76f496842c830ee0b3e117232a8669747f4f8923"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_distribution_general_id_distribution_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "0a71f368eaed40517556381427d622e6affc77ff0f256dfa956ab3fec602d9ab"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_distribution_general_id_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b70ad1f1062dec8d561f7a2265c3f658dcf4155db157a834425e179a6e52d1d3"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_general_id_conditional_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "7b3b0cde69d5b2620ad00a9a4079e6da720a640cf54de6781800c5c0460dccf1"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_general_id_counterfactual_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "e905280c37a500730c90a903f07f1aa5d38782b7c1a991f645a4fc85c951abe4"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_general_id_graph_posterior_average_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "1917d9ee5fd720171e8d42a7ce266a8f349d63f5000dbf5e246f74e6956b5e39"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_general_id_graph_posterior_conditional_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "8be3796fedc7175924cf246915bf2fc1f8bd50f7a149402f6c6a27ab9cb7e73d"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_general_id_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f9e1ca00fe24f3d8056cf4447764a59df21bb8f59f0504de92654dcfebd67593"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_general_id_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "819ad9e41cd49462e3aab41856212f850571e2e377a43bd628e61d2612ae9d35"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_general_id_graph_posterior_temporal_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "c192cd8079779a874ef5e6c60085667739ddfde407d1646199393c0d355bbed1"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_general_id_mixed_admg_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "318b8a87d3fa2281c227e62a1bd87d8d296f2b9d1bff8e7e5cd61d6701b90ad5"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_general_id_static_ate_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "dbd49923f38dae671e889fb9638e3a63c3e2521cbb7f6a8f53753f8351ab7e16"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_general_id_temporal_effect_admg"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "7371f7a8cd786db35399522e66ffd95f26afc04ceddf36f36426595e9acb75a7"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_path_specific_natural_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "9dae9cec47e08b46aa30661d9093ca98e2be552217ab306a54610e31c44ad9fb"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_path_specific_natural_graph_posterior_temporal_mediation"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "3dfd8954db71488d46f1f4d8c81964e8449471d6e80959d4c3bf4cb393665d5c"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_path_specific_natural_path_specific_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "55d226c31709c1d85dfe400b7f0a198bf493de11dfc9acb29ac4fb397c4e1238"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_path_specific_natural_path_specific_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "fcea4605b550dbfc04b90471efbb2467243ff994d690128d895f9a83651e0ae5"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_path_specific_natural_path_specific_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f7524dba052095783e8772b5d1c926ac7e054ccf17e583a70f490f4a5e6eee45"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_path_specific_natural_path_specific_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "e2a64da9fb2c4d0ac4b48e2884d78787508314cf7ae10e3f21843c448d683380"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_path_specific_natural_temporal_mediation_admg"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "d6d9701e6a51e6032f17ebd2123110d511f8469a6dd29dc4b0c4d3745039e50a"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_functional_effect_path_specific_natural_temporal_mediation_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "5c92cae3debc6a34c3296586683df603382bce329d397326ed6328428b2f898c"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_attribution_bayesian_gcm_parametric_gcm_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "1588270e7f4e778bcc51ffe8fede7100fed6beecfc617439a157035c40af8ca8"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_attribution_bayesian_gcm_parametric_gcm_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "a19832dffc378390522f66777d83d42066fdaffc907ff6080d7aaeb407bec8a4"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_attribution_bayesian_gcm_parametric_gcm_temporal"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "3dea9bb55eb8c5f9f278589cd9d5f6f98f9e7cff165e5ec6a3545d78b23dcf62"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_attribution_bayesian_gcm_parametric_gcm_temporal_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b3fa9e400fad99d702ccdb671e589a228d8466b731d7c2411af95b5ef54ace23"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_attribution_bayesian_gcm_parametric_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "dcb7525ade53fefcb091ac9f893ca777282598a92063224c4983c256edbdd3ad"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_fit_bayesian_gcm_parametric_gcm_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "960dd0eee6656f9120faa7b6c89adca4fa96663aee340145d4045eedb9ffc941"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_fit_bayesian_gcm_parametric_gcm_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "80f87a575f525317a338aca82311821b6a965a7d48f5c0e139d34c6a851066e5"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_fit_bayesian_gcm_parametric_gcm_temporal"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "ded43b8e05cd61d8473953260d8b00932f017472d20d816bea95422d46c451f6"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_fit_bayesian_gcm_parametric_gcm_temporal_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "c2ed3eeffa7f6753d6e7c93cbc4d04eebe2456618a7ac9f406202fd2e62ce91a"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_fit_bayesian_gcm_parametric_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "88344595119a710cc9a1c9343ecf7792787dd211b93eb88acafb1b2ab07fb513"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_fit_gcm_parametric_counterfactual_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "12375c8e8270985ae097ed99be69126d89c981d74e817f6ec0ec80929391b07e"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_fit_gcm_parametric_gcm_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "d59aa4ddf94a297f501ca6672ab04444680eb94391348e8c7cb117b8b9794250"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_fit_gcm_parametric_gcm_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "66fc86adf3d40396bfe18f3f77b56f81da30864533f6cf14ec2ee33161e77c87"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_fit_gcm_parametric_gcm_temporal"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "c33c995e079364105dcbff3b82e926bec207f07fe3c58f9a9d600aeb29197663"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_fit_gcm_parametric_gcm_temporal_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "9219066daa0110b1a7405ae3013cff82d5de39abf811102e89e2d34bee93d529"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_gcm_fit_gcm_parametric_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "80640dbad5eaec79fcecee98f04fa8c25c3726185f015a892779d95a0ed1e2bc"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_interference_bayesian_gaussian_interference_design_graph_posterior_interference"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "73f6ab25be11a57e4fe3efe018dc915cd781464f34df94b52b274d6208c6d9e9"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_interference_bayesian_gaussian_interference_design_interference_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "3e6d0861262d2dea207277ed1ef8558a9f6a89c58991af917fb5303c1b8d41e0"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_interference_ht_hajek_interference_design_graph_posterior_interference"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "e131c7224a5a22c35cc25a781444202ce5fca5ff03ee1af20ad2e64bf010343d"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_interference_ht_hajek_interference_design_interference_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "79dcae94d908d10d79739d68ea208b1b86d94fb23c9d817341fb7cc255e129b5"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_linear_adjustment_ate_backdoor_adjustment_graph_posterior_average_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "44958c8c603c4ab99319a3c1e5b9b356f53ef7eb03ea0d675532fd46578a783f"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_linear_adjustment_ate_backdoor_adjustment_static_ate_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "12d52e106b64528ad6804b9799fcf2ff5bff1fde42789df827346c3b64f2e32c"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_linear_adjustment_ate_generalized_adjustment_graph_posterior_average_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "96da52412aecae740f9601afbc3466ba13e6c9aec657a399bc68951124763844"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_linear_adjustment_ate_generalized_adjustment_static_ate_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "0ad5c958c6b209089cfef22b34e062e2a72583785babf960088d3c817c434552"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_linear_adjustment_ate_generalized_adjustment_static_ate_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "3bada910c2b59267a5545d946ee7ae46960a779cf148b05b72e7dbe7ba3390aa"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_mediation_linear_path_specific_natural_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "45d223004be3d87e0245b955726a3ff3a9ea028a69df26ba5f9067d564d664a3"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_mediation_linear_path_specific_natural_static_mediation_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "dbb1838a83038eedca91562fd912eb2d30d8b6d871324f53a0b6b5346915ef25"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_bayesian_generalized_adjustment_codetermined_joint"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "a363e74dc465b4eb9820bce4d26445a6a580d4cd9fb350fba6ca12e193ec6e16"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_bayesian_generalized_adjustment_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "aa0c69098f81d8513aa99be3cce096272c78c4d3db0c7c56c791053903328d74"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_bayesian_generalized_adjustment_static_response_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "1d7c76093898ff07de1448b192321353c8e17f2d326192e971869debfcf76819"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_bayesian_generalized_adjustment_static_response_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "d4cfb286fd033813eda8bc7aa139b7a73389970e498c237bdfe483ef5ccafb5e"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_bayesian_response_backdoor_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "c1543b58a0009bb02f0f41463298286456908e705bdfceb997ecfd4a986adf3d"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_bayesian_response_backdoor_static_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "0478c3fb1d394e98af088040b0e690afab43ccf37a27ccbcf26e007a064fdb21"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_gam_derivative_generalized_adjustment_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "1e6d4b0fe7b3e4a278987bad09642c24e0c89466d8199641b0b1896e4bf08ab4"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_gam_derivative_generalized_adjustment_mixed_admg_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "31320f7e023ffb581f0af0c19e669d25873b48829f80433d317d9465114ce635"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_gam_derivative_generalized_adjustment_static_response_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "75a663543aa88717b844e527c9d83f251480efa3fed943e0e5d56636c0cad682"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_gam_derivative_generalized_adjustment_static_response_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "44f6d1742d368ba2f8efe05fdffd20ddebccaeafa1e9655f6e728cec48020b01"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_gam_derivative_response_backdoor_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "dfed448d5f3fd1326d70bca2634da40e1370135c544c39cebbf97ded7ed1af2a"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_gam_derivative_response_backdoor_static_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "9f254074b6dfa051b6e1edb08e63d5cc34cff112e3ab0664359db240b7b14af6"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_intervention_gcomp_generalized_adjustment_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "cc00964a00e14c770f02a2d2c079292ba9f6c63765eb95a89d74c4fcb589ec45"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_intervention_gcomp_generalized_adjustment_static_response_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "ec262c371da8dce24ee125366ede30f4d03459a039e1a642c6797db8aba5a18b"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_intervention_gcomp_generalized_adjustment_static_response_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "2bc063f0695792323ccaa3b7d1f106d8c23e07dc252c4d30f4fe7ded9fb0b418"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_intervention_gcomp_response_backdoor_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "3ba45d2d6b0ce4fd6b93f7829661367ff97d8aa631746f841494a5b30ba97d40"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_intervention_gcomp_response_backdoor_static_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "48c6c57d00c660bb1201f60847235ad9503a139381a633feaacd0b6d16eb8cbc"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_kennedy_dr_generalized_adjustment_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "cf7ff13c95fd198039f4fcdec7b9ee7aa1bfe518a6df1ae887c902a8ba5f27e9"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_kennedy_dr_generalized_adjustment_mixed_admg_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "ef049b47c0c9ef271e405f15f1125dae57c8a7884bab899d1992a0cf28dec96b"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_kennedy_dr_generalized_adjustment_static_response_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "9ecb71042728aa085f45ba6f684c7bea0f8581310be9373dbfee63e9345a8fd4"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_kennedy_dr_generalized_adjustment_static_response_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "c0ac3bd3691e8aae131469a29ad3fec08679eca45d610ffbe9ea906344134acb"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_kennedy_dr_response_backdoor_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f6ad072cc5080e5367ef145cb7564da72cbbc80101ea3359113aa26b5def38e2"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_kennedy_dr_response_backdoor_static_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "d4e9a0bd9a75ed0b168dbf2b9d0a2417b5240284e8da0d34fa3fb1628c6b9601"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_riesz_ade_generalized_adjustment_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "29a8fc3ef995a9d30fccdf72ca44b89ad52aa7748ab1d1ba633d2cefedbaeb17"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_riesz_ade_generalized_adjustment_mixed_admg_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "a1f1fb7382c267ff1af59a70940ae126521f6105cd635770bd2846326c64360e"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_riesz_ade_generalized_adjustment_static_response_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "35f697b71c8369aeb8592ecc0f7c198ab83a3881878987dfff6b5bcf20b043c5"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_riesz_ade_generalized_adjustment_static_response_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "daf9addf6008119aecc6d6230e3adcaffdb08ba0448da9ebec1928319284af4f"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_riesz_ade_response_backdoor_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "fdd2bd4e7a5898b64edcf977151552242f04797dc5b18f8f7b5c027052c5b96a"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_riesz_ade_response_backdoor_static_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "64c69e26fbcb27ada04291a2b7f7c1aa0703f79248e15f2cab6403a1798d8f9e"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_temporal_bayesian_generalized_adjustment_graph_posterior_temporal_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "2357c49dba37b9c1bb26f4b920d29fbf22f3798336c6fd053dbc4247545e8990"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_temporal_bayesian_generalized_adjustment_temporal_response_admg"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f5d33be256f582be93a70909fd4eecf75b85faf7c6d10a2adfdc9c43d775433c"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_temporal_bayesian_generalized_adjustment_temporal_response_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "53c054f09a852181da9b5826f9b9db774a83b5d96b447242f2ccb7d30e332d0c"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_temporal_bayesian_temporal_backdoor_unfolded_graph_posterior_temporal_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "74f7b983e8a8d6c94e9437eb86e0f14be4ad01cbb16399a50c2a3fd8c9cce68b"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_response_temporal_bayesian_temporal_backdoor_unfolded_temporal_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "712f004c0c5ef3414a0db96b7d954173b16b6d31d77e319a47b2f3ba1dc09d6c"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_linear_adjustment_generalized_adjustment_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "748b95d06ffaafcd30f2fb3528665d9ff5e311f3a58dda9b9d0bf66508f74f40"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_linear_adjustment_generalized_adjustment_graph_posterior_temporal_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "fc57a2ffe6156c1c2d9fe3a84fded123196e1c25a30953268b7eafb8a51bd257"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_linear_adjustment_generalized_adjustment_temporal_cross_world_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "deeb39fd3ce6c4690d0e1f2d9af82c1b9ff9f8a9dcca9af3f6fdc7f9e638ed48"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_linear_adjustment_generalized_adjustment_temporal_effect_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f1d7609bcff04025435644a660284c2cba5f4007291aca8e01e272187c117773"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_linear_adjustment_temporal_backdoor_unfolded_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "75e1f47eee637cb4c4d16ed304bd0a69b6d67e6d24d509656f28a72baef74580"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_linear_adjustment_temporal_backdoor_unfolded_graph_posterior_temporal_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "0e0bbaedf82e6ff142a85507dfce5d81b1b8d6850fda83d825e67c3a755accd2"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_linear_adjustment_temporal_backdoor_unfolded_temporal_cross_world_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "ceecc89642c499aee8900c574bcf4f05d10adf9d196eaf36e670bb61b71ef755"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_linear_adjustment_temporal_backdoor_unfolded_temporal_effect_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "93f2fbb140aec393ec55531e68439f9de2febc4e25b3c92b8656bdd7564089c2"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_mediation_bayesian_generalized_adjustment_temporal_mediation_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f9f894f5b3ef1c50a29b03168405570f71c0ed5e5ecae547be61d5bd766a9b10"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_mediation_bayesian_temporal_mediation_graph_posterior_temporal_mediation"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "72a8d8bfb2db090a5517826b101a4dc1516d44873327faf1fd72c6435c22ea24"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_mediation_bayesian_temporal_mediation_temporal_mediation_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b8db0ed6836e129fa6156f589fdc9c04690b325698264029bec86090387d034b"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_mediation_generalized_adjustment_temporal_mediation_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "3241d5ce2ee5003fbf742adc1701b3804c9cd8796c4240a215347e31f787645d"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_mediation_temporal_mediation_graph_posterior_temporal_mediation"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "42f5e23461adf09eabc1e211d71f15c357bba6df6c87a5af13509a321b638ff6"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_mediation_temporal_mediation_temporal_mediation_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "856c30440d29d829675f77072994f044d07cffeb4a48c2c1bf907692830b1b41"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_response_gcomp_generalized_adjustment_graph_posterior_temporal_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "4d67fac12ada781c02696d8bed5abc42f6cdf9a69892c179b5c749251e924c41"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_response_gcomp_generalized_adjustment_temporal_response_admg"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "80762e2d7a04cc62b48b588fd508711825a24822e9e2c26dbc4ccb675291bdf0"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_response_gcomp_generalized_adjustment_temporal_response_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "6a25e0c7a78205e906e6f4108f73ca9c33abe16bdbc9a4a04952f7d140a48dc2"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_response_gcomp_temporal_backdoor_unfolded_graph_posterior_temporal_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "672edde9776c8719e7ea8b74709e28dc03976a09607a3d94e7523715a1bda842"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_temporal_response_gcomp_temporal_backdoor_unfolded_temporal_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "11fb1c390f1d2abb77f0b21f88d5f97ad2cf06ac64e8304b4557f78373f5ca82"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_transport_trial_bayesian_bootstrap_transport_sid_graph_posterior_transport"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "834d5ba7049dd6e6bf0d4f1d7d5f48833a22fc339ea16570608cd7eecc97b212"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_transport_trial_bayesian_bootstrap_transport_sid_transport_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "81e61ea99035440f0a8ff2bc37f51e6c66c14047d3daa794fd923407fc090bbc"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_transport_trial_ipw_transport_sid_graph_posterior_transport"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "251ebbb381503e0511ad7a4c5cdbc700b4d7424df4996d6fb6149b8be837c8e8"
+
+[[record]]
+test = "antecedent::supported_compiler::compiler_path_transport_trial_ipw_transport_sid_transport_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "fcc01f0640725bf394f0018dc42aee97caddeaf330807005f234ea03fb531f8c"
+
+[[record]]
+test = "antecedent::supported_compiler::every_supported_cell_completes_the_compiler_path"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "e818f35a4923e9e204e7ef5e6e664c894fcf7d539da1797220dbbe470c72a162"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_aipw_generalized_adjustment_static_ate_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "cbe00e4f9710ef32795b5c875628275ddf7f15b14210cc5efbedca3a8fb90adf"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_bayesian_gcomp_backdoor_adjustment_graph_posterior_average_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "8412c382d819b6226b1481c46142c0ab6bbb023e0cf007f0e2d059ddc7d898b5"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_bayesian_gcomp_backdoor_adjustment_static_ate_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "ed2fd9e2440f7110ef3f3ffb5fa9f4ad3b137d0c4c1d2c53ce4acec7f6b3be5c"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_bayesian_gcomp_generalized_adjustment_graph_posterior_average_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "1382562ce31acd91ee81b9b59237bdc066435ab0cb7b4ecdf53c0c682fb612ed"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_bayesian_gcomp_generalized_adjustment_static_ate_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "39bf2a6df1bf7f643612900fffac6e77329aac482910680a15754cd27ae7e69f"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_bayesian_gcomp_generalized_adjustment_static_ate_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "ef7e65706b0eebbc360f1fa313b800206e3bef910738107dee4a06aecac3079f"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_bayesian_gcomp_generalized_adjustment_static_ate_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "9e0c8d5fb6e9285d8226d92313b212ca4a2bc5a274a3641199957a2c4ae3f2de"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_bayesian_temporal_gcomp_generalized_adjustment_temporal_effect_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "15b743d145559e89f3ddc66b0ceb2c5d0589a731941009c05ad498f75e271c3b"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_bayesian_temporal_gcomp_temporal_backdoor_unfolded_graph_posterior_temporal_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "3bb3fe56bb2c7a7e067b18e324a4ce45032eefffb5a07b7a5ff33e156cbb2a40"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_bayesian_temporal_gcomp_temporal_backdoor_unfolded_temporal_cross_world_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "13cae29a2fb012f61b8c6e31e03314a10d98cc3e689ff8be30602f06c7817e86"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_bayesian_temporal_gcomp_temporal_backdoor_unfolded_temporal_effect_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "581e18ec65575cf0948d5a794f4b07c590b312278e9acd4b88a21acb52f91ad7"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_cell_aipw_generalized_adjustment_codetermined_joint"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "e6b3612c9514043308dad847622f4df6932396abd81c02a63e4b4ffaaf506f49"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_conditional_bayesian_backdoor_adjustment_conditional_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "1c3c716dd96d506fac53525b4d7cbeb1113e3892a993f0208fd5162d5e6e015c"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_conditional_bayesian_backdoor_adjustment_graph_posterior_conditional_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "0c4d28358d17dc08f322e0b4e893caaa67e828c4753b0047e0a708a1eccb535b"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_conditional_bayesian_generalized_adjustment_conditional_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b255b3489a44047d7755b45376ce4de9a22fb564cb292dda3fa4f1a1396b52ee"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_conditional_bayesian_generalized_adjustment_conditional_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b55b1a0e32dc65a9029cbe9795b183e191d20446474111a42e2835dec51101ec"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_conditional_bayesian_generalized_adjustment_graph_posterior_conditional_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "0d372d49a3dbbee82a42de9d46a391113be25606c04f4a7f515a85acecf4972a"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_conditional_linear_adjustment_backdoor_adjustment_conditional_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "09f68e2b1bed50334e4dab306bcee945ad88460b684a5d3f767ced96daca6b52"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_conditional_linear_adjustment_backdoor_adjustment_graph_posterior_conditional_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "a00f136b64a768c5d827a0519d6e7bdc5b73b068f3fcf8b88501c87e6e20055c"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_conditional_linear_adjustment_generalized_adjustment_conditional_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "1406d2602054e0f12708094d12cdc1f1d9c8be4546d58f666e6867616d616214"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_conditional_linear_adjustment_generalized_adjustment_conditional_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "8e0f211bb14982006a1b62aba01a88906468649ba81b5b89e12fc81183228fe5"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_conditional_linear_adjustment_generalized_adjustment_graph_posterior_conditional_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "21f4894fc1f385c142061a94a0bb4825983bee65ed3693a5e595241f77d74f47"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_distribution_general_id_distribution_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "70807428d1bddef0fffbb429ad36212db5f05e8dc9a8bfbc8431ebef88ccf965"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_distribution_general_id_distribution_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "6f100ab9c4b5ac9c05b4d2996d1cce0e5366a987278f306a707cd84314c10b3b"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_distribution_general_id_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f7af8fec328e8be81b387d35c76acb5743fc1834b6778f4d2b1d1a7029d28c95"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_general_id_conditional_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "85a9bf02cd2b7bce1510c90887e1f8f3adb5cd3cc1a54114cd8c2aadfec10293"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_general_id_counterfactual_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "87fb15cf37bf3f204ba8c59e31c78c9928bf833f51377cf0f469f04bbc1cdc26"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_general_id_graph_posterior_average_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "346e1109c4e755986953983bbe50a6820ddbe0244d82619ccc873786f017ec21"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_general_id_graph_posterior_conditional_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "cccb9fff1ef85df48310cb7b9b96837165863da5f568aedf95439ec7c6b47f86"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_general_id_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "02a37c063cda1706768b2083c620674b3ad98171c4741647d672cbf29e451e1f"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_general_id_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "66dac7a99481bd8d9ef7e990b6d4e9a0e16b5093e06bb04690858b8c4df77020"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_general_id_graph_posterior_temporal_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "9c426e6d6ff94d58de278942bb670ebc84e00b6bcc05d1d4404ce2d3e368eb95"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_general_id_mixed_admg_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "7cfc945f23e396c7e7910e30615986813fe3fcd2ff6769caa6a100ea7c380165"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_general_id_static_ate_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "80b99516200d9f787723cbfd73d187892bc81e37e1edddcf75e8319299fecb60"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_general_id_temporal_effect_admg"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "9593a2217bc55a79c211675d92079d60a80866fa9765c85930bb3c8d652c7182"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_path_specific_natural_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "ce612eab8559fab48dd64dca4a369526d0ea2a7578019df82b2f3896e69c2186"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_path_specific_natural_graph_posterior_temporal_mediation"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "503591a0d02953437a7e7f445bbb3855c42dc1ff9f8037ed6f88316599bc501a"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_path_specific_natural_path_specific_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "565ec9469dea8cc0763d31cf5f5d48c802fe45639888808424abe1b82f672c60"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_path_specific_natural_path_specific_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "9d738f26dd65a3903e810d8967decfae49583581b552d66c21a120751abbadca"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_path_specific_natural_path_specific_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "065b99627d629f05c82fcd498fc304700fb36ffc5060d5466ee7129fc1e8f5aa"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_path_specific_natural_path_specific_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "83d24d5deb615e50b385d801ff3a25b226f3e45f244f751e7fbe865a39161e46"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_path_specific_natural_temporal_mediation_admg"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "98e9ee3d5e2b22c49789287283f29def6f6996cc9c0039bb8489d60306246c53"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_functional_effect_path_specific_natural_temporal_mediation_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "640f928660682d95f0d4cc1f1b36c310233ccd8d8be6882b5d34973531c668c3"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_attribution_bayesian_gcm_parametric_gcm_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "a9c2bba0b06b5e9b4dec8166b97cf017996ff4fa10e728b9b9615401221e8a77"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_attribution_bayesian_gcm_parametric_gcm_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "88bc2aa6ca4d02edc98292e3094c776b63e5e58ad193f731b517699860d9519e"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_attribution_bayesian_gcm_parametric_gcm_temporal"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f681174eed221a675d20448ff982aa62c951b427b8f14da220522995f12b7238"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_attribution_bayesian_gcm_parametric_gcm_temporal_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f35810ccd16c1b3c936b5ae61908e2daf726de52c618ca5288287d9ae24f264a"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_attribution_bayesian_gcm_parametric_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "5ab7193033ddb1e3777eb2b7b6fc5171d71656dde9202a53fe1822c1053f0546"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_fit_bayesian_gcm_parametric_gcm_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "256686d0135639ea21087ac415d69ae6ebc560ec3dbe356549ecfb2b8722b97a"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_fit_bayesian_gcm_parametric_gcm_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "e644a42466e952151a9e5a67e32c5263129dfe431bbbc9dede2a7e19e36797d5"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_fit_bayesian_gcm_parametric_gcm_temporal"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "84ad765f21985a1f482f88770d6a0420b8b51c4fc5d39ef1bd4d6e7eff19e966"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_fit_bayesian_gcm_parametric_gcm_temporal_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "43f2841954c01d92ea369fc7f6dbf6c188dd3b8ae61f0ae509ae3f50e5edea5f"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_fit_bayesian_gcm_parametric_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "a34ce4343d8ef5ef89bb7fbeae669ba27f9bc8d1b77dd35e9182c1ffa0194c6a"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_fit_gcm_parametric_counterfactual_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b93519d9a440871f4d77514f8fa484db8d41302c8d30a7f968884619b5257a61"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_fit_gcm_parametric_gcm_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "9ed621a3a4ab521d97adf01ae92b5e129aee184cea6ea4bb535b6d636ee9f2af"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_fit_gcm_parametric_gcm_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "73948191de69088fc5ff1249463355590d5494a5aad3d810bd52ef115cb2150d"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_fit_gcm_parametric_gcm_temporal"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "be1d31d47405f97b70b7e976f3a3c770f3952d77d7eb8891238ebb85eab4a755"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_fit_gcm_parametric_gcm_temporal_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "0fd693b0f5d742ef25e1eec11f7fd724d5dac43c0f785447d1f3ca9e5c8494b0"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_gcm_fit_gcm_parametric_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "482bd9032d3fcdfd983ebb74b6d5fbeab260f885a120ac6997368692680609de"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_interference_bayesian_gaussian_interference_design_graph_posterior_interference"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "cc0c184f1d066a5cc1c0819be4935d06cac0afe66fea7cc06f46f72a2ed80994"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_interference_bayesian_gaussian_interference_design_interference_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "a53209bc2865a575690cd453db4d5957f3ef0f6b6c0e5ed25ba3828c15ea7fc6"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_interference_ht_hajek_interference_design_graph_posterior_interference"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b967aafdcd326acefec5cac3ddcd5e74d1cd223919aa9c119a31e8abda2aa8c4"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_interference_ht_hajek_interference_design_interference_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "ccc449f8304ce4187b51537de231f38cbf7ae980a3ac2cc2e8cb4a90592253d3"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_linear_adjustment_ate_backdoor_adjustment_graph_posterior_average_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "1def6211f56af91c5d385a9f9165495678e2cebd44a00cb7d2dc4c6779faf4cf"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_linear_adjustment_ate_backdoor_adjustment_static_ate_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "86e6b4cc41c9c6d553938971a12b84747ae160d1d64728b60942e868376f714e"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_linear_adjustment_ate_generalized_adjustment_graph_posterior_average_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "9812a2b8ae563c2a6681f709507d88fb48e49b18a96ddbcab20aa2de4c83922d"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_linear_adjustment_ate_generalized_adjustment_static_ate_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "c88d6448167892105aa5d07d0533b5db0192d63c48db80510b0fea2edf0b7555"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_linear_adjustment_ate_generalized_adjustment_static_ate_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "6afcf8024e0417036dfb381c37aa5c7ed122a4153d775db263280a23ba50e38c"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_mediation_linear_path_specific_natural_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "4139871c8191b99075cccfc62ad7e2c22a27414318cabc95299a0a3835c0487c"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_mediation_linear_path_specific_natural_static_mediation_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "4b8dcd5b56ccb6a5530cc4581ad628355ce1486c64686c1af87eb0c2b17c2c27"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_bayesian_generalized_adjustment_codetermined_joint"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f1e89b867ffe3cf9d136574a56e0c5f62e8f79ebe9a816ee19a5128da90ed1e9"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_bayesian_generalized_adjustment_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "cdd0762ddeed0b2da56baae017f134ff3b8e322192448870592734ac9a915b2c"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_bayesian_generalized_adjustment_static_response_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b41468f5b8e5133eea79f7e245d69153e716124c585ea8248fb21b732034b6a3"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_bayesian_generalized_adjustment_static_response_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "670a36c602dd47e569ab201381b2df4ab99bbb4a016bd6373a7215c9180915d0"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_bayesian_response_backdoor_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "877444daafc6fa60b8f0a1c780b5d2f633fd5a40ecc2a9faf5867ce1d52d8304"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_bayesian_response_backdoor_static_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "d979e22008ad973a3df85b06914306bcfc9db2674bf9e1c6989930d4b05af092"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_gam_derivative_generalized_adjustment_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "e54d41cb82f7586d504858fe271c3b6f00782e3788f29a4a6c0a0adc86e96ea5"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_gam_derivative_generalized_adjustment_mixed_admg_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "c3cff4fdecc9d9f3f9cd9bd1dac423aa10b87c123638c0cd7e63b58827df7c1c"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_gam_derivative_generalized_adjustment_static_response_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "dacd1a52809e7fcfc621540ace44efd96c1063d8e149f362c3c5cca40c05700b"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_gam_derivative_generalized_adjustment_static_response_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "4ab9b3c437070c95eefdee55520154f030e11b468e5732045de5f19f319d9779"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_gam_derivative_response_backdoor_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "2d022c2534ae83a8832c9b2b8a3064ff6f86b47ce740a1cd3beaf2a39d251b5a"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_gam_derivative_response_backdoor_static_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "531f7c013c34cf74bdade456e532ee460f6b931c1c63f3b33194ba0cac547b43"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_intervention_gcomp_generalized_adjustment_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "8c8dce86e5843dcf08a2a11584ea9017a2295ad10c3c20c912d3da23effe45b9"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_intervention_gcomp_generalized_adjustment_static_response_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "dafe029edf0ccf201104623e3d80c53e0e584521c2c58cf5f0f2b570416e845a"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_intervention_gcomp_generalized_adjustment_static_response_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "dee2652d741a0b56bd6f5ac00ae0ee62cc75ca65956f96c834d0b915369df0dd"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_intervention_gcomp_response_backdoor_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "6de264dea340c07190f27b040549d8ae1c1e3d4acc19b87e30abd8bbd106b233"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_intervention_gcomp_response_backdoor_static_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "dcff2fe63270c43129f26c6a5c956d43fe659110d9f33de0e26fba5dbd0f7ecd"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_kennedy_dr_generalized_adjustment_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "a3020e744d15a9e65328b9d3823ff83a86a0edc572262c78cdcf38fef6add9d8"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_kennedy_dr_generalized_adjustment_mixed_admg_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "0903e6c45cfb792412aba06fd45271c05fcfc3308c9f2113f39d66dc4c625c6b"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_kennedy_dr_generalized_adjustment_static_response_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b12233fe03add325f77e6c4f1e49c6cbfcc56ce74dd719d1e4779ae23435a2d0"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_kennedy_dr_generalized_adjustment_static_response_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "7e385d83297ccd24f9baba42553d34eb73982abc9235667172ced368aeec7745"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_kennedy_dr_response_backdoor_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "6f0ab2441e25b0dccf26d2fc65822cc0c1f2de856a1f7fa78fe7b723ecd636dc"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_kennedy_dr_response_backdoor_static_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "6572c73dac90be87b2a12ae5b67d64adb20758dc6489e2bd000bb58298bac589"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_riesz_ade_generalized_adjustment_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "3ee6b98cf604e61e8df980ccd9c486534c566b39f2b5c42d4dc8a2098697163a"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_riesz_ade_generalized_adjustment_mixed_admg_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "5fceec362f8064c3ef05968fe436cd387b29bb70a725dbe2f1ea9716b06d431d"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_riesz_ade_generalized_adjustment_static_response_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "a77b14da36a917f97de9125fd53bdd940d54b93475dd50b5322acb19afabe376"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_riesz_ade_generalized_adjustment_static_response_pag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "d1d90d63195300d3bd22434daddccda5d469970d3ce76b193f4296b6ed209801"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_riesz_ade_response_backdoor_graph_posterior_static_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "76653fe39207299aeff9a9995565afd5c51c3ab964600acee7418dee1e381c18"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_riesz_ade_response_backdoor_static_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "68dd8e7116eef4ecb7cba7cf9d337763d66f29cefe1f6d9afdc81c570e225df3"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_temporal_bayesian_generalized_adjustment_graph_posterior_temporal_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "ca3596ec1ddb49f3a58dde262b2faf5b8aed112f29c0f9f4876f2e3f4f24559d"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_temporal_bayesian_generalized_adjustment_temporal_response_admg"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "2dc7f99cb2a7c67ede9792ed65957f7ff86fdf163083af20c57ae842e2cbc81c"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_temporal_bayesian_generalized_adjustment_temporal_response_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "75e15cc4c92fae98b33770d8195c3a641c3c004e64a959d8552bdb5a12e2612c"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_temporal_bayesian_temporal_backdoor_unfolded_graph_posterior_temporal_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "d2c33eccc2d9c6af4529a904e3b9097fb3b2198e2626ac28e1416376f95ac9d5"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_response_temporal_bayesian_temporal_backdoor_unfolded_temporal_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "e26e124980a25d0ea466919e746a54239c3a794ee15e6da465251b5ea64aa20a"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_linear_adjustment_generalized_adjustment_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "bcb7006076fedeadbd1d4429e15071907efefc4ead936c537b2c3e706451831a"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_linear_adjustment_generalized_adjustment_graph_posterior_temporal_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "70bd0bfa52db669dcbbf147cd52cf707d16ede0b384cb036411ef59b9c6d0063"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_linear_adjustment_generalized_adjustment_temporal_cross_world_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "1cab13cfa9d5f629bbf83014051acb0cb1dfc3f743130c0cf8b385a0641d0123"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_linear_adjustment_generalized_adjustment_temporal_effect_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "6792b53b2a6eb3d823b0f10e57fbaa13c8ed6c5997148c90fc9339cbfb7ffec6"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_linear_adjustment_temporal_backdoor_unfolded_graph_posterior_cross_world"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "79c0571a9028d0d7a84e21b6a3c85549580b54c2d535e442c7c23764cfd2b839"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_linear_adjustment_temporal_backdoor_unfolded_graph_posterior_temporal_effect"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "882bd3d7cb780525de3cacca0ec3a952b826779701d82924ddaf6f4be8ef1d96"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_linear_adjustment_temporal_backdoor_unfolded_temporal_cross_world_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "069e834eb5a1d310b3f7d4cbf39fc89c4ec37f606d6530019a78f180a10e2aea"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_linear_adjustment_temporal_backdoor_unfolded_temporal_effect_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "df8013e98d3fe838fc5c412e02f1c464bae1db514b8cee5c4b0d1c9f9429c3e8"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_mediation_bayesian_generalized_adjustment_temporal_mediation_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "cba9ade38e520b2bd73c449a46f55e9f6bc97f89071c6ce8a9c9cea171a70106"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_mediation_bayesian_temporal_mediation_graph_posterior_temporal_mediation"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "fa59a35a87fc16de073b7463ddb2b9b6b73dba6693301d918d4227733445e409"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_mediation_bayesian_temporal_mediation_temporal_mediation_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "15fab1f23ea268e144efefe0c8c5a107c193d761fd6e57697e48df91f813189d"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_mediation_generalized_adjustment_temporal_mediation_cpdag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f6c29c023f1d309220e27e2289df627a33721161ec25e38c5ead613483efa728"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_mediation_temporal_mediation_graph_posterior_temporal_mediation"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "fbb298f7bd5109cf923211f3b262772724c9e5b883b73bfcb520bf0d73668e3c"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_mediation_temporal_mediation_temporal_mediation_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "dac0a824ca9a0b0f69b07bd0b65f05a7005f101965304dbb756c6403bd932fe3"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_response_gcomp_generalized_adjustment_graph_posterior_temporal_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "08b25f8045f067f4293df4e0085f2a946ca54effe9376f10a8e7674621986c2b"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_response_gcomp_generalized_adjustment_temporal_response_admg"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "232bea69ed734a77cf5435aca675eb1f6b867dde918a90a8f3650afb14737f77"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_response_gcomp_generalized_adjustment_temporal_response_class"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b901cac1e889621ff77902264459b5e2a8354f33f4a3e400aa7420f5d24e5b48"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_response_gcomp_temporal_backdoor_unfolded_graph_posterior_temporal_response"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "ebaded0d97566ae7a2675b8cd9a3504311b0e2a149ee61aeef22ee7b910b807f"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_temporal_response_gcomp_temporal_backdoor_unfolded_temporal_response_dag"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "08acd36745f1d9159b031a8ecfc4680893d4181ce146fd05875799a7a69eaf56"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_transport_trial_bayesian_bootstrap_transport_sid_graph_posterior_transport"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "1a57ef322553253e2deac9481829496bf2cb44d9711fa3fdd9db19a4ffb08f18"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_transport_trial_bayesian_bootstrap_transport_sid_transport_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "f6834e44b07a58b7ff0ff9f74acfb1cfd8d1c30d8fbcfbcf1175d90bdd9f6091"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_transport_trial_ipw_transport_sid_graph_posterior_transport"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "b75a7906fb07c413be033ea279a145be80c422109b34cb46c2307aa3eb5391b0"
+
+[[record]]
+test = "antecedent::supported_compiler::replay_transport_trial_ipw_transport_sid_transport_mixed"
+roles = ["scientific"]
+passed = true
+commit = "e6010143a798f48caab4e6e343d59158d2d286f9"
+dirty = false
+fingerprint = "91d7918d8ce44f9d00b13a9930e4a935305bf3d375842a75d377f3e4b885d3fd"
+recorded_at = "2026-11-16T08:28:37Z"
+dependency_manifest = "12d3915eccba59f6d75cce3310c0cfce06ad7c986c757e6e80c1f9b256495638"
+
+[[record]]
 test = "antecedent::supported_static_cells::average_effect_dag_bayesian_known_truth_all_structures_and_suites"
 roles = ["scientific", "software"]
 passed = true
