@@ -23893,6 +23893,13 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_measurement_exposure.py"
 gates = ["inventory"]
+
+[[test]]
+id = "python-exposure-measurement"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_exposure_measurement.py"
+gates = ["inventory"]
 [[test]]
 id = "dml-outcome-prior-calibration"
 crate = "antecedent"

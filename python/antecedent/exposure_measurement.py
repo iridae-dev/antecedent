@@ -802,7 +802,7 @@ class DetectedExposure(ExposureMeasurement):
         if isinstance(self.detection, MonotoneDetection):
             raise _refuse(
                 "measurement_not_identified",
-                "measurement_model.structure_parameters",
+                "measurement_model.insufficient_replicates",
                 "a partially declared monotone detection function identifies bounds on the "
                 "prevalence, not per-unit exposure draws",
                 "Declare the detection function fully (logistic or table), or use "
