@@ -849,7 +849,7 @@ def shard_counts(tasks: list[tuple[Group, int | None]], jobs: int) -> dict[str, 
     (total work over `jobs`) finishes after everything else; split into `ceil(duration /
     share)` shards (at most `jobs`) it runs on that many cores and the run approaches
     total work over cores (scripts/calibration_shards.py: the merged result is the one run's).
-    Tasks without a recorded duration are not sharded."""
+    Tasks without a recorded duration, and `whole` groups, are not sharded."""
     durations = last_durations()
     timed = [durations[task_label(g, p)] for g, p in tasks if task_label(g, p) in durations]
     if not timed or jobs <= 1:
@@ -859,6 +859,8 @@ def shard_counts(tasks: list[tuple[Group, int | None]], jobs: int) -> dict[str, 
     for group, point in tasks:
         label = task_label(group, point)
         seconds = durations.get(label)
+        if group.spec is not None and group.spec.whole:
+            continue  # pools across its replicates: one process runs it whole
         if seconds is not None and seconds > share:
             out[label] = min(jobs, math.ceil(seconds / share))
     return out

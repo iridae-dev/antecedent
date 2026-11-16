@@ -12,8 +12,8 @@ import calibration_runner as cr
 from _repo import REPO_ROOT
 
 
-def group(tests=("one",), grid=True, ignored=True, label="suite: one", target="suite"):
-    return cr.GroupSpec(1, label, "antecedent", target, (), tests, ignored, grid)
+def group(tests=("one",), grid=True, ignored=True, label="suite: one", target="suite", whole=False):
+    return cr.GroupSpec(1, label, "antecedent", target, (), tests, ignored, grid, whole)
 
 
 class TableTests(unittest.TestCase):
@@ -104,6 +104,26 @@ class MeasureTests(MeasureFixture):
         self.assertTrue(log.endswith(f"calibration-measured-at {'a' * 40}\ncalibration-decision-context {{}}\n"))
         again = (self.dir / "suite_one.p1.recheck.log").read_text(encoding="utf-8")
         self.assertIn("calibration-rechecked-test t2\n", again)
+
+    def test_a_whole_run_test_rechecks_by_one_whole_run_not_an_extension(self):
+        calls = []
+        outputs = iter([
+            "calibration-recheck please\ntest result: ok. 1 passed; 0 failed\n",
+            "test result: ok. 1 passed; 0 failed\n",
+        ])
+
+        def fake(binary, args, *, cwd, env, tools, merge_output):
+            calls.append((args, env))
+            return 0, next(outputs), {"src.rs": {(len(calls), 1)}}, None
+
+        with patch("evidence_capture.instrumented_run", fake):
+            result = cr.measure(self.spec(group(whole=True), shards=4))
+        self.assertEqual(result["status"], 0)
+        self.assertTrue(result["rechecked"])
+        _, recheck = calls
+        self.assertEqual(recheck[1]["ANTECEDENT_CALIBRATION_NSIM"], "2000")
+        self.assertNotIn("ANTECEDENT_CALIBRATION_REPLICATE_START", recheck[1])
+        self.assertNotIn("ANTECEDENT_CALIBRATION_PRIOR_TALLIES", recheck[1])
 
     def test_a_run_with_no_passed_test_fails_and_is_not_rechecked(self):
         with patch("evidence_capture.instrumented_run",

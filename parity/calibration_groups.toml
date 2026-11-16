@@ -10,6 +10,8 @@
 # tests     exact libtest names to run; absent: every ignored test the binary lists
 # ignored   whether the tests are #[ignore]d (run with --include-ignored)
 # grid      measured at each sample-size grid point (0, 1, 2) rather than once
+# whole     the test pools across its replicates: it runs whole, never sharded, and its
+#           recheck is one whole run at the recheck count rather than an extension
 
 [[group]]
 label = "effect_constancy_calibration: known_gaussian_null_power_and_holm"
@@ -12516,6 +12518,7 @@ target = "joint_panel_calibration"
 tests = ["joint_panel_time_varying_contrast_frequentist_l95"]
 ignored = true
 grid = true
+whole = true
 
 [[group]]
 label = "joint_panel_calibration: joint_panel_time_varying_contrast_broader_frequentist_l95"
@@ -12524,6 +12527,7 @@ target = "joint_panel_calibration"
 tests = ["joint_panel_time_varying_contrast_broader_frequentist_l95"]
 ignored = true
 grid = true
+whole = true
 
 [[group]]
 label = "refuter_error_rates_calibration: static_frequentist_refuters_false_rejection_under_a_sound_procedure"

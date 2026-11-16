@@ -21,7 +21,9 @@ is not a smoke run, ran fewer than `recheck_nsim` replicates and printed
 only the replicates the first pass did not and folds them onto its tallies
 (crates/antecedent/tests/common/calibration.rs), so the recheck's lines equal a fresh
 run's. A group that names no exact tests rechecks only the tests that asked, and names
-them in `calibration-rechecked-test` lines. A recheck the first pass's duration projects past
+them in `calibration-rechecked-test` lines. A `whole` group pools across its replicates and
+cannot be extended or sharded; its recheck is one whole run at `recheck_nsim` on the same
+seeds. A recheck the first pass's duration projects past
 RECHECK_TARGET_SECONDS runs on more worker threads (`recheck_threads`).
 """
 from __future__ import annotations
@@ -69,6 +71,7 @@ class GroupSpec:
     tests: tuple[str, ...] | None  # exact names; None: every ignored test of the binary
     ignored: bool
     grid: bool
+    whole: bool = False  # pools across replicates: never sharded or extended
 
     @property
     def build_target(self) -> tuple[str, str, str]:
@@ -84,7 +87,8 @@ def load_groups(root: Path) -> list[GroupSpec]:
     return [GroupSpec(index=i, label=r["label"], package=r["package"], target=r["target"],
                       features=tuple(r.get("features", ())),
                       tests=tuple(r["tests"]) if "tests" in r else None,
-                      ignored=bool(r["ignored"]), grid=bool(r["grid"]))
+                      ignored=bool(r["ignored"]), grid=bool(r["grid"]),
+                      whole=bool(r.get("whole", False)))
             for i, r in enumerate(rows, start=1)]
 
 
@@ -220,7 +224,7 @@ def measure(spec: dict) -> dict:
     started = time.monotonic()
     shards = int(spec.get("shards", 1))
     sharded = None
-    if shards > 1:
+    if shards > 1 and not group.whole:
         sharded = sharded_extension(
             measured_run, libtest_args(group), env, start=0, end=first, shards=shards, prior=None,
             tally_out=tallies, work_dir=shards_dir / "first")
@@ -243,14 +247,18 @@ def measure(spec: dict) -> dict:
         rechecked = True
         tests = sorted(set(_RECHECK_TEST.findall(output))) if group.tests is None else []
         threads = int(base_env.get("ANTECEDENT_CALIBRATION_THREADS", "1"))
+        # A `whole` group pools across its replicates and cannot be extended: its recheck
+        # is one whole run at the recheck count, on the same seeds.
+        whole = group.whole
         env = {**base_env, "ANTECEDENT_CALIBRATION_NSIM": str(spec["recheck_nsim"]),
-               "ANTECEDENT_CALIBRATION_THREADS": str(
-                   recheck_threads(first_seconds, first, spec["recheck_nsim"], threads)),
-               "ANTECEDENT_CALIBRATION_REPLICATE_START": str(first),
-               "ANTECEDENT_CALIBRATION_PRIOR_TALLIES": str(tallies),
+               "ANTECEDENT_CALIBRATION_THREADS": str(recheck_threads(
+                   first_seconds, first, spec["recheck_nsim"] + (first if whole else 0), threads)),
                "ANTECEDENT_CALIBRATION_TALLY_OUT": str(recheck_tallies)}
+        if not whole:
+            env["ANTECEDENT_CALIBRATION_REPLICATE_START"] = str(first)
+            env["ANTECEDENT_CALIBRATION_PRIOR_TALLIES"] = str(tallies)
         sharded = None
-        if shards > 1:
+        if shards > 1 and not whole:
             sharded = sharded_extension(
                 measured_run, libtest_args(group, tests), env, start=first, end=spec["recheck_nsim"],
                 shards=shards, prior=tallies, tally_out=recheck_tallies, work_dir=shards_dir / "recheck")
