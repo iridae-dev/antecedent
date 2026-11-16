@@ -1,0 +1,195 @@
+//! Known-truth tests of trial-to-target transport toward a weighted target population.
+//!
+//! Trial rows have `z ~ N(0, 1)` and non-participant (target) rows have `z ~ N(1, 1)`, with a
+//! randomized binary treatment in the trial and the planted effect modification
+//! `tau(z) = 1 + z`. The selection probability is then exactly `sigmoid(0.5 - z)` for equal
+//! trial and target sizes. The weighted target is the Gaussian kernel neighbourhood
+//! `exp(-(z - c)^2 / (2 h^2))` of the target population; the product of `N(1, 1)` and the
+//! kernel is a normal with mean `(1 + c / h^2) / (1 + 1 / h^2)`, so the transported effect has
+//! the closed form `1 + (1 + c / h^2) / (1 + 1 / h^2)`, which the tests compare against, never
+//! against a number the code under test produced.
+//!
+//! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::sync::Arc;
+
+use antecedent::inference::{KernelFamily, TransportKernel};
+use antecedent::{WeightedTargetDeclaration, transport_trial_to_weighted_target};
+use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
+use antecedent_data::TabularData;
+use antecedent_estimate::trial_to_target_effect;
+use antecedent_identify::{
+    PopulationFactor, TransportCertificate, TransportFormula, TransportIdentification,
+};
+use antecedent_kernels::standard_normal;
+
+struct Fixture {
+    data: TabularData,
+    outcome: Vec<f64>,
+    treatment: Vec<bool>,
+    trial: Vec<bool>,
+    selection: Vec<f64>,
+    treatment_probability: Vec<f64>,
+    mu0: Vec<f64>,
+    mu1: Vec<f64>,
+}
+
+fn identification() -> TransportIdentification {
+    TransportIdentification::Transportable {
+        formula: TransportFormula::Direct(PopulationFactor {
+            regime: None,
+            population: Arc::from("source"),
+            variables: Arc::from([]),
+            conditioned_on: Arc::from([]),
+            interventions: Arc::from([]),
+        }),
+        certificate: TransportCertificate {
+            rule: Arc::from("transport.direct"),
+            selection_targets: Arc::from([]),
+            premises: Arc::from([]),
+        },
+    }
+}
+
+fn fixture(n: usize, seed: u64) -> Fixture {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x41);
+    let (mut z, mut y) = (vec![0.0; n], vec![0.0; n]);
+    let (mut treatment, mut trial) = (vec![false; n], vec![false; n]);
+    let (mut selection, mut mu0, mut mu1) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        let in_trial = i % 2 == 0;
+        trial[i] = in_trial;
+        let zi = standard_normal(&mut rng) + if in_trial { 0.0 } else { 1.0 };
+        z[i] = zi;
+        selection[i] = 1.0 / (1.0 + (zi - 0.5).exp());
+        let a = rng.next_f64() < 0.5;
+        treatment[i] = a;
+        y[i] = (1.0 + zi) * f64::from(a) + zi + 0.3 * standard_normal(&mut rng);
+        mu0[i] = zi;
+        mu1[i] = zi + 1.0 + zi;
+    }
+    let pairs = [("z", z)];
+    let borrowed: Vec<(&str, &[f64])> = pairs.iter().map(|(n, v)| (*n, v.as_slice())).collect();
+    Fixture {
+        data: TabularData::from_f64_columns(borrowed).unwrap(),
+        outcome: y,
+        treatment,
+        trial,
+        selection,
+        treatment_probability: vec![0.5; n],
+        mu0,
+        mu1,
+    }
+}
+
+fn kernel_target(bandwidth: f64, centre: f64) -> WeightedTargetDeclaration {
+    let kernel = TransportKernel::new(KernelFamily::Gaussian, bandwidth).unwrap();
+    WeightedTargetDeclaration::kernel(kernel, vec![VariableId::from_raw(0)], vec![centre], None)
+        .unwrap()
+}
+
+fn closed_form(centre: f64, bandwidth: f64) -> f64 {
+    let h2 = bandwidth * bandwidth;
+    1.0 + (1.0 + centre / h2) / (1.0 + 1.0 / h2)
+}
+
+fn transport(
+    fx: &Fixture,
+    declaration: &WeightedTargetDeclaration,
+    with_regressions: bool,
+) -> Result<antecedent::WeightedTrialTransport, antecedent::CausalError> {
+    transport_trial_to_weighted_target(
+        declaration,
+        &fx.data,
+        &identification(),
+        &fx.outcome,
+        &fx.treatment,
+        &fx.trial,
+        &fx.selection,
+        &fx.treatment_probability,
+        with_regressions.then_some((fx.mu0.as_slice(), fx.mu1.as_slice())),
+    )
+}
+
+#[test]
+fn a_kernel_target_effect_equals_the_closed_form_weighted_effect() {
+    let fx = fixture(12_000, 31);
+    for (centre, bandwidth) in [(1.0, 0.8), (1.5, 1.2), (0.5, 1.0)] {
+        let result = transport(&fx, &kernel_target(bandwidth, centre), true).unwrap();
+        let truth = closed_form(centre, bandwidth);
+        let estimate = result.estimate;
+        assert!(
+            (estimate.effect.ipw - truth).abs() < 4.0 * estimate.ipw_se,
+            "ipw {} se {} truth {truth}",
+            estimate.effect.ipw,
+            estimate.ipw_se
+        );
+        let aipw = estimate.effect.aipw.unwrap();
+        assert!(
+            (aipw - truth).abs() < 4.0 * estimate.aipw_se.unwrap().max(1e-3),
+            "aipw {aipw} truth {truth}"
+        );
+    }
+}
+
+#[test]
+fn the_weighted_target_differs_from_the_unweighted_target_effect() {
+    let fx = fixture(12_000, 32);
+    let weighted = transport(&fx, &kernel_target(0.5, 2.0), false).unwrap();
+    let unweighted = trial_to_target_effect(
+        &identification(),
+        &fx.outcome,
+        &fx.treatment,
+        &fx.trial,
+        &fx.selection,
+        &fx.treatment_probability,
+        None,
+    )
+    .unwrap();
+    // The target population has mean effect 1 + 1 = 2; the neighbourhood of z = 2 has more.
+    assert!(weighted.estimate.effect.ipw - unweighted.ipw > 0.3);
+}
+
+#[test]
+fn constant_weights_equal_the_unweighted_contrast() {
+    let fx = fixture(8_000, 33);
+    let n = fx.outcome.len();
+    let uniform =
+        WeightedTargetDeclaration::row_weights(vec![1.0; n], vec![VariableId::from_raw(0)])
+            .unwrap();
+    let weighted = transport(&fx, &uniform, true).unwrap();
+    let unweighted = trial_to_target_effect(
+        &identification(),
+        &fx.outcome,
+        &fx.treatment,
+        &fx.trial,
+        &fx.selection,
+        &fx.treatment_probability,
+        Some((&fx.mu0, &fx.mu1)),
+    )
+    .unwrap();
+    assert!((weighted.estimate.effect.ipw - unweighted.ipw).abs() < 1e-9);
+    assert!((weighted.estimate.effect.aipw.unwrap() - unweighted.aipw.unwrap()).abs() < 1e-9);
+}
+
+#[test]
+fn the_report_carries_the_declaration_and_the_target_overlap() {
+    let fx = fixture(6_000, 34);
+    let result = transport(&fx, &kernel_target(0.8, 1.0), false).unwrap();
+    let report = &result.report;
+    assert_eq!(report.family(), Some(KernelFamily::Gaussian));
+    assert_eq!(report.center(), Some(&[1.0][..]));
+    let overlap = result.estimate.target_overlap;
+    assert!(overlap.kish_ess > 20.0 && overlap.n_support > 0);
+    assert!(result.estimate.trial_overlap.kish_ess > 20.0);
+    // A declaration with another bandwidth is another claim.
+    let other = transport(&fx, &kernel_target(1.0, 1.0), false).unwrap();
+    assert_ne!(report.identity(), other.report.identity());
+}
+
+#[test]
+fn a_target_without_overlap_refuses() {
+    let fx = fixture(6_000, 35);
+    let error = transport(&fx, &kernel_target(0.2, 7.0), false).unwrap_err();
+    assert!(error.to_string().contains("transport_target_overlap_failed"), "{error}");
+}

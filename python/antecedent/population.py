@@ -209,26 +209,17 @@ class CustomDistribution(Population):
 class WeightedPopulation(Population):
     """Base class of target populations declared as a weighting over the analysed rows.
 
-    A weighted population is resolved against the table at prepare time: its weights become
-    the study's custom target distribution (so the target identity and every claim over the
-    result name exactly these weights), its overlap with the rows is checked, and the
-    declaration is reported on the result as ``result.weighted_target``. It is not a wire
-    population by itself; :func:`coerce_target_population` refuses it where no table is
-    available to resolve it.
+    A weighted population is a declaration only. The native study resolves it against the
+    analysed table at build: it computes the weights, applies the overlap gate (positivity,
+    the Kish effective-sample-size floor of 20 rows, the ESS fraction floor) and registers the
+    weights as the study's custom target distribution. The result reports it as
+    ``result.weighted_target``. It is not a wire population by itself;
+    :func:`coerce_target_population` refuses it where no table is available to resolve it.
     """
 
     __slots__ = ()
 
-    def _weights(self, columns: Mapping[str, Sequence[float]]) -> list[float]:
-        raise NotImplementedError
-
-    def _declaration(self) -> dict[str, Any]:
-        raise NotImplementedError
-
-    def _depends_on(self) -> tuple[str, ...]:
-        raise NotImplementedError
-
-    def _min_ess_fraction(self) -> float | None:
+    def _declaration(self, names: Sequence[str]) -> dict[str, Any]:
         raise NotImplementedError
 
     def _wire(self) -> dict[str, object]:
@@ -239,18 +230,15 @@ class WeightedPopulation(Population):
             reason_code="option_not_applicable",
         )
 
-    def overlap(self, data: Mapping[str, Any] | Any) -> TargetOverlap:
-        """Support and overlap of this target with the rows of ``data``, without analysing.
 
-        The same check ``analyze`` applies before it estimates: positivity, the Kish
-        effective-sample-size floor of 20 rows, the ESS fraction floor and the largest
-        single-row share. A preview only; it does not refuse.
-        """
-        from ._data import ingest_columns
-
-        names, arrays = ingest_columns(data)
-        weights = self._weights(dict(zip(names, arrays, strict=True)))
-        return _overlap_of(weights, self._min_ess_fraction())[0]
+def _column_ids(declared: Sequence[str], names: Sequence[str]) -> list[int]:
+    missing = [n for n in declared if n not in names]
+    if missing:
+        raise CausalValueError(
+            f"the weighted target depends on {missing}, which are not columns of the analysed "
+            f"table; columns are {sorted(names)}"
+        )
+    return [list(names).index(n) for n in declared]
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,17 +256,13 @@ class RowWeights(WeightedPopulation):
     depends_on: tuple[str, ...]
     min_ess_fraction: float | None = None
 
-    def _weights(self, columns: Mapping[str, Sequence[float]]) -> list[float]:
-        return [float(w) for w in self.weights]
-
-    def _depends_on(self) -> tuple[str, ...]:
-        return self.depends_on
-
-    def _min_ess_fraction(self) -> float | None:
-        return self.min_ess_fraction
-
-    def _declaration(self) -> dict[str, Any]:
-        return {"kind": "row_weights", "depends_on": list(self.depends_on)}
+    def _declaration(self, names: Sequence[str]) -> dict[str, Any]:
+        return {
+            "kind": "row_weights",
+            "weights": list(self.weights),
+            "covariates": _column_ids(self.depends_on, names),
+            "min_ess_fraction": self.min_ess_fraction,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -287,9 +271,9 @@ class KernelTarget(WeightedPopulation):
 
     Row ``i`` has distance ``d_i = sqrt(sum_j ((x_ij - center_j) / scale_j) ** 2)`` to the
     declared ``center`` over ``covariates``, and weight ``kernel(d_i)`` (family and bandwidth
-    from the declared :class:`~antecedent.priors.TransportKernel`). The covariates are the
-    weights' ``depends_on``. Family, bandwidth, center and scale are part of the declaration
-    reported on the result; the weights they produce enter the query identity.
+    from the declared :class:`~antecedent.priors.TransportKernel`). Family, bandwidth, center
+    and scale are part of the declaration reported on the result; the weights they produce
+    enter the query identity.
     """
 
     kernel: TransportKernel
@@ -298,49 +282,15 @@ class KernelTarget(WeightedPopulation):
     scale: tuple[float, ...]
     min_ess_fraction: float | None = None
 
-    def _depends_on(self) -> tuple[str, ...]:
-        return self.covariates
-
-    def _min_ess_fraction(self) -> float | None:
-        return self.min_ess_fraction
-
-    def _distances(self, columns: Mapping[str, Sequence[float]]) -> list[float]:
-        import numpy as np
-
-        total: Any = None
-        for name, centre, scale in zip(self.covariates, self.center, self.scale, strict=True):
-            if name not in columns:
-                raise CausalValueError(
-                    f"kernel target covariate {name!r} is not a column of the analysed table; "
-                    f"columns are {sorted(columns)}"
-                )
-            try:
-                values = np.asarray(columns[name], dtype=float)
-            except (TypeError, ValueError) as error:
-                raise CausalValueError(
-                    f"kernel target covariate {name!r} must be numeric"
-                ) from error
-            if not np.isfinite(values).all():
-                raise CausalValueError(
-                    f"kernel target covariate {name!r} has missing or non-finite values; the "
-                    "distance of such a row is undefined. Next attempt: complete the covariate "
-                    "or declare explicit weights with target_row_weights"
-                )
-            term = ((values - centre) / scale) ** 2
-            total = term if total is None else total + term
-        return [float(d) for d in np.sqrt(total)]
-
-    def _weights(self, columns: Mapping[str, Sequence[float]]) -> list[float]:
-        return self.kernel.weights(self._distances(columns))
-
-    def _declaration(self) -> dict[str, Any]:
+    def _declaration(self, names: Sequence[str]) -> dict[str, Any]:
         return {
             "kind": "kernel",
             "family": str(self.kernel.family),
             "bandwidth": float(self.kernel.bandwidth),
-            "covariates": list(self.covariates),
-            "center": [float(c) for c in self.center],
-            "scale": [float(c) for c in self.scale],
+            "covariates": _column_ids(self.covariates, names),
+            "center": list(self.center),
+            "scale": list(self.scale),
+            "min_ess_fraction": self.min_ess_fraction,
         }
 
 
@@ -349,9 +299,9 @@ class WeightedTargetReport:
     """The weighted target population a result is about, with its overlap diagnostics.
 
     ``declaration`` is the declared kernel (family, bandwidth, covariates, center, scale) or
-    the declared covariates of explicit weights; ``identity`` is the canonical digest of the
-    declaration and the exact weight bits; ``overlap`` is the support / Kish ESS / largest
-    single-row share of the weights over the analysed rows.
+    the declared covariates of explicit weights; ``identity`` is the digest of the declaration
+    and the exact weight bits; ``overlap`` is the support / Kish ESS / largest single-row share
+    of the weights over the analysed rows. The native study computes all of it.
     """
 
     declaration: Mapping[str, Any]
@@ -359,23 +309,35 @@ class WeightedTargetReport:
     distribution_id: int
     overlap: TargetOverlap
     min_ess_fraction: float
+    assumption: str
+
+    @classmethod
+    def _from_native(cls, raw: Mapping[str, Any], names: Sequence[str]) -> WeightedTargetReport:
+        from .priors import TargetOverlap
+
+        declaration: dict[str, Any] = {
+            "kind": raw["kind"],
+            "covariates": [names[i] for i in raw["covariates"]],
+        }
+        if raw["kind"] == "kernel":
+            declaration.update(
+                family=raw["family"],
+                bandwidth=raw["bandwidth"],
+                center=list(raw["center"]),
+                scale=list(raw["scale"]),
+            )
+        return cls(
+            declaration=declaration,
+            identity=str(raw["identity"]),
+            distribution_id=int(raw["distribution_id"]),
+            overlap=TargetOverlap._from_native(raw["overlap"]),
+            min_ess_fraction=float(raw["min_ess_fraction"]),
+            assumption=str(raw["assumption"]),
+        )
 
     def assumptions(self) -> tuple[str, ...]:
         """The assumption statements the target adds to the result's assumptions."""
-        decl = self.declaration
-        if decl["kind"] == "kernel":
-            what = (
-                f"the target population is the {decl['family']} kernel neighbourhood "
-                f"(bandwidth {decl['bandwidth']}) of {decl['center']} over "
-                f"{decl['covariates']} (scale {decl['scale']})"
-            )
-        else:
-            what = f"the target population is the declared row weighting over {decl['depends_on']}"
-        return (
-            f"weighted target: {what}; the effect is standardized to it, assuming it differs "
-            f"from the analysed rows only through those covariates "
-            f"(identity {self.identity})",
-        )
+        return (self.assumption,)
 
     def to_dict(self) -> dict[str, Any]:
         """The report as plain data."""
@@ -394,19 +356,6 @@ class WeightedTargetReport:
                 "max_weight_share": o.max_weight_share,
             },
         }
-
-
-def _overlap_of(
-    weights: Sequence[float], min_ess_fraction: float | None
-) -> tuple[TargetOverlap, str | None, float]:
-    """Overlap of ``weights``, the next-attempt refusal text when it fails, and the floor used."""
-    from . import _native
-    from .priors import TargetOverlap
-
-    raw = _native.target_weights_overlap(
-        [float(w) for w in weights], min_ess_fraction=min_ess_fraction
-    )
-    return TargetOverlap._from_native(raw), raw["refusal"], float(raw["min_ess_fraction"])
 
 
 def target_row_weights(
@@ -456,87 +405,20 @@ def target_kernel(
     return KernelTarget(kernel, names, centre, scale_values, min_ess_fraction)
 
 
-_WEIGHTED_TARGET_DOMAIN = "antecedent.weighted_target.v1"
+def weighted_target_declaration(
+    query: Any, names: Sequence[str]
+) -> tuple[Any, dict[str, Any] | None]:
+    """Split a weighted target population off ``query`` for the native study.
 
-
-def resolve_weighted_population(
-    query: Any,
-    names: Sequence[str],
-    columns: Sequence[Any],
-    registry: PopulationRegistry | None,
-) -> tuple[Any, PopulationRegistry | None, WeightedTargetReport | None]:
-    """Resolve a weighted target population of ``query`` against the analysed table.
-
-    Returns ``(query, registry, report)``. A query without a weighted target comes back
-    unchanged with no report, so every existing declaration is untouched. Otherwise the weights
-    become a custom target distribution declared over the covariates the weights depend on, the
-    query names that distribution, and the overlap check runs here: a weighting without
-    positivity, below the Kish ESS floor, or thinner than the declared ESS fraction is refused
-    with ``transport_target_overlap_failed`` and a next attempt, before anything is estimated.
+    Returns ``(query, declaration)``. A query without a weighted target comes back unchanged
+    with no declaration. Otherwise the query is returned with the all-observed population and
+    the declaration (covariates as column indices) is what the native study resolves: it
+    computes the weights, gates the overlap and names the custom distribution itself.
     """
     population = getattr(query, "target_population", None)
     if not isinstance(population, WeightedPopulation):
-        return query, registry, None
-    import numpy as np
-
-    from ._digest import canonical_digest
-
-    if not columns:
-        raise CausalUnsupportedError(
-            "a weighted target population is declared over the rows of one analysed table; "
-            "this route reads its units from a frame or design",
-            reason_code="option_not_applicable",
-        )
-    by_name = dict(zip(names, columns, strict=True))
-    depends_on = population._depends_on()
-    missing = [n for n in depends_on if n not in by_name]
-    if missing:
-        raise CausalValueError(
-            f"the weighted target depends on {missing}, which are not columns of the analysed "
-            f"table; columns are {sorted(by_name)}"
-        )
-    weights = population._weights(by_name)
-    n_rows = len(next(iter(by_name.values())))
-    if len(weights) != n_rows:
-        raise CausalValueError(
-            f"the weighted target has {len(weights)} weights for {n_rows} analysed rows; "
-            "declare one weight per row in table order"
-        )
-    overlap, refusal, fraction = _overlap_of(weights, population._min_ess_fraction())
-    if refusal is not None:
-        raise CausalUnsupportedError(
-            "weighted_target.overlap_failed: " + refusal,
-            reason_code="transport_target_overlap_failed",
-        )
-    declaration = population._declaration()
-    identity = canonical_digest(
-        _WEIGHTED_TARGET_DOMAIN,
-        {
-            "declaration": declaration,
-            "weights": np.ascontiguousarray(weights, dtype="<f8"),
-        },
-    )
-    distribution_id = int(identity[:8], 16) & 0x7FFFFFFF
-    ids = [list(names).index(n) for n in depends_on]
-    merged = PopulationRegistry(
-        predicates=dict(registry.predicates) if registry is not None else {},
-        distributions=dict(registry.distributions) if registry is not None else {},
-    )
-    if distribution_id in merged.distributions:
-        raise CausalValueError(
-            f"distribution id {distribution_id} is already registered; the weighted target "
-            "derives its id from its identity, so register custom distributions under other ids"
-        )
-    merged.insert_distribution(distribution_id, weights, depends_on=ids)
-    resolved = replace(query, target_population=CustomDistribution(distribution_id))
-    report = WeightedTargetReport(
-        declaration=declaration,
-        identity=identity,
-        distribution_id=distribution_id,
-        overlap=overlap,
-        min_ess_fraction=fraction,
-    )
-    return resolved, merged, report
+        return query, None
+    return replace(query, target_population=None), population._declaration(names)
 
 
 def target_all() -> AllRows:
@@ -626,7 +508,7 @@ __all__ = [
     "coerce_target_population",
     "registry_wire",
     "replay_retarget",
-    "resolve_weighted_population",
+    "weighted_target_declaration",
     "target_all",
     "target_custom_distribution",
     "target_kernel",

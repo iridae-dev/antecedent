@@ -864,31 +864,6 @@ fn transport_kernel_weights_py(
     kernel.weights(&unit_distances).map_err(pyvalue)
 }
 
-/// Support and overlap of a row weighting with its rows, with the
-/// next-attempt refusal message when the overlap check fails (`None` when it
-/// passes). The same check a weighted target applies to prior transport.
-#[pyfunction(name = "target_weights_overlap")]
-#[pyo3(signature = (weights, *, min_ess_fraction=None))]
-fn target_weights_overlap_py<'py>(
-    py: Python<'py>,
-    weights: Vec<f64>,
-    min_ess_fraction: Option<f64>,
-) -> PyResult<Bound<'py, PyDict>> {
-    use antecedent::inference::{TARGET_MIN_ESS_FRACTION, TargetOverlap};
-    if weights.is_empty() || weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
-        return Err(crate::value_err("target weights must be non-empty, finite and >= 0"));
-    }
-    let fraction = min_ess_fraction.unwrap_or(TARGET_MIN_ESS_FRACTION);
-    if !(0.0..=1.0).contains(&fraction) {
-        return Err(crate::value_err("min_ess_fraction must lie in [0, 1]"));
-    }
-    let overlap = TargetOverlap::from_weights(&weights);
-    let d = overlap_to_py(py, &overlap)?;
-    d.set_item("refusal", overlap.failure(fraction))?;
-    d.set_item("min_ess_fraction", fraction)?;
-    Ok(d)
-}
-
 /// Transported-mean sensitivity across a set of declared bandwidths.
 #[pyfunction(name = "transport_bandwidth_sensitivity")]
 #[pyo3(signature = (kernel_family, bandwidths, unit_distances, unit_effects, *, min_ess_fraction=None))]
@@ -1642,7 +1617,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(compose_external_priors_py, m)?)?;
     m.add_function(wrap_pyfunction!(compose_external_priors_for_target_py, m)?)?;
     m.add_function(wrap_pyfunction!(transport_kernel_weights_py, m)?)?;
-    m.add_function(wrap_pyfunction!(target_weights_overlap_py, m)?)?;
     m.add_function(wrap_pyfunction!(transport_bandwidth_sensitivity_py, m)?)?;
     m.add_function(wrap_pyfunction!(mapped_posterior_transfer_py, m)?)?;
     m.add_function(wrap_pyfunction!(shrink_alpha_py, m)?)?;

@@ -218,6 +218,9 @@ pub(crate) struct StudyDeclarations {
     pub(crate) estimator_spec: Option<Arc<crate::estimator_spec::EstimatorSpec>>,
     pub(crate) overlap_policy: Option<OverlapPolicy>,
     pub(crate) population_registry: Option<PopulationRegistry>,
+    /// The resolved weighted target population, when one was declared. Its weights are the
+    /// registered custom distribution the query names, which carries the identity.
+    pub(crate) weighted_target: Option<Arc<crate::analysis::weighted_target::WeightedTargetReport>>,
     /// Digests of the participant labels bound to the rows of the data.
     pub(crate) participants: Option<antecedent_io::ParticipantBindingWire>,
     /// Declared handling of missing values, when the caller declared one.

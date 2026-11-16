@@ -3290,6 +3290,17 @@ evidence_test = "python/tests/test_weighted_target_population.py"
 evidence_assertion = "test_kernel_and_explicit_weights_with_the_same_weights_give_the_same_effect"
 
 [[routes]]
+route = "antecedent.transport.estimate_trial_effect.weighted_target"
+graph = "selection_diagram_admg"
+evidence = "trial_rows_with_selection_probabilities_and_target_rows_with_covariates"
+functional = "weighted_target_transported_ipw_aipw_contrast"
+guarantee = "plug_in_delta_method_se_with_overlap_gate"
+reference = "docs/guides/transport/weighted-target-population.md"
+limits = "A randomized binary trial contrast under a Dahabreh-compatible certificate; supplied selection and treatment probabilities taken as known; the target is the non-participant rows reweighted by a declared kernel or row weights, behind the Kish overlap gate over the target rows and over the weights the trial rows carry toward them; a point with delta-method standard errors, not a calibrated interval."
+evidence_test = "crates/antecedent/tests/weighted_target_trial_transport.rs"
+evidence_assertion = "a_kernel_target_effect_equals_the_closed_form_weighted_effect"
+
+[[routes]]
 route = "antecedent.analyze.weighted_target_overlap"
 notes = "A weighted target with no support, a Kish effective sample size below 20 rows or the declared fraction of the rows, or a failing per-arm weighted overlap gate is refused with a next attempt and no interval."
 

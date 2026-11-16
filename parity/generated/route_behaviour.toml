@@ -714,6 +714,7 @@ routes = [
   { route = "antecedent.analyze.weighted_target", stage = "evaluate", status = "supported", claim = "interval" },
   { route = "antecedent.population.target_kernel", stage = "prepare", status = "supported", claim = "interval" },
   { route = "antecedent.population.target_row_weights", stage = "prepare", status = "supported", claim = "interval" },
+  { route = "antecedent.transport.estimate_trial_effect.weighted_target", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.analyze.weighted_target_overlap", stage = "evaluate", status = "closed", reason_code = "transport_target_overlap_failed", claim = "interval" },
 ]
 

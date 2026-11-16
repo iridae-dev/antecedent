@@ -105,6 +105,7 @@ pub mod association;
 mod batch;
 mod batch_export;
 mod batch_retarget;
+mod weighted_target;
 pub mod bayesian_posterior_row;
 mod builder;
 mod candidate_screen_units;

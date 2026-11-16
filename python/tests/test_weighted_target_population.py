@@ -143,14 +143,6 @@ def test_a_thin_target_below_the_kish_floor_refuses_and_a_wider_one_runs():
     assert math.isfinite(require_success(_analyze(data, wide)).ate)
 
 
-def test_the_overlap_preview_matches_what_analyze_checks():
-    data = _heterogeneous()
-    target = target_kernel(TransportKernel("gaussian", 0.5), center={"z": 1.0})
-    preview = target.overlap(data)
-    result = require_success(_analyze(data, target))
-    assert preview == result.weighted_target.overlap
-
-
 def test_the_declared_ess_fraction_floor_is_applied():
     data = _heterogeneous()
     strict = target_kernel(

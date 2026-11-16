@@ -1983,6 +1983,7 @@ fn into_study(exposure: BoundExposure) -> Study {
             estimator_spec: declared.estimator_spec.map(Arc::new),
             overlap_policy: declared.overlap_policy,
             population_registry: declared.population_registry,
+            weighted_target: declared.weighted_target,
             participants: declared.participants,
             missing: declared.missing,
             sampling_design: declared.sampling_design,

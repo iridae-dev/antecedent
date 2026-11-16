@@ -16,6 +16,14 @@ use crate::{AteAnalysisResult, py_err, py_execution_context_ext};
 
 #[pymethods]
 impl PyPreparedAnalysis {
+    /// The weighted target population declared at prepare, with its overlap diagnostics.
+    fn weighted_target_report<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyDict>>> {
+        self.inner
+            .weighted_target_report()
+            .map(|report| crate::weighted_target_api::report_to_dict(py, report))
+            .transpose()
+    }
+
     /// Independent execution header sharing immutable native prepared storage.
     fn fork(&self) -> Self {
         Self {

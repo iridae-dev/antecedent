@@ -1620,6 +1620,14 @@ name = "weighted_target_effect_calibration"
 path = "tests/weighted_target_effect_calibration.rs"
 
 [[test]]
+name = "weighted_target_trial_transport"
+path = "tests/weighted_target_trial_transport.rs"
+
+[[test]]
+name = "weighted_target_transport_calibration"
+path = "tests/weighted_target_transport_calibration.rs"
+
+[[test]]
 name = "panel_did_calibration"
 
 [[test]]

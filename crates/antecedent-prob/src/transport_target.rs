@@ -250,6 +250,39 @@ impl TargetOverlap {
     }
 }
 
+/// The overlap check of a bare row weighting: positivity, the absolute Kish floor and the
+/// fraction floor of `min_ess_fraction` of the rows.
+///
+/// This is the one gate every weighted target passes, whether it transports a prior, a
+/// standardized effect or a trial contrast.
+///
+/// # Errors
+///
+/// Weights that are empty, non-finite or negative; a fraction outside `[0, 1]`; or
+/// `transport_target_overlap_failed` with a next-attempt message when the check fails.
+pub fn check_weights_overlap(
+    weights: &[f64],
+    min_ess_fraction: f64,
+) -> Result<TargetOverlap, ProbError> {
+    if weights.is_empty() || weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+        return Err(TransportError::InvalidWeights {
+            message: "target weights must be non-empty, finite and >= 0",
+        }
+        .into());
+    }
+    if !(0.0..=1.0).contains(&min_ess_fraction) {
+        return Err(TransportError::InvalidWeights {
+            message: "min_ess_fraction must lie in [0, 1]",
+        }
+        .into());
+    }
+    let overlap = TargetOverlap::from_weights(weights);
+    match overlap.failure(min_ess_fraction) {
+        Some(message) => Err(overlap_refusal(message)),
+        None => Ok(overlap),
+    }
+}
+
 /// A target population declared as a weighting over the source rows.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WeightedTarget {

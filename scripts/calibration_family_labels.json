@@ -2984,22 +2984,41 @@
     },
     {
       "path": "crates/antecedent/tests/weighted_target_effect_calibration.rs",
-      "sha256": "4931d6aeb211328159b4dcc53a24a4f30061be0fb4db63664373b0acb156368c",
+      "sha256": "e62adfc63ad719c95edb9c6ee1b7437da1b6fe2312125578f4c21d9907cae7f3",
       "labelled_calls": [
         {
-          "line": 114,
+          "line": 113,
           "call": ".labelled(",
           "argument": "format!(\"centre {centre} bandwidth {bandwidth}\")"
         }
       ],
       "constructor_calls": [
         {
-          "line": 110,
+          "line": 109,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL },\n            REPORTED_LEVEL,"
         }
       ],
       "review": "Fixed planted heterogeneous-effect design with a Gaussian kernel target at a source-declared centre and a source-declared bandwidth grid per test; the centre and bandwidth labels, the closed-form truth and the record key are fixed in source."
+    },
+    {
+      "path": "crates/antecedent/tests/weighted_target_transport_calibration.rs",
+      "sha256": "f4a8357f1694eb25d99046dc5bb9e5c93a86a013d433f5d672f72c50c10d19ce",
+      "labelled_calls": [
+        {
+          "line": 131,
+          "call": ".labelled(",
+          "argument": "format!(\"centre {centre} bandwidth {bandwidth}\")"
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 127,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL },\n            REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Fixed planted effect-modification design (trial N(0,1), target N(1,1)) with a Gaussian kernel target at a source-declared centre and a source-declared bandwidth grid per test; the centre and bandwidth labels, the closed-form truth and the record key are fixed in source."
     },
     {
       "path": "crates/antecedent/tests/z_transport_surrogate_calibration.rs",

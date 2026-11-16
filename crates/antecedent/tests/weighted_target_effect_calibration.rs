@@ -2,7 +2,7 @@
 //!
 //! The confounder is `z ~ N(0, 1)`, the planted effect is `tau(z) = 1 + z`, and the target is the
 //! Gaussian kernel neighbourhood `w(z) = exp(-(z - c)^2 / (2 h^2))` of the centre `c`, declared
-//! as per-row weights (a custom target distribution over `z`). The target population is the
+//! as a declared kernel target (the study's custom target distribution over `z`). The target population is the
 //! source population reweighted by `w`, so its effect has the closed form
 //! `E[w(z) tau(z)] / E[w(z)] = 1 + c / (1 + h^2)`: the product of `N(0, 1)` and the kernel is a
 //! normal with mean `c / (1 + h^2)`. Each replicate estimates the effect with AIPW under those
@@ -19,11 +19,9 @@
 
 mod common;
 
-use antecedent::{EstimatorId, RefuteSuite, Study};
-use antecedent_core::{
-    AverageEffectQuery, DistributionRef, ExecutionContext, PopulationRegistry, StreamDomain,
-    TargetPopulation, VariableId,
-};
+use antecedent::inference::{KernelFamily, TransportKernel};
+use antecedent::{EstimatorId, RefuteSuite, Study, WeightedTargetDeclaration};
+use antecedent_core::{AverageEffectQuery, ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
@@ -45,14 +43,12 @@ fn interval(centre: f64, bandwidth: f64, n: usize, seed: u64) -> Option<(f64, f6
     let mut z = vec![0.0; n];
     let mut t = vec![0.0; n];
     let mut y = vec![0.0; n];
-    let mut w = vec![0.0; n];
     for i in 0..n {
         let zi = standard_normal(&mut rng);
         z[i] = zi;
         let p = 1.0 / (1.0 + (-(0.9 * zi)).exp());
         t[i] = f64::from(rng.next_f64() < p);
         y[i] = (1.0 + zi) * t[i] + zi + 0.3 * standard_normal(&mut rng);
-        w[i] = (-0.5 * ((zi - centre) / bandwidth).powi(2)).exp();
     }
     let pairs = [("t", t), ("y", y), ("z", z)];
     let borrowed: Vec<(&str, &[f64])> = pairs.iter().map(|(n, v)| (*n, v.as_slice())).collect();
@@ -61,15 +57,18 @@ fn interval(centre: f64, bandwidth: f64, n: usize, seed: u64) -> Option<(f64, f6
     for (from, to) in [(2, 0), (2, 1), (0, 1)] {
         graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).ok()?;
     }
-    let href = DistributionRef::from_raw(1);
-    let mut registry = PopulationRegistry::new();
-    registry.insert_distribution_with_dependence(href, w, [VariableId::from_raw(2)]);
-    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
-        .with_target_population(TargetPopulation::CustomDistribution(href));
+    let declaration = WeightedTargetDeclaration::kernel(
+        TransportKernel::new(KernelFamily::Gaussian, bandwidth).ok()?,
+        vec![VariableId::from_raw(2)],
+        vec![centre],
+        None,
+    )
+    .ok()?;
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let result = Study::tabular(data)
         .graph(graph)
         .query(query)
-        .population_registry(registry)
+        .weighted_target(declaration)
         .estimator(EstimatorId::Aipw)
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)

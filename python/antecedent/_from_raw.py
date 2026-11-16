@@ -1527,7 +1527,14 @@ def _wrap_ate(
         )
     # A declared weighted target population adds its declaration and overlap diagnostics to the
     # result; a result without one carries exactly the assumptions and provenance it always did.
-    weighted_target = getattr(prepared, "_weighted_target", None)
+    weighted_target = None
+    target_names = getattr(prepared, "_weighted_target_names", None)
+    if target_names is not None:
+        from .population import WeightedTargetReport
+
+        weighted_target = WeightedTargetReport._from_native(
+            prepared._native.weighted_target_report(), target_names
+        )
     assumptions = getattr(raw, "assumptions", None)
     provenance: dict[str, Any] = {
         "node_count": raw.provenance_node_count,

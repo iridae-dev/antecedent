@@ -824,6 +824,10 @@ fn signed_weight_effective_sample_size(weights: &[f64]) -> f64 {
     if sum_sq > 0.0 { absolute_sum * absolute_sum / sum_sq } else { 0.0 }
 }
 
+#[path = "transport_weighted_target.rs"]
+mod weighted_target;
+pub use weighted_target::{WeightedTargetTransportEstimate, trial_to_weighted_target_effect};
+
 #[path = "transport_series.rs"]
 mod series;
 pub use series::{

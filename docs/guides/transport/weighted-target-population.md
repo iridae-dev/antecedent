@@ -2,7 +2,9 @@
 
 Sometimes the population you care about is not a label. It is a neighbourhood: the patients near a clinic, the households whose income is close to a policy threshold, the units a geometry selects. Antecedent lets you declare such a target as row weights or as a kernel over a covariate distance, and `analyze` then reports the effect for that population, with a statement of how much of your data the target rests on.
 
-Use this page when you have an ordinary adjusted `AverageEffect` question (a graph and a back-door adjustment set) and the target differs from the analysed rows only through covariates you can name. For a target that is a different population with its own labelled evidence, see [Carry an effect to another population](carry-an-effect.md).
+Use this page when you have an ordinary adjusted `AverageEffect` question (a graph and a back-door adjustment set) or a trial whose effect you want carried to a neighbourhood of the non-participants, and the target differs from the rows you analyse only through covariates you can name. For a target that is a different population with its own labelled evidence and a declared selection diagram, see [Carry an effect to another population](carry-an-effect.md).
+
+The declaration, the weights, the overlap gate and the report are the Rust facade's (`WeightedTargetDeclaration`, `StudyBuilder::weighted_target`, `WeightedTargetReport`); Python builds the declaration and reads the report, so both give the same estimate, refusal and report.
 
 ## What the answer means
 
@@ -33,6 +35,25 @@ result = ant.analyze(
 ```
 
 The distance of row `i` is `sqrt(sum_j ((x_ij - center_j) / scale_j) ** 2)` and its weight is the kernel of that distance (`gaussian`, `epanechnikov` or `tricube`). Explicit weights, one per analysed row in table order, are declared with `target_row_weights(weights, depends_on=["age", "bmi"])`.
+
+In Rust the same declaration is `WeightedTargetDeclaration::kernel(kernel, covariates, center, scale)` or `::row_weights(weights, depends_on)`, passed to `Study::...weighted_target(declaration)`; `PreparedStudy::weighted_target_report()` returns the report.
+
+## Carry a trial effect to the target
+
+A trial gives the effect among participants. To carry it to a neighbourhood of the non-participants, declare the target over the covariates of every row (trial and target rows alike) and pass it to `transport.estimate_trial_effect`:
+
+```python
+estimate = transport.estimate_trial_effect(
+    identification, treatment, outcome, trial, selection_probability, treatment_probability,
+    target=target_kernel(TransportKernel("gaussian", 0.8), center={"z": 1.0}),
+    covariates={"z": z},
+)
+estimate.ipw, estimate.ipw_se
+estimate.weighted_target.overlap      # the weights over the target rows
+estimate.trial_overlap                # the weights the trial rows carry toward the target
+```
+
+The target is the non-participant rows reweighted by the declaration, and the trial rows reach it through the usual selection odds multiplied by the same weights. Two gates apply, both the gate described below: one over the weights on the target rows, one over the weights the trial rows carry. With constant weights the estimate is the unweighted contrast. Rust: `transport_trial_to_weighted_target`.
 
 ## Read the overlap
 
@@ -70,7 +91,7 @@ The weights enter the query identity, so two kernels, two bandwidths or two cent
 
 - The target is a reweighting of the analysed rows. A target outside the rows' support is refused; it is not extrapolated.
 - The weights are fixed by the declaration. Estimating them from the data and carrying that uncertainty is not part of the interval.
-- A weighted target applies to `AverageEffect` on a table. Other queries, frames and design routes refuse it; trial-to-target transport keeps its population labels (see [Carry an effect to another population](carry-an-effect.md)).
+- A weighted target applies to `AverageEffect` on a table and to the trial-to-target contrast of `estimate_trial_effect`. Other queries, frames and design routes refuse it. The compiled `TransportQuery` path keeps its population labels (see [Carry an effect to another population](carry-an-effect.md)); the weighted trial contrast is a point with delta-method standard errors and its coverage cells are wired but not yet measured.
 - Prior composition has its own weighted-target route over per-row unit effects; see [priors](../../priors.md).
 
 ## Related

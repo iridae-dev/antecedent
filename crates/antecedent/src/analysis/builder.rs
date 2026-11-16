@@ -353,6 +353,8 @@ pub struct StudyBuilder {
     caller_graph: Option<CallerGraph>,
     /// Structure, procedure and population declarations.
     declared: Declarations,
+    /// A declared weighted target population, resolved against the table at build.
+    weighted_target: Option<super::weighted_target::WeightedTargetDeclaration>,
     /// Transport trial and interference network inputs.
     exposure: ExposureInputs,
     /// Inference mode, validation suite and bootstrap budget.
@@ -634,6 +636,7 @@ impl StudyBuilder {
             bootstrap_interval: None,
             caller_graph: None,
             declared: Declarations::default(),
+            weighted_target: None,
             exposure: ExposureInputs::default(),
             settings: InferenceSettings::omitted(Self::OMITTED_REFUTE, Self::OMITTED_BOOTSTRAP),
             execution: ExecutionSettings::default(),
@@ -1273,6 +1276,23 @@ impl StudyBuilder {
         self
     }
 
+    /// Declare the target population as row weights or a kernel over a covariate distance.
+    ///
+    /// At build the weights are read from the table, pass the overlap gate and are registered
+    /// as the study's custom target distribution over the declared covariates, which the query
+    /// then names. The study estimates the effect for that population through the estimators
+    /// that take a custom target distribution. A query that is not population-scoped, or that
+    /// already names a population, refuses the declaration; so does a table that is not
+    /// tabular.
+    #[must_use]
+    pub fn weighted_target(
+        mut self,
+        declaration: super::weighted_target::WeightedTargetDeclaration,
+    ) -> Self {
+        self.weighted_target = Some(declaration);
+        self
+    }
+
     /// Append custom effect validators ( slow path).
     #[must_use]
     pub fn custom_validators(mut self, validators: Vec<Arc<dyn CustomEffectValidator>>) -> Self {
@@ -1365,6 +1385,51 @@ impl StudyBuilder {
         Ok(())
     }
 
+    /// Resolve a declared weighted target against the table: gate its overlap, register its
+    /// weights as a custom target distribution and point the query at it.
+    fn resolve_weighted_target(&mut self) -> Result<(), CausalError> {
+        let Some(declaration) = self.weighted_target.take() else {
+            return Ok(());
+        };
+        let DataInput::Tabular(table) = &self.data else {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "a weighted target population is declared over the rows of one table"
+            ));
+        };
+        let resolved = declaration.resolve(table)?;
+        let Some(population) = self.query.as_mut().and_then(CausalQuery::target_population_mut)
+        else {
+            return Err(crate::unsupported_reason!(
+                "population_not_estimable",
+                "this query is not scoped to a target population; a weighted target applies to an average effect"
+            ));
+        };
+        if *population != antecedent_core::TargetPopulation::AllObserved {
+            return Err(CausalError::Conflict {
+                what: "weighted_target",
+                detail: "the query already names a target population; declare one",
+            });
+        }
+        let id = resolved.report.distribution();
+        let registry =
+            self.declared.population_registry.get_or_insert_with(PopulationRegistry::new);
+        if registry.distribution(id).is_some() {
+            return Err(CausalError::Conflict {
+                what: "weighted_target",
+                detail: "the weighted target's derived distribution id is already registered; register custom distributions under other ids",
+            });
+        }
+        registry.insert_distribution_with_dependence(
+            id,
+            resolved.weights,
+            declaration.covariates().to_vec(),
+        );
+        *population = antecedent_core::TargetPopulation::CustomDistribution(id);
+        self.declared.weighted_target = Some(Arc::new(resolved.report));
+        Ok(())
+    }
+
     fn finish(mut self, inspect_only: bool) -> Result<Study, CausalError> {
         if let Some(error) = self.discovery_query_error.take() {
             return Err(CausalError::from(error));
@@ -1376,6 +1441,7 @@ impl StudyBuilder {
             policy.validate().map_err(CausalError::from)?;
         }
         self.apply_bootstrap_interval()?;
+        self.resolve_weighted_target()?;
         if let (Some(CausalQuery::SyntheticControl(query)), InferenceMode::Frequentist) =
             (self.query.as_mut(), &self.settings.inference)
         {

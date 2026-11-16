@@ -84,6 +84,6 @@ pub use transport::{
 };
 pub use transport_target::{
     BandwidthSensitivityRow, KernelFamily, TARGET_MIN_ESS_FRACTION, TargetOverlap, TransportKernel,
-    WeightedTarget, apply_weighted_target_transport, compose_with_weighted_target_transport,
-    kernel_bandwidth_sensitivity,
+    WeightedTarget, apply_weighted_target_transport, check_weights_overlap,
+    compose_with_weighted_target_transport, kernel_bandwidth_sensitivity,
 };
