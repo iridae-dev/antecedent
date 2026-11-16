@@ -1280,12 +1280,6 @@ impl GraphPriorTable {
         }
     }
 
-    /// `(ln p, ln (1 - p))` of the directed edge `from → to` when a per-edge map or soft tiers
-    /// are set, else `None`.
-    pub(crate) fn pair_log(&self, from: usize, to: usize) -> Option<(f64, f64)> {
-        self.pair_logs.as_ref().map(|logs| logs[from * self.n + to])
-    }
-
     /// Number of nodes.
     pub(crate) fn n(&self) -> usize {
         self.n

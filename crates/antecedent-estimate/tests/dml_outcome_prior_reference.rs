@@ -188,7 +188,7 @@ fn assert_hand_computed(
         let in_fold = |j: usize| table.fold_ids[j] == fold;
         let control: Vec<usize> = (0..n).filter(|&j| !in_fold(j) && d.t[j] < 0.5).collect();
         let treated: Vec<usize> = (0..n).filter(|&j| !in_fold(j) && d.t[j] > 0.5).collect();
-        let (b0, b1) = (arm_map(&control, &d, mean, v0), arm_map(&treated, &d, mean, v0));
+        let (b0, b1) = (arm_map(&control, d, mean, v0), arm_map(&treated, d, mean, v0));
         let (mu0, mu1) = (b0[0] + b0[1] * d.z[i], b1[0] + b1[1] * d.z[i]);
         let mut e = table.propensities[n + i];
         if let Some(c) = clip {

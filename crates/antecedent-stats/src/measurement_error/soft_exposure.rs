@@ -220,12 +220,9 @@ fn fit_mixture(
         }
         Ok((beta, rss / m))
     };
-    let (mut beta, mut sigma2) = match start {
-        Some((b, s)) => (b.to_vec(), s),
-        None => {
-            let resp: Vec<f64> = rows.iter().map(|&i| data.probability[i]).collect();
-            m_step(&resp)?
-        }
+    let (mut beta, mut sigma2) = if let Some((b, s)) = start { (b.to_vec(), s) } else {
+        let resp: Vec<f64> = rows.iter().map(|&i| data.probability[i]).collect();
+        m_step(&resp)?
     };
     let floor = 1e-10;
     let mut iterations = 0;

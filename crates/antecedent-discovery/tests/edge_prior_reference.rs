@@ -10,6 +10,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::float_cmp,
+    reason = "small graph counts and exact posterior ratios of identical computations"
+)]
+
 use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, VariableId};

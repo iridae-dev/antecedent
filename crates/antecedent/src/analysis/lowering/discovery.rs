@@ -75,6 +75,10 @@ fn method_label(method: &DiscoveryMethod) -> String {
 }
 
 /// The posterior computation of a Bayesian search, with the draws it publishes.
+#[allow(
+    clippy::match_same_arms,
+    reason = "exact routes enumerate even when a schedule is supplied, so they precede the scheduled arm"
+)]
 fn posterior_algorithm(
     method: &DiscoveryMethod,
     schedule: Option<antecedent_core::SearchSchedule>,

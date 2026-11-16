@@ -87,7 +87,7 @@ fn exposure_correction_matches_the_numerically_differentiated_oracle() {
         close(fit.estimate.standard_error.unwrap(), total.sqrt(), 1e-12, name);
         assert_eq!(fit.estimate.parameter_uncertainty, ParameterUncertainty::Propagated);
         let (lo, hi) = fit.estimate.wald_interval(0.95).unwrap();
-        close((lo + hi) / 2.0, a.log_odds_ratio, 1e-12, name);
+        close(f64::midpoint(lo, hi), a.log_odds_ratio, 1e-12, name);
         assert!(lo < a.log_odds_ratio && a.log_odds_ratio < hi);
     }
 }

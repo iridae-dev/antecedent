@@ -42,6 +42,10 @@ pub enum DmlScore {
     PartiallyLinear,
 }
 
+/// Cross-fitted predictions of a prior-regularized outcome fit, the hydrated prior and the
+/// outcome design's column names.
+type PriorOutcomeFit = (AipwPredictions, antecedent_prob::PriorSet, Arc<[Arc<str>]>);
+
 impl DmlScore {
     /// Parse `aipw` / `partially_linear`.
     ///
@@ -566,8 +570,7 @@ impl DmlAte {
         prior: &OutcomePriorSource,
         problem: &PreparedPropensityProblem,
         ctx: &ExecutionContext,
-    ) -> Result<(AipwPredictions, antecedent_prob::PriorSet, Arc<[Arc<str>]>), EstimationError>
-    {
+    ) -> Result<PriorOutcomeFit, EstimationError> {
         let names = problem.design_names.clone().ok_or_else(|| {
             EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("route_not_supported"),

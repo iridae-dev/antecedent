@@ -1,4 +1,4 @@
-//! Graph interchange (JSON, DOT, GML, NetworkX) and durable, versioned artifacts of results,
+//! Graph interchange (JSON, DOT, GML, `NetworkX`) and durable, versioned artifacts of results,
 //! posteriors and models, with their replay.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

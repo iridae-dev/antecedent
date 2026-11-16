@@ -224,9 +224,7 @@ fn check_data(data: &DetectionData<'_>) -> Result<usize, MeasurementErrorError> 
 }
 
 fn check_false_positive(fp: &FalsePositiveRate) -> Result<(), MeasurementErrorError> {
-    if !(fp.rate.is_finite() && (0.0..1.0).contains(&fp.rate))
-        || !(fp.variance.is_finite() && fp.variance >= 0.0)
-    {
+    if !((0.0..1.0).contains(&fp.rate) && fp.variance.is_finite() && fp.variance >= 0.0) {
         return Err(MeasurementErrorError::InvalidParameter(
             "the false-positive rate must lie in [0, 1) with a non-negative variance",
         ));

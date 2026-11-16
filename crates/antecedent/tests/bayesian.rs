@@ -1643,6 +1643,11 @@ fn prior_conjugate_moment_match() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "fixture counts are stored as JSON numbers"
+)]
 fn conjugate_count_posteriors() {
     use antecedent_prob::{
         AlphaCriterion, AlphaSelectionOptions, BetaBinomialPosterior, BetaHyperparameters,
@@ -2227,6 +2232,11 @@ fn temporal_composed_prior_conflict_and_alpha_grid() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "fixture counts are stored as JSON numbers"
+)]
 fn prior_bank_weighted_target() {
     use std::sync::Arc;
 

@@ -660,6 +660,11 @@ fn assert_edge_marginals_reliable_under_draws_from_the_prior(label: &str, prior:
                     continue;
                 }
                 let p = exact.edge_marginals[from * n + to];
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    reason = "p is an edge marginal in [0, 1], so the bin index is in range"
+                )]
                 let bin = ((p * N_BINS as f64) as usize).min(N_BINS - 1);
                 cells[bin].0 += 1.0;
                 cells[bin].1 += p;

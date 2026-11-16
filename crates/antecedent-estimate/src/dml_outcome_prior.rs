@@ -180,7 +180,7 @@ impl OutcomePriorSource {
                             "`{target}` is not a column of the outcome regression"
                         )));
                     }
-                    if !source_names.iter().any(|name| *name == Some(source.as_str())) {
+                    if !source_names.contains(&Some(source.as_str())) {
                         return Err(unmapped(format!(
                             "`{source}` is not a named coefficient of the source"
                         )));

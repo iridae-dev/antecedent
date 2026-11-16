@@ -411,15 +411,12 @@ fn selected_alpha_beta_binomial_covers_across_discrepancy() {
                 SEED_SELECTED_BETA + 1_000 * i as u64 + rep,
             )
         }) {
-            match pair {
-                Some((a, b)) => {
-                    reported.record(Some(a), truth);
-                    uniform.record(Some(b), truth);
-                }
-                None => {
-                    reported.skip();
-                    uniform.skip();
-                }
+            if let Some((a, b)) = pair {
+                reported.record(Some(a), truth);
+                uniform.record(Some(b), truth);
+            } else {
+                reported.skip();
+                uniform.skip();
             }
         }
         eprintln!(

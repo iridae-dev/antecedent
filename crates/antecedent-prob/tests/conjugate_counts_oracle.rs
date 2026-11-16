@@ -12,6 +12,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::float_cmp,
+    reason = "oracle counts are stored as JSON numbers and closed-form values are compared exactly"
+)]
+
 use std::sync::Arc;
 
 use antecedent_prob::{
@@ -228,7 +236,7 @@ fn linear_target_scores_equal_the_direct_marginal_density() {
         let rows = case["x"].as_array().unwrap();
         let n_rows = rows.len();
         let n_cols = rows[0].as_array().unwrap().len();
-        let x: Vec<f64> = rows.iter().flat_map(|r| nums(r)).collect();
+        let x: Vec<f64> = rows.iter().flat_map(nums).collect();
         let y = nums(&case["y"]);
         let functional = nums(&case["functional"]);
         let gaussian = |block: &Value| {

@@ -1100,13 +1100,13 @@ fn mapped_posterior_transfer_py<'py>(
     Ok(out)
 }
 
-fn interval_dict<'py>(
-    py: Python<'py>,
+fn interval_dict(
+    py: Python<'_>,
     mean: f64,
     variance: f64,
     interval: (f64, f64),
     level: f64,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Bound<'_, PyDict>> {
     let d = PyDict::new(py);
     d.set_item("mean", mean)?;
     d.set_item("variance", variance)?;
@@ -1149,15 +1149,15 @@ fn beta_posterior_dict<'py>(
 /// equal-tailed credible interval, log marginal likelihood and optional posterior predictive.
 #[pyfunction(name = "beta_binomial_posterior")]
 #[pyo3(signature = (successes, trials, alpha, beta, *, level=0.95, predictive_trials=None))]
-fn beta_binomial_posterior_py<'py>(
-    py: Python<'py>,
+fn beta_binomial_posterior_py(
+    py: Python<'_>,
     successes: u64,
     trials: u64,
     alpha: f64,
     beta: f64,
     level: f64,
     predictive_trials: Option<u64>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Bound<'_, PyDict>> {
     let prior = antecedent::inference::BetaHyperparameters { alpha, beta };
     let posterior = antecedent::inference::BetaBinomialPosterior::new(prior, successes, trials)
         .map_err(pyvalue)?;
@@ -1167,15 +1167,15 @@ fn beta_binomial_posterior_py<'py>(
 /// Exceedance posterior `P(Y > threshold)` within one cell under a Beta prior.
 #[pyfunction(name = "exceedance_posterior")]
 #[pyo3(signature = (outcomes, threshold, alpha, beta, *, level=0.95, predictive_trials=None))]
-fn exceedance_posterior_py<'py>(
-    py: Python<'py>,
+fn exceedance_posterior_py(
+    py: Python<'_>,
     outcomes: Vec<f64>,
     threshold: f64,
     alpha: f64,
     beta: f64,
     level: f64,
     predictive_trials: Option<u64>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Bound<'_, PyDict>> {
     let mut set = PriorSet::new();
     set.push(PriorSpec::Beta(antecedent::inference::BetaHyperparameters { alpha, beta }));
     let posterior =
@@ -1197,8 +1197,8 @@ fn exceedance_posterior_py<'py>(
     clippy::cast_sign_loss,
     reason = "a plain argument list over the Python signature; the predictive bound is a small non-negative count"
 )]
-fn gamma_poisson_posterior_py<'py>(
-    py: Python<'py>,
+fn gamma_poisson_posterior_py(
+    py: Python<'_>,
     counts: Vec<u64>,
     shape: f64,
     rate: f64,
@@ -1206,7 +1206,7 @@ fn gamma_poisson_posterior_py<'py>(
     level: f64,
     predictive_exposure: Option<f64>,
     predictive_max: Option<u64>,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> PyResult<Bound<'_, PyDict>> {
     let prior = antecedent::inference::GammaHyperparameters { shape, rate };
     let posterior = antecedent::inference::GammaPoissonPosterior::from_counts(
         prior,

@@ -18,7 +18,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use antecedent_core::VariableId;
@@ -26,7 +26,7 @@ use antecedent_core::VariableId;
 use crate::error::DiscoveryError;
 
 /// The refusal every per-edge prior check raises, under the edge-prior detail.
-fn refuse(message: String) -> DiscoveryError {
+fn refuse(message: &str) -> DiscoveryError {
     DiscoveryError::Refused {
         code: antecedent_core::reason_code!("invalid_argument"),
         message: format!("structure_posterior.edge_prior_probability: {message}"),
@@ -91,8 +91,7 @@ impl SoftTiers {
     ) -> Result<Self, DiscoveryError> {
         if !(factor > 0.0 && factor < 1.0) {
             return Err(refuse(
-                "the soft-tier odds factor of an edge against the order must lie in (0, 1)"
-                    .to_owned(),
+                "the soft-tier odds factor of an edge against the order must lie in (0, 1)",
             ));
         }
         Ok(Self { tiers: tiers.into(), log_penalty: -factor.ln() })
@@ -123,7 +122,7 @@ pub(crate) fn validate(
     let position = |v: VariableId| variables.iter().position(|&candidate| candidate == v);
     let known = |what: &str, v: VariableId| {
         position(v).ok_or_else(|| {
-            refuse(format!(
+            refuse(&format!(
                 "{what} names variable {} which is not among the posterior's variables",
                 v.raw()
             ))
@@ -133,35 +132,35 @@ pub(crate) fn validate(
     if let Some(edge_priors) = edge_priors {
         if edge_priors.default.is_some_and(|p| !probability(p)) {
             return Err(refuse(
-                "the default inclusion probability of unlisted edges must lie in (0, 1)".to_owned(),
+                "the default inclusion probability of unlisted edges must lie in (0, 1)",
             ));
         }
-        let mut seen = HashMap::new();
+        let mut seen = HashSet::new();
         for &(from, to, p) in edge_priors.edges.iter() {
             let i = known("a per-edge prior", from)?;
             let j = known("a per-edge prior", to)?;
             if i == j {
-                return Err(refuse(format!(
+                return Err(refuse(&format!(
                     "a per-edge prior names the self edge on variable {}",
                     from.raw()
                 )));
             }
             if !probability(p) {
-                return Err(refuse(format!(
+                return Err(refuse(&format!(
                     "the per-edge inclusion probability of {} -> {} must lie in (0, 1)",
                     from.raw(),
                     to.raw()
                 )));
             }
-            if seen.insert((i, j), ()).is_some() {
-                return Err(refuse(format!(
+            if !seen.insert((i, j)) {
+                return Err(refuse(&format!(
                     "the per-edge prior lists {} -> {} more than once",
                     from.raw(),
                     to.raw()
                 )));
             }
             if forbidden(i, j) {
-                return Err(refuse(format!(
+                return Err(refuse(&format!(
                     "the per-edge prior lists {} -> {}, which the constraints forbid",
                     from.raw(),
                     to.raw()
@@ -171,9 +170,7 @@ pub(crate) fn validate(
     }
     if let Some(soft) = soft_tiers {
         if !(soft.log_penalty.is_finite() && soft.log_penalty >= 0.0) {
-            return Err(refuse(
-                "the soft-tier log-penalty must be finite and non-negative".to_owned(),
-            ));
+            return Err(refuse("the soft-tier log-penalty must be finite and non-negative"));
         }
         for tier in soft.tiers.iter() {
             for &variable in tier.iter() {

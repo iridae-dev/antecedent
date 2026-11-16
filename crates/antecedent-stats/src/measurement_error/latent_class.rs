@@ -395,7 +395,7 @@ fn standard_errors(
     let mut info = vec![0.0; dim * dim];
     let mut score = vec![0.0; dim];
     for i in 0..n {
-        score.iter_mut().for_each(|s| *s = 0.0);
+        score.fill(0.0);
         for l in 1..j {
             score[l - 1] = run.resp[i * j + l] - run.params.pi[l];
         }

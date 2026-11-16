@@ -261,7 +261,11 @@ impl CiScreenedPosterior {
     /// An empty or unknown `focus`, more focus variables than `max_variables`, a
     /// `max_variables` above the exact ceiling, probabilities outside `(0, 1)`, an invalid
     /// prior, screening failures, or the exact computation's refusals.
-    #[allow(clippy::too_many_arguments, reason = "one screened question, stated field by field")]
+    #[allow(
+        clippy::too_many_arguments,
+        clippy::too_many_lines,
+        reason = "one screened question, stated field by field, screened and solved in one pass"
+    )]
     pub fn screen_then_exact_marginals(
         &self,
         data: &TabularData,

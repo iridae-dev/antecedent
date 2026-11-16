@@ -1,6 +1,14 @@
 //! Known-truth tests of exposure misclassification, soft exposures, covariate-dependent
 //! detection and latent-class repeat codings.
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss,
+    clippy::float_cmp,
+    reason = "bounded simulation sizes and closed-form values compared exactly"
+)]
+
 use super::*;
 use antecedent_core::CausalRng;
 
@@ -45,7 +53,7 @@ fn outcome_specific_rates_recover_the_planted_exposure_odds_ratio() {
     let expected = g1 * g1 * 0.48 * 0.52 / 1000.0 / (0.7 * 0.7)
         + g0 * g0 * 0.18 * 0.82 / 1000.0 / (0.65 * 0.65);
     assert!(close(fit.variance_sampling, expected, 1e-12), "{fit:?}");
-    assert!(fit.variance_rates == 0.0);
+    assert_eq!(fit.variance_rates, 0.0);
 }
 
 #[test]
@@ -267,7 +275,7 @@ fn reliability_reports_a_calibrated_and_a_miscalibrated_probability_set() {
     let mut codings: Vec<u8> = Vec::new();
     let mut sizes = Vec::new();
     for b in 0..10 {
-        let q = 0.05 + 0.1 * b as f64;
+        let q = 0.05 + 0.1 * f64::from(b);
         for _ in 0..10 {
             probability.push(q);
             let ones = (20.0 * q).round() as usize;
@@ -343,7 +351,7 @@ fn a_fully_declared_detection_function_recovers_the_planted_prevalence() {
         [0.4, 0.6, 0.8, 1.0].iter().map(|d| 1000.0 * (0.3 * d) * (1.0 - 0.3 * d)).sum::<f64>()
             / (2800.0 * 2800.0);
     assert!(close(point.variance_sampling, by_hand, 1e-15), "{point:?}");
-    assert!(point.variance_parameters == 0.0);
+    assert_eq!(point.variance_parameters, 0.0);
 }
 
 #[test]

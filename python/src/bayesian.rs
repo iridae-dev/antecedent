@@ -667,7 +667,7 @@ impl PriorArgs {
             }
             _ => {
                 return Err(crate::value_err(
-                    "soft tiers need both the tiers and a penalty".to_owned(),
+                    "soft tiers need both the tiers and a penalty",
                 ));
             }
         }
