@@ -147,6 +147,7 @@ mod learned_joint_api;
 mod learned_trial_api;
 mod matched_case_control_api;
 mod measured_inference_api;
+mod measurement_exposure_api;
 mod measurement_model_api;
 mod mechanism_composition_api;
 mod mechanism_discrepancy_api;

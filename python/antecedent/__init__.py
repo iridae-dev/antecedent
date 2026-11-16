@@ -101,8 +101,10 @@ plans and cost counts.
 
 Measurement, composition and evidence accounting: ``measurement_models`` corrects a functional of
 a latent construct measured with error under a declared model (point and uncalibrated standard
-error, never an interval); ``mechanism_composition`` composes independently fitted mechanisms into
-one executable joint model with declared dependence; ``typed_mechanism_transport`` carries fitted nonlinear
+error, never an interval); ``measurement_exposure`` corrects a misclassified exposure (including
+error that differs by outcome), per-unit soft exposures, detection that depends on a covariate and
+repeat codings of a binary or ordinal facet; ``mechanism_composition`` composes independently
+fitted mechanisms into one executable joint model with declared dependence; ``typed_mechanism_transport`` carries fitted nonlinear
 and non-Gaussian mechanisms to a target population under a selection diagram, refitting the shifted ones on
 target data; ``evidence_ledger`` accounts the overlap of
 evidence sources before any pooling, borrowing or reuse and reclassifies stale results.
@@ -453,6 +455,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "joint_distribution",
     "joint_law_propagation",
     "latent_class",
+    "measurement_exposure",
     "measurement_models",
     "mechanism_composition",
     "mechanism_discrepancy",
@@ -550,6 +553,7 @@ if _TYPE_CHECKING:
     from . import joint_law_propagation as joint_law_propagation
     from . import joint_panel as joint_panel
     from . import latent_class as latent_class
+    from . import measurement_exposure as measurement_exposure
     from . import measurement_models as measurement_models
     from . import mechanism_composition as mechanism_composition
     from . import mechanism_discrepancy as mechanism_discrepancy
