@@ -1072,3 +1072,87 @@ def test_conflict_signals_length_must_match_sources():
             conflict=antecedent.priors.ConflictPolicy(p_min=0.05, kl_scale=1.0),
             conflict_signals=[{"p_value": 0.4}, {"p_value": 1e-9}],
         )
+
+
+def _neighbourhood_rows(n: int = 400):
+    xs = [-2.0 + 4.0 * i / n for i in range(n)]
+    effects = [2.0 if abs(x) < 0.5 else 5.0 for x in xs]
+    return xs, effects
+
+
+def test_kernel_weights_equal_hand_values():
+    w = antecedent.priors.TransportKernel("epanechnikov", 2.0).weights([0.0, 1.0, 2.0])
+    assert w == pytest.approx([1.0, 0.75, 0.0], abs=1e-15)
+    g = antecedent.priors.TransportKernel("gaussian", 2.0).weights([2.0])
+    assert g[0] == pytest.approx(math.exp(-0.5), abs=1e-15)
+    t = antecedent.priors.TransportKernel("tricube", 2.0).weights([1.0])
+    assert t[0] == pytest.approx((1.0 - 0.125) ** 3, abs=1e-15)
+
+
+def test_weighted_target_recovers_the_planted_neighbourhood_effect():
+    xs, effects = _neighbourhood_rows()
+    weights = [1.0 if abs(x) < 0.5 else 0.0 for x in xs]
+    composed = antecedent.priors.compose_external_priors_for_target(
+        [_single_source()],
+        transport=antecedent.priors.TransportPolicy.invariant_conditional_outcome(),
+        unit_effects=effects,
+        target_weights=weights,
+        baseline=([0.0], [100.0]),
+    )
+    assert composed.target_overlap is not None
+    assert composed.target_overlap.n_support == sum(1 for w in weights if w > 0)
+    assert composed.target_overlap.kish_ess == pytest.approx(composed.target_overlap.n_support)
+    assert "external_transport_target_weighting" in composed.assumption_ids
+
+
+def test_kernel_identity_enters_the_composed_prior_assumptions():
+    xs, effects = _neighbourhood_rows()
+    distances = [abs(x) for x in xs]
+    policy = antecedent.priors.TransportPolicy.invariant_conditional_outcome()
+
+    def ids(family: str, bandwidth: float) -> tuple[str, ...]:
+        return antecedent.priors.compose_external_priors_for_target(
+            [_single_source()],
+            transport=policy,
+            unit_effects=effects,
+            kernel=antecedent.priors.TransportKernel(family, bandwidth),  # type: ignore[arg-type]
+            unit_distances=distances,
+            baseline=([0.0], [100.0]),
+        ).assumption_ids
+
+    base = ids("gaussian", 0.4)
+    assert base == ids("gaussian", 0.4)
+    assert base != ids("gaussian", 0.5)
+    assert base != ids("tricube", 0.4)
+
+
+def test_thin_overlap_is_refused_with_a_next_attempt():
+    xs, effects = _neighbourhood_rows()
+    with pytest.raises(ValueError, match="Next attempt"):
+        antecedent.priors.compose_external_priors_for_target(
+            [_single_source()],
+            transport=antecedent.priors.TransportPolicy.invariant_conditional_outcome(),
+            unit_effects=effects,
+            kernel=antecedent.priors.TransportKernel("gaussian", 0.001),
+            unit_distances=[abs(x) for x in xs],
+            baseline=([0.0], [100.0]),
+        )
+
+
+def test_bandwidth_sensitivity_lists_the_unsupported_bandwidth():
+    xs, effects = _neighbourhood_rows()
+    rows = antecedent.priors.transport_bandwidth_sensitivity(
+        "epanechnikov", [0.01, 0.5, 1.0], [abs(x) for x in xs], effects
+    )
+    assert [r.overlap_ok for r in rows] == [False, True, True]
+    assert rows[0].refusal is not None and "Next attempt" in rows[0].refusal
+    assert rows[1].weighted_mean == pytest.approx(2.0, abs=0.05)
+
+
+def test_target_declaration_must_be_exactly_one_of_weights_or_kernel():
+    with pytest.raises(ValueError, match="exactly one"):
+        antecedent.priors.compose_external_priors_for_target(
+            [_single_source()],
+            transport=antecedent.priors.TransportPolicy.invariant_conditional_outcome(),
+            unit_effects=[1.0, 2.0],
+        )

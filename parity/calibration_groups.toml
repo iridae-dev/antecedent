@@ -14324,3 +14324,27 @@ target = "local_designs_statements_calibration"
 tests = ["bayesian_temporal_regression_kink_block_posterior_covers_the_slope_ratio_under_ar2_errors"]
 ignored = true
 grid = true
+
+[[group]]
+label = "transport_weighted_target_calibration: gaussian_kernel_transported_estimate_covers_across_bandwidths"
+package = "antecedent"
+target = "transport_weighted_target_calibration"
+tests = ["gaussian_kernel_transported_estimate_covers_across_bandwidths"]
+ignored = true
+grid = true
+
+[[group]]
+label = "transport_weighted_target_calibration: epanechnikov_kernel_transported_estimate_covers_across_bandwidths"
+package = "antecedent"
+target = "transport_weighted_target_calibration"
+tests = ["epanechnikov_kernel_transported_estimate_covers_across_bandwidths"]
+ignored = true
+grid = true
+
+[[group]]
+label = "transport_weighted_target_calibration: tricube_kernel_transported_estimate_covers_across_bandwidths"
+package = "antecedent"
+target = "transport_weighted_target_calibration"
+tests = ["tricube_kernel_transported_estimate_covers_across_bandwidths"]
+ignored = true
+grid = true

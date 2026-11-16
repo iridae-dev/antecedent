@@ -4956,6 +4956,35 @@ def compose_external_priors(
     transport_weights: list[float] | None = None,
     coef_index: int | None = None,
 ) -> dict[str, Any]: ...
+def compose_external_priors_for_target(
+    sources: list[dict[str, Any]],
+    baseline_mean: list[float],
+    baseline_variance: list[float],
+    *,
+    transport: str,
+    unit_effects: list[float],
+    target_weights: list[float] | None = None,
+    kernel_family: str | None = None,
+    bandwidth: float | None = None,
+    unit_distances: list[float] | None = None,
+    min_ess_fraction: float | None = None,
+    coef_index: int | None = None,
+    conflict: dict[str, Any] | None = None,
+    conflict_signals: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]: ...
+def transport_kernel_weights(
+    kernel_family: str,
+    bandwidth: float,
+    unit_distances: list[float],
+) -> list[float]: ...
+def transport_bandwidth_sensitivity(
+    kernel_family: str,
+    bandwidths: list[float],
+    unit_distances: list[float],
+    unit_effects: list[float],
+    *,
+    min_ess_fraction: float | None = None,
+) -> list[dict[str, Any]]: ...
 def conflict_shrink_alpha(
     alpha: float,
     *,

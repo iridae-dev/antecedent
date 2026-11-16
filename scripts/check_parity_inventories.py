@@ -235,6 +235,7 @@ BAYESIAN_EVIDENCE = {
     "bayes.prior_bank.power_mixture": "crates/antecedent-prob/src/external_prior.rs",
     "bayes.prior_bank.conflict": "crates/antecedent-validate/src/conflict.rs",
     "bayes.prior_bank.transport": "crates/antecedent-prob/src/transport.rs",
+    "bayes.prior_bank.weighted_target_transport": "crates/antecedent/tests/transport_weighted_target.rs",
     "bayes.prior_bank.ess_accounting": "crates/antecedent-prob/src/external_prior.rs",
     "bayes.prior_bank.conjugate_moment_match": "crates/antecedent-prob/src/conjugate_moment_match.rs",
 }

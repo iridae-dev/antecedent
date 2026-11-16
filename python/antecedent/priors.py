@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Literal
 
 from ._artifact_protocol import container_bytes
@@ -16,6 +16,9 @@ from ._native import (
 )
 from ._native import (
     compose_external_priors as _compose_external_priors,
+)
+from ._native import (
+    compose_external_priors_for_target as _compose_external_priors_for_target,
 )
 from ._native import (
     conflict_shrink_alpha as _shrink_alpha,
@@ -40,6 +43,12 @@ from ._native import (
 )
 from ._native import (
     prior_catalog_rank as _rank,
+)
+from ._native import (
+    transport_bandwidth_sensitivity as _transport_bandwidth_sensitivity,
+)
+from ._native import (
+    transport_kernel_weights as _transport_kernel_weights,
 )
 
 if TYPE_CHECKING:
@@ -203,6 +212,62 @@ class ExternalPriorSourceSpec:
         }
 
 
+KernelFamily = Literal["gaussian", "epanechnikov", "tricube"]
+
+
+@dataclass(frozen=True)
+class TransportKernel:
+    """Declared kernel turning unit distances into transport weights.
+
+    ``gaussian``: ``exp(-u**2 / 2)``; ``epanechnikov``: ``1 - u**2`` for
+    ``u < 1``; ``tricube``: ``(1 - u**3)**3`` for ``u < 1``; with
+    ``u = distance / bandwidth``. The family and bandwidth are recorded as an
+    assumption on the composed prior, so they enter its identity.
+    """
+
+    family: KernelFamily
+    bandwidth: float
+
+    def weights(self, unit_distances: Sequence[float]) -> list[float]:
+        """Kernel weights for caller-supplied unit distances."""
+        return _transport_kernel_weights(self.family, float(self.bandwidth), list(unit_distances))
+
+
+@dataclass(frozen=True)
+class TargetOverlap:
+    """Support and overlap of a target weighting with the source rows."""
+
+    n_rows: int
+    n_support: int
+    support_fraction: float
+    kish_ess: float
+    ess_fraction: float
+    max_weight_share: float
+
+    @classmethod
+    def _from_native(cls, raw: Mapping[str, Any]) -> TargetOverlap:
+        return cls(
+            n_rows=int(raw["n_rows"]),
+            n_support=int(raw["n_support"]),
+            support_fraction=float(raw["support_fraction"]),
+            kish_ess=float(raw["kish_ess"]),
+            ess_fraction=float(raw["ess_fraction"]),
+            max_weight_share=float(raw["max_weight_share"]),
+        )
+
+
+@dataclass(frozen=True)
+class BandwidthSensitivityRow:
+    """One bandwidth of :func:`transport_bandwidth_sensitivity`."""
+
+    bandwidth: float
+    weighted_mean: float | None
+    mean_variance: float | None
+    overlap: TargetOverlap | None
+    overlap_ok: bool
+    refusal: str | None
+
+
 @dataclass(frozen=True)
 class ComposedPrior:
     """Result of ``compose_external_priors``; usable as ``Bayesian(prior_from=...)``.
@@ -250,6 +315,9 @@ class ComposedPrior:
     #: on the mixture path; dropped sources zeroed). ``None`` only when there
     #: are no sources to diagnose.
     kish_ess: float | None = None
+    #: Support and overlap of the target weighting with the source rows; set
+    #: only by :func:`compose_external_priors_for_target`.
+    target_overlap: TargetOverlap | None = None
 
     def to_native_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -667,6 +735,110 @@ def compose_external_priors(
     )
 
 
+def compose_external_priors_for_target(
+    sources: Sequence[ExternalPriorSourceSpec],
+    weights: Sequence[ExternalPriorWeight | float] | None = None,
+    *,
+    transport: TransportPolicy,
+    unit_effects: Sequence[float],
+    target_weights: Sequence[float] | None = None,
+    kernel: TransportKernel | None = None,
+    unit_distances: Sequence[float] | None = None,
+    min_ess_fraction: float | None = None,
+    baseline: tuple[Sequence[float], Sequence[float]] | None = None,
+    conflict: ConflictPolicy | None = None,
+    conflict_signals: Sequence[Mapping[str, float | None]] | None = None,
+    coef_index: int | None = None,
+) -> ComposedPrior:
+    """Compose priors transported toward a target defined over the source rows.
+
+    The target population is a weighting over the rows that produced
+    ``unit_effects`` rather than a population tag: either explicit
+    ``target_weights`` (for example a geometry neighbourhood), or a declared
+    ``kernel`` over ``unit_distances`` (each row's distance to the target).
+    Compatibility reads the weighting's support and overlap with the source
+    rows (positivity, Kish effective sample size, largest single-row share)
+    instead of tag equality, and the call raises ``ValueError`` with a
+    next-attempt message when the overlap fails. The Kish-ESS floor of 20
+    applies, plus ``min_ess_fraction`` of the source rows (default 0.05).
+
+    The transported mean is the weighted mean of ``unit_effects``; its
+    sampling variance widens the source ``V0`` exactly as with
+    ``transport_weights`` on :func:`compose_external_priors`. A declared kernel
+    is recorded as an assumption, so its family and bandwidth change the
+    composed prior's identity. ``ComposedPrior.target_overlap`` reports the
+    diagnostics.
+    """
+    if (target_weights is None) == (kernel is None):
+        raise ValueError("declare the target as exactly one of target_weights or kernel")
+    if kernel is not None and unit_distances is None:
+        raise ValueError("a kernel target needs unit_distances (one per source row)")
+    if kernel is None and unit_distances is not None:
+        raise ValueError("unit_distances belong to a kernel target; pass kernel or drop them")
+    srcs = _normalize_compose_sources(sources, weights)
+    baseline_mean, baseline_var = _compose_baseline(srcs, baseline)
+    raw = _compose_external_priors_for_target(
+        [s.to_dict() for s in srcs],
+        list(baseline_mean),
+        list(baseline_var),
+        transport=transport.to_wire(),
+        unit_effects=list(unit_effects),
+        target_weights=list(target_weights) if target_weights is not None else None,
+        kernel_family=kernel.family if kernel is not None else None,
+        bandwidth=float(kernel.bandwidth) if kernel is not None else None,
+        unit_distances=list(unit_distances) if unit_distances is not None else None,
+        min_ess_fraction=min_ess_fraction,
+        coef_index=coef_index,
+        conflict=conflict.to_dict() if conflict is not None else None,
+        conflict_signals=[dict(s) for s in conflict_signals]
+        if conflict_signals is not None
+        else None,
+    )
+    composed = _composed_prior_from_native(
+        raw,
+        srcs,
+        baseline_mean=baseline_mean,
+        baseline_variance=baseline_var,
+        conflict=conflict,
+        transport=transport,
+    )
+    return replace(composed, target_overlap=TargetOverlap._from_native(raw["target_overlap"]))
+
+
+def transport_bandwidth_sensitivity(
+    family: KernelFamily,
+    bandwidths: Sequence[float],
+    unit_distances: Sequence[float],
+    unit_effects: Sequence[float],
+    *,
+    min_ess_fraction: float | None = None,
+) -> list[BandwidthSensitivityRow]:
+    """Transported-mean sensitivity across a declared set of bandwidths.
+
+    A bandwidth whose weighting fails the overlap check is reported with its
+    next-attempt ``refusal`` message and ``overlap_ok=False`` rather than
+    dropped, so the report shows where transport stops being supported.
+    """
+    rows = _transport_bandwidth_sensitivity(
+        family,
+        [float(b) for b in bandwidths],
+        list(unit_distances),
+        list(unit_effects),
+        min_ess_fraction=min_ess_fraction,
+    )
+    return [
+        BandwidthSensitivityRow(
+            bandwidth=float(r["bandwidth"]),
+            weighted_mean=None if r["weighted_mean"] is None else float(r["weighted_mean"]),
+            mean_variance=None if r["mean_variance"] is None else float(r["mean_variance"]),
+            overlap=TargetOverlap._from_native(r["overlap"]) if r.get("overlap") else None,
+            overlap_ok=bool(r["overlap_ok"]),
+            refusal=r["refusal"],
+        )
+        for r in rows
+    ]
+
+
 def _normalize_compose_sources(
     sources: Sequence[ExternalPriorSourceSpec],
     weights: Sequence[ExternalPriorWeight | float] | None,
@@ -1051,6 +1223,7 @@ class PriorCatalog:
 
 
 __all__ = [
+    "BandwidthSensitivityRow",
     "BetaHyperparameters",
     "CompatibilityReport",
     "ComposedPrior",
@@ -1060,18 +1233,23 @@ __all__ = [
     "ExternalPriorSourceSpec",
     "ExternalPriorWeight",
     "GammaHyperparameters",
+    "KernelFamily",
     "MappedPosteriorPrior",
     "POPULATION_TAG_KEY",
     "PriorCatalog",
     "PriorMapping",
     "PriorSource",
     "PriorSourceMeta",
+    "TargetOverlap",
+    "TransportKernel",
     "TransportPolicy",
     "beta_from_mean_and_ess",
     "beta_from_moments",
     "compose_external_priors",
+    "compose_external_priors_for_target",
     "gamma_from_mean_and_ess",
     "gamma_from_moments",
     "mapped_posterior_transfer",
     "populations_from_prior_sources",
+    "transport_bandwidth_sensitivity",
 ]

@@ -1063,6 +1063,12 @@ pub use antecedent_prob::BayesLikelihood;
 pub use antecedent_prob::ConflictSummary;
 /// Probability / inference errors.
 pub use antecedent_prob::ProbError;
+/// Row-weighted target populations and kernel transport weights.
+pub use antecedent_prob::{
+    BandwidthSensitivityRow, KernelFamily, TARGET_MIN_ESS_FRACTION, TargetOverlap, TransportKernel,
+    WeightedTarget, apply_weighted_target_transport, compose_with_weighted_target_transport,
+    kernel_bandwidth_sensitivity,
+};
 /// Conjugate moment-matching converters: Gaussian summary → Beta / Gamma.
 pub use antecedent_prob::{BetaHyperparameters, GammaHyperparameters};
 /// External prior bank: power-prior / mixture composition.

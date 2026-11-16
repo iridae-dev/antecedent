@@ -638,6 +638,12 @@ _EXPECTED_STAGE_ALL = {
         "estimate_survival_ipcw",
     },
     "priors": {
+        "BandwidthSensitivityRow",
+        "KernelFamily",
+        "TargetOverlap",
+        "TransportKernel",
+        "compose_external_priors_for_target",
+        "transport_bandwidth_sensitivity",
         "MappedPosteriorPrior",
         "mapped_posterior_transfer",
         "BetaHyperparameters",
