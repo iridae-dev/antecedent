@@ -86,6 +86,7 @@ pub fn accept_discovered(
         review: Arc::from(if pending == 0 { "accepted" } else { "accepted_after_review" }),
         resolved_marks: pending,
         structure_prior: prior_statement(&payload.query),
+        pooling: None,
     };
     Ok(accepted.with_provenance(Arc::new(provenance)))
 }
@@ -243,12 +244,177 @@ pub fn accept_discovered_posterior(
         review: Arc::from("posterior"),
         resolved_marks: 0,
         structure_prior: prior_statement(&payload.query),
+        pooling: None,
     };
     Ok(AcceptedPosterior {
         posterior: posterior.clone(),
         provenance: Arc::new(provenance),
         temporal: payload.query.method.is_temporal(),
     })
+}
+
+/// The pooling rule of the engine: the equal-weight mixture of the per-imputation posteriors.
+pub const POOLING_METHOD: &str = "equal_weight_mixture_of_per_imputation_posteriors";
+
+impl AcceptedPosterior {
+    /// A structure posterior the engine pooled over completed tables, with the search's and the
+    /// pooling's provenance.
+    ///
+    /// `query` states the search that ran on every table; `source` names what produced the
+    /// tables (a measurement or missing-data declaration and the data it read) and defaults to
+    /// the digest of the tables themselves. The pooled run goes through the engine rather than a
+    /// compiled handle, so its program and claim fields are the digests of the pooled run
+    /// (query, pooling rule, table count and table contents).
+    ///
+    /// # Errors
+    ///
+    /// A searched variable list that is not the schema's columns in order, or no table.
+    pub fn pooled(
+        query: &DiscoverQuery,
+        posterior: GraphPosterior,
+        tables: &[antecedent_data::TabularData],
+        source: Option<&str>,
+    ) -> Result<Self, CausalError> {
+        if tables.is_empty() {
+            return Err(crate::compile_reason!(
+                "invalid_argument",
+                "a pooled structure posterior needs at least one completed table"
+            ));
+        }
+        let positional = query
+            .variables
+            .iter()
+            .enumerate()
+            .all(|(index, variable)| variable.raw() as usize == index);
+        if !positional {
+            return Err(crate::compile_reason!(
+                "route_not_supported",
+                "the posterior's atoms index the searched variables by position; search the \
+                 schema's columns in order to accept the posterior as the study's structure"
+            ));
+        }
+        let mut data = CanonicalWriter::new("antecedent.pooled_imputations.data");
+        data.word(tables.len() as u64);
+        for table in tables {
+            data.bytes(&table.storage().content_digest());
+        }
+        let snapshot = data.finish();
+        let query_id = query_digest(query);
+        let source_text: Arc<str> = Arc::from(match source {
+            Some(label) => label.to_owned(),
+            None => format!("completed tables blake3:{}", crate::accepted::digest_hex(&snapshot)),
+        });
+        let mut program = CanonicalWriter::new("antecedent.pooled_imputations.program");
+        program.bytes(&query_id).text(POOLING_METHOD).word(tables.len() as u64);
+        let program = program.finish();
+        let mut claim = CanonicalWriter::new("antecedent.pooled_imputations.claim");
+        claim.bytes(&program).bytes(&snapshot).text(&source_text);
+        let claim = claim.finish();
+        let provenance = StructureProvenance {
+            method: Arc::from(query.method.id()),
+            inference: Arc::from(query.inference().as_str()),
+            discovered_class: Arc::from(query.output().as_str()),
+            query: query_id,
+            search_bounds: Arc::from(bounds_label(query)),
+            data_snapshot: snapshot,
+            program,
+            claim,
+            review: Arc::from("posterior"),
+            resolved_marks: 0,
+            structure_prior: prior_statement(query),
+            pooling: Some(crate::accepted::StructurePooling {
+                method: Arc::from(POOLING_METHOD),
+                imputations: tables.len() as u64,
+                source: source_text,
+            }),
+        };
+        Ok(Self {
+            posterior,
+            provenance: Arc::new(provenance),
+            temporal: query.method.is_temporal(),
+        })
+    }
+}
+
+impl super::DiscoverySpec {
+    /// Run this posterior search on every completed table, pool the posteriors in the engine
+    /// and accept the pooled posterior with its provenance: the search and its declared
+    /// structure prior, the pooling rule, the number of imputations and `source`, what produced
+    /// them. The result is used exactly like a single compiled run's [`AcceptedPosterior`]
+    /// ([`crate::StudyBuilder::accepted_graph_posterior`]).
+    ///
+    /// # Errors
+    ///
+    /// A method that does not list graphs (only the exact, order-MCMC, structure-MCMC and
+    /// CI-screened posteriors pool), a missing schedule, a discovery failure on any table, or
+    /// the refusals of [`AcceptedPosterior::pooled`].
+    pub fn pooled_posterior(
+        &self,
+        tables: &[antecedent_data::TabularData],
+        variables: &[antecedent_core::VariableId],
+        source: Option<&str>,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<AcceptedPosterior, CausalError> {
+        use crate::discovery::{
+            CiSoftWeight, discover_pooled_ci_screened_posterior,
+            discover_pooled_exact_dag_posterior, discover_pooled_order_mcmc,
+            discover_pooled_structure_mcmc,
+        };
+        use antecedent_core::{DiscoveryMethod, ScreenWeight};
+
+        let no_schedule = || {
+            crate::compile_reason!(
+                "required_option_missing",
+                "a sampled structure posterior declares its schedule before it pools"
+            )
+        };
+        let posterior = match (&self.method, &self.search) {
+            (DiscoveryMethod::ExactDagPosterior { .. }, super::SearchParams::Bayesian(params)) => {
+                discover_pooled_exact_dag_posterior(tables, variables, params, ctx)?
+            }
+            (
+                DiscoveryMethod::OrderMcmc { diagnostics_gate, .. },
+                super::SearchParams::Bayesian(params),
+            ) => {
+                let schedule = self.schedule.as_ref().ok_or_else(no_schedule)?;
+                discover_pooled_order_mcmc(
+                    tables,
+                    variables,
+                    params,
+                    schedule,
+                    *diagnostics_gate,
+                    ctx,
+                )?
+            }
+            (DiscoveryMethod::StructureMcmc { .. }, super::SearchParams::Bayesian(params)) => {
+                let schedule = self.schedule.as_ref().ok_or_else(no_schedule)?;
+                discover_pooled_structure_mcmc(tables, variables, params, schedule, ctx)?
+            }
+            (
+                DiscoveryMethod::CiScreenedPosterior { weight, .. },
+                super::SearchParams::Screened { bayesian, screen },
+            ) => {
+                let schedule = self.schedule.as_ref().ok_or_else(no_schedule)?;
+                let soft = match weight {
+                    ScreenWeight::None => CiSoftWeight::None,
+                    ScreenWeight::BayesFactor => CiSoftWeight::BayesFactor,
+                    ScreenWeight::PosteriorDependence => CiSoftWeight::PosteriorDependence,
+                };
+                discover_pooled_ci_screened_posterior(
+                    tables, variables, bayesian, screen, schedule, soft, ctx,
+                )?
+            }
+            _ => {
+                return Err(crate::compile_reason!(
+                    "route_not_supported",
+                    "only the exact, order-MCMC, structure-MCMC and CI-screened posteriors pool \
+                     across imputations"
+                ));
+            }
+        };
+        let query = self.query(variables.to_vec())?;
+        AcceptedPosterior::pooled(&query, posterior, tables, source)
+    }
 }
 
 impl crate::Study {

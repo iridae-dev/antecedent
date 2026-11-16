@@ -8,20 +8,18 @@
 //!    draws and hands back one completed table per draw;
 //! 2. a posterior structure search over `(z, x, y)` with a declared structure prior (per-edge
 //!    beliefs and a soft tier order `z` before `x` before `y`) runs on those completed tables and
-//!    is pooled across them in the engine;
-//! 3. the effect is estimated by cross-fitted AIPW whose outcome nuisance is regularised by a
-//!    named composed external prior, in every structure the pooled posterior supports, and the
-//!    structure-wise effects are mixed by the pooled posterior's weights;
+//!    is pooled across them in the engine, returning an accepted posterior with its provenance;
+//! 3. on every completed table a study over that posterior estimates the effect by cross-fitted
+//!    AIPW in every structure the posterior supports, with the outcome nuisance regularised by an
+//!    external prior whose power-prior discount is selected from the table itself, and mixes the
+//!    structure-wise effects by posterior weight with the between-structure variance;
 //! 4. the estimate is for a declared kernel-weighted target population over `z`, whose truth is
-//!    the closed-form kernel-weighted mean of the planted modified effect on the planted rows.
+//!    the closed-form kernel-weighted mean of the planted modified effect on the planted rows;
+//!    the per-table mixtures are pooled by Rubin's rules.
 //!
 //! The planted effect is `tau(z) = 1.5 + 0.5 z`. The stages hand each other only the objects the
-//! library produced. The one place the library has no first-class hand-off is stage 3: a
-//! population-targeted estimate over a pooled structure posterior, per completed table. A graph
-//! posterior study refuses a target population other than all rows, and the measured-exposure
-//! pooling takes one study result per table, so this test composes it from public pieces
-//! (`GraphPosterior::atoms` / `weights`, one `Study` per supported structure, the
-//! structure-weighted mixture with its between-structure variance, `pool_measured_effect`).
+//! library produced: no atom loop, no pooling and no provenance is composed by the caller. The
+//! pooled result names every stage it consumed.
 //!
 //! The naive pipeline (the recorded column, one assumed structure, no prior, every row) misses the
 //! truth by more than the tolerance, so each stage earns its place.
@@ -33,7 +31,7 @@
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
     clippy::too_many_lines,
-    reason = "integration test with a planted truth and a caller-side composition"
+    reason = "integration test with a planted truth"
 )]
 
 mod common;
@@ -41,24 +39,21 @@ mod common;
 use std::sync::Arc;
 
 use antecedent::discovery::{
-    AdjacencyMask, BayesianDiscoverParams, EdgePriors, GraphPosterior, GraphPrior, SoftTiers,
+    BayesianDiscoverParams, EdgePriors, GraphPosterior, GraphPrior, SoftTiers,
 };
-use antecedent::estimate::measurement::{
-    ExposureErrorDeclaration, ExposureMeasurement, MeasuredEffect, RatePair, pool_measured_effect,
-};
-use antecedent::inference::{KernelFamily, TransportKernel, outcome_prior_source_from_composed};
+use antecedent::estimate::measurement::{ExposureErrorDeclaration, ExposureMeasurement, RatePair};
+use antecedent::inference::{AlphaCriterion, AlphaSelectionOptions, KernelFamily, TransportKernel};
 use antecedent::measured_exposure::{MeasuredColumns, MeasuredExposureRequest};
 use antecedent::{
-    AverageEffectQuery, CausalError, DiscoverySpec, RefuteSuite, Study, StudyBuilder,
+    AverageEffectQuery, DiscoverySpec, OutcomePriorSelection, RefuteSuite, Study, StudyBuilder,
     WeightedTargetDeclaration,
 };
-use antecedent_core::{Assumption, ExecutionContext, VariableId};
+use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::TabularData;
-use antecedent_estimate::{AipwAte, OutcomePriorSource};
+use antecedent_estimate::AipwAte;
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_prob::{
-    ComposedPrior, ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet,
-    PriorSpec, compose_external_priors,
+    ExternalPriorSource, ExternalPriorWeight, GaussianCoefficientPrior, PriorSet, PriorSpec,
 };
 use common::calibration::{gaussian, uniform};
 
@@ -71,8 +66,6 @@ const SPECIFICITY: f64 = 0.9;
 const TOLERANCE: f64 = 0.35;
 const CENTRE: f64 = 1.0;
 const BANDWIDTH: f64 = 0.6;
-/// A structure with less posterior mass than this is not estimated; its mass is reported.
-const NEGLIGIBLE_MASS: f64 = 1e-4;
 
 const Z: usize = 0;
 const X: usize = 1;
@@ -251,128 +244,19 @@ fn external(id: &str, mean: [f64; 2], variance: [f64; 2], alpha: f64) -> Externa
     }
 }
 
-/// Two external sources on the outcome regression, composed and named by coefficient.
-fn composed_prior() -> ComposedPrior {
-    let sources = vec![
-        external("registry-a", [1.6, 0.7], [0.6, 0.5], 1.0),
-        external("trial-b", [1.9, 0.8], [0.8, 0.6], 0.5),
-    ];
-    compose_external_priors(&sources, &gaussian_prior(vec![0.0; 2], vec![100.0; 2]))
-        .unwrap()
-        .with_coefficient_names(names(&["intercept", "coef_z"]))
-        .unwrap()
-}
-
-fn dag_of(atom: &AdjacencyMask) -> Dag {
-    let mut dag = Dag::with_variables(3);
-    for from in 0..3 {
-        for to in 0..3 {
-            if from != to && atom.has_edge(3, from, to) {
-                dag.insert_directed(
-                    DenseNodeId::from_raw(from as u32),
-                    DenseNodeId::from_raw(to as u32),
-                )
-                .expect("an atom of the posterior is acyclic");
-            }
-        }
-    }
-    dag
-}
-
-fn reaches(atom: &AdjacencyMask, from: usize, to: usize) -> bool {
-    let mut seen = [false; 3];
-    seen[from] = true;
-    let mut stack = vec![from];
-    while let Some(node) = stack.pop() {
-        for next in 0..3 {
-            if !seen[next] && atom.has_edge(3, node, next) {
-                seen[next] = true;
-                stack.push(next);
-            }
-        }
-    }
-    seen[to]
-}
-
-/// One structure's effect on one completed table: the AIPW estimate for the declared target
-/// population with the composed prior on the outcome nuisance.
-fn estimate_structure(
-    table: &TabularData,
-    atom: &AdjacencyMask,
-    prior: &OutcomePriorSource,
-    seed: u64,
-) -> Result<(f64, f64, antecedent::StudyResult), CausalError> {
-    let result = Study::tabular(table.clone())
-        .graph(dag_of(atom))
-        .estimator(AipwAte::new().with_bootstrap_replicates(0).with_outcome_prior(prior.clone()))
-        .refute(RefuteSuite::None)
-        .weighted_target(target())
-        .query(AverageEffectQuery::binary_ate(v(X), v(Y)))
-        .build()?
-        .run(&ctx(seed))?;
-    let effect = result.estimate().as_effect().expect("an average effect");
-    let (ate, se) = (effect.ate, effect.se_analytic());
-    Ok((ate, se, result))
-}
-
-/// What the composed chain reports: the pooled effect and the objects its provenance names.
-struct ChainReport {
-    effect: MeasuredEffect,
-    /// Posterior mass of the structures that were not estimated (negligible or not answerable
-    /// for the declared target).
-    unanswered_mass: f64,
-    /// The first structure-wise result, for its recorded assumptions.
-    sample: antecedent::StudyResult,
-}
-
-/// Mix the structure-wise effects of every completed table by the pooled posterior's weights and
-/// pool the tables by Rubin's rules.
-fn composed_effect(
-    tables: &[TabularData],
-    posterior: &GraphPosterior,
-    prior: &OutcomePriorSource,
-) -> ChainReport {
-    let mut points = Vec::new();
-    let mut variances = Vec::new();
-    let mut unanswered = 0.0;
-    let mut sample = None;
-    for (k, table) in tables.iter().enumerate() {
-        // (mass, effect, standard error) per answerable structure.
-        let mut parts: Vec<(f64, f64, f64)> = Vec::new();
-        let mut dropped = 0.0;
-        for (index, (atom, &weight)) in
-            posterior.atoms().iter().zip(posterior.weights().iter()).enumerate()
-        {
-            if weight < NEGLIGIBLE_MASS {
-                dropped += weight;
-            } else if !reaches(atom, X, Y) {
-                // Without a directed path from the exposure the effect is exactly zero.
-                parts.push((weight, 0.0, 0.0));
-            } else if let Ok((ate, se, result)) =
-                estimate_structure(table, atom, prior, 1_000 + (k * 64 + index) as u64)
-            {
-                if sample.is_none() {
-                    sample = Some(result);
-                }
-                parts.push((weight, ate, se));
-            } else {
-                dropped += weight;
-            }
-        }
-        unanswered = dropped;
-        let answered: f64 = parts.iter().map(|part| part.0).sum();
-        let mixed: f64 = parts.iter().map(|(w, ate, _)| w * ate).sum::<f64>() / answered;
-        let within = parts.iter().map(|(w, _, se)| w * se).sum::<f64>() / answered;
-        let between =
-            parts.iter().map(|(w, ate, _)| w * (ate - mixed).powi(2)).sum::<f64>() / answered;
-        points.push(mixed);
-        variances.push(within * within + between);
-    }
-    ChainReport {
-        effect: pool_measured_effect(&points, &variances, None).unwrap(),
-        unanswered_mass: unanswered,
-        sample: sample.expect("at least one structure answers the declared target"),
-    }
+/// Two external sources on the outcome regression; the study selects their common discount
+/// from each completed table.
+fn prior_selection() -> OutcomePriorSelection {
+    OutcomePriorSelection::new(
+        vec![
+            external("registry-a", [1.6, 0.7], [0.6, 0.5], 1.0),
+            external("trial-b", [1.9, 0.8], [0.8, 0.6], 1.0),
+        ],
+        gaussian_prior(vec![0.0; 2], vec![100.0; 2]),
+        names(&["intercept", "coef_z"]),
+        AlphaSelectionOptions::new(AlphaCriterion::EmpiricalBayes),
+    )
+    .unwrap()
 }
 
 // ---- the naive pipeline -------------------------------------------------------------------
@@ -427,57 +311,70 @@ fn the_chain_recovers_the_closed_form_population_effect_and_names_every_stage() 
         let draws = measured.draws();
         assert_eq!(draws.draw_count, DRAWS);
         assert!(draws.draws.iter().all(|&value| value == 0.0 || value == 1.0));
-        assert!(!draws.declaration_identity.is_empty());
-        let tables: Vec<TabularData> =
-            (0..DRAWS).map(|k| measured.completed_table(k).unwrap()).collect();
-        assert_eq!(antecedent::data::TableView::row_count(&tables[0]), ROWS);
+        assert!(!draws.declaration_identity.is_empty() && !draws.data_identity.is_empty());
+        assert_eq!(
+            antecedent::data::TableView::row_count(&measured.completed_table(0).unwrap()),
+            ROWS
+        );
 
-        // Stage 2: the structure search over the completed tables, pooled in the engine.
+        // Stage 2: the structure search on the completed tables, pooled in the engine and
+        // accepted with its provenance, exactly as a single compiled run's posterior is.
         let params = structure_params();
-        let posterior = antecedent::discovery::discover_pooled_exact_dag_posterior(
-            &tables,
-            &three(),
-            &params,
-            &ctx(32),
-        )
-        .unwrap();
+        let spec = DiscoverySpec::exact_dag_posterior(params.clone());
+        let accepted = measured.structure_posterior(&spec, &three(), &ctx(32)).unwrap();
+        let posterior = accepted.posterior();
         assert_eq!(
             posterior.algorithm().map(|algorithm| &**algorithm),
             Some("pooled_imputations(exact_dag_posterior)")
         );
         let total: f64 = posterior.weights().iter().sum();
         assert!((total - 1.0).abs() < 1e-9, "{total}");
-        // The declared prior breaks the tie the data cannot: the exposure points at the outcome.
-        let with_prior = mass_of_edge(&posterior, X, Y);
-        let without_prior = mass_of_edge(
-            &antecedent::discovery::discover_pooled_exact_dag_posterior(
-                &tables,
+        let uniform_posterior = measured
+            .structure_posterior(
+                &DiscoverySpec::exact_dag_posterior(BayesianDiscoverParams::default()),
                 &three(),
-                &BayesianDiscoverParams::default(),
                 &ctx(32),
             )
-            .unwrap(),
-            X,
-            Y,
-        );
+            .unwrap();
+        // The declared prior breaks the tie the data cannot: the exposure points at the outcome.
+        let with_prior = mass_of_edge(posterior, X, Y);
+        let without_prior = mass_of_edge(uniform_posterior.posterior(), X, Y);
         assert!(with_prior > 0.9, "x -> y holds {with_prior} of the prior-informed posterior");
         assert!(
             with_prior > without_prior + 0.1,
             "the prior moved x -> y from {without_prior} to {with_prior}"
         );
-        let statement = structure_prior_statement(&params);
+        let provenance = accepted.provenance();
+        let statement = provenance.structure_prior.as_deref().expect("the declared prior");
+        assert_eq!(statement, structure_prior_statement(&params));
         assert!(statement.contains("v1->v2:0.5"), "{statement}");
+        let pooling = provenance.pooling.as_ref().expect("the pooling over imputations");
+        assert_eq!(pooling.imputations, DRAWS as u64);
+        assert!(pooling.source.contains(&draws.declaration_identity), "{}", pooling.source);
 
-        // Stage 3 and 4: the evidence-weighted, population-targeted effect over the posterior.
-        let composed = composed_prior();
-        let outcome_prior = outcome_prior_source_from_composed(&composed).unwrap();
-        let report = composed_effect(&tables, &posterior, &outcome_prior);
-        let chain = report.effect.pooled.point;
-        let chain_se = report.effect.standard_error();
-        assert!(report.unanswered_mass < 0.05, "unanswered mass {}", report.unanswered_mass);
+        // Stages 3 and 4: on every completed table a study over the accepted posterior
+        // estimates the declared population's effect in every structure and mixes them; the
+        // per-table mixtures are pooled by Rubin's rules. Nothing is looped or pooled here.
+        let selection = prior_selection();
+        let chain = measured
+            .estimate_over_structures(&spec, &three(), &ctx(32), |table, accepted| {
+                Study::tabular(table.clone())
+                    .accepted_graph_posterior(accepted.clone())
+                    .estimator(AipwAte::new().with_bootstrap_replicates(0))
+                    .outcome_prior_selection(selection.clone())
+                    .refute(RefuteSuite::None)
+                    .weighted_target(target())
+                    .query(AverageEffectQuery::binary_ate(v(X), v(Y)))
+                    .build()?
+                    .run(&ctx(33))
+            })
+            .unwrap();
+        let pooled = chain.effect.pooled.point;
+        let pooled_se = chain.effect.standard_error();
+        assert!(chain.unanswered_mass < 0.05, "unanswered mass {}", chain.unanswered_mass);
         assert!(
-            (chain - truth).abs() < TOLERANCE,
-            "the chain reports {chain} (se {chain_se}) against the closed-form {truth}"
+            (pooled - truth).abs() < TOLERANCE,
+            "the chain reports {pooled} (se {pooled_se}) against the closed-form {truth}"
         );
 
         // The chain matters: the naive pipeline misses the truth by more than the tolerance.
@@ -486,50 +383,46 @@ fn the_chain_recovers_the_closed_form_population_effect_and_names_every_stage() 
             (naive - truth).abs() > TOLERANCE,
             "the naive pipeline reports {naive}, near the closed-form {truth}"
         );
-        assert!((chain - truth).abs() < (naive - truth).abs());
+        assert!((pooled - truth).abs() < (naive - truth).abs());
 
-        // Provenance: the estimate's own record carries the composed prior; the declared target
-        // and the earlier stages are named by the objects they produced.
-        let effect = report.sample.estimate().as_effect().unwrap();
-        let prior_record = effect
+        // Provenance: the pooled result names every stage it consumed.
+        assert_eq!(chain.declaration_identity, draws.declaration_identity);
+        assert!(
+            chain.provenance.measurement.contains(&draws.declaration_identity)
+                && chain.provenance.measurement.contains(&draws.data_identity),
+            "{}",
+            chain.provenance.measurement
+        );
+        let structure = chain.provenance.structure.as_ref().expect("the structure stage");
+        assert_eq!(structure.structure_prior, provenance.structure_prior);
+        assert_eq!(structure.pooling, provenance.pooling);
+        let composed = chain
             .provenance
-            .assumptions
-            .entries
+            .declaration(antecedent_estimate::OUTCOME_PRIOR_ASSUMPTION_ID)
+            .expect("the outcome nuisance prior is a recorded stage");
+        assert!(composed.contains("composed:blake3:"), "{composed}");
+        assert!(composed.contains("intercept, coef_z"), "{composed}");
+        let selected = chain
+            .provenance
+            .declarations
             .iter()
-            .find_map(|record| match &record.assumption {
-                Assumption::PriorRestriction(prior)
-                    if &*prior.id == antecedent_estimate::OUTCOME_PRIOR_ASSUMPTION_ID =>
-                {
-                    Some(prior.description.to_string())
-                }
-                _ => None,
-            })
-            .expect("the outcome nuisance prior is a recorded assumption");
-        assert!(prior_record.contains("composed:blake3:"), "{prior_record}");
-        assert!(prior_record.contains("intercept, coef_z"), "{prior_record}");
-        let mut triangle = Dag::with_variables(3);
-        for (from, to) in [(Z, X), (Z, Y), (X, Y)] {
-            triangle
-                .insert_directed(
-                    DenseNodeId::from_raw(from as u32),
-                    DenseNodeId::from_raw(to as u32),
-                )
-                .unwrap();
-        }
-        let prepared = Study::tabular(tables[0].clone())
-            .graph(triangle)
-            .estimator(AipwAte::new().with_bootstrap_replicates(0))
-            .refute(RefuteSuite::None)
-            .weighted_target(target())
-            .query(AverageEffectQuery::binary_ate(v(X), v(Y)))
-            .build()
-            .unwrap()
-            .prepare(&ctx(33))
-            .unwrap();
-        let target_report = prepared.weighted_target_report().expect("the target is reported");
-        assert_eq!(target_report.family(), Some(KernelFamily::Gaussian));
-        assert_eq!(target_report.center(), Some(&[CENTRE][..]));
-        assert!(!target_report.identity().is_empty());
-        assert!(!draws.declaration_identity.is_empty() && !draws.data_identity.is_empty());
+            .find(|(id, _)| id.starts_with("power_prior_alpha_selected:criterion=empirical_bayes"))
+            .expect("the data-selected discount is a recorded stage");
+        assert!(selected.1.contains("selected from the target data"), "{}", selected.1);
+        let target_statement = chain
+            .provenance
+            .declaration("estimate.weighted_target_population")
+            .expect("the weighted target is a recorded stage");
+        assert!(target_statement.contains("kernel neighbourhood"), "{target_statement}");
+        let structure_statement = chain
+            .provenance
+            .declaration(antecedent::STRUCTURE_STAGE_ASSUMPTION_ID)
+            .expect("the structure posterior is a recorded stage");
+        assert!(
+            structure_statement.contains("v1->v2:0.5")
+                && structure_statement.contains(&format!("pooled over {DRAWS} imputations")),
+            "{structure_statement}"
+        );
+        assert!(chain.provenance.statements().len() >= 6);
     });
 }

@@ -114,11 +114,11 @@
     },
     {
       "path": "crates/antecedent-estimate/src/dml.rs",
-      "sha256": "8d8c5799cb050536bf7c404128fbd5afab28611fcca61ade4b0484f78fdb7f51",
+      "sha256": "41ff038de7b509881d4315112bf56a313dce718847cdb3ff268bf12fba915c45",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 1708,
+          "line": 1749,
           "call": "CoverageTally::new(",
           "argument": "format!(\"learner_ate_known_truth_coverage {name}\"),\n                level,"
         }
@@ -1467,6 +1467,25 @@
         }
       ],
       "review": "Fixed graph-imputation prior-predictive cells with declared priors and effects; candidate measurements, no label chosen from outcomes."
+    },
+    {
+      "path": "crates/antecedent/tests/graph_posterior_weighted_target_calibration.rs",
+      "sha256": "551b5d4c27c278f1e64ca0d46a9e3e4ad0a1fbdf513fdaa83e1fa1290aa40b1d",
+      "labelled_calls": [
+        {
+          "line": 155,
+          "call": ".labelled(",
+          "argument": "format!(\"centre {centre} bandwidth {bandwidth}\")"
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 151,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL },\n            REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Two source-fixed designs (a moderate and a thin overlap regime) of the structure-posterior mixture for a kernel-weighted target: each label is a literal kernel centre and bandwidth from the design's fixed list, scored at the reported 0.95 level against the closed-form kernel-weighted effect of the planted modified effect; the two posterior structures and their masses are source-fixed, and no label, level or bandwidth is chosen from outcomes."
     },
     {
       "path": "crates/antecedent/tests/graphless_wider_range_calibration.rs",

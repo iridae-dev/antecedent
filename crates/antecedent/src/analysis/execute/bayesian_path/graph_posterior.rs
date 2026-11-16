@@ -15,11 +15,11 @@ use super::{
     bayesian_gcomp, bayesian_gcomp_estimator, effect_from_posterior, elapsed_ns,
     envelope_mass_diagnostic, envelope_refute_atoms, envelope_se_omission_diagnostic,
     estimate_static_effect, identified_envelope_keys, interactive_subsample_graphs_accounted,
-    mass_fields, mix_graph_posterior_identified_atoms, mix_static_envelope_se,
-    mix_weighted_analytic_se, mixed_static_influence, overlap_diagnostic, overlap_limit_diagnostic,
-    provenance_ids, push_conflict_diagnostics, report_subsampled_out_mass,
-    resolve_posterior_status, retain_envelope_assumptions, run_envelope_bayesian_full_validation,
-    static_aligned_influence, with_conflict_summary,
+    mass_fields, mix_graph_posterior_atoms_same_quantity, mix_graph_posterior_identified_atoms,
+    mix_static_envelope_se, mix_weighted_analytic_se, mixed_static_influence, overlap_diagnostic,
+    overlap_limit_diagnostic, provenance_ids, push_conflict_diagnostics,
+    report_subsampled_out_mass, resolve_posterior_status, retain_envelope_assumptions,
+    run_envelope_bayesian_full_validation, static_aligned_influence, with_conflict_summary,
 };
 
 /// Atoms of a Bayesian graph-posterior envelope after preparation and Interactive subsampling.
@@ -239,6 +239,61 @@ struct GraphPosteriorFrequentistRoute<'a> {
     run: &'a EffectRunConfig<'a>,
     estimator_id: EstimatorId,
     conditional: bool,
+    /// Set when the query names a target population other than all rows: the keys of the
+    /// atoms with no directed path from the treatment to the outcome, whose effect is exactly
+    /// zero on every population and which are therefore not fitted.
+    no_path_keys: Option<&'a std::collections::HashSet<u64>>,
+}
+
+impl GraphPosteriorFrequentistRoute<'_> {
+    /// Whether the study declares a target population, which the posterior mixture answers
+    /// structure by structure.
+    const fn targeted(&self) -> bool {
+        self.no_path_keys.is_some()
+    }
+
+    fn has_no_path(&self, key: u64) -> bool {
+        self.no_path_keys.is_some_and(|keys| keys.contains(&key))
+    }
+}
+
+/// An identified atom whose structure has no directed path from the treatment to the outcome:
+/// its effect on any population is exactly zero with no sampling error.
+struct NoPathAtom {
+    key: u64,
+    weight: f64,
+    estimand: IdentifiedEstimand,
+    identification: IdentificationResult,
+}
+
+/// The keys of the posterior's atoms with no directed path from the treatment to the outcome.
+fn atoms_without_directed_path(
+    posterior: &GraphPosterior,
+    query: &AverageEffectQuery,
+) -> std::collections::HashSet<u64> {
+    let n = posterior.n_vars();
+    let (from, to) = (query.treatment.raw() as usize, query.outcome.raw() as usize);
+    let mut keys = std::collections::HashSet::new();
+    if from >= n || to >= n {
+        return keys;
+    }
+    for (mask, key) in posterior.atoms().iter().zip(posterior.graph_keys().iter()) {
+        let mut seen = vec![false; n];
+        seen[from] = true;
+        let mut stack = vec![from];
+        while let Some(node) = stack.pop() {
+            for next in 0..n {
+                if !seen[next] && mask.has_edge(n, node, next) {
+                    seen[next] = true;
+                    stack.push(next);
+                }
+            }
+        }
+        if !seen[to] {
+            keys.insert(*key);
+        }
+    }
+    keys
 }
 
 /// Per-atom estimates of a Frequentist graph-posterior mixture before mixing.
@@ -250,6 +305,14 @@ struct GraphPosteriorFrequentistAtoms {
     primary_identification: Option<IdentificationResult>,
     assumptions: antecedent_core::AssumptionSet,
     refute_atoms: Vec<EnvelopeRefuteAtom>,
+    /// Atoms with no directed path from the treatment to the outcome (a declared target only).
+    no_path: Vec<NoPathAtom>,
+    /// Posterior mass of the identified atoms whose estimation refused for the declared
+    /// target (a declared target only): reported as unanswered, never redistributed.
+    refused_mass: f64,
+    /// Whether a target population was declared, so the mixture states the structure-averaged
+    /// effect on it with the between-structure spread.
+    targeted: bool,
 }
 
 /// Mixed Frequentist graph-posterior estimate with the mass and SE bookkeeping it reports.
@@ -263,6 +326,110 @@ struct GraphPosteriorFrequentistMix {
     n_contributing: usize,
     joint: bool,
     refute_atoms: Vec<EnvelopeRefuteAtom>,
+    /// The between-structure variance of the structure-wise effects, for a declared target.
+    between_variance: Option<f64>,
+    /// Posterior mass of the identified atoms whose estimation refused for the declared target.
+    refused_mass: f64,
+    /// Atoms taken as exactly zero for want of a directed path.
+    no_path_count: usize,
+}
+
+/// The structure-averaged effect of a declared target population: the posterior-weighted mean
+/// of the structure-wise effects (an atom with no directed path from the treatment to the
+/// outcome contributes zero), with the standard error
+/// `sqrt((Σ w_i se_i)^2 + Σ w_i (τ_i − τ̄)^2)` over the answered mass. The first term bounds
+/// the sampling error of the mixture under any dependence between the structure-wise fits (they
+/// share every row); the second is the between-structure variance.
+fn mix_graph_posterior_targeted_atoms(
+    identified_graphs: &WeightedGraphSamples,
+    subsampled_out_mass: f64,
+    atoms: GraphPosteriorFrequentistAtoms,
+) -> Result<GraphPosteriorFrequentistMix, CausalError> {
+    let GraphPosteriorFrequentistAtoms {
+        primary_estimand,
+        primary_identification,
+        assumptions,
+        refute_atoms,
+        no_path,
+        refused_mass,
+        ..
+    } = atoms;
+    let none = || CausalError::Compile {
+        message: "graph-posterior envelope: no identified graph atoms".into(),
+    };
+    let mut identification = primary_identification
+        .or_else(|| no_path.first().map(|atom| atom.identification.clone()))
+        .ok_or_else(none)?;
+    let estimand = primary_estimand
+        .or_else(|| no_path.first().map(|atom| atom.estimand.clone()))
+        .ok_or_else(none)?;
+    // (weight, effect, standard error) of every answered atom.
+    let mut parts: Vec<(f64, f64, f64)> = refute_atoms
+        .iter()
+        .map(|atom| (atom.weight, atom.original.ate, atom.original.se_analytic()))
+        .collect();
+    parts.extend(no_path.iter().map(|atom| (atom.weight, 0.0, 0.0)));
+    let mut atom_values: Vec<GraphPosteriorAtomValue> = refute_atoms
+        .iter()
+        .map(|atom| GraphPosteriorAtomValue {
+            key: atom.key,
+            weight: atom.weight,
+            status: IdentificationStatus::NonparametricallyIdentified,
+            estimand: atom.estimand.clone(),
+            value: atom.original.ate,
+        })
+        .collect();
+    atom_values.extend(no_path.iter().map(|atom| GraphPosteriorAtomValue {
+        key: atom.key,
+        weight: atom.weight,
+        status: IdentificationStatus::NonparametricallyIdentified,
+        estimand: atom.estimand.clone(),
+        value: 0.0,
+    }));
+    let answered: f64 = parts.iter().map(|part| part.0).sum();
+    if !matches!(answered.partial_cmp(&0.0), Some(std::cmp::Ordering::Greater)) {
+        return Err(none());
+    }
+    let unidentified_mass = identified_graphs.unidentified_mass();
+    let mixed = mix_graph_posterior_atoms_same_quantity(
+        identified_graphs,
+        &atom_values,
+        (unidentified_mass, refused_mass, subsampled_out_mass),
+    );
+    let finite = parts.iter().all(|(_, ate, se)| ate.is_finite() && se.is_finite() && *se >= 0.0);
+    let (se, between) = if mixed.mixable_scalar && finite {
+        let within = parts.iter().map(|(w, _, se)| w * se).sum::<f64>() / answered;
+        let between =
+            parts.iter().map(|(w, ate, _)| w * (ate - mixed.ate).powi(2)).sum::<f64>() / answered;
+        ((within * within + between).sqrt(), Some(between))
+    } else {
+        (f64::NAN, None)
+    };
+    let estimate = EffectEstimate::new(mixed.ate, se, assumptions, OverlapPolicy::ExplicitOverride);
+    identification.status = resolve_posterior_status(
+        identification.status,
+        mixed.policy,
+        PosteriorMassSummary {
+            unidentified: unidentified_mass,
+            unevaluable: refused_mass,
+            subsampled: subsampled_out_mass,
+            ..PosteriorMassSummary::default()
+        },
+    );
+    Ok(GraphPosteriorFrequentistMix {
+        mixed,
+        estimate,
+        identification,
+        estimand,
+        unidentified_mass,
+        subsampled_out_mass,
+        n_contributing: parts.len(),
+        joint: false,
+        refute_atoms,
+        between_variance: between,
+        refused_mass,
+        no_path_count: no_path.len(),
+    })
 }
 
 /// Frozen-weight mix of the per-atom estimates: scalar, SE (joint influence-function
@@ -272,6 +439,9 @@ fn mix_graph_posterior_frequentist_atoms(
     subsampled_out_mass: f64,
     atoms: GraphPosteriorFrequentistAtoms,
 ) -> Result<GraphPosteriorFrequentistMix, CausalError> {
+    if atoms.targeted {
+        return mix_graph_posterior_targeted_atoms(identified_graphs, subsampled_out_mass, atoms);
+    }
     let GraphPosteriorFrequentistAtoms {
         se_items,
         atom_ifs,
@@ -280,6 +450,7 @@ fn mix_graph_posterior_frequentist_atoms(
         primary_identification,
         assumptions,
         refute_atoms,
+        ..
     } = atoms;
     if !matches!(
         refute_atoms.iter().map(|a| a.weight).sum::<f64>().partial_cmp(&0.0),
@@ -349,6 +520,9 @@ fn mix_graph_posterior_frequentist_atoms(
         n_contributing,
         joint,
         refute_atoms,
+        between_variance: None,
+        refused_mass: 0.0,
+        no_path_count: 0,
     })
 }
 
@@ -432,7 +606,44 @@ fn graph_posterior_frequentist_diagnostics(
             unidentified_mass,
         )),
     );
+    if let Some(between) = mix.between_variance {
+        diagnostics.push(Diagnostic::new(
+            "estimate.graph_posterior.weighted_target_mixture",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "effect on the declared target population, estimated in every identified \
+                 structure and mixed by posterior weight over the answered mass; the standard \
+                 error is sqrt((sum w se)^2 + between-structure variance) with between-structure \
+                 variance {between}; {} atom(s) with no directed path from the treatment to the \
+                 outcome contribute exactly zero; unanswered_mass={} (identified atoms whose \
+                 estimation refused for the target, reported and not redistributed)",
+                mix.no_path_count, mix.refused_mass
+            ),
+        ));
+    }
     diagnostics
+}
+
+/// A recorded declaration of one upstream stage a result consumed.
+fn stage_assumption(
+    id: &str,
+    description: String,
+    algorithm: &str,
+) -> antecedent_core::AssumptionRecord {
+    antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(
+            antecedent_core::ParametricAssumption {
+                id: Arc::from(id),
+                description: Arc::from(description),
+            },
+        ),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from(algorithm),
+        },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    }
 }
 
 impl super::super::Study {
@@ -921,12 +1132,24 @@ impl super::super::Study {
             ctx,
             &mut subsample_notes,
         )?;
-        let route =
-            GraphPosteriorFrequentistRoute { data, query, run: &run, estimator_id, conditional };
+        let no_path_keys = (!conditional
+            && !matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved))
+        .then(|| atoms_without_directed_path(gp, query));
+        let route = GraphPosteriorFrequentistRoute {
+            data,
+            query,
+            run: &run,
+            estimator_id,
+            conditional,
+            no_path_keys: no_path_keys.as_ref(),
+        };
         let atoms =
             Self::estimate_graph_posterior_frequentist_atoms(&route, &identified, &graphs, ctx)?;
-        let mix =
+        let mut mix =
             mix_graph_posterior_frequentist_atoms(&identified.graphs, subsample_drop.mass, atoms)?;
+        if route.targeted() {
+            self.record_graph_posterior_target_stages(&mut mix.estimate);
+        }
         let mut diagnostics = graph_posterior_frequentist_diagnostics(&mix, subsample_notes);
         let (refutations, na_diagnostics) = Self::refute_graph_posterior_frequentist(
             &route,
@@ -974,6 +1197,7 @@ impl super::super::Study {
         ctx: &ExecutionContext,
     ) -> Result<GraphPosteriorFrequentistAtoms, CausalError> {
         let GraphPosteriorFrequentistRoute { data, query, run, conditional, .. } = *route;
+        let targeted = route.targeted();
         let keep = identified_envelope_keys(graphs);
 
         let mut se_items = Vec::new();
@@ -983,12 +1207,25 @@ impl super::super::Study {
         let mut primary_identification = None;
         let mut assumptions = antecedent_core::AssumptionSet::default();
         let mut refute_atoms = Vec::new();
-        let kept: Vec<_> =
-            identified.atoms.iter().filter(|atom| keep.contains(&atom.key)).collect();
+        let key_weights = IdentifiedKeyWeights::new(graphs);
+        let (no_path_atoms, kept): (Vec<_>, Vec<_>) = identified
+            .atoms
+            .iter()
+            .filter(|atom| keep.contains(&atom.key))
+            .partition(|atom| route.has_no_path(atom.key));
+        let no_path: Vec<NoPathAtom> = no_path_atoms
+            .into_iter()
+            .map(|atom| NoPathAtom {
+                key: atom.key,
+                weight: key_weights.get(atom.key),
+                estimand: atom.estimand.clone(),
+                identification: atom.identification.clone(),
+            })
+            .collect();
         let estimates = ctx.map_indexed(kept.len(), |i, inner| {
             let atom = kept[i];
             let mut case_ws = StaticEstimateWorkspaces::default();
-            let estimate = if conditional {
+            let outcome = if conditional {
                 let q = antecedent_core::ConditionalEffectQuery::try_new(query.clone())?;
                 ConditionalLinearAdjustment::new()
                     .estimate(data, &atom.estimand, &q, inner)
@@ -1009,12 +1246,31 @@ impl super::super::Study {
                     inner,
                     &mut case_ws,
                 )
-            }?;
+            };
+            // A declared target answers every structure it can; a structure whose estimation
+            // refuses for the target (not a cancellation or a resource stop) is unanswered.
+            let estimate = match outcome {
+                Ok(estimate) => Ok(estimate),
+                Err(error)
+                    if targeted
+                        && !matches!(
+                            error,
+                            CausalError::Cancelled { .. } | CausalError::Resource { .. }
+                        ) =>
+                {
+                    Err(error)
+                }
+                Err(error) => return Err(error),
+            };
             Ok::<_, CausalError>((atom, estimate))
         })?;
-        let key_weights = IdentifiedKeyWeights::new(graphs);
+        let mut refused_mass = 0.0;
         for (atom, estimate) in estimates {
             let w = key_weights.get(atom.key);
+            let Ok(estimate) = estimate else {
+                refused_mass += w;
+                continue;
+            };
             se_items.push((w, estimate.se_analytic()));
             // Every atom is fit on the same rows; embed its IF in the original
             // row universe so the mixture SE carries cross-atom covariance.
@@ -1048,7 +1304,30 @@ impl super::super::Study {
             primary_identification,
             assumptions,
             refute_atoms,
+            no_path,
+            refused_mass,
+            targeted,
         })
+    }
+
+    /// Name the stages a posterior mixture over a declared target consumed: the target
+    /// population and, for a structure posterior accepted from a search, the search and its
+    /// pooling over imputations.
+    fn record_graph_posterior_target_stages(&self, estimate: &mut EffectEstimate) {
+        if let Some(report) = self.declared.weighted_target.as_ref() {
+            estimate.provenance.assumptions.push(stage_assumption(
+                "estimate.weighted_target_population",
+                report.assumption(),
+                "estimate.graph_posterior.weighted_target",
+            ));
+        }
+        if let Some(provenance) = self.structure_provenance() {
+            estimate.provenance.assumptions.push(stage_assumption(
+                crate::accepted::STRUCTURE_STAGE_ASSUMPTION_ID,
+                provenance.statement(),
+                "estimate.graph_posterior.structure",
+            ));
+        }
     }
 
     /// Refutation suite over the Frequentist graph-posterior atoms: per atom when the mix is

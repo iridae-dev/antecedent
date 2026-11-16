@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "1c039a8aebe29ccc93de28aa3b8eb83a0f0f85dc0117b3d4d5cef9bbb1771f97",
+  "gate_sha256": "0c9a670d222453e09bb4e783437732cd763a38173bc414ba01acdf83f3e12239",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "e4123102b55f1f7fbe17198b9f1ea857b0a2b40601380a6b99ee504121a37073",
+  "label_audit_sha256": "f91ffd79139183f7e290dd4716cbae9f587b9d67fac511833cafb9f4cf61dc86",
   "groups": [
     {
       "index": 1,
@@ -8816,6 +8816,16 @@
     {
       "index": 1759,
       "label": "weighted_target_transport_calibration: weighted_target_transport_interval_covers_under_thin_overlap",
+      "grid": true
+    },
+    {
+      "index": 1760,
+      "label": "graph_posterior_weighted_target_calibration: graph_posterior_weighted_target_interval_covers_across_bandwidths",
+      "grid": true
+    },
+    {
+      "index": 1761,
+      "label": "graph_posterior_weighted_target_calibration: graph_posterior_weighted_target_interval_covers_under_thin_overlap",
       "grid": true
     }
   ],

@@ -351,9 +351,50 @@ pub struct StructureProvenance {
     /// The per-edge prior probabilities and soft tiers the posterior is a posterior under, as
     /// the query declared them; `None` when the search declared none.
     pub structure_prior: Option<Arc<str>>,
+    /// How the posterior was pooled over the completed tables of an uncertain measurement or
+    /// missing data; `None` for a search that ran on one table.
+    pub pooling: Option<StructurePooling>,
 }
 
+/// The pooling of a structure posterior over imputations: the search ran on every completed
+/// table and the per-table posteriors were mixed with equal weight.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct StructurePooling {
+    /// The pooling rule (`equal_weight_mixture_of_per_imputation_posteriors`).
+    pub method: Arc<str>,
+    /// Number of completed tables the search ran on.
+    pub imputations: u64,
+    /// Identity of what produced the completed tables: the measurement or missing-data
+    /// declaration and the data it read, or the digest of the tables themselves.
+    pub source: Arc<str>,
+}
+
+/// Recorded-assumption id of the structure stage a result consumed.
+pub const STRUCTURE_STAGE_ASSUMPTION_ID: &str = "estimate.structure_posterior";
+
 impl StructureProvenance {
+    /// The statement of the stage a result consumed: the search and its declared structure
+    /// prior and, when pooled, the pooling over imputations and what produced them.
+    #[must_use]
+    pub fn statement(&self) -> String {
+        let mut text = format!(
+            "structure posterior: method {} ({} inference, {} class, bounds {}, review {})",
+            self.method, self.inference, self.discovered_class, self.search_bounds, self.review
+        );
+        if let Some(prior) = &self.structure_prior {
+            text.push_str("; structure prior ");
+            text.push_str(prior);
+        }
+        if let Some(pooling) = &self.pooling {
+            text.push_str(&format!(
+                "; pooled over {} imputations by {} from {}",
+                pooling.imputations, pooling.method, pooling.source
+            ));
+        }
+        text.push_str(&format!("; provenance digest {}", digest_hex(&self.digest())));
+        text
+    }
+
     /// Canonical digest of the record.
     #[must_use]
     pub fn digest(&self) -> [u8; 32] {
@@ -373,8 +414,24 @@ impl StructureProvenance {
         if let Some(statement) = &self.structure_prior {
             writer.text(statement);
         }
+        // Likewise written only for a pooled posterior.
+        if let Some(pooling) = &self.pooling {
+            writer
+                .text("pooled")
+                .text(&pooling.method)
+                .word(pooling.imputations)
+                .text(&pooling.source);
+        }
         writer.finish()
     }
+}
+
+pub(crate) fn digest_hex(bytes: &[u8; 32]) -> String {
+    use std::fmt::Write as _;
+    bytes.iter().fold(String::with_capacity(64), |mut out, byte| {
+        let _ = write!(out, "{byte:02x}");
+        out
+    })
 }
 
 impl AcceptedGraph {

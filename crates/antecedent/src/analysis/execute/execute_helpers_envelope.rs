@@ -660,8 +660,7 @@ pub(super) fn mix_static_envelope_se<T: AsRef<[f64]>>(atom_ifs: &[T], atom_weigh
 
 /// Standard error of an already-mixed influence column.
 pub(super) fn mixture_se(mixed: &[f64]) -> f64 {
-    antecedent_estimate::joint_influence_covariance(&[mixed], None)
-        .map_or(f64::NAN, |c| c.se(0))
+    antecedent_estimate::joint_influence_covariance(&[mixed], None).map_or(f64::NAN, |c| c.se(0))
 }
 
 /// Frozen-weight mixture IF, or `None` when atoms do not share a row universe.
@@ -758,6 +757,39 @@ pub(super) fn mix_graph_posterior_identified_atoms(
     subsampled_out_mass: f64,
     truncated_atoms: usize,
 ) -> MixedGraphPosteriorPolicy {
+    mix_graph_posterior_atoms_with(
+        graphs,
+        atoms,
+        (unidentified_mass, unevaluable_mass, subsampled_out_mass),
+        truncated_atoms,
+        false,
+    )
+}
+
+/// Mix identified atoms of one declared quantity: the structure-averaged effect on a declared
+/// target population.
+///
+/// The atoms estimate the same causal quantity (the effect on the declared population) and
+/// differ in the structure that identifies it, so their adjustment sets need not agree: the
+/// mixture is the posterior-weighted mean of the structure-wise effects, and the published
+/// uncertainty carries the between-structure spread. Used only where a target population is
+/// declared; the default routes keep [`mix_graph_posterior_identified_atoms`]'s estimand
+/// agreement rule.
+pub(super) fn mix_graph_posterior_atoms_same_quantity(
+    graphs: &WeightedGraphSamples,
+    atoms: &[GraphPosteriorAtomValue],
+    masses: (f64, f64, f64),
+) -> MixedGraphPosteriorPolicy {
+    mix_graph_posterior_atoms_with(graphs, atoms, masses, 0, true)
+}
+
+fn mix_graph_posterior_atoms_with(
+    graphs: &WeightedGraphSamples,
+    atoms: &[GraphPosteriorAtomValue],
+    (unidentified_mass, unevaluable_mass, subsampled_out_mass): (f64, f64, f64),
+    truncated_atoms: usize,
+    same_quantity: bool,
+) -> MixedGraphPosteriorPolicy {
     use crate::result::{
         StructuralAggregationPolicy, StructuralResponseAtom, StructuralWeightBasis,
     };
@@ -812,7 +844,11 @@ pub(super) fn mix_graph_posterior_identified_atoms(
     }
     let total = graphs.total_weight();
     let identified_mass = if total > 0.0 { identified_weight / total } else { 0.0 };
-    let policy = resolve_structural_aggregation(&contributing, false);
+    let policy = if same_quantity && !contributing.is_empty() {
+        StructuralAggregationPolicy::SameEstimandWeightedMean
+    } else {
+        resolve_structural_aggregation(&contributing, false)
+    };
     let identified_set = (lo.is_finite() && hi.is_finite()).then(|| scalar_identified_set(lo, hi));
     let mixable_scalar =
         matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) && mixable > 0.0;
