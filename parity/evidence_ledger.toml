@@ -1485,7 +1485,7 @@ oracle_kind = "closed_form"
 oracle_inputs = "Randomized dose rows, declared exact conditional mean m(d)=1+.5d+.25d² at admissible fixed bandwidths; three named functionals."
 expected_values = "m(d), derivative .5+.5d and contrast m(3)-m(1)=3; exact-polynomial reproduction yields zero smoothing bias; sampling calibration remains not_measured."
 tolerance = "absolute 1e-7 for levels and 1e-6 for derivatives on noise-free rows; 0.02 for levels and 0.05 for derivatives under noise 0.1; exact semantic equality for support labels and refusals"
-calibration = "point_only_zero_bias_model_assumption_sampling_not_measured"
+calibration = "analytic-SE intervals measured by cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_level_l95.v2_validation_not_applicable, cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_derivative_l95.v2_validation_not_applicable and cov.dose_response.dag.frequentist.analytic_se.l95.randomized_exact_quadratic_contrast_l95.v2_validation_not_applicable; the exact-polynomial point has zero smoothing bias under the model assumption"
 artifact_consumer_fixture = "estimate.quadratic_dose.quadratic_mean_replay.artifact"
 provider_trust = "native_computation_only; no external provider value is consumed"
 exact_request_verification = "not_applicable_no_external_provider"
@@ -3139,23 +3139,6 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "measurement.binary_misclassification"
-route = "antecedent_estimate.measurement.binary_misclassification.exposure_misclassification"
-algorithm_provenance = [
-  "provenance/measurement.binary_misclassification.toml",
-]
-parity_registry = "parity/capability_records.toml"
-positive_fixture = "measurement.binary_misclassification.shared_rate_covariance.positive"
-oracle_kind = "closed_form"
-oracle_inputs = "pi=0.3, Se=0.9, Sp=0.8, n=1000 gives p*=0.41; arms 0.4/0.2 give p*=0.48/0.34; differential arm 0.7/0.95 gives 0.18."
-expected_values = "prevalence 0.3, risk difference 0.2 with hand-computed variance; pooled rates give 0.3/0.7."
-tolerance = "absolute 1e-12"
-calibration = "exact_or_point_only_no_interval; interval route not supported pending a method for the whole measurement-plus-estimation method"
-artifact_consumer_fixture = "measurement.binary_misclassification.artifact_replay.artifact"
-provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
-exact_request_verification = "not_applicable_no_external_provider"
-
-[[cell]]
-id = "measurement.binary_misclassification"
 route = "antecedent_estimate.measurement.binary_misclassification.differential_by_population"
 algorithm_provenance = [
   "provenance/measurement.binary_misclassification.toml",
@@ -3225,23 +3208,6 @@ exact_request_verification = "not_applicable_no_external_provider"
 [[cell]]
 id = "measurement.probabilistic_categorical"
 route = "antecedent_estimate.measurement.interval_not_supported.probabilistic_categorical"
-algorithm_provenance = [
-  "provenance/measurement.probabilistic_categorical.toml",
-]
-parity_registry = "parity/capability_records.toml"
-positive_fixture = "measurement.probabilistic_categorical.binary_special_case.positive"
-oracle_kind = "closed_form"
-oracle_inputs = "Confusion C with pi=(0.5,0.3,0.2), mu=(1,2,4); class summaries from sum_t C[j,t] pi_t (mu_t)."
-expected_values = "proportions (0.5,0.3,0.2), means (1,2,4), contrast high-low 3; K=2 equals Rogan-Gladen."
-tolerance = "absolute 1e-9 proportions, 1e-6 means"
-calibration = "exact_or_point_only_no_interval; interval route not supported pending a method for the whole measurement-plus-estimation method"
-artifact_consumer_fixture = "measurement.probabilistic_categorical.artifact_replay.artifact"
-provider_trust = "native_numerics_over_declared_model; parameters declared or validation-estimated; no external provider"
-exact_request_verification = "not_applicable_no_external_provider"
-
-[[cell]]
-id = "measurement.probabilistic_categorical"
-route = "antecedent_estimate.measurement.probabilistic_categorical.per_unit_soft_assignment"
 algorithm_provenance = [
   "provenance/measurement.probabilistic_categorical.toml",
 ]
@@ -10524,6 +10490,36 @@ oracle_inputs = "a = 1 + e_a, b = 0.5 + 2a + e_b, c = -1 + 3b + e_c with noise s
 expected_values = "Contributions of (e_a, e_b, e_c) are (6^2 * 1, 3^2 * 0.25, 1^2 * 4) = (36, 2.25, 4) and sum to Var(c) = 42.25; a product mechanism y = ab + e gives Var(ab)/2 = 0.5 to each factor."
 tolerance = "within six times the larger of the derived standard error sqrt(2 / (B (m - 1))) times the closed form and the reported standard error; exact semantic equality for refusals; bit equality at a fixed seed"
 calibration = "none; component standard errors are not_measured diagnostics"
+artifact_consumer_fixture = "gcm.attribution.intrinsic_influence.seeded_result.artifact"
+provider_trust = "native_computation_only; no external provider value is consumed"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "gcm.attribution.intrinsic_influence"
+route = "antecedent.gcm.attribute_intrinsic_influence.whole_procedure_interval"
+algorithm_provenance = ["provenance/gcm.attribution.intrinsic_influence.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "gcm.attribution.intrinsic_influence.linear_chain.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "a = 1 + e_a, b = 0.5 + 2a + e_b, c = -1 + 3b + e_c with noise scales 1, 0.5, 2; target c."
+expected_values = "Contributions of (e_a, e_b, e_c) are (6^2 * 1, 3^2 * 0.25, 1^2 * 4) = (36, 2.25, 4) and sum to Var(c) = 42.25; a product mechanism y = ab + e gives Var(ab)/2 = 0.5 to each factor."
+tolerance = "within six times the larger of the derived standard error sqrt(2 / (B (m - 1))) times the closed form and the reported standard error; exact semantic equality for refusals; bit equality at a fixed seed"
+calibration = "fitted_model_calibration: intrinsic_influence_whole_procedure_interval_coverage (parity/calibration_routes.toml)"
+artifact_consumer_fixture = "gcm.attribution.intrinsic_influence.seeded_result.artifact"
+provider_trust = "native_computation_only; no external provider value is consumed"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "gcm.attribution.intrinsic_influence"
+route = "antecedent.gcm.attribute_intrinsic_influence.mechanism_posterior"
+algorithm_provenance = ["provenance/gcm.attribution.intrinsic_influence.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "gcm.attribution.intrinsic_influence.linear_chain.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "a = 1 + e_a, b = 0.5 + 2a + e_b, c = -1 + 3b + e_c with noise scales 1, 0.5, 2; target c."
+expected_values = "Contributions of (e_a, e_b, e_c) are (6^2 * 1, 3^2 * 0.25, 1^2 * 4) = (36, 2.25, 4) and sum to Var(c) = 42.25; a product mechanism y = ab + e gives Var(ab)/2 = 0.5 to each factor."
+tolerance = "within six times the larger of the derived standard error sqrt(2 / (B (m - 1))) times the closed form and the reported standard error; exact semantic equality for refusals; bit equality at a fixed seed"
+calibration = "fitted_model_calibration: attribute_intrinsic_influence_dag_bayesian_dirichlet_coverage (parity/calibration_routes.toml)"
 artifact_consumer_fixture = "gcm.attribution.intrinsic_influence.seeded_result.artifact"
 provider_trust = "native_computation_only; no external provider value is consumed"
 exact_request_verification = "not_applicable_no_external_provider"
