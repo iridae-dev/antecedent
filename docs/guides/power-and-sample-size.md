@@ -139,7 +139,9 @@ store the pool cannot hold, and execution refuses the planned-size store the sam
 | level-dependent analysis without `control_mean` | `required_option_missing` | `declare_control_mean` |
 | covariate adjustment on a design whose analysis does not adjust | `option_not_applicable` | `covariate_adjusted_design` |
 | a target not reached within `max_units` | `evidence_cannot_reach_level` | `relax_target` |
-| `Study.compile_for_planning` on a study whose randomization is not the planned design | `route_not_supported` | `standalone_planning` |
+| `Study::compile_for_planning` (Rust) on a study whose randomization is not the planned design | `route_not_supported` | `standalone_planning` |
+
+The reason codes and their remedies are listed in [refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes).
 
 ## Feeding design ranking
 
@@ -165,4 +167,4 @@ claim.
 - [Adaptive and group-sequential inference](../adaptive-inference.md) when the plan stops early or adapts.
 - [Design ranking](../design-ranking.md) to compare planned designs by information value and cost.
 
-For a connected HCI investigation spanning planning, follow-up selection and a final claim audit, see [from day zero to publication](../tutorials/research-from-day-zero.md).
+For a connected HCI investigation spanning planning, follow-up selection and a final claim audit, see [from day zero to publication](../tutorials/research-from-day-zero.md); its runnable script, [`examples/python/research_from_day_zero.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/research_from_day_zero.py), plans participant recruitment with this planner.

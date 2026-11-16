@@ -1,8 +1,40 @@
 # Analyze an adaptive or sequentially monitored experiment
 
-Analyze data from an experiment whose assignment adapts to outcomes, that is looked at before it ends, or that stops on a rule. You can read a Bayesian posterior, a decision-theoretic stopping rule, an adaptively weighted estimate, a group-sequential boundary or an anytime-valid confidence sequence, each as its own named paradigm.
+Use this page to analyse data from an experiment whose assignment adapts to outcomes, that is looked at before it ends, or that stops on a rule. You can read a Bayesian posterior, a decision-theoretic stopping rule, an adaptively weighted estimate, a group-sequential boundary or an anytime-valid confidence sequence, each as its own named paradigm. To plan such a design before it runs, see [power and sample size](guides/power-and-sample-size.md); to enumerate what a declared procedure can produce under supplied truths, see the [`adaptive_procedure.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/adaptive_procedure.py) example.
 
 The final sample of such an experiment is never analysed as if the design had been fixed: an analysis that presumes a fixed design is refused for adaptive data (`adaptive_design_ignored`). Every route below is point-only, and an unqualified interval request is refused (`quantity_semantics_mismatch`) because an interval belongs to one named result. `measured_interval` reports the interval of one named result for every procedure with a construction, annotated with its calibration status; the procedure cells listed under [Intervals that can be offered](#intervals-that-can-be-offered) are those a whole-procedure coverage record measures.
+
+## Read a posterior from a two-look Thompson trial
+
+You need, per unit: the assigned arm, the outcome, the assignment probability of every arm at the moment of assignment, the arm actually received, and the look at which the outcome became available; plus the policy history, the interim looks and the stopping rule. Here two units are assigned by Thompson sampling under a uniform Beta prior, with a look after each.
+
+```python
+from antecedent import adaptive_inference as ai
+from antecedent.outcomes import require_success
+
+design = ai.AdaptiveDesign(
+    label="pilot",
+    assignment="thompson_beta_bernoulli", outcome="single_outcome",
+    monitoring="fixed_interim_looks", stopping="efficacy",
+    arm_labels=("control", "treatment"),
+    assigned_arm=[0, 1],
+    outcomes=[[1.0], [0.0]],
+    policy_history=[ai.PolicyEpoch(0, ai.policy_identity("thompson/uniform"))],
+    # Unit 1: 1/2 each. Unit 2: P(treatment best | control 1 success) = 1/3.
+    assignment_probabilities=[[0.5, 0.5], [2 / 3, 1 / 3]],
+    exposure=[0, 1],
+    availability=ai.Availability([0, 1], "immediate"),
+    interim_analyses=[ai.InterimAnalysis(1, 0.5), ai.InterimAnalysis(2, 1.0)],
+    stopping_rule=ai.StoppingRule.posterior_probability_best(0.95),
+)
+session = ai.AdaptiveInferenceSession.prepare(design)
+result = require_success(session.analyze(ai.BayesianPosterior(look=1)))
+for arm in result.payload.arms:
+    print(arm.alpha, arm.beta, arm.mean, arm.probability_best, arm.expected_loss)
+print(result.paradigm, result.claim)   # bayesian_posterior point_only
+```
+
+`look` is zero-based, so `look=1` reads every outcome available by the second look. Each arm's posterior is `Beta(alpha, beta)` with `alpha = prior_alpha + successes` and `beta = prior_beta + failures`: here `Beta(2, 1)` for control (mean 2/3) and `Beta(1, 2)` for treatment (mean 1/3). `probability_best` is the posterior probability that the arm has the highest success probability and `expected_loss` the posterior expected shortfall from the best arm if you choose this one. These are exact under the declared prior; `claim` is `point_only` because no frequentist coverage is attached. For an interval with its calibration status, call `session.measured_interval(request)` ([below](#intervals-that-can-be-offered)).
 
 ## The retained analysis contract
 
@@ -318,6 +350,17 @@ Whole-procedure coverage of an adaptive procedure is measured as a whole, over i
 
 A fixed-level Wald interval read at a data-dependent stopping look is not offered: a posterior-probability stopping rule selects on the data, so a fixed-level interval at that look has no pointwise guarantee. The confidence sequence is the interval for a stopping look. An exploration mass of a few units also leaves the weighted scores too heavy-tailed for a normal interval, and a Thompson posterior at exactly equal arms is a named boundary where a fixed-truth coverage claim is not made. The Thompson posterior is exact under its prior, which is why the prior-predictive calibration is what supports the credible interval.
 
+## Refusals
+
+| `reason_code` | When |
+| --- | --- |
+| `adaptive_contract_incomplete` | an element of the retained contract is missing; the detail names it (`adaptive_inference.policy_history_missing`, ...) |
+| `adaptive_assumption_violated` | noncompliance, outcome-dependent delay, or a borrowing plan amended after the first look |
+| `adaptive_design_ignored` | a fixed-sample analysis of adaptive data (`fixed_sample`) |
+| `quantity_semantics_mismatch` | an interval of the whole procedure that names no result (`interval`) |
+| `route_not_supported` | an incoherent, unpaired or undelivered procedure cell (`adaptive_inference.cell_incoherent`, `pairing_not_supported`, `cell_not_delivered`), an interval of a result that carries none, or an export above its budget (`adaptive_inference.artifact_size_exceeded`) |
+| `invalid_argument` | a malformed declaration, a look or unit index out of range, or another [capacity](#capacity) bound exceeded |
+
 ## Python
 
 `antecedent.adaptive_inference` exposes the facade: `AdaptiveDesign` (the retained
@@ -354,6 +397,7 @@ and returns the specialized consumed type.
 
 ## Related
 
+- [Refusal codes](reference/refusal-codes.md#structured-refusals-and-their-remedies) for every `reason_code` named on this page.
 - [Plan power and sample size](guides/power-and-sample-size.md) for group-sequential plans.
 - [Evaluate a policy that changes with what you observe](sequential-evaluation.md).
 - [Inference from adaptive procedures](guides/composed-uncertainty.md#uncertainty-of-an-adaptive-procedure) and [transported policy and adaptive source](guides/transported-decisions-and-measurement.md).

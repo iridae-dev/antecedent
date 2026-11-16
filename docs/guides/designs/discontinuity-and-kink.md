@@ -2,13 +2,13 @@
 
 Estimate the effect of a treatment that switches on, or changes its dependence on a score, at a cutoff of a running variable: an eligibility score, an age, a date. Use a sharp design when crossing the cutoff sets treatment exactly, a fuzzy design when crossing it only shifts the probability of treatment, and a kink design when what changes at the cutoff is the slope of the treatment with respect to the running variable.
 
-The answer is local. It describes units near the cutoff and, for a fuzzy design, the units whose treatment the cutoff changes (local compliers). Antecedent does not extend it to the rest of the range.
+You need a table with an outcome column, a treatment column and a running-variable column, the cutoff `c`, and a bandwidth `h` (the half-width of the window around `c` that the fit reads). The answer is local. It describes units near the cutoff and, for a fuzzy design, the units whose treatment the cutoff changes (local compliers). Antecedent does not extend it to the rest of the range.
 
-Runnable example: [`examples/python/discontinuity_and_iv.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discontinuity_and_iv.py).
+Runnable example: [`examples/python/discontinuity_and_iv.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discontinuity_and_iv.py) simulates a sharp jump of 2, a fuzzy design with a treatment effect of 3 and a kink with a dose effect of 3, and checks each estimate against its known value.
 
 ## Sharp design
 
-When the running variable is the only cause of treatment, the structure is fixed, so no graph is needed. A treatment column that is not the threshold rule is refused rather than estimated as an intention-to-treat contrast; use the fuzzy design for imperfect compliance.
+When the running variable is the only cause of treatment, the structure is fixed, so no graph is needed. Sharpness is checked, not assumed: every complete row must satisfy `T = 1{R ≥ c}`, and one row that breaks the rule refuses the design with [`rd_assignment_not_sharp`](../../reference/refusal-codes.md#other-registered-refusal-codes) rather than reporting an intention-to-treat contrast under the treatment's name. Use the fuzzy design for imperfect compliance.
 
 ```python
 import antecedent as ant
@@ -17,11 +17,28 @@ result = ant.analyze(data, query=ant.quasi.SharpRegressionDiscontinuity(
     "outcome", "treatment", "running", cutoff=0.0, bandwidth=1.5))
 ```
 
-The effect is the local jump at the cutoff, reported as a `local_at_cutoff` target. `se` chooses the analytic standard error: heteroskedasticity-robust `hc1` (the default), `hc0`, `hc2` or `hc3`, or the classical `homoskedastic` formula. When the bandwidth window holds four rows or fewer the fit is saturated (the jump interpolates the rows exactly, with no residual degrees of freedom), so the analytic standard error is withheld (NaN) instead of publishing a rounding-sized value; widen the bandwidth.
+The estimand is the average effect for units at the cutoff, reported as a `local_at_cutoff` target. Under the continuity assumption below it equals the jump in the observed outcome regression:
+
+```text
+tau_c = E[Y(1) - Y(0) | R = c] = lim_{r↓c} E[Y | R = r] - lim_{r↑c} E[Y | R = r]
+```
+
+It is neither the population average effect nor the average over the bandwidth window; when the effect varies with `R` those are different numbers, and only `tau_c` is identified by the design. The estimate is the coefficient on `T` in an ordinary least-squares fit of `Y` on `[1, T, R - c, T·(R - c)]` over the rows with `|R - c| ≤ h`, every row in the window weighted equally (a uniform kernel). The sharp route has no bandwidth selector and no bias correction: a window wide enough to take in curvature biases the estimate without a diagnostic, so compare the estimate across several bandwidths.
+
+`se` chooses the analytic standard error: heteroskedasticity-robust `hc1` (the default), `hc0`, `hc2` or `hc3`, or the classical `homoskedastic` formula. Each treats rows as independent and ignores smoothing bias. When the bandwidth window holds four rows or fewer the fit is saturated (the jump interpolates the rows exactly, with no residual degrees of freedom), so the analytic standard error is withheld (NaN) instead of publishing a rounding-sized value; widen the bandwidth.
 
 ## Fuzzy design and regression kink
 
-`FuzzyRegressionDiscontinuity` reports the ratio of the outcome's intercept jump to the treatment's intercept jump at the cutoff. `RegressionKink` reports the ratio of the outcome's slope change to the treatment's slope change.
+`FuzzyRegressionDiscontinuity` reports the ratio of the outcome's intercept jump to the treatment's intercept jump at the cutoff. `RegressionKink` reports the ratio of the outcome's slope change to the treatment's slope change. With `r↓c` and `r↑c` the limits from above and below:
+
+```text
+fuzzy RD:  tau_F = (lim_{r↓c} E[Y | R = r] - lim_{r↑c} E[Y | R = r])
+                 / (lim_{r↓c} E[T | R = r] - lim_{r↑c} E[T | R = r])
+kink:      tau_K = (lim_{r↓c} dE[Y | R = r]/dr - lim_{r↑c} dE[Y | R = r]/dr)
+                 / (lim_{r↓c} dE[T | R = r]/dr - lim_{r↑c} dE[T | R = r]/dr)
+```
+
+The numerator is the reduced form and the denominator the first stage.
 
 ```python
 from antecedent.quasi import FuzzyRegressionDiscontinuity, RegressionKink
@@ -40,7 +57,7 @@ Read it this way:
 
 ### Refusals
 
-The route refuses singular local fits, too few positive-kernel observations on either side of the cutoff, and a first-stage change that is numerically zero or whose 95% interval includes zero. A ratio of two changes is not meaningful when the denominator cannot be separated from zero. Widen the bandwidth, or use a design with a stronger first stage.
+The route refuses singular local fits, too few positive-kernel observations on either side of the cutoff, and a first-stage change that is numerically zero or whose 95% interval includes zero. A ratio of two changes is not meaningful when the denominator cannot be separated from zero. Widen the bandwidth, or use a design with a stronger first stage. Look up the code a refusal reports in [refusal codes](../../reference/refusal-codes.md).
 
 ### Options
 
@@ -74,6 +91,7 @@ The interval at a selected bandwidth does not account for choosing the bandwidth
 
 ## Assumptions you declare
 
+- **Sharp RD:** the regression functions `E[Y(1) | R = r]` and `E[Y(0) | R = r]` are continuous in `r` at the cutoff (it fails, for example, when units precisely manipulate the running variable or another policy changes at the same cutoff), and there is no interference.
 - **Fuzzy RD:** smooth potential-outcome regressions through the cutoff, no precise manipulation of the running variable, exclusion (the cutoff acts on the outcome only through treatment), monotonicity for the local complier effect, and no interference.
 - **Kink:** smooth potential-outcome derivatives apart from the treatment-slope change at the cutoff, with the same exclusion and monotonicity conditions.
 - The density and balance diagnostics are descriptive. Neither is a test of the assumptions with a calibrated cutoff.

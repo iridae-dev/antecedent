@@ -2,7 +2,7 @@
 
 Estimate the effect of an assignment you randomized, with uncertainty taken from the randomization itself. Use this guide when you know how units were assigned (a coin flip per account, a fixed number of treated clusters, a 2x2 grid of two messages) and want the intention-to-treat effect, the main effects and interaction of two factors, or contrasts among several actions.
 
-The recorded assignment law is what identifies the effect. Antecedent reads that law from an `ExperimentDesign` and does not infer it from the data.
+The recorded assignment law is what identifies the effect: assignment `Z` is drawn by a known mechanism with every unit's assignment probabilities strictly between 0 and 1, independently of the potential outcomes, and one unit's assignment does not change another unit's outcome. Antecedent reads that law from an `ExperimentDesign` and does not infer it from the data. The assignment laws (`BernoulliAssignment`, `CompleteRandomization`, `ClusterRandomization`) live in `antecedent.interference`; the designs, queries and the other laws live in `antecedent.experiment`.
 
 ## Estimate an intention-to-treat effect
 
@@ -35,7 +35,7 @@ fit = result.value.randomized_effect
 fit.effect, fit.interval_95, fit.uncertainty, fit.support_status
 ```
 
-The runnable version is `examples/python/experiment_randomized_effect.py`. The same study then accepts outcome-only data without changing the design:
+The runnable version is [`examples/python/experiment_randomized_effect.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/experiment_randomized_effect.py). The same study then accepts outcome-only data without changing the design:
 
 ```python
 fresh = 2.0 * assigned.astype(float) + rng.normal(size=n)
@@ -44,7 +44,7 @@ updated = antecedent.estimate(antecedent.rebind(result.study, data={"revenue": f
 
 ## Read the result
 
-- `fit.effect` is the intention-to-treat contrast: the effect of being assigned, whether or not the unit complied.
+- `fit.effect` is the intention-to-treat contrast `E[Y(Z = 1)] - E[Y(Z = 0)]` over the trial's units: the effect of being assigned, whether or not the unit complied.
 - `fit.uncertainty` names the variance construction and `fit.interval_95` is present only when the design meets that construction's support rule. When it does not, you get the point estimate and a labelled variance, and the diagnostic names the rule that was not met.
 - `fit.support_status` says whether the design and its interval meet a row of the [graphless support matrix](../../graphless-support-matrix.md). A result outside the matrix still executes, with that status attached.
 - `result.value.calibration` reports whether a matching coverage measurement applies to the interval; see [Uncertainty](../../concepts/uncertainty.md).
@@ -79,7 +79,7 @@ factorial = antecedent.experiment.FactorialRandomization(
 
 `design` is then an `ExperimentDesign` built on `factorial` as its assignment, as in the example above. With very small cells the result is point-only.
 
-If both factors were assigned by independent Bernoulli draws, `antecedent.factorial.estimate` is a direct utility for the cell means, both main effects and the interaction. The fixture in `examples/python/factorial_cell_means.py` is balanced with known cell means, so its main effects (4 and 5) and interaction (4) are exact:
+If both factors were assigned by independent Bernoulli draws, `antecedent.factorial.estimate` is a direct utility for the cell means, both main effects and the interaction. The fixture in [`examples/python/factorial_cell_means.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/factorial_cell_means.py) is balanced with known cell means, so its main effects (4 and 5) and interaction (4) are exact:
 
 ```python
 from antecedent import factorial
@@ -160,6 +160,7 @@ Runnable example: [`examples/python/experiment_designs.py`](https://github.com/i
 - Factorial designs beyond two binary factors in four fixed cells (block or multi-arm factorials, three or more factors) are not supported; use separate contrasts instead.
 - Outcome-adaptive assignment, interim looks and stopping rules are not fixed designs: an analysis that presumes a fixed sample is refused for such data. See [Inference from adaptive experiments](../../adaptive-inference.md).
 - Contrasts at several time points under a randomized sequence are [temporal designs](../temporal-designs.md).
+- Look up any refusal code in [refusal codes](../../reference/refusal-codes.md).
 
 ## Related
 
