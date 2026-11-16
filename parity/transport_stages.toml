@@ -10965,3 +10965,43 @@ guarantee = "rubin_pooled_effect_of_a_measured_exposure_with_uncalibrated_interv
 evidence_test = "python/tests/test_exposure_measurement.py"
 evidence_assertion = "test_rubin_pooling_matches_the_hand_computation"
 notes = "Declaration-bound composition of the exposure corrections with the ordinary analysis; draws and pooled interval with a not_measured calibration slot."
+
+[[routes]]
+route = "antecedent_estimate.measurement.impute_exposure"
+graph = "the_query_graph_the_measured_exposure_is_the_queried_treatment"
+evidence = "declared_measured_exposure_the_outcome_and_covariates"
+functional = "exposure_draws_from_the_declared_measurement"
+guarantee = "rubin_pooled_effect_of_a_measured_exposure_with_uncalibrated_interval"
+evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs"
+evidence_assertion = "shared_misclassification_recovers_the_planted_effect"
+notes = "Declaration-bound composition of the exposure corrections with the ordinary analysis; draws and pooled interval with a not_measured calibration slot."
+
+[[routes]]
+route = "antecedent_estimate.measurement.pool_measured_effect"
+graph = "the_query_graph_the_measured_exposure_is_the_queried_treatment"
+evidence = "per_draw_effects_and_variances"
+functional = "pooled_effect_of_the_true_exposure"
+guarantee = "rubin_pooled_effect_of_a_measured_exposure_with_uncalibrated_interval"
+evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs"
+evidence_assertion = "shared_misclassification_recovers_the_planted_effect"
+notes = "Declaration-bound composition of the exposure corrections with the ordinary analysis; draws and pooled interval with a not_measured calibration slot."
+
+[[routes]]
+route = "antecedent.measured_exposure.PreparedMeasuredExposure.estimate"
+graph = "the_query_graph_the_measured_exposure_is_the_queried_treatment"
+evidence = "declared_measured_exposure_on_the_query_treatment"
+functional = "pooled_effect_of_the_true_exposure"
+guarantee = "rubin_pooled_effect_of_a_measured_exposure_with_uncalibrated_interval"
+evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs"
+evidence_assertion = "shared_misclassification_recovers_the_planted_effect"
+notes = "Declaration-bound composition of the exposure corrections with the ordinary analysis; draws and pooled interval with a not_measured calibration slot."
+
+[[routes]]
+route = "antecedent_estimate.measurement.MeasuredEffect.interval"
+graph = "the_query_graph_the_measured_exposure_is_the_queried_treatment"
+evidence = "per_draw_effects_and_variances"
+functional = "rubin_t_interval_of_the_pooled_effect"
+guarantee = "rubin_pooled_effect_of_a_measured_exposure_with_uncalibrated_interval"
+evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs"
+evidence_assertion = "shared_misclassification_recovers_the_planted_effect"
+notes = "Declaration-bound composition of the exposure corrections with the ordinary analysis; draws and pooled interval with a not_measured calibration slot."

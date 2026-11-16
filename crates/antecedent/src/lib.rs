@@ -227,6 +227,7 @@ pub use accepted::{AcceptedGraph, GraphClass, GraphRef, IntoAccepted, StructureP
 pub use analysis::api::*;
 #[doc(hidden)]
 pub use analysis::max_t_critical_value;
+pub use analysis::measured_exposure;
 #[doc(hidden)]
 pub use analysis::temporal_dependent_interval_candidate;
 pub use antecedent_estimate::ScoreDependence;

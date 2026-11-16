@@ -14553,3 +14553,43 @@ target = "lib"
 tests = ["graph_posterior_calibration::per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior"]
 ignored = true
 grid = false
+
+[[group]]
+label = "measured_exposure_calibration: measured_exposure_shared_misclassification_rubin_l95"
+package = "antecedent"
+target = "measured_exposure_calibration"
+tests = ["measured_exposure_shared_misclassification_rubin_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measured_exposure_calibration: measured_exposure_differential_misclassification_rubin_l95"
+package = "antecedent"
+target = "measured_exposure_calibration"
+tests = ["measured_exposure_differential_misclassification_rubin_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measured_exposure_calibration: measured_exposure_soft_probabilities_rubin_l95"
+package = "antecedent"
+target = "measured_exposure_calibration"
+tests = ["measured_exposure_soft_probabilities_rubin_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measured_exposure_calibration: measured_exposure_detection_rubin_l95"
+package = "antecedent"
+target = "measured_exposure_calibration"
+tests = ["measured_exposure_detection_rubin_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "measured_exposure_calibration: measured_exposure_repeat_codings_rubin_l95"
+package = "antecedent"
+target = "measured_exposure_calibration"
+tests = ["measured_exposure_repeat_codings_rubin_l95"]
+ignored = true
+grid = true

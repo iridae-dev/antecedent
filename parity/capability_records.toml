@@ -23166,12 +23166,12 @@ guarantee = "rubin_pooled_effect_of_a_measured_exposure_with_uncalibrated_interv
 graph_class = "The query's own graph class; the measured exposure is the query's treatment, the other variables of the graph (or the declared covariates) enter the imputation."
 population_semantics = "One population and regime; the error rates, detection function or probabilities are declared for it and the imputation conditions on the outcome and the covariates."
 evidence_family = "A recorded or soft or repeatedly coded exposure, an outcome, covariates and the declared error structure (rates or validation counts, detection function, response-law identification)."
-provider = "antecedent.exposure_measurement (imputation) composed with antecedent.prepare / antecedent.estimate on every completed table; numerical cores antecedent_stats::measurement_error and antecedent.measurement_exposure."
+provider = "antecedent_estimate::measurement::measured_exposure (declaration, imputation, Rubin pooling) composed by antecedent::measured_exposure with the ordinary study on every completed table; python/antecedent/exposure_measurement.py binds it; numerical cores antecedent_stats::measurement_error."
 estimand = "The query's scalar effect of the true exposure."
 inference_claim = "interval"
-owners = ["python/antecedent"]
+owners = ["antecedent-estimate", "antecedent", "python/antecedent"]
 identity_inputs = ["declaration (kind, variable, error structure, covariates)", "the data columns the declaration reads, the outcome and the covariates", "imputation count and seed"]
-wire_changes = ["None: the draws are exported as the existing posterior artifact."]
+wire_changes = ["None: the draws are exported as the existing posterior artifact, with the declaration and data identities in its backend id."]
 compatibility = "Additive. The standalone corrections, the model-based measurement routes, their identities and artifacts are unchanged; without measurement= nothing changes."
 search = false
 prerequisite_records = []
@@ -23184,6 +23184,10 @@ refusals = [
   { detail = "measurement_model.bootstrap_unstable", remedy = "Supply more units or more codings per unit so the latent class model refits on resampled units." },
 ]
 routes = [
+  { name = "antecedent_estimate.measurement.impute_exposure", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_estimate.measurement.pool_measured_effect", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.measured_exposure.PreparedMeasuredExposure.estimate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_estimate.measurement.MeasuredEffect.interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { name = "antecedent.exposure_measurement.ExposureMeasurement.realize", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent.prepare.measurement", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent.exposure_measurement.PreparedMeasuredAnalysis.estimate", stage = "evaluate", status = "supported", claim = "point_only" },
@@ -23199,6 +23203,13 @@ fixtures = [
   { id = "measurement.measured_exposure_effect.youden.negative", role = "negative", intent = "A Youden index at or below the floor refuses before any draw with measurement_not_identified.", evidence_test = "python/tests/test_exposure_measurement.py", evidence_assertion = "test_an_unidentified_error_declaration_is_refused_before_any_draw" },
   { id = "measurement.measured_exposure_effect.draws_artifact.artifact", role = "artifact", intent = "The exposure draws export as a posterior artifact and read back identically with their declaration and data identities; completed tables carry each draw.", evidence_test = "python/tests/test_exposure_measurement.py", evidence_assertion = "test_the_exposure_draws_export_as_a_posterior_artifact_and_read_back" },
   { id = "measurement.measured_exposure_effect.pooling.construction", role = "construction", intent = "The analysis' pooled effect equals Rubin's rules over the per-draw analyses it holds, and the library's own multiple-imputation combination of the same draws agrees on the point.", evidence_test = "python/tests/test_exposure_measurement.py", evidence_assertion = "test_the_pooled_point_equals_rubin_over_the_per_draw_analyses" },
+  { id = "measurement.measured_exposure_effect.rust_shared.truth", role = "truth", intent = "Shared-rate misclassification of the exposure of a continuous outcome with planted effect 2 is recovered through the facade (pooled effect within four standard errors, interval containing 2, Rubin's rules equal to the hand computation) where the recorded column misses it.", evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs", evidence_assertion = "shared_misclassification_recovers_the_planted_effect" },
+  { id = "measurement.measured_exposure_effect.rust_differential.truth", role = "truth", intent = "Outcome-specific rates recover the planted risk difference of a logistic outcome (quadrature truth) through the facade.", evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs", evidence_assertion = "outcome_differential_misclassification_recovers_the_planted_risk_difference" },
+  { id = "measurement.measured_exposure_effect.rust_soft.truth", role = "truth", intent = "Per-unit exposure probabilities recover the planted effect 2 through the facade.", evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs", evidence_assertion = "per_unit_exposure_probabilities_recover_the_planted_effect" },
+  { id = "measurement.measured_exposure_effect.rust_detection.truth", role = "truth", intent = "A covariate-dependent detection function recovers the planted effect 2 through the facade where the recorded detections miss it.", evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs", evidence_assertion = "covariate_dependent_detection_recovers_the_planted_effect" },
+  { id = "measurement.measured_exposure_effect.rust_repeat_codings.truth", role = "truth", intent = "Three repeat codings of a latent binary facet recover the planted effect 2 of the facet through the facade.", evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs", evidence_assertion = "repeat_codings_recover_the_planted_effect_of_the_latent_facet" },
+  { id = "measurement.measured_exposure_effect.rust_youden.negative", role = "negative", intent = "An unidentified error declaration refuses before any draw with a Youden detail, and an outcome-specific error with a continuous outcome refuses with binary_outcome_continuous_error.", evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs", evidence_assertion = "an_unidentified_error_declaration_refuses_before_any_draw" },
+  { id = "measurement.measured_exposure_effect.rust_draws_artifact.artifact", role = "artifact", intent = "The draws export as the posterior artifact and read back identically; the same seed reproduces them.", evidence_test = "crates/antecedent/tests/measured_exposure_known_truth.rs", evidence_assertion = "the_exposure_draws_export_as_a_posterior_artifact_and_read_back" },
 ]
 [[record.inference_outputs]]
 id = "measurement.measured_exposure_effect.point.1"
@@ -23206,16 +23217,16 @@ fields = ["pooled effect of the true exposure", "within-draw, between-draw and t
 method = "Posterior imputation of the latent exposure from the declared measurement, the outcome and the covariates, one ordinary estimate per completed table, pooled by Rubin's rules."
 implementation_status = "implemented_not_measured"
 owner = "python/antecedent"
-operation_or_object = "antecedent.exposure_measurement.PreparedMeasuredAnalysis.estimate"
-public_producers = ["antecedent.exposure_measurement.PreparedMeasuredAnalysis.estimate", "antecedent.exposure_measurement.ExposureMeasurement.realize", "antecedent.prepare.measurement"]
+operation_or_object = "antecedent::measured_exposure::PreparedMeasuredExposure::estimate"
+public_producers = ["antecedent_estimate.measurement.impute_exposure", "antecedent_estimate.measurement.pool_measured_effect", "antecedent.measured_exposure.PreparedMeasuredExposure.estimate", "antecedent.exposure_measurement.PreparedMeasuredAnalysis.estimate", "antecedent.exposure_measurement.ExposureMeasurement.realize", "antecedent.prepare.measurement"]
 closed_producers = []
 independent_consumers = ["measurement.measured_exposure_effect.rubin.positive"]
-method_source = "python/antecedent/exposure_measurement.py"
+method_source = "crates/antecedent-estimate/src/measurement/measured_exposure.rs; crates/antecedent/src/analysis/measured_exposure.rs"
 truth_design = "Planted exposure effects (linear outcome 2; logistic risk contrast by quadrature) with the exposure misclassified, soft, under-detected or recoded; Rubin's rules by hand."
-truth_fixtures = ["measurement.measured_exposure_effect.misclassified.truth", "measurement.measured_exposure_effect.differential.truth", "measurement.measured_exposure_effect.soft.truth", "measurement.measured_exposure_effect.detection.truth", "measurement.measured_exposure_effect.repeat_codings.truth"]
+truth_fixtures = ["measurement.measured_exposure_effect.rust_shared.truth", "measurement.measured_exposure_effect.rust_differential.truth", "measurement.measured_exposure_effect.rust_soft.truth", "measurement.measured_exposure_effect.rust_detection.truth", "measurement.measured_exposure_effect.rust_repeat_codings.truth", "measurement.measured_exposure_effect.misclassified.truth", "measurement.measured_exposure_effect.differential.truth", "measurement.measured_exposure_effect.soft.truth", "measurement.measured_exposure_effect.detection.truth", "measurement.measured_exposure_effect.repeat_codings.truth"]
 nominal_level = "none; point value with an uncalibrated standard error, no interval or coverage target"
 acceptance_threshold = "Planted effects within four pooled standard errors; Rubin's rules within 1e-12 of the hand computation; no sampling-coverage threshold is claimed for the point."
-measurement_suite = "python/tests/test_exposure_measurement.py"
+measurement_suite = "crates/antecedent/tests/measured_exposure_known_truth.rs"
 allocated_coverage_records = []
 inherited_coverage_records = []
 boundary = "The route publishes a pooled value and a first-order standard error labelled uncalibrated; the t interval is the separate output below."
@@ -23230,23 +23241,23 @@ fields = ["Rubin t interval of the pooled effect"]
 method = "Pooled effect -/+ t(Rubin degrees of freedom) times the square root of the Rubin total variance."
 implementation_status = "implemented_not_measured"
 owner = "python/antecedent"
-operation_or_object = "antecedent.exposure_measurement.RubinPool.interval"
-public_producers = ["antecedent.exposure_measurement.MeasuredAnalysis.interval"]
+operation_or_object = "antecedent_estimate::measurement::MeasuredEffect::interval"
+public_producers = ["antecedent_estimate.measurement.MeasuredEffect.interval", "antecedent.exposure_measurement.MeasuredAnalysis.interval"]
 closed_producers = []
 independent_consumers = []
-method_source = "python/antecedent/exposure_measurement.py"
+method_source = "crates/antecedent-estimate/src/measurement/measured_exposure.rs; crates/antecedent/src/analysis/measured_exposure.rs"
 truth_design = "Planted exposure effects (linear outcome 2; logistic risk contrast by quadrature) with the exposure misclassified, soft, under-detected or recoded."
-truth_fixtures = ["measurement.measured_exposure_effect.misclassified.truth", "measurement.measured_exposure_effect.differential.truth", "measurement.measured_exposure_effect.soft.truth", "measurement.measured_exposure_effect.detection.truth", "measurement.measured_exposure_effect.repeat_codings.truth"]
+truth_fixtures = ["measurement.measured_exposure_effect.rust_shared.truth", "measurement.measured_exposure_effect.rust_differential.truth", "measurement.measured_exposure_effect.rust_soft.truth", "measurement.measured_exposure_effect.rust_detection.truth", "measurement.measured_exposure_effect.rust_repeat_codings.truth", "measurement.measured_exposure_effect.misclassified.truth", "measurement.measured_exposure_effect.differential.truth", "measurement.measured_exposure_effect.soft.truth", "measurement.measured_exposure_effect.detection.truth", "measurement.measured_exposure_effect.repeat_codings.truth"]
 nominal_level = "0.95"
 acceptance_threshold = "Nominal 0.95 within the gate band at each grid point."
-measurement_suite = "python/tests/test_exposure_measurement.py"
+measurement_suite = "crates/antecedent/tests/measured_exposure_calibration.rs"
 allocated_coverage_records = []
 inherited_coverage_records = []
-boundary = "The recorded exposure of a linear outcome with a shared or outcome-specific error, per-unit probabilities, a declared detection function or three repeat codings, at least 1500 units and 20 draws, 95% level. No whole-method repeated-sampling harness has been run; the result carries a not_measured calibration slot."
+boundary = "A continuous outcome with a shared error, per-unit probabilities, a declared detection function or three repeat codings, and a 0/1 outcome with outcome-specific error, at least 750 units and 12 draws, 95% level, a Gaussian or logistic imputation outcome model that holds. The harness is written and not yet run; the result carries a not_measured calibration slot."
 activation_disposition = "measured_endpoint_construction_current_attestation_required"
-allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
-measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
-truth_grid_allocation = "No repeated-sampling grid allocated."
+allocation_status = "frozen_harness_compiled_measurement_pending"
+measurement_design_status = "implemented_whole_method_harness_not_run"
+truth_grid_allocation = "Shared, outcome-differential, soft, detection and repeat-coded exposures, each from 1500 units and 12 draws at 0.5x / 1x / 2x."
 
 [[record]]
 id = "estimate.outcome_nuisance_prior"

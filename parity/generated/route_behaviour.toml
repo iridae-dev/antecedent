@@ -7943,6 +7943,10 @@ refusals = [
   { code = "measurement_not_identified", detail = "measurement_model.bootstrap_unstable" },
 ]
 routes = [
+  { route = "antecedent_estimate.measurement.impute_exposure", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent_estimate.measurement.pool_measured_effect", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.measured_exposure.PreparedMeasuredExposure.estimate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent_estimate.measurement.MeasuredEffect.interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.exposure_measurement.ExposureMeasurement.realize", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.prepare.measurement", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.exposure_measurement.PreparedMeasuredAnalysis.estimate", stage = "evaluate", status = "supported", claim = "point_only" },

@@ -38,7 +38,7 @@ use super::{
     joint_law_propagation_api, joint_response_api, joint_transport_api, latent_class_api,
     learned_continuous_api, learned_joint_api, learned_trial_api, load_float64_arrow_c_columns,
     load_float64_columns, load_float64_panel_columns, matched_case_control_api,
-    measured_inference_api, measurement_exposure_api, measurement_model_api,
+    measured_exposure_api, measured_inference_api, measurement_exposure_api, measurement_model_api,
     mechanism_composition_api, mechanism_discrepancy_api, mnar_fixed_shift_api,
     mnar_sensitivity_api, msm_sensitivity_api, multi_level_treatment_api, nested_bayesian_api,
     nested_fisher_api, nonlinear_mediation_api, observation_api, observation_query_api,
@@ -196,6 +196,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     composition_bundle_api::register(m)?;
     measurement_model_api::register(m)?;
     measurement_exposure_api::register(m)?;
+    measured_exposure_api::register(m)?;
     mechanism_composition_api::register(m)?;
     typed_mechanism_transport_api::register(m)?;
     observation_query_api::register(m)?;

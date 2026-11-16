@@ -97,14 +97,24 @@ def test_rubin_pooling_matches_the_hand_computation():
 
 
 def test_the_pooled_interval_uses_students_t_quantiles():
-    # Two-sided 95% quantiles of Student's t from published tables.
-    for df, quantile in ((3, 3.182446), (10, 2.228139), (30, 2.042272)):
-        assert em._student_t_quantile(0.975, df) == pytest.approx(quantile, abs=1e-5)
-    assert em._student_t_quantile(0.975, math.inf) == pytest.approx(1.959964, abs=1e-5)
-    pool = em.rubin_pool([1.0, 1.0, 1.0], [0.25, 0.25, 0.25])
+    # Estimates 0 and 1 with no within variance: between 0.5, total 0.75, Rubin df 1, and the
+    # two-sided 95% quantile of t with one degree of freedom is 12.7062 (published table).
+    pool = em.rubin_pool([0.0, 1.0], [0.0, 0.0])
+    assert pool.degrees_of_freedom == pytest.approx(1.0, abs=1e-9)
     interval = pool.interval(0.95)
-    assert pool.between == 0.0 and math.isinf(pool.degrees_of_freedom)
-    assert interval.upper - interval.lower == pytest.approx(2 * 1.959964 * 0.5, abs=1e-4)
+    half = 12.7062047 * math.sqrt(0.75)
+    assert interval.lower == pytest.approx(0.5 - half, abs=1e-4)
+    assert interval.upper == pytest.approx(0.5 + half, abs=1e-4)
+    # Estimates 0, 1, 2: between 1, total 4/3, df 2, t quantile 4.3026527.
+    three = em.rubin_pool([0.0, 1.0, 2.0], [0.0, 0.0, 0.0])
+    assert three.degrees_of_freedom == pytest.approx(2.0, abs=1e-9)
+    width = three.interval(0.95).upper - three.interval(0.95).lower
+    assert width == pytest.approx(2 * 4.3026527 * math.sqrt(4 / 3), abs=1e-4)
+    # No between variance: the reference is the normal law.
+    flat = em.rubin_pool([1.0, 1.0, 1.0], [0.25, 0.25, 0.25])
+    assert flat.between == 0.0 and math.isinf(flat.degrees_of_freedom)
+    spread = flat.interval(0.95).upper - flat.interval(0.95).lower
+    assert spread == pytest.approx(2 * 1.959964 * 0.5, abs=1e-4)
 
 
 def test_pooling_needs_two_finite_estimates():
@@ -259,7 +269,7 @@ def test_prepare_and_estimate_equal_analyze_and_carry_the_declaration():
     direct = analyse(data, declaration, draws=6, seed=3)
     assert outcome.value.effect == direct.value.effect
     assert outcome.answer.kind == "point" and outcome.answer.value == outcome.value.effect
-    assert outcome.value.identities["declaration_identity"] == declaration.identity()
+    assert outcome.value.identities["declaration_identity"] == study.exposure.declaration_identity
     again = ant.estimate(ant.rebind(study, data=data))
     assert again.value.effect == direct.value.effect
 
@@ -300,10 +310,10 @@ def test_the_exposure_draws_export_as_a_posterior_artifact_and_read_back():
     assert np.all((draws.probability >= 0) & (draws.probability <= 1))
     artifact = draws.export()
     back = em.consume_exposure_draws(
-        artifact, variable="x", expected_declaration_identity=declaration.identity()
+        artifact, variable="x", expected_declaration_identity=draws.declaration_identity
     )
     assert np.array_equal(back.draws, draws.draws)
-    assert back.declaration_identity == declaration.identity()
+    assert back.declaration_identity == draws.declaration_identity
     assert back.data_identity == draws.data_identity
     assert consume_posterior(artifact).n_draws == 5
     with pytest.raises(CausalValueError):

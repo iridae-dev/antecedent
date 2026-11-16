@@ -316,9 +316,23 @@ identities in its identification field), `consume_exposure_draws` reads them bac
 `ExposureDraws.completed_tables(data)` hands each draw to any stage that takes a table, such as
 discovery, whose results are then combined as multiple-imputation results.
 
+In Rust the same route is `StudyBuilder::measured_exposure` (declaration
+`antecedent_estimate::measurement::ExposureMeasurement`, imputation `impute_exposure`, pooling
+`pool_measured_effect`): it imputes the draws, `PreparedMeasuredExposure::estimate` runs the
+caller's ordinary study on every completed table and pools, and `export_draws` /
+`consume_exposure_draws` write and read the posterior artifact. The Python surface binds that
+layer and runs its own study lifecycle on the completed columns.
+
+A partially declared monotone detection function gives sharp bounds on the prevalence
+(`detection_dependent_prevalence`), and those bounds are not carried to the effect: they come from
+the extremes of the envelope applied to every unit at once, while the effect of a unit-level
+exposure depends on which units are exposed, which is not monotone in the detection function in
+general, so the effect at the envelope's endpoints does not bound the effect over the envelope.
+Declare the function fully to take the exposure into an analysis.
+
 Refused: an error that differs by outcome level with a continuous outcome
 (`route_not_supported`), a Youden index (or mean net detection) at or below its floor
-(`measurement_not_identified`), a partially declared detection function, a declaration on a
+(`measurement_not_identified`), a partially declared detection function (above), a declaration on a
 variable other than the query's treatment, and a query that reports no scalar effect.
 
 ## Python surface

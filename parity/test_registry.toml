@@ -23895,6 +23895,20 @@ path = "python/tests/test_measurement_exposure.py"
 gates = ["inventory"]
 
 [[test]]
+id = "measured-exposure-calibration"
+crate = "antecedent"
+cargo_target = "measured_exposure_calibration"
+path = "crates/antecedent/tests/measured_exposure_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "measured-exposure-known-truth"
+crate = "antecedent"
+cargo_target = "measured_exposure_known_truth"
+path = "crates/antecedent/tests/measured_exposure_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "python-exposure-measurement"
 crate = "python"
 cargo_target = "script"

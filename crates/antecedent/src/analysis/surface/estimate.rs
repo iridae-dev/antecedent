@@ -252,10 +252,12 @@ pub mod longitudinal_regime {
 /// Corrected functionals under a declared measurement model.
 pub mod measurement {
     pub use antecedent_estimate::measurement::{
-        CorrectedExposure, DeclaredEstimate, DetectionDependentPrevalence, MeasurementError,
-        PosteriorCombination, SoftExposureCombination, SoftExposureEffect,
-        correct_detection_dependent_prevalence, correct_exposure_misclassification,
-        correct_soft_exposure_effect, fit_repeat_codings, soft_exposure_reliability_report,
+        CorrectedExposure, DeclaredEstimate, DetectionDependentPrevalence,
+        DetectionFunctionDeclaration, ExposureDraws, ExposureErrorDeclaration, ExposureMeasurement,
+        ImputationData, MeasuredEffect, MeasurementError, PosteriorCombination, RatePair,
+        SoftExposureCombination, SoftExposureEffect, correct_detection_dependent_prevalence,
+        correct_exposure_misclassification, correct_soft_exposure_effect, fit_repeat_codings,
+        impute_exposure, pool_measured_effect, soft_exposure_reliability_report,
     };
 }
 /// Multiple imputation: impute, fit, pool as one uncertainty path.
