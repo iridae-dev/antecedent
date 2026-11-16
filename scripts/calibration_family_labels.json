@@ -1445,7 +1445,7 @@
     },
     {
       "path": "crates/antecedent/tests/joint_panel_calibration.rs",
-      "sha256": "aa6d42865e6543fb9cdb233668d187c892941795d76fd47fa2e5185ef027be0b",
+      "sha256": "d8e3304afb98b1bc8931bac8750e0ecbcf36136aa88de49edb944a3ce44a1575",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1469,17 +1469,17 @@
           "argument": "test, LEVEL"
         },
         {
-          "line": 1816,
+          "line": 1826,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"weighted_posterior_quantile\" },\n        LEVEL,"
         },
         {
-          "line": 2012,
+          "line": 2022,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"monte_carlo_standard_error\" },\n        LEVEL,"
         },
         {
-          "line": 2191,
+          "line": 2201,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"response_data\", interval }, LEVEL"
         }
@@ -1488,7 +1488,7 @@
     },
     {
       "path": "crates/antecedent/tests/joint_response_calibration.rs",
-      "sha256": "aac02ecee6a90d873f51c0af7e0a0c3b13c961453402f5e4cba4b6115d186163",
+      "sha256": "87e6fb9a688be317ef07f3a6d77223742f36865f99bc9e8143e3248a50370a92",
       "labelled_calls": [],
       "constructor_calls": [
         {
