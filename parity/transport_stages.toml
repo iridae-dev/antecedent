@@ -3296,7 +3296,7 @@ evidence = "trial_rows_with_selection_probabilities_and_target_rows_with_covaria
 functional = "weighted_target_transported_ipw_contrast"
 guarantee = "plug_in_delta_method_wald_interval_with_overlap_gate"
 reference = "docs/guides/transport/weighted-target-population.md"
-limits = "A compiled TransportQuery on one selection diagram under frequentist inference with independent unweighted rows; the target is the non-participant rows reweighted by a declared kernel or row weights, behind the Kish gates over the target rows and over the weights the trial rows carry toward them; the interval is the Wald interval of the delta-method standard error under known probabilities and fixed weights, its coverage wired to the calibration groups; sampling weights, declared dependence, Bayesian inference, graph classes and graph posteriors refuse."
+limits = "A compiled TransportQuery on one selection diagram under frequentist or Bayesian-bootstrap inference (each trial-row draw's score multiplied by its target weight) with independent unweighted rows; the target is the non-participant rows reweighted by a declared kernel or row weights, behind the Kish gates over the target rows and over the weights the trial rows carry toward them; the interval is the Wald interval of the delta-method standard error under known probabilities and fixed weights, its coverage wired to the calibration groups; observation weights, declared dependence, graph classes and graph posteriors refuse."
 evidence_test = "crates/antecedent/tests/weighted_target_trial_transport.rs"
 evidence_assertion = "the_compiled_query_reports_the_closed_form_weighted_target_effect"
 

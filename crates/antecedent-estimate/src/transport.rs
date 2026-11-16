@@ -826,7 +826,10 @@ fn signed_weight_effective_sample_size(weights: &[f64]) -> f64 {
 
 #[path = "transport_weighted_target.rs"]
 mod weighted_target;
-pub use weighted_target::{WeightedTargetTransportEstimate, trial_to_weighted_target_effect};
+pub use weighted_target::{
+    WeightedTargetTransportEstimate, trial_to_weighted_target_bayesian_bootstrap,
+    trial_to_weighted_target_effect,
+};
 
 #[path = "transport_series.rs"]
 mod series;

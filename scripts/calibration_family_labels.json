@@ -1166,6 +1166,24 @@
       "review": "Shared per-test reporting wrapper; one source-fixed test execution context, no empirical hypothesis selection."
     },
     {
+      "path": "crates/antecedent/tests/count_conjugate_calibration.rs",
+      "sha256": "b1e92341076f9c763d99fc6b20035eea5fd27199dbd2039f20d736a571271359",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 104,
+          "call": "CoverageTally::new(",
+          "argument": "\"association_exceedance_stated_prior\", REPORTED_LEVEL"
+        },
+        {
+          "line": 118,
+          "call": "CoverageTally::new(",
+          "argument": "\"association_count_rate_stated_prior\", REPORTED_LEVEL"
+        }
+      ],
+      "review": "Two fixed conjugate-count designs (Beta exceedance, Gamma rate) with literal test-named tallies at the declared level; truths are drawn from the stated prior and no outcome selects a label."
+    },
+    {
       "path": "crates/antecedent/tests/cross_world_interval_calibration.rs",
       "sha256": "df0101a4d64452c84cc2275d4f649ab0de59d42741a424700f024b474c9ce8f4",
       "labelled_calls": [],
@@ -1301,11 +1319,11 @@
     },
     {
       "path": "crates/antecedent/tests/dml_outcome_prior_calibration.rs",
-      "sha256": "8dbe8d4e4403c708526baa295d7558801f90d1e9f5cb2cdcf758d5bb27fa0c1b",
+      "sha256": "e816dec96c96506ca6eee09826b86128546bbaf6a27607cca2a20e33002d8be8",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 144,
+          "line": 167,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL"
         }

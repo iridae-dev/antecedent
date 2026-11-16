@@ -297,6 +297,7 @@ impl super::Study {
                         config,
                         (representative_proof, &dependence),
                         &columns,
+                        None,
                         assumptions,
                         representative_case.result.status,
                         ctx,

@@ -299,7 +299,7 @@ impl WeightedTargetDeclaration {
     }
 
     /// Identity of the declaration and the exact weight bits.
-    fn identity(&self, weights: &[f64]) -> String {
+    fn identity_digest(&self, weights: &[f64]) -> [u8; 32] {
         let mut stream = CanonicalWriter::new("antecedent.weighted_target.v1");
         match &self.spec {
             WeightedTargetSpec::RowWeights(_) => {
@@ -312,7 +312,34 @@ impl WeightedTargetDeclaration {
         }
         let covariates: Vec<u64> = self.covariates.iter().map(|v| u64::from(v.raw())).collect();
         stream.words(&covariates).real(self.min_ess_fraction).reals(weights);
-        stream.finish_hex()
+        stream.finish()
+    }
+
+    /// [`Self::identity_digest`] as lowercase hex.
+    fn identity(&self, weights: &[f64]) -> String {
+        antecedent_core::to_hex(&self.identity_digest(weights))
+    }
+
+    /// The declaration as the transport query carries it: the identity of the declaration and
+    /// the exact weights, the covariates, the floor and the kernel.
+    #[must_use]
+    pub fn transport_target(&self, weights: &[f64]) -> antecedent_core::TransportWeightedTarget {
+        antecedent_core::TransportWeightedTarget {
+            identity: self.identity_digest(weights),
+            covariates: Arc::clone(&self.covariates),
+            min_ess_fraction_bits: self.min_ess_fraction.to_bits(),
+            kernel: match &self.spec {
+                WeightedTargetSpec::Kernel { kernel, center, scale } => {
+                    Some(antecedent_core::TransportTargetKernel {
+                        family: Arc::from(kernel.family().id()),
+                        bandwidth_bits: kernel.bandwidth().to_bits(),
+                        center_bits: center.iter().map(|c| c.to_bits()).collect(),
+                        scale_bits: scale.iter().map(|c| c.to_bits()).collect(),
+                    })
+                }
+                WeightedTargetSpec::RowWeights(_) => None,
+            },
+        }
     }
 }
 

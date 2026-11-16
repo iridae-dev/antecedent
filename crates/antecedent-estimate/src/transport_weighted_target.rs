@@ -179,3 +179,100 @@ pub fn trial_to_weighted_target_effect(
         trial_overlap,
     })
 }
+
+/// Bayesian-bootstrap draws of the trial-to-target IPW contrast for a weighted target.
+///
+/// Each draw puts a `Dirichlet(1, ..., 1)` law on the observed trial rows and keeps the
+/// supplied probabilities, the target weights and the target rows fixed:
+/// `draw = n_trial * sum_r w_r v_r score_r / (sum_r w_r * sum_{S=0} v)`, with `score_r` the
+/// signed inverse-odds score of the row. It propagates the uncertainty in the trial outcome
+/// law conditional on the target; with constant weights it is the unweighted construction.
+/// Both overlap gates apply, as for the point estimate.
+///
+/// # Errors
+///
+/// The refusals of [`trial_to_weighted_target_effect`], fewer than two draws, or a trial
+/// without observed units in both arms.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the inputs of the weighted contrast and its draw specification"
+)]
+pub fn trial_to_weighted_target_bayesian_bootstrap(
+    identification: &TransportIdentification,
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    target_weights: &[f64],
+    min_ess_fraction: f64,
+    sampling: crate::util::DrawSpec,
+) -> Result<Vec<f64>, EstimationError> {
+    let crate::util::DrawSpec { draws: n_draws, seed } = sampling;
+    require_dahabreh_compatible_formula(identification, "Bayesian weighted-target effect")?;
+    let n = outcome.len();
+    if target_weights.len() != n {
+        return Err(EstimationError::data_msg("target weights need one entry per row"));
+    }
+    validate_trial_to_target_inputs(
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+    )?;
+    if target_weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+        return Err(EstimationError::data_msg("target weights must be finite and >= 0"));
+    }
+    if n_draws < 2 {
+        return Err(EstimationError::data_msg(
+            "Bayesian weighted-target effect requires at least two draws",
+        ));
+    }
+    let source_rows: Vec<usize> = (0..n).filter(|&i| trial[i]).collect();
+    if !source_rows.iter().any(|&i| treatment[i]) || !source_rows.iter().any(|&i| !treatment[i]) {
+        return Err(EstimationError::data_msg(
+            "Bayesian weighted-target effect requires both observed treatment arms",
+        ));
+    }
+    let target_rows: Vec<f64> = (0..n).filter(|&i| !trial[i]).map(|i| target_weights[i]).collect();
+    let trial_rows: Vec<f64> = source_rows
+        .iter()
+        .map(|&i| (1.0 - selection_probability[i]) / selection_probability[i] * target_weights[i])
+        .collect();
+    check_weights_overlap(&target_rows, min_ess_fraction)?;
+    check_weights_overlap(&trial_rows, min_ess_fraction)?;
+    let denominator: f64 = target_rows.iter().sum();
+    let scores: Vec<f64> = source_rows
+        .iter()
+        .map(|&i| {
+            let s = selection_probability[i];
+            let e = treatment_probability[i];
+            let arm = if treatment[i] { e } else { 1.0 - e };
+            let sign = if treatment[i] { 1.0 } else { -1.0 };
+            target_weights[i] * sign * ((1.0 - s) / s) * outcome[i] / arm
+        })
+        .collect();
+    let mut rng = antecedent_core::CausalRng::from_seed(seed);
+    let _admitted = crate::util::admit_bound_array::<f64>(n_draws, 1)?;
+    let mut draws = Vec::with_capacity(n_draws);
+    for _ in 0..n_draws {
+        let weights =
+            antecedent_kernels::bayesian_bootstrap_weights(&mut rng, source_rows.len(), false);
+        let normalizer: f64 = weights.iter().sum();
+        if !normalizer.is_finite() || normalizer <= 0.0 {
+            return Err(EstimationError::stats_msg(
+                "Bayesian weighted-target row weights failed to normalize",
+            ));
+        }
+        let numerator: f64 = weights.iter().zip(&scores).map(|(w, score)| w * score).sum();
+        let draw = numerator * source_rows.len() as f64 / (normalizer * denominator);
+        if !draw.is_finite() {
+            return Err(EstimationError::stats_msg(
+                "Bayesian weighted-target effect has a non-finite draw",
+            ));
+        }
+        draws.push(draw);
+    }
+    Ok(draws)
+}

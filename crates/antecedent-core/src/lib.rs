@@ -188,9 +188,9 @@ pub use query::{
     TemporalResponseSpec, TemporalResponseSupport, TheoremFamily, TheoremScope,
     TransportEvaluateSupport, TransportFault, TransportIdentifySupport, TransportLocation,
     TransportOutcome, TransportOutcomeKind, TransportQuery, TransportSupportCoordinate,
-    TransportUncertaintySupport, UnitChangeQuery, UnmetDependency, VariableCoordinate,
-    VariableDomain, policy_assignment_cost_within_budget, policy_graphless_coordinate,
-    randomized_graphless_coordinate,
+    TransportTargetKernel, TransportUncertaintySupport, TransportWeightedTarget, UnitChangeQuery,
+    UnmetDependency, VariableCoordinate, VariableDomain, policy_assignment_cost_within_budget,
+    policy_graphless_coordinate, randomized_graphless_coordinate,
 };
 pub use query::{
     AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,

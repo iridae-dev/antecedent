@@ -1410,6 +1410,14 @@ impl StudyBuilder {
             };
             let resolved =
                 declaration.resolve_for_transport(table, spec.trial, spec.selection_probability)?;
+            let target = declaration.transport_target(&resolved.weights);
+            if let Some(CausalQuery::Transport(query)) = self.query.as_mut() {
+                // The target enters the query's own identity, wire and digest.
+                *query = query
+                    .clone()
+                    .with_weighted_target(target)
+                    .map_err(|error| CausalError::Compile { message: error.to_string().into() })?;
+            }
             self.declared.weighted_transport =
                 Some(Arc::new(super::weighted_target::WeightedTransportWeights {
                     weights: Arc::from(resolved.weights),

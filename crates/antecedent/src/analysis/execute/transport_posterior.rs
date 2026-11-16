@@ -277,6 +277,7 @@ impl super::Study {
                     config,
                     (representative_transport, dependence),
                     columns,
+                    None,
                     assumptions,
                     status,
                     ctx,

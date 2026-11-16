@@ -232,16 +232,17 @@ impl super::Study {
             transport_id,
             &columns,
             (&dependence, inference),
-            &assumptions,
+            (&assumptions, identification.status),
+            ctx,
         )?;
         let weighted_present = weighted_target.is_some();
         let mut transported = match &weighted_target {
-            Some((point, _, _)) => *point,
+            Some(weighted) => weighted.point,
             None => transport_point(transport_id, &columns)?,
         };
         let (estimate, posterior, estimator_id, diagnostic) =
-            if let Some((_, estimate, diagnostic)) = weighted_target {
-                (estimate, None, EstimatorId::TransportTrialIpw, diagnostic)
+            if let Some(weighted) = weighted_target {
+                (weighted.estimate, weighted.posterior, weighted.estimator, weighted.diagnostic)
             } else {
                 match inference {
                     InferenceMode::Bayesian(cfg) => {
@@ -249,6 +250,7 @@ impl super::Study {
                             cfg,
                             (transport_id, &dependence),
                             &columns,
+                            None,
                             assumptions,
                             identification.status,
                             ctx,
@@ -725,20 +727,21 @@ impl super::Study {
         transport: &TransportIdentification,
         columns: &TrialColumns<'_>,
         (dependence, inference): (&TrialDependence, &InferenceMode),
-        assumptions: &antecedent_core::AssumptionSet,
-    ) -> Result<Option<(TransportEffectEstimate, EffectEstimate, Diagnostic)>, CausalError> {
+        (assumptions, status): (&antecedent_core::AssumptionSet, IdentificationStatus),
+        ctx: &ExecutionContext,
+    ) -> Result<Option<WeightedTransport>, CausalError> {
         let Some(target) = self.declared.weighted_transport.as_ref() else {
             return Ok(None);
         };
-        if columns.weights.is_some()
-            || !matches!(dependence, TrialDependence::Independent)
-            || inference.is_bayesian()
-        {
+        if columns.weights.is_some() || !matches!(dependence, TrialDependence::Independent) {
             return Err(crate::unsupported_reason!(
                 "option_not_applicable",
-                "a weighted target population reads independent rows under frequentist \
-                 inference; sampling weights, declared dependence and Bayesian inference do not \
-                 apply to it"
+                "a weighted target population reads independent, unweighted rows: the target \
+                 weights are a second weighting of the same rows, and the row weights, clusters \
+                 or series blocks the standard error and the draws would also need to carry are \
+                 not combined with them, so the declaration would be read wrongly rather than \
+                 refused. Next attempt: drop the observation weights or the dependence \
+                 declaration, or fold the observation weights into the target weights"
             ));
         }
         if target.weights.len() != columns.outcomes.len() {
@@ -775,6 +778,26 @@ impl super::Study {
                 status: antecedent_core::AssumptionStatus::Declared,
             });
         }
+        if let InferenceMode::Bayesian(cfg) = inference {
+            let (estimate, posterior, diagnostic) = bayesian_transport_estimate(
+                cfg,
+                (transport, dependence),
+                columns,
+                Some((&target.weights, target.min_ess_fraction)),
+                assumptions,
+                status,
+                ctx,
+            )?;
+            let mut point = weighted.effect;
+            point.ipw = estimate.ate;
+            return Ok(Some(WeightedTransport {
+                point,
+                estimate,
+                posterior: Some(posterior),
+                estimator: EstimatorId::TransportTrialBayesianBootstrap,
+                diagnostic,
+            }));
+        }
         let estimate = EffectEstimate::new(
             weighted.effect.ipw,
             weighted.ipw_se,
@@ -791,8 +814,23 @@ impl super::Study {
              fixed weights, and the interval is its Wald interval"
                 .to_owned(),
         );
-        Ok(Some((weighted.effect, estimate, diagnostic)))
+        Ok(Some(WeightedTransport {
+            point: weighted.effect,
+            estimate,
+            posterior: None,
+            estimator: EstimatorId::TransportTrialIpw,
+            diagnostic,
+        }))
     }
+}
+
+/// The trial-to-target contrast for a weighted target, as the route publishes it.
+pub(super) struct WeightedTransport {
+    pub(super) point: TransportEffectEstimate,
+    pub(super) estimate: EffectEstimate,
+    pub(super) posterior: Option<CausalPosterior>,
+    pub(super) estimator: EstimatorId,
+    pub(super) diagnostic: Diagnostic,
 }
 
 impl super::Study {
@@ -1003,6 +1041,7 @@ pub(super) fn bayesian_transport_estimate(
     cfg: &BayesianConfig,
     (transport_id, dependence): (&TransportIdentification, &TrialDependence),
     columns: &TrialColumns<'_>,
+    target: Option<(&[f64], f64)>,
     mut assumptions: antecedent_core::AssumptionSet,
     status: IdentificationStatus,
     ctx: &ExecutionContext,
@@ -1013,7 +1052,19 @@ pub(super) fn bayesian_transport_estimate(
         cfg.n_draws,
         ctx.rng.stream_for(StreamDomain::Bayesian, 0x7A17_0001).next_u64(),
     );
-    let draws = if weights.is_none() && !matches!(dependence, TrialDependence::Clusters(_)) {
+    let draws = if let Some((target_weights, floor)) = target {
+        antecedent_estimate::trial_to_weighted_target_bayesian_bootstrap(
+            transport_id,
+            outcomes,
+            treatment,
+            trial,
+            selection,
+            propensity,
+            target_weights,
+            floor,
+            spec,
+        )
+    } else if weights.is_none() && !matches!(dependence, TrialDependence::Clusters(_)) {
         let block = match dependence {
             TrialDependence::Series(block) | TrialDependence::SizedSeries(block) => Some(*block),
             _ => None,
@@ -1058,7 +1109,9 @@ pub(super) fn bayesian_transport_estimate(
                     assumption: antecedent_core::Assumption::ParametricRestriction(
                         antecedent_core::ParametricAssumption {
                             id: Arc::from("transport.trial_empirical_support_prior"),
-                            description: if matches!(dependence, TrialDependence::Independent) && weights.is_none() {
+                            description: if target.is_some() {
+                                Arc::from("Dirichlet(1,...,1) Bayesian bootstrap over the observed trial rows with each row's score multiplied by its target weight, conditional on the trial sample size, the target weight total and rows, and the supplied selection/treatment probabilities; the target row law, the declared target weights and fitted probability-model uncertainty are held fixed")
+                            } else if matches!(dependence, TrialDependence::Independent) && weights.is_none() {
                                 Arc::from("Dirichlet(1,...,1) Bayesian bootstrap over the observed trial rows, conditional on the selected trial sample size, target sample size, and supplied selection/treatment probabilities; the target row law and fitted probability-model uncertainty are held fixed")
                             } else {
                                 Arc::from(format!("Dirichlet(1,...,1) Bayesian bootstrap over the {unit}{weighted}, conditional on the trial and target weight totals and the supplied selection/treatment probabilities; the target row law and fitted probability-model uncertainty are held fixed"))

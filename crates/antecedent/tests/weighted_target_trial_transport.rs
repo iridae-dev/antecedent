@@ -300,6 +300,36 @@ mod compiled {
     }
 
     #[test]
+    fn the_compiled_query_carries_a_weighted_target_under_bayesian_inference() {
+        let fx = super::fixture(12_000, 39);
+        let z = z_of(&fx);
+        let truth = closed_form(1.0, 0.8);
+        let mut dag = Dag::with_variables(6);
+        dag.insert_directed(DenseNodeId::from_raw(A), DenseNodeId::from_raw(Y)).unwrap();
+        let study = Study::tabular(table(&fx, &z))
+            .graph(dag)
+            .query(CausalQuery::Transport(query()))
+            .selection_targets(std::sync::Arc::<[VariableId]>::from(Vec::new()))
+            .transport_trial(TransportTrialSpec {
+                trial: VariableId::from_raw(TRIAL),
+                selection_probability: VariableId::from_raw(SEL),
+                treatment_probability: VariableId::from_raw(PROP),
+            })
+            .weighted_target(declaration(0.8, 1.0))
+            .inference(antecedent::InferenceMode::Bayesian(
+                antecedent::BayesianConfig::laplace().n_draws(2_000),
+            ))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap();
+        let result = study.run(&ExecutionContext::for_tests(39)).unwrap();
+        assert!(result.posterior.is_some(), "a posterior over the weighted contrast");
+        let effect = result.estimate().as_effect().unwrap();
+        assert!((effect.ate - truth).abs() < 0.25, "posterior mean {} truth {truth}", effect.ate);
+    }
+
+    #[test]
     fn a_weighted_target_without_overlap_refuses_before_estimation() {
         let fx = super::fixture(6_000, 37);
         let z = z_of(&fx);

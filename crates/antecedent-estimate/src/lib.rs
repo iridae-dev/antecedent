@@ -513,7 +513,8 @@ pub use transport::{
     transport_outcome_kind, trial_aipw_row_scores, trial_to_target_bayesian_bootstrap,
     trial_to_target_bayesian_bootstrap_blocks, trial_to_target_effect,
     trial_to_target_effect_with_context, trial_to_target_ipw_ewc_se, trial_to_target_ipw_hac_se,
-    trial_to_target_ipw_se, trial_to_target_series_block_length, trial_to_weighted_target_effect,
+    trial_to_target_ipw_se, trial_to_target_series_block_length,
+    trial_to_weighted_target_bayesian_bootstrap, trial_to_weighted_target_effect,
 };
 pub use util::{BootstrapSeResult, DrawSpec, IntervalRequest, ReplicatePolicy, ResamplingReport};
 
