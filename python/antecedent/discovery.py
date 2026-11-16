@@ -111,9 +111,6 @@ from ._native import (
     discover_pooled_exact_dag_marginals as _discover_pooled_exact_dag_marginals,
 )
 from ._native import (
-    discover_pooled_exact_dag_posterior as _discover_pooled_exact_dag_posterior,
-)
-from ._native import (
     discover_pooled_posterior as _discover_pooled_posterior,
 )
 from ._native import (
@@ -1679,13 +1676,9 @@ class ExactDagPosterior:
         names = tables[0][0]
         columns = [cols for _, cols, _ in tables]
         if len(names) <= EXACT_ENUMERATION_MAX_VARIABLES:
-            return _run_native(
-                execution,
-                _discover_pooled_exact_dag_posterior,
-                names,
-                columns,
-                **_prior_kwargs(self.prior),
-            )
+            # The shared pooled route: the engine runs the compiled search on every table and
+            # returns the pooled posterior with its accepted provenance (search, prior, pooling).
+            return _run_pooled_search(self, "exact_dag_posterior", {}, None, imputations, execution)
         flat, log_evidence = _run_native(
             execution,
             _discover_pooled_exact_dag_marginals,
