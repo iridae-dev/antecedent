@@ -44,7 +44,7 @@ result.value.survival.survival_at_tau_difference_interval
 result.value.survival.bootstrap_replicates_ok
 ```
 
-The bootstrap resamples whole subjects within each arm and recomputes the full risk-set estimator. It needs at least eight subjects per arm and 199 to 100,000 requested replicates, and at least 90% of replicates must satisfy the estimator's support contract. If that gate fails the interval is refused rather than silently thinned. The two intervals cover the two scalar contrasts separately. Read `result.value.survival.uncertainty` for the method and valid replicate count, and `result.value.survival.support_status` for whether the intervals meet the `survival` rows of the [graphless support matrix](../../graphless-support-matrix.md).
+The bootstrap resamples whole subjects within each arm and recomputes the full risk-set estimator. It needs at least eight subjects per arm and 199 to 100,000 requested replicates, and at least 90% of replicates must satisfy the estimator's support contract. If that gate fails the interval is refused rather than silently thinned. The two intervals cover the two scalar contrasts separately. Read `result.value.survival.uncertainty` for the interval method, `bootstrap_replicates_ok` for the number of valid replicates, and `result.value.survival.support_status` for whether the intervals meet the `survival` rows of the [graphless support matrix](../../graphless-support-matrix.md).
 
 With at least 80 subjects per arm and at least 399 valid replicates, the same call gives a simultaneous 95% band over the whole survival-difference curve:
 

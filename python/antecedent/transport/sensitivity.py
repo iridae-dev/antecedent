@@ -76,6 +76,26 @@ class TransportSensitivity(ScientificResult):
     is the smallest shift at which the range reaches ``reference_value``, or ``None`` when the
     shift needed exceeds the declared bound. ``statement`` must accompany the range.
     ``identity`` binds route, premise, family, populations, derivation and every grid number.
+
+    Read ``range_at_bound`` and ``reference_reached_at`` first, with ``statement``. Every field
+    is computed by Rust:
+
+    * ``route`` -- the transport route the range was computed for.
+    * ``premise`` -- the transport premise whose violation is bounded.
+    * ``family`` -- ``"additive_shift"`` or ``"proportional_shift"``.
+    * ``bound`` -- the declared largest shift.
+    * ``point_value`` -- the transported point the range is centred on.
+    * ``grid`` -- the shifts at which the range is evaluated, on ``[0, bound]``.
+    * ``lower``, ``upper`` -- the range at each ``grid`` shift.
+    * ``range_at_bound`` -- ``(lower[-1], upper[-1])``.
+    * ``reference_value`` -- the value of the alternative the decision keeps.
+    * ``reference_reached_at`` -- as above.
+    * ``statement`` -- the text that states what the range is and is not.
+    * ``identity`` -- as above.
+
+    The range is an assumption range, not a confidence or credible interval (see
+    :attr:`label`). Use :attr:`decision_source` to decide and :meth:`export` to hand the
+    sealed artifact to an independent consumer.
     """
 
     route: str
@@ -95,12 +115,22 @@ class TransportSensitivity(ScientificResult):
 
     @property
     def decision_source(self) -> Any:
-        """The sealed :class:`~antecedent.sensitivity_decision.SensitivityArtifact`: decide,
-        export and consume it through :mod:`antecedent.sensitivity_decision`."""
+        """The sealed :class:`~antecedent.sensitivity_decision.SensitivityArtifact` of the decision.
+
+        Decide, export and consume it through :mod:`antecedent.sensitivity_decision`.
+        """
         return self._artifact
 
     def export(self) -> ExportedArtifact[Any]:
-        """Export the sealed sensitivity decision source, without recomputation."""
+        """Export the sealed sensitivity decision source, without recomputation.
+
+        Returns an :class:`~antecedent.artifacts.ExportedArtifact`; ``bytes(exported)`` is the
+        container.
+
+        Raises:
+            CausalValueError: the range has no sealed decision source (it was not built by
+                :func:`transport_sensitivity`).
+        """
         if self._artifact is None:
             raise CausalValueError("This range has no sealed decision source")
         return artifact_from_receipt(self, self._artifact.export())
@@ -130,7 +160,25 @@ def transport_sensitivity(
     the transport route (``cohort_decision``, ``mechanism_transport``, ...); omitted, it is
     taken from the response's own route, and a ``declared`` route must be named.
     ``reference`` is the quantity of the alternative the decision keeps (same population and
-    units) and ``reference_value`` its value.
+    units) and ``reference_value`` its value. ``coordinate`` (default ``0``) indexes the
+    response's coordinates.
+
+    Returns:
+        A :class:`TransportSensitivity`; read ``range_at_bound``, ``reference_reached_at`` and
+        ``statement`` first.
+
+    Raises:
+        TransportedResponseRefusal: Rust refuses the range or the decision artifact; the
+            ``detail`` is a ``transport_sensitivity.*`` code, for example
+            ``law_response_not_scalar``, ``no_scalar_family``, ``route_undeclared``,
+            ``coordinate_out_of_range``, ``invalid_bound``, ``invalid_grid``,
+            ``proportional_at_zero`` or ``quantity_not_in_target``, with a ``remedy``.
+        CausalTypeError: ``response`` is not a
+            :class:`~antecedent.transported_response.TransportedResponse` or ``reference`` is not
+            a :class:`~antecedent.joint_distribution.ScientificQuantity`, or a numeric
+            argument has the wrong type.
+        CausalValueError: ``family`` or ``route`` is not a known name, a real number is not
+            finite, or ``grid_points`` or ``coordinate`` is negative.
     """
     if not isinstance(response, TransportedResponse):
         raise CausalTypeError("response must be a TransportedResponse")

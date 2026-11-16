@@ -37,7 +37,13 @@ __all__ = [
 
 @dataclass(frozen=True)
 class Source:
-    """One published source: title, authors and year from the DOI registry, DOI or URL."""
+    """One published source a provenance record cites.
+
+    ``title`` is as recorded, checked against the DOI registry when there is a DOI.
+    ``authors`` (in registry order) and ``year`` come from the DOI registry and are empty or
+    ``None`` without one. ``doi`` is present only when the source has a verified DOI, never
+    guessed; ``url`` links a source without one.
+    """
 
     title: str
     authors: tuple[str, ...] = ()
@@ -70,10 +76,14 @@ class ProvenanceRecord:
     id: str
     #: SHA-256 of the record without its review tables.
     digest: str
-    #: ``"method_review"`` or ``"non_algorithm_review"`` when that review attests this digest.
+    #: ``"method_review"`` or ``"non_algorithm_review"`` when that review still attests this
+    #: digest, otherwise ``"none"``.
     review: str
-    #: ``(role, key)`` pairs: ``("estimator", "aipw")``, ``("identifier", ...)``, ...
+    #: ``(role, key)`` pairs saying what the record is cited for on this route. ``role`` is
+    #: ``"identifier"``, ``"estimator"``, ``"capability"`` or ``"covered_by"`` (``key`` is then
+    #: the id of the wrapper record that delegates to this one).
     cited_for: tuple[tuple[str, str], ...]
+    #: Published sources; empty for a record that justifies having none.
     sources: tuple[Source, ...]
     #: Documented departures from the published method.
     deviations: tuple[str, ...]
@@ -98,8 +108,16 @@ class ProvenanceRecord:
 
 @dataclass(frozen=True)
 class MethodProvenance:
-    """Every provenance record behind one result's route."""
+    """Every provenance record behind one result's route.
 
+    Returned by :func:`provenance_of`, :func:`method_provenance`,
+    :func:`capability_provenance` and ``result.method_provenance``. Read ``records`` (in role
+    order: identifier, estimator, capability, covered-by, then by id) and ``unlinked``; call
+    :meth:`citations` for a de-duplicated source list. Provenance is descriptive and takes no
+    part in estimation, support or calibration.
+    """
+
+    #: The cited records.
     records: tuple[ProvenanceRecord, ...]
     #: ``(role, key)`` route components that name no provenance record.
     unlinked: tuple[tuple[str, str], ...]
@@ -115,11 +133,15 @@ class MethodProvenance:
         )
 
     def record(self, record_id: str) -> ProvenanceRecord | None:
-        """The cited record with ``record_id``."""
+        """The cited record with ``record_id``, or ``None`` when no cited record has that id."""
         return next((r for r in self.records if r.id == record_id), None)
 
     def citations(self) -> tuple[Citation, ...]:
-        """This result's sources, de-duplicated, each with its records' caveats."""
+        """This result's sources, de-duplicated, each with its records' caveats.
+
+        Equivalent to ``bibliography(self)``; see :func:`bibliography` for the de-duplication
+        rule.
+        """
         return _bibliography([self])
 
     def to_dict(self) -> dict[str, Any]:
@@ -135,16 +157,22 @@ class Caveat:
     record: str
     #: ``"deviation"`` or ``"scope_limit"``.
     kind: str
+    #: User-facing text, as the record states it.
     text: str
 
 
 @dataclass(frozen=True)
 class Citation:
-    """One bibliography entry: a source, the records citing it, and their caveats."""
+    """One bibliography entry: a source, the records citing it, and their caveats.
+
+    ``str(citation)`` is the one-line ``reference``. State the ``caveats`` beside it in a
+    methods section.
+    """
 
     source: Source
-    #: ``(record id, digest)`` of every record citing the source.
+    #: ``(record id, digest)`` of every record citing the source, sorted by id.
     records: tuple[tuple[str, str], ...]
+    #: Caveats of those records, sorted by record then kind.
     caveats: tuple[Caveat, ...]
     #: One-line reference: ``Authors (year). Title. https://doi.org/<doi>``.
     reference: str
@@ -156,12 +184,20 @@ class Citation:
 def method_provenance(
     identifier: str | None = None, estimator: str | None = None
 ) -> MethodProvenance:
-    """Provenance of the route with these strategy-table identifier and estimator ids."""
+    """Provenance of the route with these strategy-table identifier and estimator ids.
+
+    ``identifier`` and ``estimator`` are the ids a result's ``plan`` records (for example
+    ``result.plan.estimator``); ``None`` (the default for both) leaves that component out.
+    An id that names no provenance record is listed in ``unlinked``, not raised.
+    """
     return MethodProvenance._parse(_native.method_provenance_json(identifier, estimator))
 
 
 def capability_provenance(capability: str) -> MethodProvenance:
-    """Provenance of a capability-specific route, by capability id."""
+    """Provenance of a capability-specific route, by capability id.
+
+    An id that names no provenance record is listed in ``unlinked``, not raised.
+    """
     return MethodProvenance._parse(_native.capability_provenance_json(capability))
 
 
@@ -208,7 +244,12 @@ def bibliography(*results: Any) -> tuple[Citation, ...]:
 
     Each argument is a result, a :class:`MethodProvenance`, or a list or tuple of them. A source
     cited by several results appears once, with every record that cites it and every caveat
-    those records document.
+    those records document. Entries are in first-cited order. Two sources are the same when
+    their DOIs agree (ignoring case) or, without a DOI, when their titles agree after case and
+    punctuation are dropped; a merged entry keeps the union of the cited sections.
+
+    Returns:
+        A tuple of :class:`Citation`; ``str(citation)`` is its one-line reference.
     """
     flat: list[Any] = []
     for item in results:
