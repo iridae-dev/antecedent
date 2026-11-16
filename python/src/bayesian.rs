@@ -791,7 +791,7 @@ fn discover_exact_pag_posterior(
 }
 
 /// Metropolis posterior over PAG classes of the Gaussian maximal ancestral graphs of two to
-/// eight variables (latent confounding allowed), by single-pair link moves.
+/// 31 variables (`PAG_MCMC_MAX_NODES`; latent confounding allowed), by single-pair link moves.
 #[pyfunction]
 #[pyo3(signature = (names, columns, *, n_chains=4, n_warmup=500, n_draws=2000, thin=1, seed=1, threads=None))]
 fn discover_pag_mcmc(

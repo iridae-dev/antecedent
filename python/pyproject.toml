@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "antecedent"
 version = "3.0.0"
-description = "Identification-first causal inference: discovery, identification, estimation, interventions, and counterfactuals under structural uncertainty"
+description = "A compiler and evidence-aware runtime for causal science: discovery, identification, estimation, interventions and counterfactuals under structural uncertainty"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT OR Apache-2.0" }

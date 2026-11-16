@@ -1,6 +1,6 @@
 """antecedent — Python bindings for the Antecedent causal engine.
 
-Day-1 surface::
+A first analysis::
 
     result = antecedent.analyze(
         data,
