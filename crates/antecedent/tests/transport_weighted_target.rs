@@ -47,7 +47,7 @@ fn moments(source: &ExternalPriorSource) -> (f64, f64) {
 
 fn refusal_code(error: &ProbError) -> &'static str {
     match error {
-        ProbError::Refused { code, .. } => *code,
+        ProbError::Refused { code, .. } => code,
         other => panic!("expected a refusal, got {other:?}"),
     }
 }

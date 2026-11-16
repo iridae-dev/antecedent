@@ -23961,3 +23961,59 @@ crate = "antecedent-estimate"
 cargo_target = "conjugate_prior_calibration"
 path = "crates/antecedent-estimate/tests/conjugate_prior_calibration.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "transport-weighted-target"
+crate = "antecedent"
+cargo_target = "transport_weighted_target"
+path = "crates/antecedent/tests/transport_weighted_target.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "transport-weighted-target-calibration"
+crate = "antecedent"
+cargo_target = "transport_weighted_target_calibration"
+path = "crates/antecedent/tests/transport_weighted_target_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "local-ratio-design-error-model"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/local_ratio_design/error_model.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "prob-transport-target"
+crate = "antecedent-prob"
+cargo_target = "lib"
+path = "crates/antecedent-prob/src/transport_target.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "structure-prior-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_structure_prior.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-calibration-shards"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_calibration_shards.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-check-open-capabilities"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_check_open_capabilities.py"
+gates = ["inventory"]
+
+[[test]]
+id = "scripts-test-gate-carry"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_gate_carry.py"
+gates = ["inventory"]

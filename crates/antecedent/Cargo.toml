@@ -1582,6 +1582,14 @@ name = "measurement_composition_horizon_calibration"
 name = "measurement_exposure_calibration"
 
 [[test]]
+name = "transport_weighted_target"
+path = "tests/transport_weighted_target.rs"
+
+[[test]]
+name = "transport_weighted_target_calibration"
+path = "tests/transport_weighted_target_calibration.rs"
+
+[[test]]
 name = "panel_did_calibration"
 
 [[test]]

@@ -132,11 +132,9 @@ fn the_aipw_estimator_route_is_the_hand_computed_doubly_robust_estimate_of_the_f
     // The bootstrap refits the unregularized nuisances, so a prior with one is refused.
     let boot = AipwAte::new().with_bootstrap_replicates(50).with_outcome_prior(source(mean, sd));
     let problem = boot.prepare(&data, &estimand, &query).unwrap();
-    let refused = boot
-        .fit(&problem, &mut AipwWorkspace::default(), &ctx, AssumptionSet::new())
-        .unwrap_err()
-        .to_string();
-    assert!(refused.contains("reason=route_not_supported"), "{refused}");
+    let refused =
+        boot.fit(&problem, &mut AipwWorkspace::default(), &ctx, AssumptionSet::new()).unwrap_err();
+    assert_eq!(refused.reason_code(), Some("route_not_supported"), "{refused}");
 }
 
 #[test]
@@ -317,9 +315,9 @@ fn a_prior_that_does_not_map_onto_the_outcome_design_is_refused_with_the_next_at
     .unwrap();
     let estimator = DmlAte::new().with_folds(FOLDS).with_outcome_prior(three);
     let problem = estimator.prepare(&data, &estimand, &query).unwrap();
-    let refused = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap_err().to_string();
-    assert!(refused.contains("reason=quantity_semantics_mismatch"), "{refused}");
-    assert!(refused.contains("PriorMapping.named_parameters"), "{refused}");
+    let refused = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap_err();
+    assert_eq!(refused.reason_code(), Some("quantity_semantics_mismatch"), "{refused}");
+    assert!(refused.to_string().contains("PriorMapping.named_parameters"), "{refused}");
     // A named pairing of the two shared coordinates maps.
     let paired = OutcomePriorSource::new(
         vec![
@@ -348,6 +346,6 @@ fn a_prior_that_does_not_map_onto_the_outcome_design_is_refused_with_the_next_at
         .with_score(DmlScore::PartiallyLinear)
         .with_outcome_prior(source([0.0, 0.0], [1.0, 1.0]));
     let problem = plr.prepare(&data, &estimand, &query).unwrap();
-    let refused = plr.fit(&problem, &ctx, AssumptionSet::new()).unwrap_err().to_string();
-    assert!(refused.contains("reason=route_not_supported"), "{refused}");
+    let refused = plr.fit(&problem, &ctx, AssumptionSet::new()).unwrap_err();
+    assert_eq!(refused.reason_code(), Some("route_not_supported"), "{refused}");
 }
