@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "5c14e5a28cc72f591e9c1078189b139ac917bd11888794a0c37552e36633d69a",
+  "gate_sha256": "bfefc099eb83c8ad2c8947b314fe5576625c87a196d22e131af0a1fa7f2833fa",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "f2a0e8ee6a1c4b28ba539d244def7a6229a340998dacbbe62f7ef6501b0c4315",
+  "label_audit_sha256": "3e53cc2053bb47294fd6d12fcabc1aea89600447cb7cb4b46600d6821e4d5db0",
   "groups": [
     {
       "index": 1,
@@ -8606,6 +8606,21 @@
     {
       "index": 1717,
       "label": "dml_outcome_prior_calibration: dml_outcome_prior_misspecified_interval",
+      "grid": true
+    },
+    {
+      "index": 1718,
+      "label": "dml_outcome_prior_calibration: aipw_outcome_prior_weak_interval",
+      "grid": true
+    },
+    {
+      "index": 1719,
+      "label": "dml_outcome_prior_calibration: aipw_outcome_prior_informative_interval",
+      "grid": true
+    },
+    {
+      "index": 1720,
+      "label": "dml_outcome_prior_calibration: aipw_outcome_prior_misspecified_interval",
       "grid": true
     }
   ],

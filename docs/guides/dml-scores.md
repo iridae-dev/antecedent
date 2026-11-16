@@ -113,7 +113,7 @@ For each summarized row the product reports the score at the posterior mode, its
 
 ## A prior on the outcome nuisance
 
-`DML(prior_from=result.posterior.artifact)` regularizes the per-arm outcome regressions of
+`DML(prior_from=result.posterior.artifact)` and `Aipw(bootstrap=0, prior_from=...)` regularize the per-arm outcome regressions of
 the AIPW score with the coefficient summaries of a fitted posterior. In every cross-fit fold
 each arm's outcome model is the posterior mode of the linear regression under the Gaussian
 coefficient prior,
@@ -125,7 +125,7 @@ propensity nuisance and the influence-function interval are those of the unregul
 so the prior shapes the efficiency of the estimate and never its identification: a correct
 propensity keeps the estimate consistent under any prior, however wrong. The prior (source
 digest, mapping and every hydration restriction) is recorded in the result's assumptions as
-`dml.outcome_nuisance_prior`, and the score table's provenance names it.
+`aipw_outcome_nuisance_prior`, and the score table's provenance names it.
 
 The per-arm outcome regression has the columns `intercept` and `coef_<covariate>` per
 adjustment variable, with no treatment coefficient. `mapping=None` binds an artifact whose
@@ -134,7 +134,14 @@ coefficients are exactly those columns (names equal when the source names them);
 (a treatment coefficient, for example) with the outcome columns, and design columns left
 unpaired keep the weakly informative default. A prior whose coordinates do not map, or an
 effect-functional mapping, refuses `quantity_semantics_mismatch` naming the declaration that
-would map it. The partially linear score, whole-cluster cross-fitting, caller-supplied learner
+would map it. `Aipw` takes the prior on its cross-fitted untrimmed all-observed mean ATE under
+IID analytic inference only: `bootstrap=0` is required (the bootstrap refits the unregularized
+nuisances), and a trimmed, ATT/ATC, quantile or exceedance fit, a penalized propensity,
+`cluster_dml` or a declared `se` refuses `route_not_supported`; it keeps no score table, so a
+retarget refuses `score_table_unavailable`. `DRLearner` and `CausalForest` take no prior. A
+`ComposedPrior` is refused: it carries only positional means and variances over a Bayesian
+design that includes the treatment coefficient and no coefficient names, so its coordinates
+cannot be verified against the outcome columns. The partially linear score, whole-cluster cross-fitting, caller-supplied learner
 factories and the population-linear interval refuse a prior (`route_not_supported`); a
 prior-regularized fit keeps no cached nuisance bundle and is not replayable through the
 recalculation session.

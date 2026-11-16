@@ -980,6 +980,16 @@ class Aipw:
     cross-fitted ATE, the in-sample ATT / ATC and trimmed ATE, and ``cluster_dml`` (the cluster
     sandwich of the weighted influence). A penalized propensity or fallback chooses its penalty
     by the weighted out-of-fold log loss and fits every fold under the weights.
+
+    ``prior_from`` (a posterior artifact, ``result.posterior.artifact``) and ``mapping`` regularize
+    the per-arm outcome regressions of the cross-fitted mean ATE exactly as for :class:`DML`: each
+    fold's arm model is the posterior mode under the artifact's Gaussian coefficient prior, the
+    doubly robust correction and the influence-function interval are unchanged, and the prior
+    shapes efficiency, never identification. It needs ``bootstrap=0`` and IID analytic inference
+    (no ``se``, ``cluster_dml``, ``propensity_penalty`` or ``nuisance_fallback``) and refuses a
+    trimmed, ATT/ATC or quantile/exceedance fit with ``route_not_supported``. The prior-regularized
+    fit keeps no score table, so a retarget refuses ``score_table_unavailable``.
+    :class:`DRLearner` and :class:`CausalForest` take no prior.
     """
 
     bootstrap: int | None = None
@@ -996,6 +1006,8 @@ class Aipw:
     other_levels: OtherLevelsName = "refuse"
     cluster: str | None = None
     weights: str | Sequence[float] | None = None
+    prior_from: bytes | None = None
+    mapping: PriorMapping | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -1007,6 +1019,19 @@ class Aipw:
             cluster=self.cluster,
         )
         _validate_weights(self.weights)
+        _validate_outcome_prior(self.prior_from, self.mapping)
+        if self.prior_from is not None and (
+            self.bootstrap != 0
+            or self.se not in (None, "homoskedastic")
+            or self.cluster_dml is not None
+            or self.propensity_penalty is not None
+            or self.nuisance_fallback not in (None, "none")
+        ):
+            raise CausalValueError(
+                "Aipw(prior_from=...) covers the cross-fitted mean ATE with IID analytic "
+                "inference: pass bootstrap=0 and leave se, cluster_dml, propensity_penalty "
+                "and nuisance_fallback unset (reason=route_not_supported)"
+            )
         if self.cluster_dml is not None:
             if not isinstance(self.cluster_dml, ClusterDml):
                 raise CausalValueError(
@@ -1072,6 +1097,10 @@ class Aipw:
         if self.cluster_dml is not None:
             out["cluster_dml"] = self.cluster_dml._wire()
         out.update(_wire_weights(self.weights))
+        if self.prior_from is not None:
+            out["prior_artifact"] = bytes(self.prior_from)
+        if self.mapping is not None:
+            out["prior_mapping"] = self.mapping.to_dict()
         return _omit_empty(out)
 
 

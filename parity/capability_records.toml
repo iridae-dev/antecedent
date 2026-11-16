@@ -22785,3 +22785,54 @@ activation_disposition = "retain_point_only_route_no_inferential_guarantee"
 allocation_status = "no_coverage_ids_allocated_point_only_not_measured"
 measurement_design_status = "fixed_fixture_oracles_only_no_whole_method_sampling_calibration"
 truth_grid_allocation = "No repeated-sampling grid allocated."
+
+
+[[record]]
+id = "estimate.outcome_nuisance_prior"
+capability = "estimate.outcome_nuisance_prior"
+status = "supported"
+consumer_question = "Can a fitted posterior regularize the outcome-regression nuisance of the cross-fitted AIPW score, shaping efficiency while the doubly robust correction and the influence-function interval keep their form and identification is untouched?"
+theorem = "Under the Gaussian linear model with conjugate coefficient prior beta ~ N(m, sigma^2 V0), the posterior mode on a fold's training rows of an arm is (X'WX + V0^-1)^-1 (X'Wy + V0^-1 m); an absolute-scale prior is converted with the training rows' unpenalized residual variance. The cross-fitted AIPW score psi = mu1 - mu0 + T(Y - mu1)/e - (1 - T)(Y - mu0)/(1 - e) uses these out-of-fold mu_a, so the estimator is consistent whenever the propensity e is, whatever the prior; the prior has fixed strength, so it shapes efficiency only, and the influence-function standard error is that of the scores."
+reference = "docs/guides/dml-scores.md"
+guarantee = "doubly_robust_point_with_prior_regularized_outcome_nuisance_and_measured_interval"
+graph_class = "Back-door adjustment DAG: the adjustment set of one identified AllObserved mean ATE with binary treatment; a prior never upgrades identification."
+population_semantics = "All observed complete-case rows; the untrimmed AllObserved mean ATE under IID analytic inference. ATT/ATC, trimmed fits, predicate and custom-weight populations, quantile and exceedance functionals, the partially linear score, whole-cluster cross-fitting and bootstrap are refused. DRLearner and CausalForest take no prior."
+evidence_family = "Complete-case rows of a binary treatment, an outcome and the declared adjustment covariates with a posterior artifact whose coefficients map onto the outcome-regression columns (intercept, coef_<covariate>)."
+provider = "antecedent_learn::GaussianPriorRegression through the existing AIPW cross-fit, hydrated by the existing prior hydration; no second ML stack."
+estimand = "theta = E[mu1(X) - mu0(X)], the average treatment effect over the observed population, estimated by the cross-fitted AIPW score mean."
+inference_claim = "interval"
+inference_notes = "The normal interval estimate +/- 1.96 se_analytic of the influence-function standard error is measured under a weak, an informative and a misspecified prior on both the DML and the AIPW routes; coverage records for the exact constructions are earned by the dml_outcome_prior_calibration groups. The prior-regularized fit keeps no score table, so a retarget refuses score_table_unavailable."
+owners = ["antecedent-learn", "antecedent-estimate", "antecedent", "python/antecedent/estimators"]
+identity_inputs = ["the source digest and declared mapping of the prior in the estimator-spec identity (outcome_config of dml, outcome of aipw)", "functional label outcome=gaussian_prior", "the score table's nuisance provenance naming the prior", "fold seed and the fold plan", "complete-case row identities"]
+wire_changes = ["Additive: a declared prior appears in the estimator-spec identity, the calibration functional label and the nuisance provenance; no prior writes none of them, so existing digests are unchanged."]
+compatibility = "A fit without a prior takes the code it ran before and is bit-identical."
+coverage_records = []
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { detail = "mapped_posterior_transfer.coefficient_map" },
+]
+routes = [
+  { name = "antecedent_estimate.DmlAte.outcome_prior", stage = "evaluate", status = "supported", claim = "interval" },
+  { name = "antecedent_estimate.AipwAte.outcome_prior", stage = "evaluate", status = "supported", claim = "interval" },
+  { name = "antecedent.estimators.DML.prior_from", stage = "evaluate", status = "supported", claim = "interval" },
+  { name = "antecedent.estimators.Aipw.prior_from", stage = "evaluate", status = "supported", claim = "interval" },
+  { name = "antecedent_estimate.DmlAte.outcome_prior_partially_linear", stage = "evaluate", status = "closed", permanent_in_release = true, reason_code = "route_not_supported", refusal_test = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs", refusal_assertion = "a_prior_that_does_not_map_onto_the_outcome_design_is_refused_with_the_next_attempt" },
+  { name = "antecedent_estimate.AipwAte.outcome_prior_bootstrap", stage = "evaluate", status = "closed", permanent_in_release = true, reason_code = "route_not_supported", refusal_test = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs", refusal_assertion = "the_aipw_estimator_route_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits" },
+  { name = "antecedent.estimators.DML.composed_prior", stage = "evaluate", status = "closed", permanent_in_release = true, reason_code = "quantity_semantics_mismatch", refusal_test = "python/tests/test_dml_outcome_prior.py", refusal_assertion = "test_a_composed_prior_is_refused_for_the_outcome_nuisance" },
+]
+fixtures = [
+  { id = "estimate.outcome_nuisance_prior.fold_map_hand_computed.truth", role = "truth", intent = "The AIPW point, the per-arm scores and the standard error of the DML route equal a hand-computed doubly robust estimate whose per-fold arm outcome models are the posterior mode solved by an independent 2 x 2 system from the published out-of-fold propensity and fold plan; the prior and its source are recorded as an assumption.", evidence_test = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs", evidence_assertion = "the_aipw_point_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits" },
+  { id = "estimate.outcome_nuisance_prior.aipw_route_hand_computed.truth", role = "truth", intent = "The same hand-computed doubly robust estimate for the AIPW estimator route with no bootstrap, and a prior with a bootstrap is refused route_not_supported.", evidence_test = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs", evidence_assertion = "the_aipw_estimator_route_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits" },
+  { id = "estimate.outcome_nuisance_prior.misspecified_prior_consistency.truth", role = "truth", intent = "A prior pinned to a badly wrong outcome line leaves the cross-fitted estimate consistent for the effect 2 when the propensity is correct (DML route; the outcome model alone would give 0).", evidence_test = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs", evidence_assertion = "a_correct_propensity_keeps_the_estimate_consistent_under_a_badly_misspecified_prior" },
+  { id = "estimate.outcome_nuisance_prior.aipw_misspecified_prior_consistency.truth", role = "truth", intent = "The same consistency under a pinned wrong prior for the AIPW estimator route.", evidence_test = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs", evidence_assertion = "the_aipw_estimator_route_stays_consistent_under_a_misspecified_prior" },
+  { id = "estimate.outcome_nuisance_prior.wide_prior_unpenalized.invariance", role = "invariance", intent = "A very wide prior returns the unpenalized cross-fitted linear-outcome estimate.", evidence_test = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs", evidence_assertion = "a_very_wide_prior_returns_the_unpenalized_cross_fitted_estimate" },
+  { id = "estimate.outcome_nuisance_prior.unmapped_coordinates.negative", role = "negative", intent = "A prior whose coordinates do not map onto the outcome design refuses quantity_semantics_mismatch naming PriorMapping.named_parameters, a named pairing maps, and the partially linear score refuses route_not_supported.", evidence_test = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs", evidence_assertion = "a_prior_that_does_not_map_onto_the_outcome_design_is_refused_with_the_next_attempt" },
+  { id = "estimate.outcome_nuisance_prior.python_wire.negative", role = "negative", intent = "Python surface: the dataclass wires the prior and mapping and fails fast on a partially linear score, a mapping without a prior, non-bytes and empty artifacts.", evidence_test = "python/tests/test_dml_outcome_prior.py", evidence_assertion = "test_a_prior_the_aipw_score_cannot_carry_fails_fast" },
+  { id = "estimate.outcome_nuisance_prior.python_dml.positive", role = "positive", intent = "Python surface: a named prior from a Bayesian fit regularizes the DML outcome nuisance, recovers the effect and records the prior assumption.", evidence_test = "python/tests/test_dml_outcome_prior.py", evidence_assertion = "test_a_named_prior_from_a_bayesian_fit_regularizes_the_outcome_nuisance" },
+  { id = "estimate.outcome_nuisance_prior.python_aipw.positive", role = "positive", intent = "Python surface: the Aipw estimator under bootstrap=0 takes the prior, recovers the effect and records the prior assumption.", evidence_test = "python/tests/test_dml_outcome_prior.py", evidence_assertion = "test_a_named_prior_regularizes_the_aipw_estimator_outcome_nuisance" },
+  { id = "estimate.outcome_nuisance_prior.python_unmapped.negative", role = "negative", intent = "Python surface: an artifact carrying a treatment coefficient is refused with a registered reason code and the next attempt.", evidence_test = "python/tests/test_dml_outcome_prior.py", evidence_assertion = "test_a_prior_whose_coordinates_do_not_map_is_refused_with_the_next_attempt" },
+  { id = "estimate.outcome_nuisance_prior.python_composed.negative", role = "negative", intent = "Python surface: a ComposedPrior is refused for the outcome nuisance on DML and Aipw.", evidence_test = "python/tests/test_dml_outcome_prior.py", evidence_assertion = "test_a_composed_prior_is_refused_for_the_outcome_nuisance" },
+  { id = "estimate.outcome_nuisance_prior.provenance.artifact", role = "artifact", intent = "The score table's nuisance provenance names the prior's source digest and mapping, and the result's assumptions carry the prior as a PriorRestriction.", evidence_test = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs", evidence_assertion = "the_prior_is_recorded_in_the_assumptions_and_the_score_table_provenance" },
+  { id = "estimate.outcome_nuisance_prior.interval.construction", role = "construction", intent = "The scored interval is the published normal interval estimate +/- 1.96 se_analytic of the prior-regularized fit, finite, ordered and centred near the effect.", evidence_test = "crates/antecedent/tests/dml_outcome_prior_calibration.rs", evidence_assertion = "the_scored_interval_is_ordered_and_centred_near_the_effect" },
+]

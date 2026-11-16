@@ -10744,3 +10744,61 @@ notes = "Weighted equal-tailed posterior interval of a contrast after an experim
 [[routes]]
 route = "antecedent.Study.synthetic_control"
 notes = "Point-only synthetic control: the mean post-intervention gap with a descriptive placebo rank and an exact randomization tail; no interval."
+
+# Outcome-nuisance prior of the cross-fitted AIPW score (parity/capability_records.toml: estimate.outcome_nuisance_prior).
+
+[[routes]]
+route = "antecedent_estimate.DmlAte.outcome_prior"
+graph = "backdoor_adjustment_dag"
+evidence = "complete_case_binary_treatment_rows_with_a_posterior_artifact_prior"
+functional = "untrimmed_all_observed_mean_ate"
+guarantee = "doubly_robust_point_with_prior_regularized_outcome_nuisance"
+reference = "docs/guides/dml-scores.md"
+limits = "Per-arm outcome regressions are the posterior mode under the Gaussian coefficient prior in every fold; logistic propensity; untrimmed AllObserved mean ATE under IID analytic inference with no bootstrap; the prior shapes efficiency and never identification; DRLearner and CausalForest take no prior."
+evidence_test = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs"
+evidence_assertion = "the_aipw_point_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits"
+
+[[routes]]
+route = "antecedent_estimate.AipwAte.outcome_prior"
+graph = "backdoor_adjustment_dag"
+evidence = "complete_case_binary_treatment_rows_with_a_posterior_artifact_prior"
+functional = "untrimmed_all_observed_mean_ate"
+guarantee = "doubly_robust_point_with_prior_regularized_outcome_nuisance"
+reference = "docs/guides/dml-scores.md"
+limits = "Per-arm outcome regressions are the posterior mode under the Gaussian coefficient prior in every fold; logistic propensity; untrimmed AllObserved mean ATE under IID analytic inference with no bootstrap; the prior shapes efficiency and never identification; DRLearner and CausalForest take no prior."
+evidence_test = "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs"
+evidence_assertion = "the_aipw_estimator_route_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits"
+
+[[routes]]
+route = "antecedent.estimators.DML.prior_from"
+graph = "backdoor_adjustment_dag"
+evidence = "complete_case_binary_treatment_rows_with_a_posterior_artifact_prior"
+functional = "untrimmed_all_observed_mean_ate"
+guarantee = "doubly_robust_point_with_prior_regularized_outcome_nuisance"
+reference = "docs/guides/dml-scores.md"
+limits = "Per-arm outcome regressions are the posterior mode under the Gaussian coefficient prior in every fold; logistic propensity; untrimmed AllObserved mean ATE under IID analytic inference with no bootstrap; the prior shapes efficiency and never identification; DRLearner and CausalForest take no prior."
+evidence_test = "python/tests/test_dml_outcome_prior.py"
+evidence_assertion = "test_a_named_prior_from_a_bayesian_fit_regularizes_the_outcome_nuisance"
+
+[[routes]]
+route = "antecedent.estimators.Aipw.prior_from"
+graph = "backdoor_adjustment_dag"
+evidence = "complete_case_binary_treatment_rows_with_a_posterior_artifact_prior"
+functional = "untrimmed_all_observed_mean_ate"
+guarantee = "doubly_robust_point_with_prior_regularized_outcome_nuisance"
+reference = "docs/guides/dml-scores.md"
+limits = "Per-arm outcome regressions are the posterior mode under the Gaussian coefficient prior in every fold; logistic propensity; untrimmed AllObserved mean ATE under IID analytic inference with no bootstrap; the prior shapes efficiency and never identification; DRLearner and CausalForest take no prior."
+evidence_test = "python/tests/test_dml_outcome_prior.py"
+evidence_assertion = "test_a_named_prior_regularizes_the_aipw_estimator_outcome_nuisance"
+
+[[routes]]
+route = "antecedent_estimate.DmlAte.outcome_prior_partially_linear"
+notes = "The partially linear score, whole-cluster cross-fitting, caller factories and the population-linear interval refuse an outcome-nuisance prior with route_not_supported."
+
+[[routes]]
+route = "antecedent_estimate.AipwAte.outcome_prior_bootstrap"
+notes = "An outcome-nuisance prior on the AIPW estimator with a bootstrap, a trimmed or ATT/ATC target, a non-IID SE or a penalized propensity refuses route_not_supported."
+
+[[routes]]
+route = "antecedent.estimators.DML.composed_prior"
+notes = "A ComposedPrior is refused for the outcome nuisance with quantity_semantics_mismatch: it carries positional moments over a Bayesian design with no coefficient names."

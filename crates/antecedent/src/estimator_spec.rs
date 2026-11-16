@@ -314,7 +314,11 @@ impl EstimatorSpec {
     #[must_use]
     pub fn propensity_calibration_label(&self) -> Option<String> {
         match self {
-            Self::Aipw(cfg) => cfg.propensity.calibration_label(),
+            Self::Aipw(cfg) => match (cfg.propensity.calibration_label(), &cfg.outcome_prior) {
+                (Some(label), Some(_)) => Some(format!("{label}+outcome=gaussian_prior")),
+                (None, Some(_)) => Some("outcome=gaussian_prior".into()),
+                (label, None) => label,
+            },
             Self::Dml(cfg) if cfg.outcome_prior.is_some() => Some("outcome=gaussian_prior".into()),
             Self::PropensityWeighting(cfg) if cfg.covariate_balance => {
                 Some("weighting=balanced_linear_hc3".into())

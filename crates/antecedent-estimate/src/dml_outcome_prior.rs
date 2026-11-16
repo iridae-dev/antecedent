@@ -25,7 +25,7 @@ use crate::error::EstimationError;
 pub(crate) const OUTCOME_PRIOR_LEARNER: &str = "gaussian_prior_linear";
 
 /// Restriction id of the prior in the assumptions of a result.
-pub const OUTCOME_PRIOR_ASSUMPTION_ID: &str = "dml.outcome_nuisance_prior";
+pub const OUTCOME_PRIOR_ASSUMPTION_ID: &str = "aipw_outcome_nuisance_prior";
 
 /// A posterior artifact's coefficient summaries, as the outcome-nuisance prior of a
 /// cross-fitted AIPW estimate.
@@ -142,9 +142,10 @@ impl OutcomePriorSource {
              treatment coefficient), or supply a prior fitted on exactly those columns"
         );
         let unmapped = |detail: String| {
-            EstimationError::refused(
+            crate::util::refuse(
                 antecedent_core::reason_code!("quantity_semantics_mismatch"),
-                format!(
+                antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
+                &format!(
                     "the outcome-nuisance prior does not map onto the outcome regression: \
                      {detail}; {remedy}"
                 ),
@@ -233,8 +234,9 @@ impl OutcomePriorSource {
 }
 
 fn effect_functional_refusal() -> EstimationError {
-    EstimationError::refused(
+    crate::util::refuse(
         antecedent_core::reason_code!("quantity_semantics_mismatch"),
+        antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
         "an effect-functional mapping has no coordinate in the outcome regression to land on \
          (the per-arm outcome regression carries no treatment coefficient); declare \
          PriorMapping.named_parameters([...]) onto the outcome-regression columns or use \

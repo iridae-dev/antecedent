@@ -23,7 +23,7 @@ use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, StreamDomain, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_estimate::{DmlAte, HydrateMapping, OutcomePriorSource};
+use antecedent_estimate::{AipwAte, AipwWorkspace, DmlAte, HydrateMapping, OutcomePriorSource};
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::standard_normal;
 use antecedent_prob::PosteriorQuantityKind;
@@ -39,6 +39,25 @@ const DGP: &str = "confounded_linear_two_covariates";
 /// One replicate: simulate `n` rows, fit the prior-regularized cross-fitted AIPW and return its
 /// normal interval with the row count.
 fn replicate(n: usize, seed: u64, mean: [f64; 3], sd: [f64; 3]) -> Option<((f64, f64), u64)> {
+    replicate_on(Route::Dml, n, seed, mean, sd)
+}
+
+/// The estimator that carries the prior.
+#[derive(Clone, Copy)]
+enum Route {
+    /// The cross-fitted DML AIPW score.
+    Dml,
+    /// The cross-fitted AIPW estimator with no bootstrap.
+    Aipw,
+}
+
+fn replicate_on(
+    route: Route,
+    n: usize,
+    seed: u64,
+    mean: [f64; 3],
+    sd: [f64; 3],
+) -> Option<((f64, f64), u64)> {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x0FA1);
     let (mut t, mut y) = (vec![0.0; n], vec![0.0; n]);
     let (mut z0, mut z1) = (vec![0.0; n], vec![0.0; n]);
@@ -77,23 +96,34 @@ fn replicate(n: usize, seed: u64, mean: [f64; 3], sd: [f64; 3]) -> Option<((f64,
         "blake3:calibration-source",
     )
     .ok()?;
-    let estimator = DmlAte::new().with_outcome_prior(source);
-    let problem = estimator.prepare(&data, &estimand, &query).ok()?;
-    let fit =
-        estimator.fit(&problem, &ExecutionContext::for_tests(seed), AssumptionSet::new()).ok()?;
+    let ctx = ExecutionContext::for_tests(seed);
+    let fit = match route {
+        Route::Dml => {
+            let estimator = DmlAte::new().with_outcome_prior(source);
+            let problem = estimator.prepare(&data, &estimand, &query).ok()?;
+            estimator.fit(&problem, &ctx, AssumptionSet::new()).ok()?
+        }
+        Route::Aipw => {
+            let estimator = AipwAte::new().with_bootstrap_replicates(0).with_outcome_prior(source);
+            let problem = estimator.prepare(&data, &estimand, &query).ok()?;
+            estimator
+                .fit(&problem, &mut AipwWorkspace::default(), &ctx, AssumptionSet::new())
+                .ok()?
+        }
+    };
     let se = fit.se_analytic();
     (fit.ate.is_finite() && se.is_finite() && se > 0.0)
         .then_some(((fit.ate - Z95 * se, fit.ate + Z95 * se), n as u64))
 }
 
-fn construction() -> Construction {
+fn construction(estimator: &str) -> Construction {
     Construction {
         query: "AverageEffect".into(),
         graph_class: "Dag".into(),
         structure: "fixed".into(),
         modality: "tabular".into(),
         inference: "Frequentist".into(),
-        estimator: "dml".into(),
+        estimator: estimator.into(),
         interval_method: INTERVAL.into(),
         se_kind: "homoskedastic".into(),
         dependence: "iid".into(),
@@ -104,17 +134,23 @@ fn construction() -> Construction {
     }
 }
 
-fn measure(test: &'static str, mean: [f64; 3], sd: [f64; 3]) {
+fn measure(route: Route, test: &'static str, mean: [f64; 3], sd: [f64; 3]) {
+    let estimator = match route {
+        Route::Dml => "dml",
+        Route::Aipw => "aipw",
+    };
     let n = grid_n(600);
     let mut tally =
         CoverageTally::for_record(RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL);
-    for row in map_replicates(n_sim(), |rep| replicate(n, grid_seed(93_000 + rep), mean, sd)) {
+    for row in
+        map_replicates(n_sim(), |rep| replicate_on(route, n, grid_seed(93_000 + rep), mean, sd))
+    {
         let Some((interval, rows)) = row else {
             tally.skip();
             continue;
         };
         tally.bind_validation(
-            &construction(),
+            &construction(estimator),
             ScopeFacts {
                 row_count: rows,
                 replicates_ok: None,
@@ -131,8 +167,8 @@ fn measure(test: &'static str, mean: [f64; 3], sd: [f64; 3]) {
 /// Each scored interval is finite and ordered, and the fit is centred near the effect.
 #[test]
 fn the_scored_interval_is_ordered_and_centred_near_the_effect() {
-    let ((lo, hi), rows) =
-        replicate(1_500, 93_001, [0.0, 0.0, 0.0], [10.0, 10.0, 10.0]).expect("a prior-regularized fit");
+    let ((lo, hi), rows) = replicate(1_500, 93_001, [0.0, 0.0, 0.0], [10.0, 10.0, 10.0])
+        .expect("a prior-regularized fit");
     assert_eq!(rows, 1_500);
     assert!(lo < hi);
     assert!(lo < TRUTH && TRUTH < hi, "[{lo}, {hi}] against the effect {TRUTH}");
@@ -142,7 +178,7 @@ fn the_scored_interval_is_ordered_and_centred_near_the_effect() {
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn dml_outcome_prior_weak_interval() {
-    measure("dml_outcome_prior_weak_interval", [0.0, 0.0, 0.0], [10.0, 10.0, 10.0]);
+    measure(Route::Dml, "dml_outcome_prior_weak_interval", [0.0, 0.0, 0.0], [10.0, 10.0, 10.0]);
 }
 
 /// An informative prior centred on the true outcome slopes (`z0` 1, `z1` 0.5) with the
@@ -150,7 +186,12 @@ fn dml_outcome_prior_weak_interval() {
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn dml_outcome_prior_informative_interval() {
-    measure("dml_outcome_prior_informative_interval", [0.0, 1.0, 0.5], [10.0, 0.1, 0.1]);
+    measure(
+        Route::Dml,
+        "dml_outcome_prior_informative_interval",
+        [0.0, 1.0, 0.5],
+        [10.0, 0.1, 0.1],
+    );
 }
 
 /// A tight prior on badly wrong coefficients: the outcome nuisance is far from the truth and
@@ -158,5 +199,41 @@ fn dml_outcome_prior_informative_interval() {
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn dml_outcome_prior_misspecified_interval() {
-    measure("dml_outcome_prior_misspecified_interval", [3.0, -2.0, 4.0], [0.3, 0.3, 0.3]);
+    measure(
+        Route::Dml,
+        "dml_outcome_prior_misspecified_interval",
+        [3.0, -2.0, 4.0],
+        [0.3, 0.3, 0.3],
+    );
+}
+
+/// The AIPW estimator route under a weak prior (zero mean, standard deviation 10).
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn aipw_outcome_prior_weak_interval() {
+    measure(Route::Aipw, "aipw_outcome_prior_weak_interval", [0.0, 0.0, 0.0], [10.0, 10.0, 10.0]);
+}
+
+/// The AIPW estimator route under a prior centred on the true outcome slopes.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn aipw_outcome_prior_informative_interval() {
+    measure(
+        Route::Aipw,
+        "aipw_outcome_prior_informative_interval",
+        [0.0, 1.0, 0.5],
+        [10.0, 0.1, 0.1],
+    );
+}
+
+/// The AIPW estimator route under a tight prior on badly wrong coefficients.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn aipw_outcome_prior_misspecified_interval() {
+    measure(
+        Route::Aipw,
+        "aipw_outcome_prior_misspecified_interval",
+        [3.0, -2.0, 4.0],
+        [0.3, 0.3, 0.3],
+    );
 }

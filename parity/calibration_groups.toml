@@ -14348,3 +14348,27 @@ target = "dml_outcome_prior_calibration"
 tests = ["dml_outcome_prior_misspecified_interval"]
 ignored = true
 grid = true
+
+[[group]]
+label = "dml_outcome_prior_calibration: aipw_outcome_prior_weak_interval"
+package = "antecedent"
+target = "dml_outcome_prior_calibration"
+tests = ["aipw_outcome_prior_weak_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dml_outcome_prior_calibration: aipw_outcome_prior_informative_interval"
+package = "antecedent"
+target = "dml_outcome_prior_calibration"
+tests = ["aipw_outcome_prior_informative_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dml_outcome_prior_calibration: aipw_outcome_prior_misspecified_interval"
+package = "antecedent"
+target = "dml_outcome_prior_calibration"
+tests = ["aipw_outcome_prior_misspecified_interval"]
+ignored = true
+grid = true

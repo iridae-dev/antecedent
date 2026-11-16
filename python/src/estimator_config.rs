@@ -1134,6 +1134,9 @@ fn build_configured_spec(
             if let Some(weights) = sampling_weights {
                 est = est.with_sampling_weights(weights);
             }
+            if let Some(prior) = build_outcome_prior(dict)? {
+                est = est.with_outcome_prior(prior);
+            }
             if let Some(ClusterDmlConfig { spec, first, second, per_source_row }) = cluster_dml {
                 est = est.with_cluster_dml(spec);
                 est = if per_source_row {

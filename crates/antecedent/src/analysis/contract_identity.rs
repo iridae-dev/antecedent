@@ -159,6 +159,9 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             // the science; the default is omitted so existing digests are unchanged.
             treatment_config: (!cfg.propensity.is_default())
                 .then(|| cfg.propensity.canonical_key()),
+            // A declared outcome-nuisance prior (source digest and mapping) changes the
+            // science; omitted by default so existing digests are unchanged.
+            outcome: cfg.outcome_prior.as_ref().map(|prior| prior.identity_key()),
             // The declared independence unit and minimum cluster count (the labels are
             // digested as `cluster_ids`, a dyadic unit's second-endpoint labels inside this
             // key); omitted by default.

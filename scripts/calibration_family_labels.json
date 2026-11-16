@@ -1243,11 +1243,11 @@
     },
     {
       "path": "crates/antecedent/tests/dml_outcome_prior_calibration.rs",
-      "sha256": "ad6a0116dceb9448a4762b13bb3527e707a00d8ff014879142824df43cbd52f0",
+      "sha256": "8dbe8d4e4403c708526baa295d7558801f90d1e9f5cb2cdcf758d5bb27fa0c1b",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 110,
+          "line": 144,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL"
         }

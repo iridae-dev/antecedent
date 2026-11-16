@@ -23886,3 +23886,10 @@ crate = "antecedent-learn"
 cargo_target = "lib"
 path = "crates/antecedent-learn/src/prior_regression.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "dml-outcome-prior-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_dml_outcome_prior.py"
+gates = ["inventory"]

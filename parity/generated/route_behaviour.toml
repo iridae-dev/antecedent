@@ -7863,3 +7863,19 @@ refusals = [
 routes = [
   { route = "antecedent.Study.synthetic_control", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
+
+[[record]]
+id = "estimate.outcome_nuisance_prior"
+status = "supported"
+refusals = [
+  { code = "quantity_semantics_mismatch", detail = "mapped_posterior_transfer.coefficient_map" },
+]
+routes = [
+  { route = "antecedent_estimate.DmlAte.outcome_prior", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent_estimate.AipwAte.outcome_prior", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.estimators.DML.prior_from", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.estimators.Aipw.prior_from", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent_estimate.DmlAte.outcome_prior_partially_linear", stage = "evaluate", status = "closed", reason_code = "route_not_supported", claim = "interval" },
+  { route = "antecedent_estimate.AipwAte.outcome_prior_bootstrap", stage = "evaluate", status = "closed", reason_code = "route_not_supported", claim = "interval" },
+  { route = "antecedent.estimators.DML.composed_prior", stage = "evaluate", status = "closed", reason_code = "quantity_semantics_mismatch", claim = "interval" },
+]

@@ -26,7 +26,8 @@ use antecedent_core::{
     AssumptionSet, AverageEffectQuery, ExecutionContext, RoleHint, StreamDomain,
 };
 use antecedent_estimate::{
-    DmlAte, DmlScore, HydrateMapping, OUTCOME_PRIOR_ASSUMPTION_ID, OutcomePriorSource,
+    AipwAte, AipwWorkspace, DmlAte, DmlScore, HydrateMapping, OUTCOME_PRIOR_ASSUMPTION_ID,
+    OutcomePriorSource,
 };
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::standard_normal;
@@ -108,12 +109,74 @@ fn arm_map(rows: &[usize], d: &Draw, mean: [f64; 2], v0: [f64; 2]) -> [f64; 2] {
 fn the_aipw_point_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits() {
     let (mean, sd) = ([0.3, 1.2], [0.5, 0.4]);
     let d = draw(80, 4_101);
-    let n = d.t.len();
     let (data, estimand, query) = setup(&d);
     let estimator = DmlAte::new().with_folds(FOLDS).with_outcome_prior(source(mean, sd));
     let problem = estimator.prepare(&data, &estimand, &query).unwrap();
     let ctx = ExecutionContext::for_tests(4_101);
     let fit = estimator.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
+    assert_hand_computed(&fit, &d, mean, sd);
+}
+
+#[test]
+fn the_aipw_estimator_route_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits() {
+    let (mean, sd) = ([0.3, 1.2], [0.5, 0.4]);
+    let d = draw(100, 4_105);
+    let (data, estimand, query) = setup(&d);
+    let estimator =
+        AipwAte::new().with_bootstrap_replicates(0).with_outcome_prior(source(mean, sd));
+    let problem = estimator.prepare(&data, &estimand, &query).unwrap();
+    let ctx = ExecutionContext::for_tests(4_105);
+    let fit =
+        estimator.fit(&problem, &mut AipwWorkspace::default(), &ctx, AssumptionSet::new()).unwrap();
+    assert_hand_computed(&fit, &d, mean, sd);
+    // The bootstrap refits the unregularized nuisances, so a prior with one is refused.
+    let boot = AipwAte::new().with_bootstrap_replicates(50).with_outcome_prior(source(mean, sd));
+    let problem = boot.prepare(&data, &estimand, &query).unwrap();
+    let refused = boot
+        .fit(&problem, &mut AipwWorkspace::default(), &ctx, AssumptionSet::new())
+        .unwrap_err()
+        .to_string();
+    assert!(refused.contains("reason=route_not_supported"), "{refused}");
+}
+
+#[test]
+fn the_aipw_estimator_route_stays_consistent_under_a_misspecified_prior() {
+    let reps = 30;
+    let estimates: Vec<f64> = (0..reps)
+        .map(|rep| {
+            let d = draw(2_000, 8_000 + rep);
+            let (data, estimand, query) = setup(&d);
+            let estimator = AipwAte::new()
+                .with_bootstrap_replicates(0)
+                .with_outcome_prior(source([10.0, -5.0], [1e-3, 1e-3]));
+            let problem = estimator.prepare(&data, &estimand, &query).unwrap();
+            estimator
+                .fit(
+                    &problem,
+                    &mut AipwWorkspace::default(),
+                    &ExecutionContext::for_tests(8_000 + rep),
+                    AssumptionSet::new(),
+                )
+                .unwrap()
+                .ate
+        })
+        .collect();
+    let mean = estimates.iter().sum::<f64>() / reps as f64;
+    let var = estimates.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / (reps as f64 - 1.0);
+    let se_of_mean = (var / reps as f64).sqrt();
+    assert!((mean - 2.0).abs() <= 4.0 * se_of_mean && (mean - 2.0).abs() < 0.5, "{mean}");
+}
+
+/// Recompute the whole doubly robust estimate of `fit` from its published out-of-fold
+/// propensity and fold plan, with the per-fold arm outcome models solved by an independent 2 x 2
+/// system, and compare the point, the per-arm scores, the standard error and the recorded prior.
+fn assert_hand_computed(
+    fit: &antecedent_estimate::EffectEstimate,
+    d: &Draw,
+    mean: [f64; 2],
+    sd: [f64; 2],
+) {
+    let n = d.t.len();
     let table = fit.scores.table.as_ref().expect("a score table");
     let v0 = [sd[0] * sd[0], sd[1] * sd[1]];
     // The out-of-fold propensity and the fold plan are the route's own (the propensity is not
@@ -162,6 +225,30 @@ fn the_aipw_point_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fi
         table
             .nuisance_provenance
             .contains("outcome=gaussian_prior_linear;prior=blake3:reference-source"),
+        "{}",
+        table.nuisance_provenance
+    );
+}
+
+#[test]
+fn the_prior_is_recorded_in_the_assumptions_and_the_score_table_provenance() {
+    let d = draw(60, 4_106);
+    let (data, estimand, query) = setup(&d);
+    let estimator =
+        DmlAte::new().with_folds(FOLDS).with_outcome_prior(source([0.0, 1.0], [1.0, 1.0]));
+    let problem = estimator.prepare(&data, &estimand, &query).unwrap();
+    let fit =
+        estimator.fit(&problem, &ExecutionContext::for_tests(4_106), AssumptionSet::new()).unwrap();
+    assert!(fit.provenance.assumptions.entries.iter().any(|record| matches!(
+        &record.assumption,
+        antecedent_core::Assumption::PriorRestriction(prior)
+            if prior.id.as_ref() == OUTCOME_PRIOR_ASSUMPTION_ID
+    )));
+    let table = fit.scores.table.as_ref().expect("a score table");
+    assert!(
+        table.nuisance_provenance.contains(
+            "outcome=gaussian_prior_linear;prior=blake3:reference-source;mapping=identical"
+        ),
         "{}",
         table.nuisance_provenance
     );

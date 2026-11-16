@@ -326,9 +326,10 @@ GLM fit fails and records the failed fit in `penalized_fallback`;
 the cross-fitted untrimmed mean ATE is refused (`selection_inference_not_supported`). This is
 distinct from `GlmOptions.ridge_on_separation`. See [the guide](guides/penalized-aipw.md).
 
-## Regularize the DML outcome nuisance with a prior
+## Regularize the DML and AIPW outcome nuisance with a prior
 
-`DML(prior_from=result.posterior.artifact, mapping=None)` replaces each fold's per-arm outcome
+`DML(prior_from=result.posterior.artifact, mapping=None)` (and `Aipw(bootstrap=0, prior_from=...)`
+for the cross-fitted mean ATE; `DRLearner` and `CausalForest` take none) replaces each fold's per-arm outcome
 regression of the AIPW score by the posterior mode under the artifact's Gaussian coefficient
 prior (centred on the prior mean); the doubly robust correction, cross-fitting and the
 influence-function interval are unchanged, so the prior shapes efficiency and never

@@ -83,7 +83,7 @@ def test_a_named_prior_from_a_bayesian_fit_regularizes_the_outcome_nuisance():
     assert abs(regularized.effect - 2.0) < 0.2, regularized.effect
     assert abs(regularized.effect - plain.effect) < 0.2
     text = " ".join(str(a) for a in (regularized.assumptions or []))
-    assert "dml.outcome_nuisance_prior" in text or "outcome-regression nuisance" in text
+    assert "aipw_outcome_nuisance_prior" in text or "outcome-regression nuisance" in text
 
 
 def test_a_prior_whose_coordinates_do_not_map_is_refused_with_the_next_attempt():
@@ -103,3 +103,45 @@ def test_a_prior_whose_coordinates_do_not_map_is_refused_with_the_next_attempt()
     assert "quantity_semantics_mismatch" in message
     assert "named_parameters" in message
     assert_registered_refusal(caught.value)
+
+
+def test_the_aipw_estimator_wires_the_prior_and_needs_the_iid_route():
+    from antecedent.estimators import Aipw
+
+    cfg = Aipw(bootstrap=0, prior_from=b"artifact")
+    assert cfg._wire()["prior_artifact"] == b"artifact"
+    with pytest.raises(CausalValueError, match="bootstrap=0"):
+        Aipw(prior_from=b"artifact")
+    with pytest.raises(CausalValueError, match="bootstrap=0"):
+        Aipw(bootstrap=0, se="hc1", prior_from=b"artifact")
+
+
+def test_a_named_prior_regularizes_the_aipw_estimator_outcome_nuisance():
+    from antecedent.estimators import Aipw
+
+    data = _confounded(seed=2)
+    mapping = PriorMapping.named_parameters([("intercept", "intercept"), ("coef_z", "coef_z")])
+    result = require_success(
+        ant.analyze(
+            data,
+            graph=GRAPH,
+            query=QUERY,
+            estimator=Aipw(bootstrap=0, prior_from=_artifact(), mapping=mapping),
+            refute=False,
+        )
+    )
+    assert abs(result.effect - 2.0) < 0.2, result.effect
+    text = " ".join(str(a) for a in (result.assumptions or []))
+    assert "aipw_outcome_nuisance_prior" in text or "outcome-regression nuisance" in text
+
+
+def test_a_composed_prior_is_refused_for_the_outcome_nuisance():
+    from antecedent.estimators import Aipw
+    from antecedent.priors import ComposedPrior
+
+    composed = ComposedPrior.__new__(ComposedPrior)
+    with pytest.raises(CausalValueError, match="posterior artifact") as caught:
+        DML(prior_from=composed)  # type: ignore[arg-type]
+    assert caught.value.reason_code == "quantity_semantics_mismatch"
+    with pytest.raises(CausalValueError, match="posterior artifact"):
+        Aipw(bootstrap=0, prior_from=composed)  # type: ignore[arg-type]
