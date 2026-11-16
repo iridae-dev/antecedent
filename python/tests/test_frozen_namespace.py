@@ -667,6 +667,7 @@ _EXPECTED_STAGE_ALL = {
         "PriorSource",
         "PredictiveCounts",
         "PriorSourceMeta",
+        "SelectAlpha",
         "SelectedAlpha",
         "TransportPolicy",
         "beta_binomial_posterior",

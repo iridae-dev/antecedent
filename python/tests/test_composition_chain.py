@@ -4,23 +4,24 @@ Messy evidence -> uncertain measurements -> plausible causal structures -> evide
 estimation -> population-specific conclusions:
 
 1. the exposure ``x`` is observed only through a misclassified coding, with the error rates
-   estimated from a validation subsample (``exposure_measurement.MisclassifiedExposure``); its
-   ``realize`` gives exposure draws and ``completed_tables`` one table per draw;
-2. ``ExactDagPosterior(prior=StructurePrior(...))`` searches ``(z, x, y)`` on those tables and the
-   engine pools the posteriors (``run(imputations=...)``);
-3. the effect is estimated by AIPW whose outcome nuisance is regularised by a named composed
-   prior (``compose_external_priors`` -> ``Aipw(prior_from=...)``), in every structure the pooled
-   posterior supports, and the structure-wise effects are mixed by the pooled weights;
+   estimated from a validation subsample (``exposure_measurement.MisclassifiedExposure``);
+2. ``ExactDagPosterior(prior=StructurePrior(...))`` searches ``(z, x, y)`` on every completed
+   table; the engine pools the posteriors once and hands the accepted posterior, with its
+   provenance, to every table's study;
+3. on every completed table the effect is estimated by AIPW in every structure the pooled
+   posterior supports, with the outcome nuisance regularised by external sources whose
+   power-prior discount is selected from the table itself (``Aipw(prior_from=SelectAlpha(...))``),
+   and the structure-wise effects are mixed by the pooled weights with the between-structure
+   variance;
 4. the estimate is for a kernel-weighted target population over ``z`` (``target_kernel``), whose
    truth is the closed-form kernel-weighted mean of the planted modified effect
-   ``tau(z) = 1.5 + 0.5 z`` on the planted rows.
+   ``tau(z) = 1.5 + 0.5 z`` on the planted rows; the per-table mixtures are pooled by Rubin's
+   rules.
 
-The stages hand each other only objects the library produced. ``analyze(discovery=...,
-imputations=...)`` mixes the effect over the pooled posterior but for all rows only; a weighted
-target needs one study per supported structure, so that mixture is composed here from public
-pieces (the pooled ``adjacency`` / ``weights``, one ``analyze`` per structure, Rubin pooling with
-``exposure_measurement.rubin_pool``). The naive pipeline (the recorded column, one assumed
-structure, no prior, every row) misses the truth by more than the tolerance.
+One ``ant.prepare(..., measurement=..., discovery=...)`` and one ``ant.estimate`` run the chain:
+no atom loop, no pooling and no provenance is composed by the caller, and the pooled result names
+every stage it consumed. The naive pipeline (the recorded column, one assumed structure, no
+prior, every row) misses the truth by more than the tolerance.
 """
 
 from __future__ import annotations
@@ -38,8 +39,8 @@ from antecedent.population import target_kernel
 from antecedent.priors import (
     ExternalPriorSourceSpec,
     ExternalPriorWeight,
+    SelectAlpha,
     TransportKernel,
-    compose_external_priors,
 )
 
 ROWS = 4000
@@ -48,8 +49,6 @@ DRAWS = 8
 SENSITIVITY, SPECIFICITY = 0.85, 0.9
 TOLERANCE = 0.35
 CENTRE, BANDWIDTH = 1.0, 0.6
-NEGLIGIBLE_MASS = 1e-4
-NAMES = ("z", "x", "y")
 
 
 def expit(v):
@@ -94,10 +93,10 @@ def structure_prior():
     )
 
 
-def composed_prior():
+def prior_selection():
     names = ("intercept", "coef_z")
-    return compose_external_priors(
-        [
+    return SelectAlpha(
+        sources=[
             ExternalPriorSourceSpec(
                 "registry-a",
                 (1.6, 0.7),
@@ -106,86 +105,17 @@ def composed_prior():
                 coefficient_names=names,
             ),
             ExternalPriorSourceSpec(
-                "trial-b", (1.9, 0.8), (0.8, 0.6), ExternalPriorWeight(0.5), coefficient_names=names
+                "trial-b", (1.9, 0.8), (0.8, 0.6), ExternalPriorWeight(1.0), coefficient_names=names
             ),
         ],
         baseline=([0.0, 0.0], [100.0, 100.0]),
+        coefficient_names=names,
     )
-
-
-def decode(mask, n=3):
-    """The directed edges of an adjacency mask: bit ``from * (n - 1) + (to if to < from else to - 1)``."""
-    return [
-        (a, b)
-        for a in range(n)
-        for b in range(n)
-        if a != b and (int(mask) >> (a * (n - 1) + (b if b < a else b - 1))) & 1
-    ]
-
-
-def reaches(edges, start, goal):
-    seen, stack = {start}, [start]
-    while stack:
-        node = stack.pop()
-        for a, b in edges:
-            if a == node and b not in seen:
-                seen.add(b)
-                stack.append(b)
-    return goal in seen
 
 
 def edge_mass(posterior, a, b):
-    return sum(
-        float(w)
-        for mask, w in zip(posterior.adjacency, posterior.weights, strict=True)
-        if (a, b) in decode(mask)
-    )
-
-
-def estimate_structure(table, edges, composed, target):
-    result = require_success(
-        ant.analyze(
-            table,
-            graph=[(NAMES[a], NAMES[b]) for a, b in edges],
-            query=ant.AverageEffect(treatment="x", outcome="y", target_population=target),
-            estimator=Aipw(prior_from=composed, bootstrap=0),
-            refute=False,
-            execution=ant.Execution(seed=11),
-        )
-    )
-    return result.ate, result.estimate.se_analytic, result
-
-
-def composed_effect(tables, posterior, composed, target):
-    """Mix the structure-wise effects of every table by the pooled weights; pool by Rubin."""
-    points, variances, sample, unanswered = [], [], None, 0.0
-    atoms = [
-        (decode(mask), float(w))
-        for mask, w in zip(posterior.adjacency, posterior.weights, strict=True)
-    ]
-    for table in tables:
-        parts, dropped = [], 0.0
-        for edges, weight in atoms:
-            if weight < NEGLIGIBLE_MASS:
-                dropped += weight
-            elif not reaches(edges, 1, 2):
-                parts.append((weight, 0.0, 0.0))
-            else:
-                try:
-                    ate, se, result = estimate_structure(table, edges, composed, target)
-                except Exception:
-                    dropped += weight
-                    continue
-                sample = sample or result
-                parts.append((weight, ate, se))
-        unanswered = dropped
-        answered = sum(p[0] for p in parts)
-        mixed = sum(w * a for w, a, _ in parts) / answered
-        within = sum(w * s for w, _, s in parts) / answered
-        between = sum(w * (a - mixed) ** 2 for w, a, _ in parts) / answered
-        points.append(mixed)
-        variances.append(within**2 + between)
-    return em.rubin_pool(points, variances), unanswered, sample
+    """Posterior mass of the edge ``a -> b`` (``edge_marginals`` is row-major over ``names``)."""
+    return float(posterior.edge_marginals[a * posterior.n_vars + b])
 
 
 def naive_effect(data):
@@ -205,44 +135,64 @@ def naive_effect(data):
 def test_the_chain_recovers_the_closed_form_population_effect_and_names_every_stage():
     data, counts = plant()
     truth = closed_form_truth(data["z"])
-
-    # Stage 1: the measured exposure, declared with a validation subsample.
     declaration = em.MisclassifiedExposure("x", mx.ExposureError.shared(counts), covariates=("z",))
-    draws = declaration.realize(data, outcome="y", covariates=("z",), draws=DRAWS, seed=31)
-    assert draws.draws.shape == (DRAWS, ROWS) and set(np.unique(draws.draws)) <= {0.0, 1.0}
-    assert draws.declaration_identity and draws.data_identity
-    tables = draws.completed_tables(data)
-    assert len(tables) == DRAWS and list(tables[0]) == list(NAMES)
-
-    # Stage 2: the structure search on the completed tables, pooled in the engine.
-    posterior = ExactDagPosterior(prior=structure_prior()).run(imputations=tables)
-    assert posterior.algorithm == "pooled_imputations(exact_dag_posterior)"
-    assert math.isclose(sum(posterior.weights), 1.0, abs_tol=1e-9)
-    uniform = ExactDagPosterior().run(imputations=tables)
-    with_prior, without_prior = edge_mass(posterior, 1, 2), edge_mass(uniform, 1, 2)
-    assert with_prior > 0.9, with_prior
-    assert with_prior > without_prior + 0.1, (with_prior, without_prior)
-
-    # Stages 3 and 4: the evidence-weighted, population-targeted effect over the posterior.
-    composed = composed_prior()
-    assert composed.coefficient_names == ("intercept", "coef_z")
     target = target_kernel(TransportKernel("gaussian", BANDWIDTH), center={"z": CENTRE})
-    pooled, unanswered, sample = composed_effect(tables, posterior, composed, target)
-    assert unanswered < 0.05, unanswered
-    assert abs(pooled.estimate - truth) < TOLERANCE, (pooled.estimate, pooled.standard_error, truth)
+
+    # Stages 1 to 4 in one declaration: the measurement imputes the exposure, the search runs on
+    # the completed tables and is pooled in the engine, the study mixes the population-targeted
+    # effect over the pooled posterior on every table, and the tables are pooled by Rubin.
+    prepared = ant.prepare(
+        data,
+        query=ant.AverageEffect(treatment="x", outcome="y", target_population=target),
+        measurement=declaration,
+        measurement_draws=DRAWS,
+        measurement_seed=31,
+        discovery=ExactDagPosterior(prior=structure_prior()),
+        estimator=Aipw(prior_from=prior_selection(), bootstrap=0),
+        refute=False,
+        execution=ant.Execution(seed=11),
+    )
+    assert isinstance(prepared, em.PreparedMeasuredAnalysis)
+    assert prepared.refusal is None and len(prepared.studies) == DRAWS
+    chain = require_success(ant.estimate(prepared))
+    assert isinstance(chain, em.MeasuredAnalysis)
+    assert abs(chain.effect - truth) < TOLERANCE, (chain.effect, chain.standard_error, truth)
 
     # The chain matters: the naive pipeline misses the truth by more than the tolerance.
     naive = naive_effect({**data})
     assert abs(naive - truth) > TOLERANCE, (naive, truth)
-    assert abs(pooled.estimate - truth) < abs(naive - truth)
+    assert abs(chain.effect - truth) < abs(naive - truth)
 
-    # Provenance: the estimate's result carries the composed prior and the weighted target; the
-    # measurement and the structure prior are named by the objects that produced the tables
-    # and the posterior.
-    text = " ".join(str(a) for a in (sample.assumptions or []))
+    # The pooled posterior carries the declared structure prior: x -> y holds most of the mass
+    # and its provenance states the prior, the pooling and the measurement that produced the
+    # tables.
+    structure = prepared.structure
+    assert structure is not None
+    assert structure["method"] == "exact_dag_posterior"
+    assert "x->y" in structure["structure_prior"] or "v1->v2" in structure["structure_prior"]
+    assert structure["pooled_imputations"] == str(DRAWS)
+    assert structure["pooling_method"] == "equal_weight_mixture_of_per_imputation_posteriors"
+    assert structure["digest"]
+    pooled = ExactDagPosterior(prior=structure_prior()).run(
+        imputations=prepared.exposure.completed_tables(data)
+    )
+    assert pooled.algorithm == "pooled_imputations(exact_dag_posterior)"
+    assert math.isclose(sum(pooled.weights), 1.0, abs_tol=1e-9)
+    uniform = ExactDagPosterior().run(imputations=prepared.exposure.completed_tables(data))
+    assert edge_mass(pooled, 1, 2) > 0.9
+    assert edge_mass(pooled, 1, 2) > edge_mass(uniform, 1, 2) + 0.1
+    assert pooled.provenance is not None and pooled.provenance["pooled_imputations"] == str(DRAWS)
+
+    # The pooled result names every stage it consumed.
+    stages = chain.provenance
+    assert stages["measurement"]["declaration_identity"] == prepared.exposure.declaration_identity
+    assert stages["measurement"]["data_identity"] == prepared.exposure.data_identity
+    assert stages["structure"]["pooled_imputations"] == str(DRAWS)
+    text = " ".join(stages["declarations"])
     assert "aipw_outcome_nuisance_prior" in text or "outcome-regression nuisance" in text
-    assert sample.weighted_target is not None
-    assert sample.weighted_target.declaration["family"] == "gaussian"
-    assert sample.weighted_target.identity in text
-    assert sample.provenance["weighted_target"]["identity"] == sample.weighted_target.identity
-    assert posterior.n_graphs >= 2
+    assert "power_prior_alpha_selected" in text and "selected from the target data" in text
+    assert "weighted target" in text and "kernel neighbourhood" in text
+    assert "structure posterior" in text and f"pooled over {DRAWS} imputations" in text
+    target_stage = stages["weighted_target"]
+    assert target_stage["declaration"]["family"] == "gaussian"
+    assert target_stage["identity"] in text

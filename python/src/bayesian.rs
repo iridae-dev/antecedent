@@ -90,6 +90,9 @@ pub struct PyGraphPosterior {
     backend_id: String,
     /// The compiled discovery route this posterior came from (`None` for supplied atoms).
     route: Option<RouteRecord>,
+    /// The posterior pooled over the completed tables of an imputation, accepted with the
+    /// search's and the pooling's provenance (`None` for any other posterior).
+    pooled: Option<antecedent::analysis::structure_route::AcceptedPosterior>,
 }
 
 /// Width of the packed lag masks.
@@ -161,7 +164,23 @@ impl PyGraphPosterior {
             edge_ess: post.edge_ess().map(|v| v.as_ref().to_vec()),
             backend_id: post.diagnostics().backend_id.to_string(),
             route: None,
+            pooled: None,
         }
+    }
+
+    fn with_pooled(
+        mut self,
+        pooled: Option<antecedent::analysis::structure_route::AcceptedPosterior>,
+    ) -> Self {
+        self.pooled = pooled;
+        self
+    }
+
+    /// The accepted pooled posterior, for a study that consumes this handle.
+    pub(crate) fn pooled_accepted(
+        &self,
+    ) -> Option<antecedent::analysis::structure_route::AcceptedPosterior> {
+        self.pooled.clone()
     }
 
     fn with_route(mut self, route: RouteRecord) -> Self {
@@ -367,6 +386,16 @@ impl PyGraphPosterior {
             atom_kind: parse_atom_kind(atom_kind)?,
             mark_masks,
         })
+    }
+
+    /// Where a posterior pooled over completed tables came from: the search and its declared
+    /// structure prior, the pooling rule, the number of imputations and what produced them, as
+    /// a flat mapping; `None` for a posterior that was not pooled by the engine.
+    #[getter]
+    fn provenance(&self) -> Option<std::collections::HashMap<String, String>> {
+        self.pooled
+            .as_ref()
+            .map(|accepted| crate::compiled_route_api::provenance_map(accepted.provenance()))
     }
 
     /// The equal-weight mixture over imputations of each imputation's structure posterior.
@@ -1246,13 +1275,36 @@ fn discover_pooled_posterior(
             });
         }
         let mut posteriors = Vec::with_capacity(inputs.len());
+        let mut searched: Option<(DiscoverySpec, Vec<antecedent::prelude::VariableId>)> = None;
+        let mut completed_tables = Vec::new();
         for (input, variables) in inputs {
             let spec = build(&variables)?;
+            if let DiscoverInput::Tabular(data) = &input {
+                completed_tables.push(data.clone());
+            }
+            if searched.is_none() {
+                searched = Some((spec.clone(), variables.clone()));
+            }
             let (post, _route) = compiled_search(spec, input, &variables, &ctx, posterior_of)?;
             posteriors.push(post);
         }
         let pooled = RustGraphPosterior::pooled_over_imputations(&posteriors).map_err(py_msg)?;
-        Ok(PyGraphPosterior::from_rust(names, pooled))
+        // The pooled tabular search is accepted with its provenance: the search and its
+        // declared structure prior, the pooling and the tables it ran on.
+        let accepted = match searched {
+            Some((spec, variables)) if completed_tables.len() == posteriors.len() => {
+                let query = spec.query(variables).map_err(|error| py_err(error.into()))?;
+                antecedent::analysis::structure_route::AcceptedPosterior::pooled(
+                    &query,
+                    pooled.clone(),
+                    &completed_tables,
+                    None,
+                )
+                .ok()
+            }
+            _ => None,
+        };
+        Ok(PyGraphPosterior::from_rust(names, pooled).with_pooled(accepted))
     })
 }
 

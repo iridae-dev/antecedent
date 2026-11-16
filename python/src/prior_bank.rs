@@ -1131,6 +1131,48 @@ pub(crate) fn outcome_prior_from_composed(
     antecedent::inference::outcome_prior_source_from_composed(&external.composed).map_err(py_err)
 }
 
+/// The outcome-nuisance prior of a cross-fitted AIPW estimate whose power-prior discount is
+/// selected from the table the study analyses: the declaration is kept on the estimator and
+/// the study resolves it against its own table (every completed table of an imputation selects
+/// its own discount).
+pub(crate) fn outcome_prior_from_alpha_selection(
+    declaration: &Bound<'_, PyDict>,
+) -> PyResult<antecedent::estimate::OutcomePriorSource> {
+    let item = |key: &str| {
+        declaration.get_item(key)?.ok_or_else(|| {
+            crate::value_err(format!("estimator_config['alpha_selection'] is missing `{key}`"))
+        })
+    };
+    let sources = sources_from_list(item("sources")?.cast::<PyList>()?)?;
+    let baseline_mean: Vec<f64> = item("baseline_mean")?.extract()?;
+    let baseline_variance: Vec<f64> = item("baseline_variance")?.extract()?;
+    let baseline = prior_set_from_moments(&baseline_mean, &baseline_variance)?;
+    let names: Vec<String> = item("coefficient_names")?.extract()?;
+    let criterion: String = item("criterion")?.extract()?;
+    let folds: usize = item("folds")?.extract()?;
+    let grid: Option<Vec<f64>> = declaration
+        .get_item("grid")?
+        .filter(|value| !value.is_none())
+        .map(|value| value.extract())
+        .transpose()?;
+    let level: f64 = item("level")?.extract()?;
+    let discrepancy_bound: Option<f64> = declaration
+        .get_item("discrepancy_bound")?
+        .filter(|value| !value.is_none())
+        .map(|value| value.extract())
+        .transpose()?;
+    let seed: u64 = item("seed")?.extract()?;
+    let options = alpha_options(&criterion, folds, grid, level, discrepancy_bound, seed)?;
+    Ok(antecedent::estimate::OutcomePriorSource::from_alpha_selection(
+        antecedent::estimate::AlphaSelectionRequest {
+            sources,
+            baseline,
+            coefficient_names: names.into_iter().map(std::sync::Arc::from).collect(),
+            options,
+        },
+    ))
+}
+
 /// Transfer an aligned parameter-posterior artifact into a known-variance Gaussian prior.
 ///
 /// The source identity is supplied independently of the artifact bytes; `source_to_target` is

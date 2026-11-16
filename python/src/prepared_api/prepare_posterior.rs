@@ -58,6 +58,8 @@ impl PyPreparedAnalysis {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
             let spec = configured_spec(estimator_config, None, &req.opts)?;
+            // A posterior the engine pooled over completed tables keeps its provenance.
+            let pooled = posterior.as_ref().and_then(|bound| bound.borrow().pooled_accepted());
             let supplied = take_supplied_posterior(posterior, &req.names)?;
             let data = req.load_columns(py, columns)?;
             req.off_gil(py, move |req| {
@@ -71,6 +73,9 @@ impl PyPreparedAnalysis {
                 )?);
                 let ctx = req.opts.ctx(seed, threads);
                 let gp = exact_dag_posterior(supplied, &data, &req, &ctx)?;
+                if let Some(accepted) = pooled {
+                    req.accepted_posterior.set(Some(accepted));
+                }
                 finish_static_graph_posterior(data, req, gp, query, spec, None, &ctx)
             })
         })

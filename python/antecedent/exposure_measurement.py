@@ -658,11 +658,44 @@ class MeasuredAnalysis:
     measurement: ExposureMeasurement
     naive_effect: float | None
     query: Any
+    structure: Mapping[str, str] | None = None
 
     @property
     def standard_error(self) -> float:
         """The pooled standard error (uncalibrated)."""
         return self.pool.standard_error
+
+    @property
+    def provenance(self) -> dict[str, Any]:
+        """Every stage the pooled result consumed, named by what each declared.
+
+        ``measurement`` is the exposure declaration, its data and the draws; ``structure`` (when a
+        posterior search ran on the completed tables) is the accepted pooled posterior's
+        provenance: the search, its structure prior and the pooling over the imputations;
+        ``declarations`` is every other stage the per-draw results recorded in their assumptions
+        (a weighted target population, a composed or selected outcome prior, the structure
+        posterior the effect was mixed over), in first-appearance order without repeats.
+        """
+        stages: dict[str, Any] = {
+            "measurement": {
+                "kind": self.exposure.kind,
+                "draws": self.exposure.draw_count,
+                **self.identities,
+            }
+        }
+        if self.structure is not None:
+            stages["structure"] = dict(self.structure)
+        declared: list[str] = []
+        for analysis in self.analyses:
+            for item in getattr(analysis, "assumptions", None) or ():
+                text = str(item)
+                if text not in declared:
+                    declared.append(text)
+        stages["declarations"] = declared
+        target = getattr(self.analyses[0], "weighted_target", None) if self.analyses else None
+        if target is not None:
+            stages["weighted_target"] = target.to_dict()
+        return stages
 
     @property
     def variance_components(self) -> tuple[VarianceComponent, ...]:
@@ -795,6 +828,7 @@ class PreparedMeasuredAnalysis:
     execution: Any
     draws: int
     seed: int
+    structure: Mapping[str, str] | None = None
 
     @property
     def refusal(self) -> Any:
@@ -838,6 +872,7 @@ class PreparedMeasuredAnalysis:
                 measurement=self.measurement,
                 naive_effect=naive,
                 query=self.declarations["query"],
+                structure=self.structure,
             )
         )
 
@@ -909,9 +944,22 @@ def prepare_measured(
     exposure = measurement.realize(
         data, outcome=outcome, covariates=covariates, draws=draws, seed=seed
     )
+    tables = exposure.completed_tables(data)
+    structure: Mapping[str, str] | None = None
+    study_declarations = declarations
+    search = declarations.get("discovery")
+    if search is not None and declarations.get("graph") is None:
+        from .discovery import _POOLING_SEARCHES, pool_search_over_imputations
+
+        if isinstance(search, _POOLING_SEARCHES):
+            # The completed tables are the imputations of the structure search: the engine runs
+            # it on each, pools the posteriors once and hands the same accepted posterior (with
+            # the search's, the prior's and the pooling's provenance) to every table's study.
+            pooled = pool_search_over_imputations(search, tables, execution=execution)
+            study_declarations = {**declarations, "discovery": pooled}
+            structure = getattr(pooled, "provenance", None)
     studies = tuple(
-        prepare(table, query=query, execution=execution, **declarations)
-        for table in exposure.completed_tables(data)
+        prepare(table, query=query, execution=execution, **study_declarations) for table in tables
     )
     return PreparedMeasuredAnalysis(
         studies=studies,
@@ -922,4 +970,5 @@ def prepare_measured(
         execution=execution,
         draws=draws,
         seed=seed,
+        structure=structure,
     )
