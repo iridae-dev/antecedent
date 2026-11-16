@@ -1,7 +1,16 @@
-"""Check and persist a declared transported-claim connection to a callback input.
+"""Can a downstream model take a transported claim as one of its inputs?
 
-This checks the handoff contract; no callback executes and no transport theorem
-is proved by naming an offer. The claim retains external transported standing.
+No data are used. An offer declares a mean recovery time transported from two trials to a
+target population under a declared invariance assumption, and a callback declaration names an
+input with the same quantity, estimand and support. The script asserts that the handoff keeps
+the standing ``transported_claim`` with no native target data, that the exported handoff is
+consumed under its retained identity, and that a consumer accepting only native target evidence
+refuses it (``provider_transport.native_target_required``).
+
+This checks the handoff contract only: no callback executes, and naming an offer proves neither
+a transport theorem nor a numerical transport.
+
+Run: ``python examples/python/provider_transport.py``.
 """
 
 from hashlib import sha256

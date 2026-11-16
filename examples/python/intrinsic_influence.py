@@ -1,10 +1,16 @@
-"""Which noise term drives a target's variance: intrinsic causal influence.
+"""Which upstream noise term drives a target's variance? Intrinsic causal influence.
 
-``x -> y -> z`` with ``y = 2x + e_y`` (unit noise) and ``z = 1.5y + e_z`` (noise scale 0.5). The
-total coefficients of the three noise terms on ``z`` are 3, 1.5 and 1, so their Shapley shares of
-``Var(z)`` are 9, 2.25 and 0.25. The estimate is nested Monte Carlo through batch noise replay.
-Every interval names the one uncertainty component it covers, a component that was not measured
-says so instead of reading zero, and the caller must declare that the noise terms are independent."""
+Data: 2,000 simulated rows of ``x -> y -> z`` with ``y = 2x + e_y`` (unit noise) and
+``z = 1.5y + e_z`` (noise scale 0.5). The total coefficients of the three noise terms on ``z`` are
+3, 1.5 and 1, so their Shapley shares of ``Var(z)`` are 9, 2.25 and 0.25.
+
+The estimate is nested Monte Carlo through batch noise replay on mechanisms fitted to the rows.
+The script asserts each share is near its closed form within the reported simulation and
+mechanism-fit error, that a component that was not measured reads ``unquantified`` instead of
+zero, and that undeclared or correlated noise is refused. Independence of the noise terms is the
+caller's declaration; the graph and that declaration are not tested.
+
+Run: ``python examples/python/intrinsic_influence.py``."""
 
 from __future__ import annotations
 
@@ -31,6 +37,8 @@ result = intrinsic_influence(
     fit_bootstrap=20,
     execution=Execution(seed=3),
 )
+# Three sources allow exact Shapley values over all orderings, so no permutation-sampling error
+# arises; the remaining error is Monte Carlo simulation and mechanism fit (the bootstrap).
 assert result.method["shapley"] == {"kind": "exact"}
 for source in result.sources:
     parts = {u.component: u for u in source.uncertainty}
@@ -43,7 +51,8 @@ for source in result.sources:
     assert abs(source.contribution - truth) <= 6 * max(stderr, 0.05 * truth), source
 assert result.budget["refits"] == 20
 
-# The shares add up to Var(z); the residual is the estimation error left over.
+# The shares should add up to Var(z) = 11.5; the reported residual is the estimation error that
+# keeps the estimated shares from summing exactly to the estimated variance.
 assert abs(result.total_variance - sum(TRUTH.values())) <= 0.1 * sum(TRUTH.values())
 total = sum(s.contribution for s in result.sources)
 assert np.isclose(result.allocation_residual, result.total_variance - total)

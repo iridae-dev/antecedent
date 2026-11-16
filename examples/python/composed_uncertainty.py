@@ -1,7 +1,11 @@
-"""Compute a product's spread from columns of one declared aligned law.
+"""What are the mean and variance of a product of two quantities drawn from one joint law?
 
-The ten rows are an enumerated synthetic distribution, not independent draws
-from two marginals. A spread does not grant interval coverage.
+The ten rows are an enumerated synthetic joint distribution of x and y, not independent draws
+from two marginals, so the product is computed row by row. The script asserts the product's
+mean 0.4 and variance 6.4/9 against that enumeration, that the spread is labelled
+uncalibrated, and that an interval request refuses: a spread does not grant interval coverage.
+
+Run: ``python examples/python/composed_uncertainty.py``.
 """
 
 import math

@@ -1,9 +1,11 @@
-"""Automatic and standalone fit-free data diagnostics.
+"""What does the table itself show before any model is fitted?
 
 Preparing a study runs the fit-free diagnostics on its table; the script prints each finding
 with its observation and next action, then runs the full suite on all 2,000 deterministic rows
-and checks that every row was read. The diagnostics describe the table only: they fit no model
+and asserts that every row was read. The diagnostics describe the table only: they fit no model
 and make no causal claim.
+
+Run: ``python examples/python/data_diagnostics.py``.
 
 SPDX-License-Identifier: MIT OR Apache-2.0
 """

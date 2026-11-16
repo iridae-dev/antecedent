@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""Separate a treatment effect into direct and mediated parts.
+"""How much of a treatment's effect runs directly, and how much through a mediator?
 
-The baseline variable Z affects treatment A, mediator M, and outcome Y.
-For a change from 0.2 to 0.8, the simulated direct effect is 1.8 and the
-indirect effect through M is 4.8. Their total is 6.6, which also equals the
-mean individual effect in this simulation. Omitting Z would bias the analysis.
+The data are 500 deterministic rows of a linear model: the baseline variable z affects treatment
+a, mediator m (m = 2a + 0.5z + ...) and outcome y (y = 3a + 4m + 5z + ...), so z must be adjusted
+for. For a change in a from 0.2 to 0.8 the true natural direct effect is 3 * 0.6 = 1.8, the
+natural indirect effect through m is 4 * 2 * 0.6 = 4.8, and the total is 6.6, which in this
+linear model also equals the mean individual counterfactual effect.
 
-Install with `python -m pip install antecedent`; see examples/README.md."""
+The script asserts each frequentist estimate within 0.03 of its truth with the expected estimator
+(`mediation.linear`, `gcm.fit`), and Bayesian versions within 0.2 (direct) and 0.25 (individual).
+The DAG is declared, not tested; with no unexplained noise these are fixture checks of the
+estimators, not evidence about sampling error.
+
+Run: `python examples/python/staged_static_kinds.py`."""
 
 from __future__ import annotations
 

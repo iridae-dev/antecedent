@@ -1,11 +1,17 @@
-"""A price floor as an intervention program, run on every route and saved as bytes.
+"""What does a price floor do to demand, and can the rule be saved and replayed?
 
-``price := max(10, 0.85 * price)`` replaces the price the node's own mechanism generated; the
-node keeps its incoming edges and its noise, so this is not ``do(price = c)``. The same program
-text is drawn forward, replayed on each factual row's own abduced noise, refused when it is
-malformed or reads backwards through the graph, encoded as versioned bytes under a content
-identity, and, as a plain Python function, shown to be a runtime binding that cannot leave the
-process unless it is declared from self-contained source."""
+Data: 600 simulated rows with ``demand = 50 - 0.8 * price + noise``, fitted as a two-node model.
+The program ``price := max(10, 0.85 * price)`` replaces the price the node's own mechanism
+generated; the node keeps its incoming edges and its noise, so this is not ``do(price = c)``.
+
+The script asserts that forward draws and the replay on each factual row's own abduced noise
+equal the hand-applied floor; that simulation and counterfactual routes are supported and
+identification is refused; that a malformed or circular program is refused; that the encoded
+bytes keep the program's content identity; and that a Python callback leaves the process only
+when declared from self-contained source. The policy value is model-based: its simulation error
+is quantified and the fitted model's own uncertainty is not.
+
+Run: ``python examples/python/intervention_programs.py``."""
 
 from __future__ import annotations
 
@@ -70,7 +76,8 @@ assert support.identification.reason_code == "policy_route_not_supported"
 # Its model-based value is the paired difference against the unintervened model on the same noise;
 # only the simulation error is quantified, and the model's own uncertainty says it is not.
 value = policy_value(model, [floor], "demand", n=4000, execution=antecedent.Execution(seed=3))
-# The floor lowers most prices, and demand falls with price.
+# The floor lowers every price above 10 (most rows), and demand falls with price, so mean demand
+# rises.
 assert value.mean_difference > 5 * value.difference_simulation_stderr
 assert value.model_uncertainty == "unquantified"
 

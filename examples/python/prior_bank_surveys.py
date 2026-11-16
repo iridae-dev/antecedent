@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Combine evidence from earlier surveys for a new survey analysis.
+"""How can earlier surveys inform the analysis of a new one?
 
 Two simulated surveys provide prior evidence. You rank them using similarity
 scores you supply, choose their weights, and combine them for the target
@@ -9,9 +9,10 @@ The surveys are simulated from declared mechanisms with known average effects:
 2.0 and 1.5 in the two earlier surveys and 1.8 in the target. These are fixture
 truths of the generator, so the example checks that each fitted effect lands near
 its declared value and that the combined prior does not pull the target away from
-it. The tolerances are loose because each survey is small.
+it (each within 0.3). The tolerances are loose because each survey is small. The combined
+prior is only as sound as the supplied similarity scores and weights.
 
-Install with `python -m pip install antecedent`; see examples/README.md."""
+Run: `python examples/python/prior_bank_surveys.py`."""
 
 from __future__ import annotations
 
@@ -105,20 +106,23 @@ def main() -> None:
         ),
     ]
     catalog = antecedent.priors.PriorCatalog.from_sources(sources)
-    # Tags that must match exactly (caller similarity handles soft context scores).
+    # Product and population must match exactly. How alike the contexts are is a matter of
+    # degree, scored by the caller below.
     reports = catalog.compatible_with(
         query=query,
         variables=["z", "t", "y"],
         tags={"product": "widget", "population": "field"},
     )
-    # Caller-owned similarity (library does not invent domain scores).
+    # How similar each earlier context is to the target is the caller's judgment; nothing
+    # infers it from the data.
     similarity = {"survey_launch": 0.85, "survey_retention": 0.55}
     ranked = catalog.rank(reports, similarity)
     accepted = [r for r in ranked if r.status in ("compatible", "partial")]
     assert accepted, "expected at least one compatible prior source"
 
-    # Hydrate coefficient priors from effect summaries via compose specs.
-    # Matching design (same T/Y/Z) → power-prior on 3-coef Gaussian approx.
+    # Each earlier survey becomes a Gaussian prior over the target design's three coefficients;
+    # the treatment coefficient carries that survey's posterior mean. The surveys share the
+    # target's design, so each enters at full power-prior weight (alpha = 1).
     specs = [
         antecedent.priors.ExternalPriorSourceSpec(
             id="survey_launch",
@@ -133,7 +137,8 @@ def main() -> None:
             weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
         ),
     ]
-    # Similarity → mixture weights (normalized leftover stays on baseline).
+    # Similarity sets the mixture weights: the two surveys share 0.6 in proportion to their
+    # scores, and the remaining 0.4 stays on the weak baseline prior.
     w_launch = similarity["survey_launch"]
     w_ret = similarity["survey_retention"]
     w_sum = w_launch + w_ret
@@ -146,11 +151,13 @@ def main() -> None:
             {"p_value": 0.4, "kl": 0.05},
             {"p_value": 0.3, "kl": 0.1},
         ],
-        # Population tags come from catalog meta (same "field" as target → no transport).
+        # Source populations are read from the catalog entries. All are "field", like the
+        # target, so no transport policy is needed.
         prior_sources=sources,
         target_population=tags_t["population"],
     )
-    # The conflict policy has already discounted the weights (α'); drop it before the fit.
+    # The conflict policy has already discounted the weights from the supplied signals; drop
+    # it so the fit does not apply it again.
     prior_for_fit = dataclasses.replace(composed, conflict=None)
 
     target = require_success(

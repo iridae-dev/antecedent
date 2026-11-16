@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
-"""Explore several causal questions in a simulated sales analysis.
+"""Can one reviewed graph answer several questions of a sales table without rerunning discovery?
 
-Accept a reviewed graph, estimate an average effect with Bayesian
-inference, and examine effects along particular paths and for individual
-rows. A separate temporal block estimates the effect of a brief intervention.
-A counter checks that none of these estimates runs discovery.
+The static table (400 rows) and the weekly series (350 steps) are simulated from declared
+linear mechanisms, so the targets are fixture truths of that model: campaign intensity reaches
+revenue directly with coefficient 1.2 and through the channel with 0.6 x 0.8 = 0.48 (total
+1.68), and a promotion pulse moves returns one step later with coefficient 0.85. The script
+asserts the Bayesian average effect, the channel-path share and the pulse effect against those
+values within 0.25, checks the individual effects only for being finite, and counts calls into
+PC discovery to show that none of these estimates runs it. The graphs are declared, not tested.
 
-The data are simulated from declared linear mechanisms, so the known targets are
-fixture truths of that model: campaign intensity reaches revenue directly with
-coefficient 1.2 and through the channel with 0.6 x 0.8 = 0.48, a total of 1.68,
-and the lagged promotion pulse has coefficient 0.85. The checks compare each
-answer with those values at tolerances sized for a few hundred rows; the individual effects
-are checked only for being finite.
-
-Install with `python -m pip install antecedent`; see examples/README.md."""
+Run: ``python examples/python/sales_spreadsheet_e2e.py``."""
 
 from __future__ import annotations
 
@@ -120,7 +116,7 @@ def main() -> None:
     assert all(math.isfinite(float(u)) for u in ite.unit_effects)
     print(f"ITE mean={ite.mean_ite:.4f} n={len(ite.unit_effects)}")
 
-    # A second estimate — still no discovery.
+    # Re-estimating the retained study reuses the same data snapshot and still runs no discovery.
     study = bayes.study
     second = require_success(
         antecedent.estimate(antecedent.reconfigure(study, execution=antecedent.Execution(seed=4)))

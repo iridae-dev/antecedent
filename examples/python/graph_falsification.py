@@ -1,11 +1,16 @@
-"""Falsifying a graph by node permutation, with no fitted model.
+"""Do the data contradict a declared graph? Falsification by node permutation, with no fitted model.
 
-Eight variables form four strongly dependent pairs. The graph that joins the pairs is compared
-with 300 random relabellings of its own nodes on the same data, through the local Markov
-implications it asserts. A graph that pairs the wrong variables is not better than its
-relabellings; a complete graph asserts nothing the data could contradict; a nonlinear
-dependence needs a nonlinear independence test; and a test budget too small to cover the
-implications gives no verdict rather than a guess."""
+Data: 1,500 simulated rows of eight variables forming four strongly dependent pairs. The graph
+that joins the pairs is compared with 300 random relabellings of its own nodes on the same data,
+through the local Markov implications it asserts.
+
+The script asserts that the matching graph is not rejected and the graph pairing the wrong
+variables is; that a complete graph is uninformative, because it asserts nothing the data could
+contradict; that a quadratic dependence is seen by the nonlinear ``gpdc`` test and not by partial
+correlation; and that a test budget too small to cover the implications returns ``incomplete``.
+Not rejected does not show the graph correct: Markov-equivalent graphs cannot be told apart.
+
+Run: ``python examples/python/graph_falsification.py``."""
 
 from __future__ import annotations
 
@@ -30,7 +35,9 @@ data = linear_pairs(1500, 5)
 options = {"alpha": 0.01, "n_permutations": 300, "permutation_seed": 11}
 
 # The graph that matches the data has far fewer violated implications than its relabellings.
-# Not rejected is not "correct": Markov-equivalent graphs cannot be told apart.
+# The p-value is the share of relabellings that do as well, so a small one means the graph is
+# informative and not rejected. That is not "correct": Markov-equivalent graphs cannot be told
+# apart.
 right = evaluate_graph(data, TRUE_PAIRS, **options)
 assert right.outcome == "not_rejected"
 assert right.p_value is not None and right.p_value < 0.05
@@ -39,14 +46,15 @@ assert right.permutations_completed == 300 and right.permutation_seed == 11
 assert right.stop is None and right.tests_run > 0
 assert any("shuffled-outcome" in text for text in right.limitations)
 
-# Pairing independent variables asserts independencies the data contradicts.
+# Joining independent variables leaves each truly dependent pair unconnected, so the graph
+# asserts independencies the data contradict and does no better than its relabellings.
 wrong = evaluate_graph(data, CROSSED_PAIRS, **options)
 assert wrong.outcome == "rejected"
 assert wrong.p_value is not None and wrong.p_value > 0.5
 assert wrong.n_violations is not None and wrong.n_violations >= 6
 assert any(test.violated and test.p_value < 0.01 for test in wrong.evidence)
 
-# The seeds reproduce the verdict exactly.
+# The verdict depends on random relabellings; a fixed seed reproduces it exactly.
 again = evaluate_graph(data, TRUE_PAIRS, **options)
 assert again.permutation_violations == right.permutation_violations
 assert again.p_value == right.p_value

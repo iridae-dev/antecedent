@@ -21,6 +21,8 @@ reason.
 What this does NOT claim. Recovery here is on one seeded simulation with linear partial
 correlation tests; it is not a coverage guarantee, and same-time orientations are not
 asserted. No interval is reported.
+
+Run: `python examples/python/temporal_discovery.py`.
 """
 
 from __future__ import annotations

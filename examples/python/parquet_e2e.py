@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Start from a Parquet file: analyze it, check its identity, and summarize it under a small pool.
+"""How do you analyze a table that lives in a Parquet file and may not fit in memory?
 
-Writes a small simulated orders table to Parquet with PyArrow, then reads it the way
-a large table is read: only the columns an analysis needs are decoded, in bounded
-chunks charged to an admission pool. The average effect from the file equals the
-one from the same table in memory. A pool smaller than the table refuses a resident
-read with its exact quote, and the weighted Gaussian summary streams the same file
-one chunk at a time.
+Writes a simulated orders table to Parquet with PyArrow (2,000 rows; a discount raises basket
+value by 1.5 and loyalty drives both), then reads it the way a large table is read: only the
+columns an analysis needs are decoded, in bounded chunks charged to an admission pool. The
+script asserts that the average effect from the file equals the one from the same table in
+memory and lies within 0.2 of 1.5, that the content identity ignores row-group layout, that a
+pool smaller than the table refuses a resident read and names the summary route, and that the
+weighted Gaussian summary streams every row of the same file one chunk at a time.
 
-Install with `python -m pip install antecedent pyarrow`; see examples/README.md."""
+The effect holds under the declared graph, which is not tested. Without PyArrow the script
+prints a skip.
+
+Run: `python examples/python/parquet_e2e.py` (needs `pyarrow`)."""
 
 from __future__ import annotations
 
@@ -87,6 +91,7 @@ def main() -> None:
         )
         assert abs(from_file.answer.value - 1.5) < 0.2
 
+        # A path is read the same way as the opened table, so it gives the same effect.
         by_path = antecedent.analyze(
             str(path),
             query=query,
@@ -99,6 +104,8 @@ def main() -> None:
             by_path.answer.value, in_memory.answer.value, rel_tol=1e-12, abs_tol=1e-12
         )
 
+        # The identity covers the values of the named columns, not how the file groups its
+        # rows: the same table written with another row-group size is the same content.
         identity = orders.content_identity(["t", "y", "z"])
         regrouped = Path(scratch) / "orders_regrouped.parquet"
         pq.write_table(table, regrouped, row_group_size=137)
@@ -110,6 +117,7 @@ def main() -> None:
         assert quote.total_bytes is not None
         print(f"resident read of three columns: {quote.total_bytes} bytes")
 
+        # A pool of half the quoted bytes cannot hold the three columns at once.
         small = antecedent.data.from_parquet(
             path,
             chunk_rows=256,
@@ -125,6 +133,8 @@ def main() -> None:
         else:
             raise AssertionError("a pool below the quote must refuse a resident read")
 
+        # The remedy's route: a least-squares summary needs one chunk in memory at a time, so
+        # it reads every row under the pool that refused the resident read.
         summary = small.summarize_weighted_gaussian(["t", "z"], "y", batch_rows=256)
         coefficient = summary.coefficients[summary.design_columns.index("t")]
         print(

@@ -1,15 +1,20 @@
-"""A counterfactual through a shared hidden cause, computed because the model is fully declared.
+"""Would a treated patient have recovered untreated, when one hidden cause drives both?
 
-A hidden frailty ``u`` (frail with probability 0.3) drives both who is treated and how the
-outcome responds: ``x = u`` and ``y = x xor u``. Because the mechanisms and the law of ``u`` are
+No data are simulated: the finite model is declared exactly. A hidden frailty ``u`` (frail with
+probability 0.3) drives both who is treated and how the outcome responds: ``x = u`` and
+``y = x xor u``. Because the mechanisms and the law of ``u`` are
 all declared, a patient observed treated (``x = 1``) is known to be frail, and that same frailty
 is read in the counterfactual world ``do(x = 0)``: ``y = 0 xor 1 = 1`` with certainty. The
 model that gives ``y`` its own independent noise (same law, no shared cause) answers 0.3, because
 the factual treatment then says nothing about the outcome noise. The two answers differ, which is
 why a shared term must not be replaced by independent noise.
 
-The execution is sealed, replayed by a consumer that recomputes it, and a model whose mechanisms
-are not declared is refused as not identified rather than guessed at."""
+The script asserts both values exactly, seals the execution and has a consumer recompute it, and
+checks that a semi-Markovian model (latent confounding without declared mechanisms) is refused
+with ``cross_world_not_identified`` rather than guessed at. The answers are exact for the declared
+model; they say nothing about a real clinic.
+
+Run: ``python examples/python/shared_exogenous_counterfactual.py``."""
 
 from __future__ import annotations
 

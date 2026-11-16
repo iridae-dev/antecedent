@@ -25,6 +25,8 @@ What this does NOT claim. Every result is conditional on the declared assumption
 method (linear dependence for the partial-correlation tests, no latent variables for GES,
 LiNGAM and the posterior, acyclicity). Agreement with the truth on this simulation says
 nothing about a real data set, where the true graph is unknown. No interval is reported.
+
+Run: ``python examples/python/discovery_methods.py``.
 """
 
 from __future__ import annotations

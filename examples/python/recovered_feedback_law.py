@@ -1,10 +1,16 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
-"""Learn a feedback law, branch intervention targets, and reuse a consumed law.
+"""What does B do when A is set, in a system where A and B drive each other?
 
 Synthetic equations: A = 0.4 B + noise_A; B = 0.5 A + noise_B.
-A passive sample and two independent randomized clamp experiments identify
-both directions under this declared linear recipe. Sampling draws describe fit uncertainty; they
-are not a parameter posterior or a calibrated coverage claim.
+A passive sample and two independent randomized clamp experiments (128 rows each) identify
+both directions under this declared linear recipe. The script asserts that do(A = 1), do(A = 3)
+and do(A = 4) give a mean of B within 0.05 of 0.5, 1.5 and 2.0, and that a branched law and a
+law loaded from an exported artifact equal the original without refitting.
+
+Sampling draws describe fit uncertainty; they are not a parameter posterior or a calibrated
+coverage claim.
+
+Run: ``python examples/python/recovered_feedback_law.py``.
 """
 
 from __future__ import annotations
@@ -28,6 +34,10 @@ def run() -> dict[str, object]:
     clamp_a = [generator.gauss(0.0, 1.0) for _ in range(128)]
     clamp_b = [generator.gauss(0.0, 1.0) for _ in range(128)]
     disturbance = [(generator.gauss(0.0, 0.02), generator.gauss(0.0, 0.02)) for _ in range(128)]
+    # The passive regime is the equilibrium of the two equations: for disturbances (a, b),
+    # A = (a + 0.4 b) / 0.8 and B = (0.5 a + b) / 0.8. It cannot separate the two directions on
+    # its own. Each clamp experiment sets one variable by randomization, which removes that
+    # variable's equation and exposes the other one alone.
     regimes = [
         ExperimentRegime(
             {
@@ -72,6 +82,8 @@ def run() -> dict[str, object]:
     assert continued.law.to_dict() == result.law.to_dict()
     assert require_success(result.interventions())[1].mean() == original
 
+    # A loaded artifact carries the law but no live study, and the law still prepares new
+    # intervention targets.
     artifact = continued.export()
     loaded = ant.load(bytes(artifact), expected=artifact.expectation)
     assert loaded.study is None

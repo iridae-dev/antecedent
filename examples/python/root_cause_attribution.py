@@ -12,9 +12,9 @@ case (a) there is no shift, and one row has a shock of 6 added to ``m`` (12 nois
 deviations) that then propagates to ``y``.
 
 What is checked. The total change of ``y`` is compared with the difference of the two period
-means and with 4.5. The mechanism that changed carries nearly all of it, ranks first in the
-root-cause ranking. Mechanism-change detection is refused when m shifts (y's parent law moves)
-and flags only y when y's own mechanism shifts. In case (a) the
+means and with 4.5. The mechanism that changed carries more than 90% of it and ranks first in
+the root-cause ranking. Mechanism-change detection is refused when m shifts (y's parent law
+moves) and, on a second table where only y's own mechanism shifts, flags only y. In case (a) the
 anomaly score of each node is compared with the definition (median, 1.4826 times MAD, a
 Gaussian two-sided tail); the shocked row is the top row for ``m`` and ``y``, and the node
 whose score first leaves the ordinary range along the graph order is ``m``. Python exposes
@@ -25,6 +25,8 @@ What this does NOT claim. The attributions assume the declared graph and mechani
 from the data; they are not tests of that graph. The bootstrap standard error is a spread
 over mechanism refits (see ``antecedent.attribution``), not a coverage claim; the script
 prints the calibration status the result reports.
+
+Run: ``python examples/python/root_cause_attribution.py``.
 """
 
 from __future__ import annotations

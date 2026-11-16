@@ -19,6 +19,8 @@ so nothing was re-collected or refit; and weights that depend on the treatment a
 What the result does not claim: the retargeted interval is conditional on the target weights
 being fixed. It does not account for estimating the weights, does not propagate bootstrap
 uncertainty and is not doubly robust. Its calibration status is printed as reported.
+
+Run: ``python examples/python/retarget_adjusted_fit.py``.
 """
 
 from __future__ import annotations

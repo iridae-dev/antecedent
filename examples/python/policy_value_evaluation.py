@@ -14,8 +14,9 @@ is a fixture truth of that mechanism: treating half the population gains
 0.5 * (2.0 - 0.5) = 0.75 over treating no one.
 
 This evaluates a policy; it does not train one. The recommendations and
-propensities are supplied by the caller. Install with
-`python -m pip install antecedent`; see examples/README.md."""
+propensities are supplied by the caller, and the value is a point with no interval.
+
+Run: `python examples/python/policy_value_evaluation.py`."""
 
 from __future__ import annotations
 
@@ -27,7 +28,8 @@ def main() -> None:
     assignment = [True, False, True, False]
     outcome = 5.0 + 2.0 * np.asarray(assignment, dtype=np.float64)
 
-    # A fixed binary recommendation with a per-treated cost.
+    # The policy is fixed before evaluation: it treats the first two rows at a cost of 0.5 each.
+    # Each recommendation is observed once under treatment and once under control.
     recommended = policy.BinaryPolicy([True, True, False, False], costs=0.5)
 
     result = policy.evaluate_policy(

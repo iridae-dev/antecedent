@@ -26,6 +26,8 @@ adjusted estimate is near 2; and the structural ordering equals a hand sort.
 What this does not claim: a plan is hypothetical identification, not an estimate. It does not
 establish that the graph is true, its ordering is point-only with no coverage claim, and the
 value model is a declared stand-in, not something learned from the registry.
+
+Run: ``python examples/python/evidence_plan.py``.
 """
 
 from __future__ import annotations
@@ -240,7 +242,7 @@ assert last.best.labels[0] == "cheap cohort"  # a dearer cost map reverses the o
 # ## Collect the evidence and estimate
 #
 # Suppose the plan's first choice is run and `z` is recorded. With it the graph identifies the
-# effect and the adjusted estimate is compared with the declared truth.
+# effect, and the adjusted estimate is compared with the simulated effect of 2.
 
 # %%
 result = require_success(

@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""Discover a known lag-1 SCM with PCMCI, then estimate a PulseEffect.
+"""Does PCMCI recover a known lagged parent, and what pulse effect follows under that graph?
 
-Mirrors the Exact parent-set conformance fixture at
-``conformance/discovery/pcmci_lag1`` (see ``expected.json`` / baseline pin
-``parity/baselines/tigramite.toml``):
+The series is simulated from a declared lag-1 linear mechanism, the one used by the conformance
+fixture ``conformance/discovery/pcmci_lag1``:
 
   x_t ~ N(0, 1)
   y_t = 0.8 * x_{t-1} + 0.2 * N(0, 1)
   n=500, seed=0, max_lag=2, alpha=0.05, fdr=false
 
-Expected edge recovery (Exact): lagged parent ``(x, 1) → (y, 0)``.
-Expected pulse (treatment ``x`` → outcome ``y``, treatment_lag=1,
-horizon_steps=1): ≈ 0.8 within absolute tolerance 0.15.
+The script asserts that discovery returns exactly the lagged parent ``(x, 1) → (y, 0)`` and that
+the pulse effect of ``x`` on ``y`` one step later, estimated under the accepted graph, is within
+0.15 of the simulated 0.8.
 
 The run uses Antecedent's own PCMCI implementation; Tigramite is a reference, not a
-dependency. Recovering this one parent does not show discovery is reliable on other data.
-Install with `python -m pip install antecedent`; see examples/README.md.
+dependency. Recovering this one parent on one seeded series does not show discovery is reliable
+on other data.
+
+Run: ``python examples/python/pcmci_pulse_benchmark.py``.
 """
 
 from __future__ import annotations

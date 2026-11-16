@@ -1,4 +1,4 @@
-"""Shared prepare/estimate/inspect/export/load lifecycle for ML and transport.
+"""Do a fitted learner and a transported estimate survive export and load unchanged?
 
 A doubly robust learner's fitted effect model is exported and loaded, and the loaded model must
 predict exactly what the fitted one does. A trial is then transported to a target population:
@@ -6,7 +6,7 @@ the trial's effect is exactly 2, the transported effect must equal it, and the l
 keeps the same answer. Loading checks integrity and recomputes nothing. Each reported interval
 carries its own calibration status.
 
-Run with an installed Antecedent package.
+Run: ``python examples/python/cohesive_ml_transport.py``.
 """
 
 import antecedent as ac

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Use the first batch of results as prior evidence for a second batch.
+"""How do you carry one batch's posterior forward as the prior for the next batch?
 
-We estimate an average effect on batch A, save its posterior, and pass it to
-Bayesian(prior_from=...) for an independent batch B. Both batches use the
-same graph and model design, so their coefficient positions match.
+Two independent batches of 180 rows are simulated from one declared mechanism,
+y = 2 t + z + noise, with z confounding t, so the true average effect of t is 2.0
+(a fixture truth of the generator). The script fits batch A, exports its posterior,
+and passes it to ``Bayesian(prior_from=...)`` for batch B; both use the same graph and
+model design, so their coefficient positions match. It asserts that each posterior
+mean lies within 0.2 of 2.0 and that batch B's posterior is narrower than batch A's.
+The narrowing reflects the added evidence under the declared graph; it does not test
+that graph or show the batches share one mechanism.
 
-Both batches are simulated from one declared mechanism, y = 2 t + z + noise, so
-the true average effect of t is 2.0. That is a fixture truth of the generator.
-The check is that each posterior mean sits near 2.0 and that the second
-posterior is tighter than the first, because it starts from batch A's evidence.
-
-Install with `python -m pip install antecedent`; see examples/README.md."""
+Run: ``python examples/python/sequential_bayes.py``."""
 
 from __future__ import annotations
 

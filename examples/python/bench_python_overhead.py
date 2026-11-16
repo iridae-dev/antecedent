@@ -1,13 +1,12 @@
-"""Benchmark Python↔Rust call and data-ingest overhead.
+"""How much of a call's time is spent converting the input table?
 
-Compares dict / pandas / Arrow inputs on a fixed interactive ``analyze``
-workload (and a modest ``PCMCI`` discovery). Separates ingest+convert time
-from the end-to-end native call where practical.
+Times dict, pandas and Arrow inputs on two fixed simulated workloads: an ``analyze`` of a
+confounded average effect (600 rows) and a ``PCMCI`` discovery (200 rows). Each row reports the
+median conversion time, the median end-to-end time and their difference. The script asserts
+only that the answers are finite; it makes no scientific claim.
 
-This is an FFI/ingest sanity check, not a Criterion replacement. Absolute
-timings are machine-noise; prefer relative ordering on one machine.
-
-Optional deps (pandas, pyarrow): skipped when unavailable.
+Absolute timings vary with the machine and its load; compare formats on one machine. pandas
+and pyarrow are optional, and a missing one is skipped.
 
 Usage::
 
@@ -29,7 +28,7 @@ import antecedent
 import numpy as np
 from antecedent._data import as_columns, try_as_arrow_c_columns
 
-# Modest interactive estimate fixture (same structure as Arrow CDI smoke).
+# Small fixtures, so conversion cost is visible beside the native work.
 _N_ANALYZE = 600
 _N_PCMCI = 200
 _SEED = 7
@@ -122,8 +121,8 @@ def _run_analyze(data: Any) -> None:
 
 
 def _run_pcmci(data: Any) -> None:
-    # Discovery coerce_data uses as_columns (copy path); still useful for
-    # comparing frame conversion cost ahead of the native PCMCI call.
+    # Discovery copies its input columns, so this row compares conversion cost by format
+    # ahead of the native PCMCI call.
     result = antecedent.discovery.PCMCI(max_lag=1, alpha=0.05, fdr=False).run(
         data, execution=antecedent.Execution(seed=1)
     )
@@ -146,8 +145,8 @@ def run_bench(
     for workload in workloads:
         base, call = fixtures[workload]
         for fmt, data in _formats(base):
-            # PCMCI's coerce_data path rejects bare Arrow tables (no to_numpy);
-            # map of arrays still exercises conversion via as_columns.
+            # Discovery does not accept a bare Arrow table; a mapping of Arrow arrays still
+            # exercises the Arrow-to-column conversion.
             if workload == "pcmci" and fmt == "arrow":
                 import pyarrow as pa
 

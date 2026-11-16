@@ -1,10 +1,14 @@
-"""Transport a response curve from two complementary sources.
+"""Can two partial experiments together identify a response curve neither identifies alone?
 
-One source experiments on ``x`` and measures ``z``; the other experiments on ``z`` and measures
-``y``. Together they identify the target curve by chaining the supplied exact laws:
-``0.8 * 0.1 + 0.2 * 0.9 = 0.26`` at ``x = 0`` and ``0.74`` at ``x = 1``, which the script checks.
-With only the second source's laws, some grid points are not supported. Exact laws carry no
-sampling uncertainty, so no interval is inferred. Same verbs as the single-source examples."""
+Source ``a`` experiments on ``x`` and measures ``z``; source ``b`` experiments on ``z`` and measures
+``y``. No data are simulated: their laws are supplied exactly, and together they identify the
+target curve by chaining them: ``0.8 * 0.1 + 0.2 * 0.9 = 0.26`` at ``x = 0`` and ``0.74`` at
+``x = 1``, which the script asserts. When source ``a``'s law under ``x = 0`` is withheld, the
+script asserts that some grid point is no longer supported. Exact laws carry no sampling
+uncertainty, so no interval is inferred; the graph and transport assumptions are declared, not
+tested. The calls are the same as in the single-source `transport_exact.py`.
+
+Run: ``python examples/python/transport_meta_grid.py``."""
 
 import antecedent as ant
 

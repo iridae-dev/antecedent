@@ -14,7 +14,8 @@ a2. Each regime's value is therefore the outcome of its own path: 2.0 for never
 treat, 3.0 for treat first only, 3.5 for always treat. These are fixture truths
 of that declared mechanism, not claims about a real trial. With one observed
 trajectory per path, each estimate rests on a single matched row.
-Install with `python -m pip install antecedent`; see examples/README.md."""
+
+Run: `python examples/python/regime_value.py`."""
 
 from __future__ import annotations
 

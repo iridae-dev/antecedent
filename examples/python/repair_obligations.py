@@ -8,8 +8,10 @@ theorem. Antecedent never conducts a study: candidates are declarations with cos
 
 Two registries that each measure one confounder do not combine into a joint law, so only the
 cohort that measures both is classified ``verified_sufficient``. The result is a portable
-artifact that an independent consumer replays. A repair plan is a declaration about a study,
-not new observed evidence."""
+artifact that an independent consumer replays. No data are used: a repair plan is a
+declaration about a study, not new observed evidence.
+
+Run: ``python examples/python/repair_obligations.py``."""
 
 from __future__ import annotations
 

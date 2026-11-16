@@ -14,6 +14,8 @@ The simulated structural curve is E[outcome | do(dose = d)] = 12 + 3 ln d - 0.3 
 script checks the adjusted curve at dose 4.5 (within 0.6) and the local slope at 2.5 (within
 0.5) against it; the elasticity, the average derivative and the dose beyond the data are
 reported, not checked. Pointwise intervals are not a simultaneous band.
+
+Run: ``python examples/python/continuous_causal_response.py``.
 """
 
 from __future__ import annotations
@@ -60,8 +62,8 @@ print(float(dose.min()), float(np.median(dose)), float(dose.max()))
 # ## Ask four questions
 #
 # Each query takes the treatment name first and the outcome name second.
-# For derivatives and elasticities, choose a bandwidth in `estimator_config`;
-# Silverman's rule is not supported for those queries.
+# Point derivatives and elasticities need an explicit bandwidth in `estimator_config`:
+# Silverman's rule is not an undersmoothing rule for a slope, so the default refuses.
 #
 # The curve includes a dose of `5.25`, beyond the data's maximum of `5.0`.
 # Watch for the support warning at that point: requesting a dose does not mean
@@ -89,14 +91,13 @@ average = require_success(analyze(data, graph=graph, query=average_query))
 # %% [markdown]
 # ### Reuse the analysis and read its report
 #
-# Keep `result.study` to run the same analysis again. `ant.estimate(study)` runs
-# the prepared branch; `ant.rebind(study, data=new_data)` returns a new branch on the
+# Keep `result.study` to run the same analysis again. `antecedent.estimate(study)` runs
+# the prepared branch; `antecedent.rebind(study, data=new_data)` returns a new branch on the
 # new data without changing the original. Earlier results stay unchanged.
 #
 # The report explains the answer and its limitations. Check calibration too:
-# `not_measured` means no coverage record measured this construction; the interval is
-# reported without a calibration claim.
-# A passing diagnostic does not fill that gap.
+# `not_measured` means no coverage record measured this construction, so the interval is
+# reported without a calibration claim. A passing diagnostic does not fill that gap.
 
 # %%
 study = curve.study
@@ -106,12 +107,12 @@ print("Calibration:", curve.calibration.status, curve.calibration.reason)
 print(report)
 
 # %% [markdown]
-# ## Inspect the orthogonal result axes
+# ## Read identification, support and uncertainty separately
 #
 # An identified estimand can have weak or absent empirical support. Likewise, `pointwise`
 # uncertainty describes coverage at individual grid points; it is not a simultaneous band for
-# the whole curve. The provenance operation identifies the implemented algorithm, while
-# assumptions remain inspectable rather than implicit.
+# the whole curve. The report also names the algorithm that ran and lists the assumptions the
+# answer rests on.
 
 # %%
 print(curve.inspect().to_dict())
@@ -159,7 +160,7 @@ assert abs(point.estimate - (3.0 / 2.5 - 0.6 * 2.5)) < 0.5, point.estimate
 # ## Interpretation
 #
 # The curve describes levels under intervention. The point derivative is the local slope at
-# dose 2.5. The elasticity rescales a local derivative and is not a separate robustness check.
+# dose 2.5. The elasticity rescales that local derivative; it is not an independent check.
 # The average derivative instead integrates slopes over the observed treatment law, so it
 # answers a population-weighted question.
 #

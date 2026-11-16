@@ -1,9 +1,12 @@
-"""Read a CSV, check required numeric columns, and prepare an average effect.
+"""How do you take your own CSV table to an average-effect estimate?
 
-Uses a temporary synthetic CSV; replace its path with your own reviewed table.
-Requires pandas in addition to Antecedent. Does not impute or drop observations.
-The synthetic effect is 2, and the script checks the estimate lies within 0.3 of it. On your
-own table the effect holds only under the graph you declare; the script does not test it.
+The script writes a temporary 240-row synthetic CSV (randomized binary treatment, effect 2,
+covariate z affecting the outcome); replace its path with your own reviewed table. It stops
+on missing values in the required columns rather than imputing or dropping rows, and asserts
+the estimate lies within 0.3 of 2. On your own table the effect holds only under the graph you
+declare; the script does not test it. Requires pandas in addition to Antecedent.
+
+Run: ``python examples/python/your_data.py``.
 """
 
 from pathlib import Path

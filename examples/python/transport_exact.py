@@ -1,10 +1,13 @@
-"""Transport a response curve from exact source laws.
+"""What response curve does a target population have, given exact laws from a source experiment?
 
-The source experiment's laws of ``y`` under ``do(x = 0)`` and ``do(x = 1)`` are supplied exactly
-(``P(y = 1)`` is 0.5 and 0.8), so the transported curve must equal ``[0.5, 0.8]``; rebinding to
-replacement laws gives ``[0.4, 0.7]`` and leaves the first result unchanged. Exact laws carry no
-sampling uncertainty, so no interval is inferred, and the transport assumptions are declared,
-not tested. Same verbs as the statistical and complementary-source examples."""
+No data are simulated: the source experiment's laws of ``y`` under ``do(x = 0)`` and
+``do(x = 1)`` are supplied exactly (``P(y = 1)`` is 0.5 and 0.8), so the script asserts the
+transported curve equals ``[0.5, 0.8]``, that rebinding to replacement laws gives ``[0.4, 0.7]``
+and leaves the first result unchanged, and that the result exports and loads. Exact laws carry no
+sampling uncertainty, so no interval is inferred; the transport assumptions are declared, not
+tested. The calls are the same as in `transport_statistical.py` and `transport_meta_grid.py`.
+
+Run: ``python examples/python/transport_exact.py``."""
 
 import antecedent as ant
 

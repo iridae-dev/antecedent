@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""DoWhy ↔ Antecedent handoff on a small backdoor ATE SCM.
+"""Exchange a reviewed backdoor graph between Antecedent and DoWhy.
 
-Shared toy: confounder z, treatment t, outcome y, structural ATE = +2.
-Antecedent identifies via backdoor adjustment on {z} and estimates with
-propensity weighting. When ``dowhy`` is installed, the same graph DOT is
-handed to DoWhy (and a DoWhy DOT is imported back into Antecedent).
+The simulation has a confounder z of a binary treatment t whose effect on y is 2. Antecedent
+identifies the effect by adjusting for {z} and estimates it by propensity weighting. When
+``dowhy`` is installed, the same graph is handed to DoWhy as DOT, and a DoWhy-style DOT string
+is imported back into Antecedent.
 
-``dowhy`` is optional. Without it, the Antecedent half still runs and asserts
-the adjustment set and an effect within 0.5 of 2. See docs/interop_dowhy.md.
-Install with `python -m pip install antecedent`; optionally `pip install dowhy`.
+The script asserts that each library finds the adjustment set {z} and an effect within 0.5 of
+2. Each library owns its own fit and interpretation; agreement here is on one simulated
+table. ``dowhy`` is optional: without it only the Antecedent half runs. See
+docs/interop_dowhy.md.
+
+Run: ``python examples/python/dowhy_handoff.py`` (optionally after ``pip install dowhy``).
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ TRUE_ATE = 2.0
 
 
 def confounded_scm(n: int = 800, seed: int = 7) -> dict[str, np.ndarray]:
-    """Linear-Gaussian outcome with propensity selection on z (ATE = 2)."""
+    """Treatment selected on z by a logistic propensity; linear outcome with effect 2."""
     rng = random.Random(seed)
     z = np.empty(n, dtype=np.float64)
     t = np.empty(n, dtype=np.float64)
@@ -91,7 +94,8 @@ def dowhy_side(data: dict[str, np.ndarray], antecedent_dot: str) -> dict[str, An
     estimate = model.estimate_effect(estimand, method_name="backdoor.linear_regression")
     dowhy_ate = float(estimate.value)
 
-    # DoWhy → Antecedent: import a DoWhy-style graph string after review.
+    # The other direction: a graph written in DoWhy's DOT form must give the same adjustment
+    # set once a reviewer accepts it in Antecedent.
     dowhy_dot = "digraph { z -> t; z -> y; t -> y; }"
     imported = Dag.from_dot(dowhy_dot)
     accepted = AcceptedGraph.from_graph(imported, algorithm_id="dowhy-reviewed")

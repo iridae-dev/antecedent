@@ -1,13 +1,15 @@
-"""Notebook exploration to independently consumed scientific bytes.
+"""How does an analysis explored in a notebook become bytes another process can rely on?
 
-The simulated treatment raises the outcome by 2. The script checks that a rebound branch
-moves the estimate by exactly 1, that a changed randomized assignment is refused, that a
-declared mixture mean of 2 reaches a decision contract unchanged, and that a fresh process
-loads the same answer from the bytes and the expectation alone. Loading checks integrity and
-identity; it recomputes nothing and does not test the declared graph.
+The data are 240 simulated rows in which the treatment raises the outcome by 2 and a covariate
+``z`` also moves the outcome. The script asserts that adjusting for ``z`` is the retained
+identification, that a rebound branch moves the estimate by exactly 1, that a changed
+randomized assignment is refused, that a declared mixture mean of 2 reaches a decision contract
+unchanged, and that a fresh process loads the same answer from the bytes and the expectation
+alone. Loading checks integrity and identity; it recomputes nothing and does not test the
+declared graph.
 
-Run with an installed Antecedent. No files are retained after
-this example; a real producer stores container bytes and expectations separately.
+Run: ``python examples/python/notebook_to_system.py``. No files are kept after the run; a real
+producer stores the container bytes and the expectation separately.
 """
 
 from __future__ import annotations
@@ -38,8 +40,9 @@ def first_proof(view):
 # %% [markdown]
 # ## Prepare, inspect and estimate
 #
-# Preparation retains the scientific question and identification. Each estimate returns its own
-# outcome; refutation belongs to that execution snapshot.
+# Preparation retains the scientific question and its identification, so both can be read
+# before anything is fitted. Each estimate returns its own outcome, and a refutation belongs to
+# the execution it was run on: refuting does not change the answer.
 
 # %%
 rng = np.random.default_rng(24)
@@ -70,8 +73,9 @@ print(checked.inspect())
 # %% [markdown]
 # ## Rebind new observations
 #
-# Branch on new observations while retaining the scientific question and design. The shifted
-# outcome moves the estimate by exactly one.
+# Rebinding returns a new branch on new observations and keeps the question and its
+# identification. Adding the treatment to the outcome raises the effect by exactly one, and the
+# original result still reports its own answer.
 
 # %%
 updated = require_success(
@@ -117,8 +121,9 @@ assert np.isclose(ant.estimate(revised).answer.value, -original.answer.value)
 # %% [markdown]
 # ## Compose a declared scientific mean
 #
-# A mean producer with incomplete coordinates requires a declaration of what it measures. The
-# decision contract then evaluates against that declared source.
+# A mixture declared by weight, mean and variance carries a number but not what the number
+# measures. Declaring the quantity (variable, units, population and regime) makes it a mean
+# source, and the decision contract evaluates against that declared source.
 
 # %%
 from antecedent import decision, joint_distribution, joint_law_propagation

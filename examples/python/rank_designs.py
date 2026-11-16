@@ -1,10 +1,17 @@
-"""Compare experiments by how much they could help identify an effect.
+"""Which candidate study would most raise the probability that an effect is identified?
 
-With no decision declared, ``rank_designs`` ranks typed plans on the "identification" basis.
-The ranking depends on the planning assumptions you supply. It recommends
-an action but does not run it. After choosing, use analyze(...) for the
-causal question and keep result.study if you need to estimate again.
-See rank_designs_evsi.py for ranking by value of information instead."""
+No data are used. A structure prior puts weights 0.5, 0.3 and 0.2 on three candidate
+structures, and the query is identified only in the first; ``variable_unlocks`` and
+``environment_unlocks`` declare which measurement and which environment would identify it.
+With no decision declared, ``rank_designs`` ranks the four typed plans on the "identification"
+basis by Monte Carlo. The script asserts the basis, that every candidate is ranked and that a
+best plan is named.
+
+The order holds only under the declared prior and unlock assumptions, and the ranking runs no
+study. After choosing, use ``analyze(...)`` for the causal question. See rank_designs_evsi.py for
+ranking by value of information instead.
+
+Run: ``python examples/python/rank_designs.py``."""
 
 from __future__ import annotations
 

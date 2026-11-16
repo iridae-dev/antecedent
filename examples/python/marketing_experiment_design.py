@@ -1,32 +1,19 @@
 #!/usr/bin/env python3
-"""Which marketing experiment should we run next?
+"""Which evidence-gathering action most raises the chance that an outreach effect is identified?
 
-Ranking evidence-gathering actions by identification gain.
+A sales team wants the effect of personalised outreach on qualified pipeline. Its CRM data are
+observational, and unmeasured purchase intent may drive both outreach and pipeline. Four
+candidate actions (buy an intent signal, run a randomised holdout, add a territory, wait for
+more accounts) are ranked by gain in identified posterior mass over four declared graph
+hypotheses, then again under a £40,000 budget.
 
-A B2B growth team wants to estimate the causal effect of personalised outbound
-outreach on qualified sales pipeline.
+Data: the graph weights and what each action resolves are declared planning assumptions, not
+inferred. The chosen action is then simulated on 1,200 accounts with a true effect of £12,000
+of pipeline per account. The script prints the ranking and the adjusted estimate beside that
+truth and asserts only that a separately prepared study gives the same estimate. The ranking
+recommends and runs nothing, and it is only as good as the declared assumptions.
 
-Its current CRM data are observational. The main uncertainty is whether unmeasured
-account purchase intent drives both:
-
-- which accounts receive personalised outreach; and
-- which accounts create pipeline.
-
-The team has several ways to spend its research budget:
-
-1. purchase a better account-intent signal;
-2. run a randomised outreach holdout;
-3. collect data in a new territory;
-4. simply wait for more accounts.
-
-This example uses Antecedent to rank those actions by how much they increase the
-probability that the outreach effect is identifiable. It then applies a £40,000
-budget constraint and simulates the recommended action.
-
-The scenario and data are synthetic, but they represent a realistic revenue-operations
-decision. The causal truth is known so the result can be checked: the script prints the
-adjusted estimate beside the simulated effect rather than asserting it. The planning
-assumptions about what each action resolves are declared, not inferred.
+Run: ``python examples/python/marketing_experiment_design.py``.
 """
 
 from __future__ import annotations
@@ -44,7 +31,7 @@ from antecedent.outcomes import require_success
 print("antecedent", version("antecedent"))
 
 # %% [markdown]
-# ## 2. The causal question
+# ## The causal question
 #
 # The target estimand is:
 #
@@ -62,8 +49,9 @@ print("antecedent", version("antecedent"))
 #
 # Pipeline is measured in **£ thousands per account**.
 #
-# The current structural posterior contains four material causal hypotheses. Only one
-# currently identifies the effect using the variables already present in the CRM.
+# The team's current structural belief is a weighted set of four causal hypotheses,
+# declared here by hand. Only one identifies the effect using the variables already present
+# in the CRM.
 
 # %%
 graph_hypotheses = pd.DataFrame(
@@ -122,7 +110,7 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# ## 3. Candidate research actions
+# ## Candidate research actions
 #
 # Antecedent's design API uses stable integer IDs for registered variables, queries,
 # environments and graph hypotheses.
@@ -189,7 +177,7 @@ candidate_catalogue = pd.DataFrame(
 print(candidate_catalogue)
 
 # %% [markdown]
-# ## 4. Encode what each action can resolve
+# ## Encode what each action can resolve
 #
 # The planning assumptions are explicit:
 #
@@ -219,7 +207,7 @@ purchase_intent_variable_id = 3
 variable_unlocks = {query_id: [purchase_intent_variable_id]}
 
 # %% [markdown]
-# ## 5. Rank actions by identification gain
+# ## Rank actions by identification gain
 #
 # With no decision declared, `rank_designs` ranks plans on the `"identification"` basis: the
 # score is the increase over the current identified posterior mass. A score of `0.75`, for
@@ -300,13 +288,13 @@ plt.show()
 # assumption or an unmeasured confounder.
 
 # %% [markdown]
-# ## 6. Add a transparent cost-efficiency view
+# ## Add a cost-efficiency view
 #
-# The design objective above optimises identification gain, not pounds spent. We can
-# combine the engine's score with business-owned costs after ranking.
+# The ranking above scores identification gain, not pounds spent. The caller can combine
+# that score with its own costs after ranking.
 #
-# This ratio is deliberately simple: identification-probability gain per £1,000.
-# It is a reporting calculation, not a hidden modification of Antecedent's objective.
+# The ratio below is identification-probability gain per £1,000. It is computed here in
+# pandas for reporting; it does not change the ranking's objective.
 
 # %%
 unconstrained_table["gain_per_£1k"] = np.where(
@@ -355,10 +343,10 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# ## 7. Apply the £40,000 budget
+# ## Apply the £40,000 budget
 #
-# Hard constraints are applied before scoring. Candidates that violate them are recorded
-# explicitly rather than silently disappearing.
+# Hard constraints are applied before scoring. A candidate that violates one is listed
+# under `violations` with the constraint it broke, not dropped.
 
 # %%
 budget_gbp = 40_000.0
@@ -430,14 +418,13 @@ print("Recommended action under the budget:", selected_action)
 # identification gap.
 #
 # The recommendation is advisory. The library does not purchase data, launch an
-# experiment, or automatically rerun an analysis.
+# experiment or rerun an analysis.
 
 # %% [markdown]
-# ## 8. Simulate the recommended action
+# ## Simulate the recommended action
 #
-# We now simulate account-level CRM data.
-#
-# The true data-generating process is:
+# Suppose the intent signal is bought. The account-level CRM data are simulated from this
+# process:
 #
 # $$
 # \text{account size} \rightarrow \text{outreach}
@@ -559,14 +546,13 @@ print(measured_result)
 # %% [markdown]
 # ### Reuse the analysis and read its report
 #
-# Keep `result.study` to run the same analysis again. `ant.estimate(study)` runs
-# the prepared branch; `ant.rebind(study, data=new_data)` returns a new branch on the
-# new data without changing the original. Earlier results stay unchanged.
+# Keep `measured_result.study` to run the same analysis again. `antecedent.estimate(study)`
+# runs the prepared branch; `antecedent.rebind(study, data=new_data)` returns a new branch
+# on the new data and leaves the original and its earlier results unchanged.
 #
-# The report explains the answer and its limitations. Check calibration too:
-# `not_measured` means no coverage record measured this construction; the interval is
-# reported without a calibration claim.
-# A passing diagnostic does not fill that gap.
+# The report states the answer and its limitations. Read the calibration status too:
+# `not_measured` means no coverage record measured this construction, so the interval is
+# reported without a calibration claim. A passing diagnostic does not fill that gap.
 
 # %%
 study = measured_result.study
@@ -575,7 +561,8 @@ print("Answer:", measured_result.answer)
 print("Calibration:", measured_result.calibration.status, measured_result.calibration.reason)
 print(report)
 
-# A fresh preparation is optional when estimation should happen later.
+# `prepare` checks identification without estimating, so the estimate can run later; it
+# gives the same answer as the one-call analysis.
 prepared = antecedent.prepare(
     measured_data,
     graph=reviewed_graph,
@@ -618,9 +605,9 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# ## 9. What the example demonstrates
+# ## What the example demonstrates
 #
-# The design ranker distinguishes four questions that are often conflated:
+# The ranking separates four questions that are often conflated:
 #
 # - **Will this action change identification?**
 # - **Will it only improve precision?**
@@ -630,19 +617,19 @@ plt.show()
 # In this scenario:
 #
 # - a randomised holdout and a missing-confounder measurement both resolve identification;
-# - simply adding more observational accounts does not;
+# - adding more observational accounts does not;
 # - the holdout exceeds the available budget;
 # - measuring account intent is therefore the best feasible next step;
-# - after that measurement, an adjusted analysis recovers the simulated campaign effect.
+# - after that measurement, the adjusted estimate is close to the simulated campaign effect
+#   and the naive contrast is not (compare the printed table; neither is asserted).
 #
-# The planning assumptions should be reviewed just as carefully as the causal graph.
-# A variable should only be registered as an identification unlock when the scientific
-# argument supports that claim.
+# Review the planning assumptions as carefully as the causal graph. Register a variable as
+# an identification unlock only when the scientific argument supports that claim.
 
 # %% [markdown]
-# ## 10. Extensions
+# ## Extensions
 #
-# Useful extensions of this analysis could:
+# Extensions of this analysis could:
 #
 # - rank by expected graph-entropy reduction rather than identification probability;
 # - rank by expected effect-width reduction after identification is established;

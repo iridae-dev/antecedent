@@ -22,6 +22,8 @@ variance, not a standard error), not a confidence interval. The example also sho
 two refusals: a declared cluster partition that the assignment does not randomize, and an
 exposure edge that leaves its declared cluster. The results say nothing about interference
 beyond the declared exposure mapping and network.
+
+Run: `python examples/python/network_interference.py`.
 """
 
 from __future__ import annotations
@@ -92,12 +94,12 @@ for name, result, truth in (("direct", direct, 2.0), ("spillover", spill, 3.0)):
     assert abs(fit.contrast.hajek - truth) < 1.0, (name, fit.contrast.hajek)
 
 # %% [markdown]
-# ## A naive contrast mixes the two effects
+# ## A naive contrast averages over the exposure mix
 #
 # Comparing treated with untreated units ignores neighbors. Here neighbors are treated at the same
 # rate in both groups, so the naive contrast is not wrong, but it can only report the average over
-# whatever exposure mix happened. Conditioning on the neighbor exposure separates the two effects:
-# the spillover contrast moves only the neighbors' treatment.
+# whatever exposure mix happened, and it says nothing about spillover. Conditioning on the neighbor
+# exposure separates the two effects: the spillover contrast moves only the neighbors' treatment.
 
 # %%
 naive = y[assignment].mean() - y[~assignment].mean()

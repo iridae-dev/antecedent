@@ -6,6 +6,8 @@ leaves the original study and outcome unchanged. Preparing again on the flipped 
 gives exactly the negated effect. A one-component mixture with a declared mean and variance
 then refuses an interval (``uncertainty_representation_insufficient``) while its declared mean
 stays usable. Nothing here is a claim about real data.
+
+Run: ``python examples/python/refusal_recipes.py``.
 """
 
 import antecedent as ant
@@ -40,9 +42,13 @@ def main():
         raise AssertionError("Changed assignments were accepted")
     # The refused branch left the study and its outcome as they were.
     assert ant.estimate(study).answer.value == original.answer.value
+    # A new assignment column is a new design, so it takes a new preparation. Every unit
+    # switched arms, so the comparison is the same one with its sign reversed.
     revised = ant.estimate(ant.prepare(changed, query=query, refute=False))
     assert np.isclose(revised.answer.value, -original.answer.value)
     print("Effect after preparing again:", revised.answer.value)
+    # A mixture declared by weight, mean and variance has no distributional shape, so it cannot
+    # supply an interval; its mean is still a valid input to a later step.
     claim = require_success(jl.mixture([jl.MixtureComponent("model", "evidence", 1.0, 2.0, 3.0)]))
     try:
         claim.interval()

@@ -20,6 +20,8 @@ numerical statement about this seeded simulation, not a coverage claim for the i
 What this does not claim: ``Reuse`` names categories of retained and invalidated work. It is a
 receipt of what the library kept, not a timing, and the exact categories depend on the route.
 Nothing here says the declared graph is true of real data.
+
+Run: ``python examples/python/branch_and_reuse.py``.
 """
 
 from __future__ import annotations
@@ -104,7 +106,7 @@ solo = require_success(
 )
 assert abs(solo.answer.value - base[0]) < 1e-9, (solo.answer.value, base[0])
 
-# One call does the same as prepare then estimate.
+# `analyze_many` is prepare then estimate in one call, so it must return the same effects.
 one_call = require_success(ant.estimation.analyze_many(first_wave, queries=queries(), **COMMON))
 assert max(abs(a - b) for a, b in zip(effects(one_call), base, strict=True)) < 1e-9
 

@@ -15,7 +15,9 @@ the Wald ratio against the complier effect. Three requests are refused with thei
 Discontinuity answers are local to the cutoff (and, when fuzzy, to the units the cutoff moves).
 IV bounds are an identified set, never a point; the instrument's independence and exclusion are
 declared, not tested. The fuzzy and kink results publish a pointwise 95% interval with their
-support and calibration status, which the script prints but does not assert."""
+support and calibration status, which the script prints but does not assert.
+
+Run: ``python examples/python/discontinuity_and_iv.py``."""
 
 from __future__ import annotations
 
@@ -62,7 +64,7 @@ above = running >= 0.0
 # ## Sharp discontinuity
 #
 # Treatment is exactly the rule `running >= 0`. The effect is the jump of the outcome at the
-# cutoff, using units inside the bandwidth. Look at the jump against the simulated 2.
+# cutoff, estimated from units inside the bandwidth. Compare the jump with the simulated 2.
 
 # %%
 treated = above.astype(float)

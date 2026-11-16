@@ -20,6 +20,8 @@ calibration and support fields say what each result does and does not carry; a t
 standard errors is a check on this seeded simulation, not a coverage claim. The exact test
 covers the sharp null of no effect for any unit and says nothing about effect size, and no result
 here speaks to a design other than the one declared.
+
+Run: ``python examples/python/experiment_designs.py``.
 """
 
 from __future__ import annotations
@@ -86,7 +88,8 @@ print("calibration:", result.calibration.status)
 assert abs(fit.effect - 2.0) < 4.0 * fit.standard_error, fit.effect
 assert fit.interval_95 is not None and fit.interval_95[0] < 2.0 < fit.interval_95[1]
 
-# The no-carryover assumption is recorded on the result rather than silently dropped.
+# The contrast's assumption about carryover is recorded on the result, so a reader can see what
+# the direct-effect reading rests on.
 print([a for a in result.assumptions if "carryover" in a])
 
 # %% [markdown]
@@ -173,7 +176,8 @@ assert abs(cuped.effect - 2.0) < 4.0 * cuped.standard_error
 assert abs(cuped.adjustment_coefficient - 3.0) < 0.2
 assert cuped.standard_error < 0.5 * raw.standard_error
 
-# The retained route takes a coefficient fixed outside this trial's outcomes.
+# Through `analyze`, CUPED takes a coefficient fixed in advance (here the simulation's 3.0), not
+# one estimated from this trial's outcomes.
 fixed = require_success(
     ant.analyze(
         data,

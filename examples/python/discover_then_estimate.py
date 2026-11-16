@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Discover a graph once and reuse a reviewed graph for later estimates.
+"""Discover a graph once, review it, and reuse the accepted graph for later estimates.
 
-We first run PC discovery. For this simulation, we then supply the known
-causal directions as an AcceptedGraph. In a real analysis, those directions
-would need justification from subject-matter knowledge or other evidence.
+The simulation has a confounder z of a binary treatment t whose effect on y is 2. PC discovery
+runs once; the script then supplies the known directions as an AcceptedGraph. In a real
+analysis those directions need justification from subject-matter knowledge or other evidence.
 
-Keeping result.study lets us estimate again or rebind new data without
-repeating discovery. The counter below checks that discovery is not re-run, and the
-first estimate is checked within 0.75 of the simulated effect 2. Accepting a graph
-does not make discovery certain.
-Install with `python -m pip install antecedent`; see examples/README.md."""
+Keeping result.study lets later estimates and a rebind onto new data skip discovery. The
+script counts discovery calls to assert that none is repeated, and asserts the first estimate
+within 0.75 of 2. Accepting a graph does not make discovery certain.
+
+Run: ``python examples/python/discover_then_estimate.py``."""
 
 from __future__ import annotations
 
@@ -50,12 +50,12 @@ def main() -> None:
         discovery_calls["n"] += 1
         return real_discover(*args, **kwargs)
 
-    # Spy on both entry points into PC discovery, so "later estimates never
-    # rediscover" is a claim this can actually check.
+    # Count calls through both entry points into PC discovery, so the claim that later
+    # estimates never rediscover is checked and not assumed.
     antecedent.discovery.PC.run = counted_run  # type: ignore[method-assign]
     antecedent.discovery.discover = counted_discover  # type: ignore[assignment]
 
-    # Run discovery once, explicitly, and accept its structure for review.
+    # Run discovery once, explicitly; its result is the evidence a reviewer reads.
     evidence = antecedent.discovery.discover(
         data,
         method=antecedent.discovery.PC(alpha=0.5, fdr=False, max_cond_size=0),
@@ -78,7 +78,8 @@ def main() -> None:
 
     query = antecedent.AverageEffect(treatment="t", outcome="y")
 
-    # Reuse the reviewed graph for repeated estimates.
+    # Every estimate below rests on the accepted graph: a first analysis, a repeat on the
+    # retained study, and a rebind onto a fresh sample.
     first = antecedent.analyze(
         data,
         graph=accepted,
@@ -100,7 +101,7 @@ def main() -> None:
     assert math.isfinite(first_ate) and abs(first_ate - 2.0) < 0.75
     assert math.isfinite(second_ate) and math.isfinite(third_ate)
 
-    # Save the accepted graph for the next session.
+    # The accepted graph round-trips through JSON with its version, for a later session.
     restored = antecedent.AcceptedGraph.from_json(accepted.to_json())
     assert restored.version == accepted.version
 

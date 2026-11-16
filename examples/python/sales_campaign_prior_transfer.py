@@ -1,24 +1,19 @@
 #!/usr/bin/env python3
 """Can last quarter's campaign inform this quarter's sales analysis?
 
-Posterior-to-prior transfer across different campaign designs.
+A revenue-operations team ran a personalised outbound campaign last quarter and wants to use
+that evidence when evaluating a new one. Both campaigns (160 accounts each) are simulated from
+declared linear mechanisms: last quarter adjusts for account intent and has a true effect of
+£20k of qualified pipeline per account; this quarter also measures account size, which drives
+both assignment and pipeline, and has a true effect of £8k. The two models therefore have
+different coefficient spaces, so the source posterior for the average treatment effect is
+transferred through an explicit effect mapping rather than by coefficient position.
 
-A revenue-operations team ran a personalised outbound campaign last quarter and wants
-to use that evidence when evaluating a new campaign.
+The script asserts that each fit returns a posterior and that an identical-coefficient mapping
+is refused. The true effects are printed and plotted for comparison, not asserted, and whether
+the two campaigns share an effect is a judgement the transfer does not test.
 
-The studies are related but not identical:
-
-- the source campaign measured account intent;
-- the target campaign also measures account size;
-- account size affects both campaign assignment and pipeline creation;
-- the source and target models therefore have different coefficient spaces.
-
-Antecedent can transfer the source posterior for the average treatment effect
-into the target analysis without pretending that the underlying regression
-coefficients are positionally identical.
-
-The data are synthetic but reflect a common sales-analytics workflow. Effects are
-measured as incremental qualified pipeline per account, in £ thousands.
+Run: ``python examples/python/sales_campaign_prior_transfer.py`` (needs pandas and matplotlib).
 """
 
 from __future__ import annotations
@@ -37,7 +32,7 @@ from antecedent.priors import PriorMapping
 print("antecedent", version("antecedent"))
 
 # %% [markdown]
-# ## 2. Source: last quarter's mid-market campaign
+# ## Source: last quarter's mid-market campaign
 #
 # Last quarter, sales operations compared:
 #
@@ -124,9 +119,9 @@ print(source_result)
 # %% [markdown]
 # ### Reuse the analysis and read its report
 #
-# Keep `result.study` to run the same analysis again. `ant.estimate(study)` runs
-# the prepared branch; `ant.rebind(study, data=new_data)` returns a new branch on the
-# new data without changing the original. Earlier results stay unchanged.
+# Keep `result.study` to run the same analysis again. `antecedent.estimate(study)` runs
+# the prepared branch; `antecedent.rebind(study, data=new_data)` returns a new branch on
+# the new data without changing the original. Earlier results stay unchanged.
 #
 # The report explains the answer and its limitations. Check calibration too:
 # `not_measured` means no coverage record measured this construction; the interval is
@@ -147,7 +142,7 @@ assert loaded.acceptance.recognized
 assert bytes(loaded.export()) == bytes(encoded)
 
 # %% [markdown]
-# ## 3. Target: this quarter's enterprise campaign
+# ## Target: this quarter's enterprise campaign
 #
 # This quarter, revenue operations launches a related programme in enterprise accounts.
 # The CRM now contains an additional pre-treatment variable:
@@ -214,7 +209,7 @@ target_assignment = target_frame.groupby("personalised_outreach").agg(
 print(target_assignment.round(2))
 
 # %% [markdown]
-# ## 4. Target-only baseline
+# ## Target-only baseline
 #
 # First, fit the target campaign using an ordinary weak prior. This provides the
 # comparison point for posterior transfer.
@@ -240,7 +235,7 @@ assert target_baseline.posterior is not None
 print(target_baseline)
 
 # %% [markdown]
-# ## 5. Transfer the source ATE into the target prior
+# ## Transfer the source ATE into the target prior
 #
 # The source and target coefficient vectors are not the same:
 #
@@ -338,16 +333,17 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# The transferred posterior should be pulled towards the source campaign relative to
-# the target-only baseline. The target data still update it, because posterior transfer
-# is not the same as copying last quarter's answer into this quarter's report.
+# Read the table and the plot: the transferred posterior is expected to sit between the
+# target-only estimate and the source effect, because the target data update the borrowed
+# prior rather than copy last quarter's answer. The script prints this comparison; it does
+# not assert it.
 
 # %% [markdown]
-# ## 6. An unsafe identical-design mapping is rejected
+# ## An unsafe identical-design mapping is rejected
 #
-# If we explicitly claim that the source and target coefficient spaces are identical,
-# Antecedent should fail closed. The target has an additional account-size coefficient,
-# so positional coefficient matching would be scientifically unsafe.
+# Declaring the source and target coefficient spaces identical is refused: the target has
+# an additional account-size coefficient, so matching coefficients by position would pair
+# unrelated parameters.
 
 # %%
 try:
@@ -373,11 +369,11 @@ else:
     raise AssertionError("The identical-design mapping unexpectedly accepted different designs.")
 
 # %% [markdown]
-# ## 7. Automatic mapping
+# ## Automatic mapping
 #
-# If `mapping` is omitted, Antecedent can inspect the prepared designs. When they differ
-# and the source artifact contains an effect quantity, it automatically selects an
-# effect-functional mapping instead of silently pairing `coef_i` with `coef_i`.
+# If `mapping` is omitted, Antecedent compares the prepared designs. When they differ and
+# the source artifact contains an effect quantity, it selects an effect-functional mapping
+# instead of pairing coefficients by position; with no effect quantity it refuses.
 #
 # Explicit mapping is still preferable in an educational or reviewed analysis because
 # it makes the assumption visible.
@@ -417,7 +413,7 @@ print(
 )
 
 # %% [markdown]
-# ## 8. When revenue operations should use this
+# ## When revenue operations should use this
 #
 # Posterior transfer can be appropriate when:
 #
@@ -435,7 +431,7 @@ print(
 # sensitivity analysis, and—where populations differ—an explicit transport policy.
 
 # %% [markdown]
-# ## 9. Try changing the evidence balance
+# ## Try changing the evidence balance
 #
 # Change `n_accounts` in the target simulation:
 #
@@ -445,7 +441,7 @@ print(
 # - if they conflict, the compromise should motivate discounting or a separate model.
 
 # %% [markdown]
-# ## 10. Reproducibility information
+# ## Reproducibility information
 
 # %%
 import platform

@@ -21,6 +21,8 @@ confounded null.
 What it does NOT claim. Passing a refuter is not evidence of no unmeasured confounding.
 Every number here is a diagnostic, not an interval with coverage; the bounds say what a
 confounder of a stated strength would do, not that one of that strength exists.
+
+Run: ``python examples/python/refute_and_bound.py``.
 """
 
 from __future__ import annotations

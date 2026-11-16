@@ -6,8 +6,13 @@ confounding). ``Lambda`` bounds how far the odds of treatment may shift with a p
 the range first reaches a decision threshold. The range is an assumption range, not a confidence
 interval: the strata are exact inputs, so there is no sampling interval.
 
-Hand oracles for the two strata below: identified ATE = 0.5 * 0.4 + 0.5 * 0.2 = 0.3; sharp bounds
-at Lambda = 2 are [0.04375, 0.4875]; the lower bound reaches 0 at (2 + sqrt(193)) / 7 = 2.27035."""
+No data are simulated: the two strata below are declared exactly. The script asserts
+hand-computed values: identified ATE = 0.5 * 0.4 + 0.5 * 0.2 = 0.3; sharp bounds at Lambda = 2 of
+[0.04375, 0.4875]; a lower bound that reaches 0 at Lambda = (2 + sqrt(193)) / 7 = 2.27035; and a
+decision to treat that is the same everywhere in the Lambda = 2 range. ``Lambda`` is a declared
+bound on confounding that the data cannot test.
+
+Run: ``python examples/python/msm_sensitivity.py``."""
 
 from __future__ import annotations
 
@@ -44,7 +49,8 @@ tipping = result.tipping
 assert tipping is not None and tipping.bracketed and tipping.lambda_value is not None
 assert math.isclose(tipping.lambda_value, (2.0 + math.sqrt(193.0)) / 7.0, abs_tol=1e-6)
 
-# The same surface as a durable artifact a decision consumes: treat if the ATE is positive.
+# A decision reads the whole range, not the point: "treat if the ATE is positive" is invariant
+# when every effect the Lambda = 2 range allows gives the same action.
 effect = ScientificQuantity(
     variable_id="ate",
     variable_name="ate",

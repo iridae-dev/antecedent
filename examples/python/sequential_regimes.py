@@ -18,7 +18,9 @@ documents. Two inputs are refused with their reasons.
 
 Both values are point-only: no standard error or interval, and no check that models were
 trained without the subjects they predict. Their validity rests on sequential exchangeability
-(the score captures all confounding), positivity and the models you supply."""
+(the score captures all confounding), positivity and the models you supply.
+
+Run: ``python examples/python/sequential_regimes.py``."""
 
 from __future__ import annotations
 

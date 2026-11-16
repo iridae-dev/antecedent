@@ -21,6 +21,8 @@ What the result does not claim: the mechanisms are assumptions the analyst wrote
 The answer is conditional on them, and so is the replay, which checks that the numbers match the
 declared model and not that the model is true. The outcome law has noise but no parameter
 uncertainty, so it carries no standard error and no interval region.
+
+Run: ``python examples/python/composed_outcome_law.py``.
 """
 
 from __future__ import annotations
@@ -181,8 +183,8 @@ assert probability.feasible_actions == ("dose_2",)
 #
 # The 10th percentile of Y must be at least 8. Separately, the expected value of Y must be at least
 # 7. The mean question is answered from the mean coordinate alone and stays a point estimate; it
-# accepts doses 1 and 2, while the probability question above accepts only dose 2. Two doses with
-# a comfortable mean can still fail a floor on a tail.
+# accepts doses 1 and 2, while the probability and quantile questions accept only dose 2. A dose
+# with an acceptable mean can still fail a floor on a tail.
 
 # %%
 quantile = require_success(
@@ -224,8 +226,8 @@ else:
 # ## Seal the answer and replay it
 #
 # The sealed artifact carries the Gaussian parameters and the origin of the claim, so a consumer
-# replays the answer without sampling. A refitted mechanism is a new source with a new claim
-# digest; the sealed answer is never refreshed in place.
+# replays the answer without sampling. A changed mechanism (here a different slope of M on X) is
+# a new source with a new claim digest; the sealed answer is never refreshed in place.
 
 # %%
 query = inverse_query("outcome", iq.probability_threshold(9.0, 0.5))
