@@ -1643,6 +1643,103 @@ fn prior_conjugate_moment_match() {
 }
 
 #[test]
+fn conjugate_count_posteriors() {
+    use antecedent_prob::{
+        AlphaCriterion, AlphaSelectionOptions, BetaBinomialPosterior, BetaHyperparameters,
+        BetaSource, GammaHyperparameters, GammaPoissonPosterior, select_beta_power_prior,
+    };
+
+    let expected = load_expected_json(&fixture_dir("conjugate_count_posteriors"));
+    let tol = expected["tol"].as_f64().unwrap();
+    let pair = |value: &serde_json::Value| -> [f64; 2] {
+        let a = value.as_array().unwrap();
+        [a[0].as_f64().unwrap(), a[1].as_f64().unwrap()]
+    };
+
+    // -- beta_binomial_posterior: Beta(a + k, b + n - k) and the count's marginal likelihood. --
+    let b = &expected["beta_binomial_posterior"];
+    let [a0, b0] = pair(&b["prior"]);
+    let post = BetaBinomialPosterior::new(
+        BetaHyperparameters { alpha: a0, beta: b0 },
+        b["successes"].as_u64().unwrap(),
+        b["trials"].as_u64().unwrap(),
+    )
+    .unwrap();
+    assert!((post.posterior().alpha - b["expected_alpha"].as_f64().unwrap()).abs() < tol);
+    assert!((post.posterior().beta - b["expected_beta"].as_f64().unwrap()).abs() < tol);
+    assert!((post.mean() - b["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!(
+        (post.log_marginal_likelihood() - b["expected_log_marginal_likelihood"].as_f64().unwrap())
+            .abs()
+            < tol
+    );
+
+    // -- exceedance: successes are the outcomes strictly above the threshold. --
+    let e = &expected["exceedance"];
+    let [ea, eb] = pair(&e["prior"]);
+    let mut set = PriorSet::new();
+    set.push(PriorSpec::Beta(BetaHyperparameters { alpha: ea, beta: eb }));
+    let outcomes: Vec<f64> =
+        e["outcomes"].as_array().unwrap().iter().map(|y| y.as_f64().unwrap()).collect();
+    let exceed =
+        BetaBinomialPosterior::from_exceedance(&set, &outcomes, e["threshold"].as_f64().unwrap())
+            .unwrap();
+    assert_eq!(exceed.successes(), e["expected_successes"].as_u64().unwrap());
+    assert!((exceed.posterior().alpha - e["expected_alpha"].as_f64().unwrap()).abs() < tol);
+    assert!((exceed.posterior().beta - e["expected_beta"].as_f64().unwrap()).abs() < tol);
+    // A Gaussian regression refuses a set that carries a count prior.
+    assert!(set.reject_count_priors().is_err());
+
+    // -- gamma_poisson_posterior: Gamma(a + sum y, b + n) and the Poisson marginal likelihood. --
+    let g = &expected["gamma_poisson_posterior"];
+    let [ga, gb] = pair(&g["prior"]);
+    let counts: Vec<u64> =
+        g["counts"].as_array().unwrap().iter().map(|c| c.as_u64().unwrap()).collect();
+    let gp = GammaPoissonPosterior::from_counts(
+        GammaHyperparameters { shape: ga, rate: gb },
+        &counts,
+        None,
+    )
+    .unwrap();
+    assert!((gp.posterior().shape - g["expected_shape"].as_f64().unwrap()).abs() < tol);
+    assert!((gp.posterior().rate - g["expected_rate"].as_f64().unwrap()).abs() < tol);
+    assert!((gp.mean() - g["expected_mean"].as_f64().unwrap()).abs() < tol);
+    assert!(
+        (gp.log_marginal_likelihood() - g["expected_log_marginal_likelihood"].as_f64().unwrap())
+            .abs()
+            < tol
+    );
+
+    // -- empirical_bayes_beta: the discount maximizing the target's marginal likelihood. --
+    let eb_case = &expected["empirical_bayes_beta"];
+    let [base_a, base_b] = pair(&eb_case["base"]);
+    let [k0, n0] = pair(&eb_case["source"]);
+    let [k, n] = pair(&eb_case["target"]);
+    let grid: Vec<f64> =
+        eb_case["grid"].as_array().unwrap().iter().map(|a| a.as_f64().unwrap()).collect();
+    let target: Vec<bool> = (0..n as usize).map(|i| i < k as usize).collect();
+    let mut options = AlphaSelectionOptions::new(AlphaCriterion::EmpiricalBayes);
+    options.grid = grid;
+    let report = select_beta_power_prior(
+        BetaSource {
+            base: BetaHyperparameters { alpha: base_a, beta: base_b },
+            successes: k0 as u64,
+            trials: n0 as u64,
+        },
+        &target,
+        &options,
+    )
+    .unwrap();
+    for (row, want) in report.sensitivity.iter().zip(eb_case["expected_scores"].as_array().unwrap())
+    {
+        assert!((row.score - want.as_f64().unwrap()).abs() < tol);
+    }
+    assert!(
+        (report.selected_alpha - eb_case["expected_selected_alpha"].as_f64().unwrap()).abs() < tol
+    );
+}
+
+#[test]
 fn prior_bank_conflict_shrink() {
     use std::sync::Arc;
 

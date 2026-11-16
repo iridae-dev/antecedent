@@ -1072,3 +1072,79 @@ def test_conflict_signals_length_must_match_sources():
             conflict=antecedent.priors.ConflictPolicy(p_min=0.05, kl_scale=1.0),
             conflict_signals=[{"p_value": 0.4}, {"p_value": 1e-9}],
         )
+
+
+def test_beta_binomial_posterior_is_the_closed_form():
+    prior = antecedent.priors.BetaHyperparameters(alpha=2.0, beta=3.0)
+    post = antecedent.priors.beta_binomial_posterior(
+        7, 20, prior=prior, level=0.9, predictive_trials=4
+    )
+    assert (post.alpha, post.beta) == (9.0, 16.0)
+    assert post.mean == pytest.approx(9.0 / 25.0, rel=1e-14)
+    assert post.lower < post.mean < post.upper
+    assert post.predictive is not None
+    assert sum(post.predictive.pmf) == pytest.approx(1.0, abs=1e-12)
+    assert post.predictive.mean == pytest.approx(4 * 9.0 / 25.0, rel=1e-12)
+
+
+def test_exceedance_counts_strictly_above_the_threshold():
+    prior = antecedent.priors.BetaHyperparameters(alpha=1.0, beta=1.0)
+    post = antecedent.priors.exceedance_posterior([1.0, 2.0, 2.0, 3.0, 5.0], 2.0, prior=prior)
+    assert (post.successes, post.trials) == (2, 5)
+    assert (post.alpha, post.beta) == (3.0, 4.0)
+    with pytest.raises(ValueError, match="finite"):
+        antecedent.priors.exceedance_posterior([1.0, float("nan")], 2.0, prior=prior)
+
+
+def test_gamma_poisson_posterior_is_the_closed_form():
+    prior = antecedent.priors.GammaHyperparameters(shape=2.0, rate=1.0)
+    post = antecedent.priors.gamma_poisson_posterior(
+        [3, 0, 4, 2], prior=prior, predictive_exposure=1.0
+    )
+    assert (post.shape, post.rate) == (11.0, 5.0)
+    assert post.mean == pytest.approx(2.2, rel=1e-14)
+    assert post.predictive is not None
+    assert sum(post.predictive.pmf) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_selected_alpha_discounts_a_conflicting_source_and_reports_the_table():
+    base = antecedent.priors.BetaHyperparameters(alpha=1.0, beta=1.0)
+    outcomes = [i < 12 for i in range(60)]
+    selected = antecedent.priors.select_alpha_beta_binomial(90, 100, outcomes, base=base, seed=3)
+    assert selected.selected_alpha < 0.2
+    assert len(selected.sensitivity) == 21
+    assert selected.sensitivity[0].alpha == 0.0
+    assert selected.interval[0] <= selected.estimate <= selected.interval[1]
+    assert selected.interval == selected.uniform_interval
+    assert selected.discrepancy_bound is None
+    bounded = antecedent.priors.select_alpha_beta_binomial(
+        300, 1000, [i < 30 for i in range(100)], base=base, discrepancy_bound=0.02
+    )
+    assert bounded.discrepancy_bound == 0.02
+    assert (bounded.interval[1] - bounded.interval[0]) < (
+        bounded.uniform_interval[1] - bounded.uniform_interval[0]
+    )
+
+
+def test_selected_alpha_refuses_a_mixture_source_and_a_grid_without_zero():
+    base = antecedent.priors.BetaHyperparameters(alpha=1.0, beta=1.0)
+    with pytest.raises(ValueError, match="start at 0"):
+        antecedent.priors.select_alpha_beta_binomial(
+            3, 10, [True, False, True], base=base, grid=[0.5, 1.0]
+        )
+    source = antecedent.priors.ExternalPriorSourceSpec(
+        id="s",
+        mean=(1.0,),
+        variance=(1.0,),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=1.0, mixture_weight=0.5),
+    )
+    with pytest.raises(ValueError, match="power path"):
+        antecedent.priors.select_alpha_linear(
+            [source],
+            [0.0],
+            [4.0],
+            [[1.0]] * 6,
+            [1.0, 2.0, 1.5, 0.5, 1.0, 1.2],
+            [1.0],
+            known_residual_variance=1.0,
+        )

@@ -14435,3 +14435,58 @@ target = "dml_outcome_prior_calibration"
 tests = ["aipw_outcome_prior_misspecified_interval"]
 ignored = true
 grid = true
+[[group]]
+label = "conjugate_prior_calibration: beta_binomial_posterior_covers_under_the_stated_prior"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["beta_binomial_posterior_covers_under_the_stated_prior"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: gamma_poisson_posterior_covers_under_the_stated_prior"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["gamma_poisson_posterior_covers_under_the_stated_prior"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: beta_binomial_misspecified_prior_matches_its_exact_coverage"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["beta_binomial_misspecified_prior_matches_its_exact_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: gamma_poisson_misspecified_prior_matches_its_exact_coverage"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["gamma_poisson_misspecified_prior_matches_its_exact_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: selected_alpha_beta_binomial_covers_across_discrepancy"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["selected_alpha_beta_binomial_covers_across_discrepancy"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: selected_alpha_uniform_interval_covers_at_every_discrepancy"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["selected_alpha_uniform_interval_covers_at_every_discrepancy"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_prior_calibration: selected_alpha_bias_aware_interval_covers_within_the_declared_bound"
+package = "antecedent-estimate"
+target = "conjugate_prior_calibration"
+tests = ["selected_alpha_bias_aware_interval_covers_within_the_declared_bound"]
+ignored = true
+grid = true

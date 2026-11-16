@@ -62,6 +62,7 @@ pub fn fit_laplace_glm(
     options: &BayesFitOptions,
     workspace: &mut LaplaceWorkspace,
 ) -> Result<BayesFitResult, ProbError> {
+    prior.reject_count_priors()?;
     antecedent_core::execution_attempt::run_operation(
         antecedent_core::execution_attempt::Operation::PosteriorFit,
         || fit_laplace_glm_inner(likelihood, design, prior, options, workspace),

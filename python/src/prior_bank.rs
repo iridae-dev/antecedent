@@ -942,7 +942,322 @@ fn mapped_posterior_transfer_py<'py>(
     Ok(out)
 }
 
+fn interval_dict<'py>(
+    py: Python<'py>,
+    mean: f64,
+    variance: f64,
+    interval: (f64, f64),
+    level: f64,
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("mean", mean)?;
+    d.set_item("variance", variance)?;
+    d.set_item("lower", interval.0)?;
+    d.set_item("upper", interval.1)?;
+    d.set_item("level", level)?;
+    Ok(d)
+}
+
+fn beta_posterior_dict<'py>(
+    py: Python<'py>,
+    posterior: &antecedent::inference::BetaBinomialPosterior,
+    level: f64,
+    predictive_trials: Option<u64>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let interval = posterior.credible_interval(level).map_err(pyvalue)?;
+    let d = interval_dict(py, posterior.mean(), posterior.variance(), interval, level)?;
+    let post = posterior.posterior();
+    d.set_item("alpha", post.alpha)?;
+    d.set_item("beta", post.beta)?;
+    d.set_item("successes", posterior.successes())?;
+    d.set_item("trials", posterior.trials())?;
+    d.set_item("log_marginal_likelihood", posterior.log_marginal_likelihood())?;
+    if let Some(m) = predictive_trials {
+        let pmf = (0..=m)
+            .map(|j| posterior.predictive_pmf(m, j))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(pyvalue)?;
+        let predictive = PyDict::new(py);
+        predictive.set_item("trials", m)?;
+        predictive.set_item("mean", posterior.predictive_mean(m))?;
+        predictive.set_item("variance", posterior.predictive_variance(m))?;
+        predictive.set_item("pmf", pmf)?;
+        d.set_item("predictive", predictive)?;
+    }
+    Ok(d)
+}
+
+/// Beta-Binomial posterior of a proportion: closed-form `Beta(alpha + k, beta + n - k)`,
+/// equal-tailed credible interval, log marginal likelihood and optional posterior predictive.
+#[pyfunction(name = "beta_binomial_posterior")]
+#[pyo3(signature = (successes, trials, alpha, beta, *, level=0.95, predictive_trials=None))]
+fn beta_binomial_posterior_py<'py>(
+    py: Python<'py>,
+    successes: u64,
+    trials: u64,
+    alpha: f64,
+    beta: f64,
+    level: f64,
+    predictive_trials: Option<u64>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let prior = antecedent::inference::BetaHyperparameters { alpha, beta };
+    let posterior = antecedent::inference::BetaBinomialPosterior::new(prior, successes, trials)
+        .map_err(pyvalue)?;
+    beta_posterior_dict(py, &posterior, level, predictive_trials)
+}
+
+/// Exceedance posterior `P(Y > threshold)` within one cell under a Beta prior.
+#[pyfunction(name = "exceedance_posterior")]
+#[pyo3(signature = (outcomes, threshold, alpha, beta, *, level=0.95, predictive_trials=None))]
+fn exceedance_posterior_py<'py>(
+    py: Python<'py>,
+    outcomes: Vec<f64>,
+    threshold: f64,
+    alpha: f64,
+    beta: f64,
+    level: f64,
+    predictive_trials: Option<u64>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let mut set = PriorSet::new();
+    set.push(PriorSpec::Beta(antecedent::inference::BetaHyperparameters { alpha, beta }));
+    let posterior =
+        antecedent::inference::BetaBinomialPosterior::from_exceedance(&set, &outcomes, threshold)
+            .map_err(pyvalue)?;
+    beta_posterior_dict(py, &posterior, level, predictive_trials)
+}
+
+/// Gamma-Poisson posterior of a rate: closed-form `Gamma(shape + sum(y), rate + sum(t))`,
+/// equal-tailed credible interval, log marginal likelihood and optional posterior predictive.
+#[pyfunction(name = "gamma_poisson_posterior")]
+#[pyo3(signature = (
+    counts, shape, rate, *, exposures=None, level=0.95, predictive_exposure=None,
+    predictive_max=None,
+))]
+#[allow(
+    clippy::too_many_arguments,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "a plain argument list over the Python signature; the predictive bound is a small non-negative count"
+)]
+fn gamma_poisson_posterior_py<'py>(
+    py: Python<'py>,
+    counts: Vec<u64>,
+    shape: f64,
+    rate: f64,
+    exposures: Option<Vec<f64>>,
+    level: f64,
+    predictive_exposure: Option<f64>,
+    predictive_max: Option<u64>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let prior = antecedent::inference::GammaHyperparameters { shape, rate };
+    let posterior = antecedent::inference::GammaPoissonPosterior::from_counts(
+        prior,
+        &counts,
+        exposures.as_deref(),
+    )
+    .map_err(pyvalue)?;
+    let interval = posterior.credible_interval(level).map_err(pyvalue)?;
+    let d = interval_dict(py, posterior.mean(), posterior.variance(), interval, level)?;
+    let post = posterior.posterior();
+    d.set_item("shape", post.shape)?;
+    d.set_item("rate", post.rate)?;
+    d.set_item("total_count", posterior.total_count())?;
+    d.set_item("exposure", posterior.exposure())?;
+    d.set_item("log_marginal_likelihood", posterior.log_marginal_likelihood())?;
+    if let Some(t) = predictive_exposure {
+        let top = predictive_max.unwrap_or_else(|| {
+            let mean = posterior.predictive_mean(t);
+            let sd = posterior.predictive_variance(t).sqrt();
+            (mean + 8.0 * sd + 10.0) as u64
+        });
+        let pmf = (0..=top)
+            .map(|y| posterior.predictive_pmf(y, t))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(pyvalue)?;
+        let predictive = PyDict::new(py);
+        predictive.set_item("exposure", t)?;
+        predictive.set_item("mean", posterior.predictive_mean(t))?;
+        predictive.set_item("variance", posterior.predictive_variance(t))?;
+        predictive.set_item("pmf", pmf)?;
+        d.set_item("predictive", predictive)?;
+    }
+    Ok(d)
+}
+
+fn alpha_options(
+    criterion: &str,
+    folds: usize,
+    grid: Option<Vec<f64>>,
+    level: f64,
+    discrepancy_bound: Option<f64>,
+    seed: u64,
+) -> PyResult<antecedent::inference::AlphaSelectionOptions> {
+    let criterion = match criterion {
+        "empirical_bayes" => antecedent::inference::AlphaCriterion::EmpiricalBayes,
+        "cross_validated" => antecedent::inference::AlphaCriterion::CrossValidated { folds },
+        other => {
+            return Err(crate::value_err(format!(
+                "criterion must be `empirical_bayes` or `cross_validated`, got `{other}`"
+            )));
+        }
+    };
+    let mut options = antecedent::inference::AlphaSelectionOptions::new(criterion);
+    if let Some(grid) = grid {
+        options.grid = grid;
+    }
+    options.level = level;
+    options.discrepancy_bound = discrepancy_bound;
+    options.seed = seed;
+    Ok(options)
+}
+
+fn report_dict<'py>(
+    py: Python<'py>,
+    report: &antecedent::inference::SelectedAlphaReport,
+) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("criterion", report.criterion.name())?;
+    d.set_item("selected_alpha", report.selected_alpha)?;
+    d.set_item("estimate", report.estimate)?;
+    d.set_item("level", report.level)?;
+    d.set_item("interval", report.interval)?;
+    d.set_item("conditional_interval", report.conditional_interval)?;
+    d.set_item("uniform_interval", report.uniform_interval)?;
+    d.set_item("discrepancy_bound", report.discrepancy_bound)?;
+    let rows = PyList::empty(py);
+    for row in &report.sensitivity {
+        let r = PyDict::new(py);
+        r.set_item("alpha", row.alpha)?;
+        r.set_item("score", row.score)?;
+        r.set_item("estimate", row.estimate)?;
+        r.set_item("lower", row.lower)?;
+        r.set_item("upper", row.upper)?;
+        rows.append(r)?;
+    }
+    d.set_item("sensitivity", rows)?;
+    Ok(d)
+}
+
+/// Choose the power-prior discount of source counts for a Beta-Binomial target.
+#[pyfunction(name = "select_beta_power_prior_alpha")]
+#[pyo3(signature = (
+    source_successes, source_trials, outcomes, base_alpha, base_beta, *,
+    criterion="empirical_bayes", folds=5, grid=None, level=0.95, discrepancy_bound=None, seed=0,
+))]
+#[allow(clippy::too_many_arguments)]
+fn select_beta_power_prior_alpha_py<'py>(
+    py: Python<'py>,
+    source_successes: u64,
+    source_trials: u64,
+    outcomes: Vec<bool>,
+    base_alpha: f64,
+    base_beta: f64,
+    criterion: &str,
+    folds: usize,
+    grid: Option<Vec<f64>>,
+    level: f64,
+    discrepancy_bound: Option<f64>,
+    seed: u64,
+) -> PyResult<Bound<'py, PyDict>> {
+    let options = alpha_options(criterion, folds, grid, level, discrepancy_bound, seed)?;
+    let source = antecedent::inference::BetaSource {
+        base: antecedent::inference::BetaHyperparameters { alpha: base_alpha, beta: base_beta },
+        successes: source_successes,
+        trials: source_trials,
+    };
+    let report = antecedent::inference::select_beta_power_prior(source, &outcomes, &options)
+        .map_err(pyvalue)?;
+    report_dict(py, &report)
+}
+
+/// Choose the power-prior discount of a source rate for a Gamma-Poisson target.
+#[pyfunction(name = "select_gamma_power_prior_alpha")]
+#[pyo3(signature = (
+    source_total_count, source_exposure, counts, base_shape, base_rate, *,
+    criterion="empirical_bayes", folds=5, grid=None, level=0.95, discrepancy_bound=None, seed=0,
+))]
+#[allow(clippy::too_many_arguments)]
+fn select_gamma_power_prior_alpha_py<'py>(
+    py: Python<'py>,
+    source_total_count: u64,
+    source_exposure: f64,
+    counts: Vec<u64>,
+    base_shape: f64,
+    base_rate: f64,
+    criterion: &str,
+    folds: usize,
+    grid: Option<Vec<f64>>,
+    level: f64,
+    discrepancy_bound: Option<f64>,
+    seed: u64,
+) -> PyResult<Bound<'py, PyDict>> {
+    let options = alpha_options(criterion, folds, grid, level, discrepancy_bound, seed)?;
+    let source = antecedent::inference::GammaSource {
+        base: antecedent::inference::GammaHyperparameters { shape: base_shape, rate: base_rate },
+        total_count: source_total_count,
+        exposure: source_exposure,
+    };
+    let report = antecedent::inference::select_gamma_power_prior(source, &counts, &options)
+        .map_err(pyvalue)?;
+    report_dict(py, &report)
+}
+
+/// Choose the power-prior discount of external Gaussian sources for a linear target.
+#[pyfunction(name = "select_linear_power_prior_alpha")]
+#[pyo3(signature = (
+    sources, baseline_mean, baseline_variance, x, y, functional, *,
+    known_residual_variance=None, criterion="empirical_bayes", folds=5, grid=None,
+    level=0.95, discrepancy_bound=None, seed=0,
+))]
+#[allow(clippy::too_many_arguments)]
+fn select_linear_power_prior_alpha_py<'py>(
+    py: Python<'py>,
+    sources: &Bound<'py, PyList>,
+    baseline_mean: Vec<f64>,
+    baseline_variance: Vec<f64>,
+    x: Vec<Vec<f64>>,
+    y: Vec<f64>,
+    functional: Vec<f64>,
+    known_residual_variance: Option<f64>,
+    criterion: &str,
+    folds: usize,
+    grid: Option<Vec<f64>>,
+    level: f64,
+    discrepancy_bound: Option<f64>,
+    seed: u64,
+) -> PyResult<Bound<'py, PyDict>> {
+    let srcs = sources_from_list(sources)?;
+    let mut baseline = prior_set_from_moments(&baseline_mean, &baseline_variance)?;
+    if let Some(v) = known_residual_variance {
+        baseline.push(PriorSpec::KnownResidualVariance(v));
+    }
+    let n_rows = x.len();
+    let n_cols = x.first().map_or(0, Vec::len);
+    if x.iter().any(|row| row.len() != n_cols) {
+        return Err(crate::value_err("design rows must all have the same length"));
+    }
+    let flat: Vec<f64> = x.into_iter().flatten().collect();
+    let options = alpha_options(criterion, folds, grid, level, discrepancy_bound, seed)?;
+    let target = antecedent::inference::LinearTarget {
+        x: &flat,
+        y: &y,
+        n_rows,
+        n_cols,
+        functional: &functional,
+    };
+    let report =
+        antecedent::inference::select_linear_power_prior(&srcs, &baseline, target, &options)
+            .map_err(pyvalue)?;
+    report_dict(py, &report)
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(beta_binomial_posterior_py, m)?)?;
+    m.add_function(wrap_pyfunction!(exceedance_posterior_py, m)?)?;
+    m.add_function(wrap_pyfunction!(gamma_poisson_posterior_py, m)?)?;
+    m.add_function(wrap_pyfunction!(select_beta_power_prior_alpha_py, m)?)?;
+    m.add_function(wrap_pyfunction!(select_gamma_power_prior_alpha_py, m)?)?;
+    m.add_function(wrap_pyfunction!(select_linear_power_prior_alpha_py, m)?)?;
     m.add_function(wrap_pyfunction!(prior_catalog_filter, m)?)?;
     m.add_function(wrap_pyfunction!(prior_catalog_rank, m)?)?;
     m.add_function(wrap_pyfunction!(encode_prior_source_meta, m)?)?;

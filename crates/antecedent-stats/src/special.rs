@@ -221,7 +221,8 @@ pub fn ln_gamma(z: f64) -> f64 {
 /// combining the leading `(z − ½) ln z − z` terms algebraically (via `ln1p(small / big)`)
 /// instead of forming their numerically cancelling difference; the Stirling error series
 /// (to `z⁻⁹`, below `3e-16` for `z ≥ 15`) supplies the remaining terms.
-fn ln_beta(a: f64, b: f64) -> f64 {
+#[must_use]
+pub fn ln_beta(a: f64, b: f64) -> f64 {
     let (big, small) = if a >= b { (a, b) } else { (b, a) };
     if big >= 15.0 {
         let sum = big + small;
@@ -242,7 +243,7 @@ fn ln_beta(a: f64, b: f64) -> f64 {
 
 /// Regularized incomplete beta `I_x(a, b)`.
 #[must_use]
-pub(crate) fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
+pub fn regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64 {
     regularized_incomplete_beta_with_complement(x, 1.0 - x, a, b)
 }
 

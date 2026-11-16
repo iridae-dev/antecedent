@@ -191,6 +191,8 @@ enum PriorSpecWire {
     InvGamma { shape: u64, scale: u64 },
     KnownVariance { value: u64 },
     Correlation { dim: usize, values: Vec<u64> },
+    Beta { alpha: u64, beta: u64 },
+    Gamma { shape: u64, rate: u64 },
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -548,6 +550,12 @@ fn prior_to_wire(prior: &PriorSet) -> PriorWire {
                 PriorSpec::CoefficientCorrelation(p) => {
                     PriorSpecWire::Correlation { dim: p.dim(), values: bits(p.matrix()) }
                 }
+                PriorSpec::Beta(p) => {
+                    PriorSpecWire::Beta { alpha: p.alpha.to_bits(), beta: p.beta.to_bits() }
+                }
+                PriorSpec::Gamma(p) => {
+                    PriorSpecWire::Gamma { shape: p.shape.to_bits(), rate: p.rate.to_bits() }
+                }
             })
             .collect(),
         contrast: prior.contrast.map(|coding| {
@@ -590,6 +598,18 @@ fn prior_from_wire(wire: &PriorWire) -> Result<PriorSet, JointResponseArtifactEr
                     CoefficientCorrelation::new(*dim, floats(values))
                         .map_err(|error| invalid(error.to_string()))?,
                 ),
+                PriorSpecWire::Beta { alpha, beta } => {
+                    PriorSpec::Beta(antecedent_prob::BetaHyperparameters {
+                        alpha: f64::from_bits(*alpha),
+                        beta: f64::from_bits(*beta),
+                    })
+                }
+                PriorSpecWire::Gamma { shape, rate } => {
+                    PriorSpec::Gamma(antecedent_prob::GammaHyperparameters {
+                        shape: f64::from_bits(*shape),
+                        rate: f64::from_bits(*rate),
+                    })
+                }
             })
         })
         .collect::<Result<Vec<_>, JointResponseArtifactError>>()?;

@@ -57,6 +57,7 @@ pub fn fit_conjugate_gaussian(
     options: &BayesFitOptions,
     workspace: &mut LaplaceWorkspace,
 ) -> Result<BayesFitResult, ProbError> {
+    prior.reject_count_priors()?;
     fit_with_absolute_scale_resolved(design, prior, |prior| {
         fit_conjugate_gaussian_resolved(design, prior, options, workspace)
     })

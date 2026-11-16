@@ -23920,3 +23920,37 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_dml_outcome_prior.py"
 gates = ["inventory"]
+[[test]]
+id = "audit-crates-antecedent-prob-src-conjugate-counts-rs"
+crate = "antecedent-prob"
+cargo_target = "lib"
+path = "crates/antecedent-prob/src/conjugate_counts.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-prob-src-power-prior-alpha-rs"
+crate = "antecedent-prob"
+cargo_target = "lib"
+path = "crates/antecedent-prob/src/power_prior_alpha.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-io-core-src-identity-inference-rs"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/identity/inference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "conjugate-counts-oracle"
+crate = "antecedent-prob"
+cargo_target = "conjugate_counts_oracle"
+path = "crates/antecedent-prob/tests/conjugate_counts_oracle.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "conjugate-prior-calibration"
+crate = "antecedent-estimate"
+cargo_target = "conjugate_prior_calibration"
+path = "crates/antecedent-estimate/tests/conjugate_prior_calibration.rs"
+gates = ["inventory"]

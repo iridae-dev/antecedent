@@ -15,6 +15,7 @@
 pub(crate) mod admission;
 pub mod backend;
 pub mod conjugate;
+pub mod conjugate_counts;
 pub mod conjugate_moment_match;
 pub mod diagnostics;
 pub mod error;
@@ -31,6 +32,7 @@ pub(crate) mod linalg;
 pub mod mcmc_stats;
 pub mod metropolis;
 pub mod posterior;
+pub mod power_prior_alpha;
 pub mod prior;
 pub(crate) mod streams;
 pub mod transport;
@@ -42,6 +44,7 @@ pub use backend::{
 pub use conjugate::{
     ConjugateGaussianBackend, fit_conjugate_gaussian, sample_gamma, sample_inv_gamma,
 };
+pub use conjugate_counts::{BetaBinomialPosterior, GammaPoissonPosterior};
 pub use conjugate_moment_match::{BetaHyperparameters, GammaHyperparameters};
 pub use diagnostics::{
     ConflictSummary, HessianFactorization, InferenceDiagnostics, PriorSensitivityFamily,
@@ -62,6 +65,11 @@ pub use mcmc_stats::{
 pub use posterior::{
     EffectBatch, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind,
     PosteriorSchema, PosteriorSummary,
+};
+pub use power_prior_alpha::{
+    AlphaCriterion, AlphaSelectionOptions, AlphaSensitivityRow, BetaSource, GammaSource,
+    LinearTarget, SelectedAlphaReport, default_alpha_grid, select_beta_power_prior,
+    select_gamma_power_prior, select_linear_power_prior,
 };
 pub use prior::{
     CoefficientCorrelation, CoefficientPrecision, ContrastCoding, EffectPrior,

@@ -237,7 +237,9 @@ pub fn compose_external_priors_with_alphas(
             }
             for src in sources {
                 src.validate()?;
+                src.prior.reject_count_priors()?;
             }
+            baseline.reject_count_priors()?;
             // Precisions add only on a common scale: an absolute-scale source (hydrated
             // from a posterior without a residual variance) is resolved to V0 by the
             // target fit, which a composed prior mixing it with V0 entries cannot express.

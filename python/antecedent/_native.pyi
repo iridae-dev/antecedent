@@ -4980,6 +4980,78 @@ def gamma_from_mean_and_ess(
     mean: float,
     ess: float,
 ) -> tuple[float, float]: ...
+def beta_binomial_posterior(
+    successes: int,
+    trials: int,
+    alpha: float,
+    beta: float,
+    *,
+    level: float = 0.95,
+    predictive_trials: int | None = None,
+) -> dict[str, Any]: ...
+def exceedance_posterior(
+    outcomes: list[float],
+    threshold: float,
+    alpha: float,
+    beta: float,
+    *,
+    level: float = 0.95,
+    predictive_trials: int | None = None,
+) -> dict[str, Any]: ...
+def gamma_poisson_posterior(
+    counts: list[int],
+    shape: float,
+    rate: float,
+    *,
+    exposures: list[float] | None = None,
+    level: float = 0.95,
+    predictive_exposure: float | None = None,
+    predictive_max: int | None = None,
+) -> dict[str, Any]: ...
+def select_beta_power_prior_alpha(
+    source_successes: int,
+    source_trials: int,
+    outcomes: list[bool],
+    base_alpha: float,
+    base_beta: float,
+    *,
+    criterion: str = "empirical_bayes",
+    folds: int = 5,
+    grid: list[float] | None = None,
+    level: float = 0.95,
+    discrepancy_bound: float | None = None,
+    seed: int = 0,
+) -> dict[str, Any]: ...
+def select_gamma_power_prior_alpha(
+    source_total_count: int,
+    source_exposure: float,
+    counts: list[int],
+    base_shape: float,
+    base_rate: float,
+    *,
+    criterion: str = "empirical_bayes",
+    folds: int = 5,
+    grid: list[float] | None = None,
+    level: float = 0.95,
+    discrepancy_bound: float | None = None,
+    seed: int = 0,
+) -> dict[str, Any]: ...
+def select_linear_power_prior_alpha(
+    sources: list[dict[str, Any]],
+    baseline_mean: list[float],
+    baseline_variance: list[float],
+    x: list[list[float]],
+    y: list[float],
+    functional: list[float],
+    *,
+    known_residual_variance: float | None = None,
+    criterion: str = "empirical_bayes",
+    folds: int = 5,
+    grid: list[float] | None = None,
+    level: float = 0.95,
+    discrepancy_bound: float | None = None,
+    seed: int = 0,
+) -> dict[str, Any]: ...
 
 class ExternalClaimArtifact:
     source_evidence: SourceEvidenceHandle
