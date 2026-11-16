@@ -440,6 +440,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "effect_constancy_review",
     "evidence_ledger",
     "execution_attempt",
+    "exposure_measurement",
     "external_mechanisms",
     "fallback",
     "functional_source",
@@ -536,6 +537,7 @@ if _TYPE_CHECKING:
     from . import effect_constancy_review as effect_constancy_review
     from . import evidence_ledger as evidence_ledger
     from . import execution_attempt as execution_attempt
+    from . import exposure_measurement as exposure_measurement
     from . import external_learners as external_learners
     from . import external_mechanisms as external_mechanisms
     from . import fallback as fallback
