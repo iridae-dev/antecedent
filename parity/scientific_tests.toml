@@ -2348,3 +2348,10 @@ evidence_assertion = "a_pooled_dbn_posterior_is_the_hand_mixture_keyed_by_atom_a
 kind = "known_truth"
 fixtures = []
 why = "The bounded-lag template posterior pooled across series equals the hand mixture keyed by atom and lag mask, its lagged marginals are the means of the per-imputation ones, and posteriors over different lag windows are refused."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/composition_chain.rs"
+evidence_assertion = "the_chain_recovers_the_closed_form_population_effect_and_names_every_stage"
+kind = "known_truth"
+fixtures = []
+why = "A misclassified exposure with a validation subsample, a structure posterior with a declared prior pooled across the completed tables, outcome-nuisance estimation under a named composed prior and a kernel-weighted target population recover the closed-form kernel-weighted mean of the planted modified effect within the stated tolerance, where the naive pipeline does not."

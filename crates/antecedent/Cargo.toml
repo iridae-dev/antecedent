@@ -1616,6 +1616,10 @@ name = "weighted_target_effect"
 path = "tests/weighted_target_effect.rs"
 
 [[test]]
+name = "composition_chain"
+path = "tests/composition_chain.rs"
+
+[[test]]
 name = "weighted_target_effect_calibration"
 path = "tests/weighted_target_effect_calibration.rs"
 
