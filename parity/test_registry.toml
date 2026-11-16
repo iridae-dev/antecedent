@@ -23858,3 +23858,31 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_release_body.py"
 gates = ["inventory"]
+
+[[test]]
+id = "audit-crates-antecedent-stats-src-measurement-error-exposure-tests-rs"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/measurement_error/exposure_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "estimate-measurement-exposure-reference"
+crate = "antecedent-estimate"
+cargo_target = "measurement_exposure_reference"
+path = "crates/antecedent-estimate/tests/measurement_exposure_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "measurement-exposure-calibration"
+crate = "antecedent"
+cargo_target = "measurement_exposure_calibration"
+path = "crates/antecedent/tests/measurement_exposure_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "python-measurement-exposure"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_measurement_exposure.py"
+gates = ["inventory"]
