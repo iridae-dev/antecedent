@@ -139,9 +139,14 @@ IID analytic inference only: `bootstrap=0` is required (the bootstrap refits the
 nuisances), and a trimmed, ATT/ATC, quantile or exceedance fit, a penalized propensity,
 `cluster_dml` or a declared `se` refuses `route_not_supported`; it keeps no score table, so a
 retarget refuses `score_table_unavailable`. `DRLearner` and `CausalForest` take no prior. A
-`ComposedPrior` is refused: it carries only positional means and variances over a Bayesian
-design that includes the treatment coefficient and no coefficient names, so its coordinates
-cannot be verified against the outcome columns. The partially linear score, whole-cluster cross-fitting, caller-supplied learner
+`ComposedPrior` is accepted when its coordinates are named
+(`ExternalPriorSourceSpec(coefficient_names=...)`): a column of the outcome regression takes the
+coordinate of its name, a column with no coordinate takes the outcome regression's own baseline prior, and a
+coordinate with no column (the treatment coefficient) is dropped, all recorded as prior
+assumptions. A kernel- or row-weighted target composition and a prior at a data-selected
+power-prior discount map the same way. A `PriorMapping.named_parameters` renames coordinates; an
+unnamed prior is positional over a design of the same width; a prior none of whose names is an
+outcome column refuses `quantity_semantics_mismatch`. The partially linear score, whole-cluster cross-fitting, caller-supplied learner
 factories and the population-linear interval refuse a prior (`route_not_supported`); a
 prior-regularized fit keeps no cached nuisance bundle and is not replayable through the
 recalculation session.

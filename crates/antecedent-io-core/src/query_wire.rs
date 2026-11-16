@@ -1003,6 +1003,11 @@ pub enum AssociationFunctionalWire {
         /// Held-out folds.
         folds: u32,
     },
+    /// The probability the outcome exceeds a threshold in each stratum.
+    Exceedance {
+        /// The threshold `t` of `P(Y > t)`.
+        threshold: f64,
+    },
 }
 
 /// Declared columns and descriptive quantity of a noncausal association query.

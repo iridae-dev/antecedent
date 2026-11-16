@@ -53,7 +53,7 @@ from .ids import Estimator
 from .learners import LearnerSpec, _learner_wire
 
 if TYPE_CHECKING:
-    from .priors import PriorMapping
+    from .priors import ComposedPrior, PriorMapping
 
 SeKind = Literal[
     "homoskedastic",
@@ -124,15 +124,16 @@ def _validate_outcome_prior(prior_from: object, mapping: object) -> None:
     from .priors import ComposedPrior, PriorMapping  # noqa: PLC0415
 
     if isinstance(prior_from, ComposedPrior):
-        raise CausalValueError(
-            "DML(prior_from=...) takes a posterior artifact (result.posterior.artifact); a "
-            "ComposedPrior is a prior over a Bayesian g-computation design, not over the "
-            "outcome regression",
-            reason_code="quantity_semantics_mismatch",
-        )
+        if mapping is not None:
+            if not isinstance(mapping, PriorMapping):
+                raise CausalValueError(f"DML mapping must be a PriorMapping, got {mapping!r}")
+            # Renaming the composed coordinates is the mapping; refuse one that cannot apply.
+            prior_from.with_coefficient_mapping(mapping)
+        return
     if prior_from is not None and not isinstance(prior_from, (bytes, bytearray, memoryview)):
         raise CausalValueError(
-            f"DML prior_from must be posterior artifact bytes, got {type(prior_from).__name__}"
+            "DML prior_from must be posterior artifact bytes (result.posterior.artifact) or a "
+            f"ComposedPrior, got {type(prior_from).__name__}"
         )
     if prior_from is not None and len(prior_from) == 0:
         raise CausalValueError("DML prior_from artifact is empty")
@@ -140,6 +141,23 @@ def _validate_outcome_prior(prior_from: object, mapping: object) -> None:
         raise CausalValueError("DML mapping requires prior_from")
     if mapping is not None and not isinstance(mapping, PriorMapping):
         raise CausalValueError(f"DML mapping must be a PriorMapping, got {mapping!r}")
+
+
+def _outcome_prior_wire(prior_from: object, mapping: object) -> dict[str, Any]:
+    """The estimator-config entries of an outcome-nuisance prior (artifact or composed)."""
+    from .priors import ComposedPrior  # noqa: PLC0415
+
+    if isinstance(prior_from, ComposedPrior):
+        composed = prior_from
+        if mapping is not None:
+            composed = composed.with_coefficient_mapping(mapping)  # type: ignore[arg-type]
+        return {"composed_prior": composed.to_native_dict()}
+    out: dict[str, Any] = {}
+    if prior_from is not None:
+        out["prior_artifact"] = bytes(prior_from)  # type: ignore[call-overload]
+    if mapping is not None:
+        out["prior_mapping"] = mapping.to_dict()  # type: ignore[attr-defined]
+    return out
 
 
 def _validate_positive(name: str, value: float | None) -> None:
@@ -1006,7 +1024,7 @@ class Aipw:
     other_levels: OtherLevelsName = "refuse"
     cluster: str | None = None
     weights: str | Sequence[float] | None = None
-    prior_from: bytes | None = None
+    prior_from: bytes | ComposedPrior | None = None
     mapping: PriorMapping | None = None
 
     def __post_init__(self) -> None:
@@ -1097,10 +1115,7 @@ class Aipw:
         if self.cluster_dml is not None:
             out["cluster_dml"] = self.cluster_dml._wire()
         out.update(_wire_weights(self.weights))
-        if self.prior_from is not None:
-            out["prior_artifact"] = bytes(self.prior_from)
-        if self.mapping is not None:
-            out["prior_mapping"] = self.mapping.to_dict()
+        out.update(_outcome_prior_wire(self.prior_from, self.mapping))
         return _omit_empty(out)
 
 
@@ -1357,7 +1372,7 @@ class DML:
     other_levels: OtherLevelsName = "refuse"
     cluster_dml: ClusterDml | None = None
     weights: str | Sequence[float] | None = None
-    prior_from: bytes | None = None
+    prior_from: bytes | ComposedPrior | None = None
     mapping: PriorMapping | None = None
 
     def __post_init__(self) -> None:
@@ -1404,10 +1419,7 @@ class DML:
         if self.cluster_dml is not None:
             out["cluster_dml"] = self.cluster_dml._wire()
         out.update(_wire_weights(self.weights))
-        if self.prior_from is not None:
-            out["prior_artifact"] = bytes(self.prior_from)
-        if self.mapping is not None:
-            out["prior_mapping"] = self.mapping.to_dict()
+        out.update(_outcome_prior_wire(self.prior_from, self.mapping))
         return _omit_empty(out)
 
 

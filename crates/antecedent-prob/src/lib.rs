@@ -53,8 +53,9 @@ pub use diagnostics::{
 };
 pub use error::ProbError;
 pub use external_prior::{
-    ComposedPrior, ExternalPriorSource, ExternalPriorWeight, compose_external_priors,
-    compose_external_priors_with_alphas, kish_ess,
+    ComposedPrior, CoordinateMapping, ExternalPriorSource, ExternalPriorWeight,
+    NamedCoordinateSelection, compose_external_priors, compose_external_priors_with_alphas,
+    kish_ess, rename_coordinates, select_coordinates_by_name,
 };
 pub use graph_samples::{GraphEnvelopeSubsample, GraphIdentFlag, WeightedGraphSamples};
 pub use hmc::{HmcGlmBackend, HmcOptions, fit_hmc_glm, fit_hmc_glm_with_context};
@@ -69,8 +70,9 @@ pub use posterior::{
 };
 pub use power_prior_alpha::{
     AlphaCriterion, AlphaSelectionOptions, AlphaSensitivityRow, BetaSource, GammaSource,
-    LinearTarget, SelectedAlphaReport, default_alpha_grid, select_beta_power_prior,
-    select_gamma_power_prior, select_linear_power_prior,
+    LinearTarget, SelectedAlphaReport, compose_beta_power_priors, compose_gamma_power_priors,
+    default_alpha_grid, select_beta_power_prior, select_beta_prior, select_gamma_power_prior,
+    select_gamma_prior, select_linear_power_prior, select_linear_prior,
 };
 pub use prior::{
     CoefficientCorrelation, CoefficientPrecision, ContrastCoding, EffectPrior,

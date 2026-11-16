@@ -423,6 +423,41 @@ approximation of the sufficient statistic for the bias-aware width. Coverage of 
 intervals is measured by repeated sampling at source displacements from zero to eight
 target standard errors, and the full-trust and target-only coverage are printed beside it.
 
+## One prior currency: named coordinates, selected discounts, count routes
+
+A composed prior carries the names of its coordinates when its sources declare them
+(`ExternalPriorSourceSpec(coefficient_names=...)`; sources composed together name them alike).
+The names survive the power-prior composition, a kernel- or row-weighted target transport and a
+selected discount, and map by name (`antecedent_prob::select_coordinates_by_name`) onto the
+coefficient columns of the target: the design columns of `Bayesian(prior_from=...)`
+(`intercept`, `coef_<treatment>`, `coef_<covariate>`) and the outcome-regression columns of
+`DML(prior_from=...)` / `Aipw(prior_from=...)`. A column with no coordinate takes the analysis's own declared baseline prior for that column
+(the `prior_scale` prior of a Bayesian fit, the weakly informative prior of the outcome
+regression), a coordinate with no column is dropped, and the mapping, with which coordinates came
+from the source and which from the baseline, is a prior restriction in the identity. A conflict
+policy applies per mapped coordinate: each source and the baseline are mapped onto the design by
+name first; a source with no coordinate for a design column cannot be evaluated over the design and
+is refused with the missing columns. Only a prior none of whose names is a column is refused
+(`quantity_semantics_mismatch`). `ComposedPrior.with_coefficient_mapping(PriorMapping...)`
+renames coordinates; an unnamed prior stays positional.
+
+`select_alpha_prior_linear`, `select_alpha_prior_beta_binomial` and
+`select_alpha_prior_gamma_poisson` return a prior (a `ComposedPrior` or a `ComposedCountPrior`),
+not a report: the composition at the selected discount, with the report as `alpha_selection` and
+the criterion, selected alpha, level and interval semantics (`uniform`, or `bias_aware` under a
+declared discrepancy bound) in the prior's identity. `compose_count_priors` composes Beta or Gamma
+count sources by the power prior.
+
+A Beta or Gamma prior (declared, composed or selected) is the `prior_from` of a conditional or
+exceedance `Association` under `Bayesian`: each cell of `Association(..., functional="exceedance",
+threshold=t)` (the probability `P(Y > t)`), of a 0/1 outcome's conditional probability, or of a
+count outcome's rate gets the closed-form Beta-Binomial or Gamma-Poisson posterior, its
+equal-tailed credible interval and the posterior predictive of one further unit
+(`AssociationTerm.conjugate`). Rows are independent and unweighted; a weighted study, a series, a
+continuous conditional mean or a prior of the wrong family is refused with the next attempt, and
+any route other than an `Association` refuses a count prior (`option_not_applicable`). The result
+remains a description of the observed law with the `not_measured` calibration label.
+
 ## Supported transport policies
 
 Documented in parity `bayes.prior_bank.transport`:

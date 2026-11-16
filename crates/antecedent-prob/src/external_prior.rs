@@ -175,9 +175,231 @@ pub struct ComposedPrior {
     /// there are no sources to diagnose. An importance-weighting diagnostic,
     /// distinct from the prior-strength ESS fields above and from MCMC ESS.
     pub kish_ess: Option<f64>,
+    /// Names of the coefficient coordinates, in coordinate order, when the sources declared
+    /// them. A named composition maps by name onto a target's coefficient columns (see
+    /// [`select_coordinates_by_name`]); an unnamed one is positional over a design of the same
+    /// width. Names are never inferred.
+    pub coefficient_names: Option<Arc<[Arc<str>]>>,
 }
 
-impl ComposedPrior {}
+impl ComposedPrior {
+    /// Attach coordinate names (one per coefficient, unique and non-empty).
+    ///
+    /// # Errors
+    ///
+    /// A name count that differs from the coefficient count, an empty name or a duplicate.
+    pub fn with_coefficient_names(mut self, names: Vec<Arc<str>>) -> Result<Self, ProbError> {
+        let n = self.prior.gaussian_coefficients().map_or(0, GaussianCoefficientPrior::len);
+        if names.len() != n {
+            return Err(ProbError::Shape {
+                message: "coefficient names must be one per coefficient of the composed prior",
+            });
+        }
+        for (i, name) in names.iter().enumerate() {
+            if name.is_empty() || names[..i].iter().any(|other| other == name) {
+                return Err(ProbError::InvalidPrior {
+                    message: "coefficient names must be non-empty and unique",
+                });
+            }
+        }
+        self.coefficient_names = Some(Arc::from(names));
+        Ok(self)
+    }
+}
+
+/// A declared mapping of a composed prior's coordinate names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoordinateMapping<'a> {
+    /// Keep the names (the identical coefficient subspace).
+    Identical,
+    /// Rename the paired `(composed name, target name)` coordinates; an unpaired coordinate is
+    /// renamed to a name no target column has, so it is dropped when mapped.
+    Named(&'a [(String, String)]),
+    /// An effect-functional mapping: it has no coordinate of a coefficient prior to land on.
+    EffectFunctional,
+}
+
+/// Apply a declared [`CoordinateMapping`] to the coordinate `names` of a composed prior.
+///
+/// # Errors
+///
+/// An effect-functional mapping, a pair naming a coordinate the prior lacks, or two coordinates
+/// paired to one target column.
+pub fn rename_coordinates(
+    names: &[Arc<str>],
+    mapping: CoordinateMapping<'_>,
+) -> Result<Vec<Arc<str>>, ProbError> {
+    match mapping {
+        CoordinateMapping::Identical => Ok(names.to_vec()),
+        CoordinateMapping::EffectFunctional => Err(ProbError::InvalidPrior {
+            message: "an effect-functional mapping has no coordinate of a composed coefficient \
+                      prior to land on; declare named_parameters pairs or name the coordinates",
+        }),
+        CoordinateMapping::Named(pairs) => {
+            if pairs.iter().any(|(source, _)| !names.iter().any(|name| &**name == source.as_str()))
+            {
+                return Err(ProbError::InvalidPrior {
+                    message: "a mapping pair names a coordinate the composed prior does not have",
+                });
+            }
+            let renamed: Vec<Arc<str>> = names
+                .iter()
+                .map(|name| {
+                    pairs.iter().find(|(source, _)| source.as_str() == &**name).map_or_else(
+                        || Arc::from(format!("unmapped:{name}")),
+                        |(_, target)| Arc::from(target.as_str()),
+                    )
+                })
+                .collect();
+            if renamed.iter().enumerate().any(|(i, name)| renamed[..i].contains(name)) {
+                return Err(ProbError::InvalidPrior {
+                    message: "a mapping pairs two coordinates to one target column",
+                });
+            }
+            Ok(renamed)
+        }
+    }
+}
+
+/// A Gaussian coefficient prior re-indexed onto a target's coefficient columns by name.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NamedCoordinateSelection {
+    /// The prior over the target columns, in target order.
+    pub prior: PriorSet,
+    /// Target columns that took a coordinate of the source prior.
+    pub mapped: Vec<Arc<str>>,
+    /// Target columns the source has no coordinate for; they take the declared baseline prior
+    /// of the analysis for that column.
+    pub defaulted: Vec<Arc<str>>,
+    /// Source coordinates the target has no column for; they are dropped from the prior.
+    pub dropped: Vec<Arc<str>>,
+}
+
+/// Re-index a Gaussian coefficient prior whose coordinates are `names` onto the coefficient
+/// columns `target` by name.
+///
+/// A target column with a source coordinate of the same name takes that coordinate's mean,
+/// variance and correlation with the other taken coordinates; a column without one takes the
+/// analysis's own declared `baseline` prior for that column (never an invented default),
+/// independent of the rest. The baseline must be a Gaussian prior with one coordinate per target
+/// column. Source coordinates with no target
+/// column are dropped (marginalizing a Gaussian prior is exact). When the names equal the target
+/// columns in order the prior is returned unchanged, so a positional use is bit-identical.
+/// Whether enough coordinates mapped is the caller's decision (`mapped` is empty when none
+/// did).
+///
+/// # Errors
+///
+/// A prior without a Gaussian coefficient block, a name count that differs from its width, a
+/// prior with absolute-scale coefficient variances, or an invalid re-indexed correlation.
+pub fn select_coordinates_by_name(
+    prior: &PriorSet,
+    names: &[Arc<str>],
+    target: &[Arc<str>],
+    baseline: &PriorSet,
+) -> Result<NamedCoordinateSelection, ProbError> {
+    let coef = prior.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
+        message: "the prior has no Gaussian coefficient block to map by name",
+    })?;
+    if names.len() != coef.len() {
+        return Err(ProbError::Shape {
+            message: "coefficient names must be one per coefficient of the prior",
+        });
+    }
+    if prior.absolute_coefficient_scale().is_some() {
+        return Err(ProbError::InvalidPrior {
+            message: "a prior with absolute-scale coefficient variances cannot be re-indexed by \
+                      name; supply it on the target columns directly",
+        });
+    }
+    let picks: Vec<Option<usize>> =
+        target.iter().map(|column| names.iter().position(|name| name == column)).collect();
+    let dropped: Vec<Arc<str>> =
+        names.iter().filter(|name| !target.iter().any(|column| column == *name)).cloned().collect();
+    let mapped: Vec<Arc<str>> = target
+        .iter()
+        .zip(&picks)
+        .filter(|(_, pick)| pick.is_some())
+        .map(|(column, _)| Arc::clone(column))
+        .collect();
+    let defaulted: Vec<Arc<str>> = target
+        .iter()
+        .zip(&picks)
+        .filter(|(_, pick)| pick.is_none())
+        .map(|(column, _)| Arc::clone(column))
+        .collect();
+    if names == target {
+        return Ok(NamedCoordinateSelection { prior: prior.clone(), mapped, defaulted, dropped });
+    }
+    let fill = baseline.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
+        message: "the target's declared baseline prior has no Gaussian coefficient block",
+    })?;
+    if fill.len() != target.len() {
+        return Err(ProbError::Shape {
+            message: "the target's declared baseline prior must have one coordinate per target column",
+        });
+    }
+    let n = target.len();
+    let (source_mean, source_v0) = dense_scale(prior)?;
+    let m = coef.len();
+    let mut mean = vec![0.0; n];
+    let mut v0 = vec![0.0; n * n];
+    for (i, pick) in picks.iter().enumerate() {
+        match pick {
+            Some(a) => {
+                mean[i] = source_mean[*a];
+                for (j, other) in picks.iter().enumerate() {
+                    if let Some(b) = other {
+                        v0[i * n + j] = source_v0[a * m + b];
+                    }
+                }
+            }
+            None => {
+                mean[i] = fill.mean[i];
+                v0[i * n + i] = fill.variance[i];
+            }
+        }
+    }
+    let variance: Vec<f64> = (0..n).map(|i| v0[i * n + i]).collect();
+    let correlation = if prior.coefficient_correlation().is_some() {
+        crate::CoefficientCorrelation::from_covariance(&v0, n)?
+    } else {
+        None
+    };
+    let mut out = PriorSet {
+        specs: Vec::new(),
+        contrast: prior.contrast,
+        categorical: prior.categorical.clone(),
+        restrictions: prior.restrictions.clone(),
+    };
+    out.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+        mean: Arc::from(mean),
+        variance: Arc::from(variance),
+    }));
+    if let Some(corr) = correlation {
+        out.push(PriorSpec::CoefficientCorrelation(corr));
+    }
+    if let Some(ig) = prior.residual_inv_gamma() {
+        out.push(PriorSpec::ResidualInvGamma(ig));
+    } else if let Some(v) = prior.known_residual_variance() {
+        out.push(PriorSpec::KnownResidualVariance(v));
+    }
+    let listing =
+        |items: &[Arc<str>]| items.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(",");
+    out.restrictions.push(PriorAssumption {
+        id: Arc::from("external_prior_name_mapping"),
+        description: Arc::from(format!(
+            "the composed prior's named coordinates were mapped onto the target columns by name: \
+             from the source [{}]; from the analysis's declared baseline prior (the source has no \
+             coordinate for them) [{}]; source coordinates with no target column were dropped [{}]",
+            listing(&mapped),
+            listing(&defaulted),
+            listing(&dropped)
+        )),
+    });
+    out.validate()?;
+    Ok(NamedCoordinateSelection { prior: out, mapped, defaulted, dropped })
+}
 
 /// Compose external Gaussian coefficient priors with a baseline.
 ///
@@ -336,6 +558,7 @@ pub fn compose_external_priors_with_alphas(
                 effective_ess: Arc::from(effective_ess),
                 composed_ess,
                 kish_ess: kish_ess_diag,
+                coefficient_names: None,
             })
         },
     )
@@ -1136,5 +1359,46 @@ mod tests {
         assert!((coef.variance[1] - var1).abs() < 1e-12);
         let corr = composed.prior.coefficient_correlation().unwrap();
         assert!((corr.matrix()[1] - cov01 / (var0 * var1).sqrt()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn coordinates_map_by_name_with_the_baseline_on_missing_columns_and_drop_the_rest() {
+        let names: Vec<Arc<str>> = ["b", "extra", "a"].iter().map(|n| Arc::from(*n)).collect();
+        let target: Vec<Arc<str>> = ["a", "b", "c"].iter().map(|n| Arc::from(*n)).collect();
+        let mut prior = PriorSet::new();
+        prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+            mean: Arc::from(vec![2.0, 9.0, 1.0]),
+            variance: Arc::from(vec![0.5, 4.0, 0.25]),
+        }));
+        let mut declared = PriorSet::new();
+        declared.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+            mean: Arc::from(vec![0.0, 0.0, 3.0]),
+            variance: Arc::from(vec![9.0, 9.0, 16.0]),
+        }));
+        let selection = select_coordinates_by_name(&prior, &names, &target, &declared).unwrap();
+        let coef = selection.prior.gaussian_coefficients().unwrap();
+        // The unmatched column takes the declared baseline's own coordinate.
+        assert_eq!(coef.mean.as_ref(), &[1.0, 2.0, 3.0]);
+        assert_eq!(coef.variance.as_ref(), &[0.25, 0.5, 16.0]);
+        assert_eq!(selection.mapped.len(), 2);
+        assert_eq!(&*selection.defaulted[0], "c");
+        assert_eq!(&*selection.dropped[0], "extra");
+        // Names equal to the target in order return the prior unchanged.
+        let same = select_coordinates_by_name(&prior, &names, &names, &declared).unwrap();
+        assert_eq!(same.prior, prior);
+    }
+
+    #[test]
+    fn a_declared_mapping_renames_coordinates_and_refuses_what_cannot_land() {
+        let names: Vec<Arc<str>> = ["a", "b"].iter().map(|n| Arc::from(*n)).collect();
+        let pairs = vec![("a".to_owned(), "x".to_owned())];
+        let renamed = rename_coordinates(&names, CoordinateMapping::Named(&pairs)).unwrap();
+        assert_eq!((&*renamed[0], &*renamed[1]), ("x", "unmapped:b"));
+        assert_eq!(rename_coordinates(&names, CoordinateMapping::Identical).unwrap(), names);
+        assert!(rename_coordinates(&names, CoordinateMapping::EffectFunctional).is_err());
+        let unknown = vec![("nope".to_owned(), "x".to_owned())];
+        assert!(rename_coordinates(&names, CoordinateMapping::Named(&unknown)).is_err());
+        let clash = vec![("a".to_owned(), "x".to_owned()), ("b".to_owned(), "x".to_owned())];
+        assert!(rename_coordinates(&names, CoordinateMapping::Named(&clash)).is_err());
     }
 }

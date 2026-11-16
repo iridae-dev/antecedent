@@ -7966,5 +7966,35 @@ routes = [
   { route = "antecedent.estimators.Aipw.prior_from", stage = "evaluate", status = "supported", claim = "interval" },
   { route = "antecedent_estimate.DmlAte.outcome_prior_partially_linear", stage = "evaluate", status = "closed", reason_code = "route_not_supported", claim = "interval" },
   { route = "antecedent_estimate.AipwAte.outcome_prior_bootstrap", stage = "evaluate", status = "closed", reason_code = "route_not_supported", claim = "interval" },
-  { route = "antecedent.estimators.DML.composed_prior", stage = "evaluate", status = "closed", reason_code = "quantity_semantics_mismatch", claim = "interval" },
+  { route = "antecedent.estimators.DML.prior_from_composed", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.estimators.Aipw.prior_from_composed", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.estimators.DML.composed_prior_unmappable", stage = "evaluate", status = "closed", reason_code = "quantity_semantics_mismatch", claim = "interval" },
+]
+
+[[record]]
+id = "prior.composed_named_coordinates"
+status = "supported"
+refusals = [
+  { code = "quantity_semantics_mismatch", detail = "mapped_posterior_transfer.coefficient_map" },
+]
+routes = [
+  { route = "antecedent_prob.select_coordinates_by_name", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.inference.Bayesian.prior_from_named_composed", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.priors.select_alpha_prior_linear", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.inference.Bayesian.composed_prior_unmappable", stage = "evaluate", status = "closed", reason_code = "quantity_semantics_mismatch", claim = "interval" },
+]
+
+[[record]]
+id = "association.conjugate_count_posterior"
+status = "supported"
+refusals = [
+  { code = "quantity_semantics_mismatch", detail = "mapped_posterior_transfer.coefficient_map" },
+]
+routes = [
+  { route = "antecedent_estimate.AssociationEstimator.count_prior", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.descriptive.Association.exceedance", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.inference.Bayesian.prior_from_count", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.priors.select_alpha_prior_beta_binomial", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.priors.select_alpha_prior_gamma_poisson", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.inference.Bayesian.count_prior_wrong_route", stage = "evaluate", status = "closed", reason_code = "option_not_applicable", claim = "interval" },
 ]

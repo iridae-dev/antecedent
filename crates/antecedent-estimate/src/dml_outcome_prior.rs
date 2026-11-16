@@ -48,6 +48,25 @@ pub struct OutcomePriorSource {
     pub mapping: HydrateMapping,
     /// Content identity of the source artifact (a digest of its bytes).
     pub identity: Arc<str>,
+    /// A composed external prior (sources, transport and alpha already applied) in place of a
+    /// posterior artifact; see [`NamedOutcomePrior`]. When set, `quantities`, `mean`, `sd`,
+    /// `coefficient_covariance` and `mapping` are unused.
+    pub composed: Option<NamedOutcomePrior>,
+}
+
+/// A Gaussian coefficient prior on the conjugate scale `V0` whose coordinates may be named.
+///
+/// Named coordinates map by name onto the outcome-regression columns: a column with a
+/// coordinate of its name takes that coordinate, a column without one takes the outcome
+/// regression's own baseline prior (the one an unnamed prior resolves against), and a coordinate with no column (the treatment coefficient of a
+/// Bayesian g-computation design, which the per-arm regression does not carry) is dropped. An
+/// unnamed prior is positional over a design of the same width.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NamedOutcomePrior {
+    /// Coordinate names in coordinate order; `None` is positional.
+    pub names: Option<Arc<[Arc<str>]>>,
+    /// The Gaussian coefficient prior (with its provenance restrictions).
+    pub prior: PriorSet,
 }
 
 impl OutcomePriorSource {
@@ -82,12 +101,72 @@ impl OutcomePriorSource {
             coefficient_covariance,
             mapping,
             identity: identity.into(),
+            composed: None,
+        })
+    }
+
+    /// A source from a composed prior whose coordinates are named (or positional).
+    ///
+    /// # Errors
+    ///
+    /// A prior without a Gaussian coefficient block, one with absolute-scale coefficient
+    /// variances (it does not carry the conjugate scale the outcome regression resolves), or a
+    /// name count that differs from the coefficient count.
+    pub fn from_composed(
+        names: Option<Arc<[Arc<str>]>>,
+        prior: PriorSet,
+        identity: impl Into<Arc<str>>,
+    ) -> Result<Self, EstimationError> {
+        let width =
+            prior.gaussian_coefficients().map(antecedent_prob::GaussianCoefficientPrior::len);
+        let refuse = |detail: &str| {
+            crate::util::refuse(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
+                detail,
+            )
+        };
+        let Some(width) = width else {
+            return Err(refuse(
+                "the composed outcome-nuisance prior carries no Gaussian coefficient block",
+            ));
+        };
+        if prior.absolute_coefficient_scale().is_some() {
+            return Err(refuse(
+                "the composed outcome-nuisance prior has absolute-scale coefficient variances; \
+                 compose priors on the conjugate scale",
+            ));
+        }
+        if names.as_ref().is_some_and(|n| n.len() != width) {
+            return Err(refuse(
+                "the composed outcome-nuisance prior's coordinate names are not one per \
+                 coefficient",
+            ));
+        }
+        Ok(Self {
+            quantities: Vec::new(),
+            mean: Vec::new(),
+            sd: Vec::new(),
+            coefficient_covariance: None,
+            mapping: HydrateMapping::IdenticalCoefficientSubspace,
+            identity: identity.into(),
+            composed: Some(NamedOutcomePrior { names, prior }),
         })
     }
 
     /// Stable identity of the prior: the source digest and the declared mapping.
     #[must_use]
     pub fn identity_key(&self) -> String {
+        if let Some(composed) = &self.composed {
+            let names = composed.names.as_ref().map_or_else(
+                || "positional".to_owned(),
+                |names| names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(","),
+            );
+            return format!(
+                "{OUTCOME_PRIOR_LEARNER};prior={};mapping=composed:{names}",
+                self.identity
+            );
+        }
         let mapping = match &self.mapping {
             HydrateMapping::IdenticalCoefficientSubspace => "identical".to_owned(),
             HydrateMapping::EffectFunctional { source_quantity } => {
@@ -128,6 +207,9 @@ impl OutcomePriorSource {
     /// names, or a named pair naming a coefficient the source or the design does not have. The
     /// refusal names the declaration that would map them.
     pub(crate) fn hydrate(&self, design_names: &[Arc<str>]) -> Result<PriorSet, EstimationError> {
+        if let Some(composed) = &self.composed {
+            return composed.hydrate(design_names);
+        }
         let design_list = design_names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
         let source_names = self.source_coefficient_names();
         let source_list = source_names
@@ -230,6 +312,60 @@ impl OutcomePriorSource {
             status: AssumptionStatus::Untestable,
         }));
         records
+    }
+}
+
+impl NamedOutcomePrior {
+    /// The prior over `design_names`, the design columns of the outcome regression.
+    ///
+    /// # Errors
+    ///
+    /// A named prior none of whose coordinates names a design column, or a positional prior
+    /// whose width differs from the design's.
+    fn hydrate(&self, design_names: &[Arc<str>]) -> Result<PriorSet, EstimationError> {
+        let design_list = design_names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
+        let unmapped = |detail: String| {
+            crate::util::refuse(
+                antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP,
+                &format!(
+                    "the composed outcome-nuisance prior does not map onto the outcome \
+                     regression: {detail}; name the composed sources' coefficients as the \
+                     outcome-regression columns [{design_list}] \
+                     (ExternalPriorSourceSpec.coefficient_names)"
+                ),
+            )
+        };
+        let Some(names) = &self.names else {
+            let width = self
+                .prior
+                .gaussian_coefficients()
+                .map_or(0, antecedent_prob::GaussianCoefficientPrior::len);
+            if width != design_names.len() {
+                return Err(unmapped(format!(
+                    "the unnamed prior has {width} coordinates and the design {}",
+                    design_names.len()
+                )));
+            }
+            return Ok(self.prior.clone());
+        };
+        // Columns the prior has no coordinate for take the outcome regression's own baseline,
+        // the one an unnamed prior resolves against.
+        let baseline = PriorSet::weakly_informative(design_names.len());
+        let selection = antecedent_prob::select_coordinates_by_name(
+            &self.prior,
+            names,
+            design_names,
+            &baseline,
+        )
+        .map_err(|error| unmapped(error.to_string()))?;
+        if selection.mapped.is_empty() {
+            let source_list = names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
+            return Err(unmapped(format!(
+                "none of the prior's coordinates [{source_list}] names an outcome-regression column"
+            )));
+        }
+        Ok(selection.prior)
     }
 }
 

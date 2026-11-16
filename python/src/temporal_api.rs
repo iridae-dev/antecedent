@@ -460,6 +460,7 @@ pub(crate) fn apply_temporal_inference_transfer(
     prior_artifact: Option<&[u8]>,
     prior_mapping: Option<antecedent::io::PriorMapping>,
     composed_prior: Option<crate::prior_bank::OwnedComposedPrior>,
+    count_prior: Option<antecedent::inference::PriorSet>,
     likelihood: antecedent::inference::BayesLikelihood,
 ) -> PyResult<antecedent::StudyBuilder> {
     let Some(mode) = inference else {
@@ -490,6 +491,8 @@ pub(crate) fn apply_temporal_inference_transfer(
         cfg = crate::prior_bank::apply_owned_composed_prior(cfg, comp)?;
     } else if let Some(bytes) = prior_artifact {
         cfg = cfg.prior_from_artifact(bytes.to_vec(), prior_mapping);
+    } else if let Some(prior) = count_prior {
+        cfg = cfg.prior(prior);
     }
     let builder = builder.inference(InferenceMode::Bayesian(cfg));
     if let Some(n) = n_draws {

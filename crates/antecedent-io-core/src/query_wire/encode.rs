@@ -585,6 +585,9 @@ pub fn association_query_to_wire(q: &antecedent_core::AssociationQuery) -> Assoc
             AssociationFunctional::Predictive { folds } => {
                 AssociationFunctionalWire::Predictive { folds }
             }
+            AssociationFunctional::Exceedance { threshold } => {
+                AssociationFunctionalWire::Exceedance { threshold: threshold.to_f64() }
+            }
         },
         outcome_scale: (q.outcome_scale != AssociationOutcome::Schema)
             .then(|| q.outcome_scale.as_str().to_owned()),

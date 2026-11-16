@@ -40,6 +40,17 @@ pub(crate) const ASSOCIATION_IDENTIFIER: &str = "association.descriptive";
 /// Stable code of the disclosure every association result carries.
 const DESCRIPTIVE_DISCLOSURE: &str = "estimate.association.descriptive";
 
+/// The Beta or Gamma prior of a Bayesian association: an explicit prior set that carries a
+/// count-model prior, which makes the stratified reading the closed-form conjugate posterior.
+pub(crate) fn count_prior_of(
+    config: &crate::inference::BayesianConfig,
+) -> Option<&antecedent_prob::PriorSet> {
+    config
+        .prior
+        .as_ref()
+        .filter(|prior| prior.beta_prior().is_some() || prior.gamma_prior().is_some())
+}
+
 impl Study {
     /// The estimator the study's inference mode and sampling design declare.
     pub(crate) fn association_estimator(&self, modality: Modality) -> AssociationEstimator {
@@ -50,10 +61,16 @@ impl Study {
             InferenceMode::Frequentist => {
                 estimator.with_bootstrap_replicates(self.settings.bootstrap_replicates)
             }
-            InferenceMode::Bayesian(config) => estimator.with_bayesian(BayesianSettings {
-                draws: config.n_draws,
-                prior_scale: config.prior_scale,
-            }),
+            InferenceMode::Bayesian(config) => {
+                let estimator = estimator.with_bayesian(BayesianSettings {
+                    draws: config.n_draws,
+                    prior_scale: config.prior_scale,
+                });
+                match count_prior_of(config) {
+                    Some(prior) => estimator.with_count_prior(prior.clone()),
+                    None => estimator,
+                }
+            }
         }
     }
 
@@ -99,7 +116,21 @@ impl Study {
             ));
         }
         if let InferenceMode::Bayesian(config) = &self.settings.inference {
-            require_built_in_model(config, "the Bayesian association")?;
+            if count_prior_of(config).is_some() {
+                if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
+                    || config.has_transferred_source()
+                {
+                    return Err(crate::compile_reason!(
+                        "option_not_applicable",
+                        "a Bayesian association with a Beta or Gamma prior is the closed-form \
+                         conjugate count posterior, so a backend choice, a transferred posterior \
+                         or an external composition does not apply. Next attempt: Bayesian \
+                         inference with the conjugate backend and the count prior only"
+                    ));
+                }
+            } else {
+                require_built_in_model(config, "the Bayesian association")?;
+            }
             if self.settings.bootstrap_replicates != 0 {
                 return Err(crate::compile_reason!(
                     "option_not_applicable",

@@ -823,7 +823,18 @@ class AssociationTermSection:
     posterior_sd: float | None
     posterior_lower: float | None
     posterior_upper: float | None
+    conjugate: AssociationConjugateSection | None
     rows: int
+
+class AssociationConjugateSection:
+    family: str
+    prior: tuple[float, float]
+    posterior: tuple[float, float]
+    count: int
+    exposure: float
+    log_marginal_likelihood: float
+    predictive_mean: float
+    predictive_variance: float
 
 class AssociationResamplingSection:
     method: str
@@ -2317,6 +2328,7 @@ class PreparedAnalysis:
         functional: str,
         *,
         folds: int | None = None,
+        threshold: float | None = None,
         outcome_scale: str | None = None,
         weight: str | None = None,
         refused_after: str | None = None,
@@ -12535,3 +12547,9 @@ def compile_robust_for_study(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[CompiledRobustDecision | None, str | None]: ...
+def compose_count_power_priors(
+    family: str, base: tuple[float, float], sources: Sequence[tuple[float, float, float]]
+) -> tuple[float, float]: ...
+def rename_composed_coordinates(
+    names: Sequence[str], kind: str, pairs: Sequence[Sequence[str]] | None = None
+) -> list[str]: ...

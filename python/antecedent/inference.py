@@ -22,7 +22,13 @@ from ._native import (
 if TYPE_CHECKING:
     from .design_models import DesignModel
     from .predictive_assessment import ReplicateBounds
-    from .priors import ComposedPrior, PriorMapping
+    from .priors import (
+        BetaHyperparameters,
+        ComposedCountPrior,
+        ComposedPrior,
+        GammaHyperparameters,
+        PriorMapping,
+    )
 
 
 def _validate_profile(profile: str | None) -> None:
@@ -98,7 +104,15 @@ class Bayesian:
       ``result.export(quantity="posterior")`` (or its bytes), or a
       :class:`~antecedent.priors.ComposedPrior` from
       :func:`~antecedent.priors.compose_external_priors`. The artifact is hydrated only once the
-      target design is prepared. Default ``None``.
+      target design is prepared. A composed prior with named coordinates
+      (``ExternalPriorSourceSpec.coefficient_names``) maps by name onto the design's coefficient
+      columns, including a kernel- or row-weighted target composition and a prior composed at a
+      power-prior discount selected from the data
+      (:func:`~antecedent.priors.select_alpha_prior_linear`). A
+      :class:`~antecedent.priors.BetaHyperparameters` / :class:`~antecedent.priors.GammaHyperparameters`
+      prior (or a :class:`~antecedent.priors.ComposedCountPrior`) is the prior of a conditional
+      or exceedance :class:`~antecedent.Association` under ``Bayesian``: each cell's posterior is
+      the closed-form Beta-Binomial or Gamma-Poisson one. Default ``None``.
     * ``mapping`` -- a :class:`~antecedent.priors.PriorMapping` saying how the artifact maps into
       the target prior. ``None`` auto-selects: the identical coefficient subspace when designs
       match (sequential Bayes), or ``PriorMapping.effect_functional(...)`` when designs differ
@@ -178,7 +192,14 @@ class Bayesian:
 
     n_draws: int | None = None
     prior_scale: float = 10.0
-    prior_from: bytes | ComposedPrior | None = None
+    prior_from: (
+        bytes
+        | ComposedPrior
+        | BetaHyperparameters
+        | GammaHyperparameters
+        | ComposedCountPrior
+        | None
+    ) = None
     mapping: PriorMapping | None = None
     backend: Literal["laplace", "conjugate", "hmc"] = "laplace"
     kind: Literal["bayesian"] = "bayesian"

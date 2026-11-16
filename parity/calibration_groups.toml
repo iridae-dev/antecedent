@@ -14608,3 +14608,42 @@ target = "lib"
 tests = ["graph_posterior_calibration::pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors"]
 ignored = true
 grid = false
+[[group]]
+label = "count_conjugate_calibration: exceedance_route_covers_under_the_stated_prior"
+package = "antecedent"
+target = "count_conjugate_calibration"
+tests = ["exceedance_route_covers_under_the_stated_prior"]
+ignored = true
+grid = true
+
+[[group]]
+label = "count_conjugate_calibration: count_rate_route_covers_under_the_stated_prior"
+package = "antecedent"
+target = "count_conjugate_calibration"
+tests = ["count_rate_route_covers_under_the_stated_prior"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dml_outcome_prior_calibration: dml_composed_prior_informative_interval"
+package = "antecedent"
+target = "dml_outcome_prior_calibration"
+tests = ["dml_composed_prior_informative_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dml_outcome_prior_calibration: dml_composed_prior_misspecified_interval"
+package = "antecedent"
+target = "dml_outcome_prior_calibration"
+tests = ["dml_composed_prior_misspecified_interval"]
+ignored = true
+grid = true
+
+[[group]]
+label = "dml_outcome_prior_calibration: aipw_composed_prior_informative_interval"
+package = "antecedent"
+target = "dml_outcome_prior_calibration"
+tests = ["aipw_composed_prior_informative_interval"]
+ignored = true
+grid = true

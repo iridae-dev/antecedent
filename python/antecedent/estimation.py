@@ -316,13 +316,29 @@ def _bayesian_inference_kwargs(inference: Bayesian) -> dict[str, Any]:
     prior_from = inference.prior_from
     if prior_from is not None:
         # Local import avoids circular import with priors ↔ estimation.
-        from .priors import ComposedPrior
+        from .priors import (
+            BetaHyperparameters,
+            ComposedCountPrior,
+            ComposedPrior,
+            GammaHyperparameters,
+            count_prior_wire,
+        )
 
         if isinstance(prior_from, ComposedPrior):
             kw["composed_prior"] = prior_from.to_native_dict()
+        elif isinstance(
+            prior_from, (BetaHyperparameters, GammaHyperparameters, ComposedCountPrior)
+        ):
+            if inference.mapping is not None:
+                raise CausalValueError(
+                    "a Beta or Gamma prior is the prior of a cell's proportion or rate; it has no "
+                    "coordinates for a PriorMapping to map",
+                    reason_code="option_not_applicable",
+                )
+            kw["count_prior"] = count_prior_wire(prior_from)
         else:
             kw["prior_artifact"] = bytes(prior_from)
-    if inference.mapping is not None:
+    if inference.mapping is not None and "count_prior" not in kw:
         kw["prior_mapping"] = inference.mapping.to_dict()
     return kw
 
@@ -993,6 +1009,9 @@ def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
         wire["predictive_replicates"] = kw["predictive_replicates"]
     if "design_model" in kw:
         wire["design_model"] = kw["design_model"]
+    if "count_prior" in kw:
+        # Sent only when declared: a Beta or Gamma prior is read by the conjugate count routes.
+        wire["count_prior"] = kw["count_prior"]
     return wire
 
 

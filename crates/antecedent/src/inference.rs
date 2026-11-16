@@ -567,6 +567,16 @@ fn resolve_unscaled_prior(
                 message: "conflict re-shrink requires the original composition baseline; recompose the prior",
             });
         }
+        let target = coef_names_for_problem(prep);
+        // A named prior whose coordinates are not the design columns in order is re-indexed by
+        // name; the columns it has no coordinate for take the analysis's declared baseline, the
+        // isotropic `prior_scale` prior an unnamed fit resolves against.
+        let reindex = ext
+            .composed
+            .coefficient_names
+            .as_ref()
+            .filter(|names| ***names != *target)
+            .map(Arc::clone);
         if let (Some(policy), Some(ctx)) = (&ext.conflict_policy, ctx) {
             let baseline = ext.baseline.as_ref().ok_or(CausalError::Unsupported {
                 message: "conflict re-shrink requires the original composition baseline; recompose the prior",
@@ -576,10 +586,22 @@ fn resolve_unscaled_prior(
                 seed: ctx.rng.master_seed(),
                 ..PriorPredictiveCheck::new()
             };
-            let (composed, summary) =
+            let (composed, summary) = if let Some(names) = &reindex {
+                // The shrink is per source and every source is evaluated over the whole design,
+                // so each source and the baseline are first mapped onto the design by name.
+                let fill = declared_design_baseline(cfg, target.len());
+                let (sources, baseline) = project_external_sources(ext, names, &target, &fill)?;
+                compose_with_conflict_policy(&sources, &baseline, policy, prep, ctx, &ppc)
+                    .map_err(CausalError::from)?
+            } else {
                 compose_with_conflict_policy(&ext.sources, baseline, policy, prep, ctx, &ppc)
-                    .map_err(CausalError::from)?;
+                    .map_err(CausalError::from)?
+            };
             return Ok((Some(composed.prior), Some(summary)));
+        }
+        if let Some(names) = &reindex {
+            let fill = declared_design_baseline(cfg, target.len());
+            return Ok((Some(map_named_composed(&ext.composed, names, &target, &fill)?), None));
         }
         return Ok((Some(ext.composed.prior.clone()), None));
     }
@@ -615,6 +637,119 @@ fn resolve_unscaled_prior(
         )?),
         None,
     ))
+}
+
+/// Map a named composed prior onto the design columns of a problem by coordinate name.
+///
+/// Source coordinates the design lacks are dropped (a marginal of a Gaussian prior), design
+/// columns the source lacks take the matching coordinate of `baseline` (the analysis's declared
+/// baseline prior over the design columns), and the mapping, with which coordinates came from the
+/// source and which from the baseline, is recorded as a prior restriction. Only a composed prior none of whose coordinates names a design
+/// column is refused.
+///
+/// # Errors
+///
+/// No coordinate of the composed prior names a design column, or the re-indexed prior is
+/// invalid.
+pub fn map_named_composed(
+    composed: &ComposedPrior,
+    names: &[Arc<str>],
+    target: &[Arc<str>],
+    baseline: &PriorSet,
+) -> Result<PriorSet, CausalError> {
+    let selection =
+        antecedent_prob::select_coordinates_by_name(&composed.prior, names, target, baseline)
+            .map_err(CausalError::from)?;
+    if selection.mapped.is_empty() {
+        let list =
+            |items: &[Arc<str>]| items.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(", ");
+        return Err(CausalError::Compile {
+            message: format!(
+                "the composed prior's coordinates [{}] map by name onto none of the design \
+                 columns [{}]; name the sources' coefficients as the design columns they inform \
+                 (ExternalPriorSourceSpec.coefficient_names)",
+                list(names),
+                list(target)
+            ),
+        });
+    }
+    Ok(selection.prior)
+}
+
+/// The declared baseline prior over `ncols` design columns: the isotropic `prior_scale` prior the
+/// fit resolves against when no prior is supplied.
+#[must_use]
+pub fn declared_design_baseline(cfg: &BayesianConfig, ncols: usize) -> PriorSet {
+    let mut baseline = PriorSet::new();
+    baseline.push(antecedent_prob::PriorSpec::GaussianCoefficients(
+        antecedent_prob::GaussianCoefficientPrior::isotropic(ncols, cfg.prior_scale),
+    ));
+    baseline
+}
+
+/// Map every source of an external composition, and its composition baseline, onto the design
+/// columns `target` by coordinate name, so the conflict re-shrink (a per-source, per-coordinate
+/// computation over the whole design) applies to the mapped coordinates.
+///
+/// Source coordinates the design lacks are dropped. A source with no coordinate for some design
+/// column cannot be evaluated over the whole design by the prior-predictive check, and is
+/// refused with the columns it lacks; the baseline takes `fill` on columns it lacks.
+///
+/// # Errors
+///
+/// A source missing a design column, or a mapping failure.
+pub fn project_external_sources(
+    ext: &ExternalComposeSpec,
+    names: &[Arc<str>],
+    target: &[Arc<str>],
+    fill: &PriorSet,
+) -> Result<(Vec<ExternalPriorSource>, PriorSet), CausalError> {
+    let missing: Vec<&str> = target
+        .iter()
+        .filter(|column| !names.iter().any(|name| name == *column))
+        .map(AsRef::as_ref)
+        .collect();
+    if !missing.is_empty() {
+        return Err(CausalError::Compile {
+            message: format!(
+                "conflict re-shrink evaluates each source over the whole design, but the named \
+                 sources have no coordinate for the design columns [{}]; name those coordinates \
+                 on every source, or compose without a conflict policy",
+                missing.join(", ")
+            ),
+        });
+    }
+    let sources = ext
+        .sources
+        .iter()
+        .map(|source| {
+            antecedent_prob::select_coordinates_by_name(&source.prior, names, target, fill)
+                .map(|selection| ExternalPriorSource { prior: selection.prior, ..source.clone() })
+                .map_err(CausalError::from)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let original = ext.baseline.as_ref().ok_or(CausalError::Unsupported {
+        message: "conflict re-shrink requires the original composition baseline; recompose the prior",
+    })?;
+    let baseline = antecedent_prob::select_coordinates_by_name(original, names, target, fill)
+        .map_err(CausalError::from)?
+        .prior;
+    Ok((sources, baseline))
+}
+
+/// Whether the external composition's sources apply positionally over `prep`'s design: an
+/// unnamed composition, or a named one whose coordinates are the design's columns in order.
+/// A named composition that is re-indexed onto the design no longer has sources aligned to its
+/// coefficients, so a per-source re-composition (the α sensitivity grid) does not apply to it.
+#[must_use]
+pub(crate) fn external_compose_is_positional(
+    ext: &ExternalComposeSpec,
+    prep: &PreparedBayesianProblem,
+) -> bool {
+    ext.composed
+        .coefficient_names
+        .as_ref()
+        .is_none_or(|names| **names == *coef_names_for_problem(prep))
 }
 
 /// A static coefficient transfer needs evidence that the source quantity was
@@ -798,6 +933,36 @@ pub fn outcome_prior_source_from_artifact(
         covariance,
         mapping,
         format!("blake3:{}", antecedent_core::identity::blake3_hex(bytes)),
+    )
+    .map_err(CausalError::from)
+}
+
+/// The outcome-nuisance prior of a cross-fitted AIPW estimate
+/// ([`antecedent_estimate::DmlAte::with_outcome_prior`]) from a composed external prior.
+///
+/// The composed prior (its sources, transport weighting and power-prior discount already
+/// applied) is a Gaussian coefficient prior on the conjugate scale. Its named coordinates map by
+/// name onto the outcome-regression columns when the problem is prepared; an unnamed one is
+/// positional over a design of the same width. The identity is a digest of the prior's
+/// moments, correlation, coordinate names and provenance restrictions, so a different
+/// transport kernel, bandwidth or selected α is a different prior.
+///
+/// # Errors
+///
+/// A composed prior without a Gaussian coefficient block, or with absolute-scale variances.
+pub fn outcome_prior_source_from_composed(
+    composed: &ComposedPrior,
+) -> Result<antecedent_estimate::OutcomePriorSource, CausalError> {
+    let identity = antecedent_io::prior_set_identity(&composed.prior);
+    let names = composed
+        .coefficient_names
+        .as_ref()
+        .map(|names| names.iter().map(AsRef::as_ref).collect::<Vec<&str>>().join(","));
+    let canonical = format!("{identity:?};names={names:?}");
+    antecedent_estimate::OutcomePriorSource::from_composed(
+        composed.coefficient_names.clone(),
+        composed.prior.clone(),
+        format!("composed:blake3:{}", antecedent_core::identity::blake3_hex(canonical.as_bytes())),
     )
     .map_err(CausalError::from)
 }
@@ -1110,8 +1275,9 @@ pub use antecedent_prob::ProbError;
 /// Power-prior discount chosen from out-of-sample fit, with a selection-aware interval.
 pub use antecedent_prob::{
     AlphaCriterion, AlphaSelectionOptions, AlphaSensitivityRow, BetaSource, GammaSource,
-    LinearTarget, SelectedAlphaReport, default_alpha_grid, select_beta_power_prior,
-    select_gamma_power_prior, select_linear_power_prior,
+    LinearTarget, SelectedAlphaReport, compose_beta_power_priors, compose_gamma_power_priors,
+    default_alpha_grid, select_beta_power_prior, select_beta_prior, select_gamma_power_prior,
+    select_gamma_prior, select_linear_power_prior, select_linear_prior,
 };
 /// Row-weighted target populations and kernel transport weights.
 pub use antecedent_prob::{
@@ -1128,6 +1294,8 @@ pub use antecedent_prob::{
     ComposedPrior, ExternalPriorSource, ExternalPriorWeight, compose_external_priors,
     compose_external_priors_with_alphas,
 };
+/// Coordinate-name mapping of composed priors.
+pub use antecedent_prob::{CoordinateMapping, rename_coordinates};
 /// Prior specifications.
 pub use antecedent_prob::{GaussianCoefficientPrior, PriorSet, PriorSpec};
 /// Weighted graph samples for effect envelopes.

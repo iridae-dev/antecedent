@@ -168,12 +168,22 @@ impl PyPreparedAnalysis {
 fn association_functional(
     functional: &str,
     folds: Option<u32>,
+    threshold: Option<f64>,
 ) -> PyResult<antecedent::query::AssociationFunctional> {
     use antecedent::query::{AssociationFunctional, AssociationMeasure};
     if functional != "predictive" && folds.is_some() {
         return Err(crate::value_err("folds applies only to predictive association"));
     }
+    if functional != "exceedance" && threshold.is_some() {
+        return Err(crate::value_err("threshold applies only to exceedance association"));
+    }
     Ok(match functional {
+        "exceedance" => {
+            let threshold = threshold.ok_or_else(|| {
+                crate::value_err("exceedance association needs the threshold of P(Y > threshold)")
+            })?;
+            AssociationFunctional::exceedance(threshold)
+        }
         "auto" => AssociationFunctional::Auto,
         "conditional" => AssociationFunctional::Conditional,
         "coefficients" => AssociationFunctional::Coefficients,
@@ -198,8 +208,8 @@ impl PyPreparedAnalysis {
     /// scale and the functional; the answer is a description, never an intervention effect.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, predictors, conditioning, functional, *,
-        folds=None, outcome_scale=None, weight=None, refused_after=None, series=false, seed=1,
-        threads=None, options=None))]
+        folds=None, threshold=None, outcome_scale=None, weight=None, refused_after=None,
+        series=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_association(
         py: Python<'_>,
@@ -210,6 +220,7 @@ impl PyPreparedAnalysis {
         conditioning: Vec<String>,
         functional: String,
         folds: Option<u32>,
+        threshold: Option<f64>,
         outcome_scale: Option<String>,
         weight: Option<String>,
         refused_after: Option<String>,
@@ -221,7 +232,7 @@ impl PyPreparedAnalysis {
         crate::catch_ffi(|| {
             let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
             req.refuse_design("association")?;
-            let functional = association_functional(&functional, folds)?;
+            let functional = association_functional(&functional, folds, threshold)?;
             let scale = match outcome_scale.as_deref() {
                 None | Some("schema") => antecedent::query::AssociationOutcome::Schema,
                 Some(other) => antecedent::query::AssociationOutcome::from_name(other)
@@ -283,8 +294,11 @@ mod association_argument_tests {
     #[test]
     fn folds_are_only_accepted_for_predictive_association() {
         pyo3::Python::initialize();
-        assert!(association_functional("auto", None).is_ok());
-        assert!(association_functional("predictive", Some(3)).is_ok());
-        assert!(association_functional("conditional", Some(3)).is_err());
+        assert!(association_functional("auto", None, None).is_ok());
+        assert!(association_functional("predictive", Some(3), None).is_ok());
+        assert!(association_functional("conditional", Some(3), None).is_err());
+        assert!(association_functional("exceedance", None, Some(1.5)).is_ok());
+        assert!(association_functional("exceedance", None, None).is_err());
+        assert!(association_functional("conditional", None, Some(1.5)).is_err());
     }
 }

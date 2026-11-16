@@ -80,6 +80,8 @@ use antecedent_stats::{
     score_coefficient_covariance,
 };
 
+use antecedent_prob::{BetaBinomialPosterior, GammaPoissonPosterior, PriorSet};
+
 use crate::error::EstimationError;
 use crate::gaussian_linear_posterior::{GaussianLinearPrior, conjugate_posterior_from_residuals};
 use crate::temporal_block::{circular_fixed_b_scale, dependence_block_length};
@@ -285,8 +287,37 @@ pub struct AssociationTerm {
     pub spread: Option<(f64, f64)>,
     /// Posterior summary.
     pub posterior: Option<TermPosterior>,
+    /// The conjugate count posterior behind `posterior` (prior, posterior, data and the
+    /// posterior predictive of the next unit); `None` for every other construction.
+    pub conjugate: Option<ConjugateCell>,
     /// Rows behind the quantity.
     pub rows: usize,
+}
+
+/// The closed-form conjugate count posterior of one cell.
+///
+/// A Beta-Binomial cell holds the posterior of the proportion `P(Y > t)` (or of a 0/1 outcome's
+/// probability); a Gamma-Poisson cell holds the posterior of the Poisson rate per unit of
+/// exposure. The predictive is that of one further unit of the cell.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ConjugateCell {
+    /// `beta_binomial` or `gamma_poisson`.
+    pub family: &'static str,
+    /// Prior hyperparameters: `(alpha, beta)` of the Beta, `(shape, rate)` of the Gamma.
+    pub prior: (f64, f64),
+    /// Posterior hyperparameters, in the same order.
+    pub posterior: (f64, f64),
+    /// Observed successes, or the total count.
+    pub count: u64,
+    /// Observed trials, or the total exposure.
+    pub exposure: f64,
+    /// `ln` marginal likelihood of the cell's data under the prior.
+    pub log_marginal_likelihood: f64,
+    /// Posterior predictive mean of one further unit (a success indicator, or a count over one
+    /// unit of exposure).
+    pub predictive_mean: f64,
+    /// Posterior predictive variance of one further unit.
+    pub predictive_variance: f64,
 }
 
 /// Posterior summary of one quantity.
@@ -487,7 +518,18 @@ pub fn select_analysis(
         AssociationFunctional::Predictive { folds } => {
             (predictive, "a predictive model was requested", Some(folds))
         }
+        AssociationFunctional::Exceedance { .. } => (
+            AssociationAnalysis::StratifiedProbability,
+            "an exceedance probability in each stratum was requested",
+            None,
+        ),
     };
+    let (outcome_kind, outcome_source) =
+        if matches!(query.functional, AssociationFunctional::Exceedance { .. }) {
+            (OutcomeKind::Binary, "exceedance_indicator")
+        } else {
+            (outcome_kind, outcome_source)
+        };
     if matches!(
         analysis,
         AssociationAnalysis::PearsonCorrelation | AssociationAnalysis::DistanceCorrelation
@@ -941,6 +983,10 @@ pub struct AssociationEstimator {
     pub modality: Modality,
     /// Bayesian settings; `None` is the frequentist reading.
     pub bayesian: Option<BayesianSettings>,
+    /// A Beta or Gamma prior that makes the stratified Bayesian reading of a 0/1, exceedance or
+    /// count outcome the closed-form conjugate posterior of each cell. `None` keeps the
+    /// Bayesian bootstrap.
+    pub count_prior: Option<PriorSet>,
 }
 
 /// A fitted model on the rows of positive weight.
@@ -1000,6 +1046,7 @@ impl AssociationEstimator {
             sampling_design: SamplingDeclaration::Undeclared,
             modality,
             bayesian: None,
+            count_prior: None,
         }
     }
 
@@ -1016,6 +1063,15 @@ impl AssociationEstimator {
     #[must_use]
     pub const fn with_bayesian(mut self, settings: BayesianSettings) -> Self {
         self.bayesian = Some(settings);
+        self
+    }
+
+    /// Read each stratum of a 0/1, exceedance or count outcome under the conjugate posterior of
+    /// `prior`: a Beta prior gives the Beta-Binomial posterior of the cell's proportion, a Gamma
+    /// prior the Gamma-Poisson posterior of its rate. Needs Bayesian settings.
+    #[must_use]
+    pub fn with_count_prior(mut self, prior: PriorSet) -> Self {
+        self.count_prior = Some(prior);
         self
     }
 
@@ -1093,6 +1149,12 @@ impl AssociationEstimator {
             ));
         }
         let y: Vec<f64> = kept.iter().map(|&row| outcome[row]).collect();
+        let y: Vec<f64> = match query.functional.exceedance_threshold() {
+            Some(threshold) => {
+                y.iter().map(|value| f64::from(u8::from(*value > threshold))).collect()
+            }
+            None => y,
+        };
         check_outcome_values(&y, selection.outcome_kind)?;
         let weight: Vec<f64> = match &weights {
             Some(column) => kept.iter().map(|&row| column[row].unwrap_or(0.0)).collect(),
@@ -2072,6 +2134,132 @@ impl AssociationEstimator {
             .collect()
     }
 
+    /// Closed-form conjugate posteriors of each stratum of a 0/1, exceedance or count outcome.
+    ///
+    /// A Beta prior reads a 0/1 (or exceedance-indicator) outcome as Bernoulli trials per cell
+    /// and gives `Beta(a + k, b + n - k)`; a Gamma prior reads a count outcome as Poisson
+    /// counts over unit exposure per cell and gives `Gamma(shape + sum y, rate + n)`. The
+    /// interval is the equal-tailed credible interval at [`SPREAD_LEVEL`].
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "outcome values are validated 0/1 indicators or non-negative integers"
+    )]
+    fn count_conjugate(
+        prepared: &PreparedAssociation,
+        prior: Option<&PriorSet>,
+    ) -> Result<Vec<(TermPosterior, ConjugateCell)>, EstimationError> {
+        let prior = prior.ok_or_else(|| refuse_invalid("no Beta or Gamma prior was declared"))?;
+        let analysis = prepared.selection.analysis;
+        let kind = prepared.selection.outcome_kind;
+        let Some(strata) = &prepared.strata else {
+            return Err(refuse_unsupported(
+                "a Beta or Gamma prior reads the cells of a conditional law: ask for the \
+                 conditional (or exceedance) functional. Next attempt: declare \
+                 functional='conditional' or 'exceedance'",
+            ));
+        };
+        if !prepared.unit_weights {
+            return Err(refuse_unsupported(
+                "the conjugate count posterior counts units, so it takes no sampling-weight \
+                 column. Next attempt: drop the weight column, or use the Bayesian bootstrap \
+                 (no Beta or Gamma prior)",
+            ));
+        }
+        let level_error = |error: antecedent_prob::ProbError| refuse_invalid(error.to_string());
+        let beta_route = analysis == AssociationAnalysis::StratifiedProbability;
+        let gamma_route =
+            analysis == AssociationAnalysis::StratifiedMean && kind == OutcomeKind::Count;
+        if !beta_route && !gamma_route {
+            return Err(refuse_unsupported(format!(
+                "a Beta or Gamma prior reads a 0/1, exceedance or count outcome by cell; the \
+                 {analysis} of a {kind} outcome has no conjugate count posterior. Next attempt: \
+                 declare outcome_scale='binary' or 'count', or the exceedance functional, or \
+                 drop the count prior",
+                analysis = analysis.as_str(),
+                kind = kind.as_str()
+            )));
+        }
+        let cells = strata.labels.len();
+        let mut members: Vec<Vec<usize>> = vec![Vec::new(); cells];
+        for row in 0..prepared.rows {
+            members[strata.of_row[row]].push(row);
+        }
+        let mut out = Vec::with_capacity(cells);
+        if beta_route {
+            if prior.beta_prior().is_none() {
+                return Err(refuse_invalid(
+                    "a 0/1 or exceedance outcome needs a Beta prior; the declared prior carries \
+                     none. Next attempt: Bayesian(prior_from=<Beta prior>)",
+                ));
+            }
+            for rows in &members {
+                let successes = rows.iter().map(|&row| prepared.y[row]).sum::<f64>().round() as u64;
+                let posterior =
+                    BetaBinomialPosterior::from_prior_set(prior, successes, rows.len() as u64)
+                        .map_err(level_error)?;
+                let (lower, upper) =
+                    posterior.credible_interval(SPREAD_LEVEL).map_err(level_error)?;
+                let post = posterior.posterior();
+                let hyper = posterior.prior();
+                out.push((
+                    TermPosterior {
+                        mean: posterior.mean(),
+                        sd: posterior.variance().sqrt(),
+                        lower,
+                        upper,
+                    },
+                    ConjugateCell {
+                        family: "beta_binomial",
+                        prior: (hyper.alpha, hyper.beta),
+                        posterior: (post.alpha, post.beta),
+                        count: successes,
+                        exposure: rows.len() as f64,
+                        log_marginal_likelihood: posterior.log_marginal_likelihood(),
+                        predictive_mean: posterior.predictive_mean(1),
+                        predictive_variance: posterior.predictive_variance(1),
+                    },
+                ));
+            }
+        } else {
+            if prior.gamma_prior().is_none() {
+                return Err(refuse_invalid(
+                    "a count outcome needs a Gamma prior; the declared prior carries none. Next \
+                     attempt: Bayesian(prior_from=<Gamma prior>)",
+                ));
+            }
+            for rows in &members {
+                let counts: Vec<u64> =
+                    rows.iter().map(|&row| prepared.y[row].round() as u64).collect();
+                let posterior = GammaPoissonPosterior::from_prior_set(prior, &counts, None)
+                    .map_err(level_error)?;
+                let (lower, upper) =
+                    posterior.credible_interval(SPREAD_LEVEL).map_err(level_error)?;
+                let post = posterior.posterior();
+                let hyper = posterior.prior();
+                out.push((
+                    TermPosterior {
+                        mean: posterior.mean(),
+                        sd: posterior.variance().sqrt(),
+                        lower,
+                        upper,
+                    },
+                    ConjugateCell {
+                        family: "gamma_poisson",
+                        prior: (hyper.shape, hyper.rate),
+                        posterior: (post.shape, post.rate),
+                        count: posterior.total_count(),
+                        exposure: posterior.exposure(),
+                        log_marginal_likelihood: posterior.log_marginal_likelihood(),
+                        predictive_mean: posterior.predictive_mean(1.0),
+                        predictive_variance: posterior.predictive_variance(1.0),
+                    },
+                ));
+            }
+        }
+        Ok(out)
+    }
+
     /// Out-of-fold predictions of a predictive analysis.
     fn out_of_fold(
         &self,
@@ -2185,6 +2373,13 @@ impl AssociationEstimator {
                  for a resampling spread",
             ));
         }
+        if self.count_prior.is_some() && self.bayesian.is_none() {
+            return Err(EstimationError::refused(
+                reason_code!("option_not_applicable"),
+                "a Beta or Gamma prior is the prior of a Bayesian association. Next attempt: \
+                 declare Bayesian inference with the prior, or drop the prior",
+            ));
+        }
         let rows = prepared.rows;
         let mut point = Self::statistics(prepared, &vec![1.0; rows])?;
         if prepared.selection.analysis == AssociationAnalysis::DistanceCorrelation
@@ -2217,6 +2412,7 @@ impl AssociationEstimator {
                 standard_error_method: analytic.errors[k].and(analytic.method),
                 spread: None,
                 posterior: None,
+                conjugate: None,
                 rows: spec.rows,
             })
             .collect();
@@ -2227,6 +2423,20 @@ impl AssociationEstimator {
                 resampling = Some(self.publish_bootstrap(prepared, &mut terms, &analytic, ctx)?);
             }
             None => {}
+            Some(_) if self.count_prior.is_some() => {
+                let cells = Self::count_conjugate(prepared, self.count_prior.as_ref())?;
+                let method =
+                    if cells.first().is_some_and(|(_, cell)| cell.family == "gamma_poisson") {
+                        "conjugate_gamma_poisson"
+                    } else {
+                        "conjugate_beta_binomial"
+                    };
+                for (term, (marginal, cell)) in terms.iter_mut().zip(cells) {
+                    term.posterior = Some(marginal);
+                    term.conjugate = Some(cell);
+                }
+                posterior = Some(PosteriorRecord { method, draws: 0 });
+            }
             Some(settings) if Self::conjugate_applies(prepared) => {
                 let marginals = Self::conjugate(prepared, settings)?;
                 for (term, marginal) in terms.iter_mut().zip(marginals) {
@@ -2378,6 +2588,34 @@ pub fn bayesian_method(selection: &AssociationSelection, weighted: bool) -> &'st
         "conjugate_normal_inverse_gamma"
     } else {
         "bayesian_bootstrap"
+    }
+}
+
+/// The closed-form count posterior a Bayesian reading of `selection` uses under a Beta or Gamma
+/// `prior`, or `None` when the selection has none (the prior then does not apply).
+///
+/// A 0/1 or exceedance outcome by cell reads the Beta prior (`conjugate_beta_binomial`) and a
+/// count outcome's cell rate the Gamma prior (`conjugate_gamma_poisson`), on independent
+/// unweighted rows.
+#[must_use]
+pub fn count_conjugate_method(
+    selection: &AssociationSelection,
+    weighted: bool,
+    prior: &PriorSet,
+) -> Option<&'static str> {
+    if weighted || selection.modality != Modality::CrossSection {
+        return None;
+    }
+    match (selection.analysis, selection.outcome_kind) {
+        (AssociationAnalysis::StratifiedProbability, _) if prior.beta_prior().is_some() => {
+            Some("conjugate_beta_binomial")
+        }
+        (AssociationAnalysis::StratifiedMean, OutcomeKind::Count)
+            if prior.gamma_prior().is_some() =>
+        {
+            Some("conjugate_gamma_poisson")
+        }
+        _ => None,
     }
 }
 

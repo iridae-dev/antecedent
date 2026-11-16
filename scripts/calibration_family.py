@@ -108,6 +108,7 @@ SOURCE_REVIEW = {
     "class_posterior_calibration.rs": "Fixed class-posterior procedures and declared source test configurations.",
     "cluster_dml_calibration.rs": "Fixed whole-cluster DML procedure configurations/targets; no empirical label selection.",
     "dml_outcome_prior_calibration.rs": "Three fixed prior-strength constructions (weak, informative, misspecified) with a literal functional label; no labels selected using calibration outcomes.",
+    "count_conjugate_calibration.rs": "Two fixed conjugate-count designs (Beta exceedance, Gamma rate) with literal test-named tallies at the declared level; truths are drawn from the stated prior and no outcome selects a label.",
     "calibration_bind.rs": "Shared immutable construction/record-key binding, no calibration outcomes choose hypotheses.",
     "reported.rs": "Shared per-test reporting wrapper; one source-fixed test execution context, no empirical hypothesis selection.",
     "cross_world_interval_calibration.rs": "Fixed cross-world interval/query cases and static record identifiers.",

@@ -135,13 +135,50 @@ def test_a_named_prior_regularizes_the_aipw_estimator_outcome_nuisance():
     assert "aipw_outcome_nuisance_prior" in text or "outcome-regression nuisance" in text
 
 
-def test_a_composed_prior_is_refused_for_the_outcome_nuisance():
-    from antecedent.estimators import Aipw
-    from antecedent.priors import ComposedPrior
+def _composed(names):
+    from antecedent.priors import ExternalPriorSourceSpec, compose_external_priors
 
-    composed = ComposedPrior.__new__(ComposedPrior)
-    with pytest.raises(CausalValueError, match="posterior artifact") as caught:
-        DML(prior_from=composed)  # type: ignore[arg-type]
-    assert caught.value.reason_code == "quantity_semantics_mismatch"
-    with pytest.raises(CausalValueError, match="posterior artifact"):
-        Aipw(bootstrap=0, prior_from=composed)  # type: ignore[arg-type]
+    return compose_external_priors(
+        [ExternalPriorSourceSpec("a", (0.5, 1.0, 2.0), (0.4, 0.3, 0.5), coefficient_names=names)]
+    )
+
+
+def test_a_named_composed_prior_is_accepted_for_the_outcome_nuisance():
+    from antecedent.estimators import Aipw
+
+    composed = _composed(("intercept", "coef_z", "coef_t"))
+    wire = DML(prior_from=composed)._wire()
+    assert wire["composed_prior"]["coefficient_names"] == ["intercept", "coef_z", "coef_t"]
+    assert "prior_artifact" not in wire
+    assert Aipw(bootstrap=0, prior_from=composed)._wire()["composed_prior"]
+    result = require_success(
+        ant.analyze(
+            _confounded(seed=2),
+            graph=GRAPH,
+            query=QUERY,
+            estimator=DML(prior_from=composed),
+            refute=False,
+        )
+    )
+    assert abs(result.effect - 2.0) < 0.2, result.effect
+
+
+def test_a_composed_prior_with_unmappable_coordinates_is_refused_for_the_outcome_nuisance():
+    unmappable = _composed(("a", "b", "c"))
+    with pytest.raises(CausalError) as caught:
+        require_success(
+            ant.analyze(
+                _confounded(seed=2),
+                graph=GRAPH,
+                query=QUERY,
+                estimator=DML(prior_from=unmappable),
+                refute=False,
+            )
+        )
+    message = f"{getattr(caught.value, 'reason_code', '')} {caught.value}"
+    assert "quantity_semantics_mismatch" in message and "coefficient_names" in message
+    with pytest.raises(CausalValueError, match="effect-functional"):
+        DML(
+            prior_from=_composed(("intercept", "coef_z", "coef_t")),
+            mapping=PriorMapping.effect_functional(),
+        )

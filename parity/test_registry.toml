@@ -24045,3 +24045,31 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_gate_carry.py"
 gates = ["inventory"]
+
+[[test]]
+id = "association-count-conjugate"
+crate = "antecedent"
+cargo_target = "association_count_conjugate"
+path = "crates/antecedent/tests/association_count_conjugate.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "count-conjugate-calibration"
+crate = "antecedent"
+cargo_target = "count_conjugate_calibration"
+path = "crates/antecedent/tests/count_conjugate_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "composed-prior-currency-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_composed_prior_currency.py"
+gates = ["inventory"]
+
+[[test]]
+id = "named-composed-prior"
+crate = "antecedent"
+cargo_target = "named_composed_prior"
+path = "crates/antecedent/tests/named_composed_prior.rs"
+gates = ["inventory", "named"]

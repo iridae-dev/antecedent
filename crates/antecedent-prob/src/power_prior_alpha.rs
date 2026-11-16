@@ -57,14 +57,18 @@
     reason = "dense small-matrix and index arithmetic over bounded grids and row counts"
 )]
 
-use antecedent_core::{CausalRng, derive_stream};
+use std::sync::Arc;
+
+use antecedent_core::{CausalRng, PriorAssumption, derive_stream};
 use antecedent_kernels::{norm_inv, standard_normal};
 use antecedent_stats::{ln_gamma, student_t_ppf};
 
 use crate::conjugate_counts::{BetaBinomialPosterior, GammaPoissonPosterior};
 use crate::conjugate_moment_match::{BetaHyperparameters, GammaHyperparameters};
 use crate::error::ProbError;
-use crate::external_prior::{ExternalPriorSource, compose_external_priors_with_alphas};
+use crate::external_prior::{
+    ComposedPrior, ExternalPriorSource, compose_external_priors_with_alphas,
+};
 use crate::linalg::{cholesky_spd, solve_chol_into};
 use crate::prior::{GaussianVarianceModel, PriorSet};
 
@@ -1058,6 +1062,138 @@ pub fn select_gamma_power_prior(
     select_and_estimate(&GammaModel { source, grid: &options.grid, counts }, options)
 }
 
+impl SelectedAlphaReport {
+    /// Which selection-valid interval [`Self::interval`] is: `bias_aware` under a declared
+    /// discrepancy bound, else `uniform`.
+    #[must_use]
+    pub const fn interval_semantics(&self) -> &'static str {
+        if self.discrepancy_bound.is_some() { "bias_aware" } else { "uniform" }
+    }
+
+    /// Identity of the selection inside the prior composed at its `α`: the criterion, the
+    /// selected discount, the credible level and the interval semantics (with the declared
+    /// bound), so a prior selected under another rule or bound is a different prior.
+    #[must_use]
+    pub fn provenance_id(&self) -> String {
+        let bound = self.discrepancy_bound.map_or_else(|| "none".to_owned(), |b| format!("{b:?}"));
+        format!(
+            "power_prior_alpha_selected:criterion={}:alpha={:?}:level={:?}:interval={}:\
+             discrepancy_bound={bound}",
+            self.criterion.name(),
+            self.selected_alpha,
+            self.level,
+            self.interval_semantics(),
+        )
+    }
+
+    fn provenance_assumption(&self) -> PriorAssumption {
+        PriorAssumption {
+            id: Arc::from(self.provenance_id()),
+            description: Arc::from(format!(
+                "power-prior discount alpha={:?} selected from the target data by {}; the \
+                 reported interval is the {} interval at level {:?}; the selection is part of \
+                 the prior and never upgrades identification",
+                self.selected_alpha,
+                self.criterion.name(),
+                self.interval_semantics(),
+                self.level,
+            )),
+        }
+    }
+}
+
+/// The Beta power prior at the discount chosen from the target trials, with the selection report.
+///
+/// # Errors
+///
+/// As [`select_beta_power_prior`].
+pub fn select_beta_prior(
+    source: BetaSource,
+    outcomes: &[bool],
+    options: &AlphaSelectionOptions,
+) -> Result<(BetaHyperparameters, SelectedAlphaReport), ProbError> {
+    let report = select_beta_power_prior(source, outcomes, options)?;
+    let prior = source.power_prior(report.selected_alpha)?;
+    Ok((prior, report))
+}
+
+/// The Gamma power prior at the discount chosen from the target counts, with the report.
+///
+/// # Errors
+///
+/// As [`select_gamma_power_prior`].
+pub fn select_gamma_prior(
+    source: GammaSource,
+    counts: &[u64],
+    options: &AlphaSelectionOptions,
+) -> Result<(GammaHyperparameters, SelectedAlphaReport), ProbError> {
+    let report = select_gamma_power_prior(source, counts, options)?;
+    let prior = source.power_prior(report.selected_alpha)?;
+    Ok((prior, report))
+}
+
+/// The Gaussian prior composed from `sources` at the discount chosen from the target data, with
+/// the selection report. Every source takes the selected `α`; the selection (criterion, `α`,
+/// level, interval semantics) is a restriction of the composed prior, so it enters its identity.
+///
+/// # Errors
+///
+/// As [`select_linear_power_prior`], or a composition failure.
+pub fn select_linear_prior(
+    sources: &[ExternalPriorSource],
+    baseline: &PriorSet,
+    target: LinearTarget<'_>,
+    options: &AlphaSelectionOptions,
+) -> Result<(ComposedPrior, SelectedAlphaReport), ProbError> {
+    let report = select_linear_power_prior(sources, baseline, target, options)?;
+    let alphas = vec![report.selected_alpha; sources.len()];
+    let mut composed = compose_external_priors_with_alphas(sources, &alphas, &alphas, baseline)?;
+    composed.prior.restrictions.push(report.provenance_assumption());
+    Ok((composed, report))
+}
+
+/// Compose Beta-Binomial count sources `(successes, trials, α)` into one Beta prior:
+/// `Beta(a + Σ α k, b + Σ α (n − k))`.
+///
+/// # Errors
+///
+/// An invalid base, `successes > trials`, or `α` outside `[0, 1]`.
+pub fn compose_beta_power_priors(
+    base: BetaHyperparameters,
+    sources: &[(u64, u64, f64)],
+) -> Result<BetaHyperparameters, ProbError> {
+    base.validate()?;
+    let (mut alpha, mut beta) = (base.alpha, base.beta);
+    for &(successes, trials, discount) in sources {
+        let source = BetaSource { base, successes, trials };
+        source.power_prior(discount)?;
+        alpha += discount * successes as f64;
+        beta += discount * (trials - successes) as f64;
+    }
+    Ok(BetaHyperparameters { alpha, beta })
+}
+
+/// Compose Gamma-Poisson count sources `(total count, exposure, α)` into one Gamma prior:
+/// `Gamma(s + Σ α S, r + Σ α E)`.
+///
+/// # Errors
+///
+/// An invalid base, a negative exposure, or `α` outside `[0, 1]`.
+pub fn compose_gamma_power_priors(
+    base: GammaHyperparameters,
+    sources: &[(u64, f64, f64)],
+) -> Result<GammaHyperparameters, ProbError> {
+    base.validate()?;
+    let (mut shape, mut rate) = (base.shape, base.rate);
+    for &(total_count, exposure, discount) in sources {
+        let source = GammaSource { base, total_count, exposure };
+        source.power_prior(discount)?;
+        shape += discount * total_count as f64;
+        rate += discount * exposure;
+    }
+    Ok(GammaHyperparameters { shape, rate })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1143,5 +1279,43 @@ mod tests {
         let good = AlphaSelectionOptions::new(AlphaCriterion::CrossValidated { folds: 3 });
         let report = select_gamma_power_prior(source, &counts, &good).unwrap();
         assert!(report.interval.0 < report.interval.1);
+    }
+
+    #[test]
+    fn composed_count_priors_add_the_discounted_source_counts() {
+        let beta = compose_beta_power_priors(
+            BetaHyperparameters { alpha: 1.0, beta: 2.0 },
+            &[(10, 40, 1.0), (6, 10, 0.5)],
+        )
+        .unwrap();
+        assert_eq!((beta.alpha, beta.beta), (1.0 + 10.0 + 3.0, 2.0 + 30.0 + 2.0));
+        let gamma = compose_gamma_power_priors(
+            GammaHyperparameters { shape: 1.0, rate: 1.0 },
+            &[(12, 4.0, 0.5)],
+        )
+        .unwrap();
+        assert_eq!((gamma.shape, gamma.rate), (7.0, 3.0));
+        assert!(
+            compose_beta_power_priors(
+                BetaHyperparameters { alpha: 1.0, beta: 1.0 },
+                &[(1, 2, 1.5)]
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn the_selected_beta_prior_is_the_power_prior_at_the_selected_alpha() {
+        let base = BetaHyperparameters { alpha: 1.0, beta: 1.0 };
+        let source = BetaSource { base, successes: 30, trials: 50 };
+        let outcomes: Vec<bool> = (0..40).map(|i| i % 5 < 3).collect();
+        let mut options = AlphaSelectionOptions::new(AlphaCriterion::EmpiricalBayes);
+        options.grid = vec![0.0, 0.5, 1.0];
+        options.discrepancy_bound = Some(0.2);
+        let (prior, report) = select_beta_prior(source, &outcomes, &options).unwrap();
+        let alpha = report.selected_alpha;
+        assert_eq!((prior.alpha, prior.beta), (1.0 + alpha * 30.0, 1.0 + alpha * 20.0));
+        let id = report.provenance_id();
+        assert!(id.contains("interval=bias_aware") && id.contains("discrepancy_bound=0.2"), "{id}");
     }
 }

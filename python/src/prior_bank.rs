@@ -365,6 +365,64 @@ fn prior_set_from_moments(mean: &[f64], variance: &[f64]) -> PyResult<PriorSet> 
     Ok(prior)
 }
 
+/// The prior of a conjugate count posterior from its declared dict.
+///
+/// `family` is `beta` (`alpha`, `beta`) or `gamma` (`shape`, `rate`). `assumption_ids` carry the
+/// provenance of a composed or alpha-selected count prior (the sources, the selection criterion,
+/// the selected discount and the interval semantics) into the prior's identity.
+pub(crate) fn count_prior_from_dict(d: &Bound<'_, PyDict>) -> PyResult<PriorSet> {
+    use antecedent::schema::PriorAssumption;
+    let real = |key: &str| -> PyResult<f64> {
+        d.get_item(key)?
+            .ok_or_else(|| crate::value_err(format!("count prior needs `{key}`")))?
+            .extract()
+    };
+    let family: String = d
+        .get_item("family")?
+        .ok_or_else(|| crate::value_err("count prior needs `family`"))?
+        .extract()?;
+    let mut prior = PriorSet::new();
+    match family.as_str() {
+        "beta" => prior.push(PriorSpec::Beta(antecedent::inference::BetaHyperparameters {
+            alpha: real("alpha")?,
+            beta: real("beta")?,
+        })),
+        "gamma" => prior.push(PriorSpec::Gamma(antecedent::inference::GammaHyperparameters {
+            shape: real("shape")?,
+            rate: real("rate")?,
+        })),
+        other => {
+            return Err(crate::value_err(format!(
+                "unknown count prior family `{other}`; use beta or gamma"
+            )));
+        }
+    }
+    let ids: Vec<String> = match d.get_item("assumption_ids")? {
+        None => Vec::new(),
+        Some(v) if v.is_none() => Vec::new(),
+        Some(v) => v.extract()?,
+    };
+    let sources: Vec<(String, f64)> = match d.get_item("sources")? {
+        None => Vec::new(),
+        Some(v) if v.is_none() => Vec::new(),
+        Some(v) => v.extract()?,
+    };
+    let mut ids = ids;
+    if !sources.is_empty() {
+        let parts: Vec<String> =
+            sources.iter().map(|(id, alpha)| format!("{id}@{alpha:?}")).collect();
+        ids.push(format!("count_power_prior:{family}:sources={}", parts.join(",")));
+    }
+    for id in ids {
+        prior.restrictions.push(PriorAssumption {
+            description: std::sync::Arc::from(format!("Preserved count-prior provenance `{id}`")),
+            id: std::sync::Arc::from(id),
+        });
+    }
+    prior.validate().map_err(pyvalue)?;
+    Ok(prior)
+}
+
 fn source_from_dict(d: &Bound<'_, PyDict>) -> PyResult<ExternalPriorSource> {
     let id: String =
         d.get_item("id")?.ok_or_else(|| crate::value_err("source.id required"))?.extract()?;
@@ -913,6 +971,8 @@ pub(crate) struct OwnedComposedPrior {
     pub baseline_variance: Vec<f64>,
     pub declared_mean: Vec<f64>,
     pub declared_variance: Vec<f64>,
+    /// Names of the coefficient coordinates, when the sources declared them.
+    pub coefficient_names: Option<Vec<String>>,
 }
 
 /// Parse a composed-prior dict into an owned payload.
@@ -958,6 +1018,11 @@ pub(crate) fn owned_composed_prior_from_dict(
         .get_item("variance")?
         .ok_or_else(|| crate::value_err("composed prior variance required"))?
         .extract()?;
+    let coefficient_names: Option<Vec<String>> = match composed.get_item("coefficient_names")? {
+        None => None,
+        Some(v) if v.is_none() => None,
+        Some(v) => Some(v.extract()?),
+    };
     Ok(OwnedComposedPrior {
         sources,
         alphas_requested,
@@ -968,6 +1033,7 @@ pub(crate) fn owned_composed_prior_from_dict(
         baseline_variance,
         declared_mean,
         declared_variance,
+        coefficient_names,
     })
 }
 
@@ -1019,12 +1085,50 @@ pub(crate) fn apply_owned_composed_prior(
             description: Arc::from(format!("Preserved prior-bank assumption `{id}`")),
         });
     }
+    if let Some(names) = &owned.coefficient_names {
+        prior_composed.prior.restrictions.push(PriorAssumption {
+            id: Arc::from(format!("external_prior_coordinates:{}", names.join(","))),
+            description: Arc::from(
+                "the composed prior's coefficient coordinates are named and map by name onto the \
+                 target's coefficient columns",
+            ),
+        });
+        prior_composed = prior_composed
+            .with_coefficient_names(names.iter().map(|n| Arc::from(n.as_str())).collect())
+            .map_err(pyvalue)?;
+    }
     Ok(cfg.prior_from_composed_with_baseline(
         owned.sources,
         prior_composed,
         owned.conflict,
         baseline,
     ))
+}
+
+/// The outcome-nuisance prior of a cross-fitted AIPW estimate from a composed external prior.
+///
+/// The composition is re-run from its sources, baseline and applied alphas (the transport
+/// weighting and the selected power-prior discount are already in those), checked against the
+/// declared moments, and handed to the outcome regression with its coordinate names. A
+/// conflict policy re-shrinks alpha against a Bayesian design, which the outcome regression
+/// does not have, so it is refused.
+pub(crate) fn outcome_prior_from_composed(
+    composed: &Bound<'_, PyDict>,
+) -> PyResult<antecedent::estimate::OutcomePriorSource> {
+    let owned = owned_composed_prior_from_dict(composed)?;
+    if owned.conflict.is_some() {
+        return Err(crate::value_err(
+            "a conflict policy re-shrinks alpha against a Bayesian design, which the outcome \
+             regression of DML / Aipw does not have; compose with conflict_signals to shrink \
+             alpha offline, or drop the policy",
+        ));
+    }
+    let cfg = apply_owned_composed_prior(antecedent::BayesianConfig::conjugate(), owned)?;
+    let external = cfg
+        .external_compose
+        .as_deref()
+        .ok_or_else(|| crate::value_err("the composed prior was not retained"))?;
+    antecedent::inference::outcome_prior_source_from_composed(&external.composed).map_err(py_err)
 }
 
 /// Transfer an aligned parameter-posterior artifact into a known-variance Gaussian prior.
@@ -1282,6 +1386,7 @@ fn report_dict<'py>(
     d.set_item("conditional_interval", report.conditional_interval)?;
     d.set_item("uniform_interval", report.uniform_interval)?;
     d.set_item("discrepancy_bound", report.discrepancy_bound)?;
+    d.set_item("provenance_id", report.provenance_id())?;
     let rows = PyList::empty(py);
     for row in &report.sensitivity {
         let r = PyDict::new(py);
@@ -1323,9 +1428,11 @@ fn select_beta_power_prior_alpha_py<'py>(
         successes: source_successes,
         trials: source_trials,
     };
-    let report = antecedent::inference::select_beta_power_prior(source, &outcomes, &options)
-        .map_err(pyvalue)?;
-    report_dict(py, &report)
+    let (prior, report) =
+        antecedent::inference::select_beta_prior(source, &outcomes, &options).map_err(pyvalue)?;
+    let d = report_dict(py, &report)?;
+    d.set_item("prior", (prior.alpha, prior.beta))?;
+    Ok(d)
 }
 
 /// Choose the power-prior discount of a source rate for a Gamma-Poisson target.
@@ -1355,9 +1462,11 @@ fn select_gamma_power_prior_alpha_py<'py>(
         total_count: source_total_count,
         exposure: source_exposure,
     };
-    let report = antecedent::inference::select_gamma_power_prior(source, &counts, &options)
-        .map_err(pyvalue)?;
-    report_dict(py, &report)
+    let (prior, report) =
+        antecedent::inference::select_gamma_prior(source, &counts, &options).map_err(pyvalue)?;
+    let d = report_dict(py, &report)?;
+    d.set_item("prior", (prior.shape, prior.rate))?;
+    Ok(d)
 }
 
 /// Choose the power-prior discount of external Gaussian sources for a linear target.
@@ -1403,10 +1512,93 @@ fn select_linear_power_prior_alpha_py<'py>(
         n_cols,
         functional: &functional,
     };
-    let report =
-        antecedent::inference::select_linear_power_prior(&srcs, &baseline, target, &options)
+    let (composed, report) =
+        antecedent::inference::select_linear_prior(&srcs, &baseline, target, &options)
             .map_err(pyvalue)?;
-    report_dict(py, &report)
+    let d = report_dict(py, &report)?;
+    let coefficients = composed
+        .prior
+        .gaussian_coefficients()
+        .ok_or_else(|| crate::value_err("composed prior has no Gaussian coefficients"))?;
+    d.set_item("composed_mean", coefficients.mean.to_vec())?;
+    d.set_item("composed_variance", coefficients.variance.to_vec())?;
+    // The Rust `select_linear_prior` result, in the shape of a composition: Python wraps it.
+    d.set_item("composed", composed_to_dict(py, &composed)?)?;
+    Ok(d)
+}
+
+/// Compose count sources into one Beta (`family="beta"`, sources `(successes, trials, alpha)`)
+/// or Gamma (`family="gamma"`, sources `(total count, exposure, alpha)`) power prior.
+#[pyfunction(name = "compose_count_power_priors")]
+fn compose_count_power_priors_py(
+    family: &str,
+    base: (f64, f64),
+    sources: Vec<(f64, f64, f64)>,
+) -> PyResult<(f64, f64)> {
+    match family {
+        "beta" => {
+            let counts = sources
+                .iter()
+                .map(|&(k, n, a)| Ok((whole(k)?, whole(n)?, a)))
+                .collect::<PyResult<Vec<_>>>()?;
+            let h = antecedent::inference::compose_beta_power_priors(
+                antecedent::inference::BetaHyperparameters { alpha: base.0, beta: base.1 },
+                &counts,
+            )
+            .map_err(pyvalue)?;
+            Ok((h.alpha, h.beta))
+        }
+        "gamma" => {
+            let counts = sources
+                .iter()
+                .map(|&(s, e, a)| Ok((whole(s)?, e, a)))
+                .collect::<PyResult<Vec<_>>>()?;
+            let h = antecedent::inference::compose_gamma_power_priors(
+                antecedent::inference::GammaHyperparameters { shape: base.0, rate: base.1 },
+                &counts,
+            )
+            .map_err(pyvalue)?;
+            Ok((h.shape, h.rate))
+        }
+        other => Err(crate::value_err(format!("unknown count prior family `{other}`"))),
+    }
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "a count validated as a non-negative whole number"
+)]
+fn whole(value: f64) -> PyResult<u64> {
+    if value.is_finite() && value >= 0.0 && value.fract() == 0.0 {
+        Ok(value as u64)
+    } else {
+        Err(crate::value_err("source counts are non-negative whole numbers"))
+    }
+}
+
+/// Apply a declared coordinate mapping (`identical_coefficient_subspace`, `named_parameters` with
+/// `pairs`, or `effect_functional`) to the names of a composed prior.
+#[pyfunction(name = "rename_composed_coordinates")]
+#[pyo3(signature = (names, kind, pairs=None))]
+fn rename_composed_coordinates_py(
+    names: Vec<String>,
+    kind: &str,
+    pairs: Option<Vec<(String, String)>>,
+) -> PyResult<Vec<String>> {
+    use antecedent::inference::CoordinateMapping;
+    let names: Vec<std::sync::Arc<str>> =
+        names.iter().map(|n| std::sync::Arc::from(n.as_str())).collect();
+    let pairs = pairs.unwrap_or_default();
+    let mapping = match kind {
+        "identical_coefficient_subspace" => CoordinateMapping::Identical,
+        "named_parameters" => CoordinateMapping::Named(&pairs),
+        "effect_functional" => CoordinateMapping::EffectFunctional,
+        other => return Err(crate::value_err(format!("unknown prior mapping `{other}`"))),
+    };
+    antecedent::inference::rename_coordinates(&names, mapping)
+        .map(|renamed| renamed.iter().map(|n| n.to_string()).collect())
+        .map_err(pyvalue)
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -1416,6 +1608,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(select_beta_power_prior_alpha_py, m)?)?;
     m.add_function(wrap_pyfunction!(select_gamma_power_prior_alpha_py, m)?)?;
     m.add_function(wrap_pyfunction!(select_linear_power_prior_alpha_py, m)?)?;
+    m.add_function(wrap_pyfunction!(compose_count_power_priors_py, m)?)?;
+    m.add_function(wrap_pyfunction!(rename_composed_coordinates_py, m)?)?;
     m.add_function(wrap_pyfunction!(prior_catalog_filter, m)?)?;
     m.add_function(wrap_pyfunction!(prior_catalog_rank, m)?)?;
     m.add_function(wrap_pyfunction!(encode_prior_source_meta, m)?)?;

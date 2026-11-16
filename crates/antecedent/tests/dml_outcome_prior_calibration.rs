@@ -49,6 +49,26 @@ enum Route {
     Dml,
     /// The cross-fitted AIPW estimator with no bootstrap.
     Aipw,
+    /// The DML route under a composed external prior with named coordinates (the treatment
+    /// coordinate has no outcome-regression column and is dropped).
+    DmlComposed,
+    /// The AIPW estimator route under the same composed prior.
+    AipwComposed,
+}
+
+/// The composed prior of a named design: coordinates `intercept`, `coef_z0`, `coef_z1` on the
+/// conjugate scale `V0 = sd^2`, plus a treatment coordinate the outcome regression lacks.
+fn composed_source(mean: [f64; 3], sd: [f64; 3]) -> Option<OutcomePriorSource> {
+    let mut prior = antecedent_prob::PriorSet::new();
+    prior.push(antecedent_prob::PriorSpec::GaussianCoefficients(
+        antecedent_prob::GaussianCoefficientPrior {
+            mean: Arc::from(vec![mean[0], mean[1], mean[2], 2.0]),
+            variance: Arc::from(vec![sd[0] * sd[0], sd[1] * sd[1], sd[2] * sd[2], 1.0]),
+        },
+    ));
+    let names: Vec<Arc<str>> =
+        ["intercept", "coef_z0", "coef_z1", "coef_t"].iter().map(|n| Arc::from(*n)).collect();
+    OutcomePriorSource::from_composed(Some(Arc::from(names)), prior, "composed:calibration").ok()
 }
 
 fn replicate_on(
@@ -87,23 +107,26 @@ fn replicate_on(
         })
         .collect();
     quantities.push(PosteriorQuantityKind::ResidualVariance);
-    let source = OutcomePriorSource::new(
-        quantities,
-        vec![mean[0], mean[1], mean[2], 1.0],
-        vec![sd[0], sd[1], sd[2], 0.0],
-        None,
-        HydrateMapping::IdenticalCoefficientSubspace,
-        "blake3:calibration-source",
-    )
-    .ok()?;
+    let source = match route {
+        Route::DmlComposed | Route::AipwComposed => composed_source(mean, sd)?,
+        Route::Dml | Route::Aipw => OutcomePriorSource::new(
+            quantities,
+            vec![mean[0], mean[1], mean[2], 1.0],
+            vec![sd[0], sd[1], sd[2], 0.0],
+            None,
+            HydrateMapping::IdenticalCoefficientSubspace,
+            "blake3:calibration-source",
+        )
+        .ok()?,
+    };
     let ctx = ExecutionContext::for_tests(seed);
     let fit = match route {
-        Route::Dml => {
+        Route::Dml | Route::DmlComposed => {
             let estimator = DmlAte::new().with_outcome_prior(source);
             let problem = estimator.prepare(&data, &estimand, &query).ok()?;
             estimator.fit(&problem, &ctx, AssumptionSet::new()).ok()?
         }
-        Route::Aipw => {
+        Route::Aipw | Route::AipwComposed => {
             let estimator = AipwAte::new().with_bootstrap_replicates(0).with_outcome_prior(source);
             let problem = estimator.prepare(&data, &estimand, &query).ok()?;
             estimator
@@ -136,8 +159,8 @@ fn construction(estimator: &str) -> Construction {
 
 fn measure(route: Route, test: &'static str, mean: [f64; 3], sd: [f64; 3]) {
     let estimator = match route {
-        Route::Dml => "dml",
-        Route::Aipw => "aipw",
+        Route::Dml | Route::DmlComposed => "dml",
+        Route::Aipw | Route::AipwComposed => "aipw",
     };
     let n = grid_n(600);
     let mut tally =
@@ -235,5 +258,41 @@ fn aipw_outcome_prior_misspecified_interval() {
         "aipw_outcome_prior_misspecified_interval",
         [3.0, -2.0, 4.0],
         [0.3, 0.3, 0.3],
+    );
+}
+
+/// The DML route under a composed prior with named coordinates, centred on the true slopes.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn dml_composed_prior_informative_interval() {
+    measure(
+        Route::DmlComposed,
+        "dml_composed_prior_informative_interval",
+        [0.0, 1.0, 0.5],
+        [10.0, 0.1, 0.1],
+    );
+}
+
+/// The DML route under a composed prior on badly wrong coefficients.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn dml_composed_prior_misspecified_interval() {
+    measure(
+        Route::DmlComposed,
+        "dml_composed_prior_misspecified_interval",
+        [3.0, -2.0, 4.0],
+        [0.3, 0.3, 0.3],
+    );
+}
+
+/// The AIPW estimator route under a composed prior centred on the true slopes.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn aipw_composed_prior_informative_interval() {
+    measure(
+        Route::AipwComposed,
+        "aipw_composed_prior_informative_interval",
+        [0.0, 1.0, 0.5],
+        [10.0, 0.1, 0.1],
     );
 }
