@@ -1576,6 +1576,16 @@ struct Source {
     states: Vec<f64>,
     sd: f64,
     coefficients: Vec<f64>,
+    /// Seed of the context the posterior was fitted under. The fitted source's dependency
+    /// identity covers the execution seed, so the update must re-run the shared mechanism under
+    /// this same context: a different seed is a different fitted source.
+    fit_seed: u64,
+}
+
+impl Source {
+    fn fit_context(&self) -> ExecutionContext {
+        ExecutionContext::for_tests(grid_seed(self.fit_seed))
+    }
 }
 
 /// One experimental observation has this multiple of the posterior standard deviation of the
@@ -1703,7 +1713,7 @@ fn experiment_source(cell: Cell, path: Path, seed: u64) -> Source {
         };
         match result.numerical_project_law_source(&functional) {
             Ok(law) => {
-                source = Some((prepared, result, law));
+                source = Some((prepared, result, law, attempt_seed));
                 break;
             }
             Err(error) => {
@@ -1718,7 +1728,7 @@ fn experiment_source(cell: Cell, path: Path, seed: u64) -> Source {
             }
         }
     }
-    let (prepared, result, prior) = source.unwrap_or_else(|| {
+    let (prepared, result, prior, fit_seed) = source.unwrap_or_else(|| {
         panic!("no source posterior passed its diagnostics in {SOURCE_ATTEMPTS} attempts")
     });
     let width = prior.shape()[1];
@@ -1756,7 +1766,7 @@ fn experiment_source(cell: Cell, path: Path, seed: u64) -> Source {
         },
         evidence: PanelExperimentEvidence { model, prior_origins: vec![], experiment, mapping },
     };
-    Source { prepared, ledger, update, states, sd, coefficients }
+    Source { prepared, ledger, update, states, sd, coefficients, fit_seed }
 }
 
 /// Equal-tailed interval of an atomic law: the first atoms whose cumulative weight reaches
@@ -1829,7 +1839,7 @@ fn measure_update_weights(test: &'static str, cell: Cell, path: Path, seed: u64)
         let truth = source.states[slot];
         let mut update = source.update.clone();
         update.observed_mean = truth + OBSERVATION_SD_RATIO * source.sd * shock;
-        let ctx = ExecutionContext::for_tests(grid_seed(seed + 1 + rep));
+        let ctx = source.fit_context();
         let attempt = source
             .prepared
             .with_experiment(update, &source.ledger)
@@ -1976,7 +1986,7 @@ fn measure_future_sample_standard_error(test: &'static str, cell: Cell, path: Pa
     let mean = source.states.iter().sum::<f64>() / n as f64;
     let mut update = source.update.clone();
     update.observed_mean = mean + OBSERVATION_SD_RATIO * source.sd;
-    let ctx = ExecutionContext::for_tests(grid_seed(seed));
+    let ctx = source.fit_context();
     let updated = source
         .prepared
         .with_experiment(update, &source.ledger)
