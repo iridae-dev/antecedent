@@ -153,8 +153,8 @@ fn a_declared_prior_is_the_query_the_engine_and_the_hand_reweighting() {
 
         // The accepted posterior states the prior, and a study on it carries the statement.
         let accepted = execution.accept_posterior(&ctx()).unwrap();
-        let statement = accepted.provenance().structure_prior.as_deref().unwrap();
-        assert_eq!(statement, declared_prior.statement());
+        let statement = accepted.provenance().structure_prior.clone().unwrap();
+        assert_eq!(&*statement, declared_prior.statement());
         let no_prior = Study::tabular(data.clone()).discovery(plain, three()).build().unwrap();
         let plain_accepted =
             CompiledExecution::run(&no_prior, &ctx()).unwrap().accept_posterior(&ctx()).unwrap();
@@ -170,7 +170,7 @@ fn a_declared_prior_is_the_query_the_engine_and_the_hand_reweighting() {
         let contract = on_discovered.inspect().unwrap();
         assert_eq!(
             contract.structure_provenance.as_deref().and_then(|p| p.structure_prior.as_deref()),
-            Some(statement)
+            Some(&*statement)
         );
     });
 }

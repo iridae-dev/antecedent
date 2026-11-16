@@ -149,7 +149,7 @@ fn the_exposure_draws_export_as_a_posterior_artifact_and_read_back() {
         assert!(consume_exposure_draws(&bytes, "x", Some(&"0".repeat(64))).is_err());
         assert_eq!(export_exposure_draws("x", &back).unwrap(), bytes);
         // The completed table carries the draw in place of the recorded column.
-        assert_eq!(study.completed_table(2).unwrap().row_count(), 400);
+        assert_eq!(antecedent::data::TableView::row_count(&study.completed_table(2).unwrap()), 400);
         // The same seed reproduces the draws; another seed does not.
         assert_eq!(prepared(&planted, 5).draws().draws, draws.draws);
         assert_ne!(prepared(&planted, 6).draws().draws, draws.draws);

@@ -75,7 +75,7 @@ pub fn analyse(
     table: &TabularData,
     ctx: &ExecutionContext,
 ) -> Result<StudyResult, CausalError> {
-    let mut graph = Dag::with_variables(3 + usize::from(planted.columns.has_column("count")));
+    let mut graph = Dag::with_variables(3 + u32::from(planted.columns.has_column("count")));
     for &(from, to) in &planted.edges {
         graph
             .insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
