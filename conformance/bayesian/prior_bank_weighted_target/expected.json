@@ -58,5 +58,22 @@
     "code": "transport_target_overlap_failed",
     "equal_weight_rows_below_floor": 15,
     "absolute_ess_floor": 20
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Kernel weights, weighted moments and overlap diagnostics derived with the standard library only, independent of the library (README).",
+    "formula": "Gaussian exp(-u^2/2), Epanechnikov 1 - u^2, tricube (1 - u^3)^3 with u = d / h; weighted mean sum w y / sum w; Kish ESS (sum w)^2 / sum w^2; planted neighbourhood mean of the rows inside the kernel's support.",
+    "generator": "conformance/bayesian/prior_bank_weighted_target/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/prior_bank_weighted_target/reference.py --check",
+    "environment_lock": "conformance/bayesian/prior_bank_weighted_target/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "source_mean",
+      "source_variance",
+      "kernel_weights",
+      "graded_rows",
+      "neighbourhood_rows",
+      "refusals"
+    ]
   }
 }

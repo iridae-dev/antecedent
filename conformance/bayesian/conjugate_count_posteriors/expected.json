@@ -73,5 +73,20 @@
       -2.7946591381576553
     ],
     "expected_selected_alpha": 0.75
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Conjugate Beta-Binomial and Gamma-Poisson posteriors evaluated at 50 digits with mpmath, independent of the library (README).",
+    "formula": "Beta(a + k, b + n - k) and Gamma(a + sum y, b + sum t); quantiles by inverting the regularized incomplete beta and gamma; marginal likelihoods and beta-binomial / negative-binomial predictives in closed form; empirical-Bayes discount as the grid maximizer of the marginal likelihood.",
+    "generator": "conformance/bayesian/conjugate_count_posteriors/reference.py",
+    "command": "uv run --frozen --script conformance/bayesian/conjugate_count_posteriors/reference.py --check",
+    "environment_lock": "conformance/bayesian/conjugate_count_posteriors/reference.py.lock",
+    "generator_retained": true,
+    "asserted_outputs": [
+      "beta_binomial_posterior",
+      "exceedance",
+      "gamma_poisson_posterior",
+      "empirical_bayes_beta"
+    ]
   }
 }
