@@ -656,8 +656,8 @@ fn transported_population(
     data: &TabularData,
     query: &AverageEffectQuery,
     atom: &DerivedAtom,
-    target: TransportTarget<'_>, domains: &[u8],
-) -> Result<(AverageEffectQuery, PopulationRegistry, IdentifiedEstimand), IoError> {
+    target: TransportTarget<'_>, domains: &[u8], retain_weights: bool,
+) -> Result<(AverageEffectQuery, PopulationRegistry, IdentifiedEstimand, Option<Vec<f64>>), IoError> {
     let mut adjustment = atom.operation.adjustment.clone();
     for &selected in target.selections() {
         if !adjustment.contains(&selected) { adjustment.push(selected); }
@@ -721,6 +721,7 @@ fn transported_population(
             &source_columns, &target_columns, &adjustment, domains, kernel,
         )?,
     };
+    let retained_weights = retain_weights.then(|| weights.clone());
     let handle = DistributionRef::from_raw(1);
     let mut registry = PopulationRegistry::new();
     registry.insert_distribution_with_dependence(
@@ -730,7 +731,7 @@ fn transported_population(
     );
     Ok((
         query.clone().with_target_population(TargetPopulation::CustomDistribution(handle)),
-        registry, estimand,
+        registry, estimand, retained_weights,
     ))
 }
 
@@ -770,6 +771,10 @@ fn execute(
         let bytes = u64::from(parts.imputations).checked_mul(u64::from(parts.posterior_draws))
             .and_then(|n| n.checked_mul(16)).ok_or_else(|| invalid("paired world admission overflow"))?;
         paired_leases.push(scoped.acquire_admission(0, bytes).map_err(admission)?);
+        if target.is_some() {
+            paired_leases.push(scoped.acquire_admission(0, (parts.rows() as u64).saturating_mul(8))
+                .map_err(admission)?);
+        }
     }
     let mut receipt = CanonicalWriter::new(match target {
         Some(TransportTarget::Binary(_)) => "antecedent.graph_imputation_transport.execution.v1",
@@ -840,22 +845,27 @@ fn execute(
                         execution_refused(format!("graph mask {mask}: {error}"))
                     }
                 };
-            let prepared = if let Some(target) = target {
-                let (query, registry, estimand) =
-                    transported_population(&data, &rec.query, atom, target, &parts.domains)?;
-                fitter.prepare_for_population(&data, &estimand, &query, Some(&registry))
-                    .map_err(fit_error)?
+            let (prepared, target_weights) = if let Some(target) = target {
+                let (query, registry, estimand, weights) =
+                    transported_population(&data, &rec.query, atom, target, &parts.domains, paired)?;
+                (fitter.prepare_for_population(&data, &estimand, &query, Some(&registry))
+                    .map_err(fit_error)?, weights)
             } else {
-                fitter.prepare(&data, &atom.estimand, &rec.query).map_err(fit_error)?
+                (fitter.prepare(&data, &atom.estimand, &rec.query).map_err(fit_error)?, None)
             };
             let fit = fitter.fit(&prepared, atom.operation.status,
                 &mut BayesianGCompWorkspace::default(), &child_ctx).map_err(fit_error)?;
             if paired {
-                if target.is_some() {
-                    return Err(invalid("paired graph worlds currently require the source population"));
+                if target.is_some_and(|target| !matches!(target, TransportTarget::Binary(_))) {
+                    return Err(invalid("paired target worlds require the root-treatment binary route"));
                 }
                 let design = &prepared.design;
                 let t = design.treatment_column().ok_or_else(|| invalid("paired worlds lack treatment column"))?;
+                if target_weights.is_some()
+                    && (t != 1 || design.ncols != 2 + 2 * prepared.adjustment_set.len())
+                {
+                    return Err(invalid("paired target coefficient design differs from centered adjustment model"));
+                }
                 let mut columns = Vec::with_capacity(design.ncols);
                 for index in 0..design.ncols {
                     let column = fit.draws.schema.quantities.iter().position(|quantity|
@@ -870,9 +880,26 @@ fn execute(
                 for draw in 0..fit.draws.n_draws {
                     let mut mean = 0.0;
                     for col in 0..design.ncols {
-                        let value = if col == t { 0.0 } else {
-                            design.matrix[col * design.nrows..(col + 1) * design.nrows].iter().sum::<f64>() / design.nrows as f64
-                        };
+                        let values = &design.matrix[col * design.nrows..(col + 1) * design.nrows];
+                        let value = if col == t { 0.0 } else if let Some(weights) = &target_weights {
+                            let names = prepared.coef_names.as_ref()
+                                .ok_or_else(|| invalid("target worlds lack coefficient names"))?;
+                            // Weighted g-computation appends treatment interactions centered at
+                            // these very target weights. Their target mean is zero in both worlds.
+                            let name = names.get(col).ok_or_else(|| invalid("target world coefficient name is missing"))?;
+                            if col >= 2 + prepared.adjustment_set.len() {
+                                if !name.starts_with("treatment_x_centered_") {
+                                    return Err(invalid("paired target interaction column is not centered"));
+                                }
+                                0.0
+                            } else {
+                                let mass = weights.iter().sum::<f64>();
+                                if weights.len() != design.nrows || !mass.is_finite() || mass <= 0.0 {
+                                    return Err(invalid("paired target weights differ from design rows"));
+                                }
+                                values.iter().zip(weights).map(|(x, w)| x * w).sum::<f64>() / mass
+                            }
+                        } else { values.iter().sum::<f64>() / design.nrows as f64 };
                         mean += value * columns[col][draw];
                     }
                     let control = mean + prepared.control * columns[t][draw];
@@ -1213,6 +1240,27 @@ pub fn replay_point(bytes: &[u8], ctx: &ExecutionContext) -> Result<GraphPointRe
         unidentified_by_table: reading.unidentified_by_table,
         _lease: reading.lease,
     })
+}
+
+/// Replay paired model-conditional potential-outcome mean worlds on a
+/// representative binary target frame. Both worlds share each sampled graph,
+/// imputed table and fitted coefficient draw; this is not outcome prediction.
+///
+/// # Errors
+/// Invalid target, target support, imputation, model or resource refusal.
+pub fn replay_transport_paired_worlds(bytes: &[u8], target: &TransportStandardization,
+    ctx: &ExecutionContext) -> Result<GraphPairedWorldReading, IoError> {
+    let rec = reconstruct(bytes, ctx)?;
+    target.validate(rec.source.parts())?;
+    let target_bytes = (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
+    let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
+    let run = execute(&rec, Some(TransportTarget::Binary(target)), true, ctx)?;
+    let mut writer = CanonicalWriter::new("antecedent.graph_imputation_transport.paired_worlds.execution.v1");
+    writer.bytes(&run.receipt).bytes(&target.digest()?).word(run.paired_worlds.len() as u64);
+    for pair in &run.paired_worlds { writer.word(pair[0].to_bits()).word(pair[1].to_bits()); }
+    Ok(GraphPairedWorldReading { worlds: run.paired_worlds, receipt: writer.finish(),
+        program: rec.source.program(), source: rec.source.parts().data_digest,
+        _lease: run.lease, _paired_leases: run.paired_leases })
 }
 
 /// Re-derive graph operations, impute the source, reselect graphs for every

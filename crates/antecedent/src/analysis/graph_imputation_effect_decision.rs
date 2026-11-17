@@ -20,7 +20,8 @@ use antecedent_core::{
 use antecedent_design::decision_artifact::DecisionContractArtifact;
 use antecedent_design::decision_contract::{ActionKind, DecisionContract, DecisionContractError};
 use antecedent_io::IoError;
-use antecedent_io::measured_inference::graph_candidate::{GraphPairedWorldReading, replay_paired_worlds};
+use antecedent_io::measured_inference::graph_candidate::{GraphPairedWorldReading,
+    TransportStandardization, replay_paired_worlds, replay_transport_paired_worlds};
 use antecedent_core::graph_imputation_contract::GraphImputationSource;
 use antecedent_io::propagation_chain_record::{
     ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire, ChainStageWire,
@@ -373,7 +374,7 @@ pub fn consume_graph_imputation_effect_decision(
 fn lower_paired_outer(
     producer: SemanticDigest, source: SemanticDigest,
     quantities: &[ScientificQuantity; 2],
-    decision: &DecisionContract,
+    decision: &DecisionContract, target: Option<&TransportStandardization>,
 ) -> Result<Arc<LoweredProgram>, GraphImputationEffectDecisionError> {
     decision.validate()?;
     let quantity_bytes = antecedent_io::to_cbor(&quantities.iter().map(ScientificQuantityWire::from).collect::<Vec<_>>())?;
@@ -381,14 +382,18 @@ fn lower_paired_outer(
     let mut writer = CanonicalWriter::new("antecedent.graph_imputation_paired_world_decision.question.v1");
     writer.bytes(producer.as_bytes()).bytes(source.as_bytes())
         .bytes(&quantity_bytes).text(&decision_identity);
+    if let Some(target) = target {
+        writer.text("graph_imputation_transport_paired_world_decision_v1").bytes(&target.digest()?);
+    }
     let question = writer.finish();
-    let design = DesignShape::quoted(1, 1, true);
+    let design = DesignShape::quoted(target.map_or(1, |target| target.rows() as u64), 1, true);
     let scientific = ScientificProblem {
         runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
             kind: FunctionalKind::PolicyValue, outcome: None, query: question,
         },
-        plan_id: Arc::from("graph_imputation_paired_world_decision.v1"),
+        plan_id: Arc::from(if target.is_some() { "graph_imputation_transport_paired_world_decision.v1" }
+            else { "graph_imputation_paired_world_decision.v1" }),
         data: DataClassification::Tabular,
         graph_class: "bounded_graph_imputation_paired_world_mixture",
         query_variables: Arc::from([]), source_digest: Some(*source.as_bytes()),
@@ -403,11 +408,16 @@ fn lower_paired_outer(
         models: Arc::from([]), folds: None, resampling: None,
         posterior: None, design, operators: Arc::from([]),
     };
+    let mut evidence_sources = vec![EvidenceSourceRef {
+        role: EvidenceRole::ChainSource, digest: Some(*source.as_bytes()),
+    }];
+    if let Some(target) = target {
+        evidence_sources.push(EvidenceSourceRef { role: EvidenceRole::TransportSource,
+            digest: Some(target.digest()?) });
+    }
     let evidence = EvidenceDecisionProgram {
-        sources: Arc::from([EvidenceSourceRef {
-            role: EvidenceRole::ChainSource, digest: Some(*source.as_bytes()),
-        }]),
-        composition: Composition::Chained { stages: 2 },
+        sources: Arc::from(evidence_sources),
+        composition: Composition::Chained { stages: if target.is_some() { 3 } else { 2 } },
         decision: Some(DecisionProgram {
             carrier: CarrierDemand::ParameterPosterior,
             utility: DecisionProgram::utility_form(None),
@@ -421,15 +431,18 @@ fn lower_paired_outer(
         }),
         planning: None, chain: None,
     };
-    let physical = PhysicalLayer {
-        operators: Arc::from([
-            PhysicalOperator::declare(PhysicalEffect::Read)
-                .estimates(ByteEstimates::absent().with_output(quantity_bytes.len() as u64))
-                .build().map_err(|_| GraphImputationEffectDecisionError::Invalid("invalid producer receipt read operator"))?,
-            PhysicalOperator::declare(PhysicalEffect::Fit)
-                .build().map_err(|_| GraphImputationEffectDecisionError::Invalid("invalid graph mixture operator"))?,
-        ]), design,
-    };
+    let mut operators = vec![
+        PhysicalOperator::declare(PhysicalEffect::Read)
+            .estimates(ByteEstimates::absent().with_output(quantity_bytes.len() as u64))
+            .build().map_err(|_| GraphImputationEffectDecisionError::Invalid("invalid producer receipt read operator"))?,
+        PhysicalOperator::declare(PhysicalEffect::Fit)
+            .build().map_err(|_| GraphImputationEffectDecisionError::Invalid("invalid graph mixture operator"))?,
+    ];
+    if target.is_some() {
+        operators.push(PhysicalOperator::declare(PhysicalEffect::Transport).build()
+            .map_err(|_| GraphImputationEffectDecisionError::Invalid("invalid target transport operator"))?);
+    }
+    let physical = PhysicalLayer { operators: Arc::from(operators), design };
     Ok(Arc::new(StandaloneCompositionLoweredParts {
         cell: ProgramCell::GraphImputationEffectDecision,
         scientific, identification, statistical, evidence, physical,
@@ -445,6 +458,7 @@ pub struct CompiledGraphImputationWorldDecision {
     quantities: [ScientificQuantity; 2],
     decision: DecisionContract,
     lowered: Arc<LoweredProgram>,
+    target: Option<TransportStandardization>,
 }
 
 /// Model-conditional decision on paired potential-outcome mean worlds.
@@ -473,6 +487,8 @@ struct GraphImputationWorldDecisionWire {
     decision_artifact: Vec<u8>,
     chain_artifact: Vec<u8>,
     program_identity: [u8; 32],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    target: Option<TransportStandardization>,
 }
 
 fn validate_world_coordinates(source: &[u8], quantities: &[ScientificQuantity; 2], decision: &DecisionContract)
@@ -532,8 +548,41 @@ pub fn compile_graph_imputation_world_decision(
     producer: CompiledGraphImputation, quantities: [ScientificQuantity; 2], decision: DecisionContract,
 ) -> Result<CompiledGraphImputationWorldDecision, GraphImputationEffectDecisionError> {
     validate_world_coordinates(producer.source_bytes(), &quantities, &decision)?;
-    let lowered = lower_paired_outer(producer.lowered().identity(), producer.source_identity(), &quantities, &decision)?;
-    Ok(CompiledGraphImputationWorldDecision { producer, quantities, decision, lowered })
+    let lowered = lower_paired_outer(producer.lowered().identity(), producer.source_identity(), &quantities, &decision, None)?;
+    Ok(CompiledGraphImputationWorldDecision { producer, quantities, decision, lowered, target: None })
+}
+
+/// Compile paired target mean worlds and an action decision from the complete
+/// source and representative binary target frame. This carries parameter
+/// uncertainty, not predictive outcome noise or earned decision reliability.
+///
+/// # Errors
+/// Invalid target, source binding, world coordinate or decision contract.
+pub fn compile_graph_imputation_transport_world_decision(
+    producer: CompiledGraphImputation, target: TransportStandardization,
+    quantities: [ScientificQuantity; 2], decision: DecisionContract,
+) -> Result<CompiledGraphImputationWorldDecision, GraphImputationEffectDecisionError> {
+    let source = GraphImputationSource::decode(producer.source_bytes())
+        .map_err(GraphImputationEffectDecisionError::Invalid)?;
+    target.validate(source.parts())?;
+    if target.source_sample != producer.source_identity().to_hex()
+        || quantities.iter().any(|quantity| quantity.population_id != target.target_population)
+        || decision.target_population != target.target_population {
+        return Err(GraphImputationEffectDecisionError::Invalid("paired target source or population differs"));
+    }
+    validate_world_coordinates(producer.source_bytes(), &quantities, &decision)?;
+    let lowered = lower_paired_outer(producer.lowered().identity(), producer.source_identity(),
+        &quantities, &decision, Some(&target))?;
+    Ok(CompiledGraphImputationWorldDecision { producer, quantities, decision, lowered, target: Some(target) })
+}
+
+/// Unmeasured coordinate for a prospective known-optimum action-choice study.
+pub struct GraphImputationWorldReliabilityCandidate {
+    /// Complete action-world execution, with `not_measured` standing.
+    pub result: GraphImputationWorldDecisionResult,
+    /// Exact source/design and action-contract study coordinate. External
+    /// truth is needed to score choices; this is not a reliability record.
+    pub action_choice_basis: SemanticDigest,
 }
 
 impl CompiledGraphImputationWorldDecision {
@@ -548,11 +597,41 @@ impl CompiledGraphImputationWorldDecision {
     /// # Errors
     /// Any graph, child, pairing or utility refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<GraphImputationWorldDecisionResult, GraphImputationEffectDecisionError> {
-        let reading = replay_paired_worlds(self.producer.source_bytes(), ctx)?;
+        let reading = if let Some(target) = &self.target {
+            replay_transport_paired_worlds(self.producer.source_bytes(), target, ctx)?
+        } else { replay_paired_worlds(self.producer.source_bytes(), ctx)? };
         let chain = compile_action_world_chain_decision(paired_world_chain(&reading, &self.quantities), self.decision.clone(), ctx)?;
         let decision = chain.execute(ctx)?;
         Ok(GraphImputationWorldDecisionResult { producer: reading, decision,
             lowered_program_identity: self.lowered.identity(), calibration: "not_measured" })
+    }
+    /// Execute and bind an unmeasured action-choice study coordinate. True
+    /// utility and the optimal action must be specified independently.
+    ///
+    /// # Errors
+    /// Source, target, decision or encoding refusal.
+    pub fn reliability_candidate(&self, ctx: &ExecutionContext)
+        -> Result<GraphImputationWorldReliabilityCandidate, GraphImputationEffectDecisionError> {
+        let result = self.execute(ctx)?;
+        let source = GraphImputationSource::decode(self.producer.source_bytes())
+            .map_err(GraphImputationEffectDecisionError::Invalid)?;
+        let parts = source.parts();
+        let mut writer = CanonicalWriter::new("antecedent.graph_imputation_paired_world.action_choice_study.v1");
+        writer.text(parts.support.as_str()).word(parts.atoms.len() as u64)
+            .word(parts.treatment as u64).word(parts.outcome as u64)
+            .words(&parts.domains.iter().map(|domain| u64::from(*domain)).collect::<Vec<_>>())
+            .word(parts.imputations as u64).word(parts.iterations as u64)
+            .word(parts.imputation_seed).word(parts.execution_seed)
+            .word(parts.posterior_draws as u64).word(parts.prior_scale.to_bits())
+            .word(parts.rows() as u64).text(&self.decision.identity()?)
+            .bytes(&antecedent_io::to_cbor(&self.quantities.iter().map(ScientificQuantityWire::from).collect::<Vec<_>>())?);
+        if let Some(target) = &self.target {
+            writer.text("binary_target_frame_v1").word(target.rows() as u64)
+                .words(&target.columns.iter().map(|(id, _)| u64::from(*id)).collect::<Vec<_>>())
+                .words(&target.selection_targets.iter().map(|id| u64::from(*id)).collect::<Vec<_>>());
+        } else { writer.text("source_frame_v1"); }
+        Ok(GraphImputationWorldReliabilityCandidate { result,
+            action_choice_basis: SemanticDigest::from_bytes(writer.finish()) })
     }
     /// Recompute and seal the paired schedule and decision for replay.
     ///
@@ -569,12 +648,14 @@ impl CompiledGraphImputationWorldDecision {
         let contract = DecisionContractArtifact::new(self.decision.clone())?;
         let chain = compile_action_world_chain_decision(paired_world_chain(&live.producer, &self.quantities), self.decision.clone(), ctx)?;
         let bytes = antecedent_io::to_cbor(&GraphImputationWorldDecisionWire {
-            version: 1, feature: "graph_imputation_paired_world_decision_v1".into(),
+            version: 1, feature: if self.target.is_some() { "graph_imputation_transport_paired_world_decision_v1" }
+                else { "graph_imputation_paired_world_decision_v1" }.into(),
             source: self.producer.source_bytes().to_vec(), producer_program: *self.producer.lowered().identity().as_bytes(),
             source_identity: *self.producer.source_identity().as_bytes(), receipt: live.producer.receipt,
             quantities: self.quantities.iter().map(ScientificQuantityWire::from).collect(),
             decision_identity: contract.identity().into(), decision_artifact: contract.to_bytes(artifact_id)?,
             chain_artifact: chain.export(&live.decision, artifact_id)?, program_identity: *self.lowered.identity().as_bytes(),
+            target: self.target.clone(),
         })?;
         if bytes.len() > MAX_ARTIFACT_BYTES { return Err(GraphImputationEffectDecisionError::Invalid("paired world artifact exceeds its bound")); }
         Ok(bytes)
@@ -589,10 +670,14 @@ pub fn consume_graph_imputation_world_decision(bytes: &[u8], expected: SemanticD
     -> Result<GraphImputationWorldDecisionResult, GraphImputationEffectDecisionError> {
     if bytes.len() > MAX_ARTIFACT_BYTES { return Err(GraphImputationEffectDecisionError::Invalid("paired world artifact exceeds its bound")); }
     let wire: GraphImputationWorldDecisionWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.feature != "graph_imputation_paired_world_decision_v1" || wire.program_identity != *expected.as_bytes() {
+    let feature = if wire.target.is_some() { "graph_imputation_transport_paired_world_decision_v1" }
+        else { "graph_imputation_paired_world_decision_v1" };
+    if wire.version != 1 || wire.feature != feature || wire.program_identity != *expected.as_bytes() {
         return Err(GraphImputationEffectDecisionError::Invalid("paired world feature or identity differs"));
     }
-    let reading = replay_paired_worlds(&wire.source, ctx)?;
+    let reading = if let Some(target) = &wire.target {
+        replay_transport_paired_worlds(&wire.source, target, ctx)?
+    } else { replay_paired_worlds(&wire.source, ctx)? };
     if reading.program != wire.producer_program || reading.source != wire.source_identity || reading.receipt != wire.receipt {
         return Err(GraphImputationEffectDecisionError::Invalid("paired world source or receipt differs"));
     }
@@ -600,7 +685,14 @@ pub fn consume_graph_imputation_world_decision(bytes: &[u8], expected: SemanticD
     let quantities: [ScientificQuantity; 2] = quantities.try_into().map_err(|_| GraphImputationEffectDecisionError::Invalid("paired world coordinates missing"))?;
     let contract = DecisionContractArtifact::from_bytes(&wire.decision_artifact, &wire.decision_identity)?;
     validate_world_coordinates(&wire.source, &quantities, contract.contract())?;
-    let lowered = lower_paired_outer(SemanticDigest::from_bytes(reading.program), SemanticDigest::from_bytes(reading.source), &quantities, contract.contract())?;
+    if let Some(target) = &wire.target {
+        if target.source_sample != SemanticDigest::from_bytes(reading.source).to_hex()
+            || quantities.iter().any(|quantity| quantity.population_id != target.target_population)
+            || contract.contract().target_population != target.target_population {
+            return Err(GraphImputationEffectDecisionError::Invalid("stored paired target population differs"));
+        }
+    }
+    let lowered = lower_paired_outer(SemanticDigest::from_bytes(reading.program), SemanticDigest::from_bytes(reading.source), &quantities, contract.contract(), wire.target.as_ref())?;
     if lowered.identity() != expected { return Err(GraphImputationEffectDecisionError::Invalid("paired world outer program differs")); }
     let decision = compile_action_world_chain_decision(paired_world_chain(&reading, &quantities), contract.contract().clone(), ctx)?.execute(ctx)?;
     let replay = consume_chain_decision(&wire.chain_artifact, Some(decision.lowered_program_identity), ctx)?;
@@ -651,7 +743,53 @@ mod paired_world_tests {
             constraints: Vec::new(), target_population: "source".into(), horizon: 0,
             structural_policy: StructuralPolicy::RequireInvariantBestAction,
         };
+        let target_table = TabularData::from_f64_columns([
+            ("t", treatment.as_slice()), ("y", outcome.as_slice()), ("x", covariate.as_slice()),
+        ]).unwrap();
+        let target_producer = CompiledGraphImputation::compile(target_table, &GraphImputationSpec {
+            treatment: VariableId::from_raw(0), outcome: VariableId::from_raw(1),
+            support: GraphSupport::TreatmentRootPreTreatmentCovariates,
+            imputation: ImputationSpec::new().with_imputations(2).with_iterations(2).with_seed(17),
+            domains: Arc::from(vec![1, 0, 1]), posterior_draws: 100, prior_scale: 1.0, execution_seed: 19,
+        }, &ctx).unwrap();
+        let target = TransportStandardization {
+            columns: vec![(2, (0..80).map(|row| f64::from(u8::from(row % 5 != 0))).collect())],
+            selection_targets: vec![2], source_population: "source".into(), target_population: "target".into(),
+            source_sample: target_producer.source_identity().to_hex(), target_sample: "target-sample".into(),
+            source_unit_ids: (0..80).map(|row| format!("source-{row}")).collect(),
+            target_unit_ids: (0..80).map(|row| format!("target-{row}")).collect(),
+        };
+        let target_quantities = quantities.clone().map(|mut quantity| {
+            quantity.population_id = "target".into(); quantity
+        });
+        let mut target_decision = decision.clone();
+        target_decision.target_population = "target".into();
+        for (action, quantity) in target_decision.actions.iter_mut().zip(&target_quantities) {
+            action.inputs = vec![quantity.clone()];
+        }
+        let target_plan = compile_graph_imputation_transport_world_decision(
+            target_producer, target, target_quantities.clone(), target_decision,
+        ).unwrap();
         let plan = compile_graph_imputation_world_decision(producer, quantities.clone(), decision).unwrap();
+        assert_ne!(plan.lowered().identity(), target_plan.lowered().identity());
+        let target_candidate = target_plan.reliability_candidate(&ctx).unwrap();
+        let target_result = target_candidate.result;
+        assert_eq!(target_result.calibration, "not_measured");
+        let target_joint = paired_world_chain(&target_result.producer, &target_quantities);
+        assert_eq!(target_joint.sources[0].alignment, target_joint.sources[1].alignment);
+        assert_eq!(target_joint.sources[0].factors, target_joint.sources[1].factors);
+        assert!(target_result.producer.worlds.iter().all(|pair| pair[0].is_finite() && pair[1].is_finite()));
+        let target_artifact = target_plan.export(&target_result, "target-paired-world", &ctx).unwrap();
+        let target_replay = consume_graph_imputation_world_decision(
+            &target_artifact, target_plan.lowered().identity(), &ctx,
+        ).unwrap();
+        assert_eq!(target_replay.producer.worlds, target_result.producer.worlds);
+        assert_eq!(target_replay.decision.decision, target_result.decision.decision);
+        let mut target_wire: GraphImputationWorldDecisionWire = antecedent_io::from_cbor(&target_artifact).unwrap();
+        let first_value = target_wire.target.as_ref().unwrap().columns[0].1[0];
+        target_wire.target.as_mut().unwrap().columns[0].1[0] = 1.0 - first_value;
+        let target_tampered = antecedent_io::to_cbor(&target_wire).unwrap();
+        assert!(consume_graph_imputation_world_decision(&target_tampered, target_plan.lowered().identity(), &ctx).is_err());
         let result = plan.execute(&ctx).unwrap();
         let joint = paired_world_chain(&result.producer, &quantities);
         assert_eq!(joint.sources[0].alignment, joint.sources[1].alignment);
