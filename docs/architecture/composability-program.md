@@ -229,7 +229,9 @@ posterior-predictive route. It conditions a normal, homoscedastic target-trial
 line on the observed surrogate effects under the inverse-variance reference
 prior and draws its intercept and slope jointly. It composes those parameter
 rows with the bridge's retained source predictive rows and innovation in a
-compiler-owned predictive mapping, then scores expected regret. The outer
+compiler-owned predictive mapping, retaining positive source row weights
+through one chain reweighting and dropping zero-mass rows together with their
+paired innovations, then scores expected regret. The outer
 statistical layer names the nested fit and prior; its source-bound artifact
 independently refits and checks both assessed children and the final chain.
 Independent target trials, transferred source innovation, normal residuals and

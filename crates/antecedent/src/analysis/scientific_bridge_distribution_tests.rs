@@ -674,10 +674,11 @@ fn independent_target_posterior_and_source_innovation_replay_together() {
             surrogate_grid: vec![-0.8, 0.0, 0.8], equivalence_margin: 0.2,
         },
     ).unwrap();
-    let bridge = compile_bridge_transport_decision(
-        declaration, draws_table(64, 0.0, 0.1, DistributionMeaningWire::PosteriorPredictive),
-        11, decision,
-    ).unwrap();
+    let source_draws = draws_table(64, 0.0, 0.1, DistributionMeaningWire::PosteriorPredictive);
+    let mut metadata = source_draws.metadata().clone();
+    metadata.weights = Some((0..64).map(f64::from).collect());
+    let weighted_source = DistributionArtifact::new(metadata, source_draws.draws().to_vec()).unwrap();
+    let bridge = compile_bridge_transport_decision(declaration, weighted_source, 11, decision).unwrap();
     let assessed = compile_assessed_bridge_transport_decision(assessment, bridge).unwrap();
     let plan = compile_assessed_bridge_posterior_decision(assessed, BridgeTargetPosteriorPremises {
         validation_design: "independent-target-trials".into(),
@@ -685,6 +686,9 @@ fn independent_target_posterior_and_source_innovation_replay_together() {
     }, &ctx).unwrap();
     let result = plan.execute(&ctx).unwrap();
     assert_eq!(result.calibration, "not_measured");
+    let weights = result.decision.chain.output_law().unwrap().1.unwrap();
+    assert_eq!(weights.len(), 63);
+    assert!(f64::from_bits(weights[0]) < f64::from_bits(weights[62]));
     let artifact = plan.export(&result, "target-posterior-bridge", &ctx).unwrap();
     let replay = consume_assessed_bridge_posterior_decision(&artifact, plan.lowered().identity(), &ctx).unwrap();
     assert_eq!(result.decision.chain.identity(), replay.decision.chain.identity());

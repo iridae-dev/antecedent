@@ -26,7 +26,8 @@ use antecedent_design::decision_contract::{
 use antecedent_io::IoError;
 use antecedent_io::distribution_artifact::DistributionArtifact;
 use antecedent_io::propagation_chain_record::{
-    ChainExprTermWire, ChainOpWire, ChainSourceWire, ChainStageWire, PropagationChainRecordWire,
+    ChainChangeWire, ChainExprTermWire, ChainOpWire, ChainSourceWire, ChainStageWire,
+    PropagationChainRecordWire,
 };
 use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 use serde::{Deserialize, Serialize};
@@ -1038,8 +1039,17 @@ pub fn compile_assessed_bridge_posterior_decision(
     statistical.models = Arc::from(models);
     let prior = antecedent_core::Prior::new("target_line_reference_prior_inverse_variance")
         .map_err(|_| AssessedBridgeRobustDecisionError::Invalid("target posterior prior identity is invalid"))?;
+    let active_draws = assessed.bridge.source.metadata().weights.as_ref().map_or(
+        assessed.bridge.source.n_draws(),
+        |weights| weights.iter().filter(|weight| **weight > 0.0).count(),
+    );
+    if active_draws < 2 {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "target posterior needs at least two positive-mass source rows",
+        ));
+    }
     statistical.posterior = Some(PosteriorPlan { algorithm: PosteriorAlgorithm::Conjugate,
-        draws: assessed.bridge.source.n_draws(), prior });
+        draws: active_draws, prior });
     let lowered = Arc::new(StandaloneCompositionLoweredParts {
         cell: ProgramCell::AssessedBridgeTransportDecision, scientific, identification,
         statistical, evidence,
@@ -1060,10 +1070,35 @@ impl CompiledAssessedBridgePosteriorDecision {
     fn posterior_plan(&self, result: &AssessedBridgeTransportDecisionResult, ctx: &ExecutionContext)
         -> Result<super::propagation_chain_decision::ChainDecisionPlan, AssessedBridgeRobustDecisionError> {
         let bridged = result.bridge.bridge.bridged();
-        let source = bridged.source_column();
-        let residuals = bridged.affine_columns().and_then(|columns| columns.residuals.as_ref())
+        let all_source = bridged.source_column();
+        let all_residuals = bridged.affine_columns().and_then(|columns| columns.residuals.as_ref())
             .ok_or(AssessedBridgeRobustDecisionError::Invalid("source predictive innovation is absent"))?;
-        if source.len() != residuals.len() { return Err(AssessedBridgeRobustDecisionError::Invalid("source rows and innovations differ")); }
+        if all_source.len() != all_residuals.len() {
+            return Err(AssessedBridgeRobustDecisionError::Invalid("source rows and innovations differ"));
+        }
+        let source_weights = bridged.source().metadata().weights.as_ref();
+        if source_weights.is_some_and(|weights| weights.len() != all_source.len()) {
+            return Err(AssessedBridgeRobustDecisionError::Invalid("source weights and rows differ"));
+        }
+        let mut source = Vec::with_capacity(all_source.len());
+        let mut residuals = Vec::with_capacity(all_residuals.len());
+        let mut log_weights = Vec::new();
+        for (index, (&value, &innovation)) in all_source.iter().zip(all_residuals).enumerate() {
+            let weight = source_weights.map_or(1.0, |weights| weights[index]);
+            if !weight.is_finite() || weight < 0.0 {
+                return Err(AssessedBridgeRobustDecisionError::Invalid("source weights are invalid"));
+            }
+            if weight > 0.0 {
+                source.push(value);
+                residuals.push(innovation);
+                if source_weights.is_some() { log_weights.push(weight.ln()); }
+            }
+        }
+        if source.len() < 2 {
+            return Err(AssessedBridgeRobustDecisionError::Invalid(
+                "target posterior needs at least two positive-mass source rows",
+            ));
+        }
         let first = result.assessment.grid.first().ok_or(AssessedBridgeRobustDecisionError::Invalid("validation grid absent"))?.surrogate_effect;
         let last = result.assessment.grid.last().ok_or(AssessedBridgeRobustDecisionError::Invalid("validation grid absent"))?.surrogate_effect;
         if source.iter().any(|x| !x.is_finite() || *x < first || *x > last) {
@@ -1078,7 +1113,7 @@ impl CompiledAssessedBridgePosteriorDecision {
         let intercept: Vec<_> = target.iter().map(|draw| draw.intercept).collect();
         let slope: Vec<_> = target.iter().map(|draw| draw.slope).collect();
         let alignment = format!("target-posterior:{}", self.lowered.identity().to_hex());
-        let draft = PropagationChain::draft(TableConstruction::JointDraws, ChainReading::Predictive,
+        let mut draft = PropagationChain::draft(TableConstruction::JointDraws, ChainReading::Predictive,
             "target_terminal", vec![
                 ChainSourceWire::draws("source", LawMeaning::Predictive, &alignment, &source)
                     .with_factor(SharedFactorKind::Model, "retained_source_predictive_pair"),
@@ -1086,7 +1121,7 @@ impl CompiledAssessedBridgePosteriorDecision {
                     .with_factor(SharedFactorKind::Parameter, "independent_target_line_posterior"),
                 ChainSourceWire::draws("target_intercept", LawMeaning::Posterior, &alignment, &intercept)
                     .with_factor(SharedFactorKind::Parameter, "independent_target_line_posterior"),
-                ChainSourceWire::draws("source_innovation", LawMeaning::Innovation, &alignment, residuals)
+                ChainSourceWire::draws("source_innovation", LawMeaning::Innovation, &alignment, &residuals)
                     .with_factor(SharedFactorKind::Model, "retained_source_predictive_pair"),
             ], vec![ChainStageWire::new("target_terminal", StageKind::PredictiveMapping,
                 &["source", "target_slope", "target_intercept", "source_innovation"],
@@ -1094,6 +1129,9 @@ impl CompiledAssessedBridgePosteriorDecision {
                     ChainExprTermWire::Multiply, ChainExprTermWire::input(2), ChainExprTermWire::Add,
                     ChainExprTermWire::input(3), ChainExprTermWire::Add]))],
         ).with_output_quantity(ScientificQuantityWire::from(&self.assessed.bridge.bridge.contract().target.quantity));
+        if source_weights.is_some() {
+            draft.changes.push(ChainChangeWire::reweight("source", &log_weights));
+        }
         Ok(compile_chain_decision(draft, self.assessed.bridge.decision.clone(), ctx)?)
     }
 
@@ -1190,14 +1228,17 @@ impl CompiledAssessedBridgePosteriorDecision {
     pub fn calibration_candidate(&self, ctx: &ExecutionContext)
         -> Result<AssessedBridgePosteriorCalibrationCandidate, AssessedBridgeRobustDecisionError> {
         let result = self.execute(ctx)?;
-        let functional = format!("predictive_expected_regret:assessed={}:design={}:source_draws={}:target_trials={}",
+        let active_draws = self.lowered.statistical().posterior.as_ref()
+            .map(PosteriorPlan::draws).unwrap_or(0);
+        let functional = format!("predictive_expected_regret:assessed={}:design={}:source_draws={}:active_draws={}:target_trials={}",
             self.assessed.lowered.identity().to_hex(), self.premises.validation_design,
-            self.assessed.bridge.source.n_draws(), self.assessed.assessment.target_trial_count());
+            self.assessed.bridge.source.n_draws(), active_draws,
+            self.assessed.assessment.target_trial_count());
         let basis = antecedent_core::CalibrationBasis::new([
             "PolicyValue", "independent_target_validation", "fixed", "tabular", "Bayesian",
             "assessed_bridge_target_posterior_decision_v1", "none", "joint_normal_line_reference_posterior",
             "independent_target_transferred_source_innovation", "reference_variance_inverse", functional.as_str(),
-        ].map(Arc::from), 0.95, Arc::from("point"), self.assessed.bridge.source.n_draws() as u64,
+        ].map(Arc::from), 0.95, Arc::from("point"), active_draws as u64,
             None, None, 0.0).with_validation("none");
         Ok(AssessedBridgePosteriorCalibrationCandidate { result, basis })
     }
