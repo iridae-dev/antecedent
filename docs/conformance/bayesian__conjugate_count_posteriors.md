@@ -30,4 +30,4 @@ Multiprecision quantile, CDF and predictive references, the bias-aware and unifo
 
 ## Expected summary
 
-Top-level keys: `beta_binomial_posterior, empirical_bayes_beta, exceedance, gamma_poisson_posterior, tol` (5 fields).
+Top-level keys: `beta_binomial_posterior, empirical_bayes_beta, exceedance, gamma_poisson_posterior, oracle, tol` (6 fields).

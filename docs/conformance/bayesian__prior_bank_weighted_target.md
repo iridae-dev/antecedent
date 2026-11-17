@@ -19,4 +19,4 @@ from `prior_bank_transport`, which covers tag-defined populations.
 
 ## Expected summary
 
-Top-level keys: `graded_rows, kernel_weights, neighbourhood_rows, refusals, source_mean, source_variance, tol` (7 fields).
+Top-level keys: `graded_rows, kernel_weights, neighbourhood_rows, oracle, refusals, source_mean, source_variance, tol` (8 fields).

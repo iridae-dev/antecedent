@@ -247,7 +247,7 @@ provenance = [
   "estimate.bayesian_temporal_white_innovation",
   "estimate.gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 25 of 25 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 26 of 26 public items reviewed"
 identifying_result = "AverageEffect"
 assumptions = "Supported Bayesian AverageEffect ids are g-computation and robust ATE, not glm.adjustment."
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -419,7 +419,7 @@ decision_basis = "supported per the counterpart inventory; execution crates/ante
 provenance = [
   "estimate.aipw",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 23 of 23 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 24 of 24 public items reviewed"
 identifying_result = "ATT/ATC, trimmed, and predicate-target fits stay on the full-sample path and do not export that table."
 assumptions = "A declared GLM-to-penalized fallback re-runs the whole route with the penalized destination when the GLM propensity fit fails. That function accounts for the estimated propensity and arm share only when *both* nuisance models are consistent: the ATT/ATC point estimate stays doubly robust, but its analytic SE does not, because under a misspecified propensity or outcome model the estimator's influence function picks up nuisance-estimation terms the efficient influence function omits."
 sampling_units = "When the overlap policy sets a trim threshold, units whose raw propensity falls outside [trim, 1 − trim] are excluded from the outcome-model fits and the ψ average (the estimand becomes the common-support population, matching the overlap report)."
@@ -649,7 +649,7 @@ provenance = [
   "estimate.bayesian_temporal_white_innovation",
   "estimate.gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 25 of 25 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 26 of 26 public items reviewed"
 identifying_result = "AverageEffect"
 assumptions = "the identification premises of AverageEffect on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -749,7 +749,7 @@ provenance = [
   "discovery.dbn_posterior",
   "discovery.graph_mcmc",
 ]
-api_review = "parity/public_api/antecedent-discovery.txt: 64 of 66 public items reviewed"
+api_review = "parity/public_api/antecedent-discovery.txt: 67 of 67 public items reviewed"
 identifying_result = "Discover"
 assumptions = "the identification premises of Discover on the recorded route; the module documents no further premise"
 sampling_units = "tabular rows; methods=pc,fci,rfci,ges,direct_lingam,notears (frequentist) and exact_dag_posterior,exact_dag_marginals,order_mcmc,structure_mcmc,ci_screened_posterior (Bayesian); bootstrap_stability over a frequentist method (independent rows) and class_posterior over a DAG or bounded-lag template posterior; order_mcmc under the Laplace-noise score; exact_pag_posterior over the Gaussian maximal ancestral graphs of at most four variables and pag_mcmc over two to eight"
@@ -3774,7 +3774,7 @@ provenance = [
   "estimate.bayesian_temporal_white_innovation",
   "estimate.gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 25 of 25 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 26 of 26 public items reviewed"
 identifying_result = "No Bayesian posterior of the contemporaneous projection as a pulse"
 assumptions = "the identification premises of AverageEffect on the recorded route; the module documents no further premise"
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
@@ -4552,7 +4552,7 @@ decision_basis = "supported per the counterpart inventory; execution crates/ante
 provenance = [
   "estimate.temporal_response.gcomp",
 ]
-api_review = "parity/public_api/antecedent.txt: 12 of 13 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 13 of 13 public items reviewed"
 identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises. Here a and b are schedules or history-adapted programs with declared timing, horizon, and initial-state law."
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
@@ -4578,7 +4578,7 @@ decision_basis = "supported per the counterpart inventory; execution crates/ante
 provenance = [
   "estimate.response.temporal.bayesian",
 ]
-api_review = "parity/public_api/antecedent.txt: 12 of 13 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 13 of 13 public items reviewed"
 identifying_result = "Delta_AB = E[Y(a,b)] - E[Y(a,0)] - E[Y(0,b)] + E[Y(0,0)], one functional"
 assumptions = "0 is a declared reference intervention. The four worlds share population, outcome, units, conditioning, and reference regime. Mediation keeps its own cross-world premises. Here a and b are schedules or history-adapted programs with declared timing, horizon, and initial-state law."
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
