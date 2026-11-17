@@ -79,6 +79,7 @@ mod gformula;
 mod model;
 mod offpolicy;
 mod policy;
+mod reliability;
 mod rollout;
 
 use std::fmt;
@@ -99,10 +100,11 @@ pub use model::{
     ObservationChannel, StoppingBoundary,
 };
 pub use offpolicy::{
-    LoggedStep, LoggedTrajectory, OFF_POLICY_INTERVAL_LEVEL, OffPolicyEstimate, OffPolicyInterval,
-    evaluate_off_policy,
+    LoggedStep, LoggedTrajectory, OFF_POLICY_INTERVAL_LEVEL, OffPolicyBootstrap, OffPolicyEstimate, OffPolicyInterval,
+    bootstrap_off_policy, evaluate_off_policy,
 };
 pub use policy::{ContingentPolicy, HistoryKey, HistoryStep, PolicySpec};
+pub use reliability::{bootstrap_decision_draws, rollout_decision_draws};
 pub use rollout::{
     RolloutConfig, RolloutEstimate, STREAM_SCHEME, StreamRole, rollout_policy, stream_uniform,
 };
