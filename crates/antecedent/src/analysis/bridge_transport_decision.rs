@@ -11,22 +11,33 @@ use std::sync::Arc;
 
 use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_contract::bridge::{BridgeContract, ValueKind};
-use antecedent_contract::propagation_chain::TableConstruction;
+use antecedent_contract::propagation_chain::{
+    ChainReading, LawMeaning, StageKind, TableConstruction,
+};
 use antecedent_core::{
     ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect,
     PhysicalOperator, SemanticDigest,
 };
 use antecedent_design::decision_artifact::DecisionContractArtifact;
-use antecedent_design::decision_contract::{DecisionContract, DecisionContractError};
+use antecedent_design::decision_contract::{
+    DecisionContract, DecisionContractError, DecisionCriterion,
+};
 use antecedent_io::IoError;
 use antecedent_io::distribution_artifact::DistributionArtifact;
-use antecedent_io::propagation_chain_record::PropagationChainRecordWire;
+use antecedent_io::propagation_chain_record::{
+    ChainOpWire, ChainSourceWire, ChainStageWire, PropagationChainRecordWire,
+};
 use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 use serde::{Deserialize, Serialize};
 
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision,
     consume_chain_decision,
+};
+use super::propagation_chain::PropagationChain;
+use super::propagation_chain_robust_decision::{
+    ChainRobustDecisionPlan, ChainRobustDecisionResult,
+    compile_chain_robust_decision, consume_chain_robust_decision,
 };
 use super::scientific_bridge::{
     PreparedScientificBridgeDistribution, ScientificBridgeDistributionResult,
@@ -591,6 +602,340 @@ pub fn consume_assessed_bridge_transport_decision(
     {
         return Err(AssessedBridgeTransportDecisionError::Invalid(
             "combined child result changed on replay",
+        ));
+    }
+    Ok(live)
+}
+
+const ASSESSED_ROBUST_FEATURE: &str = "assessed_bridge_discrepancy_robust_decision_v1";
+
+/// A separate conservative decision that carries the assessed target-minus-
+/// source mapping discrepancy into every predictive bridge row. The
+/// assessment band is an unmeasured candidate, so this is an assumption
+/// envelope, not a confidence or posterior decision.
+#[derive(Clone, Debug)]
+pub struct CompiledAssessedBridgeRobustDecision {
+    assessed: CompiledAssessedBridgeTransportDecision,
+    contract: DecisionContract,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// The source-target assessment, conditional bridge and robust utility bounds.
+#[derive(Clone, Debug)]
+pub struct AssessedBridgeRobustDecisionResult {
+    /// Both prerequisite compiler results.
+    pub assessed: AssessedBridgeTransportDecisionResult,
+    /// Conservative utility and feasibility bounds over the shift envelope.
+    pub robust: ChainRobustDecisionResult,
+    /// Outer six-layer identity binding validation, bridge and robust utility.
+    pub lowered_program_identity: SemanticDigest,
+    /// No complete-route reliability or coverage record has been earned.
+    pub calibration: &'static str,
+}
+
+/// Refusal of the discrepancy envelope, robust utility or portable replay.
+#[derive(Debug, thiserror::Error)]
+pub enum AssessedBridgeRobustDecisionError {
+    /// A source draw leaves assessed support or a binding differs.
+    #[error("assessed bridge robust decision: {0}")]
+    Invalid(&'static str),
+    /// The assessment or conditional bridge refused.
+    #[error("assessed bridge robust prerequisite: {0}")]
+    Assessed(#[from] AssessedBridgeTransportDecisionError),
+    /// The robust decision contract refused.
+    #[error("assessed bridge robust contract: {0}")]
+    Contract(#[from] DecisionContractError),
+    /// The assumption-envelope chain or utility refused.
+    #[error("assessed bridge robust chain: {0}")]
+    Chain(#[from] ChainDecisionError),
+    /// Artifact encoding or independent replay refused.
+    #[error("assessed bridge robust artifact: {0}")]
+    Io(#[from] IoError),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct AssessedBridgeRobustWire {
+    version: u32,
+    required_feature: String,
+    program_identity: [u8; 32],
+    assessment_identity: [u8; 32],
+    assessment_artifact: Vec<u8>,
+    bridge_identity: [u8; 32],
+    bridge_artifact: Vec<u8>,
+    robust_contract_identity: String,
+    robust_contract_artifact: Vec<u8>,
+    robust_identity: [u8; 32],
+    robust_artifact: Vec<u8>,
+}
+
+/// Compile a matched assessment and predictive bridge with a separate
+/// maximin contract over the bridge's exact target outcome coordinate.
+///
+/// # Errors
+/// A nonmatching coordinate, nonrobust criterion or lowering refusal.
+pub fn compile_assessed_bridge_robust_decision(
+    assessed: CompiledAssessedBridgeTransportDecision,
+    contract: DecisionContract,
+) -> Result<CompiledAssessedBridgeRobustDecision, AssessedBridgeRobustDecisionError> {
+    contract.validate()?;
+    let target = &assessed.bridge.bridge.contract().target.quantity;
+    if !matches!(contract.criterion, DecisionCriterion::MaximinOverStructures)
+        || contract.target_population != target.population_id
+        || contract.horizon != target.horizon
+        || contract.actions.iter().any(|action| action.inputs.iter().any(|input| {
+            input.require_same_coordinate(target).is_err()
+        })) {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "robust actions must read the assessed bridge target and use maximin",
+        ));
+    }
+    let contract_id = contract.identity()?;
+    let child_id = assessed.lowered.identity();
+    let mut writer = CanonicalWriter::new("antecedent.assessed_bridge_robust.question.v1");
+    writer.bytes(child_id.as_bytes()).text(&contract_id)
+        .text("global_overlap_grid_discrepancy_envelope_v1");
+    let query = writer.finish();
+    let design = crate::planner::lowered::DesignShape::quoted(
+        assessed.bridge.source.n_draws() as u64, 2, true,
+    );
+    let scientific = ScientificProblem {
+        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::PolicyValue, outcome: None, query,
+        },
+        plan_id: Arc::from("assessed_bridge_discrepancy_robust.v1"),
+        data: DataClassification::Tabular,
+        graph_class: "assessed_bridge_discrepancy_envelope",
+        query_variables: Arc::from(Vec::new()), source_digest: Some(child_id),
+        support_coordinate: None, supported: false, support_status: None,
+    };
+    let evidence = EvidenceDecisionProgram {
+        sources: Arc::from([EvidenceSourceRef {
+            role: EvidenceRole::TransportSource, digest: Some(child_id),
+        }]),
+        composition: Composition::Chained { stages: 3 },
+        decision: Some(DecisionProgram {
+            carrier: CarrierDemand::IdentifiedSet,
+            utility: DecisionProgram::utility_form(None),
+            actions: contract.actions.len(), constraints: contract.constraints.len(),
+            chance_threshold: contract.constraints.iter()
+                .map(|constraint| constraint.min_probability).fold(0.0_f64, f64::max),
+            utility_unit: Some(Arc::from(contract.utility_units.as_str())),
+            contract_identity: Some(Arc::from(contract_id.as_str())),
+            information_value: None,
+            scenario_source: Some(Arc::from("unmeasured_global_discrepancy_envelope_v1")),
+        }), planning: None, chain: None,
+    };
+    let physical = PhysicalLayer {
+        operators: Arc::from([
+            PhysicalOperator::declare(PhysicalEffect::Read)
+                .build().map_err(|_| AssessedBridgeRobustDecisionError::Invalid(
+                    "robust bridge assessment read cannot be lowered",
+                ))?,
+            PhysicalOperator::declare(PhysicalEffect::Transport)
+                .estimates(ByteEstimates::absent().with_output(
+                    (assessed.bridge.source.n_draws() as u64).saturating_mul(16),
+                )).build().map_err(|_| AssessedBridgeRobustDecisionError::Invalid(
+                    "robust bridge shift cannot be lowered",
+                ))?,
+        ]), design,
+    };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::AssessedBridgeTransportDecision,
+        scientific,
+        identification: IdentificationLayer::NonGraphical(Arc::new(
+            NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+        )),
+        statistical: StatisticalProgram {
+            identifier: None, estimator: None,
+            realization: Realization::DeclaredAssumptionEnvelope {
+                evaluator: Arc::from("assessed_bridge.global_discrepancy_envelope"),
+                draw_meaning: LawMeaning::Predictive,
+            },
+            models: Arc::from([]), folds: None, resampling: None,
+            posterior: None, design, operators: Arc::from([]),
+        },
+        evidence, physical,
+        claim: ClaimDemand { uncertainty: UncertaintyReading::AssumptionEnvelope,
+            kind: Some(ClaimKind::PolicyValue) },
+    }.finish());
+    Ok(CompiledAssessedBridgeRobustDecision { assessed, contract, lowered })
+}
+
+fn discrepancy_robust_plan(
+    assessed: &AssessedBridgeTransportDecisionResult,
+    contract: &DecisionContract, ctx: &ExecutionContext,
+) -> Result<ChainRobustDecisionPlan, AssessedBridgeRobustDecisionError> {
+    let grid = &assessed.assessment.grid;
+    let (Some(first), Some(last)) = (grid.first(), grid.last()) else {
+        return Err(AssessedBridgeRobustDecisionError::Invalid("assessment grid is empty"));
+    };
+    let lower = grid.iter().map(|point| point.lower).fold(f64::INFINITY, f64::min);
+    let upper = grid.iter().map(|point| point.upper).fold(f64::NEG_INFINITY, f64::max);
+    if !lower.is_finite() || !upper.is_finite() || lower > upper {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "assessed discrepancy envelope is invalid",
+        ));
+    }
+    let bridged = assessed.bridge.bridge.bridged();
+    let source = bridged.source();
+    let mapped = bridged.distribution();
+    let column = bridged.column();
+    let width = source.quantities().len();
+    if width == 0 || column >= width || mapped.quantities().len() != width
+        || source.n_draws() != mapped.n_draws() {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "source and mapped bridge rows are not aligned",
+        ));
+    }
+    let mut values = Vec::with_capacity(source.n_draws());
+    for row in 0..source.n_draws() {
+        let offset = row * width + column;
+        let x = source.draws()[offset];
+        let y = mapped.draws()[offset];
+        if !x.is_finite() || !y.is_finite()
+            || x < first.surrogate_effect || x > last.surrogate_effect {
+            return Err(AssessedBridgeRobustDecisionError::Invalid(
+                "a source draw leaves the assessed surrogate overlap grid",
+            ));
+        }
+        values.push(y);
+    }
+    let target = &assessed.bridge.bridge.claim().contract.target.quantity;
+    let draft = PropagationChain::draft(
+        TableConstruction::JointDraws, ChainReading::AssumptionEnvelope,
+        "target_terminal", vec![
+            ChainSourceWire::draws("source_mapped", LawMeaning::Predictive,
+                bridged.alignment_identity(), &values),
+            ChainSourceWire::interval("target_minus_source", lower, upper),
+        ], vec![ChainStageWire::new(
+            "target_terminal", StageKind::DerivedQuantity,
+            &["source_mapped", "target_minus_source"], ChainOpWire::binary("sum"),
+        )],
+    ).with_output_quantity(ScientificQuantityWire::from(target));
+    Ok(compile_chain_robust_decision(draft, contract.clone(), ctx)?)
+}
+
+impl CompiledAssessedBridgeRobustDecision {
+    /// Complete compiler program of the assessed discrepancy decision.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the bound graph, validation, mapping and utility before execution.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Refit validation, derive the predictive bridge, enclose every mapped
+    /// row under the unmeasured discrepancy band and score robust utility.
+    ///
+    /// # Errors
+    /// A child, support, chain or utility refusal.
+    pub fn execute(&self, ctx: &ExecutionContext)
+        -> Result<AssessedBridgeRobustDecisionResult, AssessedBridgeRobustDecisionError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let assessed = self.assessed.execute(&scoped)?;
+        let robust = discrepancy_robust_plan(&assessed, &self.contract, &scoped)?.execute(&scoped)?;
+        Ok(AssessedBridgeRobustDecisionResult {
+            assessed, robust, lowered_program_identity: self.lowered.identity(),
+            calibration: "not_measured",
+        })
+    }
+
+    /// Seal the child evidence and the independently replayable robust chain.
+    ///
+    /// # Errors
+    /// Changed result, child or artifact encoding refusal.
+    pub fn export(&self, result: &AssessedBridgeRobustDecisionResult,
+        artifact_id: &str, ctx: &ExecutionContext)
+        -> Result<Vec<u8>, AssessedBridgeRobustDecisionError> {
+        let live = self.execute(ctx)?;
+        if result.lowered_program_identity != live.lowered_program_identity
+            || result.calibration != "not_measured"
+            || result.assessed.assessment != live.assessed.assessment
+            || result.robust != live.robust {
+            return Err(AssessedBridgeRobustDecisionError::Invalid(
+                "assessed robust decision differs on replay",
+            ));
+        }
+        let contract = DecisionContractArtifact::new(self.contract.clone())?;
+        let robust_plan = discrepancy_robust_plan(&live.assessed, &self.contract, ctx)?;
+        let wire = AssessedBridgeRobustWire {
+            version: 1, required_feature: ASSESSED_ROBUST_FEATURE.into(),
+            program_identity: *self.lowered.identity().as_bytes(),
+            assessment_identity: *self.assessed.assessment.lowered().identity().as_bytes(),
+            assessment_artifact: self.assessed.assessment.export(&live.assessed.assessment, ctx)?,
+            bridge_identity: *self.assessed.bridge.lowered().identity().as_bytes(),
+            bridge_artifact: self.assessed.bridge.export(
+                &live.assessed.bridge, artifact_id, ctx,
+            )?,
+            robust_contract_identity: contract.identity().into(),
+            robust_contract_artifact: contract.to_bytes(artifact_id)?,
+            robust_identity: *robust_plan.lowered().identity().as_bytes(),
+            robust_artifact: robust_plan.export(&live.robust, artifact_id)?,
+        };
+        let bytes = antecedent_io::to_cbor(&wire)?;
+        if bytes.len() > MAX_ARTIFACT_BYTES {
+            return Err(AssessedBridgeRobustDecisionError::Invalid(
+                "assessed robust artifact exceeds its bound",
+            ));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Recompile the validation and bridge children, regenerate the discrepancy
+/// envelope and independently replay robust utility under a retained identity.
+///
+/// # Errors
+/// A foreign feature, changed child, support domain, contract or result.
+pub fn consume_assessed_bridge_robust_decision(
+    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<AssessedBridgeRobustDecisionResult, AssessedBridgeRobustDecisionError> {
+    if bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "assessed robust artifact exceeds its bound",
+        ));
+    }
+    let wire: AssessedBridgeRobustWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.required_feature != ASSESSED_ROBUST_FEATURE
+        || wire.program_identity != *expected_program.as_bytes() {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "assessed robust feature or identity differs",
+        ));
+    }
+    let (assessment, assessed) = recompile_bridge_transport_premise_assessment(
+        &wire.assessment_artifact, SemanticDigest::from_bytes(wire.assessment_identity), ctx,
+    ).map_err(AssessedBridgeTransportDecisionError::from)?;
+    let (bridge, bridged) = recompile_bridge_transport_decision(
+        &wire.bridge_artifact, SemanticDigest::from_bytes(wire.bridge_identity), ctx,
+    ).map_err(AssessedBridgeTransportDecisionError::from)?;
+    let contract = DecisionContractArtifact::from_bytes(
+        &wire.robust_contract_artifact, &wire.robust_contract_identity,
+    )?;
+    let child = compile_assessed_bridge_transport_decision(assessment, bridge)?;
+    let plan = compile_assessed_bridge_robust_decision(child, contract.contract().clone())?;
+    if plan.lowered().identity() != expected_program {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "assessed robust compiler changed",
+        ));
+    }
+    let live = plan.execute(ctx)?;
+    if live.assessed.assessment != assessed
+        || live.assessed.bridge.bridge.inspect() != bridged.bridge.inspect()
+        || live.robust.lowered_program_identity != SemanticDigest::from_bytes(wire.robust_identity) {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "assessed robust child result changed",
+        ));
+    }
+    let replay = consume_chain_robust_decision(
+        &wire.robust_artifact, Some(live.robust.lowered_program_identity), ctx,
+    )?;
+    if replay != live.robust {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "assessed robust utility changed on replay",
         ));
     }
     Ok(live)

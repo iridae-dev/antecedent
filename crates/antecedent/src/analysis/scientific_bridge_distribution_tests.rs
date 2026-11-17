@@ -24,7 +24,8 @@ use antecedent_stats::normal_ppf;
 
 use super::*;
 use crate::analysis::bridge_transport_decision::{
-    compile_assessed_bridge_transport_decision, compile_bridge_transport_decision,
+    compile_assessed_bridge_robust_decision, compile_assessed_bridge_transport_decision,
+    compile_bridge_transport_decision, consume_assessed_bridge_robust_decision,
     consume_assessed_bridge_transport_decision, consume_bridge_transport_decision,
 };
 use crate::analysis::bridge_transport_premise_assessment::{
@@ -245,6 +246,17 @@ fn matched_trial_validation_and_bridge_decision_replay_together() {
             surrogate_grid: vec![-0.8, 0.0, 0.8], equivalence_margin: 0.2,
         },
     ).unwrap();
+    let robust_bridge = compile_bridge_transport_decision(
+        declaration.clone(),
+        draws_table(64, 0.0, 0.1, DistributionMeaningWire::PosteriorPredictive),
+        11, decision.clone(),
+    ).unwrap();
+    let robust_assessed = compile_assessed_bridge_transport_decision(
+        assessment.clone(), robust_bridge,
+    ).unwrap();
+    let robust_contract = DecisionContract {
+        criterion: DecisionCriterion::MaximinOverStructures, ..decision.clone()
+    };
     let bridge = compile_bridge_transport_decision(
         declaration, draws_table(64, 1.0, 0.3, DistributionMeaningWire::PosteriorPredictive),
         11, decision,
@@ -260,6 +272,18 @@ fn matched_trial_validation_and_bridge_decision_replay_together() {
     ).unwrap();
     assert_eq!(replay.assessment, result.assessment);
     assert_eq!(replay.bridge.decision.decision, result.bridge.decision.decision);
+    let robust = compile_assessed_bridge_robust_decision(
+        robust_assessed, robust_contract,
+    ).unwrap();
+    let bounds = robust.execute(&ctx).unwrap();
+    assert_eq!(bounds.calibration, "not_measured");
+    assert_eq!(bounds.robust.actions.len(), 2);
+    let portable = robust.export(&bounds, "assessed-bridge-robust", &ctx).unwrap();
+    let replayed = consume_assessed_bridge_robust_decision(
+        &portable, robust.lowered().identity(), &ctx,
+    ).unwrap();
+    assert_eq!(replayed.assessed.assessment, bounds.assessed.assessment);
+    assert_eq!(replayed.robust, bounds.robust);
 }
 
 #[test]
