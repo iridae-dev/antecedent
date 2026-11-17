@@ -2364,6 +2364,12 @@ codes = ["external_binding_mismatch"]
 meaning = "A node or edge digest differs from its recomputation, or the graph is malformed (blank or repeated node, dangling or repeated edge, self-dependency, cycle)."
 
 [[detail]]
+id = "composition_bundle.execution_cancelled"
+family = "composition_bundle"
+codes = ["cancelled_no_claim"]
+meaning = "A native bundle node execution stopped because its shared cancellation token was set."
+
+[[detail]]
 id = "composition_bundle.expected_identity_mismatch"
 family = "composition_bundle"
 codes = ["external_binding_mismatch"]
@@ -2404,6 +2410,12 @@ id = "composition_bundle.provider_request_changed"
 family = "composition_bundle"
 codes = ["external_binding_mismatch"]
 meaning = "A supplied provider answered a request other than the exact request the node declares."
+
+[[detail]]
+id = "composition_bundle.resource_refused"
+family = "composition_bundle"
+codes = ["execution_resource_limit"]
+meaning = "A native bundle node execution or artifact operation was refused by a resource or admission budget."
 
 [[detail]]
 id = "composition_bundle.swapped_evidence"

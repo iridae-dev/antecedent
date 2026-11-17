@@ -2079,6 +2079,7 @@ const fn realization_name(realization: &Realization) -> &'static str {
         Realization::ExactPoint { .. } => "exact_point",
         Realization::DeclaredPredictive { .. } => "declared_predictive",
         Realization::DeclaredPosterior { .. } => "declared_posterior",
+        Realization::NestedFit { .. } => "nested_fit",
         Realization::DeclaredAssumptionEnvelope { .. } => "declared_assumption_envelope",
     }
 }

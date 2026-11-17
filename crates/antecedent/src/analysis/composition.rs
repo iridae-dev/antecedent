@@ -60,7 +60,7 @@ use crate::planner::lowered::{
     ProgramIdentityScope, ScientificProblem, StandaloneCompositionLoweredParts,
     UncertaintyReading,
 };
-use crate::planner::statistical::{Realization, StatisticalProgram};
+use crate::planner::statistical::{NestedFitLaw, Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
 
 fn refused(stage: BundleStage, reason: &str, offending: Option<&str>) -> BundleError {
@@ -179,8 +179,8 @@ impl BundleBuilder {
     ) -> Result<(), CyclicPosteriorBundleError> {
         self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
         let bytes = antecedent_io::to_cbor(&CyclicPosteriorFitWire {
-            version: 1, required_feature: CYCLIC_POSTERIOR_FIT_FEATURE.into(),
-            producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
+            version: 2, required_feature: CYCLIC_POSTERIOR_FIT_FEATURE_V2.into(),
+            replay_seed: Some(ctx.rng.master_seed()), producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
         }).map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > self.limits.max_embedded_bytes {
             return Err(CyclicPosteriorBundleError::Invalid("fit node exceeds its embedded bound"));
@@ -203,8 +203,8 @@ impl BundleBuilder {
     ) -> Result<(), TrialIpwBundleError> {
         self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
         let bytes = antecedent_io::to_cbor(&TrialIpwFitWire {
-            version: 1, required_feature: TRIAL_IPW_FIT_FEATURE.into(),
-            producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
+            version: 2, required_feature: TRIAL_IPW_FIT_FEATURE_V2.into(),
+            replay_seed: Some(ctx.rng.master_seed()), producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
         }).map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > self.limits.max_embedded_bytes {
             return Err(TrialIpwBundleError::Invalid("trial fit exceeds its embedded bound"));
@@ -227,8 +227,8 @@ impl BundleBuilder {
     ) -> Result<(), GraphImputationTransportBundleError> {
         self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
         let bytes = antecedent_io::to_cbor(&GraphImputationTransportFitWire {
-            version: 1, required_feature: GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE.into(),
-            producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
+            version: 2, required_feature: GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2.into(),
+            replay_seed: Some(ctx.rng.master_seed()), producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
         }).map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > self.limits.max_embedded_bytes {
             return Err(GraphImputationTransportBundleError::Invalid("graph transport fit exceeds its embedded bound"));
@@ -1036,7 +1036,54 @@ pub fn consume_portable_bridge_bundle_recomputation(
     Ok(live)
 }
 
+// Version 1 used the caller's seed. Version 2 binds the producer's replay
+// stream in the node while retaining the caller's cancellation/admission pool.
+fn fit_node_version_supported(version: u32, feature: &str, seed: Option<u64>,
+    legacy: &str, current: &str) -> bool {
+    (version == 1 && feature == legacy && seed.is_none())
+        || (version == 2 && feature == current && seed.is_some())
+}
+
+fn fit_node_context(ctx: &ExecutionContext, seed: Option<u64>) -> ExecutionContext {
+    let mut scoped = ctx.clone();
+    if let Some(seed) = seed { scoped.rng = antecedent_core::RngFactory::from_seed(seed); }
+    scoped
+}
+
+fn fit_node_failure(ctx: &ExecutionContext, error: &(dyn std::error::Error + 'static)) -> NodeFailure {
+    let mut stage = if ctx.cancellation.is_cancelled() {
+        BundleStage::ExecutionCancelled
+    } else { BundleStage::SwappedEvidence };
+    let mut cause = Some(error);
+    while let Some(current) = cause {
+        if let Some(io) = current.downcast_ref::<IoError>() {
+            stage = match io {
+                IoError::UnsupportedVersion { .. } | IoError::UnsupportedFormat { .. } => BundleStage::IncompatibleVersion,
+                IoError::TooLarge => BundleStage::Oversized,
+                IoError::StreamCancelled => BundleStage::ExecutionCancelled,
+                IoError::Admission(antecedent_core::execution::AdmissionError::Cancelled) => BundleStage::ExecutionCancelled,
+                IoError::Admission(_) | IoError::StreamBudgetRefused { .. } => BundleStage::ResourceRefused,
+                _ => stage,
+            };
+        }
+        if let Some(admission) = current.downcast_ref::<antecedent_core::execution::AdmissionError>() {
+            stage = if matches!(admission, antecedent_core::execution::AdmissionError::Cancelled) {
+                BundleStage::ExecutionCancelled
+            } else { BundleStage::ResourceRefused };
+        }
+        if matches!(current.downcast_ref::<antecedent_model::nonlinear_equilibrium::EquilibriumError>(),
+            Some(antecedent_model::nonlinear_equilibrium::EquilibriumError::Resource(_)))
+            || matches!(current.downcast_ref::<crate::error::CausalError>(), Some(crate::error::CausalError::Resource { .. }))
+        {
+            if stage != BundleStage::ExecutionCancelled { stage = BundleStage::ResourceRefused; }
+        }
+        cause = current.source();
+    }
+    NodeFailure { stage, reason: error.to_string() }
+}
+
 const CYCLIC_POSTERIOR_FIT_FEATURE: &str = "cyclic_posterior_fit_bundle_node_v1";
+const CYCLIC_POSTERIOR_FIT_FEATURE_V2: &str = "cyclic_posterior_fit_bundle_node_v2";
 const CYCLIC_FIT_CHAIN_FACT: &str = "cyclic_posterior_fit_chain_identity";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1046,6 +1093,8 @@ struct CyclicPosteriorFitWire {
     required_feature: String,
     producer_program: [u8; 32],
     artifact: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    replay_seed: Option<u64>,
 }
 
 struct CyclicPosteriorFitVerifier { ctx: ExecutionContext }
@@ -1057,16 +1106,17 @@ impl NodeVerifier for CyclicPosteriorFitVerifier {
         -> Result<VerifiedNode, NodeFailure> {
         let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(fail("cyclic posterior fit node exceeds its bound".into()));
+            return Err(NodeFailure { stage: BundleStage::Oversized, reason: "cyclic posterior fit node exceeds its bound".into() });
         }
         let wire: CyclicPosteriorFitWire = antecedent_io::from_cbor(bytes)
             .map_err(|error| fail(error.to_string()))?;
-        if wire.version != 1 || wire.required_feature != CYCLIC_POSTERIOR_FIT_FEATURE {
-            return Err(fail("cyclic posterior fit feature differs".into()));
+        if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, CYCLIC_POSTERIOR_FIT_FEATURE, CYCLIC_POSTERIOR_FIT_FEATURE_V2) {
+            return Err(NodeFailure { stage: BundleStage::IncompatibleVersion, reason: "cyclic posterior fit feature differs".into() });
         }
+        let node_ctx = fit_node_context(&self.ctx, wire.replay_seed);
         let producer = super::cyclic_posterior_action_decision::consume_cyclic_posterior_action_decision(
-            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &self.ctx,
-        ).map_err(|error| fail(error.to_string()))?;
+            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &node_ctx,
+        ).map_err(|error| fit_node_failure(&node_ctx, &error))?;
         let mut facts = std::collections::BTreeMap::new();
         facts.insert(CYCLIC_FIT_CHAIN_FACT.into(), producer.decision.chain.identity().into());
         Ok(VerifiedNode {
@@ -1350,7 +1400,7 @@ pub fn compile_cyclic_posterior_node_bundle_recomputation(
     };
     let wire: CyclicPosteriorFitWire = antecedent_io::from_cbor(bytes)
         .map_err(ChainBundleRecomputeError::Io)?;
-    if wire.version != 1 || wire.required_feature != CYCLIC_POSTERIOR_FIT_FEATURE {
+    if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, CYCLIC_POSTERIOR_FIT_FEATURE, CYCLIC_POSTERIOR_FIT_FEATURE_V2) {
         return Err(CyclicPosteriorBundleError::Invalid("fit node feature differs"));
     }
     let inner = compile_cyclic_posterior_bundle_recomputation(
@@ -1367,9 +1417,14 @@ pub fn compile_cyclic_posterior_node_bundle_recomputation(
     let identification = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: query },
     ));
+    let mut statistical = inner.lowered.statistical().clone();
+    statistical.realization = Realization::NestedFit {
+        producer_program: inner.producer_program, method: Arc::from("cyclic_posterior_action_decision_v1"),
+        law: NestedFitLaw::Predictive,
+    };
     let lowered = Arc::new(StandaloneCompositionLoweredParts {
         cell: ProgramCell::CyclicPosteriorNodeBundleRecomputation, scientific, identification,
-        statistical: inner.lowered.statistical().clone(), evidence: inner.lowered.evidence().clone(),
+        statistical, evidence: inner.lowered.evidence().clone(),
         physical: inner.lowered.physical().clone(), claim: *inner.lowered.claim(),
     }.finish());
     Ok(CompiledCyclicPosteriorNodeBundle { inner, producer_node: producer_node.into(), lowered })
@@ -1488,6 +1543,7 @@ pub fn consume_portable_cyclic_posterior_node_bundle_recomputation(
 }
 
 const TRIAL_IPW_FIT_FEATURE: &str = "trial_ipw_transport_fit_bundle_node_v1";
+const TRIAL_IPW_FIT_FEATURE_V2: &str = "trial_ipw_transport_fit_bundle_node_v2";
 const TRIAL_IPW_NODE_FEATURE: &str = "trial_ipw_node_bundle_recomputation_v1";
 const TRIAL_IPW_CHAIN_FACT: &str = "trial_ipw_transport_fit_chain_identity";
 
@@ -1496,6 +1552,8 @@ const TRIAL_IPW_CHAIN_FACT: &str = "trial_ipw_transport_fit_chain_identity";
 struct TrialIpwFitWire {
     version: u32, required_feature: String,
     producer_program: [u8; 32], artifact: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    replay_seed: Option<u64>,
 }
 
 struct TrialIpwFitVerifier { ctx: ExecutionContext }
@@ -1507,16 +1565,17 @@ impl NodeVerifier for TrialIpwFitVerifier {
         -> Result<VerifiedNode, NodeFailure> {
         let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(fail("trial IPW fit node exceeds its bound".into()));
+            return Err(NodeFailure { stage: BundleStage::Oversized, reason: "trial IPW fit node exceeds its bound".into() });
         }
         let wire: TrialIpwFitWire = antecedent_io::from_cbor(bytes)
             .map_err(|error| fail(error.to_string()))?;
-        if wire.version != 1 || wire.required_feature != TRIAL_IPW_FIT_FEATURE {
-            return Err(fail("trial IPW fit feature differs".into()));
+        if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, TRIAL_IPW_FIT_FEATURE, TRIAL_IPW_FIT_FEATURE_V2) {
+            return Err(NodeFailure { stage: BundleStage::IncompatibleVersion, reason: "trial IPW fit feature differs".into() });
         }
+        let node_ctx = fit_node_context(&self.ctx, wire.replay_seed);
         let producer = super::trial_ipw_transport_decision::consume_trial_ipw_transport_decision(
-            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &self.ctx,
-        ).map_err(|error| fail(error.to_string()))?;
+            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &node_ctx,
+        ).map_err(|error| fit_node_failure(&node_ctx, &error))?;
         let mut facts = std::collections::BTreeMap::new();
         facts.insert(TRIAL_IPW_CHAIN_FACT.into(), producer.decision.chain.identity().into());
         Ok(VerifiedNode {
@@ -1594,7 +1653,7 @@ pub fn compile_trial_ipw_node_bundle_recomputation(
         return Err(TrialIpwBundleError::Invalid("trial fit is not embedded"));
     };
     let wire: TrialIpwFitWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
-    if wire.version != 1 || wire.required_feature != TRIAL_IPW_FIT_FEATURE {
+    if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, TRIAL_IPW_FIT_FEATURE, TRIAL_IPW_FIT_FEATURE_V2) {
         return Err(TrialIpwBundleError::Invalid("trial fit feature differs"));
     }
     let producer_program = SemanticDigest::from_bytes(wire.producer_program);
@@ -1638,9 +1697,13 @@ pub fn compile_trial_ipw_node_bundle_recomputation(
     let physical = PhysicalLayer {
         operators: Arc::from(operators), design: chain.lowered().physical().design(),
     };
+    let mut statistical = chain.lowered().statistical().clone();
+    statistical.realization = Realization::NestedFit {
+        producer_program, method: Arc::from("trial_ipw_transport_effect_decision_v1"), law: NestedFitLaw::Posterior,
+    };
     let lowered = Arc::new(StandaloneCompositionLoweredParts {
         cell: ProgramCell::TrialIpwNodeBundleRecomputation, scientific, identification,
-        statistical: chain.lowered().statistical().clone(), evidence, physical,
+        statistical, evidence, physical,
         claim: *chain.lowered().claim(),
     }.finish());
     Ok(CompiledTrialIpwNodeBundle { chain, producer_node: producer_node.into(), producer_program, lowered })
@@ -1750,6 +1813,7 @@ pub fn consume_portable_trial_ipw_node_bundle_recomputation(
 }
 
 const GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE: &str = "graph_imputation_transport_fit_bundle_node_v1";
+const GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2: &str = "graph_imputation_transport_fit_bundle_node_v2";
 const GRAPH_IMPUTATION_TRANSPORT_NODE_FEATURE: &str = "graph_imputation_transport_node_bundle_recomputation_v1";
 const GRAPH_IMPUTATION_TRANSPORT_CHAIN_FACT: &str = "graph_imputation_transport_fit_chain_identity";
 
@@ -1758,6 +1822,8 @@ const GRAPH_IMPUTATION_TRANSPORT_CHAIN_FACT: &str = "graph_imputation_transport_
 struct GraphImputationTransportFitWire {
     version: u32, required_feature: String,
     producer_program: [u8; 32], artifact: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    replay_seed: Option<u64>,
 }
 
 struct GraphImputationTransportFitVerifier { ctx: ExecutionContext }
@@ -1769,16 +1835,17 @@ impl NodeVerifier for GraphImputationTransportFitVerifier {
         -> Result<VerifiedNode, NodeFailure> {
         let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(fail("graph-imputation transport fit node exceeds its bound".into()));
+            return Err(NodeFailure { stage: BundleStage::Oversized, reason: "graph-imputation transport fit node exceeds its bound".into() });
         }
         let wire: GraphImputationTransportFitWire = antecedent_io::from_cbor(bytes)
             .map_err(|error| fail(error.to_string()))?;
-        if wire.version != 1 || wire.required_feature != GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE {
-            return Err(fail("graph-imputation transport fit feature differs".into()));
+        if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE, GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2) {
+            return Err(NodeFailure { stage: BundleStage::IncompatibleVersion, reason: "graph-imputation transport fit feature differs".into() });
         }
+        let node_ctx = fit_node_context(&self.ctx, wire.replay_seed);
         let producer = super::graph_imputation_transport_decision::consume_graph_imputation_transport_decision(
-            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &self.ctx,
-        ).map_err(|error| fail(error.to_string()))?;
+            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &node_ctx,
+        ).map_err(|error| fit_node_failure(&node_ctx, &error))?;
         let mut facts = std::collections::BTreeMap::new();
         facts.insert(GRAPH_IMPUTATION_TRANSPORT_CHAIN_FACT.into(), producer.decision.chain.identity().into());
         Ok(VerifiedNode {
@@ -1856,7 +1923,7 @@ pub fn compile_graph_imputation_transport_node_bundle_recomputation(
         return Err(GraphImputationTransportBundleError::Invalid("graph transport fit is not embedded"));
     };
     let wire: GraphImputationTransportFitWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
-    if wire.version != 1 || wire.required_feature != GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE {
+    if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE, GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2) {
         return Err(GraphImputationTransportBundleError::Invalid("graph transport fit feature differs"));
     }
     let producer_program = SemanticDigest::from_bytes(wire.producer_program);
@@ -1900,9 +1967,13 @@ pub fn compile_graph_imputation_transport_node_bundle_recomputation(
     let physical = PhysicalLayer {
         operators: Arc::from(operators), design: chain.lowered().physical().design(),
     };
+    let mut statistical = chain.lowered().statistical().clone();
+    statistical.realization = Realization::NestedFit {
+        producer_program, method: Arc::from("graph_imputation_transport_decision"), law: NestedFitLaw::Posterior,
+    };
     let lowered = Arc::new(StandaloneCompositionLoweredParts {
         cell: ProgramCell::GraphImputationTransportNodeBundleRecomputation, scientific, identification,
-        statistical: chain.lowered().statistical().clone(), evidence, physical,
+        statistical, evidence, physical,
         claim: *chain.lowered().claim(),
     }.finish());
     Ok(CompiledGraphImputationTransportNodeBundle { chain, producer_node: producer_node.into(), producer_program, lowered })

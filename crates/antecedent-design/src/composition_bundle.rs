@@ -117,11 +117,15 @@ pub enum BundleStage {
     EdgeDigestMismatch,
     /// The bundle identity differs from the consumer's retained identity.
     ExpectedIdentityMismatch,
+    /// Execution stopped because the shared cancellation token was set.
+    ExecutionCancelled,
+    /// An execution or artifact admission budget refused the operation.
+    ResourceRefused,
 }
 
 impl BundleStage {
     /// Every stage.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 13] = [
         Self::TamperedQuantity,
         Self::SwappedEvidence,
         Self::GraphOrSnapshotMismatch,
@@ -133,6 +137,8 @@ impl BundleStage {
         Self::UnknownNodeKind,
         Self::EdgeDigestMismatch,
         Self::ExpectedIdentityMismatch,
+        Self::ExecutionCancelled,
+        Self::ResourceRefused,
     ];
 
     /// Stable `snake_case` name.
@@ -150,6 +156,8 @@ impl BundleStage {
             Self::UnknownNodeKind => "unknown_node_kind",
             Self::EdgeDigestMismatch => "edge_digest_mismatch",
             Self::ExpectedIdentityMismatch => "expected_identity_mismatch",
+            Self::ExecutionCancelled => "execution_cancelled",
+            Self::ResourceRefused => "resource_refused",
         }
     }
 
@@ -188,6 +196,8 @@ impl BundleStage {
             Self::ExpectedIdentityMismatch => {
                 antecedent_core::reason_details::composition_bundle::EXPECTED_IDENTITY_MISMATCH
             }
+            Self::ExecutionCancelled => antecedent_core::reason_details::composition_bundle::EXECUTION_CANCELLED,
+            Self::ResourceRefused => antecedent_core::reason_details::composition_bundle::RESOURCE_REFUSED,
         }
     }
 
@@ -195,6 +205,8 @@ impl BundleStage {
     #[must_use]
     pub fn code(self) -> &'static str {
         match self {
+            Self::ExecutionCancelled => antecedent_core::reason_code!("cancelled_no_claim"),
+            Self::ResourceRefused => antecedent_core::reason_code!("execution_resource_limit"),
             Self::TamperedQuantity => antecedent_core::reason_code!("quantity_semantics_mismatch"),
             Self::UnsupportedLaw => antecedent_core::reason_code!("joint_law_required"),
             Self::CallbackUnavailable => {

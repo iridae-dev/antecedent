@@ -152,6 +152,9 @@ fn embedded_fit_node_is_refitted_by_the_bundle_consumer() {
     let plan = compile_cyclic_posterior_node_bundle_recomputation(bundle.clone(), "fit", "terminal", &ctx)
         .expect("compile fit dependency");
     assert_ne!(plan.lowered().identity(), plan.inner.lowered().identity());
+    assert!(matches!(plan.lowered().statistical().realization(), Realization::NestedFit {
+        law: NestedFitLaw::Predictive, ..
+    }));
     let receipt = plan.execute(&ctx).expect("refit node and recompute chain");
     assert!(receipt.bundle.dependencies.iter().any(|dependency| dependency.node_id == "fit"));
     let portable = plan.export_portable(&receipt, &ctx).expect("portable node bundle");
@@ -232,6 +235,9 @@ fn embedded_trial_fit_is_refitted_and_matches_the_live_chain() {
     let plan = compile_trial_ipw_node_bundle_recomputation(bundle.clone(), "fit", "terminal", &ctx)
         .expect("compile trial bundle");
     assert_eq!(plan.plan_view().route().as_str(), "TrialIpwNodeBundleRecomputation");
+    assert!(matches!(plan.lowered().statistical().realization(), Realization::NestedFit {
+        law: NestedFitLaw::Posterior, ..
+    }));
     let receipt = plan.execute(&ctx).expect("refit source and execute chain");
     assert!(receipt.bundle.dependencies.iter().any(|node| node.node_id == "fit"));
     let portable = plan.export_portable(&receipt, &ctx).unwrap();
@@ -340,6 +346,9 @@ fn embedded_graph_transport_fit_replays_raw_evidence_and_chain() {
         bundle.clone(), "fit", "terminal", &ctx,
     ).expect("compile graph transport bundle");
     assert_eq!(plan.plan_view().route().as_str(), "GraphImputationTransportNodeBundleRecomputation");
+    assert!(matches!(plan.lowered().statistical().realization(), Realization::NestedFit {
+        law: NestedFitLaw::Posterior, ..
+    }));
     let receipt = plan.execute(&ctx).expect("refit graph and replay chain");
     let portable = plan.export_portable(&receipt, &ctx).unwrap();
     assert_eq!(consume_portable_graph_imputation_transport_node_bundle_recomputation(
@@ -348,4 +357,51 @@ fn embedded_graph_transport_fit_replays_raw_evidence_and_chain() {
     assert!(consume_portable_graph_imputation_transport_node_bundle_recomputation(
         &portable, "wrong", plan.lowered().identity(), &ctx,
     ).is_err());
+}
+
+#[test]
+#[ignore = "source-only mixed-seed posterior replay; no scientific record is earned"]
+fn native_fit_consumer_replays_each_bound_seed_and_preserves_cancellation() {
+    let mut builder = BundleBuilder::new();
+    let mut artifacts = Vec::new();
+    for seed in [47_u64, 48] {
+        let ctx = ExecutionContext::for_tests(seed);
+        let plan = compile_cyclic_posterior_action_decision(request(), outputs(), contract(), &ctx).unwrap();
+        let result = plan.execute(&ctx).unwrap();
+        let artifact = plan.export(&result, "mixed-seed", &ctx).unwrap();
+        builder.add_cyclic_posterior_fit(&format!("fit-{seed}"), &artifact, plan.lowered().identity(), &ctx).unwrap();
+        artifacts.push((artifact, plan.lowered().identity()));
+    }
+    let bundle = builder.build().unwrap();
+    let bytes = export_bundle(&bundle, "mixed-seed-bundle").unwrap();
+    let unrelated_ctx = ExecutionContext::for_tests(99);
+    let consumed = native_fit_bundle_consumer(&unrelated_ctx).consume(
+        &bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
+    ).unwrap();
+    assert!(consumed.node_replayed("fit-47"));
+    assert!(consumed.node_replayed("fit-48"));
+    // A changed bound seed must still fail the producer's own seed check.
+    let node = &builder.nodes[0];
+    let NodeSource::Embedded { bytes } = &node.source else { panic!("embedded fit") };
+    let mut wire: CyclicPosteriorFitWire = antecedent_io::from_cbor(bytes).unwrap();
+    wire.replay_seed = Some(48);
+    let changed = antecedent_io::to_cbor(&wire).unwrap();
+    assert!(CyclicPosteriorFitVerifier { ctx: unrelated_ctx.clone() }
+        .verify("fit", &changed, &[]).is_err());
+    // A legacy node has no seed field and remains tied to the caller context.
+    let legacy = antecedent_io::to_cbor(&CyclicPosteriorFitWire {
+        version: 1, required_feature: CYCLIC_POSTERIOR_FIT_FEATURE.into(),
+        producer_program: *artifacts[0].1.as_bytes(), artifact: artifacts[0].0.clone(), replay_seed: None,
+    }).unwrap();
+    assert!(CyclicPosteriorFitVerifier { ctx: ExecutionContext::for_tests(47) }
+        .verify("legacy", &legacy, &[]).is_ok());
+    assert!(CyclicPosteriorFitVerifier { ctx: unrelated_ctx.clone() }
+        .verify("legacy", &legacy, &[]).is_err());
+    let cancelled = ExecutionContext::for_tests(99);
+    cancelled.cancellation.cancel();
+    let consumed = native_fit_bundle_consumer(&cancelled).consume(
+        &bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
+    ).unwrap();
+    assert!(matches!(&consumed.node("fit-47").unwrap().status,
+        NodeStatus::Failed { stage: BundleStage::ExecutionCancelled, .. }));
 }

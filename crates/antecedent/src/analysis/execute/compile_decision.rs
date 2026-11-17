@@ -285,6 +285,7 @@ const fn realization_name(realization: &Realization) -> &'static str {
         Realization::ExactPoint { .. } => "exact_point",
         Realization::DeclaredPredictive { .. } => "declared_predictive",
         Realization::DeclaredPosterior { .. } => "declared_posterior",
+        Realization::NestedFit { .. } => "nested_fit",
         Realization::DeclaredAssumptionEnvelope { .. } => "declared_assumption_envelope",
     }
 }
@@ -300,6 +301,10 @@ const fn offered_port(realization: &Realization) -> EvidencePort {
         Realization::DeclaredAssumptionEnvelope { .. } => EvidencePort::IdentifiedSet,
         Realization::DeclaredPredictive { .. } => EvidencePort::PredictiveLaw,
         Realization::DeclaredPosterior { .. } => EvidencePort::ParameterPosterior,
+        Realization::NestedFit { law, .. } => match law {
+            crate::planner::statistical::NestedFitLaw::Posterior => EvidencePort::ParameterPosterior,
+            crate::planner::statistical::NestedFitLaw::Predictive => EvidencePort::PredictiveLaw,
+        },
         Realization::ExactPoint { .. }
         | Realization::GraphImputationV1
         | Realization::CategoricalPosteriorCandidateV1 => EvidencePort::Mean,

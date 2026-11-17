@@ -400,6 +400,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "composition_boundary.verification_receipt_missing",
     "composition_bundle.callback_unavailable",
     "composition_bundle.edge_digest_mismatch",
+    "composition_bundle.execution_cancelled",
     "composition_bundle.expected_identity_mismatch",
     "composition_bundle.graph_or_snapshot_mismatch",
     "composition_bundle.incompatible_version",
@@ -407,6 +408,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "composition_bundle.node_not_found",
     "composition_bundle.oversized",
     "composition_bundle.provider_request_changed",
+    "composition_bundle.resource_refused",
     "composition_bundle.swapped_evidence",
     "composition_bundle.tampered_quantity",
     "composition_bundle.unknown_node_kind",
@@ -3135,6 +3137,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("composition_boundary.verification_receipt_missing", &["external_verification_failed"]),
     ("composition_bundle.callback_unavailable", &["external_capability_missing"]),
     ("composition_bundle.edge_digest_mismatch", &["external_binding_mismatch"]),
+    ("composition_bundle.execution_cancelled", &["cancelled_no_claim"]),
     ("composition_bundle.expected_identity_mismatch", &["external_binding_mismatch"]),
     ("composition_bundle.graph_or_snapshot_mismatch", &["external_binding_mismatch"]),
     ("composition_bundle.incompatible_version", &["schema_mismatch"]),
@@ -3142,6 +3145,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("composition_bundle.node_not_found", &["invalid_argument"]),
     ("composition_bundle.oversized", &["invalid_argument"]),
     ("composition_bundle.provider_request_changed", &["external_binding_mismatch"]),
+    ("composition_bundle.resource_refused", &["execution_resource_limit"]),
     ("composition_bundle.swapped_evidence", &["external_binding_mismatch"]),
     ("composition_bundle.tampered_quantity", &["quantity_semantics_mismatch"]),
     ("composition_bundle.unknown_node_kind", &["invalid_argument"]),
@@ -6357,6 +6361,8 @@ pub mod composition_bundle {
     pub const CALLBACK_UNAVAILABLE: &str = "composition_bundle.callback_unavailable";
     /// Detail `composition_bundle.edge_digest_mismatch`.
     pub const EDGE_DIGEST_MISMATCH: &str = "composition_bundle.edge_digest_mismatch";
+    /// Detail `composition_bundle.execution_cancelled`.
+    pub const EXECUTION_CANCELLED: &str = "composition_bundle.execution_cancelled";
     /// Detail `composition_bundle.expected_identity_mismatch`.
     pub const EXPECTED_IDENTITY_MISMATCH: &str = "composition_bundle.expected_identity_mismatch";
     /// Detail `composition_bundle.graph_or_snapshot_mismatch`.
@@ -6371,6 +6377,8 @@ pub mod composition_bundle {
     pub const OVERSIZED: &str = "composition_bundle.oversized";
     /// Detail `composition_bundle.provider_request_changed`.
     pub const PROVIDER_REQUEST_CHANGED: &str = "composition_bundle.provider_request_changed";
+    /// Detail `composition_bundle.resource_refused`.
+    pub const RESOURCE_REFUSED: &str = "composition_bundle.resource_refused";
     /// Detail `composition_bundle.swapped_evidence`.
     pub const SWAPPED_EVIDENCE: &str = "composition_bundle.swapped_evidence";
     /// Detail `composition_bundle.tampered_quantity`.
