@@ -21,7 +21,7 @@ coverage or error control.
 | 3 | High | Transported or synthesized evidence feeds a distributional decision; `compile_transported_law_chain_decision` now checks the transport support policy and compiles an aligned, equally weighted declared law with its receipt into multi-action utility | Lower producer fitting, target population, overlap and pooling dependence into that same program | None for a new route; medium if current point transport claims are promoted to laws |
 | 4 | High | Sampling error composes with an assumption range; the chain envelope keeps the axes distinct, and `chain_robust_decision_v1` compiles conservative multi-action dominance with nonlinear utilities and chance constraints | Compile a calibrated sampling union at the exact output coordinate | None for a new route; high if an assumption range is treated as a confidence interval |
 | 5 | High | A policy learned on logged data is evaluated on that data; `compile_observational_policy` now binds all rows, adjustment columns, split seed, folds, nuisance families and learning/scoring steps to a six-layer program, and its artifact independently replays the report | Extend this compiler route with explicit information sets and graph-checked exchangeability; the estimator's positivity check remains at execution | None for a new route; high if same-data scores acquire an unbiasedness claim |
-| 6 | High | Graph uncertainty and missingness already compose for selected effects, including graph search rerun per imputation | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
+| 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; the retained mixture draws now export an unverified typed effect law | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws | Lower the bridge declaration, transport and utility together with checked value kind and coordinate | None for a new route; high if a surrogate score is substituted for an endpoint |
 | 8 | Medium | `prepare_component_feedback` joins checked scalar interfaces into one certified, model-conditional cyclic program with aligned disturbances and named hard clamps | Generalize to multi-output components and evidence-ledger checked dependence | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | Static path-specific transport and fixed-population temporal counterfactuals exist separately | Prove the target temporal path functional under selection and mediator assumptions, then lower its estimator and claim | None for a new route; high if ordinary transport is relabelled path-specific |
@@ -108,6 +108,13 @@ an intervention, through a new compiler cell and a version-3 observation
 artifact. The producer and consumer evaluate the same joint likelihood;
 measurement-rate uncertainty and dependent errors require separate new
 methods and calibration records.
+
+The graph-imputation point consumer retains the actual pooled effect draws
+from its source-bound execution. An additive exporter binds those draws to the
+exact binary average-effect quantity and the replay receipt. It labels them a
+model-conditional causal-functional posterior with unverified trust and
+point-only calibration. This is a narrow downstream law handoff, not a
+whole-schedule calibration or a treatment-world predictive law.
 
 Bundle recomputation has a first executable slice: a fully embedded bundle
 whose terminal is a propagation chain. A new six-layer program binds the

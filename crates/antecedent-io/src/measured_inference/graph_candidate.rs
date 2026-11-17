@@ -599,6 +599,7 @@ fn basis_for(parts: &GraphImputationParts, kind: CandidateBasis) -> CalibrationB
 
 struct Reading {
     source: GraphImputationSource,
+    draws: Vec<f64>,
     point: f64,
     standard_deviation: f64,
     lower: f64,
@@ -620,6 +621,7 @@ fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reading, IoErr
     let (lower, upper) = (sorted[rank(25)], sorted[rank(975)]);
     Ok(Reading {
         source: rec.source,
+        draws: run.draws,
         point: run.mean,
         standard_deviation: run.sd,
         lower,
@@ -636,6 +638,9 @@ pub struct GraphPointReading {
     pub mean: f64,
     /// Pooled posterior standard deviation; a diagnostic, not a standard error.
     pub diagnostic_sd: f64,
+    /// Aligned mixture draws across every completed imputation and retained
+    /// graph. They carry model-conditional posterior spread, not coverage.
+    pub draws: Vec<f64>,
     /// Identity of the complete execution.
     pub receipt: [u8; 32],
     /// The compiler's lowered program identity the source carried.
@@ -658,6 +663,7 @@ pub fn replay_point(bytes: &[u8], ctx: &ExecutionContext) -> Result<GraphPointRe
     Ok(GraphPointReading {
         mean: reading.point,
         diagnostic_sd: reading.standard_deviation,
+        draws: reading.draws,
         receipt: reading.receipt,
         program: reading.source.program(),
         source: parts.data_digest,
