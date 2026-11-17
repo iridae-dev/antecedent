@@ -174,7 +174,13 @@ posterior conditions on the empirical target covariate frame and omits its
 sampling uncertainty. The combined portable consumer recompiles the original
 source and outer target program, then reruns the numerical schedule and
 utility. Its posterior effect and decision are `not_measured`; its ignored
-reference assertion is unearned. The old graph-imputation measured route
+reference assertion is unearned. A separate candidate method executes the
+same complete schedule and supplies a nearest-rank 95% target-frame effect
+interval with an exact runtime calibration basis. An ignored, source-fixed
+60/120/240-row grid compares it with analytic truth conditional on each
+observed target frame; the prospective group is outside the active roster and
+has not been measured. It does not establish decision reliability or
+population coverage beyond the empirical frame. The old graph-imputation measured route
 continues to execute without target input or changed calibration coordinates.
 
 The cyclic component adapter checks each scientific port and joins scalar

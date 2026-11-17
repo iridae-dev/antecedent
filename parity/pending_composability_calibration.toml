@@ -23,3 +23,13 @@ ignored = true
 grid = true
 whole = true
 reason = "A graph-checked held-out learned policy uses only binary x while outcome nuisance models use x and w and known row-level assignment probabilities. The 500/1000/2000-row grid has an analytic truth conditional on each learned two-stratum rule. The route's exact 95% Wald candidate, calibration basis and slot are checked before scoring. No record is measured or earned."
+
+[[group]]
+label = "graph_imputation_transport_calibration: graph_imputation_transport_target_frame_l95"
+package = "antecedent"
+target = "graph_imputation_transport_calibration"
+tests = ["graph_imputation_transport_target_frame_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "One source-fixed root-treatment binary effect-modifier design with MAR outcomes, graph selection repeated over two imputations, a separately sampled binary target frame and graph-specific target standardization. The 60/120/240-source-row grid scores the route's own nearest-rank 95% interval against analytic truth conditional on each target frame. This prospective group has no measured or earned record."

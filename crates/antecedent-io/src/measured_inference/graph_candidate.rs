@@ -66,7 +66,8 @@ pub struct TransportStandardization {
     pub selection_targets: Vec<u32>,
     /// Population represented by the original graph-imputation sample.
     pub source_population: String,
-    /// Population represented by the target covariate sample.
+    /// Empirical target covariate frame. Its sampling uncertainty is not
+    /// propagated by this route.
     pub target_population: String,
     /// Independent source sample identity declared by the caller.
     pub source_sample: String,
