@@ -17,7 +17,7 @@ use antecedent_core::query::{
     ExogenousCoupling, WorldId,
 };
 use antecedent_core::{
-    ByteEstimates, CanonicalWriter, EvidenceCatalog, ExecutionContext,
+    ByteEstimates, CalibrationBasis, CanonicalWriter, EvidenceCatalog, ExecutionContext,
     PhysicalEffect, PhysicalOperator, QueryError, ScoreFrequentist, ScoreModel,
     SearchLimits, SemanticDigest, VariableId,
 };
@@ -576,6 +576,17 @@ pub struct SampledTemporalPathTransportResult {
     pub lowered_program_identity: SemanticDigest,
 }
 
+/// Unmeasured whole-path interval candidate and its exact method coordinate.
+/// A prospective grid may measure coverage; this carries no earned record.
+pub struct SampledTemporalPathCalibrationCandidate {
+    /// Complete compiler execution.
+    pub result: SampledTemporalPathTransportResult,
+    /// Clamped paired-delta 95% Wald interval of the target path contrast.
+    pub interval: (f64, f64),
+    /// Source, selection, path, sampling-design and method coordinate.
+    pub basis: CalibrationBasis,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct SampledPathResultWire {
@@ -585,6 +596,7 @@ struct SampledPathResultWire {
     standard_error_bits: Option<u64>,
     withheld_reason: Option<String>,
     evidence_identity: String,
+    sampled_units: u64,
 }
 
 impl SampledPathResultWire {
@@ -597,6 +609,7 @@ impl SampledPathResultWire {
             standard_error_bits: estimate.standard_error.as_ref().map(|se| se.value.to_bits()),
             withheld_reason: estimate.standard_error_withheld_reason.map(str::to_owned),
             evidence_identity: estimate.evidence_identity.clone(),
+            sampled_units: estimate.sampled_units,
         }
     }
 }
@@ -754,6 +767,48 @@ impl CompiledSampledTemporalPathTransport {
         })
     }
 
+    /// Expose a prospective whole-contrast coverage candidate at a stable
+    /// construction coordinate. Replicate counts and snapshot labels are left
+    /// out of the scope hash; table domains, structural zeros, graph, path,
+    /// selection catalog, overlap and estimator limits remain bound.
+    ///
+    /// # Errors
+    /// A missing paired standard error or sampled execution refusal.
+    pub fn calibration_candidate(&self, ctx: &ExecutionContext)
+        -> Result<SampledTemporalPathCalibrationCandidate, TemporalPathTransportError> {
+        let result = self.execute(ctx)?;
+        let standard_error = result.estimate.standard_error.as_ref().ok_or(
+            TemporalPathTransportError::Invalid("sampled path contrast has no standard error"),
+        )?.value;
+        let margin = 1.959_963_984_540_054 * standard_error;
+        let interval = ((result.estimate.contrast - margin).max(-1.0),
+            (result.estimate.contrast + margin).min(1.0));
+        let derivation = self.active.derivation();
+        let mut shape = SampledPathRequestWire::from_request(&self.request);
+        for table in &mut shape.tables {
+            table.counts.clear();
+            table.snapshot_identity.clear();
+        }
+        let mut writer = CanonicalWriter::new("antecedent.sampled_temporal_path.calibration_scope.v1");
+        writer.text(&derivation.problem.canonical_text())
+            .text(&derivation.query.canonical_text())
+            .text(&self.baseline.derivation().query.canonical_text())
+            .bytes(&antecedent_io::to_cbor(&EvidenceCatalogWire::from_catalog(&derivation.catalog))?)
+            .bytes(&antecedent_io::to_cbor(&self.spec)?)
+            .bytes(&antecedent_io::to_cbor(&self.options)?)
+            .bytes(&antecedent_io::to_cbor(&shape)?);
+        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
+        let functional = format!("target_path_contrast:outcome={}:scope={scope}", self.spec.outcome);
+        let basis = CalibrationBasis::new([
+            "PathSpecific", "time_ordered_selection_admg", "fixed", "tabular",
+            "Frequentist", SAMPLED_FEATURE, "paired_delta_wald_clamped_95",
+            "paired_multinomial_delta", "declared_table_overlap", "",
+            functional.as_str(),
+        ].map(Arc::from), 0.95, Arc::from("point"),
+            result.estimate.sampled_units, None, None, 0.0).with_validation("none");
+        Ok(SampledTemporalPathCalibrationCandidate { result, interval, basis })
+    }
+
     /// Seal the sampled request and result after a fresh compiler execution.
     ///
     /// # Errors
@@ -821,7 +876,8 @@ pub fn consume_sampled_temporal_path_transport(
         || replayed.contrast_bits != wire.result.contrast_bits
         || replayed.standard_error_bits != wire.result.standard_error_bits
         || replayed.withheld_reason != wire.result.withheld_reason
-        || replayed.evidence_identity != wire.result.evidence_identity {
+        || replayed.evidence_identity != wire.result.evidence_identity
+        || replayed.sampled_units != wire.result.sampled_units {
         return Err(TemporalPathTransportError::Invalid("sampled path estimate differs on replay"));
     }
     Ok(live)

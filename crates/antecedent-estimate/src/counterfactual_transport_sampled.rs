@@ -350,6 +350,9 @@ pub struct SampledTransportContrastEstimate {
     pub standard_error_withheld_reason: Option<&'static str>,
     /// Common count, overlap, unseen-cell and limit identity.
     pub evidence_identity: String,
+    /// Distinct sampled units across overlap groups; duplicate table labels
+    /// for the same physical dataset contribute their total once.
+    pub sampled_units: u64,
     /// No whole-contrast repeated-sampling calibration has been earned.
     pub calibration: &'static str,
 }
@@ -1018,6 +1021,9 @@ pub fn estimate_sampled_counterfactual_transport_contrast(
     union.cited.extend(baseline.cited.iter().cloned());
     validate_cited_tables(&tables, &union, &mut work)?;
     let groups = resolve_overlap_checked(&tables, &request.overlap, &mut work)?;
+    let sampled_units = groups.groups.iter().try_fold(0u64, |total, group| {
+        total.checked_add(tables[group[0]].total())
+    }).ok_or_else(|| invalid_counts("the sampled contrast unit total overflows"))?;
     let prepared = prepare_sampled_tables(&tables, request, &mut work)?;
     let (active_point, _) = evaluate_detailed(
         active, &tables, &prepared.probabilities, &prepared.flavors,
@@ -1053,6 +1059,7 @@ pub fn estimate_sampled_counterfactual_transport_contrast(
         active: active_point.probability, baseline: baseline_point.probability,
         contrast, standard_error, standard_error_withheld_reason,
         evidence_identity: evidence_identity(request, &tables, &mut work)?,
+        sampled_units,
         calibration: "not_measured",
     })
 }
