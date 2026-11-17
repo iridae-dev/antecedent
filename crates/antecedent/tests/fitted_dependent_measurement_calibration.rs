@@ -21,6 +21,7 @@ use antecedent_contract::{
     MechanismDeclaration, MechanismOriginKind, QuantityRole, ScientificQuantity,
 };
 use antecedent_core::ExecutionContext;
+use antecedent_io::calibration::CalibrationBasisWire;
 use antecedent_model::compose::{Domain, TabularRow};
 use common::calibration::{
     Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n,
@@ -90,7 +91,7 @@ fn observation() -> DependentMeasuredObservationRequest {
     }
 }
 
-fn replicate(seed: u64, row_n: usize) -> Option<(f64, f64)> {
+fn replicate(seed: u64, row_n: usize) -> Option<((f64, f64), CalibrationBasisWire)> {
     let mut next = uniform(seed, 0xF17E_D001);
     let mut counts = vec![0_u64; 8];
     for (row, probabilities) in TRUE_ROWS.iter().enumerate() {
@@ -120,9 +121,11 @@ fn replicate(seed: u64, row_n: usize) -> Option<(f64, f64)> {
         draws: DRAWS, seed: seed ^ 0xA55A_1234,
     }).ok()?;
     let report = plan.execute(&ctx).ok()?;
-    let interval = report.nominal_interval("1", REPORTED_LEVEL).ok()?;
-    assert_eq!(interval.calibration, "not_measured");
-    Some((interval.lower, interval.upper))
+    let (interval, slot) = plan.nominal_interval_with_calibration(&report, "1", REPORTED_LEVEL).ok()?;
+    assert_eq!(interval.calibration, slot.status.as_str());
+    let basis = plan.calibration_basis("1", REPORTED_LEVEL).ok()?;
+    assert_eq!(slot.basis.as_ref(), Some(&basis));
+    Some(((interval.lower, interval.upper), basis))
 }
 
 #[test]
@@ -132,30 +135,30 @@ fn fitted_dependent_measurement_joint_error_l95() {
     let truth_c1 = (0.1 * TRUE_ROWS[1][3])
         / (0.9 * TRUE_ROWS[0][3] + 0.1 * TRUE_ROWS[1][3]);
     let truth = 0.1 * (1.0 - truth_c1) + 0.7 * truth_c1;
-    let construction = Construction {
-        query: "conditional_outcome_probability_given_joint_measurement".into(),
-        graph_class: "declared_finite_mechanisms".into(),
-        structure: "fixed".into(), modality: "tabular".into(),
-        inference: "bayesian".into(),
-        estimator: "fitted_dependent_measurement_v1".into(),
-        interval_method: INTERVAL.into(), se_kind: "posterior_draw_quantile".into(),
-        dependence: "joint_indicator_errors".into(),
-        posterior: "symmetric_dirichlet_rows_alpha_1".into(),
-        functional: "P_Y_1_given_assay_a_1_assay_b_1".into(),
-        identification: "model_conditional".into(),
-        reported_level: REPORTED_LEVEL,
-    };
     let mut tally = CoverageTally::for_record(RecordKey {
         test: TEST, dgp: DGP, interval: INTERVAL,
     }, REPORTED_LEVEL);
     for interval in map_replicates(n_sim(), |rep| {
         replicate(grid_seed(0xD0C0_0001 + rep), row_n)
     }) {
-        if let Some(interval) = interval {
+        if let Some((interval, basis)) = interval {
+            let key = &basis.key;
+            assert_eq!(key.interval_method, INTERVAL);
+            let construction = Construction {
+                query: key.query.clone(), graph_class: key.graph_class.clone(),
+                structure: key.structure.clone(), modality: key.modality.clone(),
+                inference: key.inference.clone(), estimator: key.estimator.clone(),
+                interval_method: key.interval_method.clone(), se_kind: key.se_kind.clone(),
+                dependence: key.dependence.clone(), posterior: key.posterior.clone(),
+                functional: key.functional.clone(), identification: key.identification.clone(),
+                reported_level: key.level,
+            };
             tally.bind_validation(&construction, ScopeFacts {
-                row_count: (2 * row_n) as u64, replicates_ok: None,
-                posterior_draws: Some(DRAWS), unidentified_mass: 0.0,
-            }, "not_applicable");
+                row_count: basis.scope.row_count,
+                replicates_ok: basis.scope.replicates_ok,
+                posterior_draws: basis.scope.posterior_draws,
+                unidentified_mass: basis.scope.unidentified_mass,
+            }, &key.validation);
             tally.record(Some(interval), truth);
         } else {
             tally.skip();

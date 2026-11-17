@@ -25,7 +25,7 @@ coverage or error control.
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws; the new predictive bridge-transport-decision cell binds all three declarations in one program and replays both the bridge and utility | Estimate or validate the transport premise itself, rather than only carrying its declared evidence; measure any final decision reliability claim | None for a new route; high if a surrogate score is substituted for an endpoint |
 | 8 | Medium | Scalar and vector feedback compile one cyclic program with aligned disturbances and named hard clamps; optional ledger entry points check disjointness across all inputs of the original component and bind the ledger state into the program | Establish statistical dependence of fitted mechanism errors and calibrate the connected equilibrium before promoting component evidence to an inferential claim | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | Static path-specific transport and fixed-population temporal counterfactuals exist separately | Prove the target temporal path functional under selection and mediator assumptions, then lower its estimator and claim | None for a new route; high if ordinary transport is relabelled path-specific |
-| 10 | Medium | Independent indicators retain the version-3 route; a separate fitted joint-error compiler cell now uses labelled validation counts and a Dirichlet posterior to propagate dependent measurement uncertainty through the finite query; an ignored fixed-truth grid harness is source-ready | Register and earn whole-route coverage records, then add a calibration lookup for the equal-tail outcome-probability interval; its present status is `not_measured` | None for the additive route; medium if independent indicators are silently treated as a joint model |
+| 10 | Medium | Independent indicators retain the version-3 route; a separate fitted joint-error compiler cell propagates labelled validation uncertainty; an ignored fixed-truth grid harness and exact model-coordinate calibration lookup are source-ready | Register and earn whole-route coverage records before the new equal-tail interval can report a measured status | None for the additive route; medium if independent indicators are silently treated as a joint model |
 | 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together; a version-2 portable receipt reconstructs the graph and terminal compiler from bytes, reruns every dependency consumer and compares the live result | Generalize live recomputation to other executable node kinds | None for the additive route; low for numerical claims, but identity-only plans cannot become execution receipts |
 
 ## Current source slice
@@ -171,7 +171,14 @@ the older independent and declared dependent routes retain their meanings.
 table, a labelled multinomial sampling design, a 150/300/600-per-construct
 grid, the exact outcome-probability truth and the route's equal-tail 95% rule.
 It is ignored and has not been added to the frozen calibration family roster;
-no record is earned or runtime lookup enabled by that source-only fixture.
+no record is earned by that source-only fixture.
+The compiled plan can now construct the exact calibration basis from its
+mechanism-plan identity, measured cell, scoped joint-error table shape, prior,
+outcome level, validation size and posterior draw count. Its interval lookup
+uses that basis and currently returns `not_measured`. The ignored harness binds
+the construction it receives from this runtime lookup, so a future earned
+record is constrained to the same model and query coordinate rather than
+generalizing one fixed-truth simulation to unrelated mechanisms.
 
 The graph-imputation point consumer retains the actual pooled effect draws
 from its source-bound execution. An additive exporter binds those draws to the

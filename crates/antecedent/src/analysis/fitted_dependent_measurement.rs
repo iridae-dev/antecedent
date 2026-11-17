@@ -16,6 +16,10 @@ use antecedent_core::{
 };
 use antecedent_kernels::{quantile_type7_sorted, sample_gamma};
 use antecedent_io::IoError;
+use antecedent_io::calibration::{
+    CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+};
+use antecedent_io::contract_section::CalibrationSlotWire;
 use serde::{Deserialize, Serialize};
 
 use super::observation_query::{
@@ -256,6 +260,84 @@ impl CompiledFittedDependentMeasurement {
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
         PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// The exact repeated-sampling construction of this model, query, prior
+    /// and labelled validation size. It excludes the random counts themselves
+    /// so independent replicates of one design share a coverage key, while a
+    /// changed mechanism model or measured-cell coordinate cannot borrow it.
+    ///
+    /// # Errors
+    /// The requested outcome level or nominal level is invalid.
+    pub fn calibration_basis(
+        &self, outcome_level: &str, level: f64,
+    ) -> Result<CalibrationBasisWire, FittedDependentMeasurementError> {
+        if outcome_level.trim().is_empty() || !level.is_finite() || !(0.0..1.0).contains(&level) {
+            return Err(FittedDependentMeasurementError::Invalid("calibration outcome or level is invalid"));
+        }
+        let observation = &self.request.observation;
+        let law = &observation.error_law;
+        let mut writer = CanonicalWriter::new("antecedent.fitted_dependent_measurement.calibration_coordinate.v1");
+        writer.text(&self.composition.plan_identity_hex())
+            .text(&observation.outcome).text(outcome_level)
+            .text(&law.construct).text(&law.population_id)
+            .text(&law.regime_id).text(&law.evidence_id);
+        for (tag, cells) in [
+            ("observed", &observation.observed),
+            ("measured", &observation.measured),
+            ("interventions", &observation.interventions),
+        ] {
+            writer.text(tag).word(cells.len() as u64);
+            for (variable, value) in cells { writer.text(variable).text(value); }
+        }
+        writer.word(law.indicator_ids.len() as u64);
+        for (indicator, levels) in law.indicator_ids.iter().zip(&law.indicator_levels) {
+            writer.text(indicator).word(levels.len() as u64);
+            for value in levels { writer.text(value); }
+        }
+        writer.word(law.construct_levels.len() as u64);
+        for value in &law.construct_levels { writer.text(value); }
+        let functional = format!("conditional_outcome_probability:{}", SemanticDigest::from_bytes(writer.finish()).to_hex());
+        let row_count = self.request.counts.iter().sum::<u64>();
+        Ok(CalibrationBasisWire {
+            key: CalibrationKeyWire {
+                validation: "not_applicable".into(),
+                query: "conditional_outcome_probability_given_joint_measurement".into(),
+                graph_class: "declared_finite_mechanisms".into(),
+                structure: "fixed".into(), modality: "tabular".into(),
+                inference: "bayesian".into(),
+                estimator: "fitted_dependent_measurement_v1".into(),
+                interval_method: "fitted_joint_error_dirichlet_equal_tailed".into(),
+                se_kind: "posterior_draw_quantile".into(),
+                dependence: "joint_indicator_errors".into(),
+                posterior: format!("symmetric_dirichlet_rows_alpha_{:016x}", self.request.prior_alpha.to_bits()),
+                functional, level, identification: "model_conditional".into(),
+            },
+            scope: CalibrationScopeWire {
+                row_count, replicates_ok: None, posterior_draws: Some(self.request.draws),
+                unidentified_mass: 0.0,
+            },
+        })
+    }
+
+    /// Return the route's equal-tail interval together with the registry slot
+    /// for its exact model and measurement coordinate. No record is inherited
+    /// from independent-indicator or declared-table routes.
+    ///
+    /// # Errors
+    /// The report came from another program, or the interval is invalid.
+    pub fn nominal_interval_with_calibration(
+        &self, report: &FittedDependentMeasurementReport,
+        outcome_level: &str, level: f64,
+    ) -> Result<(FittedDependentMeasurementInterval, CalibrationSlotWire), FittedDependentMeasurementError> {
+        if report.alignment_identity != self.lowered.identity().to_hex() {
+            return Err(FittedDependentMeasurementError::Invalid("interval report came from another program"));
+        }
+        let mut interval = report.nominal_interval(outcome_level, level)?;
+        let basis = self.calibration_basis(outcome_level, level)?;
+        let slot = calibration_slot(&basis);
+        interval.calibration = slot.status.as_str().into();
+        Ok((interval, slot))
     }
 
     /// Draw the joint error table row by row and answer the finite query in
