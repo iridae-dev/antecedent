@@ -197,6 +197,8 @@ macro_rules! route_lowerings {
             ObservationalPolicy,
             /// Joint measured-signal observation of a composed finite model.
             JointMeasuredObservation,
+            /// Replay a bundle with a compiler-executed terminal.
+            BundleRecomputation,
             /// A graph-selection imputation composite.
             GraphImputation,
             /// A scientifically closed categorical posterior candidate.
@@ -218,6 +220,7 @@ macro_rules! route_lowerings {
                     Self::PropagationChain(_) => "PropagationChain",
                     Self::ObservationalPolicy => "ObservationalPolicy",
                     Self::JointMeasuredObservation => "JointMeasuredObservation",
+                    Self::BundleRecomputation => "BundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
                     Self::MnarFixedShift => "MnarFixedShift",
@@ -239,6 +242,7 @@ macro_rules! route_lowerings {
                     Self::PropagationChain(_) => RouteFamily::PropagationChain,
                     Self::ObservationalPolicy => RouteFamily::DesignBased,
                     Self::JointMeasuredObservation => RouteFamily::Structural,
+                    Self::BundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,
                     Self::MnarFixedShift => RouteFamily::DesignBased,

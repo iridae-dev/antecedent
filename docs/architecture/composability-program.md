@@ -26,7 +26,7 @@ coverage or error control.
 | 8 | Medium | `prepare_component_feedback` joins checked scalar interfaces into one certified, model-conditional cyclic program with aligned disturbances and named hard clamps | Generalize to multi-output components and evidence-ledger checked dependence | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | Static path-specific transport and fixed-population temporal counterfactuals exist separately | Prove the target temporal path functional under selection and mediator assumptions, then lower its estimator and claim | None for a new route; high if ordinary transport is relabelled path-specific |
 | 10 | Medium | `JointMeasuredObservationPlan` compiles 2-16 noisy indicators of one finite construct under an explicit conditional-independence declaration and replays a version-3 observation artifact after conditioning or intervention | Add declared dependent-error measurement families and new calibration records for fitted measurement models | None for the additive route; medium if independent indicators are silently treated as a joint model |
-| 11 | Lower | Bundles independently verify many artifacts, including recalculation receipts; several study routes already execute with receipts, while a loaded bundle reads its receipt as historical | Lower bundle recomputation against the retained executable program and bind every dependency's replay result | None for a new route; low for numerical claims, but identity-only plans cannot become execution receipts |
+| 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together, requires every dependency's artifact consumer to replay, reexecutes the terminal and records each dependency's Merkle digest | Generalize live recomputation to other executable node kinds and independently reconstructed plans | None for the additive route; low for numerical claims, but identity-only plans cannot become execution receipts |
 
 ## Current source slice
 
@@ -108,3 +108,11 @@ an intervention, through a new compiler cell and a version-3 observation
 artifact. The producer and consumer evaluate the same joint likelihood;
 measurement-rate uncertainty and dependent errors require separate new
 methods and calibration records.
+
+Bundle recomputation has a first executable slice: a fully embedded bundle
+whose terminal is a propagation chain. A new six-layer program binds the
+bundle identity, terminal node and retained chain declaration. Execution
+requires every embedded artifact's consumer to replay and then compares the
+live compiler result with the terminal record; its receipt carries every
+dependency's artifact identity and Merkle digest. Reference nodes and a
+historical recalculation receipt alone do not qualify as live execution.

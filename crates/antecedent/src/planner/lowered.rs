@@ -1078,6 +1078,8 @@ pub(crate) enum ProgramCell {
     ObservationalPolicy,
     /// Several noisy indicators of a construct in one observation query.
     JointMeasuredObservation,
+    /// Bundle replay with a live executable chain terminal.
+    BundleRecomputation,
     /// A bounded graph-selection imputation composite.
     GraphImputation,
     /// A scientifically closed categorical posterior candidate.
@@ -1096,6 +1098,7 @@ impl ProgramCell {
             Self::PropagationChain(_) => "PropagationChain",
             Self::ObservationalPolicy => "ObservationalPolicy",
             Self::JointMeasuredObservation => "JointMeasuredObservation",
+            Self::BundleRecomputation => "BundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
             Self::MnarFixedShift => "MnarFixedShift",
@@ -1155,6 +1158,7 @@ impl LoweredProgram {
             | ProgramCell::PropagationChain(_)
             | ProgramCell::ObservationalPolicy
             | ProgramCell::JointMeasuredObservation
+            | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
@@ -1171,6 +1175,7 @@ impl LoweredProgram {
             | ProgramCell::PropagationChain(_)
             | ProgramCell::ObservationalPolicy
             | ProgramCell::JointMeasuredObservation
+            | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
@@ -1187,6 +1192,7 @@ impl LoweredProgram {
             | ProgramCell::Planning(_)
             | ProgramCell::ObservationalPolicy
             | ProgramCell::JointMeasuredObservation
+            | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,

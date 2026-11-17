@@ -33,6 +33,25 @@ pub use antecedent_design::composition_verifiers::{
 };
 pub use antecedent_design::decision_artifact::mean_result_to_bytes;
 
+use std::sync::Arc;
+use antecedent_contract::DataClassification;
+use antecedent_core::{
+    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect,
+    PhysicalOperator, SemanticDigest,
+};
+use antecedent_contract::propagation_chain::ChainRefusal;
+use antecedent_io::propagation_chain_record::PropagationChainRecordWire;
+use antecedent_io::IoError;
+use serde::{Deserialize, Serialize};
+use super::propagation_chain::PropagationChainPlan;
+use crate::planner::lowered::{
+    Composition, EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef,
+    FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell,
+    ProgramIdentityScope, ScientificProblem, StandaloneCompositionLoweredParts,
+};
+use crate::planner::{PlanStage, PlanView};
+
 fn refused(stage: BundleStage, reason: &str, offending: Option<&str>) -> BundleError {
     BundleError::Refused {
         stage,
@@ -318,4 +337,291 @@ pub fn consume_with_limits(
     supplied: &SuppliedSources,
 ) -> Result<ConsumedBundle, BundleError> {
     standard_consumer().consume(bytes, limits, expected_identity, supplied)
+}
+
+const BUNDLE_RECOMPUTE_FEATURE: &str = "chain_bundle_recomputation_v1";
+const MAX_BUNDLE_RECOMPUTE_BYTES: usize = 16 * 1024 * 1024;
+
+/// A bundle whose dependencies are all independently replayable, with one
+/// propagation-chain terminal recomputed from its retained compiler program.
+#[derive(Clone, Debug)]
+pub struct CompiledChainBundleRecomputation {
+    bundle: CompositionBundle,
+    terminal_node: String,
+    chain: PropagationChainPlan,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// One dependency that passed the bundle's artifact consumer in this run.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplayedBundleDependency {
+    /// Node identity within the bundle.
+    pub node_id: String,
+    /// Recomputed artifact identity.
+    pub artifact_identity: String,
+    /// Bundle Merkle digest after its upstream dependencies were bound.
+    pub chain_digest: String,
+}
+
+/// An actual compiler execution and all dependency replay outcomes, with no
+/// claim that an external source was refitted or a new calibration was earned.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChainBundleRecomputationReceipt {
+    /// Recomputed bundle identity.
+    pub bundle_identity: String,
+    /// Terminal bundle node.
+    pub terminal_node: String,
+    /// Recomputed propagation-chain artifact identity.
+    pub terminal_identity: String,
+    /// Six-layer program that executed the terminal.
+    pub lowered_program_identity: [u8; 32],
+    /// Every embedded dependency's verified replay identity and Merkle digest.
+    pub dependencies: Vec<ReplayedBundleDependency>,
+}
+
+/// Refusal of a bundle compiler, artifact consumer or live terminal execution.
+#[derive(Debug, thiserror::Error)]
+pub enum ChainBundleRecomputeError {
+    /// Bundle structure or embedded artifact verification refused.
+    #[error("bundle recomputation: {0}")]
+    Bundle(#[from] BundleError),
+    /// The terminal chain declaration or execution refused.
+    #[error("bundle chain compiler: {0}")]
+    Chain(#[from] ChainRefusal),
+    /// A replay artifact could not be decoded or encoded.
+    #[error("bundle recomputation artifact: {0}")]
+    Io(#[from] IoError),
+    /// A required replay or terminal binding is missing or changed.
+    #[error("bundle recomputation: {0}")]
+    Invalid(&'static str),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ChainBundleRecomputationWire {
+    version: u32,
+    required_feature: String,
+    receipt: ChainBundleRecomputationReceipt,
+}
+
+/// Lower one fully embedded bundle and its executable chain terminal into a
+/// new six-layer program. The graph, each node identity and the terminal
+/// declaration are bound before execution. Other embedded dependencies are
+/// checked by their own independent consumers at execution.
+///
+/// # Errors
+/// A missing or non-embedded terminal, or a physical operator refusal.
+pub fn compile_chain_bundle_recomputation(
+    bundle: CompositionBundle,
+    terminal_node: &str,
+    chain: PropagationChainPlan,
+) -> Result<CompiledChainBundleRecomputation, ChainBundleRecomputeError> {
+    let node = bundle.nodes().iter().find(|node| node.id == terminal_node)
+        .ok_or(ChainBundleRecomputeError::Invalid("terminal node is absent from the bundle"))?;
+    if node.kind != NodeKind::PropagationChain
+        || !matches!(&node.source, NodeSource::Embedded { .. })
+    {
+        return Err(ChainBundleRecomputeError::Invalid(
+            "the executable terminal must be an embedded propagation chain",
+        ));
+    }
+    let bundle_digest = CanonicalWriter::digest_bytes(
+        "antecedent.bundle_recomputation.bundle.v1", bundle.identity().as_bytes(),
+    );
+    let mut writer = CanonicalWriter::new("antecedent.bundle_recomputation.question.v1");
+    writer.bytes(&bundle_digest).text(terminal_node).bytes(chain.identity().as_bytes());
+    let query = writer.finish();
+    let scientific = ScientificProblem {
+        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::PropagatedChain, outcome: None, query,
+        },
+        plan_id: Arc::from("chain_bundle_recomputation.v1"),
+        data: DataClassification::Tabular, graph_class: "bundle_dependency_graph",
+        query_variables: Arc::from(Vec::new()), source_digest: Some(bundle_digest),
+        support_coordinate: None, supported: false, support_status: None,
+    };
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
+    let mut sources = chain.lowered().evidence().sources().to_vec();
+    sources.push(EvidenceSourceRef {
+        role: EvidenceRole::ChainSource, digest: Some(bundle_digest),
+    });
+    let evidence = EvidenceDecisionProgram {
+        sources: Arc::from(sources),
+        composition: Composition::Chained {
+            stages: chain.plan().stages.len() + bundle.nodes().len(),
+        },
+        decision: chain.lowered().evidence().decision().cloned(), planning: None,
+        chain: chain.lowered().propagation_chain().cloned(),
+    };
+    let mut operators = chain.lowered().physical().operators().to_vec();
+    let quote = (bundle.nodes().len() as u64).saturating_mul(128);
+    operators.push(PhysicalOperator::declare(PhysicalEffect::Read)
+        .estimates(ByteEstimates::absent().with_output(quote))
+        .build().map_err(|_| ChainBundleRecomputeError::Invalid(
+            "the bundle replay physical operator is invalid",
+        ))?);
+    let physical = PhysicalLayer {
+        operators: Arc::from(operators),
+        design: chain.lowered().physical().design(),
+    };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::BundleRecomputation,
+        scientific, identification,
+        statistical: chain.lowered().statistical().clone(),
+        evidence, physical, claim: *chain.lowered().claim(),
+    }.finish());
+    let chain = chain.within_lowered(Arc::clone(&lowered))?;
+    Ok(CompiledChainBundleRecomputation {
+        bundle, terminal_node: terminal_node.to_owned(), chain, lowered,
+    })
+}
+
+impl CompiledChainBundleRecomputation {
+    /// The bundle and live terminal's six-layer compiler program.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the compiled bundle recomputation without executing it.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Replay every embedded dependency and execute the terminal program.
+    /// A reference node or failed artifact prevents an execution receipt.
+    ///
+    /// # Errors
+    /// A failed dependency, changed terminal law or compiler refusal.
+    pub fn execute(&self, ctx: &ExecutionContext)
+        -> Result<ChainBundleRecomputationReceipt, ChainBundleRecomputeError> {
+        let bytes = export_bundle(&self.bundle, "chain-bundle-recomputation")?;
+        let consumed = consume(&bytes, self.bundle.identity(), &SuppliedSources::default())?;
+        if !consumed.all_replayed() {
+            return Err(ChainBundleRecomputeError::Invalid(
+                "every bundle dependency must pass an embedded artifact consumer",
+            ));
+        }
+        let node = self.bundle.nodes().iter().find(|node| node.id == self.terminal_node)
+            .ok_or(ChainBundleRecomputeError::Invalid("terminal node disappeared"))?;
+        let NodeSource::Embedded { bytes } = &node.source else {
+            return Err(ChainBundleRecomputeError::Invalid("terminal node is a reference"));
+        };
+        let recorded = PropagationChainRecordWire::decode(bytes)
+            .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
+        recorded.consume(Some(&node.identity), ctx)
+            .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
+        let live = self.chain.execute(ctx)?;
+        if &recorded != live.record() || node.identity != live.identity() {
+            return Err(ChainBundleRecomputeError::Invalid(
+                "the embedded terminal differs from the compiler's live result",
+            ));
+        }
+        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
+            node_id: node.id.clone(),
+            artifact_identity: node.identity.clone(),
+            chain_digest: node.chain_digest.clone(),
+        }).collect();
+        Ok(ChainBundleRecomputationReceipt {
+            bundle_identity: consumed.identity().to_owned(),
+            terminal_node: self.terminal_node.clone(),
+            terminal_identity: live.identity().to_owned(),
+            lowered_program_identity: *self.lowered.identity().as_bytes(),
+            dependencies,
+        })
+    }
+
+    /// Export a receipt after independently checking its live execution.
+    ///
+    /// # Errors
+    /// A changed receipt or artifact encoding refusal.
+    pub fn export(&self, receipt: &ChainBundleRecomputationReceipt, ctx: &ExecutionContext)
+        -> Result<Vec<u8>, ChainBundleRecomputeError> {
+        if self.execute(ctx)? != *receipt {
+            return Err(ChainBundleRecomputeError::Invalid("bundle execution receipt differs"));
+        }
+        let bytes = antecedent_io::to_cbor(&ChainBundleRecomputationWire {
+            version: 1, required_feature: BUNDLE_RECOMPUTE_FEATURE.into(),
+            receipt: receipt.clone(),
+        })?;
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(ChainBundleRecomputeError::Invalid("bundle recomputation receipt exceeds its byte bound"));
+        }
+        Ok(bytes)
+    }
+
+    /// Independently re-run every dependency consumer and the retained chain,
+    /// then compare the complete receipt under a separately retained program id.
+    ///
+    /// # Errors
+    /// A foreign feature, changed program or changed replay result.
+    pub fn consume(
+        &self, bytes: &[u8], expected_program: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<ChainBundleRecomputationReceipt, ChainBundleRecomputeError> {
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(ChainBundleRecomputeError::Invalid("bundle recomputation receipt exceeds its byte bound"));
+        }
+        let wire: ChainBundleRecomputationWire = antecedent_io::from_cbor(bytes)?;
+        if wire.version != 1 || wire.required_feature != BUNDLE_RECOMPUTE_FEATURE
+            || expected_program != self.lowered.identity()
+        {
+            return Err(ChainBundleRecomputeError::Invalid("bundle recomputation feature or program differs"));
+        }
+        let live = self.execute(ctx)?;
+        if wire.receipt != live {
+            return Err(ChainBundleRecomputeError::Invalid("bundle dependency or terminal replay differs"));
+        }
+        Ok(live)
+    }
+}
+
+#[cfg(test)]
+mod compiler_recomputation_tests {
+    use super::*;
+    use antecedent_contract::propagation_chain::{
+        ChainReading, LawMeaning, StageKind, TableConstruction,
+    };
+    use antecedent_io::propagation_chain_record::{
+        ChainCoefficientWire, ChainOpWire, ChainSourceWire, ChainStageWire,
+    };
+    use crate::analysis::propagation_chain::{PropagationChain, compile_propagation_chain};
+
+    #[test]
+    fn a_bundle_terminal_is_recomputed_by_its_compiler_and_replayed() {
+        let ctx = ExecutionContext::for_tests(23);
+        let draft = PropagationChain::draft(
+            TableConstruction::JointDraws, ChainReading::Spread, "output",
+            vec![ChainSourceWire::draws(
+                "source", LawMeaning::Sampling, "aligned-bundle", &[1.0, 2.0, 3.0],
+            )],
+            vec![ChainStageWire::new(
+                "output", StageKind::DerivedQuantity, &["source"],
+                ChainOpWire::affine(
+                    ChainCoefficientWire::fixed(2.0), ChainCoefficientWire::fixed(0.0),
+                ),
+            )],
+        );
+        let chain = compile_propagation_chain(draft, &ctx).expect("chain compiler");
+        let sealed = chain.execute(&ctx).expect("source execution");
+        let mut builder = BundleBuilder::new();
+        builder.add_artifact(
+            Some("terminal"), NodeKind::PropagationChain,
+            &sealed.export().expect("chain bytes"),
+        ).expect("embedded chain");
+        let bundle = builder.build().expect("bundle");
+        let plan = compile_chain_bundle_recomputation(bundle, "terminal", chain)
+            .expect("bundle compiler");
+        assert_eq!(plan.plan_view().route().as_str(), "BundleRecomputation");
+        let receipt = plan.execute(&ctx).expect("live bundle replay");
+        assert_eq!(receipt.dependencies.len(), 1);
+        assert_eq!(receipt.terminal_identity, sealed.identity());
+        let bytes = plan.export(&receipt, &ctx).expect("recalculation receipt");
+        assert_eq!(plan.consume(&bytes, plan.lowered().identity(), &ctx)
+            .expect("independent replay"), receipt);
+    }
 }
