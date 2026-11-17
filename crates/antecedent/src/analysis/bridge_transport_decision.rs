@@ -440,7 +440,7 @@ pub fn compile_assessed_bridge_transport_decision(
         data: DataClassification::Tabular,
         graph_class: "assessed_declared_transportable_bridge",
         query_variables: Arc::from(Vec::new()),
-        source_digest: Some(assessment_id),
+        source_digest: Some(*assessment_id.as_bytes()),
         support_coordinate: None, supported: false, support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
@@ -456,8 +456,8 @@ pub fn compile_assessed_bridge_transport_decision(
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([
-            EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(assessment_id) },
-            EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(bridge_id) },
+            EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(*assessment_id.as_bytes()) },
+            EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(*bridge_id.as_bytes()) },
         ]),
         composition: Composition::Chained { stages: 2 },
         decision: Some(DecisionProgram {
@@ -707,12 +707,12 @@ pub fn compile_assessed_bridge_robust_decision(
         plan_id: Arc::from("assessed_bridge_discrepancy_robust.v1"),
         data: DataClassification::Tabular,
         graph_class: "assessed_bridge_discrepancy_envelope",
-        query_variables: Arc::from(Vec::new()), source_digest: Some(child_id),
+        query_variables: Arc::from(Vec::new()), source_digest: Some(*child_id.as_bytes()),
         support_coordinate: None, supported: false, support_status: None,
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([EvidenceSourceRef {
-            role: EvidenceRole::TransportSource, digest: Some(child_id),
+            role: EvidenceRole::TransportSource, digest: Some(*child_id.as_bytes()),
         }]),
         composition: Composition::Chained { stages: 3 },
         decision: Some(DecisionProgram {
