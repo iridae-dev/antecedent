@@ -25,7 +25,7 @@ coverage or error control.
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws | Lower the bridge declaration, transport and utility together with checked value kind and coordinate | None for a new route; high if a surrogate score is substituted for an endpoint |
 | 8 | Medium | Scalar and vector feedback compile one cyclic program with aligned disturbances and named hard clamps; optional ledger entry points check disjointness across all inputs of the original component and bind the ledger state into the program | Establish statistical dependence of fitted mechanism errors and calibrate the connected equilibrium before promoting component evidence to an inferential claim | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | Static path-specific transport and fixed-population temporal counterfactuals exist separately | Prove the target temporal path functional under selection and mediator assumptions, then lower its estimator and claim | None for a new route; high if ordinary transport is relabelled path-specific |
-| 10 | Medium | Independent indicators retain the version-3 route; a separate fitted joint-error compiler cell now uses labelled validation counts and a Dirichlet posterior to propagate dependent measurement uncertainty through the finite query | Add whole-route coverage records and a calibration lookup for the new equal-tail outcome-probability interval; its present status is `not_measured` | None for the additive route; medium if independent indicators are silently treated as a joint model |
+| 10 | Medium | Independent indicators retain the version-3 route; a separate fitted joint-error compiler cell now uses labelled validation counts and a Dirichlet posterior to propagate dependent measurement uncertainty through the finite query; an ignored fixed-truth grid harness is source-ready | Register and earn whole-route coverage records, then add a calibration lookup for the equal-tail outcome-probability interval; its present status is `not_measured` | None for the additive route; medium if independent indicators are silently treated as a joint model |
 | 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together; a version-2 portable receipt reconstructs the graph and terminal compiler from bytes, reruns every dependency consumer and compares the live result | Generalize live recomputation to other executable node kinds | None for the additive route; low for numerical claims, but identity-only plans cannot become execution receipts |
 
 ## Current source slice
@@ -148,6 +148,11 @@ An equal-tail posterior interval of any outcome-level probability is available
 with `not_measured` calibration. The retained-plan consumer recomputes every
 draw and compares the report. New whole-route coverage records are owed;
 the older independent and declared dependent routes retain their meanings.
+`fitted_dependent_measurement_calibration.rs` prespecifies the joint validation
+table, a labelled multinomial sampling design, a 150/300/600-per-construct
+grid, the exact outcome-probability truth and the route's equal-tail 95% rule.
+It is ignored and has not been added to the frozen calibration family roster;
+no record is earned or runtime lookup enabled by that source-only fixture.
 
 The graph-imputation point consumer retains the actual pooled effect draws
 from its source-bound execution. An additive exporter binds those draws to the
