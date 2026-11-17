@@ -2026,6 +2026,8 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::GraphImputationEffectDecision => PlanRoute::GraphImputationEffectDecision,
         ProgramCell::GraphImputationBernoulliPredictiveWorldDecision => PlanRoute::GraphImputationBernoulliPredictiveWorldDecision,
         ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision => PlanRoute::GraphImputationGaussianTargetPredictiveWorldDecision,
+        ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision => PlanRoute::GraphImputationBernoulliPredictiveClusterBootstrapDecision,
+        ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision => PlanRoute::GraphImputationGaussianPredictiveClusterBootstrapDecision,
         ProgramCell::GraphImputationTransportDecision => PlanRoute::GraphImputationTransportDecision,
         ProgramCell::GraphImputationTransportClusterBootstrapDecision => PlanRoute::GraphImputationTransportClusterBootstrapDecision,
         ProgramCell::GraphImputationConfoundedTransportDecision => PlanRoute::GraphImputationConfoundedTransportDecision,

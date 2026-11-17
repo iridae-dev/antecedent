@@ -967,7 +967,7 @@ fn logistic_probability(value: f64) -> f64 {
 )]
 fn execute(
     rec: &Reconstructed, target: Option<TransportTarget<'_>>, paired: bool, logit_predictive: bool,
-    gaussian_predictive: Option<(f64, f64, u64)>, ctx: &ExecutionContext,
+    gaussian_predictive: Option<(f64, f64, u64)>, predictive_seed: Option<u64>, ctx: &ExecutionContext,
 ) -> Result<Execution, IoError> {
     let parts = rec.source.parts();
     if logit_predictive && (!paired || !matches!(target, Some(TransportTarget::Binary(_))) || parts.domains[parts.outcome as usize] != 1) {
@@ -1125,7 +1125,7 @@ fn execute(
                 paired_leases.push(scoped.acquire_admission(0, bytes).map_err(admission)?);
                 let mut world_values = Vec::with_capacity(fit.draws.n_draws);
                 let mut predictive_rng = antecedent_core::CausalRng::from_seed(mix64(
-                    gaussian_predictive.map_or(parts.execution_seed, |(_, _, seed)| seed)
+                    predictive_seed.unwrap_or_else(|| gaussian_predictive.map_or(parts.execution_seed, |(_, _, seed)| seed))
                         ^ (u64::from(index) << 32) ^ mask ^ 0x4245_524e_5052_4544,
                 ));
                 for draw in 0..fit.draws.n_draws {
@@ -1454,7 +1454,7 @@ struct Reading {
 // measured route.
 fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reading, IoError> {
     let rec = reconstruct(bytes, ctx)?;
-    let run = execute(&rec, None, false, false, None, ctx)?;
+    let run = execute(&rec, None, false, false, None, None, ctx)?;
     let mut sorted = run.draws.clone();
     sorted.sort_by(f64::total_cmp);
     // Fixed nearest-rank 95% interval; a record must measure exactly this algorithm.
@@ -1495,7 +1495,7 @@ pub struct GraphPairedWorldReading {
 /// Changed source, unsupported child, numerical failure or incomplete schedule.
 pub fn replay_paired_worlds(bytes: &[u8], ctx: &ExecutionContext) -> Result<GraphPairedWorldReading, IoError> {
     let rec = reconstruct(bytes, ctx)?;
-    let run = execute(&rec, None, true, false, None, ctx)?;
+    let run = execute(&rec, None, true, false, None, None, ctx)?;
     let mut writer = CanonicalWriter::new("antecedent.graph_imputation.paired_worlds.execution.v1");
     writer.bytes(&run.receipt).word(run.paired_worlds.len() as u64);
     for pair in &run.paired_worlds { writer.word(pair[0].to_bits()).word(pair[1].to_bits()); }
@@ -1558,7 +1558,7 @@ pub fn replay_bernoulli_logit_predictive_worlds(bytes: &[u8], target: &Transport
     target.validate(rec.source.parts())?;
     let target_bytes = (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::Binary(target)), true, true, None, ctx)?;
+    let run = execute(&rec, Some(TransportTarget::Binary(target)), true, true, None, None, ctx)?;
     let mut writer = CanonicalWriter::new("antecedent.graph_imputation_bernoulli_logit.target_predictive_worlds.execution.v1");
     writer.bytes(&run.receipt).bytes(&target.digest()?).word(run.paired_worlds.len() as u64);
     for pair in &run.paired_worlds { writer.word(pair[0].to_bits()).word(pair[1].to_bits()); }
@@ -1581,7 +1581,7 @@ pub fn replay_gaussian_target_predictive_worlds(bytes: &[u8], target: &Transport
     let target_bytes = (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
     let run = execute(&rec, Some(TransportTarget::Binary(target)), true, false,
-        Some((residual_variance, cross_world_correlation, seed)), ctx)?;
+        Some((residual_variance, cross_world_correlation, seed)), None, ctx)?;
     let mut writer = CanonicalWriter::new("antecedent.graph_imputation_gaussian.target_predictive_worlds.execution.v1");
     writer.bytes(&run.receipt).bytes(&target.digest()?).word(residual_variance.to_bits())
         .word(cross_world_correlation.to_bits()).word(seed).word(run.paired_worlds.len() as u64);
@@ -1589,6 +1589,84 @@ pub fn replay_gaussian_target_predictive_worlds(bytes: &[u8], target: &Transport
     Ok(GraphPairedWorldReading { worlds: run.paired_worlds, receipt: writer.finish(),
         program: rec.source.program(), source: rec.source.parts().data_digest,
         _lease: run.lease, _paired_leases: run.paired_leases })
+}
+
+/// Resample complete independent target clusters and rerun the entire graph,
+/// imputation and individual predictive-world fit for each replicate. Both
+/// actions retain the same graph, coefficient draw and target row. One paired
+/// outcome row is sampled from each full replay; no calibration is implied.
+///
+/// # Errors
+/// Invalid target or clusters, changed support, fit, resource or replay failure.
+pub fn replay_target_predictive_cluster_bootstrap_worlds(
+    bytes: &[u8], target: &TransportStandardization, cluster_ids: &[String], replicates: u32,
+    seed: u64, gaussian: Option<(f64, f64, u64)>, ctx: &ExecutionContext,
+) -> Result<GraphPairedWorldReading, IoError> {
+    if !(40..=256).contains(&replicates) || cluster_ids.len() != target.rows()
+        || cluster_ids.iter().any(|id| id.trim().is_empty()) {
+        return Err(invalid("invalid predictive target cluster declaration"));
+    }
+    let mut grouped = BTreeMap::<&str, Vec<usize>>::new();
+    for (row, id) in cluster_ids.iter().enumerate() { grouped.entry(id.as_str()).or_default().push(row); }
+    let groups: Vec<Vec<usize>> = grouped.into_values().collect();
+    let max_rows = groups.len().checked_mul(groups.iter().map(Vec::len).max().unwrap_or(0))
+        .filter(|&n| groups.len() >= 2 && n <= 1_000_000)
+        .ok_or_else(|| invalid("unsupported predictive target cluster size"))?;
+    let mut reading = if let Some((variance, correlation, residual_seed)) = gaussian {
+        replay_gaussian_target_predictive_worlds(bytes, target, variance, correlation, residual_seed, ctx)?
+    } else { replay_bernoulli_logit_predictive_worlds(bytes, target, ctx)? };
+    let quote = (max_rows as u64).saturating_mul((target.columns.len() as u64).saturating_mul(16) + 128)
+        .saturating_add(u64::from(replicates).saturating_mul(16))
+        .saturating_add(target.source_unit_ids.iter().chain(&target.target_unit_ids)
+            .map(|id| (id.len() as u64).saturating_add(24)).fold(0_u64, u64::saturating_add));
+    let lease = ctx.acquire_admission(0, quote).map_err(admission)?;
+    let mut state = seed;
+    let mut draw_state = mix64(seed ^ 0x4452_4157_5f56_3201);
+    let mut pairs = Vec::with_capacity(replicates as usize);
+    let mut receipt = CanonicalWriter::new("antecedent.graph_imputation.target_predictive_cluster_bootstrap.execution.v1");
+    receipt.bytes(&reading.program).bytes(&target.digest()?).word(u64::from(replicates)).word(seed)
+        .bytes(&crate::to_cbor(&cluster_ids)?);
+    if let Some((variance, correlation, residual_seed)) = gaussian {
+        receipt.text("gaussian").word(variance.to_bits()).word(correlation.to_bits()).word(residual_seed);
+    } else { receipt.text("bernoulli_logit"); }
+    let original = reconstruct(bytes, ctx)?;
+    for replicate in 0..replicates {
+        if ctx.cancellation.is_cancelled() { return Err(cancelled()); }
+        let mut indices = Vec::new();
+        for _ in 0..groups.len() {
+            let chosen = paired_bootstrap_pool_index(&mut state, groups.len());
+            indices.extend_from_slice(&groups[chosen]);
+        }
+        let mut sampled = target.clone();
+        for ((_, values), (_, original)) in sampled.columns.iter_mut().zip(&target.columns) {
+            *values = indices.iter().map(|&row| original[row]).collect();
+        }
+        let source_ids: BTreeSet<&str> = sampled.source_unit_ids.iter().map(String::as_str).collect();
+        let mut nonce = 0_u64;
+        let prefix = loop {
+            let prefix = format!("bootstrap-slot:{nonce}:");
+            if !source_ids.iter().any(|id| id.starts_with(&prefix)) { break prefix; }
+            nonce = nonce.checked_add(1).ok_or_else(|| invalid("bootstrap identity overflow"))?;
+        };
+        sampled.target_unit_ids = (0..indices.len()).map(|i| format!("{prefix}{i}")).collect();
+        sampled.validate(original.source.parts())?;
+        let noise_seed = mix64(seed ^ u64::from(replicate) ^ 0x5052_4544_4943_5401
+            ^ gaussian.map_or(0, |(_, _, residual_seed)| residual_seed));
+        let run = execute(&original, Some(TransportTarget::Binary(&sampled)), true, gaussian.is_none(),
+            gaussian, Some(noise_seed), ctx)?;
+        if run.paired_worlds.is_empty() { return Err(invalid("predictive target bootstrap has no paired worlds")); }
+        let draw_index = paired_bootstrap_pool_index(&mut draw_state, run.paired_worlds.len());
+        let pair = run.paired_worlds[draw_index];
+        receipt.word(u64::from(replicate));
+        for index in indices { receipt.word(index as u64); }
+        receipt.bytes(&run.receipt).word(noise_seed).word(draw_index as u64)
+            .word(pair[0].to_bits()).word(pair[1].to_bits());
+        pairs.push(pair);
+    }
+    reading.worlds = pairs;
+    reading.receipt = receipt.finish();
+    reading._paired_leases.push(lease);
+    Ok(reading)
 }
 
 /// Replay paired model-conditional potential-outcome mean worlds on a
@@ -1603,7 +1681,7 @@ pub fn replay_transport_paired_worlds(bytes: &[u8], target: &TransportStandardiz
     target.validate(rec.source.parts())?;
     let target_bytes = (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::Binary(target)), true, false, None, ctx)?;
+    let run = execute(&rec, Some(TransportTarget::Binary(target)), true, false, None, None, ctx)?;
     let mut writer = CanonicalWriter::new("antecedent.graph_imputation_transport.paired_worlds.execution.v2");
     writer.bytes(&run.receipt).bytes(&target.digest()?).word(run.paired_worlds.len() as u64);
     for pair in &run.paired_worlds { writer.word(pair[0].to_bits()).word(pair[1].to_bits()); }
@@ -1700,7 +1778,7 @@ pub fn replay_transport_point(
         .saturating_mul(target.columns.len() as u64)
         .saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::Binary(target)), false, false, None, ctx)?;
+    let run = execute(&rec, Some(TransportTarget::Binary(target)), false, false, None, None, ctx)?;
     Ok(GraphPointReading {
         mean: run.mean,
         diagnostic_sd: run.sd,
@@ -1728,7 +1806,7 @@ pub fn replay_confounded_transport_point(
     let target_bytes = (target.rows() as u64)
         .saturating_mul(target.columns.len() as u64).saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::ConfoundedBinary(target)), false, false, None, ctx)?;
+    let run = execute(&rec, Some(TransportTarget::ConfoundedBinary(target)), false, false, None, None, ctx)?;
     Ok(GraphPointReading { mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
         receipt: run.receipt, program: rec.source.program(),
         source: rec.source.parts().data_digest, unidentified_by_table: run.unidentified_by_table,
@@ -1753,7 +1831,7 @@ pub fn replay_kernel_transport_point(
         .saturating_mul(target.columns.len() as u64)
         .saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::Kernel(target)), false, false, None, ctx)?;
+    let run = execute(&rec, Some(TransportTarget::Kernel(target)), false, false, None, None, ctx)?;
     Ok(GraphPointReading {
         mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
         receipt: run.receipt, program: rec.source.program(),
@@ -1776,7 +1854,7 @@ pub fn replay_confounded_kernel_transport_point(
     target.validate_confounded(rec.source.parts())?;
     let target_bytes = (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::ConfoundedKernel(target)), false, false, None, ctx)?;
+    let run = execute(&rec, Some(TransportTarget::ConfoundedKernel(target)), false, false, None, None, ctx)?;
     Ok(GraphPointReading { mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
         receipt: run.receipt, program: rec.source.program(), source: rec.source.parts().data_digest,
         unidentified_by_table: run.unidentified_by_table, _lease: run.lease })
@@ -2341,13 +2419,13 @@ pub fn replay_mar_transport_point(bytes: &[u8], target: &MarTargetStandardizatio
             source_sample: target.source_sample.clone(), target_sample: target.target_sample.clone(),
             source_unit_ids: target.source_unit_ids.clone(), target_unit_ids: ids,
             bandwidths: target.bandwidths.clone(), min_kernel_overlap: target.min_kernel_overlap };
-        execute(&rec, Some(TransportTarget::MarKernel(&standard, &weights, digest, target.confounded)), false, false, None, ctx)?
+        execute(&rec, Some(TransportTarget::MarKernel(&standard, &weights, digest, target.confounded)), false, false, None, None, ctx)?
     } else {
         let standard = TransportStandardization { columns, selection_targets: target.selection_targets.clone(),
             source_population: target.source_population.clone(), target_population: target.target_population.clone(),
             source_sample: target.source_sample.clone(), target_sample: target.target_sample.clone(),
             source_unit_ids: target.source_unit_ids.clone(), target_unit_ids: ids };
-        execute(&rec, Some(TransportTarget::MarBinary(&standard, &weights, digest, target.confounded)), false, false, None, ctx)?
+        execute(&rec, Some(TransportTarget::MarBinary(&standard, &weights, digest, target.confounded)), false, false, None, None, ctx)?
     };
     Ok(GraphPointReading { mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
         receipt: run.receipt, program: rec.source.program(), source: rec.source.parts().data_digest,

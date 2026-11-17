@@ -1157,6 +1157,8 @@ pub(crate) enum ProgramCell {
     GraphImputationEffectDecision,
     GraphImputationBernoulliPredictiveWorldDecision,
     GraphImputationGaussianTargetPredictiveWorldDecision,
+    GraphImputationBernoulliPredictiveClusterBootstrapDecision,
+    GraphImputationGaussianPredictiveClusterBootstrapDecision,
     /// Graph-imputation target standardization and downstream utility.
     GraphImputationTransportDecision,
     GraphImputationTransportClusterBootstrapDecision,
@@ -1222,6 +1224,8 @@ impl ProgramCell {
             Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
             Self::GraphImputationBernoulliPredictiveWorldDecision => "GraphImputationBernoulliPredictiveWorldDecision",
             Self::GraphImputationGaussianTargetPredictiveWorldDecision => "GraphImputationGaussianTargetPredictiveWorldDecision",
+            Self::GraphImputationBernoulliPredictiveClusterBootstrapDecision => "GraphImputationBernoulliPredictiveClusterBootstrapDecision",
+            Self::GraphImputationGaussianPredictiveClusterBootstrapDecision => "GraphImputationGaussianPredictiveClusterBootstrapDecision",
             Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
             Self::GraphImputationTransportClusterBootstrapDecision => "GraphImputationTransportClusterBootstrapDecision",
             Self::GraphImputationConfoundedTransportDecision => "GraphImputationConfoundedTransportDecision",
@@ -1326,6 +1330,8 @@ impl LoweredProgram {
             | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
             | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision
+            | ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision
             | ProgramCell::GraphImputationConfoundedTransportDecision
             | ProgramCell::GraphImputationTransportDecision
             | ProgramCell::GraphImputationTransportClusterBootstrapDecision
@@ -1387,6 +1393,8 @@ impl LoweredProgram {
             | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
             | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision
+            | ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision
             | ProgramCell::GraphImputationConfoundedTransportDecision
             | ProgramCell::GraphImputationTransportDecision
             | ProgramCell::GraphImputationTransportClusterBootstrapDecision
@@ -1448,6 +1456,8 @@ impl LoweredProgram {
             | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
             | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision
+            | ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision
             | ProgramCell::GraphImputationConfoundedTransportDecision
             | ProgramCell::GraphImputationTransportDecision
             | ProgramCell::GraphImputationTransportClusterBootstrapDecision
