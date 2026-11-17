@@ -132,7 +132,7 @@ impl MissingCarrier {
     #[must_use]
     pub const fn of(carrier: CarrierDemand) -> Option<Self> {
         match carrier {
-            CarrierDemand::Mean | CarrierDemand::IdentifiedSet => None,
+            CarrierDemand::Mean | CarrierDemand::IdentifiedSet | CarrierDemand::DecisionDraws => None,
             CarrierDemand::ParameterPosterior => Some(Self::ParameterPosterior),
             CarrierDemand::OutcomeLaw | CarrierDemand::PredictiveLaw => Some(Self::OutcomeLaw),
         }
@@ -282,6 +282,8 @@ const fn realization_name(realization: &Realization) -> &'static str {
         Realization::Envelope(_) => "envelope",
         Realization::GraphImputationV1 => "graph_imputation_v1",
         Realization::CategoricalPosteriorCandidateV1 => "categorical_posterior_candidate_v1",
+        Realization::SequentialKnownLawMonteCarlo => "sequential_known_law_monte_carlo_v1",
+        Realization::SequentialTrajectoryBootstrap => "sequential_trajectory_bootstrap_v1",
         Realization::ExactPoint { .. } => "exact_point",
         Realization::DeclaredPredictive { .. } => "declared_predictive",
         Realization::DeclaredPosterior { .. } => "declared_posterior",
@@ -307,7 +309,9 @@ const fn offered_port(realization: &Realization) -> EvidencePort {
         },
         Realization::ExactPoint { .. }
         | Realization::GraphImputationV1
-        | Realization::CategoricalPosteriorCandidateV1 => EvidencePort::Mean,
+        | Realization::CategoricalPosteriorCandidateV1
+        | Realization::SequentialKnownLawMonteCarlo
+        | Realization::SequentialTrajectoryBootstrap => EvidencePort::Mean,
     }
 }
 
@@ -357,6 +361,10 @@ pub(crate) fn require_carrier(
         if envelope { ROBUST_OVER_IDENTIFIED_SET } else { otherwise }
     };
     match demanded {
+        CarrierDemand::DecisionDraws => Err(DecisionCarrierError::contract(
+            "decision draws require a compiler-owned reliability route over aligned raw utilities",
+            demanded, name, DISTRIBUTIONAL_CARRIER,
+        )),
         CarrierDemand::IdentifiedSet => Err(DecisionCarrierError::contract(
             "compile_for_robust_decision requires an explicit joint scenario carrier; a marginal envelope cannot establish cross-action dependence",
             demanded,

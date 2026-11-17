@@ -714,6 +714,8 @@ pub enum UncertaintyReading {
     Posterior,
     /// Predictive law of a future outcome under a declared model.
     Predictive,
+    /// Monte Carlo variation conditional on a known, declared model law.
+    MonteCarlo,
     /// Draw-indexed bounds under an interval-valued assumption, without coverage.
     AssumptionEnvelope,
     /// Identified set or envelope.
@@ -730,6 +732,7 @@ impl UncertaintyReading {
             Self::Sampling => "sampling",
             Self::Posterior => "posterior",
             Self::Predictive => "predictive",
+            Self::MonteCarlo => "monte_carlo",
             Self::AssumptionEnvelope => "assumption_envelope",
             Self::Envelope => "envelope",
             Self::None => "none",
@@ -1096,6 +1099,8 @@ pub(crate) enum ProgramCell {
     CyclicActionWorldDecision,
     /// Joint fitted-mechanism posterior predictive action worlds.
     CyclicPosteriorActionDecision,
+    /// Joint cyclic feedback fit standardized to an independent target frame.
+    CyclicTargetFeedbackDecision,
     /// Checked bridge transport and predictive utility in one program.
     BridgeTransportDecision,
     /// Independent source-target trial-level bridge premise assessment.
@@ -1105,6 +1110,7 @@ pub(crate) enum ProgramCell {
     /// Fitted source-target effect posterior and utility in one program.
     JointTransportEffectDecision,
     TrialIpwTransportDecision,
+    TrialIpwPredictiveDecision,
     /// Fitted target outcome prediction and paired-world utility.
     JointTransportPredictiveDecision,
     /// Target-population time-ordered path-specific transport.
@@ -1119,6 +1125,7 @@ pub(crate) enum ProgramCell {
     MovingBlockSamplingAssumptionUnion,
     /// Full-refit cross-fitted policy subsampling.
     PolicySubsampling,
+    SequentialPolicyReliability,
     /// Bundle replay with a live executable chain terminal.
     BundleRecomputation,
     /// Bundle replay with a live scientific bridge terminal.
@@ -1133,6 +1140,8 @@ pub(crate) enum ProgramCell {
     GraphImputationTransportNodeBundleRecomputation,
     /// A live bundle with a joint source-target effect fit.
     JointTransportEffectNodeBundleRecomputation,
+    JointTransportPredictiveNodeDecisionBundleRecomputation,
+    TrialIpwPredictiveNodeDecisionBundleRecomputation,
     /// Checked connected components with a joint fitted action decision.
     JointComponentPosteriorDecision,
     /// Bounded transformation of jointly fitted component action worlds.
@@ -1143,11 +1152,19 @@ pub(crate) enum ProgramCell {
     GraphImputation,
     /// Graph-imputation effect posterior and downstream utility.
     GraphImputationEffectDecision,
+    GraphImputationBernoulliPredictiveWorldDecision,
+    GraphImputationGaussianTargetPredictiveWorldDecision,
     /// Graph-imputation target standardization and downstream utility.
     GraphImputationTransportDecision,
+    GraphImputationTransportClusterBootstrapDecision,
     GraphImputationConfoundedTransportDecision,
+    GraphImputationConfoundedTransportClusterBootstrapDecision,
     /// Graph-imputation transport over mixed covariates with kernel weights.
     GraphImputationKernelTransportDecision,
+    GraphImputationKernelTransportClusterBootstrapDecision,
+    GraphImputationConfoundedKernelTransportClusterBootstrapDecision,
+    /// Declared-MAR complete-case weighted target standardization.
+    GraphImputationMarTransportDecision,
     /// A scientifically closed categorical posterior candidate.
     CategoricalPosteriorCandidate,
     /// A fixed declared MNAR operation.
@@ -1168,11 +1185,13 @@ impl ProgramCell {
             Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
             Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
             Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
+            Self::CyclicTargetFeedbackDecision => "CyclicTargetFeedbackDecision",
             Self::BridgeTransportDecision => "BridgeTransportDecision",
             Self::BridgeTransportPremiseAssessment => "BridgeTransportPremiseAssessment",
             Self::AssessedBridgeTransportDecision => "AssessedBridgeTransportDecision",
             Self::JointTransportEffectDecision => "JointTransportEffectDecision",
             Self::TrialIpwTransportDecision => "TrialIpwTransportDecision",
+            Self::TrialIpwPredictiveDecision => "TrialIpwPredictiveDecision",
             Self::JointTransportPredictiveDecision => "JointTransportPredictiveDecision",
             Self::TemporalPathTransport => "TemporalPathTransport",
             Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
@@ -1180,6 +1199,7 @@ impl ProgramCell {
             Self::ClusterSamplingAssumptionUnion => "ClusterSamplingAssumptionUnion",
             Self::MovingBlockSamplingAssumptionUnion => "MovingBlockSamplingAssumptionUnion",
             Self::PolicySubsampling => "PolicySubsampling",
+            Self::SequentialPolicyReliability => "SequentialPolicyReliability",
             Self::BundleRecomputation => "BundleRecomputation",
             Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
             Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
@@ -1187,14 +1207,23 @@ impl ProgramCell {
             Self::TrialIpwNodeBundleRecomputation => "TrialIpwNodeBundleRecomputation",
             Self::GraphImputationTransportNodeBundleRecomputation => "GraphImputationTransportNodeBundleRecomputation",
             Self::JointTransportEffectNodeBundleRecomputation => "JointTransportEffectNodeBundleRecomputation",
+            Self::JointTransportPredictiveNodeDecisionBundleRecomputation => "JointTransportPredictiveNodeDecisionBundleRecomputation",
+            Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => "TrialIpwPredictiveNodeDecisionBundleRecomputation",
             Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
             Self::BoundedComponentPosteriorDecision => "BoundedComponentPosteriorDecision",
             Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
+            Self::GraphImputationBernoulliPredictiveWorldDecision => "GraphImputationBernoulliPredictiveWorldDecision",
+            Self::GraphImputationGaussianTargetPredictiveWorldDecision => "GraphImputationGaussianTargetPredictiveWorldDecision",
             Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
+            Self::GraphImputationTransportClusterBootstrapDecision => "GraphImputationTransportClusterBootstrapDecision",
             Self::GraphImputationConfoundedTransportDecision => "GraphImputationConfoundedTransportDecision",
+            Self::GraphImputationConfoundedTransportClusterBootstrapDecision => "GraphImputationConfoundedTransportClusterBootstrapDecision",
             Self::GraphImputationKernelTransportDecision => "GraphImputationKernelTransportDecision",
+            Self::GraphImputationKernelTransportClusterBootstrapDecision => "GraphImputationKernelTransportClusterBootstrapDecision",
+            Self::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => "GraphImputationConfoundedKernelTransportClusterBootstrapDecision",
+            Self::GraphImputationMarTransportDecision => "GraphImputationMarTransportDecision",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
             Self::MnarFixedShift => "MnarFixedShift",
         }
@@ -1257,10 +1286,12 @@ impl LoweredProgram {
             | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::CyclicActionWorldDecision
             | ProgramCell::CyclicPosteriorActionDecision
+            | ProgramCell::CyclicTargetFeedbackDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::BridgeTransportPremiseAssessment
             | ProgramCell::AssessedBridgeTransportDecision
             | ProgramCell::TrialIpwTransportDecision
+            | ProgramCell::TrialIpwPredictiveDecision
             | ProgramCell::JointTransportEffectDecision
             | ProgramCell::JointTransportPredictiveDecision
             | ProgramCell::TemporalPathTransport
@@ -1269,6 +1300,7 @@ impl LoweredProgram {
             | ProgramCell::ClusterSamplingAssumptionUnion
             | ProgramCell::MovingBlockSamplingAssumptionUnion
             | ProgramCell::PolicySubsampling
+            | ProgramCell::SequentialPolicyReliability
             | ProgramCell::BundleRecomputation
             | ProgramCell::BridgeBundleRecomputation
             | ProgramCell::CyclicPosteriorBundleRecomputation
@@ -1276,14 +1308,23 @@ impl LoweredProgram {
             | ProgramCell::TrialIpwNodeBundleRecomputation
             | ProgramCell::GraphImputationTransportNodeBundleRecomputation
             | ProgramCell::JointTransportEffectNodeBundleRecomputation
+            | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::BoundedComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
+            | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
             | ProgramCell::GraphImputationConfoundedTransportDecision
             | ProgramCell::GraphImputationTransportDecision
+            | ProgramCell::GraphImputationTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision
             | ProgramCell::GraphImputationKernelTransportDecision
+            | ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationMarTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
         }
@@ -1303,10 +1344,12 @@ impl LoweredProgram {
             | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::CyclicActionWorldDecision
             | ProgramCell::CyclicPosteriorActionDecision
+            | ProgramCell::CyclicTargetFeedbackDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::BridgeTransportPremiseAssessment
             | ProgramCell::AssessedBridgeTransportDecision
             | ProgramCell::TrialIpwTransportDecision
+            | ProgramCell::TrialIpwPredictiveDecision
             | ProgramCell::JointTransportEffectDecision
             | ProgramCell::JointTransportPredictiveDecision
             | ProgramCell::TemporalPathTransport
@@ -1315,6 +1358,7 @@ impl LoweredProgram {
             | ProgramCell::ClusterSamplingAssumptionUnion
             | ProgramCell::MovingBlockSamplingAssumptionUnion
             | ProgramCell::PolicySubsampling
+            | ProgramCell::SequentialPolicyReliability
             | ProgramCell::BundleRecomputation
             | ProgramCell::BridgeBundleRecomputation
             | ProgramCell::CyclicPosteriorBundleRecomputation
@@ -1322,14 +1366,23 @@ impl LoweredProgram {
             | ProgramCell::TrialIpwNodeBundleRecomputation
             | ProgramCell::GraphImputationTransportNodeBundleRecomputation
             | ProgramCell::JointTransportEffectNodeBundleRecomputation
+            | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::BoundedComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
+            | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
             | ProgramCell::GraphImputationConfoundedTransportDecision
             | ProgramCell::GraphImputationTransportDecision
+            | ProgramCell::GraphImputationTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision
             | ProgramCell::GraphImputationKernelTransportDecision
+            | ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationMarTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
         }
@@ -1349,10 +1402,12 @@ impl LoweredProgram {
             | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::CyclicActionWorldDecision
             | ProgramCell::CyclicPosteriorActionDecision
+            | ProgramCell::CyclicTargetFeedbackDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::BridgeTransportPremiseAssessment
             | ProgramCell::AssessedBridgeTransportDecision
             | ProgramCell::TrialIpwTransportDecision
+            | ProgramCell::TrialIpwPredictiveDecision
             | ProgramCell::JointTransportEffectDecision
             | ProgramCell::JointTransportPredictiveDecision
             | ProgramCell::TemporalPathTransport
@@ -1361,6 +1416,7 @@ impl LoweredProgram {
             | ProgramCell::ClusterSamplingAssumptionUnion
             | ProgramCell::MovingBlockSamplingAssumptionUnion
             | ProgramCell::PolicySubsampling
+            | ProgramCell::SequentialPolicyReliability
             | ProgramCell::BundleRecomputation
             | ProgramCell::BridgeBundleRecomputation
             | ProgramCell::CyclicPosteriorBundleRecomputation
@@ -1368,14 +1424,23 @@ impl LoweredProgram {
             | ProgramCell::TrialIpwNodeBundleRecomputation
             | ProgramCell::GraphImputationTransportNodeBundleRecomputation
             | ProgramCell::JointTransportEffectNodeBundleRecomputation
+            | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::BoundedComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationBernoulliPredictiveWorldDecision
+            | ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision
             | ProgramCell::GraphImputationConfoundedTransportDecision
             | ProgramCell::GraphImputationTransportDecision
+            | ProgramCell::GraphImputationTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision
             | ProgramCell::GraphImputationKernelTransportDecision
+            | ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
+            | ProgramCell::GraphImputationMarTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
         }

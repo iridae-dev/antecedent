@@ -111,6 +111,8 @@ pub enum CarrierDemand {
     PredictiveLaw,
     /// A declared joint identified-set/scenario carrier for robust evaluation.
     IdentifiedSet,
+    /// Aligned per-candidate utilities for diagnostic decision reliability.
+    DecisionDraws,
 }
 
 impl CarrierDemand {
@@ -123,6 +125,7 @@ impl CarrierDemand {
             Self::OutcomeLaw => "outcome_law",
             Self::PredictiveLaw => "predictive_law",
             Self::IdentifiedSet => "identified_set",
+            Self::DecisionDraws => "decision_draws",
         }
     }
 
@@ -134,7 +137,7 @@ impl CarrierDemand {
     #[must_use]
     pub const fn evidence_request(self) -> Option<DecisionRequest> {
         match self {
-            Self::Mean | Self::IdentifiedSet => None,
+            Self::Mean | Self::IdentifiedSet | Self::DecisionDraws => None,
             Self::ParameterPosterior => Some(DecisionRequest::ParameterPosterior),
             Self::OutcomeLaw | Self::PredictiveLaw => Some(DecisionRequest::IndividualOutcomeRisk),
         }

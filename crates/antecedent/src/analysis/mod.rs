@@ -196,6 +196,7 @@ pub mod joint_law_composed_basis;
 pub mod joint_law_propagation;
 pub mod joint_transport_effect_decision;
 pub mod trial_ipw_transport_decision;
+pub mod trial_ipw_predictive_decision;
 pub mod joint_transport_predictive_decision;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
@@ -652,6 +653,8 @@ pub use antecedent_io::cyclic_family_artifact::{
 pub mod cyclic;
 pub mod cyclic_action_world_decision;
 pub mod cyclic_posterior_action_decision;
+pub mod cyclic_target_feedback_decision;
+pub mod sequential_policy_reliability;
 pub mod bridge_transport_decision;
 pub mod bridge_transport_premise_assessment;
 pub mod temporal_path_transport;

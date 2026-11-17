@@ -128,6 +128,9 @@ fn statistical_program(
         UncertaintyReading::Predictive => {
             Realization::DeclaredPredictive { evaluator: Arc::from(name) }
         }
+        UncertaintyReading::MonteCarlo => {
+            return Err(refuse("Monte Carlo decision draws require their own compiler route"));
+        }
         UncertaintyReading::AssumptionEnvelope => {
             let draw_meaning = plan.stage(&plan.output).and_then(|stage| stage.meaning)
                 .ok_or_else(|| refuse("an assumption envelope needs a draw-law meaning"))?;

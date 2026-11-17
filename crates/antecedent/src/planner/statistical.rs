@@ -51,6 +51,10 @@ pub enum Realization {
     GraphImputationV1,
     /// Fixed, scientifically closed categorical posterior candidate.
     CategoricalPosteriorCandidateV1,
+    /// Monte Carlo utilities from a declared finite sequential model.
+    SequentialKnownLawMonteCarlo,
+    /// Whole-trajectory bootstrap utilities from logged sequential evidence.
+    SequentialTrajectoryBootstrap,
     /// Exact evaluation of an identified functional, with no sampling law.
     ExactPoint {
         /// Name of the evaluator.
@@ -104,6 +108,12 @@ impl Realization {
             }
             Self::CategoricalPosteriorCandidateV1 => {
                 writer.text("categorical_posterior_candidate_v1");
+            }
+            Self::SequentialKnownLawMonteCarlo => {
+                writer.text("sequential_known_law_monte_carlo_v1");
+            }
+            Self::SequentialTrajectoryBootstrap => {
+                writer.text("sequential_trajectory_bootstrap_v1");
             }
             Self::ExactPoint { evaluator } => {
                 writer.text("exact_point").text(evaluator);

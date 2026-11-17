@@ -317,6 +317,8 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
             Realization::GraphImputationV1
             | Realization::CategoricalPosteriorCandidateV1
             | Realization::ExactPoint { .. } => UncertaintyReading::None,
+            Realization::SequentialKnownLawMonteCarlo => UncertaintyReading::MonteCarlo,
+            Realization::SequentialTrajectoryBootstrap => UncertaintyReading::Sampling,
         },
         kind: status.map(claim_kind),
     };
