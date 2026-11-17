@@ -85,6 +85,39 @@ impl TransportStandardization {
     /// # Errors
     /// Missing, duplicate, nonbinary, or unsupported target rows or selections.
     pub fn validate(&self, parts: &GraphImputationParts) -> Result<(), IoError> {
+        self.validate_for_support(parts, GraphSupport::TreatmentRootPreTreatmentCovariates)
+    }
+
+    /// Validate a separate confounded-pretreatment target, including the
+    /// augmented adjustment set in every retained graph.
+    ///
+    /// # Errors
+    /// Unsupported rows, graph support or an opened backdoor path.
+    pub fn validate_confounded(&self, parts: &GraphImputationParts) -> Result<(), IoError> {
+        self.validate_for_support(parts, GraphSupport::PreTreatmentCovariates)?;
+        let n = parts.names.len();
+        for atom in &parts.atoms {
+            let dag = dag_from_adjacency_mask(AdjacencyMask::from_word(atom.mask), n)
+                .map_err(invalid)?;
+            let treatment = antecedent_graph::DenseNodeId::from_raw(parts.treatment);
+            let outcome = antecedent_graph::DenseNodeId::from_raw(parts.outcome);
+            let mut adjustment = atom.adjustment.clone();
+            for &id in &self.selection_targets {
+                if !adjustment.contains(&id) { adjustment.push(id); }
+            }
+            let adjustment: Vec<_> = adjustment.into_iter()
+                .map(antecedent_graph::DenseNodeId::from_raw).collect();
+            let overlay = antecedent_graph::overlay::GraphOverlay::remove_outgoing(n, &[treatment]);
+            let separated = dag.view(&overlay).is_d_separated(treatment, outcome, &adjustment,
+                &mut antecedent_graph::DSeparationWorkspace::default()).map_err(invalid)?;
+            if !separated {
+                return Err(invalid("selected covariates open a backdoor path in a retained graph"));
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_for_support(&self, parts: &GraphImputationParts, support: GraphSupport) -> Result<(), IoError> {
         if self.source_population.trim().is_empty() || self.target_population.trim().is_empty()
             || self.source_population == self.target_population
             || self.source_sample.trim().is_empty() || self.target_sample.trim().is_empty()
@@ -93,8 +126,10 @@ impl TransportStandardization {
         {
             return Err(invalid("transport needs distinct source and target samples and selected covariates"));
         }
-        if parts.support != GraphSupport::TreatmentRootPreTreatmentCovariates {
-            return Err(invalid("target standardization requires the root-treatment pretreatment graph support"));
+        if parts.support != support {
+            return Err(invalid(if support == GraphSupport::TreatmentRootPreTreatmentCovariates {
+                "target standardization requires the root-treatment pretreatment graph support"
+            } else { "target standardization requires the confounded pretreatment graph support" }));
         }
         let rows = self.columns[0].1.len();
         if rows < 2 || self.columns.iter().any(|(_, values)| values.len() != rows) {
@@ -530,27 +565,28 @@ struct Execution {
 #[derive(Clone, Copy)]
 enum TransportTarget<'a> {
     Binary(&'a TransportStandardization),
+    ConfoundedBinary(&'a TransportStandardization),
     Kernel(&'a KernelTransportStandardization),
 }
 
 impl<'a> TransportTarget<'a> {
     fn columns(self) -> &'a [(u32, Vec<f64>)] {
-        match self { Self::Binary(value) => &value.columns, Self::Kernel(value) => &value.columns }
+        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => &value.columns, Self::Kernel(value) => &value.columns }
     }
 
     fn selections(self) -> &'a [u32] {
         match self {
-            Self::Binary(value) => &value.selection_targets,
+            Self::Binary(value) | Self::ConfoundedBinary(value) => &value.selection_targets,
             Self::Kernel(value) => &value.selection_targets,
         }
     }
 
     fn rows(self) -> usize {
-        match self { Self::Binary(value) => value.rows(), Self::Kernel(value) => value.rows() }
+        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => value.rows(), Self::Kernel(value) => value.rows() }
     }
 
     fn digest(self) -> Result<[u8; 32], IoError> {
-        match self { Self::Binary(value) => value.digest(), Self::Kernel(value) => value.digest() }
+        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => value.digest(), Self::Kernel(value) => value.digest() }
     }
 }
 
@@ -644,7 +680,7 @@ fn transported_population(
         }).collect()
     };
     let weights = match target {
-        TransportTarget::Binary(binary) => {
+        TransportTarget::Binary(binary) | TransportTarget::ConfoundedBinary(binary) => {
             let source_slices: Vec<&[f64]> = source_columns.iter().map(Vec::as_slice).collect();
             let source_rows = data.row_count();
             let mut source_count = BTreeMap::<Vec<u8>, usize>::new();
@@ -660,6 +696,18 @@ fn transported_population(
             }
             if target_count.iter().any(|(key, count)| *count > 0 && !source_count.contains_key(key)) {
                 return Err(execution_refused("target adjustment stratum has no completed source support"));
+            }
+            if matches!(target, TransportTarget::ConfoundedBinary(_)) {
+                let treatment = data.float64_values(query.treatment).map_err(invalid)?;
+                let mut arms = BTreeMap::<Vec<u8>, (bool, bool)>::new();
+                for (key, &value) in source_keys.iter().zip(&treatment) {
+                    let entry = arms.entry(key.clone()).or_default();
+                    match value { 0.0 => entry.0 = true, 1.0 => entry.1 = true,
+                        _ => return Err(execution_refused("completed treatment must be binary")) }
+                }
+                if target_count.keys().any(|key| !arms.get(key).is_some_and(|&(control, treated)| control && treated)) {
+                    return Err(execution_refused("target stratum lacks both source treatment arms"));
+                }
             }
             let source_n = source_rows as f64;
             let target_n = binary.rows() as f64;
@@ -725,6 +773,7 @@ fn execute(
     }
     let mut receipt = CanonicalWriter::new(match target {
         Some(TransportTarget::Binary(_)) => "antecedent.graph_imputation_transport.execution.v1",
+        Some(TransportTarget::ConfoundedBinary(_)) => "antecedent.graph_imputation_confounded_transport.execution.v1",
         Some(TransportTarget::Kernel(_)) => "antecedent.graph_imputation_kernel_transport.execution.v1",
         None => "antecedent.graph_candidate.execution.v1",
     });
@@ -1197,6 +1246,28 @@ pub fn replay_transport_point(
         unidentified_by_table: run.unidentified_by_table,
         _lease: run.lease,
     })
+}
+
+/// Reidentify every confounded-pretreatment atom and verify that adding the
+/// selection targets preserves its backdoor criterion. The target is an
+/// empirical binary frame; both source treatment arms must occur in each
+/// target-supported adjustment stratum on every completed table.
+///
+/// # Errors
+/// Unsupported graph, unsafe augmentation, missing overlap, fitting or admission.
+pub fn replay_confounded_transport_point(
+    bytes: &[u8], target: &TransportStandardization, ctx: &ExecutionContext,
+) -> Result<GraphPointReading, IoError> {
+    let rec = reconstruct(bytes, ctx)?;
+    target.validate_confounded(rec.source.parts())?;
+    let target_bytes = (target.rows() as u64)
+        .saturating_mul(target.columns.len() as u64).saturating_mul(16);
+    let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
+    let run = execute(&rec, Some(TransportTarget::ConfoundedBinary(target)), false, ctx)?;
+    Ok(GraphPointReading { mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
+        receipt: run.receipt, program: rec.source.program(),
+        source: rec.source.parts().data_digest, unidentified_by_table: run.unidentified_by_table,
+        _lease: run.lease })
 }
 
 /// Refit the same graph and imputation schedule while standardizing each

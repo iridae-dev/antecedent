@@ -1135,6 +1135,7 @@ pub(crate) enum ProgramCell {
     GraphImputationEffectDecision,
     /// Graph-imputation target standardization and downstream utility.
     GraphImputationTransportDecision,
+    GraphImputationConfoundedTransportDecision,
     /// Graph-imputation transport over mixed covariates with kernel weights.
     GraphImputationKernelTransportDecision,
     /// A scientifically closed categorical posterior candidate.
@@ -1177,6 +1178,7 @@ impl ProgramCell {
             Self::GraphImputation => "GraphImputation",
             Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
             Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
+            Self::GraphImputationConfoundedTransportDecision => "GraphImputationConfoundedTransportDecision",
             Self::GraphImputationKernelTransportDecision => "GraphImputationKernelTransportDecision",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
             Self::MnarFixedShift => "MnarFixedShift",
@@ -1259,6 +1261,7 @@ impl LoweredProgram {
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationConfoundedTransportDecision
             | ProgramCell::GraphImputationTransportDecision
             | ProgramCell::GraphImputationKernelTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1299,6 +1302,7 @@ impl LoweredProgram {
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationConfoundedTransportDecision
             | ProgramCell::GraphImputationTransportDecision
             | ProgramCell::GraphImputationKernelTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1339,6 +1343,7 @@ impl LoweredProgram {
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationConfoundedTransportDecision
             | ProgramCell::GraphImputationTransportDecision
             | ProgramCell::GraphImputationKernelTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
