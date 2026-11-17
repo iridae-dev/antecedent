@@ -22,7 +22,8 @@ use antecedent_design::decision_contract::{ActionKind, DecisionContract, Decisio
 use antecedent_io::IoError;
 use antecedent_io::measured_inference::graph_candidate::{GraphPairedWorldReading,
     TransportStandardization, replay_paired_worlds, replay_transport_paired_worlds,
-    replay_transport_paired_worlds_bootstrap};
+    replay_transport_paired_worlds_bootstrap, replay_bernoulli_logit_predictive_worlds,
+    replay_gaussian_target_predictive_worlds};
 use antecedent_core::graph_imputation_contract::GraphImputationSource;
 use antecedent_io::propagation_chain_record::{
     ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire, ChainStageWire,
@@ -377,7 +378,7 @@ fn lower_paired_outer(
     producer: SemanticDigest, source: SemanticDigest,
     quantities: &[ScientificQuantity; 2],
     decision: &DecisionContract, target: Option<&TransportStandardization>,
-    bootstrap: Option<TargetFrameBootstrap>,
+    bootstrap: Option<TargetFrameBootstrap>, predictive: bool, gaussian: Option<GaussianPredictivePolicy>,
 ) -> Result<Arc<LoweredProgram>, GraphImputationEffectDecisionError> {
     decision.validate()?;
     if bootstrap.is_some_and(|policy| target.is_none() || !(40..=256).contains(&policy.replicates)) {
@@ -388,6 +389,13 @@ fn lower_paired_outer(
     let mut writer = CanonicalWriter::new("antecedent.graph_imputation_paired_world_decision.question.v1");
     writer.bytes(producer.as_bytes()).bytes(source.as_bytes())
         .bytes(&quantity_bytes).text(&decision_identity);
+    if let Some(policy) = gaussian {
+        validate_gaussian_policy(policy)?;
+        writer.text("graph_imputation_gaussian_target_predictive_world_decision_v1")
+            .text("shared_graph_imputation_coefficient_covariate_correlated_gaussian_residuals_v1")
+            .word(policy.residual_variance.to_bits()).word(policy.cross_world_correlation.to_bits()).word(policy.seed);
+    } else if predictive { writer.text("graph_imputation_bernoulli_logit_target_predictive_world_decision_v1")
+        .text("laplace_joint_normal_prior_independent_potential_outcome_innovations_given_graph_and_coefficients_v1"); }
     if let Some(target) = target {
         writer.text("graph_imputation_transport_paired_world_decision_v2").bytes(&target.digest()?);
     }
@@ -402,11 +410,14 @@ fn lower_paired_outer(
         target: ProblemTarget::QueryFunctional {
             kind: FunctionalKind::PolicyValue, outcome: None, query: question,
         },
-        plan_id: Arc::from(if bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision.v2" }
+        plan_id: Arc::from(if gaussian.is_some() { "graph_imputation_gaussian_target_predictive_world_decision.v1" }
+            else if predictive { "graph_imputation_bernoulli_logit_target_predictive_world_decision.v1" }
+            else if bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision.v2" }
             else if target.is_some() { "graph_imputation_transport_paired_world_decision.v2" }
             else { "graph_imputation_paired_world_decision.v1" }),
         data: DataClassification::Tabular,
-        graph_class: "bounded_graph_imputation_paired_world_mixture",
+        graph_class: if gaussian.is_some() { "bounded_graph_imputation_gaussian_target_predictive" }
+            else if predictive { "bounded_graph_imputation_bernoulli_logit_target_predictive" } else { "bounded_graph_imputation_paired_world_mixture" },
         query_variables: Arc::from([]), source_digest: Some(*source.as_bytes()),
         support_coordinate: None, supported: false, support_status: None,
     };
@@ -432,7 +443,7 @@ fn lower_paired_outer(
         sources: Arc::from(evidence_sources),
         composition: Composition::Chained { stages: if target.is_some() { 3 } else { 2 } },
         decision: Some(DecisionProgram {
-            carrier: CarrierDemand::ParameterPosterior,
+            carrier: if predictive { CarrierDemand::PredictiveLaw } else { CarrierDemand::ParameterPosterior },
             utility: DecisionProgram::utility_form(None),
             actions: decision.actions.len(), constraints: decision.constraints.len(),
             chance_threshold: decision.constraints.iter()
@@ -440,7 +451,9 @@ fn lower_paired_outer(
             utility_unit: Some(Arc::from(decision.utility_units.as_str())),
             contract_identity: Some(Arc::from(decision_identity.as_str())),
             information_value: None,
-            scenario_source: Some(Arc::from("native_graph_imputation_paired_world_draws_v1")),
+            scenario_source: Some(Arc::from(if gaussian.is_some() { "native_graph_imputation_gaussian_target_predictive_world_draws_v1" }
+                else if predictive { "native_graph_imputation_bernoulli_target_predictive_world_draws_v1" }
+                else { "native_graph_imputation_paired_world_draws_v1" })),
         }),
         planning: None, chain: None,
     };
@@ -465,9 +478,11 @@ fn lower_paired_outer(
     }
     let physical = PhysicalLayer { operators: Arc::from(operators), design };
     Ok(Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::GraphImputationEffectDecision,
+        cell: if gaussian.is_some() { ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision }
+            else if predictive { ProgramCell::GraphImputationBernoulliPredictiveWorldDecision }
+            else { ProgramCell::GraphImputationEffectDecision },
         scientific, identification, statistical, evidence, physical,
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Posterior,
+        claim: ClaimDemand { uncertainty: if predictive { UncertaintyReading::Predictive } else { UncertaintyReading::Posterior },
             kind: Some(ClaimKind::PolicyValue) },
     }.finish()))
 }
@@ -481,6 +496,28 @@ pub struct CompiledGraphImputationWorldDecision {
     lowered: Arc<LoweredProgram>,
     target: Option<TransportStandardization>,
     bootstrap: Option<TargetFrameBootstrap>,
+    predictive: bool,
+    gaussian: Option<GaussianPredictivePolicy>,
+}
+
+/// Declared individual residual law for two Gaussian action worlds.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct GaussianPredictivePolicy {
+    /// Positive residual variance in each world.
+    pub residual_variance: f64,
+    /// Conditional correlation of the two residual innovations, from -1 to 1.
+    pub cross_world_correlation: f64,
+    /// Seed for the predictive residual draws.
+    pub seed: u64,
+}
+
+fn validate_gaussian_policy(policy: GaussianPredictivePolicy) -> Result<(), GraphImputationEffectDecisionError> {
+    if !policy.residual_variance.is_finite() || policy.residual_variance <= 0.0
+        || !policy.cross_world_correlation.is_finite() || !(-1.0..=1.0).contains(&policy.cross_world_correlation) {
+        return Err(GraphImputationEffectDecisionError::Invalid("invalid Gaussian predictive residual law"));
+    }
+    Ok(())
 }
 
 /// Model-conditional decision on paired potential-outcome mean worlds.
@@ -513,19 +550,31 @@ struct GraphImputationWorldDecisionWire {
     target: Option<TransportStandardization>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     bootstrap: Option<TargetFrameBootstrap>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    predictive: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    gaussian: Option<GaussianPredictivePolicy>,
 }
 
-fn validate_world_coordinates(source: &[u8], quantities: &[ScientificQuantity; 2], decision: &DecisionContract)
+fn is_false(value: &bool) -> bool { !*value }
+
+fn validate_world_coordinates(source: &[u8], quantities: &[ScientificQuantity; 2], decision: &DecisionContract, predictive: bool, gaussian: bool)
     -> Result<(), GraphImputationEffectDecisionError> {
     decision.validate()?;
     let source = GraphImputationSource::decode(source).map_err(GraphImputationEffectDecisionError::Invalid)?;
     let parts = source.parts();
+    if predictive && !gaussian && parts.domains[parts.outcome as usize] != 1 {
+        return Err(GraphImputationEffectDecisionError::Invalid("Bernoulli predictive outcome must be binary"));
+    }
+    if gaussian && parts.domains[parts.outcome as usize] != 0 {
+        return Err(GraphImputationEffectDecisionError::Invalid("Gaussian predictive outcome must be continuous"));
+    }
     let treatment = &parts.names[parts.treatment as usize];
     let outcome = &parts.names[parts.outcome as usize];
     for (i, quantity) in quantities.iter().enumerate() {
         if quantity.variable_id != *outcome || quantity.role != QuantityRole::Outcome
             || quantity.transform_id != "identity" || !quantity.conditioning.is_empty()
-            || quantity.units != quantities[0].units || quantity.functional_id != "mean"
+            || quantity.units != quantities[0].units || quantity.functional_id != if predictive { "outcome" } else { "mean" }
             || quantity.regime_id != format!("do({treatment}={i})")
             || quantity.population_id != decision.target_population || quantity.horizon != 0
             || decision.horizon != 0
@@ -544,7 +593,7 @@ fn validate_world_coordinates(source: &[u8], quantities: &[ScientificQuantity; 2
     Ok(())
 }
 
-fn paired_world_chain(reading: &GraphPairedWorldReading, quantities: &[ScientificQuantity; 2]) -> PropagationChainRecordWire {
+fn paired_world_chain(reading: &GraphPairedWorldReading, quantities: &[ScientificQuantity; 2], predictive: bool) -> PropagationChainRecordWire {
     let alignment = SemanticDigest::from_bytes(reading.receipt).to_hex();
     let mut sources = Vec::new();
     let mut stages = Vec::new();
@@ -553,13 +602,13 @@ fn paired_world_chain(reading: &GraphPairedWorldReading, quantities: &[Scientifi
         let source = format!("graph.world.source.{i}");
         let stage = format!("graph.world.mean.{i}");
         let values: Vec<_> = reading.worlds.iter().map(|pair| pair[i]).collect();
-        sources.push(ChainSourceWire::draws(&source, LawMeaning::Posterior, &alignment, &values)
+        sources.push(ChainSourceWire::draws(&source, if predictive { LawMeaning::Predictive } else { LawMeaning::Posterior }, &alignment, &values)
             .with_factor(SharedFactorKind::Model, &alignment));
         stages.push(ChainStageWire::new(&stage, StageKind::DerivedQuantity, &[&source],
             ChainOpWire::affine(ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0))));
         outputs.push(ChainJointOutputWire { stage, quantity: ScientificQuantityWire::from(quantity) });
     }
-    PropagationChainRecordWire::draft(TableConstruction::JointDraws, ChainReading::Posterior,
+    PropagationChainRecordWire::draft(TableConstruction::JointDraws, if predictive { ChainReading::Predictive } else { ChainReading::Posterior },
         &outputs[0].stage, sources, stages).with_output_quantity(outputs[0].quantity.clone()).with_joint_outputs(outputs)
 }
 
@@ -571,9 +620,60 @@ fn paired_world_chain(reading: &GraphPairedWorldReading, quantities: &[Scientifi
 pub fn compile_graph_imputation_world_decision(
     producer: CompiledGraphImputation, quantities: [ScientificQuantity; 2], decision: DecisionContract,
 ) -> Result<CompiledGraphImputationWorldDecision, GraphImputationEffectDecisionError> {
-    validate_world_coordinates(producer.source_bytes(), &quantities, &decision)?;
-    let lowered = lower_paired_outer(producer.lowered().identity(), producer.source_identity(), &quantities, &decision, None, None)?;
-    Ok(CompiledGraphImputationWorldDecision { producer, quantities, decision, lowered, target: None, bootstrap: None })
+    validate_world_coordinates(producer.source_bytes(), &quantities, &decision, false, false)?;
+    let lowered = lower_paired_outer(producer.lowered().identity(), producer.source_identity(), &quantities, &decision, None, None, false, None)?;
+    Ok(CompiledGraphImputationWorldDecision { producer, quantities, decision, lowered, target: None, bootstrap: None, predictive: false, gaussian: None })
+}
+
+/// Compile target-population Bernoulli predictive action worlds using a
+/// Laplace joint coefficient approximation under the producer's normal prior.
+/// The graph, imputation, target covariate row and coefficient draw are shared;
+/// potential-outcome innovations are independent conditional on that state.
+///
+/// # Errors
+/// Invalid target, nonbinary outcome or mismatched regimes and decision.
+pub fn compile_graph_imputation_bernoulli_predictive_world_decision(
+    producer: CompiledGraphImputation, target: TransportStandardization,
+    quantities: [ScientificQuantity; 2], decision: DecisionContract,
+) -> Result<CompiledGraphImputationWorldDecision, GraphImputationEffectDecisionError> {
+    let source = GraphImputationSource::decode(producer.source_bytes())
+        .map_err(GraphImputationEffectDecisionError::Invalid)?;
+    target.validate(source.parts())?;
+    if target.source_sample != producer.source_identity().to_hex()
+        || quantities.iter().any(|quantity| quantity.population_id != target.target_population)
+        || decision.target_population != target.target_population {
+        return Err(GraphImputationEffectDecisionError::Invalid("predictive target source or population differs"));
+    }
+    validate_world_coordinates(producer.source_bytes(), &quantities, &decision, true, false)?;
+    let lowered = lower_paired_outer(producer.lowered().identity(), producer.source_identity(),
+        &quantities, &decision, Some(&target), None, true, None)?;
+    Ok(CompiledGraphImputationWorldDecision { producer, quantities, decision, lowered,
+        target: Some(target), bootstrap: None, predictive: true, gaussian: None })
+}
+
+/// Compile individual Gaussian target action worlds. Both actions share the
+/// graph, completed table, target covariate and coefficient draw; the declared
+/// residual variance and cross-world correlation determine predictive noise.
+///
+/// # Errors
+/// Invalid source, target, residual law, outcome, coordinates or contract.
+pub fn compile_graph_imputation_gaussian_target_predictive_world_decision(
+    producer: CompiledGraphImputation, target: TransportStandardization,
+    quantities: [ScientificQuantity; 2], decision: DecisionContract, policy: GaussianPredictivePolicy,
+) -> Result<CompiledGraphImputationWorldDecision, GraphImputationEffectDecisionError> {
+    validate_gaussian_policy(policy)?;
+    let source = GraphImputationSource::decode(producer.source_bytes()).map_err(GraphImputationEffectDecisionError::Invalid)?;
+    target.validate(source.parts())?;
+    if target.source_sample != producer.source_identity().to_hex()
+        || quantities.iter().any(|quantity| quantity.population_id != target.target_population)
+        || decision.target_population != target.target_population {
+        return Err(GraphImputationEffectDecisionError::Invalid("predictive target source or population differs"));
+    }
+    validate_world_coordinates(producer.source_bytes(), &quantities, &decision, true, true)?;
+    let lowered = lower_paired_outer(producer.lowered().identity(), producer.source_identity(),
+        &quantities, &decision, Some(&target), None, true, Some(policy))?;
+    Ok(CompiledGraphImputationWorldDecision { producer, quantities, decision, lowered,
+        target: Some(target), bootstrap: None, predictive: true, gaussian: Some(policy) })
 }
 
 /// Compile paired target mean worlds and an action decision from the complete
@@ -594,10 +694,10 @@ pub fn compile_graph_imputation_transport_world_decision(
         || decision.target_population != target.target_population {
         return Err(GraphImputationEffectDecisionError::Invalid("paired target source or population differs"));
     }
-    validate_world_coordinates(producer.source_bytes(), &quantities, &decision)?;
+    validate_world_coordinates(producer.source_bytes(), &quantities, &decision, false, false)?;
     let lowered = lower_paired_outer(producer.lowered().identity(), producer.source_identity(),
-        &quantities, &decision, Some(&target), None)?;
-    Ok(CompiledGraphImputationWorldDecision { producer, quantities, decision, lowered, target: Some(target), bootstrap: None })
+        &quantities, &decision, Some(&target), None, false, None)?;
+    Ok(CompiledGraphImputationWorldDecision { producer, quantities, decision, lowered, target: Some(target), bootstrap: None, predictive: false, gaussian: None })
 }
 
 /// Compile IID target-frame resampling of paired target mean worlds.
@@ -612,7 +712,7 @@ pub fn compile_graph_imputation_transport_world_bootstrap_decision(
 ) -> Result<CompiledGraphImputationWorldDecision, GraphImputationEffectDecisionError> {
     let fixed = compile_graph_imputation_transport_world_decision(producer, target, quantities, decision)?;
     let lowered = lower_paired_outer(fixed.producer.lowered().identity(), fixed.producer.source_identity(),
-        &fixed.quantities, &fixed.decision, fixed.target.as_ref(), Some(policy))?;
+        &fixed.quantities, &fixed.decision, fixed.target.as_ref(), Some(policy), false, None)?;
     Ok(CompiledGraphImputationWorldDecision { lowered, bootstrap: Some(policy), ..fixed })
 }
 
@@ -629,6 +729,18 @@ pub struct GraphImputationWorldReliabilityCandidate {
     pub coverage_bases: [CalibrationBasis; 2],
 }
 
+/// Prospective, unmeasured predictive outcome and action-choice study inputs.
+pub struct GraphImputationPredictiveCalibrationCandidate {
+    /// Complete predictive execution.
+    pub result: GraphImputationWorldDecisionResult,
+    /// Nearest-rank 95% intervals for the two individual action outcomes.
+    pub world_intervals: [(f64, f64); 2],
+    /// Separate exact prospective coverage scopes for those outcomes.
+    pub coverage_bases: [CalibrationBasis; 2],
+    /// Exact prospective action-choice scope; no reliability is earned.
+    pub action_choice_basis: SemanticDigest,
+}
+
 impl CompiledGraphImputationWorldDecision {
     /// Retained six-layer joint decision program.
     #[must_use]
@@ -641,16 +753,93 @@ impl CompiledGraphImputationWorldDecision {
     /// # Errors
     /// Any graph, child, pairing or utility refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<GraphImputationWorldDecisionResult, GraphImputationEffectDecisionError> {
-        let reading = if let (Some(target), Some(policy)) = (&self.target, self.bootstrap) {
+        let reading = if let Some(policy) = self.gaussian {
+            replay_gaussian_target_predictive_worlds(self.producer.source_bytes(),
+                self.target.as_ref().ok_or(GraphImputationEffectDecisionError::Invalid("predictive target missing"))?,
+                policy.residual_variance, policy.cross_world_correlation, policy.seed, ctx)?
+        } else if self.predictive {
+            replay_bernoulli_logit_predictive_worlds(self.producer.source_bytes(),
+                self.target.as_ref().ok_or(GraphImputationEffectDecisionError::Invalid("predictive target missing"))?, ctx)?
+        } else if let (Some(target), Some(policy)) = (&self.target, self.bootstrap) {
             replay_transport_paired_worlds_bootstrap(self.producer.source_bytes(), target,
                 policy.replicates, policy.seed, ctx)?
         } else if let Some(target) = &self.target {
             replay_transport_paired_worlds(self.producer.source_bytes(), target, ctx)?
         } else { replay_paired_worlds(self.producer.source_bytes(), ctx)? };
-        let chain = compile_action_world_chain_decision(paired_world_chain(&reading, &self.quantities), self.decision.clone(), ctx)?;
+        let chain = compile_action_world_chain_decision(paired_world_chain(&reading, &self.quantities, self.predictive), self.decision.clone(), ctx)?;
         let decision = chain.execute(ctx)?;
         Ok(GraphImputationWorldDecisionResult { producer: reading, decision,
             lowered_program_identity: self.lowered.identity(), calibration: "not_measured" })
+    }
+    /// Return the unmeasured prospective calibration coordinate for the
+    /// target predictive schedule. This creates no record.
+    ///
+    /// # Errors
+    /// Called on a different route or with an invalid retained source.
+    pub fn predictive_calibration_basis(&self) -> Result<CalibrationBasis, GraphImputationEffectDecisionError> {
+        if !self.predictive { return Err(GraphImputationEffectDecisionError::Invalid("predictive basis requires a target predictive route")); }
+        let source = GraphImputationSource::decode(self.producer.source_bytes())
+            .map_err(GraphImputationEffectDecisionError::Invalid)?;
+        let target = self.target.as_ref().ok_or(GraphImputationEffectDecisionError::Invalid("predictive target missing"))?;
+        let parts = source.parts();
+        let mut study = CanonicalWriter::new("antecedent.graph_imputation.predictive_study_design.v1");
+        study.text(parts.support.as_str()).word(parts.atoms.len() as u64)
+            .words(&parts.domains.iter().map(|domain| u64::from(*domain)).collect::<Vec<_>>())
+            .word(parts.rows() as u64).word(target.rows() as u64)
+            .word(parts.imputations as u64).word(parts.iterations as u64)
+            .word(parts.posterior_draws as u64).word(parts.prior_scale.to_bits())
+            .words(&target.selection_targets.iter().map(|id| u64::from(*id)).collect::<Vec<_>>())
+            .words(&target.columns.iter().map(|(id, _)| u64::from(*id)).collect::<Vec<_>>())
+            .text("independent_source_target_units:source_outcome_mar:fixed_empirical_target_frame");
+        if let Some(policy) = self.gaussian {
+            study.text("gaussian_joint_coefficients_correlated_residuals")
+                .word(policy.residual_variance.to_bits()).word(policy.cross_world_correlation.to_bits());
+        } else {
+            study.text("bernoulli_logit_laplace_joint_normal_coefficients_independent_residuals");
+        }
+        let functional = format!("{}_target_predictive_worlds:design={}",
+            if self.gaussian.is_some() { "gaussian" } else { "binary" },
+            SemanticDigest::from_bytes(study.finish()).to_hex());
+        Ok(CalibrationBasis::new([
+            "PredictiveOutcome", "Dag", "graph_posterior", "multi_env", "Bayesian",
+            if self.gaussian.is_some() { "graph_imputation_gaussian_target_predictive_world_decision_v1" }
+                else { "graph_imputation_bernoulli_logit_target_predictive_world_decision_v1" },
+            if self.gaussian.is_some() { "predictive_gaussian_worlds" } else { "predictive_binary_worlds" }, "", "independent_source_target_units",
+            if self.gaussian.is_some() { "correlated_gaussian_individual_residuals_v1" }
+                else { "laplace_joint_normal_prior_independent_potential_outcome_innovations_given_graph_and_coefficients_v1" }, &functional,
+        ].map(Arc::from), 0.95, Arc::from("unmeasured"),
+            (parts.rows() as u64).saturating_add(target.rows() as u64), None,
+            Some(parts.posterior_draws.saturating_mul(parts.imputations)), 0.0).with_validation("none"))
+    }
+    /// Execute a predictive route and prepare exact prospective outcome and
+    /// action-choice coordinates without asserting coverage or reliability.
+    ///
+    /// # Errors
+    /// The route is not predictive, lacks forty finite draws, or execution refuses.
+    pub fn predictive_calibration_candidate(&self, ctx: &ExecutionContext)
+        -> Result<GraphImputationPredictiveCalibrationCandidate, GraphImputationEffectDecisionError> {
+        let result = self.execute(ctx)?;
+        let base = self.predictive_calibration_basis()?;
+        let mut intervals = [(0.0, 0.0); 2];
+        for (world, interval) in intervals.iter_mut().enumerate() {
+            let mut values: Vec<_> = result.producer.worlds.iter().map(|row| row[world]).collect();
+            if values.len() < 40 || values.iter().any(|value| !value.is_finite()) {
+                return Err(GraphImputationEffectDecisionError::Invalid("predictive interval needs forty finite draws"));
+            }
+            values.sort_by(f64::total_cmp);
+            let rank = |n: usize| (values.len() * n).div_ceil(1000).saturating_sub(1);
+            *interval = (values[rank(25)], values[rank(975)]);
+        }
+        let coverage_bases = std::array::from_fn(|world| {
+            let mut basis = base.clone();
+            basis.functional = Arc::from(format!("{}:world={world}", base.functional));
+            basis
+        });
+        let mut action = CanonicalWriter::new("antecedent.graph_imputation.predictive_action_choice_study.v1");
+        action.text(base.functional.as_ref()).text(&self.decision.identity()?)
+            .bytes(&antecedent_io::to_cbor(&self.quantities.iter().map(ScientificQuantityWire::from).collect::<Vec<_>>())?);
+        Ok(GraphImputationPredictiveCalibrationCandidate { result, world_intervals: intervals,
+            coverage_bases, action_choice_basis: SemanticDigest::from_bytes(action.finish()) })
     }
     /// Execute and bind an unmeasured action-choice study coordinate. True
     /// utility and the optimal action must be specified independently.
@@ -659,6 +848,7 @@ impl CompiledGraphImputationWorldDecision {
     /// Source, target, decision or encoding refusal.
     pub fn reliability_candidate(&self, ctx: &ExecutionContext)
         -> Result<GraphImputationWorldReliabilityCandidate, GraphImputationEffectDecisionError> {
+        if self.predictive { return Err(GraphImputationEffectDecisionError::Invalid("mean-world reliability candidate does not apply to predictive outcomes")); }
         let result = self.execute(ctx)?;
         let source = GraphImputationSource::decode(self.producer.source_bytes())
             .map_err(GraphImputationEffectDecisionError::Invalid)?;
@@ -724,9 +914,11 @@ impl CompiledGraphImputationWorldDecision {
             return Err(GraphImputationEffectDecisionError::Invalid("paired world decision changed"));
         }
         let contract = DecisionContractArtifact::new(self.decision.clone())?;
-        let chain = compile_action_world_chain_decision(paired_world_chain(&live.producer, &self.quantities), self.decision.clone(), ctx)?;
+        let chain = compile_action_world_chain_decision(paired_world_chain(&live.producer, &self.quantities, self.predictive), self.decision.clone(), ctx)?;
         let bytes = antecedent_io::to_cbor(&GraphImputationWorldDecisionWire {
-            version: 1, feature: if self.bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision_v2" }
+            version: 1, feature: if self.gaussian.is_some() { "graph_imputation_gaussian_target_predictive_world_decision_v1" }
+                else if self.predictive { "graph_imputation_bernoulli_logit_target_predictive_world_decision_v1" }
+                else if self.bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision_v2" }
                 else if self.target.is_some() { "graph_imputation_transport_paired_world_decision_v2" }
                 else { "graph_imputation_paired_world_decision_v1" }.into(),
             source: self.producer.source_bytes().to_vec(), producer_program: *self.producer.lowered().identity().as_bytes(),
@@ -734,7 +926,7 @@ impl CompiledGraphImputationWorldDecision {
             quantities: self.quantities.iter().map(ScientificQuantityWire::from).collect(),
             decision_identity: contract.identity().into(), decision_artifact: contract.to_bytes(artifact_id)?,
             chain_artifact: chain.export(&live.decision, artifact_id)?, program_identity: *self.lowered.identity().as_bytes(),
-            target: self.target.clone(), bootstrap: self.bootstrap,
+            target: self.target.clone(), bootstrap: self.bootstrap, predictive: self.predictive, gaussian: self.gaussian,
         })?;
         if bytes.len() > MAX_ARTIFACT_BYTES { return Err(GraphImputationEffectDecisionError::Invalid("paired world artifact exceeds its bound")); }
         Ok(bytes)
@@ -749,16 +941,31 @@ pub fn consume_graph_imputation_world_decision(bytes: &[u8], expected: SemanticD
     -> Result<GraphImputationWorldDecisionResult, GraphImputationEffectDecisionError> {
     if bytes.len() > MAX_ARTIFACT_BYTES { return Err(GraphImputationEffectDecisionError::Invalid("paired world artifact exceeds its bound")); }
     let wire: GraphImputationWorldDecisionWire = antecedent_io::from_cbor(bytes)?;
+    if wire.gaussian.is_some() && !wire.predictive {
+        return Err(GraphImputationEffectDecisionError::Invalid("Gaussian predictive policy lacks predictive route"));
+    }
+    if wire.predictive && (wire.target.is_none() || wire.bootstrap.is_some()) {
+        return Err(GraphImputationEffectDecisionError::Invalid("predictive route requires a fixed target frame"));
+    }
     if wire.bootstrap.is_some() && wire.target.is_none() {
         return Err(GraphImputationEffectDecisionError::Invalid("paired bootstrap lacks target"));
     }
-    let feature = if wire.bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision_v2" }
+    let feature = if wire.gaussian.is_some() { "graph_imputation_gaussian_target_predictive_world_decision_v1" }
+        else if wire.predictive { "graph_imputation_bernoulli_logit_target_predictive_world_decision_v1" }
+        else if wire.bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision_v2" }
         else if wire.target.is_some() { "graph_imputation_transport_paired_world_decision_v2" }
         else { "graph_imputation_paired_world_decision_v1" };
     if wire.version != 1 || wire.feature != feature || wire.program_identity != *expected.as_bytes() {
         return Err(GraphImputationEffectDecisionError::Invalid("paired world feature or identity differs"));
     }
-    let reading = if let (Some(target), Some(policy)) = (&wire.target, wire.bootstrap) {
+    let reading = if let Some(policy) = wire.gaussian {
+        validate_gaussian_policy(policy)?;
+        replay_gaussian_target_predictive_worlds(&wire.source,
+            wire.target.as_ref().ok_or(GraphImputationEffectDecisionError::Invalid("predictive target missing"))?,
+            policy.residual_variance, policy.cross_world_correlation, policy.seed, ctx)?
+    } else if wire.predictive { replay_bernoulli_logit_predictive_worlds(&wire.source,
+        wire.target.as_ref().ok_or(GraphImputationEffectDecisionError::Invalid("predictive target missing"))?, ctx)? }
+    else if let (Some(target), Some(policy)) = (&wire.target, wire.bootstrap) {
         replay_transport_paired_worlds_bootstrap(&wire.source, target, policy.replicates, policy.seed, ctx)?
     } else if let Some(target) = &wire.target {
         replay_transport_paired_worlds(&wire.source, target, ctx)?
@@ -769,7 +976,7 @@ pub fn consume_graph_imputation_world_decision(bytes: &[u8], expected: SemanticD
     let quantities: Vec<ScientificQuantity> = wire.quantities.into_iter().map(|q| q.try_into().map_err(GraphImputationEffectDecisionError::Invalid)).collect::<Result<_, _>>()?;
     let quantities: [ScientificQuantity; 2] = quantities.try_into().map_err(|_| GraphImputationEffectDecisionError::Invalid("paired world coordinates missing"))?;
     let contract = DecisionContractArtifact::from_bytes(&wire.decision_artifact, &wire.decision_identity)?;
-    validate_world_coordinates(&wire.source, &quantities, contract.contract())?;
+    validate_world_coordinates(&wire.source, &quantities, contract.contract(), wire.predictive, wire.gaussian.is_some())?;
     if let Some(target) = &wire.target {
         if target.source_sample != SemanticDigest::from_bytes(reading.source).to_hex()
             || quantities.iter().any(|quantity| quantity.population_id != target.target_population)
@@ -777,9 +984,9 @@ pub fn consume_graph_imputation_world_decision(bytes: &[u8], expected: SemanticD
             return Err(GraphImputationEffectDecisionError::Invalid("stored paired target population differs"));
         }
     }
-    let lowered = lower_paired_outer(SemanticDigest::from_bytes(reading.program), SemanticDigest::from_bytes(reading.source), &quantities, contract.contract(), wire.target.as_ref(), wire.bootstrap)?;
+    let lowered = lower_paired_outer(SemanticDigest::from_bytes(reading.program), SemanticDigest::from_bytes(reading.source), &quantities, contract.contract(), wire.target.as_ref(), wire.bootstrap, wire.predictive, wire.gaussian)?;
     if lowered.identity() != expected { return Err(GraphImputationEffectDecisionError::Invalid("paired world outer program differs")); }
-    let decision = compile_action_world_chain_decision(paired_world_chain(&reading, &quantities), contract.contract().clone(), ctx)?.execute(ctx)?;
+    let decision = compile_action_world_chain_decision(paired_world_chain(&reading, &quantities, wire.predictive), contract.contract().clone(), ctx)?.execute(ctx)?;
     let replay = consume_chain_decision(&wire.chain_artifact, Some(decision.lowered_program_identity), ctx)?;
     if replay.chain.identity() != decision.chain.identity() || replay.decision != decision.decision {
         return Err(GraphImputationEffectDecisionError::Invalid("paired world decision replay differs"));
@@ -794,6 +1001,59 @@ mod paired_world_tests {
     use antecedent_data::{ImputationSpec, TabularData};
     use antecedent_design::decision_contract::{DecisionAction, DecisionCriterion, StructuralPolicy, UtilityExpr};
     use super::super::graph_imputation::GraphImputationSpec;
+
+    #[test]
+    #[ignore = "source-only Bernoulli graph predictive decision; reliability not earned"]
+    fn bernoulli_predictive_worlds_replay_and_bind_model() {
+        let t: Vec<_> = (0..96).map(|i| f64::from(u8::from(i % 2 == 0))).collect();
+        let x: Vec<_> = (0..96).map(|i| f64::from(u8::from(i % 4 < 2))).collect();
+        let y: Vec<_> = (0..96).map(|i| if i % 13 == 0 { f64::NAN }
+            else { f64::from(u8::from((i * 7 + i / 3) % 11 < 4 + (t[i] as usize))) }).collect();
+        let ctx = ExecutionContext::for_tests(41);
+        let table = TabularData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice()), ("x", x.as_slice())]).unwrap();
+        let producer = CompiledGraphImputation::compile(table, &GraphImputationSpec {
+            treatment: VariableId::from_raw(0), outcome: VariableId::from_raw(1),
+            support: GraphSupport::TreatmentRootPreTreatmentCovariates,
+            imputation: ImputationSpec::new().with_imputations(2).with_iterations(2).with_seed(17),
+            domains: Arc::from(vec![1, 1, 1]), posterior_draws: 100, prior_scale: 1.0, execution_seed: 19,
+        }, &ctx).unwrap();
+        let quantities = [0, 1].map(|a| ScientificQuantity {
+            variable_id: "y".into(), variable_name: "outcome".into(), role: QuantityRole::Outcome,
+            units: "outcome".into(), population_id: "source".into(), regime_id: format!("do(t={a})"),
+            horizon: 0, functional_id: "outcome".into(), conditioning: Vec::new(), transform_id: "identity".into(),
+        });
+        let decision = DecisionContract {
+            actions: quantities.iter().enumerate().map(|(i, q)| DecisionAction {
+                id: format!("action-{i}"), kind: ActionKind::Intervention,
+                inputs: vec![q.clone()], utility: UtilityExpr::Input(0),
+            }).collect(),
+            utility_units: "outcome".into(), criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(), target_population: "source".into(), horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        let target = TransportStandardization {
+            columns: vec![(2, x.clone())], selection_targets: vec![2],
+            source_population: "source".into(), target_population: "target".into(),
+            source_sample: producer.source_identity().to_hex(), target_sample: "target-sample".into(),
+            source_unit_ids: (0..96).map(|row| format!("source-{row}")).collect(),
+            target_unit_ids: (0..96).map(|row| format!("target-{row}")).collect(),
+        };
+        let quantities = quantities.map(|mut q| { q.population_id = "target".into(); q });
+        let mut decision = decision;
+        decision.target_population = "target".into();
+        for (action, quantity) in decision.actions.iter_mut().zip(&quantities) { action.inputs = vec![quantity.clone()]; }
+        let plan = compile_graph_imputation_bernoulli_predictive_world_decision(producer, target, quantities, decision).unwrap();
+        let result = plan.execute(&ctx).unwrap();
+        assert!(result.producer.worlds.iter().flatten().all(|&value| value == 0.0 || value == 1.0));
+        assert_eq!(result.calibration, "not_measured");
+        let artifact = plan.export(&result, "bernoulli-predictive", &ctx).unwrap();
+        let replay = consume_graph_imputation_world_decision(&artifact, plan.lowered().identity(), &ctx).unwrap();
+        assert_eq!(result.producer.worlds, replay.producer.worlds);
+        assert_eq!(result.decision.decision, replay.decision.decision);
+        let mut wire: GraphImputationWorldDecisionWire = antecedent_io::from_cbor(&artifact).unwrap();
+        wire.predictive = false;
+        assert!(consume_graph_imputation_world_decision(&antecedent_io::to_cbor(&wire).unwrap(), plan.lowered().identity(), &ctx).is_err());
+    }
 
     #[test]
     #[ignore = "source-only paired graph-imputation world decision; reliability not earned"]
@@ -852,6 +1112,40 @@ mod paired_world_tests {
         for (action, quantity) in target_decision.actions.iter_mut().zip(&target_quantities) {
             action.inputs = vec![quantity.clone()];
         }
+        let gaussian_table = TabularData::from_f64_columns([
+            ("t", treatment.as_slice()), ("y", outcome.as_slice()), ("x", covariate.as_slice()),
+        ]).unwrap();
+        let gaussian_producer = CompiledGraphImputation::compile(gaussian_table, &GraphImputationSpec {
+            treatment: VariableId::from_raw(0), outcome: VariableId::from_raw(1),
+            support: GraphSupport::TreatmentRootPreTreatmentCovariates,
+            imputation: ImputationSpec::new().with_imputations(2).with_iterations(2).with_seed(17),
+            domains: Arc::from(vec![1, 0, 1]), posterior_draws: 100, prior_scale: 1.0, execution_seed: 19,
+        }, &ctx).unwrap();
+        let gaussian_quantities = target_quantities.clone().map(|mut q| { q.functional_id = "outcome".into(); q });
+        let mut gaussian_decision = target_decision.clone();
+        for (action, quantity) in gaussian_decision.actions.iter_mut().zip(&gaussian_quantities) {
+            action.inputs = vec![quantity.clone()];
+        }
+        assert!(validate_gaussian_policy(GaussianPredictivePolicy { residual_variance: 0.0,
+            cross_world_correlation: 0.0, seed: 5 }).is_err());
+        assert!(validate_gaussian_policy(GaussianPredictivePolicy { residual_variance: 1.0,
+            cross_world_correlation: 1.1, seed: 5 }).is_err());
+        let gaussian_plan = compile_graph_imputation_gaussian_target_predictive_world_decision(
+            gaussian_producer, target.clone(), gaussian_quantities, gaussian_decision,
+            GaussianPredictivePolicy { residual_variance: 0.4, cross_world_correlation: 0.3, seed: 5 },
+        ).unwrap();
+        let gaussian_result = gaussian_plan.execute(&ctx).unwrap();
+        assert_eq!(gaussian_result.calibration, "not_measured");
+        assert!(gaussian_result.producer.worlds.iter().flatten().all(|value| value.is_finite()));
+        assert_eq!(gaussian_plan.predictive_calibration_basis().unwrap().validation.as_ref(), "none");
+        let gaussian_bytes = gaussian_plan.export(&gaussian_result, "gaussian-predictive", &ctx).unwrap();
+        let gaussian_replay = consume_graph_imputation_world_decision(&gaussian_bytes, gaussian_plan.lowered().identity(), &ctx).unwrap();
+        assert_eq!(gaussian_result.producer.worlds, gaussian_replay.producer.worlds);
+        assert_eq!(gaussian_result.decision.decision, gaussian_replay.decision.decision);
+        let mut gaussian_wire: GraphImputationWorldDecisionWire = antecedent_io::from_cbor(&gaussian_bytes).unwrap();
+        gaussian_wire.gaussian.as_mut().unwrap().cross_world_correlation = 0.7;
+        assert!(consume_graph_imputation_world_decision(&antecedent_io::to_cbor(&gaussian_wire).unwrap(),
+            gaussian_plan.lowered().identity(), &ctx).is_err());
         let bootstrap_table = TabularData::from_f64_columns([
             ("t", treatment.as_slice()), ("y", outcome.as_slice()), ("x", covariate.as_slice()),
         ]).unwrap();
@@ -876,7 +1170,7 @@ mod paired_world_tests {
         assert_eq!(bootstrap_candidate.result.producer.worlds.len(), 40);
         assert!(bootstrap_candidate.coverage_bases.iter().all(|basis| basis.validation.as_ref() == "none"));
         assert!(bootstrap_candidate.world_intervals.iter().all(|interval| interval.0 <= interval.1));
-        let bootstrap_joint = paired_world_chain(&bootstrap_candidate.result.producer, &target_quantities);
+        let bootstrap_joint = paired_world_chain(&bootstrap_candidate.result.producer, &target_quantities, false);
         for (index, pair) in bootstrap_candidate.result.producer.worlds.iter().enumerate() {
             assert_eq!(bootstrap_joint.sources[0].values[index], pair[0].to_bits());
             assert_eq!(bootstrap_joint.sources[1].values[index], pair[1].to_bits());
@@ -896,7 +1190,7 @@ mod paired_world_tests {
         let target_candidate = target_plan.reliability_candidate(&ctx).unwrap();
         let target_result = target_candidate.result;
         assert_eq!(target_result.calibration, "not_measured");
-        let target_joint = paired_world_chain(&target_result.producer, &target_quantities);
+        let target_joint = paired_world_chain(&target_result.producer, &target_quantities, false);
         assert_eq!(target_joint.sources[0].alignment, target_joint.sources[1].alignment);
         assert_eq!(target_joint.sources[0].factors, target_joint.sources[1].factors);
         assert!(target_result.producer.worlds.iter().all(|pair| pair[0].is_finite() && pair[1].is_finite()));
@@ -912,7 +1206,7 @@ mod paired_world_tests {
         let target_tampered = antecedent_io::to_cbor(&target_wire).unwrap();
         assert!(consume_graph_imputation_world_decision(&target_tampered, target_plan.lowered().identity(), &ctx).is_err());
         let result = plan.execute(&ctx).unwrap();
-        let joint = paired_world_chain(&result.producer, &quantities);
+        let joint = paired_world_chain(&result.producer, &quantities, false);
         assert_eq!(joint.sources[0].alignment, joint.sources[1].alignment);
         assert_eq!(joint.sources[0].factors, joint.sources[1].factors);
         for (i, pair) in result.producer.worlds.iter().enumerate() {

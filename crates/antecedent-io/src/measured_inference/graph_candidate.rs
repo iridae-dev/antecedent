@@ -51,6 +51,112 @@ use crate::IoError;
 const PRIOR_PREDICTIVE_FAMILY: &str = "prior_predictive.v2:effect_uniform_minus1_plus1:linear_gaussian_outcome:logistic_binary_treatment:outcome_missing_at_random_by_treatment:";
 const MEMORY_LIMIT: u64 = 25 * 1024 * 1024;
 
+/// Raw independent target sampling frame for a future weighted transport route.
+/// Missing cells are represented by `None`; observation probabilities describe
+/// the probability that the entire covariate vector is observed, conditional on
+/// the declared always-observed columns. They are assumptions, not estimates.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RawTargetFrame {
+    /// Covariate columns in ascending source-schema order.
+    pub columns: Vec<(u32, Vec<Option<f64>>)>,
+    /// Unique identities in original row order.
+    pub row_ids: Vec<String>,
+    /// Independent cluster identity for each row; repeated within a cluster.
+    pub cluster_ids: Vec<String>,
+    /// Sampling weights in original row order.
+    pub weights: Vec<f64>,
+    /// Positive probabilities of observing the complete vector, one per row.
+    pub observation_probabilities: Vec<f64>,
+    /// Columns on which the declared missing-at-random mechanism is conditional.
+    pub always_observed: Vec<u32>,
+}
+
+impl RawTargetFrame {
+    /// Check row alignment, distinct source and target units, declared domains,
+    /// positive weights and complete-vector observation probabilities.
+    ///
+    /// # Errors
+    /// Invalid identity, alignment, missingness declaration or covariate value.
+    pub fn validate(&self, parts: &GraphImputationParts, source_ids: &[String]) -> Result<(), IoError> {
+        let rows = self.row_ids.len();
+        if rows < 2 || self.columns.is_empty() || source_ids.len() != parts.rows()
+            || self.cluster_ids.len() != rows || self.weights.len() != rows
+            || self.observation_probabilities.len() != rows
+            || self.columns.iter().any(|(_, values)| values.len() != rows)
+        {
+            return Err(invalid("raw target frame columns and identities must align"));
+        }
+        let mut units = BTreeSet::new();
+        if source_ids.iter().chain(&self.row_ids).any(|id| id.trim().is_empty() || !units.insert(id.as_str()))
+            || self.cluster_ids.iter().any(|id| id.trim().is_empty())
+            || self.weights.iter().any(|weight| !weight.is_finite() || *weight <= 0.0)
+            || self.observation_probabilities.iter().any(|p| !p.is_finite() || *p <= 0.0 || *p > 1.0)
+            || self.weights.iter().zip(&self.observation_probabilities)
+                .any(|(weight, probability)| !(weight / probability).is_finite())
+        {
+            return Err(invalid("raw target identities, weights or observation probabilities are invalid"));
+        }
+        let mut previous = None;
+        for (id, values) in &self.columns {
+            if previous.is_some_and(|last| last >= *id) || *id as usize >= parts.names.len()
+                || *id == parts.treatment || *id == parts.outcome
+                || values.iter().flatten().any(|value| !value.is_finite()
+                    || (parts.domains[*id as usize] == 1 && *value != 0.0 && *value != 1.0))
+            {
+                return Err(invalid("raw target columns must be ordered pretreatment covariates in their domains"));
+            }
+            previous = Some(*id);
+        }
+        let mut previous = None;
+        for id in &self.always_observed {
+            if previous.is_some_and(|last| last >= *id)
+                || !self.columns.iter().any(|(column, values)| column == id && values.iter().all(Option::is_some))
+            {
+                return Err(invalid("MAR conditioning columns must be unique and always observed"));
+            }
+            previous = Some(*id);
+        }
+        // Equal observed conditioning values must imply equal declared
+        // probabilities; this checks the declared functional dependence, not MAR itself.
+        let mut probabilities = BTreeMap::new();
+        for row in 0..rows {
+            let key: Vec<u64> = self.always_observed.iter().map(|id| {
+                let value = self.columns.iter().find(|(column, _)| column == id)
+                    .and_then(|(_, values)| values[row]).expect("validated always-observed column");
+                if value == 0.0 { 0 } else { value.to_bits() }
+            }).collect();
+            let probability = self.observation_probabilities[row].to_bits();
+            if probabilities.insert(key, probability).is_some_and(|prior| prior != probability) {
+                return Err(invalid("observation probabilities must depend only on always-observed columns"));
+            }
+        }
+        if (0..rows).filter(|&row| self.columns.iter().all(|(_, values)| values[row].is_some())).count() < 2 {
+            return Err(invalid("raw target frame needs at least two complete rows"));
+        }
+        Ok(())
+    }
+
+    /// Bind every raw row, identity, sampling weight and missingness premise.
+    ///
+    /// # Errors
+    /// Encoding refusal.
+    pub fn digest(&self) -> Result<[u8; 32], IoError> {
+        Ok(CanonicalWriter::digest_bytes("antecedent.graph_imputation.raw_target_frame.v1", &crate::to_cbor(self)?))
+    }
+
+    /// Return complete row indices and their unnormalized inverse-observation
+    /// weights. Call only after validating the frame; consumers must normalize
+    /// these weights in their target integration, including in each replicate.
+    #[must_use]
+    pub fn complete_rows(&self) -> Vec<(usize, f64)> {
+        (0..self.row_ids.len()).filter_map(|row| {
+            self.columns.iter().all(|(_, values)| values[row].is_some())
+                .then(|| (row, self.weights[row] / self.observation_probabilities[row]))
+        }).collect()
+    }
+}
+
 /// Target covariate sample for the separate graph-imputation transport route.
 /// Every column names a source schema index and contains complete binary cells.
 /// The target is a representative sample; selection targets name pretreatment
@@ -645,33 +751,35 @@ enum TransportTarget<'a> {
     ConfoundedBinary(&'a TransportStandardization),
     Kernel(&'a KernelTransportStandardization),
     ConfoundedKernel(&'a KernelTransportStandardization),
+    MarBinary(&'a TransportStandardization, &'a [f64], [u8; 32], bool),
+    MarKernel(&'a KernelTransportStandardization, &'a [f64], [u8; 32], bool),
 }
 
 impl<'a> TransportTarget<'a> {
     fn columns(self) -> &'a [(u32, Vec<f64>)] {
-        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => &value.columns, Self::Kernel(value) | Self::ConfoundedKernel(value) => &value.columns }
+        match self { Self::Binary(value) | Self::ConfoundedBinary(value) | Self::MarBinary(value, _, _, _) => &value.columns, Self::Kernel(value) | Self::ConfoundedKernel(value) | Self::MarKernel(value, _, _, _) => &value.columns }
     }
 
     fn selections(self) -> &'a [u32] {
         match self {
-            Self::Binary(value) | Self::ConfoundedBinary(value) => &value.selection_targets,
-            Self::Kernel(value) | Self::ConfoundedKernel(value) => &value.selection_targets,
+            Self::Binary(value) | Self::ConfoundedBinary(value) | Self::MarBinary(value, _, _, _) => &value.selection_targets,
+            Self::Kernel(value) | Self::ConfoundedKernel(value) | Self::MarKernel(value, _, _, _) => &value.selection_targets,
         }
     }
 
     fn rows(self) -> usize {
-        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => value.rows(), Self::Kernel(value) | Self::ConfoundedKernel(value) => value.rows() }
+        match self { Self::Binary(value) | Self::ConfoundedBinary(value) | Self::MarBinary(value, _, _, _) => value.rows(), Self::Kernel(value) | Self::ConfoundedKernel(value) | Self::MarKernel(value, _, _, _) => value.rows() }
     }
 
     fn digest(self) -> Result<[u8; 32], IoError> {
-        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => value.digest(), Self::Kernel(value) | Self::ConfoundedKernel(value) => value.digest() }
+        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => value.digest(), Self::Kernel(value) | Self::ConfoundedKernel(value) => value.digest(), Self::MarBinary(_, _, digest, _) | Self::MarKernel(_, _, digest, _) => Ok(digest) }
     }
 }
 
 fn kernel_transport_weights(
     source_columns: &[Vec<f64>], target_columns: &[&[f64]],
     adjustment: &[u32], domains: &[u8], target: &KernelTransportStandardization,
-    treatment: Option<&[f64]>,
+    treatment: Option<&[f64]>, target_weights: Option<&[f64]>,
 ) -> Result<Vec<f64>, IoError> {
     let source_rows = source_columns.first().map_or(0, Vec::len);
     let target_rows = target.rows();
@@ -720,11 +828,15 @@ fn kernel_transport_weights(
             return Err(execution_refused("target covariate row lacks declared kernel overlap in the completed source"));
         }
     }
+    let target_total = target_weights.map_or(target_rows as f64, |weights| weights.iter().sum());
+    if target_weights.is_some_and(|weights| weights.len() != target_rows || weights.iter().any(|w| !w.is_finite() || *w <= 0.0)) || !target_total.is_finite() || target_total <= 0.0 {
+        return Err(invalid("invalid MAR target weights"));
+    }
     let mut weights = Vec::with_capacity(source_rows);
     for source_row in 0..source_rows {
         let numerator = (0..target_rows).map(|target_row| {
-            kernel(source_row, target_row, true)
-        }).sum::<f64>() / target_rows as f64;
+            kernel(source_row, target_row, true) * target_weights.map_or(1.0, |weights| weights[target_row])
+        }).sum::<f64>() / target_total;
         let denominator = (0..source_rows).map(|other| {
             kernel(source_row, other, false)
         }).sum::<f64>() / source_rows as f64;
@@ -742,6 +854,21 @@ fn kernel_transport_weights(
     for weight in &mut weights { *weight *= scale; }
     if weights.iter().any(|weight| !weight.is_finite()) {
         return Err(execution_refused("normalized kernel transport weights are nonfinite"));
+    }
+    Ok(weights)
+}
+
+fn binary_target_weights(source_keys: &[Vec<u8>], source_count: &BTreeMap<Vec<u8>, usize>,
+    target_mass: &BTreeMap<Vec<u8>, f64>) -> Result<Vec<f64>, IoError> {
+    let total: f64 = target_mass.values().sum();
+    if !total.is_finite() || total <= 0.0 { return Err(execution_refused("invalid target mass")); }
+    let source_n = source_keys.len() as f64;
+    let weights: Vec<f64> = source_keys.iter().map(|key| {
+        let mass = *target_mass.get(key).unwrap_or(&0.0);
+        mass * source_n / (source_count[key] as f64 * total)
+    }).collect();
+    if weights.iter().any(|weight| !weight.is_finite() || *weight < 0.0) {
+        return Err(execution_refused("invalid normalized binary transport weights"));
     }
     Ok(weights)
 }
@@ -774,11 +901,11 @@ fn transported_population(
         }).collect()
     };
     let weights = match target {
-        TransportTarget::Binary(binary) | TransportTarget::ConfoundedBinary(binary) => {
+        TransportTarget::Binary(binary) | TransportTarget::ConfoundedBinary(binary) | TransportTarget::MarBinary(binary, _, _, _) => {
             let source_slices: Vec<&[f64]> = source_columns.iter().map(Vec::as_slice).collect();
             let source_rows = data.row_count();
             let mut source_count = BTreeMap::<Vec<u8>, usize>::new();
-            let mut target_count = BTreeMap::<Vec<u8>, usize>::new();
+            let mut target_count = BTreeMap::<Vec<u8>, f64>::new();
             let mut source_keys = Vec::with_capacity(source_rows);
             for row in 0..source_rows {
                 let key = binary_key(&source_slices, row)?;
@@ -786,12 +913,14 @@ fn transported_population(
                 source_keys.push(key);
             }
             for row in 0..binary.rows() {
-                *target_count.entry(binary_key(&target_columns, row)?).or_default() += 1;
+                let weight = match target { TransportTarget::MarBinary(_, weights, _, _) => weights[row], _ => 1.0 };
+                if !weight.is_finite() || weight <= 0.0 { return Err(execution_refused("invalid target weight")); }
+                *target_count.entry(binary_key(&target_columns, row)?).or_default() += weight;
             }
-            if target_count.iter().any(|(key, count)| *count > 0 && !source_count.contains_key(key)) {
+            if target_count.iter().any(|(key, count)| *count > 0.0 && !source_count.contains_key(key)) {
                 return Err(execution_refused("target adjustment stratum has no completed source support"));
             }
-            if matches!(target, TransportTarget::ConfoundedBinary(_)) {
+            if matches!(target, TransportTarget::ConfoundedBinary(_) | TransportTarget::MarBinary(_, _, _, true)) {
                 let treatment = data.float64_values(query.treatment).map_err(invalid)?;
                 let mut arms = BTreeMap::<Vec<u8>, (bool, bool)>::new();
                 for (key, &value) in source_keys.iter().zip(&treatment) {
@@ -803,20 +932,14 @@ fn transported_population(
                     return Err(execution_refused("target stratum lacks both source treatment arms"));
                 }
             }
-            let source_n = source_rows as f64;
-            let target_n = binary.rows() as f64;
-            source_keys.iter().map(|key| {
-                let target_count = *target_count.get(key).unwrap_or(&0) as f64;
-                let source_count = source_count[key] as f64;
-                target_count * source_n / (source_count * target_n)
-            }).collect()
+            binary_target_weights(&source_keys, &source_count, &target_count)?
         }
-        TransportTarget::Kernel(kernel) | TransportTarget::ConfoundedKernel(kernel) => {
-            let treatment = if matches!(target, TransportTarget::ConfoundedKernel(_)) {
+        TransportTarget::Kernel(kernel) | TransportTarget::ConfoundedKernel(kernel) | TransportTarget::MarKernel(kernel, _, _, _) => {
+            let treatment = if matches!(target, TransportTarget::ConfoundedKernel(_) | TransportTarget::MarKernel(_, _, _, true)) {
                 Some(data.float64_values(query.treatment).map_err(invalid)?)
             } else { None };
             kernel_transport_weights(&source_columns, &target_columns, &adjustment, domains,
-                kernel, treatment.as_deref())?
+                kernel, treatment.as_deref(), match target { TransportTarget::MarKernel(_, weights, _, _) => Some(weights), _ => None })?
         },
     };
     let retained_weights = retain_weights.then(|| weights.clone());
@@ -833,15 +956,30 @@ fn transported_population(
     ))
 }
 
+fn logistic_probability(value: f64) -> f64 {
+    if value >= 0.0 { 1.0 / (1.0 + (-value).exp()) }
+    else { let exp = value.exp(); exp / (1.0 + exp) }
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "the composite seals each completed table, graph fit and mixture together"
 )]
 fn execute(
-    rec: &Reconstructed, target: Option<TransportTarget<'_>>, paired: bool,
-    ctx: &ExecutionContext,
+    rec: &Reconstructed, target: Option<TransportTarget<'_>>, paired: bool, logit_predictive: bool,
+    gaussian_predictive: Option<(f64, f64, u64)>, ctx: &ExecutionContext,
 ) -> Result<Execution, IoError> {
     let parts = rec.source.parts();
+    if logit_predictive && (!paired || !matches!(target, Some(TransportTarget::Binary(_))) || parts.domains[parts.outcome as usize] != 1) {
+        return Err(invalid("Bernoulli predictive worlds require a binary outcome and binary target frame"));
+    }
+    if let Some((variance, correlation, _)) = gaussian_predictive {
+        if !paired || logit_predictive || !matches!(target, Some(TransportTarget::Binary(_)))
+            || parts.domains[parts.outcome as usize] != 0 || !variance.is_finite() || variance <= 0.0
+            || !correlation.is_finite() || !(-1.0..=1.0).contains(&correlation) {
+            return Err(invalid("invalid Gaussian target predictive declaration"));
+        }
+    }
     let (treatment, outcome) =
         (VariableId::from_raw(parts.treatment), VariableId::from_raw(parts.outcome));
     let program = SemanticDigest::from_bytes(rec.source.program());
@@ -879,6 +1017,8 @@ fn execute(
         Some(TransportTarget::ConfoundedBinary(_)) => "antecedent.graph_imputation_confounded_transport.execution.v1",
         Some(TransportTarget::Kernel(_)) => "antecedent.graph_imputation_kernel_transport.execution.v1",
         Some(TransportTarget::ConfoundedKernel(_)) => "antecedent.graph_imputation_confounded_kernel_transport.execution.v1",
+        Some(TransportTarget::MarBinary(_, _, _, _)) => "antecedent.graph_imputation_mar_binary_transport.execution.v1",
+        Some(TransportTarget::MarKernel(_, _, _, _)) => "antecedent.graph_imputation_mar_kernel_transport.execution.v1",
         None => "antecedent.graph_candidate.execution.v1",
     });
     receipt.bytes(program.as_bytes()).bytes(&contract).word(u64::from(parts.imputations));
@@ -929,8 +1069,8 @@ fn execute(
             child_ctx.rng =
                 RngFactory::from_seed(mix64(parts.execution_seed ^ (u64::from(index) << 8) ^ mask));
             let fitter = BayesianGComputationAte {
-                backend: BayesianBackendKind::ConjugateGaussian,
-                likelihood: BayesLikelihood::GaussianIdentity,
+                backend: if logit_predictive { BayesianBackendKind::Laplace } else { BayesianBackendKind::ConjugateGaussian },
+                likelihood: if logit_predictive { BayesLikelihood::BernoulliLogit } else { BayesLikelihood::GaussianIdentity },
                 n_draws: parts.posterior_draws as usize,
                 seed: child_ctx.rng.master_seed(),
                 overlap: OverlapPolicy::ExplicitOverride,
@@ -947,8 +1087,16 @@ fn execute(
             let (prepared, target_weights) = if let Some(target) = target {
                 let (query, registry, estimand, weights) =
                     transported_population(&data, &rec.query, atom, target, &parts.domains, paired)?;
-                (fitter.prepare_for_population(&data, &estimand, &query, Some(&registry))
-                    .map_err(fit_error)?, weights)
+                // The logit child is a source conditional model. Target weights
+                // select covariates for prediction; they do not weight its likelihood.
+                let prepared = if logit_predictive {
+                    fitter.prepare(&data, &estimand, &rec.query).map_err(fit_error)?
+                        .with_target_interactions(weights.as_ref().ok_or_else(|| invalid("predictive target weights missing"))?)
+                        .map_err(fit_error)?
+                } else {
+                    fitter.prepare_for_population(&data, &estimand, &query, Some(&registry)).map_err(fit_error)?
+                };
+                (prepared, weights)
             } else {
                 (fitter.prepare(&data, &atom.estimand, &rec.query).map_err(fit_error)?, None)
             };
@@ -976,7 +1124,60 @@ fn execute(
                     .ok_or_else(|| invalid("paired atom admission overflow"))?;
                 paired_leases.push(scoped.acquire_admission(0, bytes).map_err(admission)?);
                 let mut world_values = Vec::with_capacity(fit.draws.n_draws);
+                let mut predictive_rng = antecedent_core::CausalRng::from_seed(mix64(
+                    gaussian_predictive.map_or(parts.execution_seed, |(_, _, seed)| seed)
+                        ^ (u64::from(index) << 32) ^ mask ^ 0x4245_524e_5052_4544,
+                ));
                 for draw in 0..fit.draws.n_draws {
+                    if logit_predictive || gaussian_predictive.is_some() {
+                        // One target-weighted covariate row is shared by both
+                        // worlds; outcome innovations are conditionally independent.
+                        let weights = target_weights.as_ref().ok_or_else(|| invalid("predictive target weights missing"))?;
+                        let mass = weights.iter().sum::<f64>();
+                        if weights.len() != design.nrows || !mass.is_finite() || mass <= 0.0 {
+                            return Err(invalid("predictive target weights differ from design rows"));
+                        }
+                        let threshold = predictive_rng.next_f64() * mass;
+                        let mut cumulative = 0.0;
+                        let mut row = weights.len() - 1;
+                        for (i, weight) in weights.iter().enumerate() {
+                            cumulative += weight;
+                            if threshold < cumulative { row = i; break; }
+                        }
+                        let covariates = prepared.adjustment_set.len();
+                        let mut linear = columns[0][draw];
+                        let mut interaction = 0.0;
+                        for offset in 0..covariates {
+                            let col = 2 + offset;
+                            let values = &design.matrix[col * design.nrows..(col + 1) * design.nrows];
+                            let center = values.iter().zip(weights).map(|(value, weight)| value * weight).sum::<f64>() / mass;
+                            linear += values[row] * columns[col][draw];
+                            interaction += (values[row] - center) * columns[2 + covariates + offset][draw];
+                        }
+                        let treatment_effect = columns[t][draw] + interaction;
+                        let mean0 = linear + prepared.control * treatment_effect;
+                        let mean1 = linear + prepared.active * treatment_effect;
+                        if let Some((variance, correlation, _)) = gaussian_predictive {
+                            let u = predictive_rng.next_f64().max(f64::MIN_POSITIVE);
+                            let angle = 2.0 * std::f64::consts::PI * predictive_rng.next_f64();
+                            let radius = (-2.0 * u.ln()).sqrt();
+                            let z0 = radius * angle.cos();
+                            let z1 = radius * angle.sin();
+                            let scale = variance.sqrt();
+                            let pair = [mean0 + scale * z0, mean1 + scale *
+                                (correlation * z0 + (1.0 - correlation * correlation).max(0.0).sqrt() * z1)];
+                            if pair.iter().any(|value| !value.is_finite()) { return Err(invalid("Gaussian predictive worlds are nonfinite")); }
+                            world_values.push(pair);
+                        } else {
+                            let p0 = logistic_probability(mean0);
+                            let p1 = logistic_probability(mean1);
+                            if !p0.is_finite() || !p1.is_finite() { return Err(invalid("Bernoulli predictive probabilities are nonfinite")); }
+                            let u0 = predictive_rng.next_f64();
+                            let u1 = predictive_rng.next_f64();
+                            world_values.push([if u0 < p0 { 1.0 } else { 0.0 }, if u1 < p1 { 1.0 } else { 0.0 }]);
+                        }
+                        continue;
+                    }
                     let mut mean = 0.0;
                     for col in 0..design.ncols {
                         let values = &design.matrix[col * design.nrows..(col + 1) * design.nrows];
@@ -1250,7 +1451,7 @@ struct Reading {
 // measured route.
 fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reading, IoError> {
     let rec = reconstruct(bytes, ctx)?;
-    let run = execute(&rec, None, false, ctx)?;
+    let run = execute(&rec, None, false, false, None, ctx)?;
     let mut sorted = run.draws.clone();
     sorted.sort_by(f64::total_cmp);
     // Fixed nearest-rank 95% interval; a record must measure exactly this algorithm.
@@ -1291,7 +1492,7 @@ pub struct GraphPairedWorldReading {
 /// Changed source, unsupported child, numerical failure or incomplete schedule.
 pub fn replay_paired_worlds(bytes: &[u8], ctx: &ExecutionContext) -> Result<GraphPairedWorldReading, IoError> {
     let rec = reconstruct(bytes, ctx)?;
-    let run = execute(&rec, None, true, ctx)?;
+    let run = execute(&rec, None, true, false, None, ctx)?;
     let mut writer = CanonicalWriter::new("antecedent.graph_imputation.paired_worlds.execution.v1");
     writer.bytes(&run.receipt).word(run.paired_worlds.len() as u64);
     for pair in &run.paired_worlds { writer.word(pair[0].to_bits()).word(pair[1].to_bits()); }
@@ -1341,6 +1542,52 @@ pub fn replay_point(bytes: &[u8], ctx: &ExecutionContext) -> Result<GraphPointRe
     })
 }
 
+/// Replay target-population predictive Bernoulli action worlds using a
+/// Laplace-approximated logit child for each imputation and retained graph.
+/// A target covariate row and coefficient state are shared; Bernoulli
+/// innovations are independent conditional on that state. No calibration is implied.
+///
+/// # Errors
+/// Invalid source, target, outcome, model, cancellation or resource refusal.
+pub fn replay_bernoulli_logit_predictive_worlds(bytes: &[u8], target: &TransportStandardization,
+    ctx: &ExecutionContext) -> Result<GraphPairedWorldReading, IoError> {
+    let rec = reconstruct(bytes, ctx)?;
+    target.validate(rec.source.parts())?;
+    let target_bytes = (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
+    let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
+    let run = execute(&rec, Some(TransportTarget::Binary(target)), true, true, None, ctx)?;
+    let mut writer = CanonicalWriter::new("antecedent.graph_imputation_bernoulli_logit.target_predictive_worlds.execution.v1");
+    writer.bytes(&run.receipt).bytes(&target.digest()?).word(run.paired_worlds.len() as u64);
+    for pair in &run.paired_worlds { writer.word(pair[0].to_bits()).word(pair[1].to_bits()); }
+    Ok(GraphPairedWorldReading { worlds: run.paired_worlds, receipt: writer.finish(),
+        program: rec.source.program(), source: rec.source.parts().data_digest,
+        _lease: run.lease, _paired_leases: run.paired_leases })
+}
+
+/// Replay individual Gaussian target action worlds with a shared graph,
+/// completed table, coefficient draw and target covariate row. Residual
+/// innovations have the declared variance and cross-world correlation.
+///
+/// # Errors
+/// Invalid source, frame, residual law, fit, cancellation or resource refusal.
+pub fn replay_gaussian_target_predictive_worlds(bytes: &[u8], target: &TransportStandardization,
+    residual_variance: f64, cross_world_correlation: f64, seed: u64, ctx: &ExecutionContext,
+) -> Result<GraphPairedWorldReading, IoError> {
+    let rec = reconstruct(bytes, ctx)?;
+    target.validate(rec.source.parts())?;
+    let target_bytes = (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
+    let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
+    let run = execute(&rec, Some(TransportTarget::Binary(target)), true, false,
+        Some((residual_variance, cross_world_correlation, seed)), ctx)?;
+    let mut writer = CanonicalWriter::new("antecedent.graph_imputation_gaussian.target_predictive_worlds.execution.v1");
+    writer.bytes(&run.receipt).bytes(&target.digest()?).word(residual_variance.to_bits())
+        .word(cross_world_correlation.to_bits()).word(seed).word(run.paired_worlds.len() as u64);
+    for pair in &run.paired_worlds { writer.word(pair[0].to_bits()).word(pair[1].to_bits()); }
+    Ok(GraphPairedWorldReading { worlds: run.paired_worlds, receipt: writer.finish(),
+        program: rec.source.program(), source: rec.source.parts().data_digest,
+        _lease: run.lease, _paired_leases: run.paired_leases })
+}
+
 /// Replay paired model-conditional potential-outcome mean worlds on a
 /// representative binary target frame. Both worlds share each sampled graph,
 /// imputed table and fitted coefficient draw; this is not outcome prediction.
@@ -1353,7 +1600,7 @@ pub fn replay_transport_paired_worlds(bytes: &[u8], target: &TransportStandardiz
     target.validate(rec.source.parts())?;
     let target_bytes = (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::Binary(target)), true, ctx)?;
+    let run = execute(&rec, Some(TransportTarget::Binary(target)), true, false, None, ctx)?;
     let mut writer = CanonicalWriter::new("antecedent.graph_imputation_transport.paired_worlds.execution.v2");
     writer.bytes(&run.receipt).bytes(&target.digest()?).word(run.paired_worlds.len() as u64);
     for pair in &run.paired_worlds { writer.word(pair[0].to_bits()).word(pair[1].to_bits()); }
@@ -1450,7 +1697,7 @@ pub fn replay_transport_point(
         .saturating_mul(target.columns.len() as u64)
         .saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::Binary(target)), false, ctx)?;
+    let run = execute(&rec, Some(TransportTarget::Binary(target)), false, false, None, ctx)?;
     Ok(GraphPointReading {
         mean: run.mean,
         diagnostic_sd: run.sd,
@@ -1478,7 +1725,7 @@ pub fn replay_confounded_transport_point(
     let target_bytes = (target.rows() as u64)
         .saturating_mul(target.columns.len() as u64).saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::ConfoundedBinary(target)), false, ctx)?;
+    let run = execute(&rec, Some(TransportTarget::ConfoundedBinary(target)), false, false, None, ctx)?;
     Ok(GraphPointReading { mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
         receipt: run.receipt, program: rec.source.program(),
         source: rec.source.parts().data_digest, unidentified_by_table: run.unidentified_by_table,
@@ -1503,7 +1750,7 @@ pub fn replay_kernel_transport_point(
         .saturating_mul(target.columns.len() as u64)
         .saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::Kernel(target)), false, ctx)?;
+    let run = execute(&rec, Some(TransportTarget::Kernel(target)), false, false, None, ctx)?;
     Ok(GraphPointReading {
         mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
         receipt: run.receipt, program: rec.source.program(),
@@ -1526,7 +1773,7 @@ pub fn replay_confounded_kernel_transport_point(
     target.validate_confounded(rec.source.parts())?;
     let target_bytes = (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::ConfoundedKernel(target)), false, ctx)?;
+    let run = execute(&rec, Some(TransportTarget::ConfoundedKernel(target)), false, false, None, ctx)?;
     Ok(GraphPointReading { mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
         receipt: run.receipt, program: rec.source.program(), source: rec.source.parts().data_digest,
         unidentified_by_table: run.unidentified_by_table, _lease: run.lease })
@@ -1648,9 +1895,9 @@ mod tests {
         let source = vec![vec![0.0, 1.0, 0.0, 1.0]];
         let target_columns = vec![target.columns[0].1.as_slice()];
         assert!(kernel_transport_weights(&source, &target_columns, &[2], &[1, 0, 0], &target,
-            Some(&[0.0, 1.0, 0.0, 1.0])).is_ok());
+            Some(&[0.0, 1.0, 0.0, 1.0]), None).is_ok());
         assert!(kernel_transport_weights(&source, &target_columns, &[2], &[1, 0, 0], &target,
-            Some(&[0.0, 0.0, 0.0, 0.0])).is_err());
+            Some(&[0.0, 0.0, 0.0, 0.0]), None).is_err());
     }
 
     #[test]
@@ -1971,5 +2218,171 @@ mod tests {
             measure_source(&bytes, &ctx)
         });
         assert_eq!(inside.unwrap().report().scalars[0].calibration.status, "calibrated");
+    }
+}
+
+#[cfg(test)]
+mod raw_target_frame_tests {
+    use super::RawTargetFrame;
+
+    #[test]
+    fn complete_rows_keep_inverse_observation_weights_and_raw_identity() {
+        let frame = RawTargetFrame {
+            columns: vec![(2, vec![Some(0.0), None, Some(1.0)]),
+                (3, vec![Some(1.0), Some(0.0), Some(1.0)])],
+            row_ids: vec!["a".into(), "b".into(), "c".into()],
+            cluster_ids: vec!["one".into(), "one".into(), "two".into()],
+            weights: vec![1.0, 2.0, 3.0],
+            observation_probabilities: vec![0.5, 0.5, 0.75],
+            always_observed: vec![3],
+        };
+        assert_eq!(frame.complete_rows(), vec![(0, 2.0), (2, 4.0)]);
+        let mut changed = frame.clone();
+        changed.cluster_ids[0] = "other".into();
+        assert_ne!(frame.digest().unwrap(), changed.digest().unwrap());
+        changed = frame.clone();
+        changed.observation_probabilities[1] = 0.25;
+        assert_ne!(frame.digest().unwrap(), changed.digest().unwrap());
+    }
+}
+
+/// Raw independent target frame with declared complete-vector MAR probabilities.
+/// Weights are sampling weights divided by those probabilities on complete rows.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MarTargetStandardization {
+    /// Prespecified identity of the complete-vector observation probability mechanism.
+    pub observation_mechanism_id: String,
+    /// Prespecified identity of sampling weights and the independent-cluster design.
+    pub sampling_design_id: String,
+    /// Raw target observations, missingness and design weights.
+    pub frame: RawTargetFrame,
+    /// Selected mechanisms allowed to vary across populations.
+    pub selection_targets: Vec<u32>,
+    /// Source and target population labels.
+    pub source_population: String,
+    /// Target population label.
+    pub target_population: String,
+    /// Identity of the retained source sample.
+    pub source_sample: String,
+    /// Independent target sample identity.
+    pub target_sample: String,
+    /// Source row identities.
+    pub source_unit_ids: Vec<String>,
+    /// Continuous-column bandwidths; empty for a binary target.
+    pub bandwidths: Vec<(u32, f64)>,
+    /// Kernel overlap floor (ignored for the binary mode).
+    pub min_kernel_overlap: f64,
+    /// Use mixed-domain kernel transport rather than binary strata.
+    pub kernel: bool,
+    /// Use pretreatment-confounding support and both-arm overlap.
+    pub confounded: bool,
+}
+
+impl MarTargetStandardization {
+    /// Canonical digest binds all raw rows, missingness, design and modelling assumptions.
+    pub fn digest(&self) -> Result<[u8; 32], IoError> {
+        Ok(CanonicalWriter::digest_bytes("antecedent.graph_imputation.mar_target.v2", &crate::to_cbor(self)?))
+    }
+
+    /// Validate raw MAR declarations and the complete-case transport scope.
+    pub fn validate(&self, parts: &GraphImputationParts) -> Result<(), IoError> {
+        if self.observation_mechanism_id.trim().is_empty() || self.sampling_design_id.trim().is_empty() {
+            return Err(invalid("MAR observation mechanism and target sampling design need prespecified identities"));
+        }
+        self.frame.validate(parts, &self.source_unit_ids)?;
+        let rows = self.frame.complete_rows();
+        let columns: Vec<_> = self.frame.columns.iter().map(|(id, values)| {
+            (*id, rows.iter().map(|(row, _)| values[*row].expect("complete row")).collect())
+        }).collect();
+        let ids = rows.iter().map(|(row, _)| self.frame.row_ids[*row].clone()).collect();
+        if self.kernel {
+            let target = KernelTransportStandardization { columns, selection_targets: self.selection_targets.clone(),
+                source_population: self.source_population.clone(), target_population: self.target_population.clone(),
+                source_sample: self.source_sample.clone(), target_sample: self.target_sample.clone(),
+                source_unit_ids: self.source_unit_ids.clone(), target_unit_ids: ids,
+                bandwidths: self.bandwidths.clone(), min_kernel_overlap: self.min_kernel_overlap };
+            if self.confounded { target.validate_confounded(parts) } else { target.validate(parts) }
+        } else {
+            if !self.bandwidths.is_empty() { return Err(invalid("binary MAR target does not accept kernel bandwidths")); }
+            let target = TransportStandardization { columns, selection_targets: self.selection_targets.clone(),
+                source_population: self.source_population.clone(), target_population: self.target_population.clone(),
+                source_sample: self.source_sample.clone(), target_sample: self.target_sample.clone(),
+                source_unit_ids: self.source_unit_ids.clone(), target_unit_ids: ids };
+            if self.confounded { target.validate_confounded(parts) } else { target.validate(parts) }
+        }
+    }
+}
+
+/// Replay source imputation and graph selection with inverse-observation weighted
+/// complete target cases. MAR and the supplied observation probabilities are assumptions.
+///
+/// # Errors
+/// Invalid declarations, support, overlap, inference, cancellation or admission.
+pub fn replay_mar_transport_point(bytes: &[u8], target: &MarTargetStandardization,
+    ctx: &ExecutionContext) -> Result<GraphPointReading, IoError> {
+    let rec = reconstruct(bytes, ctx)?;
+    let lease_bytes = (target.frame.row_ids.len() as u64).saturating_mul(target.frame.columns.len() as u64 + 4).saturating_mul(32);
+    let _target_lease = ctx.acquire_admission(0, lease_bytes).map_err(admission)?;
+    target.validate(rec.source.parts())?;
+    let rows = target.frame.complete_rows();
+    let columns: Vec<_> = target.frame.columns.iter().map(|(id, values)| {
+        (*id, rows.iter().map(|(row, _)| values[*row].expect("validated complete row")).collect())
+    }).collect();
+    let ids = rows.iter().map(|(row, _)| target.frame.row_ids[*row].clone()).collect();
+    let weights: Vec<f64> = rows.iter().map(|(_, weight)| *weight).collect();
+    let digest = target.digest()?;
+    let run = if target.kernel {
+        let standard = KernelTransportStandardization { columns, selection_targets: target.selection_targets.clone(),
+            source_population: target.source_population.clone(), target_population: target.target_population.clone(),
+            source_sample: target.source_sample.clone(), target_sample: target.target_sample.clone(),
+            source_unit_ids: target.source_unit_ids.clone(), target_unit_ids: ids,
+            bandwidths: target.bandwidths.clone(), min_kernel_overlap: target.min_kernel_overlap };
+        execute(&rec, Some(TransportTarget::MarKernel(&standard, &weights, digest, target.confounded)), false, false, None, ctx)?
+    } else {
+        let standard = TransportStandardization { columns, selection_targets: target.selection_targets.clone(),
+            source_population: target.source_population.clone(), target_population: target.target_population.clone(),
+            source_sample: target.source_sample.clone(), target_sample: target.target_sample.clone(),
+            source_unit_ids: target.source_unit_ids.clone(), target_unit_ids: ids };
+        execute(&rec, Some(TransportTarget::MarBinary(&standard, &weights, digest, target.confounded)), false, false, None, ctx)?
+    };
+    Ok(GraphPointReading { mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
+        receipt: run.receipt, program: rec.source.program(), source: rec.source.parts().data_digest,
+        unidentified_by_table: run.unidentified_by_table, _lease: run.lease })
+}
+
+#[cfg(test)]
+mod mar_weighted_transport_tests {
+    use super::{binary_target_weights, kernel_transport_weights, KernelTransportStandardization};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn binary_target_strata_use_normalized_weighted_mass() {
+        let keys = vec![vec![0], vec![0], vec![1], vec![1]];
+        let source = BTreeMap::from([(vec![0], 2), (vec![1], 2)]);
+        let target = BTreeMap::from([(vec![0], 1.0), (vec![1], 3.0)]);
+        assert_eq!(binary_target_weights(&keys, &source, &target).unwrap(), vec![0.5, 0.5, 1.5, 1.5]);
+    }
+
+    #[test]
+    fn kernel_target_mass_uses_inverse_observation_weights_and_checks_both_arms() {
+        let target = KernelTransportStandardization {
+            columns: vec![(2, vec![0.0, 10.0])], selection_targets: vec![2],
+            source_population: "source".into(), target_population: "target".into(),
+            source_sample: "source".into(), target_sample: "target".into(),
+            source_unit_ids: (0..4).map(|i| format!("s{i}")).collect(),
+            target_unit_ids: vec!["a".into(), "b".into()], bandwidths: vec![(2, 1.0)], min_kernel_overlap: 0.01,
+        };
+        let source = vec![vec![0.0, 0.0, 10.0, 10.0]];
+        let columns = vec![target.columns[0].1.as_slice()];
+        let treatment = [0.0, 1.0, 0.0, 1.0];
+        let weighted = kernel_transport_weights(&source, &columns, &[2], &[1, 1, 0], &target,
+            Some(&treatment), Some(&[1.0, 3.0])).unwrap();
+        assert!(weighted[2] > weighted[0] * 2.9);
+        assert!((weighted.iter().sum::<f64>() - 4.0).abs() < 1e-10);
+        assert!(kernel_transport_weights(&source, &columns, &[2], &[1, 1, 0], &target,
+            Some(&[0.0, 0.0, 1.0, 1.0]), Some(&[1.0, 3.0])).is_err());
+        assert!(kernel_transport_weights(&source, &columns, &[2], &[1, 1, 0], &target,
+            None, Some(&[1.0, 0.0])).is_err());
     }
 }
