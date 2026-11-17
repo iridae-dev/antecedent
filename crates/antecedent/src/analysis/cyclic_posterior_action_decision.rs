@@ -16,7 +16,7 @@ use antecedent_contract::{ClaimKind, DataClassification, ScientificQuantity};
 use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_contract::propagation_chain::{ChainReading, LawMeaning, StageKind, TableConstruction};
 use antecedent_core::{
-    ByteEstimates, CanonicalWriter, ExecutionContext, LikelihoodModel,
+    ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, LikelihoodModel,
     OrdinaryBayesianLikelihood, PhysicalEffect, PhysicalOperator, Prior,
     SemanticDigest,
 };
@@ -127,6 +127,18 @@ pub struct CyclicPosteriorDecisionResult {
     pub decision: ChainDecisionResult,
     /// Identity of the complete fitted model-to-decision program.
     pub lowered_program_identity: SemanticDigest,
+}
+
+/// Prospective population-outcome coverage input for one paired action world.
+/// The final decision's reliability remains unmeasured.
+#[derive(Clone, Debug)]
+pub struct CyclicPosteriorPredictiveCalibrationCandidate {
+    /// Complete fitted posterior, world solves and decision.
+    pub result: CyclicPosteriorDecisionResult,
+    /// Nearest-rank central 95% interval of one predictive outcome.
+    pub interval: (f64, f64),
+    /// Exact model, sampler, world and output scope for a future record.
+    pub basis: CalibrationBasis,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -398,6 +410,57 @@ impl CompiledCyclicPosteriorDecision {
         Ok(CyclicPosteriorDecisionResult {
             posterior, decision, lowered_program_identity: self.lowered.identity(),
         })
+    }
+
+    /// Expose the final predictive outcome for a prespecified action world as
+    /// a prospective whole-route coverage candidate. The interval has no
+    /// measured status, and this does not calibrate the action choice.
+    ///
+    /// # Errors
+    /// A fit, diagnostic, world solve or malformed predictive table refuses.
+    pub fn calibration_candidate(
+        &self, output_index: usize, ctx: &ExecutionContext,
+    ) -> Result<CyclicPosteriorPredictiveCalibrationCandidate, CyclicPosteriorDecisionError> {
+        if output_index >= self.outputs.len() {
+            return Err(CyclicPosteriorDecisionError::Invalid("predictive calibration output is absent"));
+        }
+        let result = self.execute(ctx)?;
+        let source = result.decision.chain.record().sources.get(output_index).ok_or(
+            CyclicPosteriorDecisionError::Invalid("predictive action world source is absent"),
+        )?;
+        let mut ordered: Vec<f64> = source.values.iter().copied().map(f64::from_bits).collect();
+        if ordered.len() < 200 || ordered.iter().any(|value| !value.is_finite()) {
+            return Err(CyclicPosteriorDecisionError::Invalid("predictive calibration needs finite joint draws"));
+        }
+        ordered.sort_by(f64::total_cmp);
+        let rank = |numerator: usize| {
+            (ordered.len() * numerator).div_ceil(1000).saturating_sub(1)
+        };
+        let interval = (ordered[rank(25)], ordered[rank(975)]);
+        let mut writer = CanonicalWriter::new("antecedent.cyclic_posterior_predictive.calibration_scope.v1");
+        writer.bytes(&antecedent_io::to_cbor(&self.request.model)?)
+            .bytes(&antecedent_io::to_cbor(&self.request.parameters)?)
+            .word(self.request.prior_sd.to_bits())
+            .word(self.request.chains as u64).word(self.request.warmup as u64)
+            .word(self.request.draws_per_chain as u64)
+            .word(self.request.proposal_scale.to_bits())
+            .bytes(&antecedent_io::to_cbor(&self.request.worlds)?)
+            .bytes(&antecedent_io::to_cbor(&self.outputs)?)
+            .bytes(&antecedent_io::to_cbor(&self.request.initial)?)
+            .bytes(&antecedent_io::to_cbor(&self.request.solve_policy)?)
+            .text(&self.contract.identity()?);
+        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
+        let functional = format!("population_outcome:world={output_index}:scope={scope}");
+        let basis = CalibrationBasis::new(
+            [
+                "OutcomePrediction", "Cyclic", "fixed", "multi_env", "Bayesian",
+                FEATURE, "nearest_rank_95", "", "independent_training_future_units",
+                "joint_cyclic_metropolis_gaussian_disturbance_v1", functional.as_str(),
+            ].map(Arc::from),
+            0.95, Arc::from("model_conditional"), self.request.training.len() as u64,
+            None, Some(ordered.len() as u32), 0.0,
+        ).with_validation("none");
+        Ok(CyclicPosteriorPredictiveCalibrationCandidate { result, interval, basis })
     }
 
     /// Re-evaluate before sealing the complete model and decision as one
