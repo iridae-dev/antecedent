@@ -1167,7 +1167,7 @@
     },
     {
       "path": "crates/antecedent/tests/conjugate_routes_calibration.rs",
-      "sha256": "ee8bf9a29122fbd69544adace21fb161ddd8ec20e55f87c0075f641103e079d9",
+      "sha256": "0fea8e806e2ce153f5abb8499fe086186fa05b33c396f82a345b5f281891c66f",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1581,43 +1581,48 @@
     },
     {
       "path": "crates/antecedent/tests/joint_panel_calibration.rs",
-      "sha256": "d8e3304afb98b1bc8931bac8750e0ecbcf36136aa88de49edb944a3ce44a1575",
+      "sha256": "716e2d6b5ac54c47d2b47a30809fbb779256aeed6720814ffe63ddb39b0998f9",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 756,
+          "line": 776,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: interval_label(mode, path) },\n        LEVEL,"
         },
         {
-          "line": 937,
+          "line": 957,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: WARP_DGP, interval: interval_label(mode, path) },\n        LEVEL,"
         },
         {
-          "line": 1200,
+          "line": 1220,
           "call": "CoverageTally::new(",
           "argument": "format!(\"{test} specification set\"), LEVEL"
         },
         {
-          "line": 1478,
+          "line": 1498,
           "call": "CoverageTally::new(",
           "argument": "test, LEVEL"
         },
         {
-          "line": 1826,
+          "line": 1846,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"weighted_posterior_quantile\" },\n        LEVEL,"
         },
         {
-          "line": 2022,
+          "line": 2042,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"monte_carlo_standard_error\" },\n        LEVEL,"
         },
         {
-          "line": 2201,
+          "line": 2221,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"response_data\", interval }, LEVEL"
+        },
+        {
+          "line": 2563,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: SELECTED_VALUE_INTERVAL_METHOD },\n        LEVEL,"
         }
       ],
       "review": "Source-fixed joint-panel designs (reviewed and broader Michaelis-Menten and Hill families, finite-lag and time-varying specifications, prepared joint response) whose record names are the literal test names fixed by the two test macros, each scored at the one declared 0.95 level against a closed-form or prior-drawn truth; no outcome selects a design, test or level."

@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "00ec275ead87caedf8b93a48ac8dc6d34f758e3d84eb8f3724df7a1c304ffa93",
+  "gate_sha256": "f3532caf58576414f82a8f031bfd3dcd6952eabeb1afbaf8dd429460c9863c2d",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "e8cd3f0509db3145df38fd2bbfe6e347de2889040d55fa039c9acf880be9623d",
+  "label_audit_sha256": "013dca4543eb2be82cf35bd5404604a835af8d58c2b63cff19f35a5a7eca6b02",
   "groups": [
     {
       "index": 1,
@@ -8902,6 +8902,26 @@
       "index": 1776,
       "label": "conjugate_routes_calibration: select_alpha_prior_linear_bias_aware_interval_l95",
       "grid": true
+    },
+    {
+      "index": 1777,
+      "label": "joint_panel_calibration: joint_panel_selected_program_value_static_frequentist_l95",
+      "grid": true
+    },
+    {
+      "index": 1778,
+      "label": "joint_panel_calibration: joint_panel_selected_program_value_static_bayesian_l95",
+      "grid": false
+    },
+    {
+      "index": 1779,
+      "label": "joint_panel_calibration: joint_panel_selected_program_value_temporal_frequentist_l95",
+      "grid": true
+    },
+    {
+      "index": 1780,
+      "label": "joint_panel_calibration: joint_panel_selected_program_value_temporal_bayesian_l95",
+      "grid": false
     }
   ],
   "hypothesis_allocations_sha256": "412b20c792155532f0a0bdef3363d4503a9321b5e5a320f51ac6d8cba584bad5"
