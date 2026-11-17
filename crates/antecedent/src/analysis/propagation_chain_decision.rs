@@ -14,7 +14,7 @@ use antecedent_contract::propagation_chain::{
 use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_core::execution_facts::OutputRetention;
 use antecedent_core::{ExecutionContext, SemanticDigest};
-use antecedent_design::decision_contract::{DecisionContract, DecisionContractError};
+use antecedent_design::decision_contract::{ActionKind, DecisionContract, DecisionContractError};
 use antecedent_design::composition_boundary::SupportPolicy;
 use antecedent_design::decision_transported_source::{
     TransportedResponse, TransportedValue,
@@ -78,11 +78,13 @@ pub struct ChainDecisionPlan {
     contract: DecisionContract,
     coordinates: Vec<ScientificQuantity>,
     lowered: Arc<LoweredProgram>,
+    action_worlds: bool,
 }
 
 /// Maximum encoded chain-decision artifact bytes accepted before decoding.
 pub const MAX_CHAIN_DECISION_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 const CHAIN_DECISION_FEATURE: &str = "chain_decision_v1";
+const ACTION_WORLD_DECISION_FEATURE: &str = "chain_action_world_decision_v1";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -109,6 +111,15 @@ pub fn compile_chain_decision(
     draft: PropagationChainRecordWire,
     contract: DecisionContract,
     ctx: &ExecutionContext,
+) -> Result<ChainDecisionPlan, ChainDecisionError> {
+    compile_chain_decision_with_worlds(draft, contract, ctx, false)
+}
+
+fn compile_chain_decision_with_worlds(
+    draft: PropagationChainRecordWire,
+    contract: DecisionContract,
+    ctx: &ExecutionContext,
+    action_worlds: bool,
 ) -> Result<ChainDecisionPlan, ChainDecisionError> {
     let chain = compile_propagation_chain(draft, ctx)?;
     contract.validate()?;
@@ -178,7 +189,7 @@ pub fn compile_chain_decision(
         utility_unit: Some(Arc::from(contract.utility_units.as_str())),
         contract_identity: Some(Arc::from(contract_identity.as_str())),
         information_value: None,
-        scenario_source: None,
+        scenario_source: action_worlds.then(|| Arc::from("declared_joint_action_worlds_v1")),
     };
     let lowered = lower_chain_with_decision(
         retained.draft().clone(),
@@ -187,7 +198,76 @@ pub fn compile_chain_decision(
     )?;
     let lowered = Arc::new(lowered);
     let chain = chain.within_lowered(Arc::clone(&lowered))?;
-    Ok(ChainDecisionPlan { chain, contract, coordinates, lowered })
+    Ok(ChainDecisionPlan { chain, contract, coordinates, lowered, action_worlds })
+}
+
+/// Compile an action-world decision only when the caller supplies one
+/// explicitly paired joint draw table and a shared latent factor. Each action
+/// must read a quantity from its own distinct intervention regime. This
+/// declares a cross-world coupling for regret and nonlinear utility; it does
+/// not identify that coupling from marginal laws or earn calibration.
+///
+/// # Errors
+/// Unpaired sources, undisclosed or absent common factors, repeated action
+/// regimes, or any chain and decision refusal.
+pub fn compile_action_world_chain_decision(
+    draft: PropagationChainRecordWire,
+    contract: DecisionContract,
+    ctx: &ExecutionContext,
+) -> Result<ChainDecisionPlan, ChainDecisionError> {
+    if draft.construction != "joint_draws"
+        || draft.joint_outputs.len() < 2
+        || draft.sources.len() < 2
+        || draft.sources.iter().any(|source| {
+            source.representation != "draws" || !source.complete_disclosure
+                || source.alignment.is_none()
+        })
+    {
+        return Err(ChainDecisionError::Coordinate(
+            "action worlds require a jointly aligned, fully disclosed draw table",
+        ));
+    }
+    let alignment = draft.sources[0].alignment.as_ref();
+    if draft.sources.iter().any(|source| source.alignment.as_ref() != alignment) {
+        return Err(ChainDecisionError::Coordinate(
+            "action-world source rows have different alignment identities",
+        ));
+    }
+    let common = draft.sources[0].factors.iter().any(|factor| {
+        matches!(SharedFactorKind::from_name(&factor.kind),
+            Some(SharedFactorKind::Model | SharedFactorKind::Parameter | SharedFactorKind::Disturbance))
+            && draft.sources[1..].iter().all(|source| source.factors.contains(factor))
+    });
+    if !common {
+        return Err(ChainDecisionError::Coordinate(
+            "action worlds need a declared shared model, parameter or disturbance factor",
+        ));
+    }
+    let mut regimes = std::collections::BTreeSet::new();
+    for action in &contract.actions {
+        if !matches!(action.kind, ActionKind::Intervention | ActionKind::Regime | ActionKind::Policy)
+            || action.inputs.is_empty()
+        {
+            return Err(ChainDecisionError::Coordinate(
+                "each action world must be an intervention, regime or policy with an input",
+            ));
+        }
+        let regime = &action.inputs[0].regime_id;
+        if !regimes.insert(regime.as_str())
+            || action.inputs.iter().any(|input| input.regime_id != regime.as_str())
+            || !draft.joint_outputs.iter().any(|output| output.quantity.regime_id == regime.as_str())
+        {
+            return Err(ChainDecisionError::Coordinate(
+                "each action must name a distinct retained world regime",
+            ));
+        }
+    }
+    if regimes.len() < 2 {
+        return Err(ChainDecisionError::Coordinate(
+            "an action-world comparison needs at least two regimes",
+        ));
+    }
+    compile_chain_decision_with_worlds(draft, contract, ctx, true)
 }
 
 /// Compile a checked transported law and a multi-action decision through the
@@ -366,7 +446,11 @@ impl ChainDecisionPlan {
         let contract = DecisionContractArtifact::new(self.contract.clone())?;
         let wire = ChainDecisionArtifactWire {
             version: 1,
-            required_feature: CHAIN_DECISION_FEATURE.into(),
+            required_feature: if self.action_worlds {
+                ACTION_WORLD_DECISION_FEATURE
+            } else {
+                CHAIN_DECISION_FEATURE
+            }.into(),
             chain_record: result.chain.export()?,
             chain_identity: result.chain.identity().to_owned(),
             contract: contract.to_bytes(artifact_id)?,
@@ -403,7 +487,9 @@ pub fn consume_chain_decision(
         return Err(ChainDecisionError::Coordinate("chain decision artifact exceeds its byte limit"));
     }
     let wire: ChainDecisionArtifactWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != CHAIN_DECISION_FEATURE {
+    if wire.version != 1 || !matches!(wire.required_feature.as_str(),
+        CHAIN_DECISION_FEATURE | ACTION_WORLD_DECISION_FEATURE)
+    {
         return Err(ChainDecisionError::Coordinate("unsupported chain decision version or feature"));
     }
     let recorded = PropagationChainRecordWire::decode(&wire.chain_record)
@@ -411,7 +497,11 @@ pub fn consume_chain_decision(
     recorded.consume(Some(&wire.chain_identity), ctx)
         .map_err(|error| ChainDecisionError::Chain(error.to_refusal()))?;
     let contract = DecisionContractArtifact::from_bytes(&wire.contract, &wire.contract_identity)?;
-    let plan = compile_chain_decision(recorded, contract.contract().clone(), ctx)?;
+    let plan = if wire.required_feature == ACTION_WORLD_DECISION_FEATURE {
+        compile_action_world_chain_decision(recorded, contract.contract().clone(), ctx)?
+    } else {
+        compile_chain_decision(recorded, contract.contract().clone(), ctx)?
+    };
     let identity = plan.lowered().identity();
     if wire.lowered_program_identity != *identity.as_bytes()
         || expected_program.is_some_and(|expected| expected != identity)

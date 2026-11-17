@@ -448,7 +448,8 @@ pub use propagation_chain::{
     consume_propagation_chain, family_table, independent_product_table,
 };
 pub use propagation_chain_decision::{
-    ChainDecisionError, ChainDecisionPlan, ChainDecisionResult, compile_chain_decision,
+    ChainDecisionError, ChainDecisionPlan, ChainDecisionResult,
+    compile_action_world_chain_decision, compile_chain_decision,
     compile_transported_law_chain_decision, consume_chain_decision,
 };
 pub use propagation_chain_robust_decision::{

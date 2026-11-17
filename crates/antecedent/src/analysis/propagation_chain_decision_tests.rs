@@ -24,7 +24,8 @@ use antecedent_io::quantity_wire::DistributionMeaningWire;
 
 use super::propagation_chain::PropagationChain;
 use super::propagation_chain_decision::{
-    compile_chain_decision, compile_transported_law_chain_decision, consume_chain_decision,
+    compile_action_world_chain_decision, compile_chain_decision,
+    compile_transported_law_chain_decision, consume_chain_decision,
 };
 
 fn outcome() -> ScientificQuantity {
@@ -138,18 +139,32 @@ fn joint_chain_law_keeps_cross_quantity_rows_for_nonlinear_utility() {
 fn action_specific_worlds_use_only_the_declared_joint_coupling() {
     let mut draft = joint_draft();
     draft.joint_outputs[1].quantity.regime_id = "alternative-traffic".into();
+    for source in &mut draft.sources {
+        source.factors.push(antecedent_io::propagation_chain_record::ChainFactorWire::new(
+            antecedent_contract::dependence::SharedFactorKind::Disturbance,
+            "traffic-world-shock",
+        ));
+    }
     let mut contract = decision();
     let mut alternative = outcome();
     alternative.variable_id = "steam:sales".into();
     alternative.variable_name = "sales".into();
     alternative.regime_id = "alternative-traffic".into();
     contract.actions[0].utility = UtilityExpr::Input(0);
+    contract.actions[0].kind = ActionKind::Intervention;
+    contract.actions[1].kind = ActionKind::Intervention;
     contract.actions[1].inputs = vec![alternative];
     contract.criterion = DecisionCriterion::ExpectedRegret;
     let ctx = ExecutionContext::for_tests(13);
-    let plan = compile_chain_decision(draft, contract, &ctx).expect("declared joint world rows");
+    let plan = compile_action_world_chain_decision(draft.clone(), contract.clone(), &ctx)
+        .expect("declared joint world rows");
     let result = plan.execute(&ctx).expect("paired regret evaluation");
     assert_eq!(result.decision.n_draws, 4);
+    let bytes = plan.export(&result, "paired-worlds").expect("paired artifact");
+    assert_eq!(consume_chain_decision(&bytes, Some(result.lowered_program_identity), &ctx)
+        .expect("independent paired replay").decision, result.decision);
+    draft.sources[1].factors.clear();
+    assert!(compile_action_world_chain_decision(draft, contract, &ctx).is_err());
 }
 
 #[test]
