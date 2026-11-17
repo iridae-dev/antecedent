@@ -207,6 +207,8 @@ macro_rules! route_lowerings {
             CyclicPosteriorActionDecision,
             /// Checked bridge transport and predictive utility.
             BridgeTransportDecision,
+            /// Fitted source-target effect posterior and utility.
+            JointTransportEffectDecision,
             /// Target-population time-ordered path-specific transport.
             TemporalPathTransport,
             /// Whole-chain resampling union around an assumption envelope.
@@ -239,6 +241,7 @@ macro_rules! route_lowerings {
                     Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
                     Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
                     Self::BridgeTransportDecision => "BridgeTransportDecision",
+                    Self::JointTransportEffectDecision => "JointTransportEffectDecision",
                     Self::TemporalPathTransport => "TemporalPathTransport",
                     Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
                     Self::BundleRecomputation => "BundleRecomputation",
@@ -268,6 +271,7 @@ macro_rules! route_lowerings {
                     Self::CyclicActionWorldDecision => RouteFamily::Cyclic,
                     Self::CyclicPosteriorActionDecision => RouteFamily::Cyclic,
                     Self::BridgeTransportDecision => RouteFamily::Structural,
+                    Self::JointTransportEffectDecision => RouteFamily::Structural,
                     Self::TemporalPathTransport => RouteFamily::Temporal,
                     Self::SamplingAssumptionUnion => RouteFamily::PropagationChain,
                     Self::BundleRecomputation => RouteFamily::PropagationChain,

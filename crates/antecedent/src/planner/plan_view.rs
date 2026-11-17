@@ -1993,6 +1993,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::CyclicActionWorldDecision => PlanRoute::CyclicActionWorldDecision,
         ProgramCell::CyclicPosteriorActionDecision => PlanRoute::CyclicPosteriorActionDecision,
         ProgramCell::BridgeTransportDecision => PlanRoute::BridgeTransportDecision,
+        ProgramCell::JointTransportEffectDecision => PlanRoute::JointTransportEffectDecision,
         ProgramCell::TemporalPathTransport => PlanRoute::TemporalPathTransport,
         ProgramCell::SamplingAssumptionUnion => PlanRoute::SamplingAssumptionUnion,
         ProgramCell::BundleRecomputation => PlanRoute::BundleRecomputation,

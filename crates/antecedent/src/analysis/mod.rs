@@ -190,6 +190,7 @@ mod joint_contrast_binding;
 mod joint_interval_artifact;
 pub mod joint_law_composed_basis;
 pub mod joint_law_propagation;
+pub mod joint_transport_effect_decision;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
 pub use joint_interval_artifact::{

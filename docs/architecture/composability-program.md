@@ -18,7 +18,7 @@ coverage or error control.
 | --- | --- | --- | --- | --- |
 | 1 | Critical | A new joint cyclic posterior route samples fitted mechanisms from one likelihood, draws population disturbances from the specified covariance, solves each hard-clamp world on the same parameter and disturbance pair, then compiles nonlinear multi-action utility | Prespecify and earn final population-predictive reliability or coverage at the exact decision coordinate; the model and covariance remain assumptions | None for an additive route; high if parameter draws are reinterpreted as outcome risk |
 | 2 | Critical | Uncertainty survives discovery, imputation, estimation, transport and decision; individual and some composite routes exist | Lower the full selection, fitting and transport schedule with dependence; measure coverage at the final coordinate | None for a new route; high if component intervals are relabelled as whole-chain coverage |
-| 3 | High | Transported or synthesized evidence feeds a distributional decision; `compile_transported_law_chain_decision` now checks the transport support policy and compiles an aligned, equally weighted declared law with its receipt into multi-action utility | Lower producer fitting, target population, overlap and pooling dependence into that same program | None for a new route; medium if current point transport claims are promoted to laws |
+| 3 | High | A declared transported law can enter multi-action utility; a new joint Bayesian transport-effect decision program binds the raw selection diagram, source and target rows, shared Gaussian fit, overlap rule and effect utility, then independently refits and replays them | Extend producer-fitted decisions to outcome-predictive and other transport families; earn final decision reliability at each exact coordinate | None for the additive route; medium if current point transport claims are promoted to laws |
 | 4 | High | A new compiler cell replays the original and whole-chain bootstrap assumption envelopes at one terminal coordinate and forms a Bonferroni-split basic-bootstrap union; robust decisions remain conditional on the supplied draw table | Prespecify and earn coverage of the whole bootstrap schedule before calling the candidate interval calibrated or feeding it into a confidence decision | None for the additive route; high if an assumption range is treated as a confidence interval |
 | 5 | High | The graph-checked policy route separates a narrower policy information set from the full nuisance adjustment set in a version-3 artifact, while retaining held-out or cross-fit scoring | Calibrate the selection-aware standard error for the exact learner and evaluation schedule | None for the additive route; high if same-data scores acquire an unbiasedness claim |
 | 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; the retained mixture draws now export an unverified typed effect law | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
@@ -136,6 +136,23 @@ adapter does not yet retain the transport artifact's weight vector. Independent
 consumption replays the chain and utility; it does not refit the original
 transport estimator or recheck its source population's evidence. The transport
 receipt remains a declared premise, with no new coverage claim.
+
+`joint_transport_effect_decision_v1` is a separate fitted producer route for a
+target **average treatment effect**. Its outer six-layer program binds the raw
+selection diagram and transport query, source trial units and target covariate
+sample, the shared and source-varying Gaussian model, priors and their data
+ownership, known outcome variances, overlap tolerance, posterior seed, exact
+effect coordinate and utility contract before fitting. The existing joint
+Bayesian producer verifies support and source independence, fits one conjugate
+posterior, and retains aligned source and target effect draws. The target effect
+column then enters the posterior chain and decision compiler. A combined
+portable receipt reconstructs the raw graph and query, reidentifies the
+transport certificate, refits the complete source-target producer, recompiles
+the effect decision and compares both results. This is a decision about the
+posterior of a causal functional, conditional on the supplied model and
+selection premises. It is not a predictive outcome-risk law. The composed
+decision reports `not_measured`; its source assertion and calibration have not
+been run or earned.
 
 The cyclic component adapter checks each scientific port and joins scalar
 mechanisms before preparing the complete connected model through the existing

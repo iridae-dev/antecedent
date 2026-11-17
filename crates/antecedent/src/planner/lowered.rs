@@ -1098,6 +1098,8 @@ pub(crate) enum ProgramCell {
     CyclicPosteriorActionDecision,
     /// Checked bridge transport and predictive utility in one program.
     BridgeTransportDecision,
+    /// Fitted source-target effect posterior and utility in one program.
+    JointTransportEffectDecision,
     /// Target-population time-ordered path-specific transport.
     TemporalPathTransport,
     /// Whole-chain resampling union around a fixed assumption envelope.
@@ -1127,6 +1129,7 @@ impl ProgramCell {
             Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
             Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
             Self::BridgeTransportDecision => "BridgeTransportDecision",
+            Self::JointTransportEffectDecision => "JointTransportEffectDecision",
             Self::TemporalPathTransport => "TemporalPathTransport",
             Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
             Self::BundleRecomputation => "BundleRecomputation",
@@ -1194,6 +1197,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicActionWorldDecision
             | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
+            | ProgramCell::JointTransportEffectDecision
             | ProgramCell::TemporalPathTransport
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
@@ -1218,6 +1222,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicActionWorldDecision
             | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
+            | ProgramCell::JointTransportEffectDecision
             | ProgramCell::TemporalPathTransport
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
@@ -1242,6 +1247,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicActionWorldDecision
             | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
+            | ProgramCell::JointTransportEffectDecision
             | ProgramCell::TemporalPathTransport
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
