@@ -14,6 +14,8 @@ pub(super) struct CompiledPanel<'a> {
     pub(super) expressions: Vec<antecedent_core::ValueExpr>,
     /// The expression variable of every channel, in channel order.
     pub(super) axis: Vec<antecedent_core::VariableId>,
+    /// The channel columns of every feature that is the plain product of two channels.
+    products: Vec<Option<(usize, usize)>>,
 }
 impl std::ops::Deref for CompiledPanel<'_> {
     type Target = PanelData;
@@ -35,8 +37,11 @@ impl<'a> CompiledPanel<'a> {
                 .map_err(|error| invalid(&format!("programmable feature compilation: {error:?}")))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let expressions = source.interactions.iter().map(|f| f.expression.to_domain()).collect();
-        Ok(Self { source, features, expressions, axis })
+        let expressions: Vec<_> =
+            source.interactions.iter().map(|f| f.expression.to_domain()).collect();
+        let products =
+            expressions.iter().map(|expression| product_columns(&axis, expression)).collect();
+        Ok(Self { source, features, expressions, axis, products })
     }
     /// One interaction feature at the saturated channel values, as the mechanism evaluates it.
     pub fn feature_value(
@@ -46,6 +51,9 @@ impl<'a> CompiledPanel<'a> {
         values: &mut Vec<f64>,
         scratch: &mut Vec<f64>,
     ) -> f64 {
+        if let Some(columns) = self.products[index] {
+            return product_value(self.axis.len(), saturated, columns);
+        }
         self.features[index]
             .evaluate_columns_with_scratch(saturated, values, scratch, None)
             .unwrap_or(f64::NAN)
@@ -390,6 +398,32 @@ pub(super) fn initial(data: &PanelData) -> PanelParameters {
         },
     }
 }
+/// The value the compiled column program of `left * right` returns, without running the
+/// executor: it refuses an input row of the wrong width or with a non-finite value in any
+/// column and a non-finite result (each read by the mechanism as NaN), and otherwise applies
+/// the same `ArithOp::apply`, so the bits are identical.
+fn product_value(width: usize, saturated: &[f64], (left, right): (usize, usize)) -> f64 {
+    if saturated.len() != width || saturated.iter().any(|value| !value.is_finite()) {
+        return f64::NAN;
+    }
+    let value = antecedent_core::ArithOp::Mul.apply(saturated[left], saturated[right]);
+    if value.is_finite() { value } else { f64::NAN }
+}
+/// The channel columns of a feature written as the product of two channel variables.
+fn product_columns(
+    axis: &[antecedent_core::VariableId],
+    expression: &antecedent_core::ValueExpr,
+) -> Option<(usize, usize)> {
+    use antecedent_core::{ArithOp, ValueExpr};
+    let ValueExpr::Arith { op: ArithOp::Mul, lhs, rhs } = expression else {
+        return None;
+    };
+    let (ValueExpr::Var(left), ValueExpr::Var(right)) = (lhs.as_ref(), rhs.as_ref()) else {
+        return None;
+    };
+    let column = |id| axis.iter().position(|variable| variable == id);
+    Some((column(left)?, column(right)?))
+}
 pub(super) fn exposure(values: &[f64], history: [f64; 2], weights: [f64; 3], time: usize) -> f64 {
     weights
         .into_iter()
@@ -469,16 +503,14 @@ fn mechanism_with(
     );
     let saturated: &[f64] = saturated;
     let main = p.channels.iter().zip(saturated).map(|(c, x)| c.coefficient * x).sum::<f64>();
-    let products = data
-        .features
+    let products = p
+        .interactions
         .iter()
-        .zip(&p.interactions)
-        .map(|(program, param)| {
+        .take(data.features.len())
+        .enumerate()
+        .map(|(index, param)| {
             // The common production expression executor validates every numerical result.
-            param.coefficient
-                * program
-                    .evaluate_columns_with_scratch(saturated, values, scratch, None)
-                    .unwrap_or(f64::NAN)
+            param.coefficient * data.feature_value(index, saturated, values, scratch)
         })
         .sum::<f64>();
     (main, products)
@@ -1080,4 +1112,45 @@ pub(super) fn log_likelihood(data: &CompiledPanel<'_>, x: &[f64]) -> f64 {
     let residuals = residuals(data, &p);
     marginal(data, &p, &residuals, Detail::Value)
         .map_or(f64::NEG_INFINITY, |value| value.log_likelihood)
+}
+#[cfg(test)]
+mod product_feature_tests {
+    use super::{product_columns, product_value};
+    use antecedent_core::{ValueExpr, VariableId};
+    use antecedent_model::program::NodeProgram;
+
+    /// The direct product returns the compiled program's bits, including every refusal.
+    #[test]
+    fn product_feature_matches_the_column_program_bit_for_bit() {
+        let axis: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        let expression = ValueExpr::var(axis[2]).mul(ValueExpr::var(axis[0]));
+        let columns = product_columns(&axis, &expression).expect("a channel product");
+        assert_eq!(columns, (2, 0));
+        let program = NodeProgram::compile_columns(&axis, &expression).expect("compiles");
+        let rows: [&[f64]; 8] = [
+            &[0.25, 0.5, 0.75],
+            &[0.0, 1.0, -0.0],
+            &[1e-300, 0.3, 1e-300],
+            &[1e200, 0.0, 1e200],
+            &[f64::NAN, 0.5, 0.5],
+            &[0.5, f64::INFINITY, 0.5],
+            &[0.1, 0.2],
+            &[0.1 + 0.2, 0.7, 1.0 / 3.0],
+        ];
+        for row in rows {
+            let direct = product_value(axis.len(), row, columns);
+            let executed = program.evaluate_columns(row, None).unwrap_or(f64::NAN);
+            assert_eq!(direct.to_bits(), executed.to_bits(), "row {row:?}");
+        }
+    }
+
+    /// Only a product of two channel variables takes the direct path.
+    #[test]
+    fn other_features_keep_the_column_program() {
+        let axis: Vec<_> = (0..2).map(VariableId::from_raw).collect();
+        let outside = ValueExpr::var(axis[0]).mul(ValueExpr::var(VariableId::from_raw(7)));
+        let sum = ValueExpr::var(axis[0]).add(ValueExpr::var(axis[1]));
+        assert_eq!(product_columns(&axis, &outside), None);
+        assert_eq!(product_columns(&axis, &sum), None);
+    }
 }
