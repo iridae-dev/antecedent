@@ -1130,29 +1130,32 @@ fn execute(
                 ));
                 for draw in 0..fit.draws.n_draws {
                     if logit_predictive || gaussian_predictive.is_some() {
-                        // One target-weighted covariate row is shared by both
-                        // worlds; outcome innovations are conditionally independent.
+                        // One observed target-frame covariate row is shared by
+                        // both worlds. Source weights center the interaction
+                        // parameterization but do not select a source proxy row.
                         let weights = target_weights.as_ref().ok_or_else(|| invalid("predictive target weights missing"))?;
                         let mass = weights.iter().sum::<f64>();
                         if weights.len() != design.nrows || !mass.is_finite() || mass <= 0.0 {
                             return Err(invalid("predictive target weights differ from design rows"));
                         }
-                        let threshold = predictive_rng.next_f64() * mass;
-                        let mut cumulative = 0.0;
-                        let mut row = weights.len() - 1;
-                        for (i, weight) in weights.iter().enumerate() {
-                            cumulative += weight;
-                            if threshold < cumulative { row = i; break; }
-                        }
+                        let frame = match target {
+                            Some(TransportTarget::Binary(frame)) => frame,
+                            _ => return Err(invalid("predictive worlds need a complete target frame")),
+                        };
+                        let row = ((predictive_rng.next_f64() * frame.rows() as f64) as usize)
+                            .min(frame.rows() - 1);
                         let covariates = prepared.adjustment_set.len();
                         let mut linear = columns[0][draw];
                         let mut interaction = 0.0;
-                        for offset in 0..covariates {
+                        for (offset, variable) in prepared.adjustment_set.iter().enumerate() {
                             let col = 2 + offset;
                             let values = &design.matrix[col * design.nrows..(col + 1) * design.nrows];
                             let center = values.iter().zip(weights).map(|(value, weight)| value * weight).sum::<f64>() / mass;
-                            linear += values[row] * columns[col][draw];
-                            interaction += (values[row] - center) * columns[2 + covariates + offset][draw];
+                            let value = frame.columns.iter().find(|(id, _)| *id == variable.raw())
+                                .and_then(|(_, values)| values.get(row)).copied()
+                                .ok_or_else(|| invalid("predictive graph needs an absent target covariate"))?;
+                            linear += value * columns[col][draw];
+                            interaction += (value - center) * columns[2 + covariates + offset][draw];
                         }
                         let treatment_effect = columns[t][draw] + interaction;
                         let mean0 = linear + prepared.control * treatment_effect;

@@ -807,7 +807,7 @@ impl CompiledGraphImputationWorldDecision {
             if self.gaussian.is_some() { "predictive_gaussian_worlds" } else { "predictive_binary_worlds" }, "", "independent_source_target_units",
             if self.gaussian.is_some() { "correlated_gaussian_individual_residuals_v1" }
                 else { "laplace_joint_normal_prior_independent_potential_outcome_innovations_given_graph_and_coefficients_v1" }, &functional,
-        ].map(Arc::from), 0.95, Arc::from("unmeasured"),
+        ].map(Arc::from), 0.95, Arc::from("model_conditional"),
             (parts.rows() as u64).saturating_add(target.rows() as u64), None,
             Some(parts.posterior_draws.saturating_mul(parts.imputations)), 0.0).with_validation("none"))
     }

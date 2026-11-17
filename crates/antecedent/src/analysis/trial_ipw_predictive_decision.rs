@@ -376,9 +376,10 @@ impl CompiledTrialIpwPredictiveDecision {
             .words(&self.request.diagram.selection_targets().iter()
                 .map(|v| u64::from(v.raw())).collect::<Vec<_>>())
             .bytes(&antecedent_io::to_cbor(&self.query)?);
-        for ((&trial, &selection), &treatment) in rows.trial.iter()
+        for ((&trial, &selection), &assignment_probability) in rows.trial.iter()
             .zip(&rows.selection_probability).zip(&rows.treatment_probability) {
-            design.word(if trial { 1 } else { 0 }).word(selection.to_bits()).word(treatment.to_bits());
+            design.word(if trial { 1 } else { 0 })
+                .word(selection.to_bits()).word(assignment_probability.to_bits());
         }
         let design = SemanticDigest::from_bytes(design.finish()).to_hex();
         let functional = format!(
