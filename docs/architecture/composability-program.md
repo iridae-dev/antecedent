@@ -161,10 +161,12 @@ target sample of complete binary pretreatment covariates, selected population
 mechanisms, the exact target average-effect coordinate and utility. Native
 execution imputes the original source on every completed table, rescores the
 graphs, and constructs target-to-source stratum weights separately for each
-graph's adjustment set before the child Gaussian outcome fit. A target stratum
-with no source support refuses. A graph omitting a selected covariate imposes
-effect homogeneity along it through its child model; this is a declared
-parametric premise, not a structural theorem. The target sampling frame,
+graph's safe adjustment set before the child Gaussian outcome fit. The new
+root-treatment, pretreatment-covariate graph support permits adding each
+selected target covariate to an outcome model even when its minimal backdoor
+set omits it. The same selected covariates enter the target weights, preserving
+modeled effect modification under target covariate shift. A target stratum
+with no source support refuses. The target sampling frame,
 invariant conditional outcome mechanism are declared assumptions. Source and
 target unit ids are bound in row order and checked for duplicates and overlap;
 their provenance and the target sampling frame remain declared. The effect

@@ -54,8 +54,8 @@ const MEMORY_LIMIT: u64 = 25 * 1024 * 1024;
 /// Target covariate sample for the separate graph-imputation transport route.
 /// Every column names a source schema index and contains complete binary cells.
 /// The target is a representative sample; selection targets name pretreatment
-/// covariate mechanisms allowed to differ. A graph whose fitted effect omits a
-/// selected covariate imposes effect homogeneity along it as a model premise.
+/// covariate mechanisms allowed to differ. The transport fit includes every
+/// selected covariate even when a graph's minimal backdoor set omits it.
 /// No target outcome or treatment is accepted.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -92,8 +92,8 @@ impl TransportStandardization {
         {
             return Err(invalid("transport needs distinct source and target samples and selected covariates"));
         }
-        if parts.support != GraphSupport::PreTreatmentCovariates {
-            return Err(invalid("target standardization requires the pretreatment graph support"));
+        if parts.support != GraphSupport::TreatmentRootPreTreatmentCovariates {
+            return Err(invalid("target standardization requires the root-treatment pretreatment graph support"));
         }
         let rows = self.columns[0].1.len();
         if rows < 2 || self.columns.iter().any(|(_, values)| values.len() != rows) {
@@ -405,11 +405,18 @@ fn transported_population(
     query: &AverageEffectQuery,
     atom: &DerivedAtom,
     target: &TransportStandardization,
-) -> Result<(AverageEffectQuery, PopulationRegistry), IoError> {
-    let adjustment = &atom.operation.adjustment;
+) -> Result<(AverageEffectQuery, PopulationRegistry, IdentifiedEstimand), IoError> {
+    let mut adjustment = atom.operation.adjustment.clone();
+    for &selected in &target.selection_targets {
+        if !adjustment.contains(&selected) { adjustment.push(selected); }
+    }
+    adjustment.sort_unstable();
+    let mut estimand = atom.estimand.clone();
+    estimand.adjustment_set = Arc::from(adjustment.iter().copied()
+        .map(VariableId::from_raw).collect::<Vec<_>>());
     let mut source_columns = Vec::with_capacity(adjustment.len());
     let mut target_columns = Vec::with_capacity(adjustment.len());
-    for &id in adjustment {
+    for &id in &adjustment {
         source_columns.push(data.float64_values(VariableId::from_raw(id)).map_err(invalid)?);
         target_columns.push(target.columns.iter().find(|(column, _)| *column == id)
             .ok_or_else(|| invalid("target is missing an identified adjustment covariate"))?.1.as_slice());
@@ -450,7 +457,10 @@ fn transported_population(
         Arc::<[VariableId]>::from(adjustment.iter().copied()
             .map(VariableId::from_raw).collect::<Vec<_>>()),
     );
-    Ok((query.clone().with_target_population(TargetPopulation::CustomDistribution(handle)), registry))
+    Ok((
+        query.clone().with_target_population(TargetPopulation::CustomDistribution(handle)),
+        registry, estimand,
+    ))
 }
 
 #[allow(
@@ -549,8 +559,9 @@ fn execute(
                     }
                 };
             let fit = if let Some(target) = target {
-                let (query, registry) = transported_population(&data, &rec.query, atom, target)?;
-                fitter.prepare_for_population(&data, &atom.estimand, &query, Some(&registry))
+                let (query, registry, estimand) =
+                    transported_population(&data, &rec.query, atom, target)?;
+                fitter.prepare_for_population(&data, &estimand, &query, Some(&registry))
                     .and_then(|prepared| fitter.fit(
                         &prepared, atom.operation.status,
                         &mut BayesianGCompWorkspace::default(), &child_ctx,
@@ -846,9 +857,9 @@ pub fn replay_point(bytes: &[u8], ctx: &ExecutionContext) -> Result<GraphPointRe
 
 /// Re-derive graph operations, impute the source, reselect graphs for every
 /// completed table, fit each graph-specific outcome law and standardize every
-/// child effect draw to the independent target covariate sample. A selected
-/// covariate omitted by a graph's fit has a declared effect-homogeneity
-/// premise in that graph. This is a new
+/// child effect draw to the independent target covariate sample. Every
+/// selected covariate enters the graph-specific outcome fit even if absent
+/// from its minimal backdoor adjustment set. This is a new
 /// model-conditional posterior route with no inherited interval calibration.
 ///
 /// # Errors

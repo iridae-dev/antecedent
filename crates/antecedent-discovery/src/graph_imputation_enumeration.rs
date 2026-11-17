@@ -58,6 +58,10 @@ pub fn graph_imputation_supported_mask(
             GraphSupport::PreTreatmentCovariates => {
                 no_covariate_descends_from_treatment(mask, n, treatment, outcome)
             }
+            GraphSupport::TreatmentRootPreTreatmentCovariates => {
+                (0..n).all(|parent| parent == treatment || !mask.has_edge(n, parent, treatment))
+                    && no_covariate_descends_from_treatment(mask, n, treatment, outcome)
+            }
         }
 }
 
@@ -341,6 +345,8 @@ mod graph_imputation_budget_tests {
         assert_eq!(counts(2, GraphSupport::TreatmentRootDirectEffect), 1);
         assert_eq!(counts(3, GraphSupport::TreatmentRootDirectEffect), 6);
         assert_eq!(counts(4, GraphSupport::TreatmentRootDirectEffect), 100);
+        assert_eq!(counts(3, GraphSupport::TreatmentRootPreTreatmentCovariates), 2);
+        assert_eq!(counts(4, GraphSupport::TreatmentRootPreTreatmentCovariates), 12);
         assert_eq!(counts(2, GraphSupport::TreatmentDirectEffect), 1);
         assert_eq!(counts(3, GraphSupport::TreatmentDirectEffect), 8);
         assert!(counts(4, GraphSupport::TreatmentDirectEffect) <= 543);

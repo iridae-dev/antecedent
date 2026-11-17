@@ -2,9 +2,10 @@
 //! child fitting and effect utility in one source-bound compiler program.
 //!
 //! The target supplies complete binary pretreatment covariates from a declared
-//! representative sample. A selected covariate omitted by one graph's effect
-//! model has a declared effect-homogeneity premise in that graph. Each
-//! completed source table gets its own graph
+//! representative sample. A distinct support requires root treatment and
+//! pretreatment covariates, so the transport fit can safely augment each
+//! graph's minimal adjustment set with selected target covariates and model
+//! treatment-effect heterogeneity. Each completed source table gets its own graph
 //! weights and target-to-source stratum weights before child fitting. The
 //! resulting posterior is conditional on the empirical target covariate frame
 //! and model assumptions; it does not propagate target-sample uncertainty.
@@ -20,7 +21,7 @@ use antecedent_contract::propagation_chain::{
 };
 use antecedent_core::graph_imputation_contract::GraphImputationSource;
 use antecedent_core::{
-    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect,
+    ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, PhysicalEffect,
     PhysicalOperator, SemanticDigest, VariableId,
 };
 use antecedent_data::{ImputationSpec, TabularData};
@@ -97,6 +98,17 @@ pub struct GraphImputationTransportDecisionResult {
     pub lowered_program_identity: SemanticDigest,
     /// No complete-schedule reliability record has been earned.
     pub calibration: &'static str,
+}
+
+/// Unmeasured whole-route interval candidate and its exact runtime key.
+/// It has no public coverage authority until a separate record is earned.
+pub struct GraphImputationTransportCalibrationCandidate {
+    /// Full compiler execution, including the final decision.
+    pub result: GraphImputationTransportDecisionResult,
+    /// Nearest-rank equal-tail 95% interval from the target effect draws.
+    pub interval: (f64, f64),
+    /// Runtime construction and scope for a prospective coverage record.
+    pub basis: CalibrationBasis,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -310,6 +322,49 @@ impl CompiledGraphImputationTransportDecision {
         })
     }
 
+    /// Run the complete source-to-decision schedule and expose its exact
+    /// target-effect interval candidate for prospective whole-route coverage
+    /// measurement. This does not change the decision's calibration standing.
+    ///
+    /// # Errors
+    /// Any execution refusal or an invalid final draw table.
+    pub fn calibration_candidate(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<GraphImputationTransportCalibrationCandidate, GraphImputationTransportDecisionError> {
+        let result = self.execute(ctx)?;
+        let mut ordered = result.producer.draws.clone();
+        if ordered.len() < 40 || ordered.iter().any(|value| !value.is_finite()) {
+            return Err(GraphImputationTransportDecisionError::Invalid("target effect interval needs finite posterior draws"));
+        }
+        ordered.sort_by(f64::total_cmp);
+        let rank = |numerator: usize| {
+            (ordered.len() * numerator).div_ceil(1000).saturating_sub(1)
+        };
+        let interval = (ordered[rank(25)], ordered[rank(975)]);
+        let source = GraphImputationSource::decode(&self.native_source)
+            .map_err(GraphImputationTransportDecisionError::Invalid)?;
+        let parts = source.parts();
+        let functional = format!(
+            "target_average_effect:graph_support={}:graphs={}:variables={}:domains={}:selected={:?}:m={}:sweeps={}:draws={}:prior_bits={:016x}:target_columns={}",
+            parts.support.as_str(), parts.atoms.len(), parts.names.len(),
+            parts.domains.iter().map(u8::to_string).collect::<String>(),
+            self.target.selection_targets, parts.imputations, parts.iterations,
+            parts.posterior_draws, parts.prior_scale.to_bits(), self.target.columns.len(),
+        );
+        let basis = CalibrationBasis::new(
+            [
+                "AverageEffect", "Dag", "graph_posterior", "multi_env", "Bayesian",
+                "graph_imputation_transport_decision_v1", "nearest_rank_95", "",
+                "independent_source_target_units", "mar_graph_mixture_target_standardization",
+                &functional,
+            ].map(Arc::from),
+            0.95, Arc::from("model_conditional"),
+            (parts.rows() as u64).saturating_add(self.target.rows() as u64),
+            None, Some(parts.posterior_draws.saturating_mul(parts.imputations)), 0.0,
+        ).with_validation("none");
+        Ok(GraphImputationTransportCalibrationCandidate { result, interval, basis })
+    }
+
     /// Export the original source, target frame, final contract and live
     /// receipt after replaying the complete compiled schedule.
     ///
@@ -451,12 +506,13 @@ mod tests {
         let ctx = ExecutionContext::for_tests(19);
         let producer = CompiledGraphImputation::compile(table, &GraphImputationSpec {
             treatment: VariableId::from_raw(0), outcome: VariableId::from_raw(1),
-            support: GraphSupport::PreTreatmentCovariates,
+            support: GraphSupport::TreatmentRootPreTreatmentCovariates,
             imputation: ImputationSpec::new().with_imputations(2)
                 .with_iterations(2).with_seed(17),
             domains: Arc::<[u8]>::from(vec![1, 0, 1]), posterior_draws: 100,
             prior_scale: 1.0, execution_seed: 19,
         }, &ctx).unwrap();
+        let source_effect = producer.execute(&ctx).unwrap().mean;
         let target = TransportStandardization {
             columns: vec![(2, (0..80).map(|row| f64::from(u8::from(row % 5 != 0))).collect())],
             selection_targets: vec![2],
@@ -502,6 +558,8 @@ mod tests {
         assert_eq!(plan.plan_view().route().as_str(), "GraphImputationTransportDecision");
         let result = plan.execute(&ctx).unwrap();
         assert!(result.producer.mean.is_finite());
+        assert!(result.producer.mean > source_effect + 0.05,
+            "target standardization must respond to the x shift");
         assert_eq!(result.calibration, "not_measured");
         let bytes = plan.export(&result, "source-target-graph-decision", &ctx).unwrap();
         let replay = consume_graph_imputation_transport_decision(
