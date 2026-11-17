@@ -1078,6 +1078,8 @@ pub(crate) enum ProgramCell {
     ObservationalPolicy,
     /// Several noisy indicators of a construct in one observation query.
     JointMeasuredObservation,
+    /// Dependent-error joint measurement on a finite construct.
+    DependentMeasuredObservation,
     /// Bundle replay with a live executable chain terminal.
     BundleRecomputation,
     /// A bounded graph-selection imputation composite.
@@ -1098,6 +1100,7 @@ impl ProgramCell {
             Self::PropagationChain(_) => "PropagationChain",
             Self::ObservationalPolicy => "ObservationalPolicy",
             Self::JointMeasuredObservation => "JointMeasuredObservation",
+            Self::DependentMeasuredObservation => "DependentMeasuredObservation",
             Self::BundleRecomputation => "BundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
@@ -1158,6 +1161,7 @@ impl LoweredProgram {
             | ProgramCell::PropagationChain(_)
             | ProgramCell::ObservationalPolicy
             | ProgramCell::JointMeasuredObservation
+            | ProgramCell::DependentMeasuredObservation
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1175,6 +1179,7 @@ impl LoweredProgram {
             | ProgramCell::PropagationChain(_)
             | ProgramCell::ObservationalPolicy
             | ProgramCell::JointMeasuredObservation
+            | ProgramCell::DependentMeasuredObservation
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1192,6 +1197,7 @@ impl LoweredProgram {
             | ProgramCell::Planning(_)
             | ProgramCell::ObservationalPolicy
             | ProgramCell::JointMeasuredObservation
+            | ProgramCell::DependentMeasuredObservation
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate

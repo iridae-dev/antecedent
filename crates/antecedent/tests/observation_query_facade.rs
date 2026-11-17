@@ -22,6 +22,7 @@ use antecedent::analysis::observation_posterior::{
 use antecedent::analysis::observation_query::{
     ContinuousAssignments, Direction, ObservationQueryRefusal, ObservationQueryWire,
     ObservationRequest, ObservationResultWire, ParameterRedrawRequest, RedrawPrior,
+    DependentMeasuredObservationRequest, DependentMeasurementWire,
     JointMeasuredObservationRequest,
     consume_observation_query_artifact, retain_counts, retain_regression,
 };
@@ -256,6 +257,40 @@ fn joint_measured_query_compiles_and_replays_two_indicators() {
     let mut missing = request;
     missing.dependence = "unspecified".into();
     assert!(prepared.compile_joint_measured_observation(&missing).is_err());
+}
+
+#[test]
+fn dependent_indicator_errors_use_the_joint_table_and_replay() {
+    let prepared = construct_model();
+    let request = DependentMeasuredObservationRequest {
+        outcome: "Y".into(), observed: Vec::new(),
+        measured: vec![pair("assay_a", "1"), pair("assay_b", "1")],
+        interventions: Vec::new(),
+        error_law: DependentMeasurementWire {
+            construct: "C".into(), population_id: "pop".into(),
+            regime_id: "observational".into(), evidence_id: "joint-assay-validation".into(),
+            indicator_ids: vec!["assay_a".into(), "assay_b".into()],
+            indicator_levels: vec![vec!["0".into(), "1".into()],
+                                   vec!["0".into(), "1".into()]],
+            construct_levels: vec!["0".into(), "1".into()],
+            probability_bits: [0.7_f64, 0.1, 0.1, 0.1,
+                               0.05, 0.05, 0.05, 0.85]
+                .into_iter().map(f64::to_bits).collect(),
+        },
+    };
+    let plan = prepared.compile_dependent_measured_observation(&request)
+        .expect("dependent-error compiler");
+    assert_eq!(plan.plan_view().route().as_str(), "DependentMeasuredObservation");
+    let claim = plan.execute(&ctx()).expect("joint-error conditional law");
+    let posterior = (0.1 * 0.85) / (0.9 * 0.1 + 0.1 * 0.85);
+    near(level(&claim.conditional_levels().expect("levels"), "1"),
+        0.1 * (1.0 - posterior) + 0.7 * posterior);
+    let bytes = claim.export().expect("version-4 artifact");
+    assert_eq!(plan.consume(&bytes, plan.lowered().identity(), &ctx())
+        .expect("independent dependent-error replay").result(), claim.result());
+    let mut unnormalized = request;
+    unnormalized.error_law.probability_bits[3] = 0.2_f64.to_bits();
+    assert!(prepared.compile_dependent_measured_observation(&unnormalized).is_err());
 }
 
 fn pair(variable: &str, level: &str) -> (String, String) {

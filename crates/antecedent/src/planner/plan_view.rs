@@ -1988,6 +1988,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::PropagationChain(reading) => PlanRoute::PropagationChain(reading),
         ProgramCell::ObservationalPolicy => PlanRoute::ObservationalPolicy,
         ProgramCell::JointMeasuredObservation => PlanRoute::JointMeasuredObservation,
+        ProgramCell::DependentMeasuredObservation => PlanRoute::DependentMeasuredObservation,
         ProgramCell::BundleRecomputation => PlanRoute::BundleRecomputation,
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,
         ProgramCell::CategoricalPosteriorCandidate => PlanRoute::CategoricalPosteriorCandidate,

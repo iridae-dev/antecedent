@@ -25,7 +25,7 @@ coverage or error control.
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws | Lower the bridge declaration, transport and utility together with checked value kind and coordinate | None for a new route; high if a surrogate score is substituted for an endpoint |
 | 8 | Medium | `prepare_component_feedback` joins checked scalar interfaces; `prepare_vector_component_feedback` expands multi-output interfaces into one certified cyclic program with aligned disturbances and named hard clamps | Check dependence across the aggregate evidence ledger before claiming independent component evidence | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | Static path-specific transport and fixed-population temporal counterfactuals exist separately | Prove the target temporal path functional under selection and mediator assumptions, then lower its estimator and claim | None for a new route; high if ordinary transport is relabelled path-specific |
-| 10 | Medium | `JointMeasuredObservationPlan` compiles 2-16 noisy indicators of one finite construct under an explicit conditional-independence declaration and replays a version-3 observation artifact after conditioning or intervention | Add declared dependent-error measurement families and new calibration records for fitted measurement models | None for the additive route; medium if independent indicators are silently treated as a joint model |
+| 10 | Medium | Independent indicators retain the version-3 route; `compile_dependent_measured_observation` adds a complete scoped joint-error table, separate compiler cell and version-4 artifact for dependent indicators | Fit the joint table with parameter uncertainty and earn new calibration records for fitted measurement models | None for the additive route; medium if independent indicators are silently treated as a joint model |
 | 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together, requires every dependency's artifact consumer to replay, reexecutes the terminal and records each dependency's Merkle digest | Generalize live recomputation to other executable node kinds and independently reconstructed plans | None for the additive route; low for numerical claims, but identity-only plans cannot become execution receipts |
 
 ## Current source slice
@@ -114,8 +114,13 @@ the explicit declaration that indicator errors are independent given the same
 construct. It then conditions the complete finite model law, optionally after
 an intervention, through a new compiler cell and a version-3 observation
 artifact. The producer and consumer evaluate the same joint likelihood;
-measurement-rate uncertainty and dependent errors require separate new
-methods and calibration records.
+measurement-rate uncertainty requires a separate fitted-model method and
+calibration records. An additive dependent-error route
+requires the complete normalized `P(m_1,...,m_k | C)` table for every construct
+level, with indicator domains, population, regime and evidence identity. It
+looks up the recorded indicator cell once and conditions the finite law using
+that joint likelihood. It has a separate compiler cell and version-4 replay
+artifact; fitting uncertainty and coverage remain unmeasured.
 
 The graph-imputation point consumer retains the actual pooled effect draws
 from its source-bound execution. An additive exporter binds those draws to the
