@@ -162,7 +162,7 @@ fn lower_outer(
         plan_id: Arc::from("graph_imputation_kernel_transport_decision.v1"),
         data: DataClassification::Tabular,
         graph_class: "bounded_graph_imputation_mixed_kernel_target",
-        query_variables: Arc::from([]), source_digest: Some(source_digest),
+        query_variables: Arc::from([]), source_digest: Some(*source_digest.as_bytes()),
         support_coordinate: None, supported: false, support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
@@ -180,9 +180,9 @@ fn lower_outer(
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([
-            EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(source_digest) },
+            EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(*source_digest.as_bytes()) },
             EvidenceSourceRef { role: EvidenceRole::TransportSource,
-                digest: Some(SemanticDigest::from_bytes(target_digest)) },
+                digest: Some(target_digest) },
         ]),
         composition: Composition::Chained { stages: 5 },
         decision: Some(DecisionProgram {

@@ -213,7 +213,7 @@ pub fn compile_joint_transport_effect_decision(
         },
         plan_id: Arc::from("joint_transport_effect_decision.v1"),
         data: DataClassification::Tabular, graph_class: "fixed_selection_dag_binary_trial",
-        query_variables: Arc::from([]), source_digest: Some(source_digest),
+        query_variables: Arc::from([]), source_digest: Some(*source_digest.as_bytes()),
         support_coordinate: None, supported: false, support_status: None,
     };
     let identification_layer = IdentificationLayer::NonGraphical(Arc::new(
@@ -238,7 +238,7 @@ pub fn compile_joint_transport_effect_decision(
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([
-            EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(source_digest) },
+            EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(*source_digest.as_bytes()) },
             EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(question) },
         ]),
         composition: Composition::Chained { stages: 3 },

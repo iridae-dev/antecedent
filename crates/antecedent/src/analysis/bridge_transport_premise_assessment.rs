@@ -306,7 +306,7 @@ pub fn compile_bridge_transport_premise_assessment(
         plan_id: Arc::from("bridge_transport_premise_assessment.v1"),
         data: DataClassification::Tabular, graph_class: "source_target_trial_mapping",
         query_variables: Arc::from([]),
-        source_digest: Some(SemanticDigest::from_bytes(source_digest)),
+        source_digest: Some(source_digest),
         support_coordinate: None, supported: false, support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
@@ -323,7 +323,7 @@ pub fn compile_bridge_transport_premise_assessment(
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([
             EvidenceSourceRef { role: EvidenceRole::Observations,
-                digest: Some(SemanticDigest::from_bytes(source_digest)) },
+                digest: Some(source_digest) },
             EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(question) },
         ]),
         composition: Composition::Chained { stages: 2 },
