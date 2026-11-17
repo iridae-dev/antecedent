@@ -1241,12 +1241,18 @@ pub(super) fn evaluate_temporal_bound(
                 .iter()
                 .position(|group| group.id == scenario.group)
                 .ok_or_else(|| invalid("unfitted temporal scenario group"))?;
+            let columns = likelihood::ScenarioColumns::resolve(data, program, scenario);
+            // The parameters change with the period, so the memo forgets before every call and
+            // only its buffers are reused.
+            let mut memo = likelihood::MechanismMemo::default();
             for (time, mean) in means.iter_mut().enumerate() {
                 check_cancelled(ctx)?;
                 let p = &draw.parameters[time];
                 likelihood::validate_parameters(data, p)?;
-                *mean += likelihood::program_response(data, p, program, scenario, time)
-                    + draw.baseline.group_intercepts[group];
+                memo.forget();
+                *mean += likelihood::program_response_columns(
+                    data, p, program, scenario, &columns, time, &mut memo,
+                ) + draw.baseline.group_intercepts[group];
             }
         }
         for mean in &mut means {

@@ -468,6 +468,7 @@ pub(super) fn combine(
     p.intercept + main + products + p.confounder * z + p.season_effects[season]
 }
 /// The saturated main effects and interaction products of one exposure vector.
+#[cfg(test)]
 pub(super) fn mechanism(
     data: &CompiledPanel<'_>,
     p: &PanelParameters,
@@ -557,6 +558,72 @@ pub(super) struct MechanismMemo {
     candidate: Vec<f64>,
     class: usize,
     value: Option<(f64, f64)>,
+    buffers: ResponseScratch,
+}
+impl MechanismMemo {
+    /// Drops the remembered value (kept buffers never change a value): the next call evaluates
+    /// the mechanism. A memo reused across different parameters must forget between them.
+    pub(super) fn forget(&mut self) {
+        self.value = None;
+    }
+}
+/// Where one scenario reads each channel: the index of the program's schedule and of the
+/// scenario's history for every source channel, in channel order, and the scenario group's
+/// class. Resolved once per scenario instead of by identity at every period; the indices are
+/// those the identity search returns, so the response is the same number.
+pub(super) struct ScenarioColumns {
+    program: Vec<usize>,
+    history: Vec<usize>,
+    class: usize,
+}
+impl ScenarioColumns {
+    /// The columns against the source channel order, which every validated parameter value
+    /// shares (`validate_parameters` checks the identities in order).
+    pub(super) fn resolve(
+        data: &CompiledPanel<'_>,
+        program: &PanelProgram,
+        scenario: &PanelScenario,
+    ) -> Self {
+        Self::resolve_ids(
+            data,
+            data.channels.iter().map(|channel| channel.id.as_str()),
+            program,
+            scenario,
+        )
+    }
+    fn resolve_ids<'a>(
+        data: &CompiledPanel<'_>,
+        ids: impl Iterator<Item = &'a str>,
+        program: &PanelProgram,
+        scenario: &PanelScenario,
+    ) -> Self {
+        let (mut columns, mut history) = (Vec::new(), Vec::new());
+        for id in ids {
+            columns.push(
+                program
+                    .channels
+                    .iter()
+                    .position(|c| c.id == id)
+                    .expect("validated program channel"),
+            );
+            history.push(
+                scenario
+                    .history
+                    .iter()
+                    .position(|c| c.id == id)
+                    .expect("validated scenario history"),
+            );
+        }
+        let class = match data.family.classes() {
+            1 => 0,
+            _ => data
+                .groups
+                .iter()
+                .position(|group| group.id == scenario.group)
+                .map_or(0, |index| data.family.class_of(index)),
+        };
+        Self { program: columns, history, class }
+    }
 }
 pub(super) fn program_response(
     data: &CompiledPanel<'_>,
@@ -575,31 +642,35 @@ pub(super) fn program_response_memo(
     time: usize,
     memo: &mut MechanismMemo,
 ) -> f64 {
+    // Resolved by the parameter value's own channel identities: this entry point does not
+    // require a validated value.
+    let columns = ScenarioColumns::resolve_ids(
+        data,
+        p.channels.iter().map(|channel| channel.id.as_str()),
+        program,
+        scenario,
+    );
+    program_response_columns(data, p, program, scenario, &columns, time, memo)
+}
+/// `program_response_memo` with the scenario's columns resolved by the caller, for a
+/// parameter value whose channels are in the source order (`validate_parameters`).
+pub(super) fn program_response_columns(
+    data: &CompiledPanel<'_>,
+    p: &PanelParameters,
+    program: &PanelProgram,
+    scenario: &PanelScenario,
+    columns: &ScenarioColumns,
+    time: usize,
+    memo: &mut MechanismMemo,
+) -> f64 {
     let mut exposures = std::mem::take(&mut memo.candidate);
     exposures.clear();
-    exposures.extend(p.channels.iter().map(|channel| {
-        let values = &program
-            .channels
-            .iter()
-            .find(|c| c.id == channel.id)
-            .expect("validated program channel")
-            .values;
-        let history = scenario
-            .history
-            .iter()
-            .find(|c| c.id == channel.id)
-            .expect("validated scenario history")
-            .values;
+    exposures.extend(p.channels.iter().enumerate().map(|(index, channel)| {
+        let values = &program.channels[columns.program[index]].values;
+        let history = scenario.history[columns.history[index]].values;
         exposure(values, history, channel.lag, time)
     }));
-    let class = match data.family.classes() {
-        1 => 0,
-        _ => data
-            .groups
-            .iter()
-            .position(|group| group.id == scenario.group)
-            .map_or(0, |index| data.family.class_of(index)),
-    };
+    let class = columns.class;
     let same = memo.value.is_some()
         && memo.class == class
         && memo.exposures.len() == exposures.len()
@@ -607,7 +678,7 @@ pub(super) fn program_response_memo(
     let mechanism_value = if same {
         memo.value.unwrap_or((f64::NAN, f64::NAN))
     } else {
-        let value = mechanism(data, p, &exposures, class);
+        let value = mechanism_with(data, p, &exposures, class, &mut memo.buffers);
         std::mem::swap(&mut memo.exposures, &mut exposures);
         memo.class = class;
         memo.value = Some(value);
