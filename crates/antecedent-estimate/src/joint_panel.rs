@@ -1007,15 +1007,18 @@ fn evaluate_bound(
                 return Err(invalid("program refers to a group with no fitted random effect"));
             };
             let mut memo = likelihood::MechanismMemo::default();
+            // The parameters were validated above, so their channels are in source order.
+            let columns = likelihood::ScenarioColumns::resolve(data, program, scenario);
             let weight = data.groups[group_index].weight;
             for (time, mean) in means.iter_mut().enumerate() {
                 check_cancelled(ctx)?;
                 *mean += weight
-                    * (likelihood::program_response_memo(
+                    * (likelihood::program_response_columns(
                         data,
                         &draw.parameters,
                         program,
                         scenario,
+                        &columns,
                         time,
                         &mut memo,
                     ) + draw.group_intercepts[group_index]);

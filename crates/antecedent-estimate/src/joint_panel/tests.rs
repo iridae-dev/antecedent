@@ -408,3 +408,51 @@ fn batched_law_preserves_shared_worlds_failed_slots_and_releases_its_output_rese
         Err(PanelError::Cancelled)
     ));
 }
+
+/// Resolving a scenario's channels once returns, bit for bit, the response the identity search
+/// at every period returns, with or without the memo carried across periods, and when the
+/// program and the histories list the channels in another order than the source.
+#[test]
+fn resolved_scenario_columns_reproduce_the_identity_search() {
+    let (data, draw, _) = fixture();
+    let compiled = CompiledPanel::new(&data).unwrap();
+    let mut programs = programs(&data);
+    for program in &mut programs {
+        program.channels.reverse();
+        for scenario in &mut program.scenarios {
+            scenario.history.reverse();
+        }
+    }
+    let p = &draw.parameters;
+    for program in &programs {
+        for scenario in &program.scenarios {
+            let columns = ScenarioColumns::resolve(&compiled, program, scenario);
+            let (mut carried, mut forgetting) =
+                (MechanismMemo::default(), MechanismMemo::default());
+            for time in 0..program.horizon() {
+                let direct = program_response(&compiled, p, program, scenario, time);
+                let memo = program_response_columns(
+                    &compiled,
+                    p,
+                    program,
+                    scenario,
+                    &columns,
+                    time,
+                    &mut carried,
+                );
+                forgetting.forget();
+                let fresh = program_response_columns(
+                    &compiled,
+                    p,
+                    program,
+                    scenario,
+                    &columns,
+                    time,
+                    &mut forgetting,
+                );
+                assert_eq!(direct.to_bits(), memo.to_bits(), "{} at {time}", program.id);
+                assert_eq!(direct.to_bits(), fresh.to_bits(), "{} at {time}", program.id);
+            }
+        }
+    }
+}

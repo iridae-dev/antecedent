@@ -14,6 +14,8 @@ pub(super) struct CompiledPanel<'a> {
     pub(super) expressions: Vec<antecedent_core::ValueExpr>,
     /// The expression variable of every channel, in channel order.
     pub(super) axis: Vec<antecedent_core::VariableId>,
+    /// The channel columns of every feature that is the plain product of two channels.
+    products: Vec<Option<(usize, usize)>>,
 }
 impl std::ops::Deref for CompiledPanel<'_> {
     type Target = PanelData;
@@ -35,8 +37,11 @@ impl<'a> CompiledPanel<'a> {
                 .map_err(|error| invalid(&format!("programmable feature compilation: {error:?}")))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let expressions = source.interactions.iter().map(|f| f.expression.to_domain()).collect();
-        Ok(Self { source, features, expressions, axis })
+        let expressions: Vec<_> =
+            source.interactions.iter().map(|f| f.expression.to_domain()).collect();
+        let products =
+            expressions.iter().map(|expression| product_columns(&axis, expression)).collect();
+        Ok(Self { source, features, expressions, axis, products })
     }
     /// One interaction feature at the saturated channel values, as the mechanism evaluates it.
     pub fn feature_value(
@@ -46,6 +51,9 @@ impl<'a> CompiledPanel<'a> {
         values: &mut Vec<f64>,
         scratch: &mut Vec<f64>,
     ) -> f64 {
+        if let Some(columns) = self.products[index] {
+            return product_value(self.axis.len(), saturated, columns);
+        }
         self.features[index]
             .evaluate_columns_with_scratch(saturated, values, scratch, None)
             .unwrap_or(f64::NAN)
@@ -390,6 +398,32 @@ pub(super) fn initial(data: &PanelData) -> PanelParameters {
         },
     }
 }
+/// The value the compiled column program of `left * right` returns, without running the
+/// executor: it refuses an input row of the wrong width or with a non-finite value in any
+/// column and a non-finite result (each read by the mechanism as NaN), and otherwise applies
+/// the same `ArithOp::apply`, so the bits are identical.
+fn product_value(width: usize, saturated: &[f64], (left, right): (usize, usize)) -> f64 {
+    if saturated.len() != width || saturated.iter().any(|value| !value.is_finite()) {
+        return f64::NAN;
+    }
+    let value = antecedent_core::ArithOp::Mul.apply(saturated[left], saturated[right]);
+    if value.is_finite() { value } else { f64::NAN }
+}
+/// The channel columns of a feature written as the product of two channel variables.
+fn product_columns(
+    axis: &[antecedent_core::VariableId],
+    expression: &antecedent_core::ValueExpr,
+) -> Option<(usize, usize)> {
+    use antecedent_core::{ArithOp, ValueExpr};
+    let ValueExpr::Arith { op: ArithOp::Mul, lhs, rhs } = expression else {
+        return None;
+    };
+    let (ValueExpr::Var(left), ValueExpr::Var(right)) = (lhs.as_ref(), rhs.as_ref()) else {
+        return None;
+    };
+    let column = |id| axis.iter().position(|variable| variable == id);
+    Some((column(left)?, column(right)?))
+}
 pub(super) fn exposure(values: &[f64], history: [f64; 2], weights: [f64; 3], time: usize) -> f64 {
     weights
         .into_iter()
@@ -434,6 +468,7 @@ pub(super) fn combine(
     p.intercept + main + products + p.confounder * z + p.season_effects[season]
 }
 /// The saturated main effects and interaction products of one exposure vector.
+#[cfg(test)]
 pub(super) fn mechanism(
     data: &CompiledPanel<'_>,
     p: &PanelParameters,
@@ -469,16 +504,14 @@ fn mechanism_with(
     );
     let saturated: &[f64] = saturated;
     let main = p.channels.iter().zip(saturated).map(|(c, x)| c.coefficient * x).sum::<f64>();
-    let products = data
-        .features
+    let products = p
+        .interactions
         .iter()
-        .zip(&p.interactions)
-        .map(|(program, param)| {
+        .take(data.features.len())
+        .enumerate()
+        .map(|(index, param)| {
             // The common production expression executor validates every numerical result.
-            param.coefficient
-                * program
-                    .evaluate_columns_with_scratch(saturated, values, scratch, None)
-                    .unwrap_or(f64::NAN)
+            param.coefficient * data.feature_value(index, saturated, values, scratch)
         })
         .sum::<f64>();
     (main, products)
@@ -525,6 +558,72 @@ pub(super) struct MechanismMemo {
     candidate: Vec<f64>,
     class: usize,
     value: Option<(f64, f64)>,
+    buffers: ResponseScratch,
+}
+impl MechanismMemo {
+    /// Drops the remembered value (kept buffers never change a value): the next call evaluates
+    /// the mechanism. A memo reused across different parameters must forget between them.
+    pub(super) fn forget(&mut self) {
+        self.value = None;
+    }
+}
+/// Where one scenario reads each channel: the index of the program's schedule and of the
+/// scenario's history for every source channel, in channel order, and the scenario group's
+/// class. Resolved once per scenario instead of by identity at every period; the indices are
+/// those the identity search returns, so the response is the same number.
+pub(super) struct ScenarioColumns {
+    program: Vec<usize>,
+    history: Vec<usize>,
+    class: usize,
+}
+impl ScenarioColumns {
+    /// The columns against the source channel order, which every validated parameter value
+    /// shares (`validate_parameters` checks the identities in order).
+    pub(super) fn resolve(
+        data: &CompiledPanel<'_>,
+        program: &PanelProgram,
+        scenario: &PanelScenario,
+    ) -> Self {
+        Self::resolve_ids(
+            data,
+            data.channels.iter().map(|channel| channel.id.as_str()),
+            program,
+            scenario,
+        )
+    }
+    fn resolve_ids<'a>(
+        data: &CompiledPanel<'_>,
+        ids: impl Iterator<Item = &'a str>,
+        program: &PanelProgram,
+        scenario: &PanelScenario,
+    ) -> Self {
+        let (mut columns, mut history) = (Vec::new(), Vec::new());
+        for id in ids {
+            columns.push(
+                program
+                    .channels
+                    .iter()
+                    .position(|c| c.id == id)
+                    .expect("validated program channel"),
+            );
+            history.push(
+                scenario
+                    .history
+                    .iter()
+                    .position(|c| c.id == id)
+                    .expect("validated scenario history"),
+            );
+        }
+        let class = match data.family.classes() {
+            1 => 0,
+            _ => data
+                .groups
+                .iter()
+                .position(|group| group.id == scenario.group)
+                .map_or(0, |index| data.family.class_of(index)),
+        };
+        Self { program: columns, history, class }
+    }
 }
 pub(super) fn program_response(
     data: &CompiledPanel<'_>,
@@ -543,31 +642,35 @@ pub(super) fn program_response_memo(
     time: usize,
     memo: &mut MechanismMemo,
 ) -> f64 {
+    // Resolved by the parameter value's own channel identities: this entry point does not
+    // require a validated value.
+    let columns = ScenarioColumns::resolve_ids(
+        data,
+        p.channels.iter().map(|channel| channel.id.as_str()),
+        program,
+        scenario,
+    );
+    program_response_columns(data, p, program, scenario, &columns, time, memo)
+}
+/// `program_response_memo` with the scenario's columns resolved by the caller, for a
+/// parameter value whose channels are in the source order (`validate_parameters`).
+pub(super) fn program_response_columns(
+    data: &CompiledPanel<'_>,
+    p: &PanelParameters,
+    program: &PanelProgram,
+    scenario: &PanelScenario,
+    columns: &ScenarioColumns,
+    time: usize,
+    memo: &mut MechanismMemo,
+) -> f64 {
     let mut exposures = std::mem::take(&mut memo.candidate);
     exposures.clear();
-    exposures.extend(p.channels.iter().map(|channel| {
-        let values = &program
-            .channels
-            .iter()
-            .find(|c| c.id == channel.id)
-            .expect("validated program channel")
-            .values;
-        let history = scenario
-            .history
-            .iter()
-            .find(|c| c.id == channel.id)
-            .expect("validated scenario history")
-            .values;
+    exposures.extend(p.channels.iter().enumerate().map(|(index, channel)| {
+        let values = &program.channels[columns.program[index]].values;
+        let history = scenario.history[columns.history[index]].values;
         exposure(values, history, channel.lag, time)
     }));
-    let class = match data.family.classes() {
-        1 => 0,
-        _ => data
-            .groups
-            .iter()
-            .position(|group| group.id == scenario.group)
-            .map_or(0, |index| data.family.class_of(index)),
-    };
+    let class = columns.class;
     let same = memo.value.is_some()
         && memo.class == class
         && memo.exposures.len() == exposures.len()
@@ -575,7 +678,7 @@ pub(super) fn program_response_memo(
     let mechanism_value = if same {
         memo.value.unwrap_or((f64::NAN, f64::NAN))
     } else {
-        let value = mechanism(data, p, &exposures, class);
+        let value = mechanism_with(data, p, &exposures, class, &mut memo.buffers);
         std::mem::swap(&mut memo.exposures, &mut exposures);
         memo.class = class;
         memo.value = Some(value);
@@ -1080,4 +1183,45 @@ pub(super) fn log_likelihood(data: &CompiledPanel<'_>, x: &[f64]) -> f64 {
     let residuals = residuals(data, &p);
     marginal(data, &p, &residuals, Detail::Value)
         .map_or(f64::NEG_INFINITY, |value| value.log_likelihood)
+}
+#[cfg(test)]
+mod product_feature_tests {
+    use super::{product_columns, product_value};
+    use antecedent_core::{ValueExpr, VariableId};
+    use antecedent_model::program::NodeProgram;
+
+    /// The direct product returns the compiled program's bits, including every refusal.
+    #[test]
+    fn product_feature_matches_the_column_program_bit_for_bit() {
+        let axis: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        let expression = ValueExpr::var(axis[2]).mul(ValueExpr::var(axis[0]));
+        let columns = product_columns(&axis, &expression).expect("a channel product");
+        assert_eq!(columns, (2, 0));
+        let program = NodeProgram::compile_columns(&axis, &expression).expect("compiles");
+        let rows: [&[f64]; 8] = [
+            &[0.25, 0.5, 0.75],
+            &[0.0, 1.0, -0.0],
+            &[1e-300, 0.3, 1e-300],
+            &[1e200, 0.0, 1e200],
+            &[f64::NAN, 0.5, 0.5],
+            &[0.5, f64::INFINITY, 0.5],
+            &[0.1, 0.2],
+            &[0.1 + 0.2, 0.7, 1.0 / 3.0],
+        ];
+        for row in rows {
+            let direct = product_value(axis.len(), row, columns);
+            let executed = program.evaluate_columns(row, None).unwrap_or(f64::NAN);
+            assert_eq!(direct.to_bits(), executed.to_bits(), "row {row:?}");
+        }
+    }
+
+    /// Only a product of two channel variables takes the direct path.
+    #[test]
+    fn other_features_keep_the_column_program() {
+        let axis: Vec<_> = (0..2).map(VariableId::from_raw).collect();
+        let outside = ValueExpr::var(axis[0]).mul(ValueExpr::var(VariableId::from_raw(7)));
+        let sum = ValueExpr::var(axis[0]).add(ValueExpr::var(axis[1]));
+        assert_eq!(product_columns(&axis, &outside), None);
+        assert_eq!(product_columns(&axis, &sum), None);
+    }
 }
