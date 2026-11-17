@@ -1129,6 +1129,8 @@ pub(crate) enum ProgramCell {
     CyclicPosteriorNodeBundleRecomputation,
     /// A live bundle with an embedded trial-IPW fit node.
     TrialIpwNodeBundleRecomputation,
+    /// A live bundle with a graph-imputation transport fit.
+    GraphImputationTransportNodeBundleRecomputation,
     /// Checked connected components with a joint fitted action decision.
     JointComponentPosteriorDecision,
     /// Bundle recomputation of a parameter-posterior decision.
@@ -1179,6 +1181,7 @@ impl ProgramCell {
             Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
             Self::CyclicPosteriorNodeBundleRecomputation => "CyclicPosteriorNodeBundleRecomputation",
             Self::TrialIpwNodeBundleRecomputation => "TrialIpwNodeBundleRecomputation",
+            Self::GraphImputationTransportNodeBundleRecomputation => "GraphImputationTransportNodeBundleRecomputation",
             Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
             Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
             Self::GraphImputation => "GraphImputation",
@@ -1265,6 +1268,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorBundleRecomputation
             | ProgramCell::CyclicPosteriorNodeBundleRecomputation
             | ProgramCell::TrialIpwNodeBundleRecomputation
+            | ProgramCell::GraphImputationTransportNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
@@ -1308,6 +1312,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorBundleRecomputation
             | ProgramCell::CyclicPosteriorNodeBundleRecomputation
             | ProgramCell::TrialIpwNodeBundleRecomputation
+            | ProgramCell::GraphImputationTransportNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
@@ -1351,6 +1356,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorBundleRecomputation
             | ProgramCell::CyclicPosteriorNodeBundleRecomputation
             | ProgramCell::TrialIpwNodeBundleRecomputation
+            | ProgramCell::GraphImputationTransportNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation

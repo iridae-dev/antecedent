@@ -242,3 +242,110 @@ fn embedded_trial_fit_is_refitted_and_matches_the_live_chain() {
         &portable, "wrong", plan.lowered().identity(), &ctx,
     ).is_err());
 }
+
+#[test]
+#[ignore = "source-only graph transport fit bundle; no whole-route calibration is earned"]
+fn embedded_graph_transport_fit_replays_raw_evidence_and_chain() {
+    use antecedent_core::{VariableId, graph_imputation_contract::GraphSupport};
+    use antecedent_data::{ImputationSpec, TabularData};
+    use antecedent_io::measured_inference::graph_candidate::TransportStandardization;
+    use crate::analysis::graph_imputation::{CompiledGraphImputation, GraphImputationSpec};
+    use crate::analysis::graph_imputation_transport_decision::compile_graph_imputation_transport_decision;
+        let mut treatment = Vec::new();
+        let mut outcome = Vec::new();
+        let mut covariate = Vec::new();
+        for row in 0..80 {
+            let x = f64::from(u8::from(row % 2 == 0));
+            let a = f64::from(u8::from(row % 4 == 0 || row % 4 == 3));
+            treatment.push(a);
+            outcome.push(if row % 13 == 0 { f64::NAN }
+                else { 0.2 * x + a * (0.5 + 0.5 * x) + 0.1 * (row % 5) as f64 });
+            covariate.push(x);
+        }
+        let table = TabularData::from_f64_columns([
+            ("t", treatment.as_slice()), ("y", outcome.as_slice()),
+            ("x", covariate.as_slice()),
+        ]).unwrap();
+        let ctx = ExecutionContext::for_tests(19);
+        let producer = CompiledGraphImputation::compile(table, &GraphImputationSpec {
+            treatment: VariableId::from_raw(0), outcome: VariableId::from_raw(1),
+            support: GraphSupport::TreatmentRootPreTreatmentCovariates,
+            imputation: ImputationSpec::new().with_imputations(2)
+                .with_iterations(2).with_seed(17),
+            domains: Arc::<[u8]>::from(vec![1, 0, 1]), posterior_draws: 100,
+            prior_scale: 1.0, execution_seed: 19,
+        }, &ctx).unwrap();
+        let target = TransportStandardization {
+            columns: vec![(2, (0..80).map(|row| f64::from(u8::from(row % 5 != 0))).collect())],
+            selection_targets: vec![2],
+            source_population: "source".into(), target_population: "target".into(),
+            source_sample: producer.source_identity().to_hex(),
+            target_sample: "independent-target-sample".into(),
+            source_unit_ids: (0..80).map(|row| format!("source-{row}")).collect(),
+            target_unit_ids: (0..80).map(|row| format!("target-{row}")).collect(),
+        };
+        let quantity = ScientificQuantity {
+            variable_id: "y".into(), variable_name: "target effect".into(),
+            role: QuantityRole::Outcome, units: "score".into(),
+            population_id: "target".into(),
+            regime_id: "do(t=1)-do(t=0)".into(), horizon: 0,
+            functional_id: "average_effect".into(), conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+        let decision = DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: "treat".into(), kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::difference(
+                        UtilityExpr::Input(0), UtilityExpr::Const(0.2)),
+                },
+                DecisionAction {
+                    id: "hold".into(), kind: ActionKind::External,
+                    inputs: vec![quantity.clone()], utility: UtilityExpr::Const(0.0),
+                },
+            ],
+            utility_units: "score".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(), target_population: "target".into(), horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+    let producer = compile_graph_imputation_transport_decision(producer, target, quantity, decision)
+        .expect("compile graph transport");
+    let result = producer.execute(&ctx).expect("fit graph transport");
+    assert_eq!(result.calibration, "not_measured");
+    let artifact = producer.export(&result, "graph-transport", &ctx).unwrap();
+    let mut corrupted = artifact.clone();
+    corrupted[0] ^= 1;
+    assert!(BundleBuilder::new().add_graph_imputation_transport_fit(
+        "fit", &corrupted, producer.lowered().identity(), &ctx,
+    ).is_err());
+    let mut builder = BundleBuilder::new();
+    builder.add_graph_imputation_transport_fit("fit", &artifact, producer.lowered().identity(), &ctx)
+        .expect("verify graph transport producer");
+    builder.add_artifact(Some("terminal"), NodeKind::PropagationChain,
+        &result.decision.chain.export().unwrap()).unwrap();
+    assert!(compile_graph_imputation_transport_node_bundle_recomputation(
+        builder.build().unwrap(), "fit", "terminal", &ctx,
+    ).is_err());
+    builder.connect("fit", "terminal").unwrap();
+    let bundle = builder.build().unwrap();
+    let encoded = export_bundle(&bundle, "graph-transport-bundle").unwrap();
+    let consumed = native_fit_bundle_consumer(&ctx).consume(
+        &encoded, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
+    ).unwrap();
+    assert!(consumed.node_replayed("fit"));
+    assert!(consumed.all_replayed());
+    let plan = compile_graph_imputation_transport_node_bundle_recomputation(
+        bundle.clone(), "fit", "terminal", &ctx,
+    ).expect("compile graph transport bundle");
+    assert_eq!(plan.plan_view().route().as_str(), "GraphImputationTransportNodeBundleRecomputation");
+    let receipt = plan.execute(&ctx).expect("refit graph and replay chain");
+    let portable = plan.export_portable(&receipt, &ctx).unwrap();
+    assert_eq!(consume_portable_graph_imputation_transport_node_bundle_recomputation(
+        &portable, bundle.identity(), plan.lowered().identity(), &ctx,
+    ).unwrap(), receipt);
+    assert!(consume_portable_graph_imputation_transport_node_bundle_recomputation(
+        &portable, "wrong", plan.lowered().identity(), &ctx,
+    ).is_err());
+}

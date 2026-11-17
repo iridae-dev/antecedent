@@ -2009,6 +2009,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::CyclicPosteriorBundleRecomputation => PlanRoute::CyclicPosteriorBundleRecomputation,
         ProgramCell::CyclicPosteriorNodeBundleRecomputation => PlanRoute::CyclicPosteriorNodeBundleRecomputation,
         ProgramCell::TrialIpwNodeBundleRecomputation => PlanRoute::TrialIpwNodeBundleRecomputation,
+        ProgramCell::GraphImputationTransportNodeBundleRecomputation => PlanRoute::GraphImputationTransportNodeBundleRecomputation,
         ProgramCell::JointComponentPosteriorDecision => PlanRoute::JointComponentPosteriorDecision,
         ProgramCell::PosteriorDecisionBundleRecomputation => PlanRoute::PosteriorDecisionBundleRecomputation,
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,
