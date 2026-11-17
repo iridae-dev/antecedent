@@ -968,10 +968,8 @@
     },
     {
       "id": "estimate.weighted_target_effect",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "estimate.dml_score_covariance",
@@ -2270,59 +2268,43 @@
     },
     {
       "id": "measurement.exposure_misclassification",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "measurement.soft_exposure",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "measurement.detection_dependent_prevalence",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "measurement.repeat_codings_latent_class",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "measurement.measured_exposure_effect",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "estimate.outcome_nuisance_prior",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "prior.composed_named_coordinates",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     },
     {
       "id": "association.conjugate_count_posterior",
-      "status": "not_supported",
-      "missing_evidence": [
-        "no provenance: no provenance record names this capability or its modules"
-      ]
+      "status": "supported",
+      "missing_evidence": []
     }
   ]
 }
