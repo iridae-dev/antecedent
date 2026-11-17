@@ -201,6 +201,8 @@ macro_rules! route_lowerings {
             DependentMeasuredObservation,
             /// Fitted dependent-error measurement with posterior draws.
             FittedDependentMeasuredObservation,
+            /// Model-derived paired intervention worlds and a decision.
+            CyclicActionWorldDecision,
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation,
             /// A graph-selection imputation composite.
@@ -226,6 +228,7 @@ macro_rules! route_lowerings {
                     Self::JointMeasuredObservation => "JointMeasuredObservation",
                     Self::DependentMeasuredObservation => "DependentMeasuredObservation",
                     Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
+                    Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
                     Self::BundleRecomputation => "BundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
@@ -250,6 +253,7 @@ macro_rules! route_lowerings {
                     Self::JointMeasuredObservation => RouteFamily::Structural,
                     Self::DependentMeasuredObservation => RouteFamily::Structural,
                     Self::FittedDependentMeasuredObservation => RouteFamily::Structural,
+                    Self::CyclicActionWorldDecision => RouteFamily::Cyclic,
                     Self::BundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,

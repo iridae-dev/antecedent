@@ -1092,6 +1092,8 @@ pub(crate) enum ProgramCell {
     DependentMeasuredObservation,
     /// Joint indicator error fitted from labelled validation counts.
     FittedDependentMeasuredObservation,
+    /// Paired intervention worlds derived from one compiled cyclic model.
+    CyclicActionWorldDecision,
     /// Bundle replay with a live executable chain terminal.
     BundleRecomputation,
     /// A bounded graph-selection imputation composite.
@@ -1114,6 +1116,7 @@ impl ProgramCell {
             Self::JointMeasuredObservation => "JointMeasuredObservation",
             Self::DependentMeasuredObservation => "DependentMeasuredObservation",
             Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
+            Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
             Self::BundleRecomputation => "BundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
@@ -1176,6 +1179,7 @@ impl LoweredProgram {
             | ProgramCell::JointMeasuredObservation
             | ProgramCell::DependentMeasuredObservation
             | ProgramCell::FittedDependentMeasuredObservation
+            | ProgramCell::CyclicActionWorldDecision
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1195,6 +1199,7 @@ impl LoweredProgram {
             | ProgramCell::JointMeasuredObservation
             | ProgramCell::DependentMeasuredObservation
             | ProgramCell::FittedDependentMeasuredObservation
+            | ProgramCell::CyclicActionWorldDecision
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1214,6 +1219,7 @@ impl LoweredProgram {
             | ProgramCell::JointMeasuredObservation
             | ProgramCell::DependentMeasuredObservation
             | ProgramCell::FittedDependentMeasuredObservation
+            | ProgramCell::CyclicActionWorldDecision
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate

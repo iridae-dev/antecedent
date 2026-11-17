@@ -16,7 +16,7 @@ coverage or error control.
 
 | Priority | Limitation impact | Useful flow and existing support | Remaining compiler obligation | Existing claim change |
 | --- | --- | --- | --- | --- |
-| 1 | Critical | A chain's posterior or predictive law reaches nonlinear multi-action utility; the stricter action-world entry point checks distinct regime outputs and shared factors before compiling paired regret | Derive the cross-world coupling from a checked intervention model rather than accepting declared paired rows | None for a new route; high if parameter draws are reinterpreted as outcome risk |
+| 1 | Critical | A chain's posterior or predictive law reaches nonlinear multi-action utility; the stricter action-world entry point checks distinct regime outputs and shared factors before compiling paired regret; a new cyclic-model route derives paired rows from shared disturbances and hard-clamp worlds | Fit mechanism uncertainty jointly with the intervention worlds and calibrate any population predictive interpretation; the new route is conditional on its specified model and disturbance table | None for a new route; high if parameter draws are reinterpreted as outcome risk |
 | 2 | Critical | Uncertainty survives discovery, imputation, estimation, transport and decision; individual and some composite routes exist | Lower the full selection, fitting and transport schedule with dependence; measure coverage at the final coordinate | None for a new route; high if component intervals are relabelled as whole-chain coverage |
 | 3 | High | Transported or synthesized evidence feeds a distributional decision; `compile_transported_law_chain_decision` now checks the transport support policy and compiles an aligned, equally weighted declared law with its receipt into multi-action utility | Lower producer fitting, target population, overlap and pooling dependence into that same program | None for a new route; medium if current point transport claims are promoted to laws |
 | 4 | High | Sampling error composes with an assumption range; the chain envelope keeps the axes distinct, and `chain_robust_decision_v1` compiles conservative multi-action dominance with nonlinear utilities and chance constraints | Compile a calibrated sampling union at the exact output coordinate | None for a new route; high if an assumption range is treated as a confidence interval |
@@ -50,8 +50,20 @@ can be declared as paired joint rows through a stricter compiler entry point.
 It refuses independent or undisclosed source columns, requires a common model,
 parameter or disturbance factor, and requires each action to name a distinct
 retained regime. The existing artifact replays the paired regret. This checks
-the coupling declaration but does not derive it from an intervention model;
-that identification method remains open.
+the coupling declaration but does not derive it from an intervention model.
+
+The additive `cyclic_derived_action_world_decision_v1` program binds a checked
+cyclic structural model, distinct hard-clamp interventions, their exact outcome
+coordinates and a multi-action decision contract before numerical execution.
+It solves every world on the same explicit disturbance rows, requires a unique
+certified equilibrium for every row, then sends the derived paired columns
+through the chain and decision compilers. Its separate six-layer identity
+includes the source compiler identity, output mapping and contract. Its
+portable artifact independently replays the cyclic source, recompiles the
+model-to-decision program and consumes the chain decision. This method is a
+finite empirical disturbance-scenario comparison conditional on specified
+mechanisms. It does not fit uncertain mechanisms, infer the disturbance law
+from a population or claim measured coverage. The source test is unearned.
 
 `propagation_chain_assumption_v3` adds a second route for aligned sampling or
 posterior draws combined with interval-valued assumptions through rowwise

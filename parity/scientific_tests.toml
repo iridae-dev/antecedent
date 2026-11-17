@@ -9,6 +9,13 @@
 # evidence_audit fails when a row's test or assertion does not exist.
 
 [[test]]
+evidence_test = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
+evidence_assertion = "paired_equilibrium_worlds_are_derived_and_replayed"
+kind = "reference"
+fixtures = []
+why = "A checked cyclic SCM solves two distinct hard-clamp worlds on the same disturbance rows, derives the paired decision law, and independently replays the complete model-to-utility artifact. This source row is unearned."
+
+[[test]]
 evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
 evidence_assertion = "fitted_joint_error_table_propagates_labelled_count_uncertainty"
 kind = "reference"
