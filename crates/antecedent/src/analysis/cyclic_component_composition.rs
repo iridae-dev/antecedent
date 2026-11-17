@@ -279,7 +279,7 @@ fn check_aggregate_evidence(
                         .find(|port| port.name == connection.produced_port)
                         .ok_or(ComponentFeedbackError::Invalid("an evidence output is unknown"))?;
                     match &output.evidence {
-                        EvidenceBasis::Declared(sources) if !sources.is_empty() => Ok(sources),
+                        EvidenceBasis::Declared(sources) if !sources.is_empty() => Ok(sources.clone()),
                         _ => Err(ComponentFeedbackError::Invalid(
                             "disjoint-evidence inputs need declared producer sources",
                         )),
@@ -292,9 +292,9 @@ fn check_aggregate_evidence(
                 for a in left {
                     for b in right {
                         if a == b
-                            || !ledger.source(*a).is_some_and(|source| source.status.is_active())
-                            || !ledger.source(*b).is_some_and(|source| source.status.is_active())
-                            || !matches!(ledger.overlap(*a, *b), Ok(Overlap::Independent))
+                            || !ledger.source(a).is_some_and(|source| source.status.is_active())
+                            || !ledger.source(b).is_some_and(|source| source.status.is_active())
+                            || !matches!(ledger.overlap(a, b), Ok(Overlap::Independent))
                         {
                             return Err(ComponentFeedbackError::Invalid(
                                 "the aggregate ledger does not prove input evidence disjoint",
@@ -657,6 +657,13 @@ mod tests {
         let prepared = prepare_component_feedback_with_ledger(draft.clone(), &ledger, &ctx)
             .expect("known disjoint evidence");
         assert_eq!(prepared.component_order().len(), 3);
+        let mut changed_ledger = ledger.clone();
+        changed_ledger.add_source(SourceDeclaration::new("later", SourceKind::ObservationSet)
+            .with_observations([ObservationId::from_key("campaign", b"later")]))
+            .expect("later source");
+        let changed = prepare_component_feedback_with_ledger(draft.clone(), &changed_ledger, &ctx)
+            .expect("changed ledger still proves disjointness");
+        assert_ne!(prepared.prepared().lowered().identity(), changed.prepared().lowered().identity());
         draft.components[2].interface.produces[0].evidence = EvidenceBasis::Declared([first].into());
         assert!(prepare_component_feedback_with_ledger(draft, &ledger, &ctx).is_err());
     }
