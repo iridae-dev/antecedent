@@ -214,10 +214,19 @@ fn matched_trial_validation_and_bridge_decision_replay_together() {
     declaration.transport = Some(premise.clone());
     let outcome = declaration.target.quantity.clone();
     let decision = DecisionContract {
-        actions: vec![DecisionAction {
-            id: "use-bridge".into(), kind: ActionKind::External,
-            inputs: vec![outcome], utility: UtilityExpr::Input(0),
-        }],
+        actions: vec![
+            DecisionAction {
+                id: "use-bridge".into(), kind: ActionKind::External,
+                inputs: vec![outcome.clone()], utility: UtilityExpr::Input(0),
+            },
+            DecisionAction {
+                id: "risk-sensitive".into(), kind: ActionKind::External,
+                inputs: vec![outcome],
+                utility: UtilityExpr::product(
+                    UtilityExpr::Input(0), UtilityExpr::Input(0),
+                ),
+            },
+        ],
         utility_units: "score".into(),
         criterion: DecisionCriterion::PosteriorExpectedUtility,
         constraints: Vec::new(), target_population: "adults".into(),
