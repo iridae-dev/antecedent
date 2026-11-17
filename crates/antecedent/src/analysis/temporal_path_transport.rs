@@ -882,3 +882,384 @@ pub fn consume_sampled_temporal_path_transport(
     }
     Ok(live)
 }
+
+/// One randomized source unit with baseline, sequential continuous mediators,
+/// and terminal continuous outcome. All measurements belong to the same unit.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContinuousChainSourceRow {
+    /// Baseline covariate measured before treatment.
+    pub baseline: f64,
+    /// Randomized binary treatment.
+    pub treated: bool,
+    /// At least two continuous mediators in temporal order.
+    pub mediators: Vec<f64>,
+    /// Continuous terminal outcome.
+    pub outcome: f64,
+}
+
+/// A continuous sequential linear structural model with one edge intervention.
+/// The active world sets treatment to one only in the first mediator equation;
+/// every later mediator and outcome equation receives treatment zero. The
+/// baseline world sets all treatment inputs to zero. Thus competing direct
+/// treatment edges are excluded from the contrast, while mediator paths from
+/// the first mediator to the outcome remain active. The source has randomized
+/// treatment and independent units; target baseline units are independent of
+/// the source. Identification assumes consistency, no interference, complete
+/// observations, correctly specified linear conditional means, independent
+/// structural errors (no unmeasured mediator or outcome confounding), no
+/// recanting district, invariant source-to-target structural mechanisms, and
+/// treatment and mediator support for both intervention worlds. Target baseline
+/// range checks do not establish mediator positivity. These assumptions are
+/// declared, not established by the compiler.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContinuousChainTransportRequest {
+    /// Source randomized unit records in common chronological measurement order.
+    pub source: Vec<ContinuousChainSourceRow>,
+    /// Target-population baseline covariate sample.
+    pub target_baseline: Vec<f64>,
+    /// Prespecified paired, arm-stratified source and target bootstrap replicates.
+    pub bootstrap_replicates: usize,
+}
+
+/// A retained compiler plan for the restricted continuous chain.
+#[derive(Clone, Debug)]
+pub struct CompiledContinuousChainTransport {
+    request: ContinuousChainTransportRequest,
+    seed: u64,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// Point contrast and an unmeasured paired percentile candidate interval.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContinuousChainTransportResult {
+    /// Target mean under the active treatment.
+    pub active: f64,
+    /// Target mean under the control treatment.
+    pub baseline: f64,
+    /// Active minus baseline under the declared edge intervention.
+    pub contrast: f64,
+    /// Percentile bootstrap interval; coverage is not measured.
+    pub interval: (f64, f64),
+    /// Always `not_measured`.
+    pub calibration: &'static str,
+    /// Compiler identity including source data and sampling schedule.
+    pub lowered_program_identity: SemanticDigest,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ContinuousChainTransportWire {
+    version: u32,
+    feature: String,
+    request: ContinuousChainTransportRequest,
+    seed: u64,
+    program_identity: [u8; 32],
+    result_fingerprint: [u8; 32],
+}
+
+// OLS for one sequential structural equation. Inputs are intercept, baseline,
+// treatment, and all earlier mediators; partial pivoting rejects rank deficiency.
+fn continuous_chain_fit(rows: &[&ContinuousChainSourceRow], equation: usize)
+    -> Result<Vec<f64>, TemporalPathTransportError> {
+    let p = equation + 3;
+    let mut matrix = vec![vec![0.0; p + 1]; p];
+    for row in rows {
+        let mut x = Vec::with_capacity(p);
+        x.push(1.0);
+        x.push(row.baseline);
+        x.push(if row.treated { 1.0 } else { 0.0 });
+        x.extend_from_slice(&row.mediators[..equation]);
+        let y = if equation == row.mediators.len() { row.outcome } else { row.mediators[equation] };
+        for i in 0..p {
+            for j in 0..p { matrix[i][j] += x[i] * x[j]; }
+            matrix[i][p] += x[i] * y;
+        }
+    }
+    for col in 0..p {
+        let pivot = (col..p).max_by(|&a, &b| matrix[a][col].abs().total_cmp(&matrix[b][col].abs()))
+            .ok_or(TemporalPathTransportError::Invalid("continuous chain fit has no pivot"))?;
+        if !matrix[pivot][col].is_finite() || matrix[pivot][col].abs() <= 1e-10 {
+            return Err(TemporalPathTransportError::Invalid("continuous chain structural fit is singular"));
+        }
+        matrix.swap(col, pivot);
+        let divisor = matrix[col][col];
+        for j in col..=p { matrix[col][j] /= divisor; }
+        let pivot_row = matrix[col].clone();
+        for i in 0..p {
+            if i != col {
+                let factor = matrix[i][col];
+                for j in col..=p { matrix[i][j] -= factor * pivot_row[j]; }
+            }
+        }
+    }
+    let coefficients: Vec<f64> = matrix.iter().map(|row| row[p]).collect();
+    if coefficients.iter().any(|value| !value.is_finite()) {
+        return Err(TemporalPathTransportError::Invalid("continuous chain coefficients are nonfinite"));
+    }
+    Ok(coefficients)
+}
+
+fn continuous_chain_worlds(rows: &[&ContinuousChainSourceRow], x: f64)
+    -> Result<(f64, f64), TemporalPathTransportError> {
+    let k = rows[0].mediators.len();
+    let coefficients = (0..=k).map(|equation| continuous_chain_fit(rows, equation))
+        .collect::<Result<Vec<_>, _>>()?;
+    let world = |active: bool| {
+        let mut prior = Vec::with_capacity(k + 1);
+        for (equation, beta) in coefficients.iter().enumerate() {
+            let treatment_input = if active && equation == 0 { 1.0 } else { 0.0 };
+            let mean = beta[0] + beta[1] * x + beta[2] * treatment_input
+                + prior.iter().zip(&beta[3..]).map(|(m, b)| m * b).sum::<f64>();
+            prior.push(mean);
+        }
+        prior[k]
+    };
+    let baseline = world(false);
+    let active = world(true);
+    if !baseline.is_finite() || !active.is_finite() {
+        return Err(TemporalPathTransportError::Invalid("continuous chain world is nonfinite"));
+    }
+    Ok((baseline, active))
+}
+
+fn continuous_chain_fingerprint(result: &ContinuousChainTransportResult) -> [u8; 32] {
+    let mut writer = CanonicalWriter::new("antecedent.continuous_chain_transport.result.v1");
+    writer.word(result.active.to_bits()).word(result.baseline.to_bits())
+        .word(result.contrast.to_bits()).word(result.interval.0.to_bits())
+        .word(result.interval.1.to_bits()).text(result.calibration)
+        .bytes(result.lowered_program_identity.as_bytes());
+    writer.finish()
+}
+
+/// Compile the restricted chain and a common paired resampling schedule.
+/// The active edge intervention and baseline world are composed from fitted
+/// sequential mediator and outcome mechanisms.
+///
+/// # Errors
+/// Unsupported dimensions, nonfinite rows, no empirical arm overlap, singular
+/// original fits, or resource bound.
+pub fn compile_continuous_chain_transport(
+    request: ContinuousChainTransportRequest, ctx: &ExecutionContext,
+) -> Result<CompiledContinuousChainTransport, TemporalPathTransportError> {
+    let n = request.source.len();
+    let m = request.target_baseline.len();
+    let k = request.source.first().map_or(0, |row| row.mediators.len());
+    if n < 40 || m < 20 || k < 2 || k > 8 || request.bootstrap_replicates < 100
+        || request.bootstrap_replicates > 4096
+        || n.checked_add(m).and_then(|v| v.checked_mul(request.bootstrap_replicates))
+            .is_none_or(|work| work > 50_000_000)
+        || request.source.iter().any(|row| !row.baseline.is_finite() || !row.outcome.is_finite()
+            || row.mediators.len() != k || row.mediators.iter().any(|x| !x.is_finite()))
+        || request.target_baseline.iter().any(|x| !x.is_finite())
+    {
+        return Err(TemporalPathTransportError::Invalid("invalid continuous chain source or schedule"));
+    }
+    let target_mean = request.target_baseline.iter().sum::<f64>() / m as f64;
+    for arm in [false, true] {
+        let rows: Vec<_> = request.source.iter().filter(|row| row.treated == arm).collect();
+        if rows.len() < 20 { return Err(TemporalPathTransportError::Invalid("continuous chain requires twenty source units per arm")); }
+        let min = rows.iter().map(|row| row.baseline).fold(f64::INFINITY, f64::min);
+        let max = rows.iter().map(|row| row.baseline).fold(f64::NEG_INFINITY, f64::max);
+        if request.target_baseline.iter().any(|x| *x < min || *x > max) {
+            return Err(TemporalPathTransportError::Invalid("target baseline is outside a source arm range"));
+        }
+    }
+    let all_rows: Vec<_> = request.source.iter().collect();
+    continuous_chain_worlds(&all_rows, target_mean)?;
+    let bytes = antecedent_io::to_cbor(&request)?;
+    if bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(TemporalPathTransportError::Invalid("continuous chain source exceeds its byte bound"));
+    }
+    let source_digest = CanonicalWriter::digest_bytes("antecedent.continuous_chain_transport.source.v1", &bytes);
+    let seed = ctx.rng.master_seed();
+    let mut writer = CanonicalWriter::new("antecedent.continuous_chain_transport.question.v1");
+    writer.bytes(&source_digest).word(seed);
+    let query = writer.finish();
+    let design = DesignShape::quoted(n as u64, (k + 3) as u64, true);
+    let scientific = ScientificProblem {
+        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional { kind: FunctionalKind::PathSpecific, outcome: None, query },
+        plan_id: Arc::from("continuous_sequential_edge_chain_transport.v1"),
+        data: DataClassification::Tabular, graph_class: "declared_randomized_sequential_edge_chain",
+        query_variables: Arc::from([]), source_digest: Some(source_digest),
+        support_coordinate: None, supported: false, support_status: None,
+    };
+    let score = ScoreModel::new("continuous_sequential_edge_gformula_paired_bootstrap")
+        .map_err(|_| TemporalPathTransportError::Invalid("continuous chain score identity is invalid"))?;
+    let statistical = StatisticalProgram {
+        identifier: None, estimator: None, realization: Realization::Frequentist(ScoreFrequentist::new(score)),
+        models: Arc::from([]), folds: None, resampling: None, posterior: None, design, operators: Arc::from([]),
+    };
+    let evidence = EvidenceDecisionProgram {
+        sources: Arc::from([EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(source_digest) }]),
+        composition: Composition::Chained { stages: request.bootstrap_replicates + 1 },
+        decision: None, planning: None, chain: None,
+    };
+    let mut operators = Vec::new();
+    for effect in [PhysicalEffect::Read, PhysicalEffect::Select, PhysicalEffect::Fit, PhysicalEffect::Transport] {
+        operators.push(PhysicalOperator::declare(effect).build().map_err(|_| TemporalPathTransportError::Invalid("continuous chain operator cannot be lowered"))?);
+    }
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::TemporalPathTransport, scientific,
+        identification: IdentificationLayer::NonGraphical(Arc::new(
+            NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+        )), statistical, evidence, physical: PhysicalLayer { operators: operators.into(), design },
+        claim: ClaimDemand { uncertainty: UncertaintyReading::Sampling, kind: Some(ClaimKind::Point) },
+    }.finish());
+    Ok(CompiledContinuousChainTransport { request, seed, lowered })
+}
+
+fn continuous_chain_draw(rng: &mut antecedent_core::CausalRng, n: usize) -> usize {
+    let bound = n as u64;
+    let threshold = bound.wrapping_neg() % bound;
+    loop {
+        let draw = rng.next_u64();
+        if draw >= threshold { return (draw % bound) as usize; }
+    }
+}
+
+impl CompiledContinuousChainTransport {
+    /// Inspect the complete lowered transport and sampling program.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    /// Inspect the compiled route before execution.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView { PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled) }
+
+    /// Refit both worlds on each shared source and target resample.
+    ///
+    /// # Errors
+    /// Seed mismatch, cancellation or a singular bootstrap fit; failures are never discarded.
+    pub fn execute(&self, ctx: &ExecutionContext) -> Result<ContinuousChainTransportResult, TemporalPathTransportError> {
+        if ctx.rng.master_seed() != self.seed { return Err(TemporalPathTransportError::Invalid("continuous chain seed changed")); }
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let arms: Vec<Vec<_>> = [false, true].iter().map(|arm|
+            self.request.source.iter().filter(|row| row.treated == *arm).collect()).collect();
+        let target_mean = self.request.target_baseline.iter().sum::<f64>() / self.request.target_baseline.len() as f64;
+        let original: Vec<_> = self.request.source.iter().collect();
+        let (baseline, active) = continuous_chain_worlds(&original, target_mean)?;
+        let contrast = active - baseline;
+        let mut rng = scoped.rng.stream(0x434F_4E54_4348_4149);
+        let mut replicates = Vec::with_capacity(self.request.bootstrap_replicates);
+        for _ in 0..self.request.bootstrap_replicates {
+            if scoped.cancellation.is_cancelled() { return Err(TemporalPathTransportError::Invalid("continuous chain bootstrap cancelled")); }
+            let sampled: Vec<Vec<_>> = arms.iter().map(|arm| (0..arm.len())
+                .map(|_| arm[continuous_chain_draw(&mut rng, arm.len())]).collect()).collect();
+            let mean = (0..self.request.target_baseline.len()).map(|_|
+                self.request.target_baseline[continuous_chain_draw(&mut rng, self.request.target_baseline.len())]
+            ).sum::<f64>() / self.request.target_baseline.len() as f64;
+            let rows: Vec<_> = sampled.iter().flat_map(|arm| arm.iter().copied()).collect();
+            let (baseline, active) = continuous_chain_worlds(&rows, mean)?;
+            replicates.push(active - baseline);
+        }
+        replicates.sort_by(f64::total_cmp);
+        let interval = (antecedent_kernels::quantile_type7_sorted(&replicates, 0.025),
+            antecedent_kernels::quantile_type7_sorted(&replicates, 0.975));
+        if !contrast.is_finite() || !interval.0.is_finite() || !interval.1.is_finite() {
+            return Err(TemporalPathTransportError::Invalid("continuous chain contrast is nonfinite"));
+        }
+        Ok(ContinuousChainTransportResult { active, baseline, contrast, interval,
+            calibration: "not_measured", lowered_program_identity: self.lowered.identity() })
+    }
+
+    /// Seal the complete raw schedule after fresh result verification.
+    ///
+    /// # Errors
+    /// Changed result, execution failure or oversized artifact.
+    pub fn export(&self, result: &ContinuousChainTransportResult, ctx: &ExecutionContext) -> Result<Vec<u8>, TemporalPathTransportError> {
+        let fingerprint = continuous_chain_fingerprint(result);
+        if fingerprint != continuous_chain_fingerprint(&self.execute(ctx)?) {
+            return Err(TemporalPathTransportError::Invalid("continuous chain result differs"));
+        }
+        let bytes = antecedent_io::to_cbor(&ContinuousChainTransportWire {
+            version: 1, feature: "continuous_sequential_edge_chain_transport_v1".into(),
+            request: self.request.clone(), seed: self.seed, program_identity: *self.lowered.identity().as_bytes(), result_fingerprint: fingerprint,
+        })?;
+        if bytes.len() > MAX_ARTIFACT_BYTES { return Err(TemporalPathTransportError::Invalid("continuous chain artifact exceeds its byte bound")); }
+        Ok(bytes)
+    }
+}
+
+/// Independently recompile and rerun the continuous chain schedule.
+///
+/// # Errors
+/// Changed identity, source, seed, feature, result or nested fit.
+pub fn consume_continuous_chain_transport(bytes: &[u8], expected: SemanticDigest, ctx: &ExecutionContext)
+    -> Result<ContinuousChainTransportResult, TemporalPathTransportError> {
+    if bytes.len() > MAX_ARTIFACT_BYTES { return Err(TemporalPathTransportError::Invalid("continuous chain artifact exceeds its byte bound")); }
+    let wire: ContinuousChainTransportWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.feature != "continuous_sequential_edge_chain_transport_v1"
+        || wire.seed != ctx.rng.master_seed() || wire.program_identity != *expected.as_bytes() {
+        return Err(TemporalPathTransportError::Invalid("continuous chain feature, seed or identity differs"));
+    }
+    let plan = compile_continuous_chain_transport(wire.request, ctx)?;
+    if plan.lowered.identity() != expected { return Err(TemporalPathTransportError::Invalid("continuous chain program differs")); }
+    let result = plan.execute(ctx)?;
+    if continuous_chain_fingerprint(&result) != wire.result_fingerprint { return Err(TemporalPathTransportError::Invalid("continuous chain result differs on replay")); }
+    Ok(result)
+}
+
+/// Prospective calibration coordinate for the restricted paired bootstrap.
+pub struct ContinuousChainCalibrationCandidate {
+    /// Complete compiler execution with unmeasured interval.
+    pub result: ContinuousChainTransportResult,
+    /// Exact method, sample sizes and chain horizon for a future calibration record.
+    pub basis: CalibrationBasis,
+}
+
+impl CompiledContinuousChainTransport {
+    /// Construct a prospective, unmeasured coverage candidate.
+    ///
+    /// # Errors
+    /// Any complete-schedule execution or fitting failure.
+    pub fn calibration_candidate(&self, ctx: &ExecutionContext)
+        -> Result<ContinuousChainCalibrationCandidate, TemporalPathTransportError> {
+        let result = self.execute(ctx)?;
+        let n0 = self.request.source.iter().filter(|row| !row.treated).count();
+        let n1 = self.request.source.len() - n0;
+        let functional = format!("sequential_edge_chain:horizon={}:source_control={n0}:source_active={n1}:target={}",
+            self.request.source[0].mediators.len(), self.request.target_baseline.len());
+        let basis = CalibrationBasis::new([
+            "PathSpecific", "randomized_sequential_edge_chain", "fixed", "tabular", "Frequentist",
+            "continuous_sequential_edge_chain_transport_v1", "paired_stratified_percentile_bootstrap_95",
+            "full_refit", "independent_units_within_unit_longitudinal_dependence", "", functional.as_str(),
+        ].map(Arc::from), 0.95, Arc::from("point"), self.request.source.len() as u64,
+            Some(self.request.bootstrap_replicates as u32), None, 0.0).with_validation("none");
+        Ok(ContinuousChainCalibrationCandidate { result, basis })
+    }
+}
+
+#[cfg(test)]
+mod continuous_chain_tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "source-only continuous chain transport; coverage is not earned"]
+    fn continuous_chain_shared_schedule_replays() {
+        let ctx = ExecutionContext::for_tests(991);
+        let source = (0..200).map(|i| {
+            let x = (i % 25) as f64 / 25.0;
+            let treated = i >= 100;
+            let a = if treated { 1.0 } else { 0.0 };
+            let noise1 = if (i / 25) % 2 == 0 { -1.0 } else { 1.0 };
+            let noise2 = if (i / 50) % 2 == 0 { -1.0 } else { 1.0 };
+            let m1 = x + a + noise1;
+            let m2 = 2.0 * m1 + 3.0 * a + noise2;
+            ContinuousChainSourceRow { baseline: x, treated,
+                mediators: vec![m1, m2], outcome: 3.0 + x + m2 + 4.0 * a }
+        }).collect();
+        let request = ContinuousChainTransportRequest {
+            source, target_baseline: (0..25).map(|i| i as f64 / 25.0).collect(),
+            bootstrap_replicates: 100,
+        };
+        let plan = compile_continuous_chain_transport(request, &ctx).unwrap();
+        let candidate = plan.calibration_candidate(&ctx).unwrap();
+        assert!((candidate.result.contrast - 2.0).abs() < 1e-10);
+        assert_eq!(candidate.result.calibration, "not_measured");
+        let artifact = plan.export(&candidate.result, &ctx).unwrap();
+        let replay = consume_continuous_chain_transport(&artifact, plan.lowered().identity(), &ctx).unwrap();
+        assert_eq!(candidate.result, replay);
+    }
+}
