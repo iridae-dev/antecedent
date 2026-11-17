@@ -2007,6 +2007,8 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::BundleRecomputation => PlanRoute::BundleRecomputation,
         ProgramCell::BridgeBundleRecomputation => PlanRoute::BridgeBundleRecomputation,
         ProgramCell::CyclicPosteriorBundleRecomputation => PlanRoute::CyclicPosteriorBundleRecomputation,
+        ProgramCell::CyclicPosteriorNodeBundleRecomputation => PlanRoute::CyclicPosteriorNodeBundleRecomputation,
+        ProgramCell::TrialIpwNodeBundleRecomputation => PlanRoute::TrialIpwNodeBundleRecomputation,
         ProgramCell::JointComponentPosteriorDecision => PlanRoute::JointComponentPosteriorDecision,
         ProgramCell::PosteriorDecisionBundleRecomputation => PlanRoute::PosteriorDecisionBundleRecomputation,
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,

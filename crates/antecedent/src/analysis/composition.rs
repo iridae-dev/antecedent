@@ -193,6 +193,30 @@ impl BundleBuilder {
         Ok(())
     }
 
+    /// Add an independently reidentified and refitted trial-IPW producer.
+    ///
+    /// # Errors
+    /// The producer replay, graph id or embedded byte limit refuses.
+    pub fn add_trial_ipw_transport_fit(
+        &mut self, node_id: &str, artifact: &[u8], program: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<(), TrialIpwBundleError> {
+        self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
+        let bytes = antecedent_io::to_cbor(&TrialIpwFitWire {
+            version: 1, required_feature: TRIAL_IPW_FIT_FEATURE.into(),
+            producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
+        }).map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > self.limits.max_embedded_bytes {
+            return Err(TrialIpwBundleError::Invalid("trial fit exceeds its embedded bound"));
+        }
+        let inspected = TrialIpwFitVerifier { ctx: ctx.clone() }
+            .verify(node_id, &bytes, &[])
+            .map_err(|failure| ChainBundleRecomputeError::Bundle(node_refused(node_id, &failure)))?;
+        self.nodes.push(BundleNode::embedded(node_id, NodeKind::TrialIpwTransportFit,
+            &inspected.identity, bytes));
+        Ok(())
+    }
+
     /// Embed an artifact whose kind is read from its container.
     ///
     /// # Errors
@@ -1032,7 +1056,16 @@ impl NodeVerifier for CyclicPosteriorFitVerifier {
 /// Other embedded artifacts retain their usual independent verifiers.
 #[must_use]
 pub fn cyclic_posterior_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
-    standard_consumer().register(Box::new(CyclicPosteriorFitVerifier { ctx: ctx.clone() }))
+    native_fit_bundle_consumer(ctx)
+}
+
+/// Consumer with the current native fitted-node verifiers. Each verifier
+/// recompiles from the embedded portable evidence under the supplied context.
+#[must_use]
+pub fn native_fit_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
+    standard_consumer()
+        .register(Box::new(CyclicPosteriorFitVerifier { ctx: ctx.clone() }))
+        .register(Box::new(TrialIpwFitVerifier { ctx: ctx.clone() }))
 }
 
 /// A bundle terminal backed by a cyclic posterior fit. The producer artifact
@@ -1252,6 +1285,7 @@ pub fn consume_portable_cyclic_posterior_bundle_recomputation(
 pub struct CompiledCyclicPosteriorNodeBundle {
     inner: CompiledCyclicPosteriorBundleRecomputation,
     producer_node: String,
+    lowered: Arc<LoweredProgram>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1297,13 +1331,29 @@ pub fn compile_cyclic_posterior_node_bundle_recomputation(
     let inner = compile_cyclic_posterior_bundle_recomputation(
         bundle, terminal_node, wire.artifact, SemanticDigest::from_bytes(wire.producer_program), ctx,
     )?;
-    Ok(CompiledCyclicPosteriorNodeBundle { inner, producer_node: producer_node.into() })
+    let mut writer = CanonicalWriter::new("antecedent.cyclic_posterior_node_bundle.question.v1");
+    writer.bytes(inner.lowered.identity().as_bytes()).text(producer_node).text(terminal_node);
+    let query = writer.finish();
+    let mut scientific = inner.lowered.scientific().clone();
+    scientific.target = ProblemTarget::QueryFunctional {
+        kind: FunctionalKind::PropagatedChain, outcome: None, query,
+    };
+    scientific.plan_id = Arc::from("cyclic_posterior_node_bundle_recomputation.v1");
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::CyclicPosteriorNodeBundleRecomputation, scientific, identification,
+        statistical: inner.lowered.statistical().clone(), evidence: inner.lowered.evidence().clone(),
+        physical: inner.lowered.physical().clone(), claim: *inner.lowered.claim(),
+    }.finish());
+    Ok(CompiledCyclicPosteriorNodeBundle { inner, producer_node: producer_node.into(), lowered })
 }
 
 impl CompiledCyclicPosteriorNodeBundle {
     /// Complete compiler program, binding the graph, fit and terminal.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { self.inner.lowered() }
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
 
     /// Refit the embedded source through the bundle consumer and execute the
     /// terminal chain, requiring the source's fresh chain identity to match.
@@ -1312,7 +1362,7 @@ impl CompiledCyclicPosteriorNodeBundle {
     /// A failed embedded verifier, changed fitted source or terminal.
     pub fn execute(&self, ctx: &ExecutionContext)
         -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
-        let scoped = ctx.enter_lowered_dispatch(self.inner.lowered.identity());
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let bundle = &self.inner.chain.bundle;
         let bytes = export_bundle(bundle, "cyclic-posterior-node-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
@@ -1352,7 +1402,7 @@ impl CompiledCyclicPosteriorNodeBundle {
                 dependencies,
             },
             producer_program_identity: *self.inner.producer_program.as_bytes(),
-            lowered_program_identity: *self.inner.lowered.identity().as_bytes(),
+            lowered_program_identity: *self.lowered.identity().as_bytes(),
         })
     }
 
@@ -1409,6 +1459,268 @@ pub fn consume_portable_cyclic_posterior_node_bundle_recomputation(
     if live != wire.receipt {
         return Err(CyclicPosteriorBundleError::Invalid("portable node receipt differs"));
     }
+    Ok(live)
+}
+
+const TRIAL_IPW_FIT_FEATURE: &str = "trial_ipw_transport_fit_bundle_node_v1";
+const TRIAL_IPW_NODE_FEATURE: &str = "trial_ipw_node_bundle_recomputation_v1";
+const TRIAL_IPW_CHAIN_FACT: &str = "trial_ipw_transport_fit_chain_identity";
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct TrialIpwFitWire {
+    version: u32, required_feature: String,
+    producer_program: [u8; 32], artifact: Vec<u8>,
+}
+
+struct TrialIpwFitVerifier { ctx: ExecutionContext }
+
+impl NodeVerifier for TrialIpwFitVerifier {
+    fn kind(&self) -> NodeKind { NodeKind::TrialIpwTransportFit }
+
+    fn verify(&self, _node_id: &str, bytes: &[u8], _upstream: &[UpstreamNode<'_>])
+        -> Result<VerifiedNode, NodeFailure> {
+        let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(fail("trial IPW fit node exceeds its bound".into()));
+        }
+        let wire: TrialIpwFitWire = antecedent_io::from_cbor(bytes)
+            .map_err(|error| fail(error.to_string()))?;
+        if wire.version != 1 || wire.required_feature != TRIAL_IPW_FIT_FEATURE {
+            return Err(fail("trial IPW fit feature differs".into()));
+        }
+        let producer = super::trial_ipw_transport_decision::consume_trial_ipw_transport_decision(
+            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &self.ctx,
+        ).map_err(|error| fail(error.to_string()))?;
+        let mut facts = std::collections::BTreeMap::new();
+        facts.insert(TRIAL_IPW_CHAIN_FACT.into(), producer.decision.chain.identity().into());
+        Ok(VerifiedNode {
+            identity: CanonicalWriter::digest_bytes_hex("antecedent.trial_ipw_transport_fit_node.v1", bytes),
+            facts, values: Vec::new(),
+        })
+    }
+}
+
+/// Consumer that independently reidentifies and refits trial-IPW nodes.
+/// It requires a runtime context; the generic consumer does not replay these nodes.
+#[must_use]
+pub fn trial_ipw_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
+    native_fit_bundle_consumer(ctx)
+}
+
+/// Refusal of a trial-IPW fit node or compiler-owned bundle terminal.
+#[derive(Debug, thiserror::Error)]
+pub enum TrialIpwBundleError {
+    /// Bundle structure, chain or codec refused.
+    #[error("trial IPW bundle: {0}")]
+    Bundle(#[from] ChainBundleRecomputeError),
+    /// Invalid fit or terminal binding.
+    #[error("trial IPW bundle: {0}")]
+    Invalid(&'static str),
+}
+
+/// A trial-IPW fit and live chain, compiled together before replay.
+#[derive(Clone, Debug)]
+pub struct CompiledTrialIpwNodeBundle {
+    chain: CompiledChainBundleRecomputation,
+    producer_node: String,
+    producer_program: SemanticDigest,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// Whole-route receipt; no sampling coverage or decision reliability is earned.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TrialIpwNodeBundleReceipt {
+    /// The independently consumed graph and freshly executed chain.
+    pub bundle: ChainBundleRecomputationReceipt,
+    /// Trial-IPW producer compiler identity.
+    pub producer_program_identity: [u8; 32],
+    /// Outer compiler identity.
+    pub lowered_program_identity: [u8; 32],
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PortableTrialIpwNodeBundleWire {
+    version: u32, required_feature: String, bundle_bytes: Vec<u8>,
+    bundle_identity: String, producer_node: String, terminal_node: String,
+    receipt: TrialIpwNodeBundleReceipt,
+}
+
+/// Compile an embedded trial-IPW fit and directly dependent chain terminal.
+/// The node graph, fit bytes and program identity enter a distinct outer
+/// six-layer program; compilation does not fit the raw evidence.
+///
+/// # Errors
+/// Missing node or edge, malformed fit declaration or chain compiler refusal.
+pub fn compile_trial_ipw_node_bundle_recomputation(
+    bundle: CompositionBundle, producer_node: &str, terminal_node: &str, ctx: &ExecutionContext,
+) -> Result<CompiledTrialIpwNodeBundle, TrialIpwBundleError> {
+    if !bundle.edges().iter().any(|edge| edge.from == producer_node && edge.to == terminal_node) {
+        return Err(TrialIpwBundleError::Invalid("trial fit must be a direct terminal dependency"));
+    }
+    let node = bundle.nodes().iter().find(|node| node.id == producer_node)
+        .ok_or(TrialIpwBundleError::Invalid("trial fit node is absent"))?;
+    if node.kind != NodeKind::TrialIpwTransportFit {
+        return Err(TrialIpwBundleError::Invalid("producer is not a trial IPW fit"));
+    }
+    let NodeSource::Embedded { bytes } = &node.source else {
+        return Err(TrialIpwBundleError::Invalid("trial fit is not embedded"));
+    };
+    let wire: TrialIpwFitWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1 || wire.required_feature != TRIAL_IPW_FIT_FEATURE {
+        return Err(TrialIpwBundleError::Invalid("trial fit feature differs"));
+    }
+    let producer_program = SemanticDigest::from_bytes(wire.producer_program);
+    let fit_digest = CanonicalWriter::digest_bytes("antecedent.trial_ipw_bundle.fit.v1", bytes);
+    let terminal = bundle.nodes().iter().find(|node| node.id == terminal_node)
+        .ok_or(TrialIpwBundleError::Invalid("trial terminal is absent"))?;
+    if terminal.kind != NodeKind::PropagationChain {
+        return Err(TrialIpwBundleError::Invalid("trial terminal is not a propagation chain"));
+    }
+    let NodeSource::Embedded { bytes } = &terminal.source else {
+        return Err(TrialIpwBundleError::Invalid("trial terminal is not embedded"));
+    };
+    let record = PropagationChainRecordWire::decode(bytes)
+        .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
+    let child = compile_propagation_chain(record, ctx).map_err(ChainBundleRecomputeError::Chain)?;
+    let chain = compile_chain_bundle_recomputation(bundle, terminal_node, child)?;
+    let mut writer = CanonicalWriter::new("antecedent.trial_ipw_bundle.question.v1");
+    writer.bytes(chain.lowered().identity().as_bytes()).text(producer_node)
+        .bytes(producer_program.as_bytes()).bytes(&fit_digest);
+    let query = writer.finish();
+    let mut scientific = chain.lowered().scientific().clone();
+    scientific.target = ProblemTarget::QueryFunctional {
+        kind: FunctionalKind::PropagatedChain, outcome: None, query,
+    };
+    scientific.plan_id = Arc::from("trial_ipw_node_bundle_recomputation.v1");
+    scientific.source_digest = Some(fit_digest);
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
+    let mut evidence = chain.lowered().evidence().clone();
+    let mut sources = evidence.sources.to_vec();
+    sources.push(EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(fit_digest) });
+    evidence.sources = Arc::from(sources);
+    let mut operators = Vec::new();
+    for effect in [PhysicalEffect::Read, PhysicalEffect::Fit] {
+        operators.push(PhysicalOperator::declare(effect).build().map_err(|_| {
+            TrialIpwBundleError::Invalid("trial fit physical operator cannot be lowered")
+        })?);
+    }
+    operators.extend_from_slice(chain.lowered().physical().operators());
+    let physical = PhysicalLayer {
+        operators: Arc::from(operators), design: chain.lowered().physical().design(),
+    };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::TrialIpwNodeBundleRecomputation, scientific, identification,
+        statistical: chain.lowered().statistical().clone(), evidence, physical,
+        claim: *chain.lowered().claim(),
+    }.finish());
+    Ok(CompiledTrialIpwNodeBundle { chain, producer_node: producer_node.into(), producer_program, lowered })
+}
+
+impl CompiledTrialIpwNodeBundle {
+    /// Complete distinct compiler identity for this trial fit and graph.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the outer program without fitting.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Reidentify and refit the source through the bundle consumer, then
+    /// independently execute its direct chain terminal.
+    ///
+    /// # Errors
+    /// A failed dependency, changed fitted chain or terminal.
+    pub fn execute(&self, ctx: &ExecutionContext) -> Result<TrialIpwNodeBundleReceipt, TrialIpwBundleError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let bundle = &self.chain.bundle;
+        let bytes = export_bundle(bundle, "trial-ipw-node-bundle").map_err(ChainBundleRecomputeError::Bundle)?;
+        let consumed = trial_ipw_bundle_consumer(&scoped).consume(
+            &bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
+        ).map_err(ChainBundleRecomputeError::Bundle)?;
+        if !consumed.all_replayed() {
+            return Err(TrialIpwBundleError::Invalid("trial bundle dependency did not replay"));
+        }
+        let fit = consumed.node(&self.producer_node).ok_or(TrialIpwBundleError::Invalid("trial fit disappeared"))?;
+        let terminal = bundle.nodes().iter().find(|node| node.id == self.chain.terminal_node)
+            .ok_or(TrialIpwBundleError::Invalid("trial terminal disappeared"))?;
+        let NodeSource::Embedded { bytes } = &terminal.source else {
+            return Err(TrialIpwBundleError::Invalid("trial terminal became a reference"));
+        };
+        let record = PropagationChainRecordWire::decode(bytes)
+            .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
+        record.consume(Some(&terminal.identity), &scoped)
+            .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
+        let live = self.chain.chain.execute(&scoped).map_err(ChainBundleRecomputeError::Chain)?;
+        if &record != live.record() || terminal.identity != live.identity()
+            || fit.facts.get(TRIAL_IPW_CHAIN_FACT).map(String::as_str) != Some(live.identity())
+        {
+            return Err(TrialIpwBundleError::Invalid("refitted trial source and live chain differ"));
+        }
+        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
+            node_id: node.id.clone(), artifact_identity: node.identity.clone(),
+            chain_digest: node.chain_digest.clone(),
+        }).collect();
+        Ok(TrialIpwNodeBundleReceipt {
+            bundle: ChainBundleRecomputationReceipt {
+                bundle_identity: consumed.identity().into(), terminal_node: self.chain.terminal_node.clone(),
+                terminal_identity: live.identity().into(),
+                lowered_program_identity: *self.chain.lowered.identity().as_bytes(), dependencies,
+            },
+            producer_program_identity: *self.producer_program.as_bytes(),
+            lowered_program_identity: *self.lowered.identity().as_bytes(),
+        })
+    }
+
+    /// Export the graph and verified whole-route receipt for fresh replay.
+    ///
+    /// # Errors
+    /// Changed receipt, codec or byte-bound refusal.
+    pub fn export_portable(&self, receipt: &TrialIpwNodeBundleReceipt, ctx: &ExecutionContext)
+        -> Result<Vec<u8>, TrialIpwBundleError> {
+        if self.execute(ctx)? != *receipt { return Err(TrialIpwBundleError::Invalid("trial bundle receipt differs")); }
+        let bytes = antecedent_io::to_cbor(&PortableTrialIpwNodeBundleWire {
+            version: 1, required_feature: TRIAL_IPW_NODE_FEATURE.into(),
+            bundle_bytes: export_bundle(&self.chain.bundle, "portable-trial-ipw-node-bundle")
+                .map_err(ChainBundleRecomputeError::Bundle)?,
+            bundle_identity: self.chain.bundle.identity().into(), producer_node: self.producer_node.clone(),
+            terminal_node: self.chain.terminal_node.clone(), receipt: receipt.clone(),
+        }).map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(TrialIpwBundleError::Invalid("portable trial bundle exceeds its bound"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Independently recompile and replay an embedded trial-IPW bundle.
+///
+/// # Errors
+/// Changed graph, fit, compiler, terminal or receipt.
+pub fn consume_portable_trial_ipw_node_bundle_recomputation(
+    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<TrialIpwNodeBundleReceipt, TrialIpwBundleError> {
+    if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+        return Err(TrialIpwBundleError::Invalid("portable trial bundle exceeds its bound"));
+    }
+    let wire: PortableTrialIpwNodeBundleWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1 || wire.required_feature != TRIAL_IPW_NODE_FEATURE || wire.bundle_identity != expected_bundle {
+        return Err(TrialIpwBundleError::Invalid("portable trial bundle feature or identity differs"));
+    }
+    let bundle = CompositionBundle::from_bytes(&wire.bundle_bytes, expected_bundle, &BundleLimits::default())
+        .map_err(ChainBundleRecomputeError::Bundle)?;
+    let plan = compile_trial_ipw_node_bundle_recomputation(bundle, &wire.producer_node, &wire.terminal_node, ctx)?;
+    if plan.lowered().identity() != expected_program {
+        return Err(TrialIpwBundleError::Invalid("portable trial bundle compiler differs"));
+    }
+    let live = plan.execute(ctx)?;
+    if live != wire.receipt { return Err(TrialIpwBundleError::Invalid("portable trial bundle receipt differs")); }
     Ok(live)
 }
 

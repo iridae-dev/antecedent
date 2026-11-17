@@ -229,6 +229,10 @@ macro_rules! route_lowerings {
             BridgeBundleRecomputation,
             /// Bundle replay with a refitted cyclic posterior producer.
             CyclicPosteriorBundleRecomputation,
+            /// Bundle replay with an embedded cyclic posterior fit node.
+            CyclicPosteriorNodeBundleRecomputation,
+            /// Bundle replay with an embedded trial-IPW fit node.
+            TrialIpwNodeBundleRecomputation,
             /// Checked connected components and a joint posterior decision.
             JointComponentPosteriorDecision,
             /// Bundle replay with a parameter-posterior decision terminal.
@@ -280,6 +284,8 @@ macro_rules! route_lowerings {
                     Self::BundleRecomputation => "BundleRecomputation",
                     Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
                     Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
+                    Self::CyclicPosteriorNodeBundleRecomputation => "CyclicPosteriorNodeBundleRecomputation",
+                    Self::TrialIpwNodeBundleRecomputation => "TrialIpwNodeBundleRecomputation",
                     Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
                     Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
@@ -326,6 +332,8 @@ macro_rules! route_lowerings {
                     Self::BundleRecomputation => RouteFamily::PropagationChain,
                     Self::BridgeBundleRecomputation => RouteFamily::PropagationChain,
                     Self::CyclicPosteriorBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::CyclicPosteriorNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::TrialIpwNodeBundleRecomputation => RouteFamily::PropagationChain,
                     Self::JointComponentPosteriorDecision => RouteFamily::PropagationChain,
                     Self::PosteriorDecisionBundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,

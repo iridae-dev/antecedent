@@ -151,6 +151,7 @@ fn embedded_fit_node_is_refitted_by_the_bundle_consumer() {
     assert!(consumed.all_replayed());
     let plan = compile_cyclic_posterior_node_bundle_recomputation(bundle.clone(), "fit", "terminal", &ctx)
         .expect("compile fit dependency");
+    assert_ne!(plan.lowered().identity(), plan.inner.lowered().identity());
     let receipt = plan.execute(&ctx).expect("refit node and recompute chain");
     assert!(receipt.bundle.dependencies.iter().any(|dependency| dependency.node_id == "fit"));
     let portable = plan.export_portable(&receipt, &ctx).expect("portable node bundle");
@@ -158,6 +159,86 @@ fn embedded_fit_node_is_refitted_by_the_bundle_consumer() {
         &portable, bundle.identity(), plan.lowered().identity(), &ctx,
     ).expect("portable refit"), receipt);
     assert!(consume_portable_cyclic_posterior_node_bundle_recomputation(
+        &portable, "wrong", plan.lowered().identity(), &ctx,
+    ).is_err());
+}
+
+#[test]
+#[ignore = "source-only trial IPW bundle; no sampling or decision reliability is earned"]
+fn embedded_trial_fit_is_refitted_and_matches_the_live_chain() {
+    use antecedent_core::{ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId};
+    use antecedent_graph::SelectionDiagram;
+    use crate::analysis::trial_ipw_transport_decision::{
+        compile_trial_ipw_transport_decision, TrialIpwRows, TrialIpwTransportDecisionRequest,
+    };
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(2);
+        let mut graph = antecedent_graph::Admg::with_variables(3);
+        let source_node = graph.dense_of_static(treatment).unwrap();
+        let outcome_node = graph.dense_of_static(outcome).unwrap();
+        graph.insert_directed(source_node, outcome_node).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
+        let query = TransportQuery::new(ResponseQuery::new(ResponseFunctional::MeanCurve {
+            outcome, treatment: ContinuousDomain::new(treatment,
+                GridSpec::Values(Arc::from([0.0, 1.0]))),
+        }), "trial", "target", [treatment]);
+        let quantity = ScientificQuantity { variable_id: "2".into(), variable_name: "effect".into(),
+            role: QuantityRole::Outcome, units: "score".into(), population_id: "target".into(),
+            regime_id: "do(0=1)-do(0=0)".into(), horizon: 0,
+            functional_id: "average_effect".into(), conditioning: Vec::new(), transform_id: "identity".into() };
+        let decision = DecisionContract { actions: vec![
+            DecisionAction { id: "treat".into(), kind: ActionKind::External, inputs: vec![quantity.clone()],
+                utility: UtilityExpr::Input(0) },
+            DecisionAction { id: "hold".into(), kind: ActionKind::External, inputs: vec![quantity.clone()],
+                utility: UtilityExpr::Const(0.0) }],
+            utility_units: "score".into(), criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(), target_population: "target".into(), horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction };
+        let rows = TrialIpwRows {
+            unit_ids: (0..80).map(|i| format!("unit-{i}")).collect(),
+            outcomes: (0..80).map(|i| if i < 40 && i % 2 == 0 { 1.0 } else { 0.0 }).collect(),
+            treatment: (0..80).map(|i| i % 2 == 0).collect(),
+            trial: (0..80).map(|i| i < 40).collect(),
+            selection_probability: vec![0.5; 80], treatment_probability: vec![0.5; 80],
+            draws: 100, seed: 31,
+        };
+        let request = TrialIpwTransportDecisionRequest { diagram, query, rows, quantity, decision };
+    let ctx = ExecutionContext::for_tests(31);
+    let producer = compile_trial_ipw_transport_decision(request).expect("compile trial");
+    let result = producer.execute(&ctx).expect("fit trial");
+    assert_eq!(result.calibration, "not_measured");
+    let artifact = producer.export(&result, "trial", &ctx).expect("export trial");
+    let mut corrupted = artifact.clone();
+    corrupted[0] ^= 1;
+    assert!(BundleBuilder::new().add_trial_ipw_transport_fit(
+        "fit", &corrupted, producer.lowered().identity(), &ctx,
+    ).is_err());
+    let mut builder = BundleBuilder::new();
+    builder.add_trial_ipw_transport_fit("fit", &artifact, producer.lowered().identity(), &ctx)
+        .expect("add refitted node");
+    builder.add_artifact(Some("terminal"), NodeKind::PropagationChain,
+        &result.decision.chain.export().unwrap()).unwrap();
+    assert!(compile_trial_ipw_node_bundle_recomputation(
+        builder.build().unwrap(), "fit", "terminal", &ctx,
+    ).is_err());
+    builder.connect("fit", "terminal").unwrap();
+    let bundle = builder.build().unwrap();
+    let encoded = export_bundle(&bundle, "trial-bundle").unwrap();
+    let consumed = trial_ipw_bundle_consumer(&ctx).consume(
+        &encoded, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
+    ).unwrap();
+    assert!(consumed.node_replayed("fit"));
+    assert!(consumed.all_replayed());
+    let plan = compile_trial_ipw_node_bundle_recomputation(bundle.clone(), "fit", "terminal", &ctx)
+        .expect("compile trial bundle");
+    assert_eq!(plan.plan_view().route().as_str(), "TrialIpwNodeBundleRecomputation");
+    let receipt = plan.execute(&ctx).expect("refit source and execute chain");
+    assert!(receipt.bundle.dependencies.iter().any(|node| node.node_id == "fit"));
+    let portable = plan.export_portable(&receipt, &ctx).unwrap();
+    assert_eq!(consume_portable_trial_ipw_node_bundle_recomputation(
+        &portable, bundle.identity(), plan.lowered().identity(), &ctx,
+    ).unwrap(), receipt);
+    assert!(consume_portable_trial_ipw_node_bundle_recomputation(
         &portable, "wrong", plan.lowered().identity(), &ctx,
     ).is_err());
 }
