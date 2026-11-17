@@ -173,6 +173,16 @@ The distinct compiler identity, portable replay and prospective basis bind
 the exact partition and block length. Stationarity and weak within-series
 dependence are premises; coverage remains `not_measured`.
 
+`panel_block_sampling_assumption_union_v1` binds independent equal-length
+panels and an ordered within-panel block length. Each replicate samples whole
+panels with replacement, then overlapping consecutive blocks from each chosen
+panel into its destination positions, using one row schedule for all aligned
+sampling columns. It recompiles every assumption chain, independently replays
+the schedule and exposes an exact-design unmeasured endpoint-coverage basis.
+Exchangeable panels, stationary weak within-panel dependence and a justified
+joint panel/time asymptotic regime are premises. The second resampling stage
+can overstate variability; no coverage is earned by its source code.
+
 The scientific bridge's exported chain stage now carries its source-law
 meaning, output reading and target quantity. A predictive source remains
 predictive when uncertain mapping coefficients are applied; a new outcome
@@ -562,6 +572,18 @@ counts separately. Earlier target version-1 artifacts refuse replay under the
 corrected semantics. Source-population paired worlds retain their version-1
 identity. These checks do not earn calibration.
 
+`graph_imputation_confounded_kernel_transport_decision_v1` and its separate
+IID target-bootstrap route extend this target schedule to mixed continuous
+and binary pretreatment covariates when treatment is confounded. The compiler
+rechecks augmented backdoor and selection admissibility for every retained
+graph; each completed table must meet the declared kernel-overlap floor for
+every target row in both source treatment arms. The full source graph and
+imputation fit is replayed for each target resample, and the consumer refits
+from raw source evidence. The kernel floor is a finite-sample support
+diagnostic, not a proof of population positivity. Fixed bandwidth, Gaussian
+child outcome model and independent target sampling remain premises. The
+prospective bases and decision reliability are unmeasured.
+
 Bundle recomputation has a first executable slice: a fully embedded bundle
 whose terminal is a propagation chain. A new six-layer program binds the
 bundle identity, terminal node and retained chain declaration. Execution
@@ -618,6 +640,15 @@ The three fitted terminal statistical layers expose a nested producer and its
 posterior or predictive law. Bundle failure stages distinguish known
 cancellation and resource refusals from evidence mismatches; child errors that
 flatten resource context to text cannot be classified further.
+
+`joint_transport_effect_node_bundle_recomputation.v1` adds a fourth typed
+fit node. Its context-bound consumer reidentifies the raw selection graph and
+refits the exact-conjugate source and target evidence before it checks the
+regenerated effect-posterior chain against a directly dependent live terminal.
+The outer compiler has a distinct route and nested posterior realization; its
+portable graph and receipt are independently replayed. The result is a
+model-conditional target average treatment effect, with no predictive
+outcome-risk or earned reliability claim.
 
 `posterior_decision_bundle_recomputation.v1` gives a parameter-posterior
 decision result a distinct compiler route. It requires an embedded aligned
