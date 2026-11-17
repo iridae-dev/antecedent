@@ -10,7 +10,8 @@
 //! verifies every embedded artifact through its own consumer and reports each node
 //! as verified, reference-unresolved or failed at a named stage.
 //!
-//! Nothing here replays an executable study. A reference node is never claimed
+//! Native fitted nodes use context-bound verifiers to recompile and rerun their
+//! portable source before a live bundle terminal is accepted. A reference node is never claimed
 //! replayed, a decision resting on an external mean is labelled point-only
 //! attested, and a decision that needs an aligned joint law is refused over an
 //! upstream mean-only claim. The bundle identity the consumer passes to
