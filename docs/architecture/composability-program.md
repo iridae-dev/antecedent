@@ -655,7 +655,11 @@ streams refuse. Ignored known-optimum grids report correct choices and
 refusals without earning decision reliability.
 
 Typed live bundles connect the joint, trial, graph and feedback predictive
-producers to a retained predictive chain and decision. A separate sequential
+producers to a retained predictive chain and action-world decision. The
+assessed bridge target-posterior producer has a separate typed fit node using
+its single-law predictive chain and expected-regret decision terminal. Its
+consumer independently reruns the source bridge, validation and target fit.
+A separate sequential
 bundle connects a raw policy evaluation to aligned `DecisionDraws` and a live
 diagnostic. Each outer compiler binds the embedded identities and direct
 edges; a portable consumer reconstructs the bundle, reruns the producer and
@@ -738,3 +742,14 @@ complete embedded terminal. The portable consumer reconstructs and replays
 all embedded nodes under independently retained bundle and program identities.
 It evaluates a supplied posterior; it does not refit the producer or earn
 coverage, predictive risk or action-choice reliability.
+
+The time-ordered sampled path contrast has an ignored prospective grid in
+`sampled_temporal_path_transport_calibration.rs`: independent finite-SCM regime
+samples are shared across both worlds, and the paired-delta interval is scored
+against the oracle contrast. The restricted continuous sequential DAG has a
+separate ignored grid in `continuous_chain_transport_calibration.rs`, with
+independent randomized source units, target baselines and a known contrast; it
+refits the complete paired arm-stratified bootstrap. Both bind the candidate's
+runtime calibration basis and count refusals. Their pending declarations are
+source-only; neither grid has established coverage. Exact finite-law path
+transport is conditional on supplied laws and has no sampling interval to score.

@@ -303,3 +303,23 @@ ignored = true
 grid = true
 whole = true
 reason = "Prospective Gaussian active predictive coverage under independent two-row target clusters and a known outcome and residual law. The full graph, imputation and target predictive fit reruns across 40 whole-cluster resamples; a future population outcome and known-optimum decision are scored under their exact unmeasured scopes."
+
+[[group]]
+label = "sampled_temporal_path_transport_calibration: sampled_temporal_path_transport_l95"
+package = "antecedent"
+target = "sampled_temporal_path_transport_calibration"
+tests = ["sampled_temporal_path_transport_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Independent multinomial samples of every cited finite-SCM source and target regime feed both path worlds on one shared count stack. The 20000/40000/80000-unit-per-regime grid scores the clamped paired-delta 95% whole-contrast interval against the finite oracle and binds the runtime basis. Refusals are counted. No coverage is measured or earned."
+
+[[group]]
+label = "continuous_chain_transport_calibration: continuous_chain_transport_l95"
+package = "antecedent"
+target = "continuous_chain_transport_calibration"
+tests = ["continuous_chain_transport_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Independent randomized source units and target baselines follow a known linear sequential DAG with independent structural errors. The 120/240/480-source-and-target-unit grid scores the 200-resample paired arm-stratified whole-contrast percentile interval against analytic truth 2, binds the runtime basis, and counts refusals. No coverage is measured or earned."
