@@ -1104,6 +1104,7 @@ pub(crate) enum ProgramCell {
     AssessedBridgeTransportDecision,
     /// Fitted source-target effect posterior and utility in one program.
     JointTransportEffectDecision,
+    TrialIpwTransportDecision,
     /// Fitted target outcome prediction and paired-world utility.
     JointTransportPredictiveDecision,
     /// Target-population time-ordered path-specific transport.
@@ -1158,6 +1159,7 @@ impl ProgramCell {
             Self::BridgeTransportPremiseAssessment => "BridgeTransportPremiseAssessment",
             Self::AssessedBridgeTransportDecision => "AssessedBridgeTransportDecision",
             Self::JointTransportEffectDecision => "JointTransportEffectDecision",
+            Self::TrialIpwTransportDecision => "TrialIpwTransportDecision",
             Self::JointTransportPredictiveDecision => "JointTransportPredictiveDecision",
             Self::TemporalPathTransport => "TemporalPathTransport",
             Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
@@ -1238,6 +1240,7 @@ impl LoweredProgram {
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::BridgeTransportPremiseAssessment
             | ProgramCell::AssessedBridgeTransportDecision
+            | ProgramCell::TrialIpwTransportDecision
             | ProgramCell::JointTransportEffectDecision
             | ProgramCell::JointTransportPredictiveDecision
             | ProgramCell::TemporalPathTransport
@@ -1276,6 +1279,7 @@ impl LoweredProgram {
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::BridgeTransportPremiseAssessment
             | ProgramCell::AssessedBridgeTransportDecision
+            | ProgramCell::TrialIpwTransportDecision
             | ProgramCell::JointTransportEffectDecision
             | ProgramCell::JointTransportPredictiveDecision
             | ProgramCell::TemporalPathTransport
@@ -1314,6 +1318,7 @@ impl LoweredProgram {
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::BridgeTransportPremiseAssessment
             | ProgramCell::AssessedBridgeTransportDecision
+            | ProgramCell::TrialIpwTransportDecision
             | ProgramCell::JointTransportEffectDecision
             | ProgramCell::JointTransportPredictiveDecision
             | ProgramCell::TemporalPathTransport

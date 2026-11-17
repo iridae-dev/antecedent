@@ -195,6 +195,7 @@ mod joint_interval_artifact;
 pub mod joint_law_composed_basis;
 pub mod joint_law_propagation;
 pub mod joint_transport_effect_decision;
+pub mod trial_ipw_transport_decision;
 pub mod joint_transport_predictive_decision;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;

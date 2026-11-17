@@ -1996,6 +1996,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::BridgeTransportPremiseAssessment => PlanRoute::BridgeTransportPremiseAssessment,
         ProgramCell::AssessedBridgeTransportDecision => PlanRoute::AssessedBridgeTransportDecision,
         ProgramCell::JointTransportEffectDecision => PlanRoute::JointTransportEffectDecision,
+        ProgramCell::TrialIpwTransportDecision => PlanRoute::TrialIpwTransportDecision,
         ProgramCell::JointTransportPredictiveDecision => PlanRoute::JointTransportPredictiveDecision,
         ProgramCell::TemporalPathTransport => PlanRoute::TemporalPathTransport,
         ProgramCell::SamplingAssumptionUnion => PlanRoute::SamplingAssumptionUnion,

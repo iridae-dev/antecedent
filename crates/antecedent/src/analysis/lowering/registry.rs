@@ -212,6 +212,7 @@ macro_rules! route_lowerings {
             AssessedBridgeTransportDecision,
             /// Fitted source-target effect posterior and utility.
             JointTransportEffectDecision,
+            TrialIpwTransportDecision,
             JointTransportPredictiveDecision,
             /// Target-population time-ordered path-specific transport.
             TemporalPathTransport,
@@ -265,6 +266,7 @@ macro_rules! route_lowerings {
                     Self::BridgeTransportPremiseAssessment => "BridgeTransportPremiseAssessment",
                     Self::AssessedBridgeTransportDecision => "AssessedBridgeTransportDecision",
                     Self::JointTransportEffectDecision => "JointTransportEffectDecision",
+                    Self::TrialIpwTransportDecision => "TrialIpwTransportDecision",
                     Self::JointTransportPredictiveDecision => "JointTransportPredictiveDecision",
                     Self::TemporalPathTransport => "TemporalPathTransport",
                     Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
@@ -308,6 +310,7 @@ macro_rules! route_lowerings {
                     Self::BridgeTransportPremiseAssessment => RouteFamily::Structural,
                     Self::AssessedBridgeTransportDecision => RouteFamily::Structural,
                     Self::JointTransportEffectDecision => RouteFamily::Structural,
+                    Self::TrialIpwTransportDecision => RouteFamily::Structural,
                     Self::JointTransportPredictiveDecision => RouteFamily::Structural,
                     Self::TemporalPathTransport => RouteFamily::Temporal,
                     Self::SamplingAssumptionUnion => RouteFamily::PropagationChain,
