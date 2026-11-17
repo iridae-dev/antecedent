@@ -17,16 +17,16 @@ coverage or error control.
 | Priority | Limitation impact | Useful flow and existing support | Remaining compiler obligation | Existing claim change |
 | --- | --- | --- | --- | --- |
 | 1 | Critical | A new joint cyclic posterior route samples fitted mechanisms from one likelihood, draws population disturbances from the specified covariance, solves each hard-clamp world on the same parameter and disturbance pair, then compiles nonlinear multi-action utility. An ignored known-model population-outcome coverage grid and exact final compiler basis are staged | Run and earn final population-predictive coverage and decision reliability at their exact coordinates; the model and covariance remain assumptions | None for an additive route; high if parameter draws are reinterpreted as outcome risk |
-| 2 | Critical | The bounded graph-imputation transport-decision cell compiles source graph operations, missing-row imputation, a representative binary target sample, graph-specific standardization, child fitting and target effect utility into one portable schedule. A separate source-only mixed-target kernel cell accepts continuous and binary covariates with explicit bandwidth and overlap policy. Source-only IID target-frame bootstrap policies rerun the complete binary and kernel routes on each target resample, each with its own prospective calibration basis. A distinct confounded-pretreatment binary route checks augmented backdoor validity in every graph and both source treatment arms in every target-supported stratum | Earn target-frame coverage and decision reliability for every exact route; extend the confounded route to target-frame sampling and further selection diagrams | None for the additive routes; high if component intervals are relabelled as whole-chain coverage |
+| 2 | Critical | The bounded graph-imputation transport-decision cell compiles source graph operations, missing-row imputation, a representative binary target sample, graph-specific standardization, child fitting and target effect utility into one portable schedule. A separate source-only mixed-target kernel cell accepts continuous and binary covariates with explicit bandwidth and overlap policy. Source-only IID target-frame bootstrap policies rerun the complete binary and kernel routes on each target resample, each with its own prospective calibration basis. A distinct confounded-pretreatment binary route checks augmented backdoor validity in every graph and both source treatment arms in every target-supported stratum; its separate IID target bootstrap repeats those checks and refits the complete route | Earn target-frame coverage and decision reliability for every exact route; extend to further selection diagrams | None for the additive routes; high if component intervals are relabelled as whole-chain coverage |
 | 3 | High | A declared transported law can enter multi-action utility; a joint Bayesian effect-decision program binds and replays the fitted target effect. A separate source-only predictive program binds a shared-baseline premise, target noise variance, explicit cross-world Gaussian correlation, empirical target frame, posterior fit, paired action-world outcomes and utility; its version-2 artifact reidentifies, refits and redraws. A further source-only trial-IPW route reidentifies and refits a Dirichlet empirical-support effect law from raw trial rows before utility, with prospective interval and action-choice study coordinates | Run the prospective predictive and trial-IPW grids when CPU is available; extend fitted decisions to further transport producers and earn final action-choice reliability at each exact coordinate | None for these additive routes; medium if effect posterior draws are treated as outcome risk without the new baseline and coupling premises |
-| 4 | High | The declared-replicate compiler cell replays whole-chain assumption envelopes and forms a Bonferroni basic-bootstrap union. Separate IID, complete-cluster, source-only moving-block and stratified whole-cluster routes bind raw aligned rows and identities, generate resamples inside compiler execution, rerun every chain and independently replay the schedule. Source-only fixed-truth joint-endpoint grids are staged for IID and cluster designs; the moving-block and stratified cluster routes stage exact-basis candidates | Run and earn joint-endpoint coverage at each exact resampling coordinate before calling a union calibrated or feeding it into a confidence decision; cover further dependence structures | None for the additive routes; high if an assumption range is treated as a confidence interval |
+| 4 | High | The declared-replicate compiler cell replays whole-chain assumption envelopes and forms a Bonferroni basic-bootstrap union. Separate IID, complete-cluster, source-only moving-block, stratified whole-cluster and stratified moving-block routes bind raw aligned rows and identities, generate resamples inside compiler execution, rerun every chain and independently replay the schedule. Source-only fixed-truth joint-endpoint grids are staged for IID and cluster designs; the other generated routes stage exact-basis candidates | Run and earn joint-endpoint coverage at each exact resampling coordinate before calling a union calibrated or feeding it into a confidence decision; cover further dependence structures | None for the additive routes; high if an assumption range is treated as a confidence interval |
 | 5 | High | The graph-checked policy route separates a narrower policy information set from the full nuisance adjustment set in a version-3 artifact, while retaining held-out or cross-fit scoring. Distinct source-only held-out and cross-fitted interval candidates and fixed-truth coverage grids are staged; the cross-fit grid scores every realized fold policy on the empirical covariate frame. A further source-only compiler route refits the complete learner and nuisance schedule on each m-out-of-n subsample, with a prospective near-tie grid | Earn coverage records for each exact learner and information set; determine whether the subsampling limit and scaling hold for unstable learned policies, especially near ties | None for the additive route; high if same-data scores acquire an unbiasedness claim |
-| 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; binary-stratum and mixed-covariate kernel target decisions retain that dependent source schedule. A source-only paired-world route evaluates control and active source-population Gaussian means from the same completed-table graph and coefficient draw, then scores joint action utility | Extend paired worlds to target populations and nonlinear outcome laws; earn decision reliability for the complete graph, missingness and treatment-world schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
+| 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; binary-stratum and mixed-covariate kernel target decisions retain that dependent source schedule. Source-only paired-world routes evaluate control and active Gaussian population means from the same completed-table graph and coefficient draw for source or representative binary target frames, then score joint action utility | Extend paired worlds to nonlinear outcome laws; earn decision reliability for the complete graph, missingness and treatment-world schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
 | 7 | Medium | A scientific surrogate bridge composes with transport and nonlinear utility over joint draws. A source-only compiler assessment fits independent source and target trial-level mappings on an overlapping grid. The assessed bridge-decision cell binds that evidence to the exact bridge premise and source mapping, then replays both child programs in one portable receipt. A separate source-only robust cell propagates a conservative grid-wide target-minus-source discrepancy envelope through each mapped row and maximin utility. An exact-basis whole-grid coverage harness is staged | Earn the target validation and final decision reliability records; extend beyond the conservative unmeasured discrepancy envelope when validation supports a sharper joint law | None for a new route; high if a surrogate score is substituted for an endpoint |
-| 8 | Medium | Scalar and vector feedback compile one cyclic program; a joint likelihood posterior carries fitted parameter dependence into connected predictive equilibria and paired decisions. A source-only fixed-design action-selection study coordinate and planted-equilibrium grid are staged. A separate source-only component handoff rechecks scalar real-valued ports and connections, then jointly fits one shared-data posterior under an outer compiler identity | Earn connected-equilibrium population coverage and action reliability; extend checked fitted-component evidence to vector, bounded and categorical ports and further models/covariances | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
+| 8 | Medium | Scalar and vector feedback compile one cyclic program; a joint likelihood posterior carries fitted parameter dependence into connected predictive equilibria and paired decisions. A source-only fixed-design action-selection study coordinate and planted-equilibrium grid are staged. Separate source-only scalar and multi-output component handoffs recheck real-valued ports and connections, then jointly fit one shared-data posterior under distinct outer compiler identities | Earn connected-equilibrium population coverage and action reliability; extend checked fitted-component evidence to bounded and categorical ports and further models/covariances | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | A time-ordered finite path-specific transport cell identifies each edge-intervention world under a selection diagram, evaluates the target contrast on exact laws, and replays both derivations. A source-only sampled compiler route reidentifies both worlds and differentiates their paired contrast on one count stack. A further source-only continuous sequential linear edge-intervention route fits mediator and outcome mechanisms on a prespecified time-ordered DAG and selects arbitrary declared treatment edges. Prospective whole-contrast calibration candidates are staged | Earn whole-contrast coverage before publishing a calibrated interval; extend continuous estimation beyond additive linear models and observed mediator DAGs | None for the additive routes; high if ordinary transport is relabelled path-specific |
 | 10 | Medium | Independent indicators retain the version-3 route; a separate fitted joint-error compiler cell propagates labelled validation uncertainty; an ignored fixed-truth grid harness and exact model-coordinate calibration lookup are source-ready | Register and earn whole-route coverage records before the new equal-tail interval can report a measured status | None for the additive route; medium if independent indicators are silently treated as a joint model |
-| 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together; its portable receipt reconstructs the graph and terminal compiler. Separate source-only bridge, predictive decision and parameter-posterior decision terminals bind source and contract, rerun dependency consumers, derive the terminal live and recompile from the portable graph. A source-only cyclic posterior route also embeds its raw-evidence fit as a typed bundle node, requires a direct edge to the terminal and independently refits it during consumption | Generalize context-bound fitted-node verification to further executable producers and decision criteria | None for the additive routes; low for numerical claims, but identity-only plans cannot become execution receipts |
+| 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together; its portable receipt reconstructs the graph and terminal compiler. Separate source-only bridge, predictive decision and parameter-posterior decision terminals bind source and contract, rerun dependency consumers, derive the terminal live and recompile from the portable graph. Source-only cyclic posterior, trial-IPW and graph-imputation transport routes embed raw-evidence fits as typed bundle nodes, require a direct edge to the terminal and independently refit them through one context-bound consumer | Generalize context-bound fitted-node verification to further executable producers and decision criteria | None for the additive routes; low for numerical claims, but identity-only plans cannot become execution receipts |
 
 ## Current source slice
 
@@ -90,8 +90,17 @@ outer six-layer identity. It refits one shared training schedule and covariance
 for the connected model; the portable consumer reconstructs and rechecks the
 component graph before replaying that joint posterior. This does not import
 component-level calibration or infer dependence from separately fitted
-posteriors. Vector, bounded and categorical ports and evidence-ledger-backed
-component fitting remain outside this route.
+posteriors. Multi-output fitting has its own route; bounded and categorical
+ports and evidence-ledger-backed component fitting remain outside this one.
+
+`joint_vector_component_posterior_decision_v1` rechecks the original
+multi-output component interfaces and each consumed-port connection before
+expanding them to the common cyclic posterior fit. The outer compiler binds
+the full vector declaration and shared training schedule; portable replay
+reconstructs the vector graph and reruns the joint fit and decision. Only
+real-valued ports are admitted. The connected predictive and decision claims
+remain model-conditional and unmeasured; bounded and categorical ports and
+component-level evidence-ledger support remain open.
 
 `propagation_chain_assumption_v3` adds a second route for aligned sampling or
 posterior draws combined with interval-valued assumptions through rowwise
@@ -154,6 +163,15 @@ recompiles every aligned source and fixed assumption for each replicate. Its
 distinct compiler identity, portable replay and prospective calibration basis
 bind the exact partition. The result remains `not_measured`; independent
 clusters and within-stratum exchangeability are declared assumptions.
+
+`stratified_moving_block_sampling_assumption_union_v1` binds multiple
+independent, equally spaced series to one raw row table, including interleaved
+rows. It resamples overlapping noncircular blocks independently within each
+series and fills the original series positions with one schedule shared by
+all sampling columns. Every replicate recompiles the whole assumption chain.
+The distinct compiler identity, portable replay and prospective basis bind
+the exact partition and block length. Stationarity and weak within-series
+dependence are premises; coverage remains `not_measured`.
 
 The scientific bridge's exported chain stage now carries its source-law
 meaning, output reading and target quantity. A predictive source remains
@@ -286,6 +304,15 @@ standardization, posterior utility and portable replay then run under a
 separate identity and prospective basis. Causal sufficiency, missing at
 random, conditional outcome invariance and a representative binary target
 remain premises; target-frame sampling and decision reliability are unmeasured.
+
+`graph_imputation_confounded_transport_target_bootstrap_decision_v1` reruns
+that confounded graph and imputation schedule for each IID resample of the
+independent target frame. The source fit schedule stays fixed and one
+posterior effect draw per target replicate enters the final multi-draw
+decision. A separate feature, compiler identity, portable replay and
+prospective interval basis retain the exact resampling policy. Resamples
+without treatment-arm overlap refuse; coverage and decision reliability are
+still `not_measured`.
 
 `graph_imputation_kernel_transport_decision_v1` is a separate additive
 mixed-covariate route. It binds complete independent target rows, selected
@@ -490,6 +517,17 @@ the paired receipt and decision. These are potential-outcome mean parameters,
 not individual predictive outcomes. The separate route has no measured
 coverage or final decision reliability.
 
+`graph_imputation_transport_paired_world_decision_v1` uses the same paired
+graph, imputation and coefficient rows for control and active target-population
+mean worlds. It binds an independent representative binary target frame,
+standardizes each graph through its target weights, and checks the weighted
+design's centered treatment interactions before evaluating either world. The
+two target means enter one joint action-world decision and portable replay.
+The target frame, conditional mean invariance, Gaussian child law and source
+overlap remain premises. Its source-only known-optimum action-choice study
+coordinate is unmeasured; it carries neither target-frame sampling variation
+nor individual outcome noise.
+
 Bundle recomputation has a first executable slice: a fully embedded bundle
 whose terminal is a propagation chain. A new six-layer program binds the
 bundle identity, terminal node and retained chain declaration. Execution
@@ -531,6 +569,14 @@ The portable consumer reconstructs the graph and repeats the complete fit
 and terminal verification under the retained outer compiler identity. The
 generic bundle consumer has no execution context; callers use the new
 context-bound consumer for this fitted node kind.
+
+Typed trial-IPW and graph-imputation transport fit nodes use the same
+context-bound bundle consumer. Each verifier calls its producer's full
+portable raw-evidence consumer, and its distinct outer compiler requires a
+direct edge to the live chain terminal. The terminal must match the newly
+generated chain before an independently reconstructable receipt is accepted.
+These handoffs retain their child model assumptions and `not_measured`
+calibration; a bundle receipt does not earn reliability.
 
 `posterior_decision_bundle_recomputation.v1` gives a parameter-posterior
 decision result a distinct compiler route. It requires an embedded aligned
