@@ -8,7 +8,7 @@
 //! module for it, so both sides keep the same graphs. It then executes the single native
 //! pipeline under that program identity. The measured factory is reached only through [`authorize`], so every interval is
 //! reported, `calibrated` exactly when a current attesting coverage record covers the execution.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use antecedent_core::assumption::AssumptionSource;
@@ -72,6 +72,10 @@ pub struct TransportStandardization {
     pub source_sample: String,
     /// Independent target sample identity declared by the caller.
     pub target_sample: String,
+    /// Source unit identities in original row order.
+    pub source_unit_ids: Vec<String>,
+    /// Target unit identities in representative row order.
+    pub target_unit_ids: Vec<String>,
 }
 
 impl TransportStandardization {
@@ -94,6 +98,15 @@ impl TransportStandardization {
         let rows = self.columns[0].1.len();
         if rows < 2 || self.columns.iter().any(|(_, values)| values.len() != rows) {
             return Err(invalid("target covariate columns need aligned representative rows"));
+        }
+        if self.source_unit_ids.len() != parts.rows() || self.target_unit_ids.len() != rows {
+            return Err(invalid("source and target unit identities must align with their rows"));
+        }
+        let mut units = BTreeSet::new();
+        if self.source_unit_ids.iter().chain(&self.target_unit_ids).any(|unit| {
+            unit.trim().is_empty() || !units.insert(unit.as_str())
+        }) {
+            return Err(invalid("source and target units must have distinct nonblank identities"));
         }
         let mut previous = None;
         for (id, values) in &self.columns {

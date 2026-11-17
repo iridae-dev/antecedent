@@ -463,7 +463,13 @@ mod tests {
             source_population: "source".into(), target_population: "target".into(),
             source_sample: producer.source_identity().to_hex(),
             target_sample: "independent-target-sample".into(),
+            source_unit_ids: (0..80).map(|row| format!("source-{row}")).collect(),
+            target_unit_ids: (0..80).map(|row| format!("target-{row}")).collect(),
         };
+        let original = GraphImputationSource::decode(producer.source_bytes()).unwrap();
+        let mut overlapping = target.clone();
+        overlapping.target_unit_ids[0] = overlapping.source_unit_ids[0].clone();
+        assert!(overlapping.validate(original.parts()).is_err());
         let quantity = ScientificQuantity {
             variable_id: "y".into(), variable_name: "target effect".into(),
             role: QuantityRole::Outcome, units: "score".into(),

@@ -165,9 +165,11 @@ graph's adjustment set before the child Gaussian outcome fit. A target stratum
 with no source support refuses. A graph omitting a selected covariate imposes
 effect homogeneity along it through its child model; this is a declared
 parametric premise, not a structural theorem. The target sampling frame,
-source-target independence and invariant conditional outcome mechanism are
-declared assumptions. The effect posterior conditions on the empirical target
-covariate frame and omits its sampling uncertainty. The combined portable consumer recompiles the original
+invariant conditional outcome mechanism are declared assumptions. Source and
+target unit ids are bound in row order and checked for duplicates and overlap;
+their provenance and the target sampling frame remain declared. The effect
+posterior conditions on the empirical target covariate frame and omits its
+sampling uncertainty. The combined portable consumer recompiles the original
 source and outer target program, then reruns the numerical schedule and
 utility. Its posterior effect and decision are `not_measured`; its ignored
 reference assertion is unearned. The old graph-imputation measured route
