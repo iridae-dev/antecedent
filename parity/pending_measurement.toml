@@ -193,26 +193,30 @@ groups = [
 
 [[pending]]
 row = "X04.2.static.bayesian"
-facet = "suite.decision_reliability_calibration"
+facet = "suite.joint_panel_calibration"
 owed = "selected_decision_reliability"
+groups = ["joint_panel_calibration: joint_panel_selected_program_value_static_bayesian_l95"]
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
 row = "X04.2.static.frequentist"
-facet = "suite.decision_reliability_calibration"
+facet = "suite.joint_panel_calibration"
 owed = "selected_decision_reliability"
+groups = ["joint_panel_calibration: joint_panel_selected_program_value_static_frequentist_l95"]
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
 row = "X04.2.temporal.bayesian"
-facet = "suite.decision_reliability_calibration"
+facet = "suite.joint_panel_calibration"
 owed = "selected_decision_reliability"
+groups = ["joint_panel_calibration: joint_panel_selected_program_value_temporal_bayesian_l95"]
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
 row = "X04.2.temporal.frequentist"
-facet = "suite.decision_reliability_calibration"
+facet = "suite.joint_panel_calibration"
 owed = "selected_decision_reliability"
+groups = ["joint_panel_calibration: joint_panel_selected_program_value_temporal_frequentist_l95"]
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]

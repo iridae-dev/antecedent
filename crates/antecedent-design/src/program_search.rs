@@ -483,6 +483,25 @@ impl PreparedFiniteProgramSearch {
         Ok(())
     }
 }
+/// Per-draw utilities of one compiled program on an aligned law, and the draw weights when
+/// they are not uniform: the same table the decision engine ranks the program from.
+fn program_utility_draws(
+    contract: &ProgramSearchContract,
+    candidate: &ProgramCandidate,
+    scope: &ProgramSearchScope,
+    law: &DistributionArtifact,
+) -> Result<(Vec<f64>, Option<Vec<f64>>), ProgramSearchError> {
+    let decision = decision(
+        contract,
+        std::slice::from_ref(candidate),
+        &scope.population,
+        scope.horizon,
+        &scope.utility_units,
+    )?;
+    ActionLaw::of_program_search_action(&decision, &candidate.id, law)
+        .map(|action| action.draws())
+        .map_err(invalid)
+}
 fn quantity_bytes(quantity: &ScientificQuantity) -> Result<usize, ProgramSearchError> {
     let fields = [
         &quantity.variable_id,

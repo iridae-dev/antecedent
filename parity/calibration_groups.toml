@@ -14820,3 +14820,35 @@ target = "conjugate_routes_calibration"
 tests = ["select_alpha_prior_linear_bias_aware_interval_l95"]
 ignored = true
 grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_static_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_static_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_static_bayesian_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_static_bayesian_l95"]
+ignored = true
+grid = false
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_temporal_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_temporal_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_temporal_bayesian_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_temporal_bayesian_l95"]
+ignored = true
+grid = false

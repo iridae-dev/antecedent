@@ -1,6 +1,9 @@
 //! A continuous program search is a bounded local poll over compiled programs: it publishes the
-//! best feasible point it found and every attempt, never a global optimality gap, a global
-//! certificate or a reliability figure for the selected decision.
+//! best feasible point it found and every attempt, never a global optimality gap or a global
+//! certificate. On the complete aligned fitted law it also publishes the reliability of the
+//! selected decision: a simultaneous interval for the selected program's value over every
+//! retained proposal, with its calibration annotation. On point means there is no law to
+//! carry it and the search says so.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -17,12 +20,16 @@ use antecedent::{
 use antecedent_core::ExecutionContext;
 use antecedent_design::{
     decision_contract::{ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr},
-    program_search::{FiniteProgramDomain, ProgramControl, continuous::ContinuousSearchOptions},
+    program_search::{
+        FiniteProgramDomain, ProgramControl,
+        continuous::{ContinuousSearchOptions, ContinuousSearchReliability},
+    },
 };
 use antecedent_estimate::joint_panel::PanelInference;
 
-#[test]
-fn continuous_program_search_publishes_no_gap_certificate_or_reliability() {
+fn search_reliability(
+    uncertainty: JointPanelSearchUncertainty,
+) -> antecedent::analysis::joint_panel::JointPanelContinuousSearchResult {
     let ctx = ExecutionContext::for_tests(20_261_021);
     let data = fixture::source(false);
     let request = fixture::request(&data, false, PanelInference::Frequentist { draws: 20 });
@@ -52,7 +59,7 @@ fn continuous_program_search_publishes_no_gap_certificate_or_reliability() {
                 base_world: base.world,
                 scope: JointPanelScientificScope::ModelConditional,
                 functional: JointPanelResponseFunctional::TerminalMean,
-                uncertainty: JointPanelSearchUncertainty::PointMeans,
+                uncertainty,
                 contract: ProgramSearchContract {
                     space: ProgramSearchSpace {
                         id: "continuous_search_reliability".into(),
@@ -75,10 +82,36 @@ fn continuous_program_search_publishes_no_gap_certificate_or_reliability() {
             &ctx,
         )
         .unwrap();
-    let found = search.execute(&ctx).unwrap();
+    search.execute(&ctx).unwrap()
+}
 
+#[test]
+fn continuous_program_search_on_point_means_says_it_needs_the_aligned_law() {
+    let found = search_reliability(JointPanelSearchUncertainty::PointMeans);
     assert!(!found.search.attempts.is_empty());
-    assert_eq!(found.search.reliability, "not_measured");
+    assert!(matches!(found.search.reliability, ContinuousSearchReliability::RequiresAlignedLaw));
     assert!(found.search.gap.is_none());
     assert!(!found.search.global_certificate);
+}
+
+#[test]
+fn continuous_program_search_on_the_aligned_law_reports_the_selected_decision_reliability() {
+    let found = search_reliability(JointPanelSearchUncertainty::AlignedLaw);
+    assert!(!found.search.attempts.is_empty());
+    assert!(found.search.gap.is_none());
+    assert!(!found.search.global_certificate);
+    let ContinuousSearchReliability::Interval(reliability) = &found.search.reliability else {
+        panic!("the aligned law reports an interval, got {}", found.search.reliability.label());
+    };
+    let interval = &reliability.interval;
+    let best = found.search.best.as_ref().expect("a feasible program");
+    assert!(interval.lower <= interval.value && interval.value <= interval.upper);
+    assert!((interval.value - best.value.unwrap()).abs() < 1e-6);
+    assert!(interval.critical_value >= 0.0);
+    assert!((interval.level - 0.95).abs() < 1e-12);
+    assert!(interval.n_considered >= interval.n_retained as u64);
+    assert!(interval.coordinate.adaptively_generated);
+    // The calibration is an annotation of the published interval, never a reason to withhold it.
+    assert!(!interval.calibration.status.as_str().is_empty());
+    assert_eq!(reliability.draws.n_candidates(), interval.n_retained);
 }

@@ -48,6 +48,7 @@ pub mod mc_error;
 pub mod producer;
 pub mod ranking;
 pub mod report;
+pub mod selected_value;
 pub mod selection;
 pub mod stream;
 mod workspace;
@@ -62,9 +63,10 @@ pub use artifact::{
 };
 pub use calibration::{
     CANDIDATE_COUNT_BANDS, CalibrationCoordinate, DEFAULT_SUPPORT_LEVEL, KnownOptimumDesign,
-    NoiseCoupling, PublishedRoute, RECORD_QUERY, ReplicateOutcome, banded_record_functional,
-    calibration_basis, candidate_count_band, record_functional, simulate_replicate,
-    simulate_selection_draws, support_route, support_route_at,
+    NoiseCoupling, PublishedRoute, RECORD_QUERY, ReplicateOutcome, SELECTED_VALUE_ESTIMATOR,
+    SELECTED_VALUE_INTERVAL_METHOD, banded_record_functional, calibration_basis,
+    candidate_count_band, record_functional, selected_value_basis, selected_value_calibration,
+    simulate_replicate, simulate_selection_draws, support_route, support_route_at,
 };
 pub use coverage_design::{CoverageCell, TruthKind, coverage_design};
 pub use draws::{
@@ -96,6 +98,7 @@ pub use report::{
     SelectionUncertainty, SourceSpread, SourceUncertainty, StreamAccounting, UncertaintyReporting,
     ValidationPlan, assess,
 };
+pub use selected_value::{SelectedValueInterval, selected_value_interval};
 pub use selection::{
     BoundKind, CandidateEstimate, HeldOutAssessment, InSampleSelection, NoiseDependence,
     SelectionStatus, ValidationKind, ValidationRecord, ValueLabel, WinnersCurseBound,

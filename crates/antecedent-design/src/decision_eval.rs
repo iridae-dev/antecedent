@@ -816,6 +816,14 @@ impl ActionLaw {
         Ok(Self::from_table(index, build_table(contract, source, Some(index))?, source))
     }
 
+    /// The per-draw utilities, and the normalized draw weights when they are not uniform.
+    pub(crate) fn draws(&self) -> (Vec<f64>, Option<Vec<f64>>) {
+        let uniform = self.weights.first().is_none_or(|first| {
+            self.weights.iter().all(|w| (w - first).abs() <= 1e-12 * first.abs())
+        });
+        (self.utility.clone(), (!uniform).then(|| self.weights.clone()))
+    }
+
     /// `functional` of this law, as [`evaluate_functional`] defines it.
     ///
     /// # Errors
