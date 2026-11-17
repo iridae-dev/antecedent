@@ -1112,6 +1112,8 @@ pub(crate) enum ProgramCell {
     SamplingAssumptionUnion,
     /// Compiler-generated IID whole-chain bootstrap assumption union.
     IidSamplingAssumptionUnion,
+    /// Compiler-generated whole-cluster bootstrap assumption union.
+    ClusterSamplingAssumptionUnion,
     /// Bundle replay with a live executable chain terminal.
     BundleRecomputation,
     /// A bounded graph-selection imputation composite.
@@ -1148,6 +1150,7 @@ impl ProgramCell {
             Self::TemporalPathTransport => "TemporalPathTransport",
             Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
             Self::IidSamplingAssumptionUnion => "IidSamplingAssumptionUnion",
+            Self::ClusterSamplingAssumptionUnion => "ClusterSamplingAssumptionUnion",
             Self::BundleRecomputation => "BundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
@@ -1222,6 +1225,7 @@ impl LoweredProgram {
             | ProgramCell::TemporalPathTransport
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::IidSamplingAssumptionUnion
+            | ProgramCell::ClusterSamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
@@ -1253,6 +1257,7 @@ impl LoweredProgram {
             | ProgramCell::TemporalPathTransport
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::IidSamplingAssumptionUnion
+            | ProgramCell::ClusterSamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
@@ -1284,6 +1289,7 @@ impl LoweredProgram {
             | ProgramCell::TemporalPathTransport
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::IidSamplingAssumptionUnion
+            | ProgramCell::ClusterSamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision

@@ -8,7 +8,7 @@
 //! still require calibration; this route reports `not_measured` and does not
 //! promote an assumption enclosure to a confidence claim.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use antecedent_contract::{ClaimKind, DataClassification};
@@ -37,6 +37,7 @@ use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "sampling_assumption_union_v1";
 const IID_FEATURE: &str = "iid_sampling_assumption_union_v1";
+const CLUSTER_FEATURE: &str = "cluster_sampling_assumption_union_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 /// Prespecified original chain and whole-chain bootstrap replicates. The
@@ -430,20 +431,20 @@ struct IidSamplingAssumptionUnionWire {
     result_fingerprint: [u8; 32],
 }
 
-fn validate_iid_source(
-    request: &IidSamplingAssumptionUnionRequest,
+fn validate_raw_unit_source(
+    draft: &PropagationChainRecordWire, unit_ids: &[String],
+    bootstrap_replicates: usize, level: f64,
 ) -> Result<(), SamplingAssumptionUnionError> {
-    let draft = &request.original;
-    let n = request.unit_ids.len();
+    let n = unit_ids.len();
     let mut units = BTreeSet::new();
     let mut alignment = None;
     let mut sampling = 0usize;
     let mut assumptions = 0usize;
     if n < 20 || n > 1_000_000
-        || request.bootstrap_replicates < 100 || request.bootstrap_replicates > 4096
-        || n.checked_mul(request.bootstrap_replicates).is_none_or(|work| work > 50_000_000)
-        || !request.level.is_finite() || !(0.0..1.0).contains(&request.level)
-        || request.unit_ids.iter().any(|id| id.trim().is_empty() || !units.insert(id.as_str()))
+        || bootstrap_replicates < 100 || bootstrap_replicates > 4096
+        || n.checked_mul(bootstrap_replicates).is_none_or(|work| work > 50_000_000)
+        || !level.is_finite() || !(0.0..1.0).contains(&level)
+        || unit_ids.iter().any(|id| id.trim().is_empty() || !units.insert(id.as_str()))
         || draft.reading != "assumption_envelope" || draft.construction != "joint_draws"
         || draft.output_quantity.is_none() || !draft.results.is_empty()
         || !draft.identity.is_empty() || draft.output_draws.is_some()
@@ -493,7 +494,8 @@ fn validate_iid_source(
 pub fn compile_iid_sampling_assumption_union(
     request: IidSamplingAssumptionUnionRequest, ctx: &ExecutionContext,
 ) -> Result<CompiledIidSamplingAssumptionUnion, SamplingAssumptionUnionError> {
-    validate_iid_source(&request)?;
+    validate_raw_unit_source(&request.original, &request.unit_ids,
+        request.bootstrap_replicates, request.level)?;
     let source_bytes = antecedent_io::to_cbor(&request)?;
     if source_bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(SamplingAssumptionUnionError::Invalid("IID bootstrap source exceeds its byte bound"));
@@ -719,6 +721,312 @@ pub fn consume_iid_sampling_assumption_union(
     Ok(live)
 }
 
+/// Raw sampling rows grouped into independent clusters. Every bootstrap draw
+/// selects complete clusters with replacement, keeping their member rows and
+/// every aligned source column together. Cluster independence is a declared
+/// design assumption, not inferred from the rows.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClusterSamplingAssumptionUnionRequest {
+    /// Complete chain over raw unit rows and fixed assumptions.
+    pub original: PropagationChainRecordWire,
+    /// Distinct row identities in the common sampling-source order.
+    pub unit_ids: Vec<String>,
+    /// Cluster identity for each row, aligned with `unit_ids`.
+    pub cluster_ids: Vec<String>,
+    /// Number of whole-chain cluster bootstrap replicates.
+    pub bootstrap_replicates: usize,
+    /// Nominal two-sided level; coverage remains unmeasured.
+    pub level: f64,
+}
+
+/// Retained cluster resampling and complete-chain endpoint union.
+#[derive(Clone, Debug)]
+pub struct CompiledClusterSamplingAssumptionUnion {
+    request: ClusterSamplingAssumptionUnionRequest,
+    groups: Vec<Vec<usize>>,
+    original: PropagationChainPlan,
+    seed: u64,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// Candidate for simultaneous identified-set endpoint coverage by cluster.
+#[derive(Clone, Debug)]
+pub struct ClusterSamplingAssumptionCalibrationCandidate {
+    /// Complete compiler-generated cluster bootstrap result.
+    pub result: SamplingAssumptionUnionResult,
+    /// Exact fixed chain template and cluster-design calibration coordinate.
+    pub basis: CalibrationBasis,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ClusterSamplingAssumptionUnionWire {
+    version: u32,
+    required_feature: String,
+    request: ClusterSamplingAssumptionUnionRequest,
+    seed: u64,
+    program_identity: [u8; 32],
+    result_fingerprint: [u8; 32],
+}
+
+/// Compile complete-cluster resampling before drawing any replicate rows.
+/// Every generated chain is recompiled at execution, and the portable
+/// consumer reconstructs the same cluster schedule from the raw declaration.
+///
+/// # Errors
+/// Malformed unit or cluster identities, invalid fixed assumptions, unsupported
+/// chain, level or resource bound.
+pub fn compile_cluster_sampling_assumption_union(
+    request: ClusterSamplingAssumptionUnionRequest, ctx: &ExecutionContext,
+) -> Result<CompiledClusterSamplingAssumptionUnion, SamplingAssumptionUnionError> {
+    validate_raw_unit_source(&request.original, &request.unit_ids,
+        request.bootstrap_replicates, request.level)?;
+    if request.cluster_ids.len() != request.unit_ids.len()
+        || request.cluster_ids.iter().any(|id| id.trim().is_empty())
+    {
+        return Err(SamplingAssumptionUnionError::Invalid("cluster identities must align with raw units"));
+    }
+    let mut grouped: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (row, id) in request.cluster_ids.iter().enumerate() {
+        grouped.entry(id).or_default().push(row);
+    }
+    let groups: Vec<Vec<usize>> = grouped.into_values().collect();
+    let largest = groups.iter().map(Vec::len).max().unwrap_or(0);
+    if groups.len() < 10 || groups.len() > request.unit_ids.len()
+        || groups.iter().all(|group| group.len() == 1)
+        || largest.checked_mul(groups.len())
+            .and_then(|rows| rows.checked_mul(request.bootstrap_replicates))
+            .is_none_or(|work| work > 50_000_000)
+    {
+        return Err(SamplingAssumptionUnionError::Invalid("cluster bootstrap needs bounded independent groups with repeated members"));
+    }
+    let source_bytes = antecedent_io::to_cbor(&request)?;
+    if source_bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(SamplingAssumptionUnionError::Invalid("cluster bootstrap source exceeds its byte bound"));
+    }
+    let original = compile_propagation_chain(request.original.clone(), ctx)?;
+    let source_digest = CanonicalWriter::digest_bytes(
+        "antecedent.cluster_sampling_assumption_union.source.v1", &source_bytes,
+    );
+    let seed = ctx.rng.master_seed();
+    let mut writer = CanonicalWriter::new("antecedent.cluster_sampling_assumption_union.question.v1");
+    writer.bytes(&source_digest).word(seed);
+    let query = writer.finish();
+    let design = DesignShape::quoted(largest.saturating_mul(groups.len()) as u64,
+        request.original.sources.len() as u64, true);
+    let scientific = ScientificProblem {
+        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::IdentifiedSet, outcome: None, query,
+        },
+        plan_id: Arc::from("cluster_sampling_assumption_union.v1"),
+        data: DataClassification::Tabular,
+        graph_class: "compiler_resampled_cluster_assumption_set",
+        query_variables: Arc::from([]), source_digest: Some(source_digest),
+        support_coordinate: None, supported: false, support_status: None,
+    };
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
+    let score = ScoreModel::new("cluster_whole_chain_assumption_endpoint_bootstrap")
+        .map_err(|_| SamplingAssumptionUnionError::Invalid("invalid cluster bootstrap score identity"))?;
+    let statistical = StatisticalProgram {
+        identifier: None, estimator: None,
+        realization: Realization::Frequentist(ScoreFrequentist::new(score)),
+        models: Arc::from([]), folds: None, resampling: None,
+        posterior: None, design, operators: Arc::from([]),
+    };
+    let evidence = EvidenceDecisionProgram {
+        sources: Arc::from([EvidenceSourceRef {
+            role: EvidenceRole::ChainSource, digest: Some(source_digest),
+        }]),
+        composition: Composition::Chained { stages: request.bootstrap_replicates + 1 },
+        decision: None, planning: None, chain: None,
+    };
+    let physical = PhysicalLayer {
+        operators: Arc::from([
+            PhysicalOperator::declare(PhysicalEffect::Read)
+                .estimates(ByteEstimates::absent().with_output(source_bytes.len() as u64))
+                .build().map_err(|_| SamplingAssumptionUnionError::Invalid("invalid cluster read operator"))?,
+            PhysicalOperator::declare(PhysicalEffect::Select)
+                .build().map_err(|_| SamplingAssumptionUnionError::Invalid("invalid cluster resampling operator"))?,
+        ]), design,
+    };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::ClusterSamplingAssumptionUnion,
+        scientific, identification, statistical, evidence, physical,
+        claim: ClaimDemand { uncertainty: UncertaintyReading::Sampling,
+            kind: Some(ClaimKind::Bounds) },
+    }.finish());
+    Ok(CompiledClusterSamplingAssumptionUnion {
+        request, groups, original, seed, lowered,
+    })
+}
+
+impl CompiledClusterSamplingAssumptionUnion {
+    /// Complete six-layer cluster resampling program.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the fixed schedule before sampling any clusters.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Resample entire clusters, rerun every aligned chain source and form the
+    /// unmeasured Bonferroni basic-bootstrap identified-set union.
+    ///
+    /// # Errors
+    /// Changed seed, cancellation, nested chain or nonfinite bound.
+    pub fn execute(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
+        if ctx.rng.master_seed() != self.seed {
+            return Err(SamplingAssumptionUnionError::Invalid("cluster bootstrap execution seed changed"));
+        }
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let original = self.original.execute(ctx)?;
+        let (original_lower, original_upper) = endpoint_means(&original)?;
+        let mut lows = Vec::with_capacity(self.request.bootstrap_replicates);
+        let mut highs = Vec::with_capacity(self.request.bootstrap_replicates);
+        let mut chain_identities = vec![original.identity().to_owned()];
+        let mut rng = scoped.rng.stream(0x434C_5553_5445_5253);
+        for replicate in 0..self.request.bootstrap_replicates {
+            if scoped.cancellation.is_cancelled() {
+                return Err(SamplingAssumptionUnionError::Invalid("cluster bootstrap was cancelled"));
+            }
+            let mut indices = Vec::new();
+            for _ in 0..self.groups.len() {
+                let group = &self.groups[uniform_row(&mut rng, self.groups.len())];
+                indices.extend(group.iter().copied());
+            }
+            let mut draft = self.request.original.clone();
+            for (resampled, source) in draft.sources.iter_mut().zip(&self.request.original.sources) {
+                if source.representation == "draws" {
+                    resampled.values = indices.iter().map(|&row| source.values[row]).collect();
+                    resampled.alignment = Some(format!(
+                        "cluster-bootstrap:{}:{replicate}", self.lowered.identity().to_hex(),
+                    ));
+                }
+            }
+            let chain = compile_propagation_chain(draft, ctx)?.execute(ctx)?;
+            let (lower, upper) = endpoint_means(&chain)?;
+            lows.push(lower);
+            highs.push(upper);
+            chain_identities.push(chain.identity().to_owned());
+        }
+        lows.sort_by(f64::total_cmp);
+        highs.sort_by(f64::total_cmp);
+        let tail = (1.0 - self.request.level) / 2.0;
+        let union_lower = 2.0 * original_lower - quantile_type7_sorted(&lows, 1.0 - tail);
+        let union_upper = 2.0 * original_upper - quantile_type7_sorted(&highs, tail);
+        if !union_lower.is_finite() || !union_upper.is_finite() || union_lower > union_upper {
+            return Err(SamplingAssumptionUnionError::Invalid("cluster bootstrap union is nonfinite or reversed"));
+        }
+        Ok(SamplingAssumptionUnionResult {
+            original_lower, original_upper, union_lower, union_upper,
+            level: self.request.level, calibration: "not_measured",
+            chain_identities, lowered_program_identity: self.lowered.identity(),
+        })
+    }
+
+    /// Exact cluster-design and fixed-chain coordinate for a prospective
+    /// simultaneous endpoint coverage record.
+    ///
+    /// # Errors
+    /// Complete-chain execution or template encoding refused.
+    pub fn calibration_candidate(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<ClusterSamplingAssumptionCalibrationCandidate, SamplingAssumptionUnionError> {
+        let result = self.execute(ctx)?;
+        let mut template = self.request.original.clone();
+        for source in &mut template.sources {
+            if source.representation == "draws" {
+                source.values.clear();
+                source.alignment = Some("cluster_raw_units".into());
+            }
+        }
+        let template_digest = CanonicalWriter::digest_bytes(
+            "antecedent.cluster_sampling_assumption_union.template.v1",
+            &antecedent_io::to_cbor(&template)?,
+        );
+        let mut writer = CanonicalWriter::new(
+            "antecedent.cluster_sampling_assumption_union.calibration_scope.v1",
+        );
+        writer.bytes(&template_digest).word(self.request.bootstrap_replicates as u64)
+            .word(self.groups.len() as u64);
+        for group in &self.groups {
+            writer.word(group.len() as u64);
+            for &row in group { writer.word(row as u64); }
+        }
+        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
+        let functional = format!("joint_set_endpoints:cluster_scope={scope}");
+        let basis = CalibrationBasis::new(
+            [
+                "IdentifiedSet", "None", "fixed", "tabular", "Frequentist",
+                CLUSTER_FEATURE, "bonferroni_basic_cluster_bootstrap", "",
+                "independent_clusters_whole_group_resampling", "", functional.as_str(),
+            ].map(Arc::from),
+            self.request.level, Arc::from("partial"), self.request.unit_ids.len() as u64,
+            Some(self.request.bootstrap_replicates as u32), None, 0.0,
+        ).with_validation("none");
+        Ok(ClusterSamplingAssumptionCalibrationCandidate { result, basis })
+    }
+
+    /// Seal the raw rows, cluster schedule and complete result for replay.
+    ///
+    /// # Errors
+    /// A changed run or oversized artifact refuses.
+    pub fn export(
+        &self, result: &SamplingAssumptionUnionResult, ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, SamplingAssumptionUnionError> {
+        if fingerprint(&self.execute(ctx)?) != fingerprint(result) {
+            return Err(SamplingAssumptionUnionError::Invalid("cluster bootstrap result changed"));
+        }
+        let bytes = antecedent_io::to_cbor(&ClusterSamplingAssumptionUnionWire {
+            version: 1, required_feature: CLUSTER_FEATURE.into(),
+            request: self.request.clone(), seed: self.seed,
+            program_identity: *self.lowered.identity().as_bytes(),
+            result_fingerprint: fingerprint(result),
+        })?;
+        if bytes.len() > MAX_ARTIFACT_BYTES {
+            return Err(SamplingAssumptionUnionError::Invalid("cluster bootstrap artifact exceeds its byte bound"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Recompile and rerun the complete cluster schedule under a separately
+/// retained program identity.
+///
+/// # Errors
+/// A foreign feature, changed raw data, cluster mapping, seed or bound.
+pub fn consume_cluster_sampling_assumption_union(
+    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
+    if bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(SamplingAssumptionUnionError::Invalid("cluster bootstrap artifact exceeds its byte bound"));
+    }
+    let wire: ClusterSamplingAssumptionUnionWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.required_feature != CLUSTER_FEATURE
+        || wire.program_identity != *expected_program.as_bytes()
+        || wire.seed != ctx.rng.master_seed()
+    {
+        return Err(SamplingAssumptionUnionError::Invalid("cluster bootstrap feature, identity or seed differs"));
+    }
+    let plan = compile_cluster_sampling_assumption_union(wire.request, ctx)?;
+    if plan.lowered().identity() != expected_program {
+        return Err(SamplingAssumptionUnionError::Invalid("recompiled cluster bootstrap program differs"));
+    }
+    let live = plan.execute(ctx)?;
+    if fingerprint(&live) != wire.result_fingerprint {
+        return Err(SamplingAssumptionUnionError::Invalid("cluster bootstrap result differs on replay"));
+    }
+    Ok(live)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -780,6 +1088,33 @@ mod tests {
             &bytes, result.lowered_program_identity, &ctx,
         ).unwrap();
         assert_eq!(fingerprint(&replay), fingerprint(&result));
+    }
+
+    #[test]
+    #[ignore = "source-only compiler-owned cluster bootstrap; coverage has not been earned"]
+    fn dependent_unit_pairs_are_resampled_as_complete_clusters() {
+        let ctx = ExecutionContext::for_tests(37);
+        let mut original = draft(0.0);
+        original.sources[0].values = (0..40)
+            .map(|row| (1.0 + (row / 2) as f64 / 20.0).to_bits()).collect();
+        let request = ClusterSamplingAssumptionUnionRequest {
+            original,
+            unit_ids: (0..40).map(|row| format!("unit-{row}")).collect(),
+            cluster_ids: (0..40).map(|row| format!("cluster-{}", row / 2)).collect(),
+            bootstrap_replicates: 100, level: 0.95,
+        };
+        let plan = compile_cluster_sampling_assumption_union(request, &ctx).unwrap();
+        assert_eq!(plan.plan_view().route().as_str(), "ClusterSamplingAssumptionUnion");
+        let candidate = plan.calibration_candidate(&ctx).unwrap();
+        assert_eq!(candidate.result.calibration, "not_measured");
+        assert_eq!(candidate.result.chain_identities.len(), 101);
+        assert_eq!(candidate.basis.interval_method.as_ref(),
+            "bonferroni_basic_cluster_bootstrap");
+        let bytes = plan.export(&candidate.result, &ctx).unwrap();
+        let replay = consume_cluster_sampling_assumption_union(
+            &bytes, candidate.result.lowered_program_identity, &ctx,
+        ).unwrap();
+        assert_eq!(fingerprint(&replay), fingerprint(&candidate.result));
     }
 
     #[test]

@@ -2000,6 +2000,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::TemporalPathTransport => PlanRoute::TemporalPathTransport,
         ProgramCell::SamplingAssumptionUnion => PlanRoute::SamplingAssumptionUnion,
         ProgramCell::IidSamplingAssumptionUnion => PlanRoute::IidSamplingAssumptionUnion,
+        ProgramCell::ClusterSamplingAssumptionUnion => PlanRoute::ClusterSamplingAssumptionUnion,
         ProgramCell::BundleRecomputation => PlanRoute::BundleRecomputation,
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,
         ProgramCell::GraphImputationEffectDecision => PlanRoute::GraphImputationEffectDecision,

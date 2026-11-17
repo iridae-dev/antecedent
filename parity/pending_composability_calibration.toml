@@ -83,3 +83,13 @@ ignored = true
 grid = true
 whole = true
 reason = "Independent Gaussian source and target trial lines share a fixed surrogate design and differ by a known intercept. Every replicate refits both lines through the compiler and checks simultaneous 95% discrepancy bands on five prespecified overlap points against the true target-minus-source difference. The 60/120/240-trial-per-scope grid binds the exact runtime design basis. No coverage, equivalence error control or final decision reliability is measured or earned."
+
+[[group]]
+label = "cluster_sampling_assumption_union_calibration: cluster_sampling_assumption_union_joint_endpoints_l95"
+package = "antecedent"
+target = "cluster_sampling_assumption_union_calibration"
+tests = ["cluster_sampling_assumption_union_joint_endpoints_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Independent Gaussian clusters each contribute two correlated raw unit rows to an assumption-envelope chain with fixed bias [0,1]. Every outer replicate regenerates clusters, then the compiler draws 200 complete-cluster bootstrap resamples and recompiles the whole chain. The 60/120/240-row grid scores joint containment of true set [1,2] under the exact cluster-design basis. No coverage or decision record is measured or earned."
