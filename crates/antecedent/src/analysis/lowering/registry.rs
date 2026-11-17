@@ -222,6 +222,8 @@ macro_rules! route_lowerings {
             ClusterSamplingAssumptionUnion,
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation,
+            /// Bundle replay with a live scientific bridge terminal.
+            BridgeBundleRecomputation,
             /// A graph-selection imputation composite.
             GraphImputation,
             /// Graph-imputation effect posterior and downstream utility.
@@ -263,6 +265,7 @@ macro_rules! route_lowerings {
                     Self::IidSamplingAssumptionUnion => "IidSamplingAssumptionUnion",
                     Self::ClusterSamplingAssumptionUnion => "ClusterSamplingAssumptionUnion",
                     Self::BundleRecomputation => "BundleRecomputation",
+                    Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
                     Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
                     Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
@@ -301,6 +304,7 @@ macro_rules! route_lowerings {
                     Self::IidSamplingAssumptionUnion => RouteFamily::PropagationChain,
                     Self::ClusterSamplingAssumptionUnion => RouteFamily::PropagationChain,
                     Self::BundleRecomputation => RouteFamily::PropagationChain,
+                    Self::BridgeBundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::GraphImputationEffectDecision => RouteFamily::GraphImputation,
                     Self::GraphImputationTransportDecision => RouteFamily::GraphImputation,

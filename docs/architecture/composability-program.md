@@ -26,7 +26,7 @@ coverage or error control.
 | 8 | Medium | Scalar and vector feedback compile one cyclic program; a new joint likelihood posterior carries fitted parameter dependence into connected predictive equilibria and paired decisions | Calibrate the connected equilibrium and generalize fitted component evidence beyond one specified model and covariance | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | A new time-ordered finite path-specific transport cell identifies each edge-intervention world under a selection diagram, evaluates the target contrast on exact laws, and replays both derivations | Develop sampled and continuous longitudinal path estimators, with uncertainty at the transported contrast | None for the additive point route; high if ordinary transport is relabelled path-specific |
 | 10 | Medium | Independent indicators retain the version-3 route; a separate fitted joint-error compiler cell propagates labelled validation uncertainty; an ignored fixed-truth grid harness and exact model-coordinate calibration lookup are source-ready | Register and earn whole-route coverage records before the new equal-tail interval can report a measured status | None for the additive route; medium if independent indicators are silently treated as a joint model |
-| 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together; a version-2 portable receipt reconstructs the graph and terminal compiler from bytes, reruns every dependency consumer and compares the live result | Generalize live recomputation to other executable node kinds | None for the additive route; low for numerical claims, but identity-only plans cannot become execution receipts |
+| 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together; its portable receipt reconstructs the graph and terminal compiler. A separate source-only bridge bundle route now binds a predictive scientific bridge, source law, seed and graph, reruns every dependency consumer and compares a fresh bridge derivation with the embedded terminal | Generalize live recomputation to further executable node kinds, including decisions and native fits | None for the additive routes; low for numerical claims, but identity-only plans cannot become execution receipts |
 
 ## Current source slice
 
@@ -367,5 +367,16 @@ historical recalculation receipt alone do not qualify as live execution.
 The portable version-2 receipt additionally embeds the bundle so a new
 consumer can reconstruct its Merkle graph under an independently retained
 identity, compile the terminal from the embedded chain declaration and replay
-the same live receipt without the original in-memory plan. Other executable
-terminal kinds still need their own compiler adapters.
+the same live receipt without the original in-memory plan.
+
+`bridge_bundle_recomputation_portable_v1` adds a predictive scientific bridge
+terminal. Its compiler binds the complete embedded graph, terminal node,
+checked bridge contract, source draw artifact and random seed before mapping.
+Execution requires every dependency consumer to replay, derives the bridge
+again and compares the embedded scientific bridge artifact identity and claim
+with the live terminal. A fresh consumer reconstructs the contract, source
+and seed from the independently checked embedded bridge, recompiles the
+outer program, then repeats the full schedule. The receipt is an execution
+receipt for that bridge terminal; it earns no new interval coverage or
+reliability claim. Decision and native-fit terminal kinds still need their
+own compiler adapters.

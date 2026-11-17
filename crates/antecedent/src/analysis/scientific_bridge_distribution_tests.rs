@@ -34,6 +34,10 @@ use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
 };
 use crate::analysis::propagation_chain::PropagationChain;
+use crate::analysis::composition::{
+    BundleBuilder, NodeKind, compile_bridge_bundle_recomputation,
+    consume_portable_bridge_bundle_recomputation,
+};
 
 fn quantity(variable: &str, units: &str) -> ScientificQuantity {
     ScientificQuantity {
@@ -256,6 +260,41 @@ fn matched_trial_validation_and_bridge_decision_replay_together() {
     ).unwrap();
     assert_eq!(replay.assessment, result.assessment);
     assert_eq!(replay.bridge.decision.decision, result.bridge.decision.decision);
+}
+
+#[test]
+#[ignore = "source-only live bridge bundle terminal; no calibration earned"]
+fn predictive_bridge_bundle_recomputes_a_live_terminal() {
+    let mut declaration = contract(
+        BridgeMapping::Affine { intercept: 0.5, slope: 2.0 }, None, None,
+    );
+    declaration.source_value = ValueKind::PredictiveLaw;
+    declaration.target_value = ValueKind::PredictiveLaw;
+    let source = draws_table(64, 1.0, 0.3, DistributionMeaningWire::PosteriorPredictive);
+    let prepared = PreparedScientificBridgeDistribution::prepare(declaration.clone()).unwrap();
+    let result = prepared.derive(&source, None, 41).unwrap();
+    let bridge_artifact = result.export("bridge-bundle-terminal").unwrap();
+    let mut builder = BundleBuilder::new();
+    let source_bytes = source.to_bytes("bridge-bundle-source-node").unwrap();
+    builder.add_artifact(Some("source"), NodeKind::Distribution, &source_bytes).unwrap();
+    builder.add_artifact(
+        Some("terminal"), NodeKind::ScientificBridge, &bridge_artifact.bytes,
+    ).unwrap();
+    builder.connect("source", "terminal").unwrap();
+    let bundle = builder.build().unwrap();
+    let expected_bundle = bundle.identity().to_owned();
+    let ctx = ExecutionContext::for_tests(41);
+    let plan = compile_bridge_bundle_recomputation(
+        bundle, "terminal", declaration, source, 41,
+    ).unwrap();
+    assert_eq!(plan.plan_view().route().as_str(), "BridgeBundleRecomputation");
+    let receipt = plan.execute(&ctx).unwrap();
+    assert_eq!(receipt.terminal_identity, bridge_artifact.identity);
+    let bytes = plan.export_portable(&receipt, &ctx).unwrap();
+    let replay = consume_portable_bridge_bundle_recomputation(
+        &bytes, &expected_bundle, plan.lowered().identity(), &ctx,
+    ).unwrap();
+    assert_eq!(replay, receipt);
 }
 
 fn uncertain() -> BridgeContract {

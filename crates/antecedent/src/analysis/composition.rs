@@ -35,6 +35,7 @@ pub use antecedent_design::decision_artifact::mean_result_to_bytes;
 
 use std::sync::Arc;
 use antecedent_contract::DataClassification;
+use antecedent_contract::bridge::{BridgeContract, ValueKind};
 use antecedent_core::{
     ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect,
     PhysicalOperator, SemanticDigest,
@@ -42,14 +43,23 @@ use antecedent_core::{
 use antecedent_contract::propagation_chain::ChainRefusal;
 use antecedent_io::propagation_chain_record::PropagationChainRecordWire;
 use antecedent_io::IoError;
+use antecedent_io::distribution_artifact::DistributionArtifact;
+use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 use serde::{Deserialize, Serialize};
 use super::propagation_chain::{PropagationChainPlan, compile_propagation_chain};
+use super::scientific_bridge::{
+    PreparedScientificBridgeDistribution, ScientificBridgeRefusal,
+    consume_scientific_bridge_distribution_artifact,
+};
 use crate::planner::lowered::{
-    Composition, EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef,
+    ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram,
+    EvidenceRole, EvidenceSourceRef,
     FunctionalKind, IdentificationLayer, LoweredProgram,
     NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell,
     ProgramIdentityScope, ScientificProblem, StandaloneCompositionLoweredParts,
+    UncertaintyReading,
 };
+use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
 
 fn refused(stage: BundleStage, reason: &str, offending: Option<&str>) -> BundleError {
@@ -660,6 +670,294 @@ pub fn consume_portable_chain_bundle_recomputation(
     let live = plan.execute(ctx)?;
     if wire.receipt != live {
         return Err(ChainBundleRecomputeError::Invalid("portable bundle live receipt differs"));
+    }
+    Ok(live)
+}
+
+const BRIDGE_BUNDLE_FEATURE: &str = "bridge_bundle_recomputation_portable_v1";
+
+/// Fully embedded bundle with a live predictive scientific bridge terminal.
+/// The source table, checked bridge contract and seed are bound before the
+/// bundle's dependency consumers and terminal mapping run.
+#[derive(Clone, Debug)]
+pub struct CompiledBridgeBundleRecomputation {
+    bundle: CompositionBundle,
+    terminal_node: String,
+    bridge: PreparedScientificBridgeDistribution,
+    source: DistributionArtifact,
+    seed: u64,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// Live mapped bridge identity and every independently replayed dependency.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BridgeBundleRecomputationReceipt {
+    /// Independently consumed bundle graph identity.
+    pub bundle_identity: String,
+    /// Scientific bridge terminal node.
+    pub terminal_node: String,
+    /// Freshly derived bridge artifact identity.
+    pub terminal_identity: String,
+    /// Identity of the complete outer compiler program.
+    pub lowered_program_identity: [u8; 32],
+    /// Every dependency verified by its own embedded artifact consumer.
+    pub dependencies: Vec<ReplayedBundleDependency>,
+}
+
+/// Refusal of a bridge bundle compiler, dependency or terminal replay.
+#[derive(Debug, thiserror::Error)]
+pub enum BridgeBundleRecomputeError {
+    /// Bundle structure or dependency consumer refused.
+    #[error("bridge bundle recomputation: {0}")]
+    Bundle(#[from] BundleError),
+    /// Bridge contract, derivation or artifact consumer refused.
+    #[error("bridge bundle recomputation bridge: {0}")]
+    Bridge(#[from] ScientificBridgeRefusal),
+    /// Source artifact encoding or portable receipt codec refused.
+    #[error("bridge bundle recomputation artifact: {0}")]
+    Io(#[from] IoError),
+    /// Embedded node, source or fresh result differs.
+    #[error("bridge bundle recomputation: {0}")]
+    Invalid(&'static str),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PortableBridgeBundleRecomputationWire {
+    version: u32,
+    required_feature: String,
+    bundle_bytes: Vec<u8>,
+    bundle_identity: String,
+    terminal_node: String,
+    receipt: BridgeBundleRecomputationReceipt,
+}
+
+/// Lower a fully embedded bundle and its predictive scientific bridge terminal
+/// together. The declared contract, source law, seed, graph and terminal node
+/// all enter a new six-layer identity; no mapping is run at compilation.
+///
+/// # Errors
+/// Missing or non-embedded terminal, unsupported predictive carrier, bridge
+/// contract, source artifact or physical lowering refusal.
+pub fn compile_bridge_bundle_recomputation(
+    bundle: CompositionBundle, terminal_node: &str,
+    contract: BridgeContract, source: DistributionArtifact, seed: u64,
+) -> Result<CompiledBridgeBundleRecomputation, BridgeBundleRecomputeError> {
+    let node = bundle.nodes().iter().find(|node| node.id == terminal_node)
+        .ok_or(BridgeBundleRecomputeError::Invalid("bridge terminal node is absent"))?;
+    if node.kind != NodeKind::ScientificBridge
+        || !matches!(&node.source, NodeSource::Embedded { .. })
+    {
+        return Err(BridgeBundleRecomputeError::Invalid(
+            "bridge terminal must be an embedded scientific bridge",
+        ));
+    }
+    if contract.source_value != ValueKind::PredictiveLaw
+        || contract.target_value != ValueKind::PredictiveLaw
+        || !matches!(source.semantic(),
+            DistributionMeaningWire::PosteriorPredictive
+                | DistributionMeaningWire::InterventionalPredictive
+                | DistributionMeaningWire::EmpiricalOutcome)
+        || !source.quantities().contains(&ScientificQuantityWire::from(&contract.source.quantity))
+        || source.n_draws() < 2
+    {
+        return Err(BridgeBundleRecomputeError::Invalid(
+            "bridge terminal needs a checked predictive source coordinate and aligned draws",
+        ));
+    }
+    let bridge = PreparedScientificBridgeDistribution::prepare(contract)?;
+    let source_bytes = source.to_bytes("bridge-bundle-source")?;
+    let source_digest = CanonicalWriter::digest_bytes(
+        "antecedent.bridge_bundle_recomputation.source.v1", &source_bytes,
+    );
+    let bundle_digest = CanonicalWriter::digest_bytes(
+        "antecedent.bridge_bundle_recomputation.bundle.v1", bundle.identity().as_bytes(),
+    );
+    let mut writer = CanonicalWriter::new("antecedent.bridge_bundle_recomputation.question.v1");
+    writer.bytes(&bundle_digest).text(terminal_node).bytes(&source_digest)
+        .bytes(bridge.contract_identity().as_bytes()).word(seed);
+    let query = writer.finish();
+    let design = DesignShape::quoted(source.n_draws() as u64, 1, true);
+    let scientific = ScientificProblem {
+        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::PropagatedChain, outcome: None, query,
+        },
+        plan_id: Arc::from("bridge_bundle_recomputation.v1"),
+        data: DataClassification::Tabular, graph_class: "bundle_bridge_dependency_graph",
+        query_variables: Arc::from(Vec::new()), source_digest: Some(source_digest),
+        support_coordinate: None, supported: false, support_status: None,
+    };
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
+    let statistical = StatisticalProgram {
+        identifier: None, estimator: None,
+        realization: Realization::DeclaredPredictive {
+            evaluator: Arc::from("scientific_bridge.bundle_terminal"),
+        },
+        models: Arc::from([]), folds: None, resampling: None,
+        posterior: None, design, operators: Arc::from([]),
+    };
+    let evidence = EvidenceDecisionProgram {
+        sources: Arc::from([
+            EvidenceSourceRef { role: EvidenceRole::ChainSource, digest: Some(source_digest) },
+            EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(bundle_digest) },
+        ]),
+        composition: Composition::Chained { stages: bundle.nodes().len() + 1 },
+        decision: None, planning: None, chain: None,
+    };
+    let physical = PhysicalLayer {
+        operators: Arc::from([
+            PhysicalOperator::declare(PhysicalEffect::Read)
+                .estimates(ByteEstimates::absent().with_output(source_bytes.len() as u64))
+                .build().map_err(|_| BridgeBundleRecomputeError::Invalid(
+                    "bridge bundle source read cannot be lowered",
+                ))?,
+            PhysicalOperator::declare(PhysicalEffect::Transport)
+                .estimates(ByteEstimates::absent().with_output(
+                    (source.n_draws() as u64).saturating_mul(8),
+                )).build().map_err(|_| BridgeBundleRecomputeError::Invalid(
+                    "bridge bundle transport cannot be lowered",
+                ))?,
+        ]), design,
+    };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::BridgeBundleRecomputation,
+        scientific, identification, statistical, evidence, physical,
+        claim: ClaimDemand { uncertainty: UncertaintyReading::Predictive, kind: None },
+    }.finish());
+    Ok(CompiledBridgeBundleRecomputation {
+        bundle, terminal_node: terminal_node.to_owned(), bridge, source, seed, lowered,
+    })
+}
+
+impl CompiledBridgeBundleRecomputation {
+    /// Complete bridge-terminal bundle compiler program.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the retained bundle and terminal schedule without mapping.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Consume every embedded dependency and derive the scientific bridge
+    /// from the compiler-bound source, contract and seed.
+    ///
+    /// # Errors
+    /// A reference, failed artifact or changed live bridge refuses a receipt.
+    pub fn execute(&self, ctx: &ExecutionContext)
+        -> Result<BridgeBundleRecomputationReceipt, BridgeBundleRecomputeError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        if scoped.cancellation.is_cancelled() {
+            return Err(BridgeBundleRecomputeError::Invalid("bridge bundle execution was cancelled"));
+        }
+        let bytes = export_bundle(&self.bundle, "bridge-bundle-recomputation")?;
+        let consumed = consume(&bytes, self.bundle.identity(), &SuppliedSources::default())?;
+        if !consumed.all_replayed() {
+            return Err(BridgeBundleRecomputeError::Invalid(
+                "every bridge bundle dependency must pass its artifact consumer",
+            ));
+        }
+        let node = self.bundle.nodes().iter().find(|node| node.id == self.terminal_node)
+            .ok_or(BridgeBundleRecomputeError::Invalid("bridge terminal disappeared"))?;
+        let NodeSource::Embedded { bytes: terminal_bytes } = &node.source else {
+            return Err(BridgeBundleRecomputeError::Invalid("bridge terminal became a reference"));
+        };
+        let stored = consume_scientific_bridge_distribution_artifact(
+            terminal_bytes, Some(&node.identity),
+        )?;
+        let live = self.bridge.derive(&self.source, None, self.seed)?;
+        let exported = live.export("bridge-bundle-live")?;
+        if exported.identity != node.identity || stored.identity != exported.identity
+            || stored.bridged.claim().claim.claim_id != live.claim().claim.claim_id
+        {
+            return Err(BridgeBundleRecomputeError::Invalid(
+                "embedded bridge differs from the live compiler terminal",
+            ));
+        }
+        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
+            node_id: node.id.clone(), artifact_identity: node.identity.clone(),
+            chain_digest: node.chain_digest.clone(),
+        }).collect();
+        Ok(BridgeBundleRecomputationReceipt {
+            bundle_identity: consumed.identity().to_owned(),
+            terminal_node: self.terminal_node.clone(),
+            terminal_identity: exported.identity,
+            lowered_program_identity: *self.lowered.identity().as_bytes(),
+            dependencies,
+        })
+    }
+
+    /// Export an independently reconstructible graph and terminal receipt.
+    ///
+    /// # Errors
+    /// Changed live result or oversized portable artifact.
+    pub fn export_portable(
+        &self, receipt: &BridgeBundleRecomputationReceipt, ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, BridgeBundleRecomputeError> {
+        if self.execute(ctx)? != *receipt {
+            return Err(BridgeBundleRecomputeError::Invalid("bridge bundle receipt differs"));
+        }
+        let bytes = antecedent_io::to_cbor(&PortableBridgeBundleRecomputationWire {
+            version: 1, required_feature: BRIDGE_BUNDLE_FEATURE.into(),
+            bundle_bytes: export_bundle(&self.bundle, "portable-bridge-bundle-recomputation")?,
+            bundle_identity: self.bundle.identity().to_owned(),
+            terminal_node: self.terminal_node.clone(), receipt: receipt.clone(),
+        })?;
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(BridgeBundleRecomputeError::Invalid("portable bridge bundle exceeds its byte bound"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Reconstruct the terminal bridge declaration from its independently
+/// consumed artifact, recompile the outer program and compare its live receipt
+/// under independently retained graph and program identities.
+///
+/// # Errors
+/// Foreign feature, changed graph, mapping, source, seed or dependency.
+pub fn consume_portable_bridge_bundle_recomputation(
+    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
+) -> Result<BridgeBundleRecomputationReceipt, BridgeBundleRecomputeError> {
+    if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+        return Err(BridgeBundleRecomputeError::Invalid("portable bridge bundle exceeds its byte bound"));
+    }
+    let wire: PortableBridgeBundleRecomputationWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.required_feature != BRIDGE_BUNDLE_FEATURE
+        || wire.bundle_identity != expected_bundle
+    {
+        return Err(BridgeBundleRecomputeError::Invalid("portable bridge bundle feature or identity differs"));
+    }
+    let bundle = CompositionBundle::from_bytes(
+        &wire.bundle_bytes, expected_bundle, &BundleLimits::default(),
+    )?;
+    let terminal = bundle.nodes().iter().find(|node| node.id == wire.terminal_node)
+        .ok_or(BridgeBundleRecomputeError::Invalid("portable bridge terminal is absent"))?;
+    if terminal.kind != NodeKind::ScientificBridge {
+        return Err(BridgeBundleRecomputeError::Invalid("portable terminal is not a scientific bridge"));
+    }
+    let NodeSource::Embedded { bytes: terminal_bytes } = &terminal.source else {
+        return Err(BridgeBundleRecomputeError::Invalid("portable bridge terminal is not embedded"));
+    };
+    let stored = consume_scientific_bridge_distribution_artifact(
+        terminal_bytes, Some(&terminal.identity),
+    )?;
+    let plan = compile_bridge_bundle_recomputation(
+        bundle, &wire.terminal_node, stored.bridged.claim().contract.clone(),
+        stored.bridged.source().clone(), stored.bridged.claim().stream,
+    )?;
+    if plan.lowered().identity() != expected_program {
+        return Err(BridgeBundleRecomputeError::Invalid("portable bridge bundle compiler differs"));
+    }
+    let live = plan.execute(ctx)?;
+    if live != wire.receipt {
+        return Err(BridgeBundleRecomputeError::Invalid("portable bridge bundle live receipt differs"));
     }
     Ok(live)
 }

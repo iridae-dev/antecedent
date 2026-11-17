@@ -1116,6 +1116,8 @@ pub(crate) enum ProgramCell {
     ClusterSamplingAssumptionUnion,
     /// Bundle replay with a live executable chain terminal.
     BundleRecomputation,
+    /// Bundle replay with a live scientific bridge terminal.
+    BridgeBundleRecomputation,
     /// A bounded graph-selection imputation composite.
     GraphImputation,
     /// Graph-imputation effect posterior and downstream utility.
@@ -1154,6 +1156,7 @@ impl ProgramCell {
             Self::IidSamplingAssumptionUnion => "IidSamplingAssumptionUnion",
             Self::ClusterSamplingAssumptionUnion => "ClusterSamplingAssumptionUnion",
             Self::BundleRecomputation => "BundleRecomputation",
+            Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
             Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
@@ -1230,6 +1233,7 @@ impl LoweredProgram {
             | ProgramCell::IidSamplingAssumptionUnion
             | ProgramCell::ClusterSamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
+            | ProgramCell::BridgeBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::GraphImputationTransportDecision
@@ -1263,6 +1267,7 @@ impl LoweredProgram {
             | ProgramCell::IidSamplingAssumptionUnion
             | ProgramCell::ClusterSamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
+            | ProgramCell::BridgeBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::GraphImputationTransportDecision
@@ -1296,6 +1301,7 @@ impl LoweredProgram {
             | ProgramCell::IidSamplingAssumptionUnion
             | ProgramCell::ClusterSamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
+            | ProgramCell::BridgeBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::GraphImputationTransportDecision
