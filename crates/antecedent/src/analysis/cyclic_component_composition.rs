@@ -82,6 +82,146 @@ pub struct ComponentFeedbackRequest {
     pub factual: Option<Vec<f64>>,
 }
 
+/// One output equation of a component with several produced ports. Each
+/// consumed port may be read by several outputs, with a separate coefficient
+/// for each output equation.
+#[derive(Clone, Debug)]
+pub struct VectorFeedbackOutput {
+    /// Name of the produced scientific port.
+    pub produced_port: String,
+    /// Local scalar equation, with one self coefficient before connections.
+    pub equation: Equation,
+    /// Consumed port names read by this output equation.
+    pub consumed_ports: Vec<String>,
+}
+
+/// A group of output equations sharing one scientific component interface.
+#[derive(Clone, Debug)]
+pub struct VectorFeedbackComponent {
+    /// Every produced and consumed port of this component.
+    pub interface: InterfaceContract,
+    /// Exactly one output equation per produced port.
+    pub outputs: Vec<VectorFeedbackOutput>,
+}
+
+/// A port connection aimed at one named output equation of a multi-output
+/// consumer. The same consumed port may feed several outputs with different
+/// coefficients.
+#[derive(Clone, Debug)]
+pub struct VectorFeedbackConnection {
+    /// Producer, produced port, consumer and consumed port declarations.
+    pub ports: ComponentConnection,
+    /// Produced port of the consumer whose equation reads this connection.
+    pub consumer_output: String,
+    /// Coefficient in that output equation.
+    pub coefficient: f64,
+}
+
+/// A connected multi-output system. Disturbance covariance, aligned noise,
+/// initial and factual states use sorted `component::produced_port` order.
+/// World clamps name those complete output identities.
+#[derive(Clone, Debug)]
+pub struct VectorFeedbackRequest {
+    /// Components with one or more produced outputs.
+    pub components: Vec<VectorFeedbackComponent>,
+    /// Connections between their declared ports.
+    pub connections: Vec<VectorFeedbackConnection>,
+    /// Full row-major covariance in sorted output order.
+    pub noise_covariance: Vec<f64>,
+    /// Joint disturbance draws in sorted output order.
+    pub noise: Vec<Vec<f64>>,
+    /// Initial equilibrium state in sorted output order.
+    pub initial: Vec<f64>,
+    /// Named hard-clamp worlds.
+    pub worlds: Vec<ComponentFeedbackWorld>,
+    /// Complete-system solve policy; global contraction remains required.
+    pub policy: SolvePolicy,
+    /// Optional factual state in sorted output order.
+    pub factual: Option<Vec<f64>>,
+}
+
+/// Compile several output equations per component into one connected cyclic
+/// program. The expansion preserves scientific port checks and gives each
+/// output a distinct structural coordinate. It does not promote component
+/// evidence or calibration to the whole equilibrium.
+///
+/// # Errors
+/// A missing or repeated output, invalid connection or any
+/// refusal of [`prepare_component_feedback`].
+pub fn prepare_vector_component_feedback(
+    request: VectorFeedbackRequest,
+    ctx: &ExecutionContext,
+) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
+    let mut produced = BTreeMap::<(String, String), String>::new();
+    let mut consumed = BTreeMap::<(String, String, String), String>::new();
+    let mut scalar = Vec::new();
+    for component in request.components {
+        component.interface.validate().map_err(|refusal| ComponentFeedbackError::Interface(vec![refusal]))?;
+        if component.outputs.len() != component.interface.produces.len() {
+            return Err(ComponentFeedbackError::Invalid("each produced port needs exactly one output equation"));
+        }
+        let name = component.interface.component.clone();
+        let mut seen_outputs = BTreeSet::new();
+        for output in component.outputs {
+            if !seen_outputs.insert(output.produced_port.clone()) {
+                return Err(ComponentFeedbackError::Invalid("an output equation is repeated"));
+            }
+            let port = component.interface.produces.iter()
+                .find(|port| port.name == output.produced_port)
+                .ok_or(ComponentFeedbackError::Invalid("an output equation names no produced port"))?;
+            let full = format!("{name}::{}", port.name);
+            if produced.insert((name.clone(), port.name.clone()), full.clone()).is_some() {
+                return Err(ComponentFeedbackError::Invalid("a produced port is repeated"));
+            }
+            let mut inputs = Vec::new();
+            for input_name in &output.consumed_ports {
+                let input = component.interface.consumes.iter()
+                    .find(|input| input.name == *input_name)
+                    .ok_or(ComponentFeedbackError::Invalid("an output reads an undeclared consumed port"))?;
+                if consumed.insert((name.clone(), port.name.clone(), input.name.clone()), full.clone()).is_some() {
+                    return Err(ComponentFeedbackError::Invalid("a consumed port is repeated within one output equation"));
+                }
+                inputs.push(input.clone());
+            }
+            scalar.push(ScalarFeedbackComponent {
+                interface: InterfaceContract {
+                    component: full,
+                    produces: vec![port.clone()], consumes: inputs,
+                },
+                equation: output.equation,
+            });
+        }
+        if component.interface.consumes.iter().any(|port| {
+            !consumed.keys().any(|(component, _, input)| component == &name && input == &port.name)
+        }) {
+            return Err(ComponentFeedbackError::Invalid("every consumed port needs one output equation"));
+        }
+    }
+    let mut connections = Vec::with_capacity(request.connections.len());
+    for connection in request.connections {
+        let source = produced.get(&(
+            connection.ports.producer.clone(), connection.ports.produced_port.clone(),
+        )).ok_or(ComponentFeedbackError::Invalid("a connection names no produced output"))?;
+        let target = consumed.get(&(
+            connection.ports.consumer.clone(), connection.consumer_output.clone(),
+            connection.ports.consumed_port.clone(),
+        )).ok_or(ComponentFeedbackError::Invalid("a connection names no consumed output"))?;
+        connections.push(FeedbackConnection {
+            ports: ComponentConnection::new(
+                source.clone(), connection.ports.produced_port.clone(),
+                target.clone(), connection.ports.consumed_port.clone(),
+            ),
+            coefficient: connection.coefficient,
+        });
+    }
+    prepare_component_feedback(ComponentFeedbackRequest {
+        components: scalar, connections,
+        noise_covariance: request.noise_covariance, noise: request.noise,
+        initial: request.initial, worlds: request.worlds,
+        policy: request.policy, factual: request.factual,
+    }, ctx)
+}
+
 /// The interface check or central cyclic compiler refused the system.
 #[derive(Debug, thiserror::Error)]
 pub enum ComponentFeedbackError {
@@ -366,5 +506,67 @@ mod tests {
         let mut draft = request();
         draft.policy.require_contraction = false;
         assert!(prepare_component_feedback(draft, &ctx).is_err());
+    }
+
+    #[test]
+    fn multi_output_component_lowers_one_connected_cyclic_program() {
+        let original = request();
+        let mut traffic = original.components[1].clone();
+        traffic.interface.produces[0].name = "traffic".into();
+        traffic.interface.produces[0].quantity.variable_id = "game:traffic".into();
+        traffic.interface.produces[0].quantity.variable_name = "traffic".into();
+        traffic.interface.consumes[0].name = "from_wishlists".into();
+        let mut wishlists = original.components[0].clone();
+        wishlists.interface.produces[0].name = "wishlists".into();
+        wishlists.interface.consumes[0].name = "from_traffic".into();
+        wishlists.interface.consumes[0].quantity.variable_id = "game:traffic".into();
+        wishlists.interface.consumes[0].quantity.variable_name = "traffic".into();
+        let vector = VectorFeedbackRequest {
+            components: vec![VectorFeedbackComponent {
+                interface: InterfaceContract {
+                    component: "game".into(),
+                    produces: vec![traffic.interface.produces[0].clone(),
+                                   wishlists.interface.produces[0].clone()],
+                    consumes: vec![traffic.interface.consumes[0].clone(),
+                                   wishlists.interface.consumes[0].clone()],
+                },
+                outputs: vec![
+                    VectorFeedbackOutput {
+                        produced_port: "traffic".into(),
+                        equation: traffic.equation,
+                        consumed_ports: vec!["from_wishlists".into()],
+                    },
+                    VectorFeedbackOutput {
+                        produced_port: "wishlists".into(),
+                        equation: wishlists.equation,
+                        consumed_ports: vec!["from_traffic".into()],
+                    },
+                ],
+            }],
+            connections: vec![
+                VectorFeedbackConnection {
+                    ports: ComponentConnection::new("game", "traffic", "game", "from_traffic"),
+                    consumer_output: "wishlists".into(),
+                    coefficient: 0.3,
+                },
+                VectorFeedbackConnection {
+                    ports: ComponentConnection::new("game", "wishlists", "game", "from_wishlists"),
+                    consumer_output: "traffic".into(),
+                    coefficient: 0.2,
+                },
+            ],
+            noise_covariance: original.noise_covariance,
+            noise: original.noise, initial: original.initial,
+            worlds: original.worlds, policy: original.policy, factual: original.factual,
+        };
+        let ctx = ExecutionContext::for_tests(37);
+        let prepared = prepare_vector_component_feedback(vector, &ctx)
+            .expect("multi-output cyclic compiler");
+        assert_eq!(prepared.component_order(), &[
+            "game::traffic".to_owned(), "game::wishlists".to_owned(),
+        ]);
+        let equations = &prepared.prepared().request().model.equations;
+        assert_eq!(equations[0].weights, [0.1, 0.2]);
+        assert_eq!(equations[1].weights, [0.3, 0.2]);
     }
 }

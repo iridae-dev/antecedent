@@ -647,7 +647,8 @@ pub mod cyclic_evidence;
 pub use cyclic_component_composition::{
     ComponentFeedbackError, ComponentFeedbackRequest, ComponentFeedbackWorld,
     FeedbackConnection, PreparedComponentFeedback, ScalarFeedbackComponent,
-    prepare_component_feedback,
+    VectorFeedbackComponent, VectorFeedbackConnection, VectorFeedbackOutput, VectorFeedbackRequest,
+    prepare_component_feedback, prepare_vector_component_feedback,
 };
 
 /// Checked nonlinear two-channel panel compiler and retained programs.
