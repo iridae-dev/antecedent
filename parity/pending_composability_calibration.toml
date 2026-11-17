@@ -33,3 +33,13 @@ ignored = true
 grid = true
 whole = true
 reason = "One source-fixed root-treatment binary effect-modifier design with MAR outcomes, graph selection repeated over two imputations, a separately sampled binary target frame and graph-specific target standardization. The 60/120/240-source-row grid scores the route's own nearest-rank 95% interval against analytic truth conditional on each target frame. This prospective group has no measured or earned record."
+
+[[group]]
+label = "joint_transport_predictive_calibration: joint_transport_predictive_treated_outcome_l95"
+package = "antecedent"
+target = "joint_transport_predictive_calibration"
+tests = ["joint_transport_predictive_treated_outcome_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "A source and target sharing a Gaussian baseline and known target noise. Every replicate refits source trial units, redraws paired predictive target outcomes through the compiled route and scores its 95% treated-outcome interval against an independent future target unit. The 60/120/240 source-and-target grid is prospective; neither outcome coverage nor decision reliability is earned."

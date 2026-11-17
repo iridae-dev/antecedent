@@ -13,7 +13,7 @@ use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_contract::propagation_chain::{ChainReading, LawMeaning, StageKind, TableConstruction};
 use antecedent_contract::{ClaimKind, DataClassification, QuantityRole, ScientificQuantity};
 use antecedent_core::{
-    ByteEstimates, CanonicalWriter, ExecutionContext, LikelihoodModel,
+    ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, LikelihoodModel,
     OrdinaryBayesianLikelihood, PhysicalEffect, PhysicalOperator, Prior, SemanticDigest,
     TransportQuery, VariableId,
 };
@@ -126,6 +126,18 @@ pub struct JointTransportPredictiveDecisionResult {
     pub lowered_program_identity: SemanticDigest,
     /// No whole-route decision reliability has been measured.
     pub calibration: &'static str,
+}
+
+/// Prospective coverage input for a fresh treated target outcome. It is not
+/// an earned interval or a reliability claim for the action choice.
+#[derive(Clone, Debug)]
+pub struct JointTransportPredictiveCalibrationCandidate {
+    /// Complete compiled-route result.
+    pub result: JointTransportPredictiveDecisionResult,
+    /// Nearest-rank central 95% interval of the treated predictive draws.
+    pub interval: (f64, f64),
+    /// Exact execution coordinate and model scope for a future record.
+    pub basis: CalibrationBasis,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -413,6 +425,49 @@ impl CompiledJointTransportPredictiveDecision {
             fit, producer, decision,
             lowered_program_identity: self.lowered.identity(), calibration: "not_measured",
         })
+    }
+
+    /// Expose a source-only candidate for prospective treated-outcome
+    /// prediction coverage. The target covariate distribution is the empirical
+    /// frame; an independent future outcome supplies truth in the harness.
+    ///
+    /// # Errors
+    /// Any route execution refusal or invalid final predictive table.
+    pub fn calibration_candidate(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<JointTransportPredictiveCalibrationCandidate, JointTransportPredictiveDecisionError> {
+        let result = self.execute(ctx)?;
+        let record = result.decision.chain.record();
+        let treated = record.sources.get(1).ok_or(
+            JointTransportPredictiveDecisionError::Invalid("treated outcome column is absent"),
+        )?;
+        let mut ordered: Vec<f64> = treated.values.iter().copied().map(f64::from_bits).collect();
+        if ordered.len() < 40 || ordered.iter().any(|value| !value.is_finite()) {
+            return Err(JointTransportPredictiveDecisionError::Invalid("predictive interval needs finite draws"));
+        }
+        ordered.sort_by(f64::total_cmp);
+        let rank = |numerator: usize| {
+            (ordered.len() * numerator).div_ceil(1000).saturating_sub(1)
+        };
+        let interval = (ordered[rank(25)], ordered[rank(975)]);
+        let producer_basis = result.fit.target_calibration_basis(0.95).map_err(|_| {
+            JointTransportPredictiveDecisionError::Invalid("producer calibration scope is unavailable")
+        })?;
+        let functional = format!(
+            "target_treated_outcome:features={}:varying={:?}:shared_baseline:target_noise_bits={:016x}:empirical_target_frame",
+            self.request.model.features.len(), self.request.model.varying,
+            self.request.target_noise_variance.to_bits(),
+        );
+        let basis = CalibrationBasis::new(
+            [
+                "OutcomePrediction", "Dag", "fixed", "multi_env", "Bayesian",
+                FEATURE, "nearest_rank_95", "", "independent_source_target_future_units",
+                producer_basis.posterior.as_ref(), functional.as_str(),
+            ].map(Arc::from),
+            0.95, Arc::from("model_conditional"), producer_basis.row_count,
+            None, producer_basis.posterior_draws, 0.0,
+        ).with_validation("none");
+        Ok(JointTransportPredictiveCalibrationCandidate { result, interval, basis })
     }
 
     /// Reexecute before sealing the complete fitted prediction and decision.
