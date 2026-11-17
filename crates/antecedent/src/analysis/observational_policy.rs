@@ -66,7 +66,8 @@ pub struct PolicyGraphDeclaration {
     pub treatment: String,
     /// Name of the outcome node.
     pub outcome: String,
-    /// Adjustment columns observable when the policy selects an action.
+    /// Adjustment columns observable when the policy selects an action. A
+    /// strict subset is allowed; nuisance models still fit on all columns.
     pub information_set: Vec<String>,
 }
 
@@ -360,6 +361,7 @@ impl ObservationalPolicyValue {
             ));
         }
         let mut estimator = Estimator::new(Arc::from(support.clone()), objective, evaluation);
+        estimator.policy_features = policy_feature_indices(request);
         estimator.reference = spec.reference;
         estimator.known_propensity = match (&spec.known_propensity, &spec.known_propensity_columns)
         {
@@ -438,6 +440,17 @@ impl ObservationalPolicyValue {
 const POLICY_PROGRAM_TAG: &str = "antecedent.observational_policy_program.v1";
 const POLICY_ARTIFACT_FEATURE: &str = "observational_policy_compiled_v1";
 const GRAPH_POLICY_ARTIFACT_FEATURE: &str = "observational_policy_graph_checked_v2";
+const NARROW_POLICY_ARTIFACT_FEATURE: &str = "observational_policy_narrow_information_v3";
+
+fn policy_feature_indices(request: &ObservationalPolicyRequest) -> Option<Vec<usize>> {
+    let graph = request.spec.causal_graph.as_ref()?;
+    if graph.information_set.len() == request.adjustment.len() {
+        return None;
+    }
+    Some(request.adjustment.iter().enumerate()
+        .filter_map(|(index, column)| graph.information_set.contains(&column.name).then_some(index))
+        .collect())
+}
 const MAX_POLICY_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 fn policy_compiler_refusal(message: &str) -> CausalError {
@@ -494,11 +507,6 @@ fn check_policy_graph(
         if !adjustment.contains(&node) || !information.insert(node) {
             return Err(policy_compiler_refusal("policy information must be distinct adjustment columns"));
         }
-    }
-    if information != adjustment {
-        return Err(policy_compiler_refusal(
-            "this policy learner reads all adjustment columns, so its information set must name exactly those columns",
-        ));
     }
     let mut descendants = BTreeSet::new();
     let mut frontier = vec![treatment];
@@ -589,9 +597,12 @@ impl CompiledObservationalPolicy {
         }
         let report_bytes = antecedent_io::to_cbor(report)?;
         let checked = self.request.spec.causal_graph.is_some();
+        let narrow = policy_feature_indices(&self.request).is_some();
         let wire = CompiledPolicyArtifactWire {
-            version: if checked { 2 } else { 1 },
-            required_feature: if checked { GRAPH_POLICY_ARTIFACT_FEATURE } else { POLICY_ARTIFACT_FEATURE }.into(),
+            version: if narrow { 3 } else if checked { 2 } else { 1 },
+            required_feature: if narrow { NARROW_POLICY_ARTIFACT_FEATURE }
+                else if checked { GRAPH_POLICY_ARTIFACT_FEATURE }
+                else { POLICY_ARTIFACT_FEATURE }.into(),
             request: PolicyRequestWire::from_request(&self.request),
             seed: self.seed,
             lowered_program_identity: *self.lowered.identity().as_bytes(),
@@ -792,8 +803,11 @@ pub fn consume_compiled_observational_policy(
     }
     let wire: CompiledPolicyArtifactWire = antecedent_io::from_cbor(bytes)?;
     let checked = wire.request.spec.causal_graph.is_some();
-    let expected_version = if checked { 2 } else { 1 };
-    let expected_feature = if checked { GRAPH_POLICY_ARTIFACT_FEATURE } else { POLICY_ARTIFACT_FEATURE };
+    let narrow = policy_feature_indices(&wire.request.clone().into_request()).is_some();
+    let expected_version = if narrow { 3 } else if checked { 2 } else { 1 };
+    let expected_feature = if narrow { NARROW_POLICY_ARTIFACT_FEATURE }
+        else if checked { GRAPH_POLICY_ARTIFACT_FEATURE }
+        else { POLICY_ARTIFACT_FEATURE };
     if wire.version != expected_version || wire.required_feature != expected_feature
         || wire.seed != ctx.rng.master_seed() {
         return Err(policy_compiler_refusal("compiled policy artifact version, feature or split seed differs"));

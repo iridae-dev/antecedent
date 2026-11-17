@@ -20,7 +20,7 @@ coverage or error control.
 | 2 | Critical | Uncertainty survives discovery, imputation, estimation, transport and decision; individual and some composite routes exist | Lower the full selection, fitting and transport schedule with dependence; measure coverage at the final coordinate | None for a new route; high if component intervals are relabelled as whole-chain coverage |
 | 3 | High | Transported or synthesized evidence feeds a distributional decision; `compile_transported_law_chain_decision` now checks the transport support policy and compiles an aligned, equally weighted declared law with its receipt into multi-action utility | Lower producer fitting, target population, overlap and pooling dependence into that same program | None for a new route; medium if current point transport claims are promoted to laws |
 | 4 | High | Sampling error composes with an assumption range; the chain envelope keeps the axes distinct, and `chain_robust_decision_v1` compiles conservative multi-action dominance with nonlinear utilities and chance constraints | Compile a calibrated sampling union at the exact output coordinate | None for a new route; high if an assumption range is treated as a confidence interval |
-| 5 | High | A policy learned on logged data is evaluated on that data; the version-2 graph route checks a declared causally sufficient DAG for backdoor separation, pre-treatment adjustment and an explicit policy information set before compiling the same held-out or cross-fit estimator | Permit an information set narrower than the estimator's adjustment set by separating policy-learning features from nuisance features; calibrate the selection-aware standard error | None for the additive route; high if same-data scores acquire an unbiasedness claim |
+| 5 | High | The graph-checked policy route separates a narrower policy information set from the full nuisance adjustment set in a version-3 artifact, while retaining held-out or cross-fit scoring | Calibrate the selection-aware standard error for the exact learner and evaluation schedule | None for the additive route; high if same-data scores acquire an unbiasedness claim |
 | 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; the retained mixture draws now export an unverified typed effect law | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws; the new predictive bridge-transport-decision cell binds all three declarations in one program and replays both the bridge and utility | Estimate or validate the transport premise itself, rather than only carrying its declared evidence; measure any final decision reliability claim | None for a new route; high if a surrogate score is substituted for an endpoint |
 | 8 | Medium | Scalar and vector feedback compile one cyclic program with aligned disturbances and named hard clamps; optional ledger entry points check disjointness across all inputs of the original component and bind the ledger state into the program | Establish statistical dependence of fitted mechanism errors and calibrate the connected equilibrium before promoting component evidence to an inferential claim | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
@@ -137,12 +137,19 @@ conditional on declared adjustment sufficiency; its standard error still has
 An additive graph declaration includes the DAG, treatment and outcome nodes,
 and the columns available at decision time. The compiler checks DAG validity,
 forbids treatment descendants among the adjustment columns, and tests
-backdoor separation after deleting treatment out-edges. The current policy
-learner reads every adjustment column, so the declared information set must
-equal that set. This is a graphical check conditional on the supplied DAG's
+backdoor separation after deleting treatment out-edges. This is a graphical
+check conditional on the supplied DAG's
 truth and causal sufficiency, not an empirical test of exchangeability. The
 graph route has a separate identification tag and version-2 replay feature;
 requests without a graph keep their version-1 artifact and identity.
+An additive version-3 artifact handles a strict policy-information subset. Its
+learner fits action predictions only on the named information columns, while
+the propensity and outcome nuisance models still use the full backdoor
+adjustment set. The feature mask enters the nuisance-cache key, so predictions
+from different policy schedules cannot be reused. The graph declaration and
+all rows remain bound to the compiler identity, and independent replay refits
+both model families. The held-out and cross-fit score standard errors still
+report `not_measured`; no selection-aware coverage record is earned.
 
 The joint measured-signal route multiplies each checked `P(m_i | C)` only under
 the explicit declaration that indicator errors are independent given the same

@@ -9,6 +9,13 @@
 # evidence_audit fails when a row's test or assertion does not exist.
 
 [[test]]
+evidence_test = "crates/antecedent/tests/observational_survival_policy_routes.rs"
+evidence_assertion = "graph_policy_can_learn_on_less_information_than_nuisance_adjustment"
+kind = "reference"
+fixtures = []
+why = "The graph-checked learner uses only its available policy columns while propensity and outcome nuisance models retain the full adjustment set, and a version-three artifact independently replays the result. This source assertion is unearned."
+
+[[test]]
 evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs"
 evidence_assertion = "time_ordered_direct_path_transport_matches_independent_oracle"
 kind = "known_truth"
