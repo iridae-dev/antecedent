@@ -13,7 +13,7 @@ use antecedent_contract::propagation_chain::{
 };
 use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_core::execution_facts::OutputRetention;
-use antecedent_core::{ExecutionContext, SemanticDigest};
+use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_design::decision_contract::{ActionKind, DecisionContract, DecisionContractError};
 use antecedent_design::composition_boundary::SupportPolicy;
 use antecedent_design::decision_transported_source::{
@@ -27,7 +27,7 @@ use antecedent_design::decision_evaluation::{
     DemandBudget, DemandSource, DemandSourceError, EvaluationError, execute_demand_admitted,
 };
 use antecedent_io::propagation_chain_record::{
-    ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire,
+    ChainChangeWire, ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire,
     ChainStageWire, PropagationChainRecordWire,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
@@ -273,14 +273,15 @@ pub fn compile_action_world_chain_decision(
 /// Compile a checked transported law and a multi-action decision through the
 /// chain compiler. The response's receipt identity is bound to every source
 /// column and remains visible in the decision source receipt. The transported
-/// law must be equally weighted, jointly aligned and accepted by `policy`;
-/// other transport laws
+/// law must be jointly aligned and accepted by `policy`. Any nonnegative row
+/// weights are normalized by the chain's retained reweighting schedule; zero
+/// weight rows are omitted before compilation. Other transport laws
 /// remain with their existing direct decision evaluator. This route treats the
 /// already produced transport as declared evidence, without refitting its
 /// source model or upgrading its extrapolative support or calibration.
 ///
 /// # Errors
-/// A point response, marginal or weighted law, unsupported law meaning,
+/// A point response, marginal or malformed weighted law, unsupported law meaning,
 /// missing coordinates, or any chain/decision compiler refusal.
 pub fn compile_transported_law_chain_decision(
     response: &TransportedResponse,
@@ -304,11 +305,6 @@ pub fn compile_transported_law_chain_decision(
     let TransportedValue::Law(law) = response.value() else {
         return Err(ChainDecisionError::Coordinate("transported decision needs an aligned law"));
     };
-    if law.metadata().weights.is_some() {
-        return Err(ChainDecisionError::Coordinate(
-            "weighted transported laws need an explicit joint row-weight carrier",
-        ));
-    }
     if law.metadata().supported.as_ref().is_some_and(|mask| mask.iter().any(|supported| !supported)) {
         return Err(ChainDecisionError::Coordinate(
             "transported chain law requires every declared coordinate to be supported",
@@ -336,27 +332,69 @@ pub fn compile_transported_law_chain_decision(
         return Err(ChainDecisionError::Coordinate("transported law has no output coordinate"));
     }
     let width = quantities.len();
+    let retained_rows: Vec<usize> = if let Some(weights) = &law.metadata().weights {
+        if weights.len() != law.n_draws()
+            || weights.iter().any(|weight| !weight.is_finite() || *weight < 0.0)
+        {
+            return Err(ChainDecisionError::Coordinate(
+                "transported row weights must be finite, nonnegative and aligned",
+            ));
+        }
+        (0..weights.len()).filter(|&row| weights[row] > 0.0).collect()
+    } else {
+        (0..law.n_draws()).collect()
+    };
+    if retained_rows.len() < 2 {
+        return Err(ChainDecisionError::Coordinate(
+            "transported decision needs at least two positive-mass joint rows",
+        ));
+    }
+    let alignment = if retained_rows.len() == law.n_draws() {
+        alignment
+    } else {
+        let mut writer = CanonicalWriter::new("antecedent.transported_law.positive_row_alignment.v1");
+        writer.text(&alignment).word(retained_rows.len() as u64);
+        for &row in &retained_rows { writer.word(row as u64); }
+        SemanticDigest::from_bytes(writer.finish()).to_hex()
+    };
     let receipt = format!("transport_receipt:{}", response.receipt().canonical_identity());
-    let mut sources = Vec::with_capacity(width);
+    let weighted = law.metadata().weights.is_some();
+    let carrier_id = "transported.row_weight_carrier";
+    let mut sources = Vec::with_capacity(width + usize::from(weighted));
     let mut stages = Vec::with_capacity(width);
     let mut outputs = Vec::with_capacity(width);
     for (column, quantity) in quantities.iter().enumerate() {
         let source_id = format!("transported.column.{column}");
         let stage_id = format!("transported.output.{column}");
-        let values: Vec<f64> = law.draws().chunks_exact(width)
-            .map(|row| row[column]).collect();
+        let values: Vec<f64> = retained_rows.iter()
+            .map(|&row| law.draws()[row * width + column]).collect();
         sources.push(ChainSourceWire::draws(&source_id, meaning, &alignment, &values)
             .with_factor(SharedFactorKind::Model, &receipt));
-        stages.push(ChainStageWire::new(
-            &stage_id, StageKind::DerivedQuantity, &[source_id.as_str()],
-            ChainOpWire::affine(
-                ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0),
-            ),
-        ));
+        let stage = if weighted {
+            ChainStageWire::new(
+                &stage_id, StageKind::DerivedQuantity, &[source_id.as_str(), carrier_id],
+                ChainOpWire::affine(
+                    ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::input(1),
+                ),
+            )
+        } else {
+            ChainStageWire::new(
+                &stage_id, StageKind::DerivedQuantity, &[source_id.as_str()],
+                ChainOpWire::affine(
+                    ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0),
+                ),
+            )
+        };
+        stages.push(stage);
         outputs.push(ChainJointOutputWire {
             stage: stage_id,
             quantity: quantity.clone(),
         });
+    }
+    if weighted {
+        sources.push(ChainSourceWire::draws(
+            carrier_id, meaning, &alignment, &vec![0.0; retained_rows.len()],
+        ).with_factor(SharedFactorKind::Model, &receipt));
     }
     let mut draft = PropagationChainRecordWire::draft(
         TableConstruction::JointDraws, reading, &outputs[0].stage,
@@ -364,6 +402,11 @@ pub fn compile_transported_law_chain_decision(
     ).with_output_quantity(quantities[0].clone());
     if outputs.len() > 1 {
         draft = draft.with_joint_outputs(outputs);
+    }
+    if let Some(weights) = &law.metadata().weights {
+        let log_weights: Vec<f64> = retained_rows.iter()
+            .map(|&row| weights[row].ln()).collect();
+        draft.changes.push(ChainChangeWire::reweight(carrier_id, &log_weights));
     }
     compile_chain_decision(draft, contract, ctx)
 }

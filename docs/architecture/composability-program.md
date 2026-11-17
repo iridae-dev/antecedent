@@ -150,8 +150,10 @@ reference assertions are unearned.
 An already declared transported joint law can enter `chain_decision_v1` with
 its receipt identity bound to the compiled chain input. The ingress checks
 the response's support label against the caller's decision policy and refuses
-any unsupported law column. It requires equal weights because this chain
-adapter does not yet retain the transport artifact's weight vector. Independent
+any unsupported law column. It now retains a transported law's nonnegative
+row weights through one compiler-owned shared carrier and a logged reweighting
+change. Zero-mass rows are omitted, and the remaining weights apply once to
+all aligned output columns and their nonlinear utility. Independent
 consumption replays the chain and utility; it does not refit the original
 transport estimator or recheck its source population's evidence. The transport
 receipt remains a declared premise, with no new coverage claim.
