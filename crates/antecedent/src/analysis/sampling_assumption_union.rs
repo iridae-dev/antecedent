@@ -38,6 +38,7 @@ use crate::planner::{PlanStage, PlanView};
 const FEATURE: &str = "sampling_assumption_union_v1";
 const IID_FEATURE: &str = "iid_sampling_assumption_union_v1";
 const STRATIFIED_MOVING_BLOCK_FEATURE: &str = "stratified_moving_block_sampling_assumption_union_v1";
+const PANEL_BLOCK_FEATURE: &str = "panel_block_sampling_assumption_union_v1";
 const MOVING_BLOCK_FEATURE: &str = "moving_block_sampling_assumption_union_v1";
 const STRATIFIED_CLUSTER_FEATURE: &str = "stratified_cluster_sampling_assumption_union_v1";
 const CLUSTER_FEATURE: &str = "cluster_sampling_assumption_union_v1";
@@ -1968,6 +1969,330 @@ pub fn consume_stratified_moving_block_sampling_assumption_union(
     Ok(live)
 }
 
+/// Independent, identically distributed panels with equal-length, equally spaced
+/// ordered observations. Each bootstrap replicate resamples panels with replacement,
+/// then draws overlapping non-circular blocks within each selected panel. All
+/// sampling-source columns use the same indices, and the last block is truncated.
+/// Independence and exchangeability of panels, and stationarity and sufficiently
+/// weak dependence within each panel, are declared assumptions, not tested.
+/// The two-stage bootstrap is a candidate only under an appropriate panel/time
+/// asymptotic regime; its extra within-panel resampling can overstate variance
+/// when the panel bootstrap already captures that variability.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PanelBlockSamplingAssumptionUnionRequest {
+    /// Complete chain over raw unit rows and fixed assumptions.
+    pub original: PropagationChainRecordWire,
+    /// Distinct row identities in chronological, equally spaced sampling-source order.
+    pub unit_ids: Vec<String>,
+    /// Panel identity per row, in chronological order within each panel.
+    pub panel_ids: Vec<String>,
+    /// Prespecified common number of consecutive rows per within-series block.
+    pub block_length: usize,
+    /// Number of whole-chain moving-block bootstrap replicates.
+    pub bootstrap_replicates: usize,
+    /// Nominal two-sided level; coverage remains unmeasured.
+    pub level: f64,
+}
+
+/// Retained moving-block resampling and complete-chain endpoint union.
+#[derive(Clone, Debug)]
+pub struct CompiledPanelBlockSamplingAssumptionUnion {
+    request: PanelBlockSamplingAssumptionUnionRequest,
+    panels: Vec<Vec<usize>>,
+    original: PropagationChainPlan,
+    seed: u64,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// Candidate for simultaneous identified-set endpoint coverage by moving-block.
+#[derive(Clone, Debug)]
+pub struct PanelBlockSamplingAssumptionCalibrationCandidate {
+    /// Complete compiler-generated moving-block bootstrap result.
+    pub result: SamplingAssumptionUnionResult,
+    /// Exact fixed chain template and moving-block-design calibration coordinate.
+    pub basis: CalibrationBasis,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PanelBlockSamplingAssumptionUnionWire {
+    version: u32,
+    required_feature: String,
+    request: PanelBlockSamplingAssumptionUnionRequest,
+    seed: u64,
+    program_identity: [u8; 32],
+    result_fingerprint: [u8; 32],
+}
+
+/// Compile two-stage panel and within-panel block resampling before drawing rows.
+/// Every generated chain is recompiled at execution, and the portable
+/// consumer reconstructs the same moving-block schedule from the raw declaration.
+///
+/// # Errors
+/// Malformed unit or moving-block identities, invalid fixed assumptions, unsupported
+/// chain, level or resource bound.
+pub fn compile_panel_block_sampling_assumption_union(
+    request: PanelBlockSamplingAssumptionUnionRequest, ctx: &ExecutionContext,
+) -> Result<CompiledPanelBlockSamplingAssumptionUnion, SamplingAssumptionUnionError> {
+    validate_raw_unit_source(&request.original, &request.unit_ids,
+        request.bootstrap_replicates, request.level)?;
+    let n = request.unit_ids.len();
+    if request.panel_ids.len() != n || request.panel_ids.iter().any(|id| id.trim().is_empty()) {
+        return Err(SamplingAssumptionUnionError::Invalid("panels must align with all sampling rows"));
+    }
+    let mut grouped: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (row, panel) in request.panel_ids.iter().enumerate() {
+        grouped.entry(panel.as_str()).or_default().push(row);
+    }
+    let panels: Vec<Vec<usize>> = grouped.into_values().collect();
+    if panels.len() < 10 || request.block_length < 2
+        || panels.iter().any(|rows| rows.len() < 20 || rows.len() != panels[0].len()
+            || request.block_length > rows.len() / 2)
+    {
+        return Err(SamplingAssumptionUnionError::Invalid("panel bootstrap needs ten equal-length panels of at least 20 rows and block length between 2 and half the panel length"));
+    }
+    let source_bytes = antecedent_io::to_cbor(&request)?;
+    if source_bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(SamplingAssumptionUnionError::Invalid("moving-block bootstrap source exceeds its byte bound"));
+    }
+    let original = compile_propagation_chain(request.original.clone(), ctx)?;
+    let source_digest = CanonicalWriter::digest_bytes(
+        "antecedent.panel_block_sampling_assumption_union.source.v1", &source_bytes,
+    );
+    let seed = ctx.rng.master_seed();
+    let mut writer = CanonicalWriter::new("antecedent.panel_block_sampling_assumption_union.question.v1");
+    writer.bytes(&source_digest).word(seed);
+    let query = writer.finish();
+    let design = DesignShape::quoted(request.unit_ids.len() as u64,
+        request.original.sources.len() as u64, true);
+    let scientific = ScientificProblem {
+        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::IdentifiedSet, outcome: None, query,
+        },
+        plan_id: Arc::from("panel_block_sampling_assumption_union.v1"),
+        data: DataClassification::Tabular,
+        graph_class: "compiler_resampled_panel_block_assumption_set",
+        query_variables: Arc::from([]), source_digest: Some(source_digest),
+        support_coordinate: None, supported: false, support_status: None,
+    };
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
+    let score = ScoreModel::new("panel_block_whole_chain_assumption_endpoint_bootstrap")
+        .map_err(|_| SamplingAssumptionUnionError::Invalid("invalid moving-block bootstrap score identity"))?;
+    let statistical = StatisticalProgram {
+        identifier: None, estimator: None,
+        realization: Realization::Frequentist(ScoreFrequentist::new(score)),
+        models: Arc::from([]), folds: None, resampling: None,
+        posterior: None, design, operators: Arc::from([]),
+    };
+    let evidence = EvidenceDecisionProgram {
+        sources: Arc::from([EvidenceSourceRef {
+            role: EvidenceRole::ChainSource, digest: Some(source_digest),
+        }]),
+        composition: Composition::Chained { stages: request.bootstrap_replicates + 1 },
+        decision: None, planning: None, chain: None,
+    };
+    let physical = PhysicalLayer {
+        operators: Arc::from([
+            PhysicalOperator::declare(PhysicalEffect::Read)
+                .estimates(ByteEstimates::absent().with_output(source_bytes.len() as u64))
+                .build().map_err(|_| SamplingAssumptionUnionError::Invalid("invalid moving-block read operator"))?,
+            PhysicalOperator::declare(PhysicalEffect::Select)
+                .build().map_err(|_| SamplingAssumptionUnionError::Invalid("invalid moving-block resampling operator"))?,
+        ]), design,
+    };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::MovingBlockSamplingAssumptionUnion,
+        scientific, identification, statistical, evidence, physical,
+        claim: ClaimDemand { uncertainty: UncertaintyReading::Sampling,
+            kind: Some(ClaimKind::Bounds) },
+    }.finish());
+    Ok(CompiledPanelBlockSamplingAssumptionUnion {
+        request, panels, original, seed, lowered,
+    })
+}
+
+fn panel_block_indices(
+    panels: &[Vec<usize>], block_length: usize, rng: &mut antecedent_core::CausalRng,
+) -> Vec<usize> {
+    let total: usize = panels.iter().map(Vec::len).sum();
+    let mut indices = vec![0; total];
+    for destination in panels {
+        let source = &panels[uniform_row(rng, panels.len())];
+        let mut filled = 0;
+        while filled < destination.len() {
+            let start = uniform_row(rng, source.len() - block_length + 1);
+            let take = block_length.min(destination.len() - filled);
+            for offset in 0..take { indices[destination[filled + offset]] = source[start + offset]; }
+            filled += take;
+        }
+    }
+    indices
+}
+
+impl CompiledPanelBlockSamplingAssumptionUnion {
+    /// Complete six-layer moving-block resampling program.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the fixed schedule before sampling any moving-blocks.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Resample panels and then their consecutive blocks, rerun the aligned chain and form the
+    /// unmeasured Bonferroni basic-bootstrap identified-set union.
+    ///
+    /// # Errors
+    /// Changed seed, cancellation, nested chain or nonfinite bound.
+    pub fn execute(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
+        if ctx.rng.master_seed() != self.seed {
+            return Err(SamplingAssumptionUnionError::Invalid("moving-block bootstrap execution seed changed"));
+        }
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let original = self.original.execute(ctx)?;
+        let (original_lower, original_upper) = endpoint_means(&original)?;
+        let mut lows = Vec::with_capacity(self.request.bootstrap_replicates);
+        let mut highs = Vec::with_capacity(self.request.bootstrap_replicates);
+        let mut chain_identities = vec![original.identity().to_owned()];
+        let mut rng = scoped.rng.stream(0x5041_4E45_4C42_4C4B);
+        for replicate in 0..self.request.bootstrap_replicates {
+            if scoped.cancellation.is_cancelled() {
+                return Err(SamplingAssumptionUnionError::Invalid("moving-block bootstrap was cancelled"));
+            }
+            let indices = panel_block_indices(&self.panels, self.request.block_length, &mut rng);
+            let mut draft = self.request.original.clone();
+            for (resampled, source) in draft.sources.iter_mut().zip(&self.request.original.sources) {
+                if source.representation == "draws" {
+                    resampled.values = indices.iter().map(|&row| source.values[row]).collect();
+                    resampled.alignment = Some(format!(
+                        "panel-block-bootstrap:{}:{replicate}", self.lowered.identity().to_hex(),
+                    ));
+                }
+            }
+            let chain = compile_propagation_chain(draft, ctx)?.execute(ctx)?;
+            let (lower, upper) = endpoint_means(&chain)?;
+            lows.push(lower);
+            highs.push(upper);
+            chain_identities.push(chain.identity().to_owned());
+        }
+        lows.sort_by(f64::total_cmp);
+        highs.sort_by(f64::total_cmp);
+        let tail = (1.0 - self.request.level) / 2.0;
+        let union_lower = 2.0 * original_lower - quantile_type7_sorted(&lows, 1.0 - tail);
+        let union_upper = 2.0 * original_upper - quantile_type7_sorted(&highs, tail);
+        if !union_lower.is_finite() || !union_upper.is_finite() || union_lower > union_upper {
+            return Err(SamplingAssumptionUnionError::Invalid("moving-block bootstrap union is nonfinite or reversed"));
+        }
+        Ok(SamplingAssumptionUnionResult {
+            original_lower, original_upper, union_lower, union_upper,
+            level: self.request.level, calibration: "not_measured",
+            chain_identities, lowered_program_identity: self.lowered.identity(),
+        })
+    }
+
+    /// Exact moving-block-design and fixed-chain coordinate for a prospective
+    /// simultaneous endpoint coverage record.
+    ///
+    /// # Errors
+    /// Complete-chain execution or template encoding refused.
+    pub fn calibration_candidate(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<PanelBlockSamplingAssumptionCalibrationCandidate, SamplingAssumptionUnionError> {
+        let result = self.execute(ctx)?;
+        let mut template = self.request.original.clone();
+        for source in &mut template.sources {
+            if source.representation == "draws" {
+                source.values.clear();
+                source.alignment = Some("panel_block_raw_units".into());
+            }
+        }
+        let template_digest = CanonicalWriter::digest_bytes(
+            "antecedent.panel_block_sampling_assumption_union.template.v1",
+            &antecedent_io::to_cbor(&template)?,
+        );
+        let mut writer = CanonicalWriter::new(
+            "antecedent.panel_block_sampling_assumption_union.calibration_scope.v1",
+        );
+        writer.bytes(&template_digest).word(self.request.bootstrap_replicates as u64)
+            .word(self.request.unit_ids.len() as u64).word(self.request.block_length as u64)
+            .word(self.panels.len() as u64);
+        for rows in &self.panels {
+            writer.word(rows.len() as u64);
+            for &row in rows { writer.word(row as u64); }
+        }
+        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
+        let functional = format!("joint_set_endpoints:panel_block_scope={scope}");
+        let basis = CalibrationBasis::new(
+            [
+                "IdentifiedSet", "None", "fixed", "tabular", "Frequentist",
+                PANEL_BLOCK_FEATURE, "bonferroni_basic_panel_block_bootstrap", "",
+                "iid_panels_stationary_weak_dependence_two_stage_blocks", "", functional.as_str(),
+            ].map(Arc::from),
+            self.request.level, Arc::from("partial"), self.request.unit_ids.len() as u64,
+            Some(self.request.bootstrap_replicates as u32), None, 0.0,
+        ).with_validation("none");
+        Ok(PanelBlockSamplingAssumptionCalibrationCandidate { result, basis })
+    }
+
+    /// Seal the raw rows, moving-block schedule and complete result for replay.
+    ///
+    /// # Errors
+    /// A changed run or oversized artifact refuses.
+    pub fn export(
+        &self, result: &SamplingAssumptionUnionResult, ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, SamplingAssumptionUnionError> {
+        if fingerprint(&self.execute(ctx)?) != fingerprint(result) {
+            return Err(SamplingAssumptionUnionError::Invalid("moving-block bootstrap result changed"));
+        }
+        let bytes = antecedent_io::to_cbor(&PanelBlockSamplingAssumptionUnionWire {
+            version: 1, required_feature: PANEL_BLOCK_FEATURE.into(),
+            request: self.request.clone(), seed: self.seed,
+            program_identity: *self.lowered.identity().as_bytes(),
+            result_fingerprint: fingerprint(result),
+        })?;
+        if bytes.len() > MAX_ARTIFACT_BYTES {
+            return Err(SamplingAssumptionUnionError::Invalid("moving-block bootstrap artifact exceeds its byte bound"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Recompile and rerun the complete moving-block schedule under a separately
+/// retained program identity.
+///
+/// # Errors
+/// A foreign feature, changed raw data, moving-block mapping, seed or bound.
+pub fn consume_panel_block_sampling_assumption_union(
+    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
+    if bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(SamplingAssumptionUnionError::Invalid("moving-block bootstrap artifact exceeds its byte bound"));
+    }
+    let wire: PanelBlockSamplingAssumptionUnionWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.required_feature != PANEL_BLOCK_FEATURE
+        || wire.program_identity != *expected_program.as_bytes()
+        || wire.seed != ctx.rng.master_seed()
+    {
+        return Err(SamplingAssumptionUnionError::Invalid("moving-block bootstrap feature, identity or seed differs"));
+    }
+    let plan = compile_panel_block_sampling_assumption_union(wire.request, ctx)?;
+    if plan.lowered().identity() != expected_program {
+        return Err(SamplingAssumptionUnionError::Invalid("recompiled moving-block bootstrap program differs"));
+    }
+    let live = plan.execute(ctx)?;
+    if fingerprint(&live) != wire.result_fingerprint {
+        return Err(SamplingAssumptionUnionError::Invalid("moving-block bootstrap result differs on replay"));
+    }
+    Ok(live)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2094,6 +2419,40 @@ mod tests {
         let other = compile_stratified_cluster_sampling_assumption_union(changed, &ctx).unwrap();
         assert_ne!(plan.lowered().identity(), other.lowered().identity());
         assert!(consume_stratified_cluster_sampling_assumption_union(&artifact, other.lowered().identity(), &ctx).is_err());
+    }
+
+    #[test]
+    #[ignore = "source-only two-stage panel block bootstrap; coverage has not been earned"]
+    fn resampled_panels_keep_one_source_panel_and_consecutive_blocks() {
+        let ctx = ExecutionContext::for_tests(53);
+        let mut original = draft(0.0);
+        original.sources[0].values = (0..200).map(|i| (i as f64 / 200.0).to_bits()).collect();
+        let request = PanelBlockSamplingAssumptionUnionRequest {
+            original, unit_ids: (0..200).map(|i| format!("row-{i}")).collect(),
+            panel_ids: (0..200).map(|i| format!("panel-{:02}", i % 10)).collect(),
+            block_length: 4, bootstrap_replicates: 100, level: 0.95,
+        };
+        let plan = compile_panel_block_sampling_assumption_union(request.clone(), &ctx).unwrap();
+        let mut rng = antecedent_core::CausalRng::from_seed(53);
+        let indices = panel_block_indices(&plan.panels, 4, &mut rng);
+        for destination in &plan.panels {
+            let selected: Vec<_> = destination.iter().map(|&row| indices[row]).collect();
+            assert!(selected.iter().all(|row| row % 10 == selected[0] % 10));
+            assert!(selected.chunks(4).all(|block| block.windows(2).all(|pair| pair[1] == pair[0] + 10)));
+        }
+        let candidate = plan.calibration_candidate(&ctx).unwrap();
+        assert_eq!(candidate.result.calibration, "not_measured");
+        assert_eq!(candidate.result.chain_identities.len(), 101);
+        assert_eq!(candidate.basis.interval_method.as_ref(), "bonferroni_basic_panel_block_bootstrap");
+        let artifact = plan.export(&candidate.result, &ctx).unwrap();
+        let replay = consume_panel_block_sampling_assumption_union(&artifact, plan.lowered().identity(), &ctx).unwrap();
+        assert_eq!(fingerprint(&candidate.result), fingerprint(&replay));
+        let mut changed = request.clone(); changed.block_length = 5;
+        let other = compile_panel_block_sampling_assumption_union(changed, &ctx).unwrap();
+        assert_ne!(plan.lowered().identity(), other.lowered().identity());
+        assert!(consume_panel_block_sampling_assumption_union(&artifact, other.lowered().identity(), &ctx).is_err());
+        let mut invalid = request; invalid.panel_ids[0] = "extra-panel".into();
+        assert!(compile_panel_block_sampling_assumption_union(invalid, &ctx).is_err());
     }
 
     #[test]
