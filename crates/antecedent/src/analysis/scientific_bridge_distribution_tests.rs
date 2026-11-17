@@ -610,3 +610,83 @@ fn a_predictive_bridge_handoff_compiles_as_a_predictive_law() {
     let output = chain.stage("terminal").expect("mapped output");
     assert!((output.value("mean").unwrap() - result.mean()).abs() < 1e-9);
 }
+
+#[test]
+#[ignore = "source-only target posterior predictive bridge decision; reliability not earned"]
+fn independent_target_posterior_and_source_innovation_replay_together() {
+    use crate::analysis::bridge_transport_decision::{
+        BridgeTargetPosteriorPremises, compile_assessed_bridge_posterior_decision,
+        consume_assessed_bridge_posterior_decision,
+    };
+    let trials = |offset: f64| TrialLevelValidation {
+        trials: (0..20).map(|index| {
+            let x = -1.0 + 2.0 * index as f64 / 19.0;
+            TrialEffectPair { surrogate_effect: x,
+                terminal_effect: 0.5 + 2.0 * x + offset
+                    + (if index % 2 == 0 { 0.01 } else { -0.01 }),
+            }
+        }).collect(),
+        min_trials: 3, min_r_squared: 0.0,
+    };
+    let source = trials(0.0);
+    let premise = TransportabilityPremise {
+        id: "validation-to-target".into(),
+        statement: "trial surrogate relation transfers".into(),
+        established_in: BridgeScope {
+            population_id: "validation-adults".into(), regime_id: "do(t=1)".into(),
+        },
+        applies_to: BridgeScope {
+            population_id: "adults".into(), regime_id: "do(t=1)".into(),
+        },
+        evidence: Some("independent-target-validation".into()),
+    };
+    let mut declaration = contract(BridgeMapping::TrialLevelLinear(source.clone()), None, None);
+    declaration.source_value = ValueKind::PredictiveLaw;
+    declaration.target_value = ValueKind::PredictiveLaw;
+    declaration.evidence_scope = premise.established_in.clone();
+    declaration.transport = Some(premise.clone());
+    let outcome = declaration.target.quantity.clone();
+    let decision = DecisionContract {
+        actions: vec![
+            DecisionAction {
+                id: "use-bridge".into(), kind: ActionKind::External,
+                inputs: vec![outcome.clone()], utility: UtilityExpr::Input(0),
+            },
+            DecisionAction {
+                id: "risk-sensitive".into(), kind: ActionKind::External,
+                inputs: vec![outcome],
+                utility: UtilityExpr::product(
+                    UtilityExpr::Input(0), UtilityExpr::Input(0),
+                ),
+            },
+        ],
+        utility_units: "score".into(),
+        criterion: DecisionCriterion::ExpectedRegret,
+        constraints: Vec::new(), target_population: "adults".into(),
+        horizon: 0, structural_policy: StructuralPolicy::RequireInvariantBestAction,
+    };
+    let ctx = ExecutionContext::for_tests(43);
+    let assessment = compile_bridge_transport_premise_assessment(
+        BridgeTransportPremiseAssessmentRequest {
+            premise, source, target: trials(0.05),
+            source_trial_ids: (0..20).map(|i| format!("source-trial-{i}")).collect(),
+            target_trial_ids: (0..20).map(|i| format!("target-trial-{i}")).collect(),
+            surrogate_grid: vec![-0.8, 0.0, 0.8], equivalence_margin: 0.2,
+        },
+    ).unwrap();
+    let bridge = compile_bridge_transport_decision(
+        declaration, draws_table(64, 0.0, 0.1, DistributionMeaningWire::PosteriorPredictive),
+        11, decision,
+    ).unwrap();
+    let assessed = compile_assessed_bridge_transport_decision(assessment, bridge).unwrap();
+    let plan = compile_assessed_bridge_posterior_decision(assessed, BridgeTargetPosteriorPremises {
+        validation_design: "independent-target-trials".into(),
+        target_validation_independent: true, source_innovation_transfers: true,
+    }, &ctx).unwrap();
+    let result = plan.execute(&ctx).unwrap();
+    assert_eq!(result.calibration, "not_measured");
+    let artifact = plan.export(&result, "target-posterior-bridge", &ctx).unwrap();
+    let replay = consume_assessed_bridge_posterior_decision(&artifact, plan.lowered().identity(), &ctx).unwrap();
+    assert_eq!(result.decision.chain.identity(), replay.decision.chain.identity());
+    assert_eq!(result.decision.decision, replay.decision.decision);
+}

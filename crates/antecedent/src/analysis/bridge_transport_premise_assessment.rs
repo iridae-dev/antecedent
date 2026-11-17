@@ -606,3 +606,50 @@ mod tests {
         assert_eq!(replay, result);
     }
 }
+
+/// Joint intercept and slope draws under the normal linear trial model and
+/// reference prior `p(intercept, slope, variance) ∝ 1 / variance`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct TargetLinePosteriorDraw {
+    pub intercept: f64,
+    pub slope: f64,
+}
+
+impl CompiledBridgeTransportPremiseAssessment {
+    /// Draw from the joint target-line posterior, retaining a common variance
+    /// scale for both coefficients. The target design is conditioned on.
+    /// Number of independently declared target validation trials.
+    pub(crate) fn target_trial_count(&self) -> usize { self.request.target.trials.len() }
+
+    pub(crate) fn target_line_posterior(
+        &self, count: usize, seed: u64, ctx: &ExecutionContext,
+    ) -> Result<Vec<TargetLinePosteriorDraw>, BridgeTransportPremiseAssessmentError> {
+        let trials = &self.request.target.trials;
+        if count == 0 || count > 1_000_000 || trials.len() < 3 {
+            return Err(invalid("target posterior draw count or trial count invalid"));
+        }
+        let fit = fit_trial_level_linear(&self.request.target).map_err(|e| invalid(e.to_string()))?;
+        let n = trials.len() as f64;
+        let xbar = trials.iter().map(|p| p.surrogate_effect).sum::<f64>() / n;
+        let sxx = trials.iter().map(|p| (p.surrogate_effect - xbar).powi(2)).sum::<f64>();
+        let rss = trials.iter().map(|p| (p.terminal_effect - fit.intercept - fit.slope * p.surrogate_effect).powi(2)).sum::<f64>();
+        if !sxx.is_finite() || sxx <= 0.0 || !rss.is_finite() || rss <= 0.0 {
+            return Err(invalid("target reference-prior line posterior is improper or singular"));
+        }
+        let df = n - 2.0;
+        let variance = rss / df;
+        let mut rng = antecedent_core::CausalRng::from_seed(seed);
+        let mut result = Vec::with_capacity(count);
+        for _ in 0..count {
+            if ctx.cancellation.is_cancelled() { return Err(invalid("target posterior sampling cancelled")); }
+            let chi2 = antecedent_kernels::sample_gamma(df / 2.0, 0.5, &mut rng);
+            let scale = (df / chi2).sqrt();
+            let slope = fit.slope + scale * (variance / sxx).sqrt() * antecedent_kernels::standard_normal(&mut rng);
+            let intercept = fit.intercept - (slope - fit.slope) * xbar
+                + scale * (variance / n).sqrt() * antecedent_kernels::standard_normal(&mut rng);
+            if !slope.is_finite() || !intercept.is_finite() { return Err(invalid("target posterior draw is nonfinite")); }
+            result.push(TargetLinePosteriorDraw { intercept, slope });
+        }
+        Ok(result)
+    }
+}
