@@ -1170,6 +1170,7 @@ pub fn native_fit_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
         .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Trial }))
         .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Cyclic }))
         .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Graph }))
+        .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Bridge }))
         .register(Box::new(PredictiveTerminalVerifier { ctx: ctx.clone() }))
         .register(Box::new(sequential_live::SequentialFitVerifier { ctx: ctx.clone() }))
         .register(Box::new(sequential_live::SequentialDrawsVerifier))
@@ -2394,18 +2395,20 @@ const PREDICTIVE_CHAIN_FACT: &str = "predictive_fit_chain_identity";
 const PREDICTIVE_DECISION_FACT: &str = "predictive_fit_decision_fingerprint";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
-enum PredictiveFitKind { Joint, Trial, Cyclic, Graph }
+enum PredictiveFitKind { Joint, Trial, Cyclic, Graph, Bridge }
 impl PredictiveFitKind {
     fn node(self) -> NodeKind { match self { Self::Joint => NodeKind::JointTransportPredictiveFit,
         Self::Trial => NodeKind::TrialIpwPredictiveFit, Self::Cyclic => NodeKind::CyclicTargetFeedbackFit,
-        Self::Graph => NodeKind::GraphImputationPredictiveFit } }
+        Self::Graph => NodeKind::GraphImputationPredictiveFit, Self::Bridge => NodeKind::AssessedBridgePosteriorFit } }
     fn cell(self) -> ProgramCell { match self { Self::Joint => ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation,
         Self::Trial => ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation,
         Self::Cyclic => ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation,
-        Self::Graph => ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation } }
+        Self::Graph => ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation,
+        Self::Bridge => ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation } }
     fn name(self) -> &'static str { match self { Self::Joint => "joint_transport_predictive_decision_v2",
         Self::Trial => "trial_ipw_transport_predictive_decision_v1",
-        Self::Cyclic => "cyclic_target_feedback_decision_v1", Self::Graph => "graph_imputation_predictive_world_decision_v1" } }
+        Self::Cyclic => "cyclic_target_feedback_decision_v1", Self::Graph => "graph_imputation_predictive_world_decision_v1",
+        Self::Bridge => "assessed_bridge_posterior_predictive_decision_v1" } }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -2453,6 +2456,8 @@ impl NodeVerifier for PredictiveFitVerifier {
             PredictiveFitKind::Cyclic => super::cyclic_target_feedback_decision::consume_cyclic_target_feedback_decision(
                 &wire.artifact, program, &ctx).map_err(|e| fit_node_failure(&ctx, &e))?.decision,
             PredictiveFitKind::Graph => super::graph_imputation_effect_decision::consume_graph_imputation_world_decision(
+                &wire.artifact, program, &ctx).map_err(|e| fit_node_failure(&ctx, &e))?.decision,
+            PredictiveFitKind::Bridge => super::bridge_transport_decision::consume_assessed_bridge_posterior_decision(
                 &wire.artifact, program, &ctx).map_err(|e| fit_node_failure(&ctx, &e))?.decision,
         };
         if decision.chain.record().reading != "predictive" { return Err(fail("producer law is not predictive".into())); }
@@ -2519,6 +2524,11 @@ impl BundleBuilder {
         ctx: &ExecutionContext) -> Result<(), PredictiveFitDecisionBundleError> {
         self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Graph)
     }
+    /// Embed an assessed bridge posterior producer and replay its raw validation evidence.
+    pub fn add_assessed_bridge_posterior_fit(&mut self, id: &str, artifact: &[u8], program: SemanticDigest,
+        ctx: &ExecutionContext) -> Result<(), PredictiveFitDecisionBundleError> {
+        self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Bridge)
+    }
     /// Embed a chain decision artifact that will be recompiled and scored live.
     pub fn add_predictive_chain_decision(&mut self, id: &str, artifact: &[u8], ctx: &ExecutionContext)
         -> Result<(), PredictiveFitDecisionBundleError> {
@@ -2578,8 +2588,9 @@ fn compile_predictive_fit_decision_bundle(bundle: CompositionBundle, producer: &
         return Err(PredictiveFitDecisionBundleError::Invalid("decision declaration differs"));
     }
     let declaration: PredictiveChainDeclaration = antecedent_io::from_cbor(&terminal_wire.artifact).map_err(ChainBundleRecomputeError::Io)?;
-    if declaration.version != 1 || declaration.required_feature != "chain_action_world_decision_v1" {
-        return Err(PredictiveFitDecisionBundleError::Invalid("paired action-world decision required"));
+    let feature = if kind == PredictiveFitKind::Bridge { "chain_decision_v1" } else { "chain_action_world_decision_v1" };
+    if declaration.version != 1 || declaration.required_feature != feature {
+        return Err(PredictiveFitDecisionBundleError::Invalid("decision feature differs from producer"));
     }
     let record = PropagationChainRecordWire::decode(embedded_node(&bundle, chain_id, NodeKind::PropagationChain)?)
         .map_err(|e| ChainBundleRecomputeError::Chain(e.to_refusal()))?;
@@ -2593,8 +2604,11 @@ fn compile_predictive_fit_decision_bundle(bundle: CompositionBundle, producer: &
     }
     let contract = antecedent_design::decision_artifact::DecisionContractArtifact::from_bytes(&declaration.contract, &declaration.contract_identity)
         .map_err(ChainBundleRecomputeError::Io)?;
-    let chain = super::propagation_chain_decision::compile_action_world_chain_decision(record, contract.contract().clone(), ctx)
-        .map_err(|_| PredictiveFitDecisionBundleError::Invalid("decision chain refused"))?;
+    let chain = if kind == PredictiveFitKind::Bridge {
+        super::propagation_chain_decision::compile_chain_decision(record, contract.contract().clone(), ctx)
+    } else {
+        super::propagation_chain_decision::compile_action_world_chain_decision(record, contract.contract().clone(), ctx)
+    }.map_err(|_| PredictiveFitDecisionBundleError::Invalid("decision chain refused"))?;
     if chain.lowered().identity().as_bytes() != &declaration.lowered_program_identity {
         return Err(PredictiveFitDecisionBundleError::Invalid("decision compiler differs"));
     }
@@ -2643,6 +2657,11 @@ pub fn compile_cyclic_target_feedback_node_decision_bundle(bundle: CompositionBu
 pub fn compile_graph_imputation_predictive_node_decision_bundle(bundle: CompositionBundle, producer: &str,
     chain: &str, terminal: &str, ctx: &ExecutionContext) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
     compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Graph)
+}
+/// Compile an assessed bridge posterior predictive fit and decision bundle.
+pub fn compile_assessed_bridge_posterior_node_decision_bundle(bundle: CompositionBundle, producer: &str,
+    chain: &str, terminal: &str, ctx: &ExecutionContext) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Bridge)
 }
 impl CompiledPredictiveFitDecisionBundle {
     pub fn lowered(&self) -> &LoweredProgram { &self.lowered }

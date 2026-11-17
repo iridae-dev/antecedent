@@ -244,6 +244,7 @@ macro_rules! route_lowerings {
             TrialIpwPredictiveNodeDecisionBundleRecomputation,
             CyclicTargetFeedbackNodeDecisionBundleRecomputation,
             GraphImputationPredictiveNodeDecisionBundleRecomputation,
+            AssessedBridgePosteriorNodeDecisionBundleRecomputation,
             SequentialPolicyReliabilityNodeBundleRecomputation,
             /// Checked connected components and a joint posterior decision.
             JointComponentPosteriorDecision,
@@ -317,6 +318,7 @@ macro_rules! route_lowerings {
                     Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => "TrialIpwPredictiveNodeDecisionBundleRecomputation",
                     Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => "CyclicTargetFeedbackNodeDecisionBundleRecomputation",
                     Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => "GraphImputationPredictiveNodeDecisionBundleRecomputation",
+                    Self::AssessedBridgePosteriorNodeDecisionBundleRecomputation => "AssessedBridgePosteriorNodeDecisionBundleRecomputation",
                     Self::SequentialPolicyReliabilityNodeBundleRecomputation => "SequentialPolicyReliabilityNodeBundleRecomputation",
                     Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
                     Self::BoundedComponentPosteriorDecision => "BoundedComponentPosteriorDecision",
@@ -385,6 +387,7 @@ macro_rules! route_lowerings {
                     Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
                     Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::AssessedBridgePosteriorNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
                     Self::SequentialPolicyReliabilityNodeBundleRecomputation => RouteFamily::PropagationChain,
                     Self::JointComponentPosteriorDecision => RouteFamily::PropagationChain,
                     Self::BoundedComponentPosteriorDecision => RouteFamily::PropagationChain,

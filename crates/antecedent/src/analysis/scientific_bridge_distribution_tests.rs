@@ -678,7 +678,7 @@ fn independent_target_posterior_and_source_innovation_replay_together() {
     let mut metadata = source_draws.metadata().clone();
     metadata.weights = Some((0..64).map(f64::from).collect());
     let weighted_source = DistributionArtifact::new(metadata, source_draws.draws().to_vec()).unwrap();
-    let bridge = compile_bridge_transport_decision(declaration, weighted_source, 11, decision).unwrap();
+    let bridge = compile_bridge_transport_decision(declaration, weighted_source, 11, decision.clone()).unwrap();
     let assessed = compile_assessed_bridge_transport_decision(assessment, bridge).unwrap();
     let plan = compile_assessed_bridge_posterior_decision(assessed, BridgeTargetPosteriorPremises {
         validation_design: "independent-target-trials".into(),
@@ -693,4 +693,31 @@ fn independent_target_posterior_and_source_innovation_replay_together() {
     let replay = consume_assessed_bridge_posterior_decision(&artifact, plan.lowered().identity(), &ctx).unwrap();
     assert_eq!(result.decision.chain.identity(), replay.decision.chain.identity());
     assert_eq!(result.decision.decision, replay.decision.decision);
+    use crate::analysis::composition::{BundleBuilder, NodeKind,
+        compile_assessed_bridge_posterior_node_decision_bundle,
+        consume_portable_predictive_fit_decision_bundle};
+    let terminal = crate::analysis::propagation_chain_decision::compile_chain_decision(
+        result.decision.chain.record().clone(), decision, &ctx).unwrap();
+    let terminal_bytes = terminal.export(&result.decision, "bridge-terminal").unwrap();
+    let mut builder = BundleBuilder::new();
+    builder.add_assessed_bridge_posterior_fit("producer", &artifact, plan.lowered().identity(), &ctx).unwrap();
+    builder.add_artifact(Some("law"), NodeKind::PropagationChain, &result.decision.chain.export().unwrap()).unwrap();
+    builder.add_predictive_chain_decision("decision", &terminal_bytes, &ctx).unwrap();
+    assert!(compile_assessed_bridge_posterior_node_decision_bundle(
+        builder.build().unwrap(), "producer", "law", "decision", &ctx).is_err());
+    builder.connect("producer", "law").unwrap();
+    builder.connect("law", "decision").unwrap();
+    let bundle = builder.build().unwrap();
+    let outer = compile_assessed_bridge_posterior_node_decision_bundle(
+        bundle.clone(), "producer", "law", "decision", &ctx).unwrap();
+    let receipt = outer.execute(&ctx).unwrap();
+    let portable = outer.export_portable(&receipt, &ctx).unwrap();
+    assert_eq!(consume_portable_predictive_fit_decision_bundle(
+        &portable, bundle.identity(), outer.lowered().identity(), &ctx).unwrap(), receipt);
+    assert!(consume_portable_predictive_fit_decision_bundle(
+        &portable, "wrong", outer.lowered().identity(), &ctx).is_err());
+    let mut corrupt = artifact.clone();
+    corrupt[0] ^= 1;
+    assert!(BundleBuilder::new().add_assessed_bridge_posterior_fit(
+        "producer", &corrupt, plan.lowered().identity(), &ctx).is_err());
 }

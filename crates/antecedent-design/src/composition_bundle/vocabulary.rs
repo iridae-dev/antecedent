@@ -33,6 +33,8 @@ pub enum NodeKind {
     CyclicTargetFeedbackFit,
     /// A host-replayed graph-imputation predictive fit.
     GraphImputationPredictiveFit,
+    /// A host-replayed assessed bridge target-posterior predictive fit.
+    AssessedBridgePosteriorFit,
     /// A host-replayed sequential policy reliability producer.
     SequentialPolicyReliabilityFit,
     /// A retained aligned sequential decision-draw carrier.
@@ -96,6 +98,7 @@ named_variants! {
         TrialIpwPredictiveFit => "trial_ipw_predictive_fit",
         CyclicTargetFeedbackFit => "cyclic_target_feedback_fit",
         GraphImputationPredictiveFit => "graph_imputation_predictive_fit",
+        AssessedBridgePosteriorFit => "assessed_bridge_posterior_fit",
         SequentialPolicyReliabilityFit => "sequential_policy_reliability_fit",
         SequentialDecisionDraws => "sequential_decision_draws",
         SequentialReliabilityDiagnostic => "sequential_reliability_diagnostic",
@@ -131,7 +134,7 @@ impl NodeKind {
             Self::ExecutionOrFit | Self::CyclicPosteriorFit | Self::TrialIpwTransportFit
             | Self::GraphImputationTransportFit | Self::JointTransportEffectFit
             | Self::JointTransportPredictiveFit | Self::TrialIpwPredictiveFit
-            | Self::CyclicTargetFeedbackFit | Self::GraphImputationPredictiveFit
+            | Self::CyclicTargetFeedbackFit | Self::GraphImputationPredictiveFit | Self::AssessedBridgePosteriorFit
             | Self::SequentialPolicyReliabilityFit | Self::SequentialDecisionDraws
             | Self::Distribution | Self::FrozenScores => {
                 CompositionStage::DistributionArtifact

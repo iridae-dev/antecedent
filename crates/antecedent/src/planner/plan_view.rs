@@ -2018,6 +2018,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation => PlanRoute::TrialIpwPredictiveNodeDecisionBundleRecomputation,
         ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation => PlanRoute::CyclicTargetFeedbackNodeDecisionBundleRecomputation,
         ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation => PlanRoute::GraphImputationPredictiveNodeDecisionBundleRecomputation,
+        ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation => PlanRoute::AssessedBridgePosteriorNodeDecisionBundleRecomputation,
         ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation => PlanRoute::SequentialPolicyReliabilityNodeBundleRecomputation,
         ProgramCell::JointComponentPosteriorDecision => PlanRoute::JointComponentPosteriorDecision,
         ProgramCell::BoundedComponentPosteriorDecision => PlanRoute::BoundedComponentPosteriorDecision,

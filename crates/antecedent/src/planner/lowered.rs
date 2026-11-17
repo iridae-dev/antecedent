@@ -1144,6 +1144,7 @@ pub(crate) enum ProgramCell {
     TrialIpwPredictiveNodeDecisionBundleRecomputation,
     CyclicTargetFeedbackNodeDecisionBundleRecomputation,
     GraphImputationPredictiveNodeDecisionBundleRecomputation,
+    AssessedBridgePosteriorNodeDecisionBundleRecomputation,
     SequentialPolicyReliabilityNodeBundleRecomputation,
     /// Checked connected components with a joint fitted action decision.
     JointComponentPosteriorDecision,
@@ -1216,6 +1217,7 @@ impl ProgramCell {
             Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => "TrialIpwPredictiveNodeDecisionBundleRecomputation",
             Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => "CyclicTargetFeedbackNodeDecisionBundleRecomputation",
             Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => "GraphImputationPredictiveNodeDecisionBundleRecomputation",
+            Self::AssessedBridgePosteriorNodeDecisionBundleRecomputation => "AssessedBridgePosteriorNodeDecisionBundleRecomputation",
             Self::SequentialPolicyReliabilityNodeBundleRecomputation => "SequentialPolicyReliabilityNodeBundleRecomputation",
             Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
             Self::BoundedComponentPosteriorDecision => "BoundedComponentPosteriorDecision",
@@ -1322,6 +1324,7 @@ impl LoweredProgram {
             | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
             | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
             | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation
             | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::BoundedComponentPosteriorDecision
@@ -1385,6 +1388,7 @@ impl LoweredProgram {
             | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
             | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
             | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation
             | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::BoundedComponentPosteriorDecision
@@ -1448,6 +1452,7 @@ impl LoweredProgram {
             | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
             | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
             | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation
             | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::BoundedComponentPosteriorDecision

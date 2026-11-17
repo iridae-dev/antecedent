@@ -39,7 +39,8 @@ fn check(kind: PredictiveFitKind, producer: &[u8], producer_program: SemanticDig
     match kind { PredictiveFitKind::Joint => builder.add_joint_transport_predictive_fit("fit", producer, producer_program, ctx),
         PredictiveFitKind::Trial => builder.add_trial_ipw_predictive_fit("fit", producer, producer_program, ctx),
         PredictiveFitKind::Cyclic => builder.add_cyclic_target_feedback_fit("fit", producer, producer_program, ctx),
-        PredictiveFitKind::Graph => builder.add_graph_imputation_predictive_fit("fit", producer, producer_program, ctx) }.unwrap();
+        PredictiveFitKind::Graph => builder.add_graph_imputation_predictive_fit("fit", producer, producer_program, ctx),
+        PredictiveFitKind::Bridge => builder.add_assessed_bridge_posterior_fit("fit", producer, producer_program, ctx) }.unwrap();
     builder.add_artifact(Some("chain"), NodeKind::PropagationChain, &result.chain.export().unwrap()).unwrap();
     builder.add_predictive_chain_decision("decision", &terminal_bytes, ctx).unwrap();
     assert!(compile_predictive_fit_decision_bundle(builder.build().unwrap(), "fit", "chain", "decision", ctx, kind).is_err());
@@ -49,7 +50,8 @@ fn check(kind: PredictiveFitKind, producer: &[u8], producer_program: SemanticDig
     let expected_route = match kind { PredictiveFitKind::Joint => "JointTransportPredictiveNodeDecisionBundleRecomputation",
         PredictiveFitKind::Trial => "TrialIpwPredictiveNodeDecisionBundleRecomputation",
         PredictiveFitKind::Cyclic => "CyclicTargetFeedbackNodeDecisionBundleRecomputation",
-        PredictiveFitKind::Graph => "GraphImputationPredictiveNodeDecisionBundleRecomputation" };
+        PredictiveFitKind::Graph => "GraphImputationPredictiveNodeDecisionBundleRecomputation",
+        PredictiveFitKind::Bridge => "AssessedBridgePosteriorNodeDecisionBundleRecomputation" };
     assert_eq!(plan.plan_view().route().as_str(), expected_route);
     let receipt = plan.execute(ctx).unwrap();
     assert_eq!(receipt.chain_identity, result.chain.identity());
@@ -62,7 +64,8 @@ fn check(kind: PredictiveFitKind, producer: &[u8], producer_program: SemanticDig
     assert!(match kind { PredictiveFitKind::Joint => refused.add_joint_transport_predictive_fit("fit", &corrupted, producer_program, ctx),
         PredictiveFitKind::Trial => refused.add_trial_ipw_predictive_fit("fit", &corrupted, producer_program, ctx),
         PredictiveFitKind::Cyclic => refused.add_cyclic_target_feedback_fit("fit", &corrupted, producer_program, ctx),
-        PredictiveFitKind::Graph => refused.add_graph_imputation_predictive_fit("fit", &corrupted, producer_program, ctx) }.is_err());
+        PredictiveFitKind::Graph => refused.add_graph_imputation_predictive_fit("fit", &corrupted, producer_program, ctx),
+        PredictiveFitKind::Bridge => refused.add_assessed_bridge_posterior_fit("fit", &corrupted, producer_program, ctx) }.is_err());
 }
 
 #[test]
