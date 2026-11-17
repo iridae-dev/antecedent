@@ -898,20 +898,19 @@ pub struct ContinuousChainSourceRow {
     pub outcome: f64,
 }
 
-/// A continuous sequential linear structural model with one edge intervention.
-/// The active world sets treatment to one only in the first mediator equation;
-/// every later mediator and outcome equation receives treatment zero. The
-/// baseline world sets all treatment inputs to zero. Thus competing direct
-/// treatment edges are excluded from the contrast, while mediator paths from
-/// the first mediator to the outcome remain active. The source has randomized
-/// treatment and independent units; target baseline units are independent of
-/// the source. Identification assumes consistency, no interference, complete
-/// observations, correctly specified linear conditional means, independent
-/// structural errors (no unmeasured mediator or outcome confounding), no
-/// recanting district, invariant source-to-target structural mechanisms, and
-/// treatment and mediator support for both intervention worlds. Target baseline
-/// range checks do not establish mediator positivity. These assumptions are
-/// declared, not established by the compiler.
+/// A continuous sequential linear structural model on a prespecified DAG.
+/// Nodes 0..k are ordered mediators and node k is the final outcome. The
+/// active world sets treatment to one on selected treatment edges and zero on
+/// the others; the baseline world sets it to zero on all edges. Mediator
+/// parents propagate recursively in both worlds. Only an observed DAG with
+/// independent structural errors is represented; under that declared premise
+/// every district is a singleton, excluding recanting districts structurally.
+/// The compiler checks edge membership and topological order, not absence of
+/// latent confounding. Identification additionally assumes source randomization,
+/// consistency, no interference, complete observations, correct linear
+/// conditional means, no unmeasured mediator or outcome confounding, invariant
+/// source-to-target mechanisms, and positivity in both intervention worlds.
+/// Baseline range checks do not establish mediator positivity.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ContinuousChainTransportRequest {
@@ -919,6 +918,13 @@ pub struct ContinuousChainTransportRequest {
     pub source: Vec<ContinuousChainSourceRow>,
     /// Target-population baseline covariate sample.
     pub target_baseline: Vec<f64>,
+    /// Earlier mediator parents of each mediator and the final outcome.
+    /// Each list is strictly increasing; every parent index must be less than its node index.
+    pub mediator_parents: Vec<Vec<usize>>,
+    /// Whether the treatment has an edge to each mediator and the final outcome.
+    pub treatment_edges: Vec<bool>,
+    /// Whether each corresponding treatment edge receives the active value.
+    pub active_treatment_edges: Vec<bool>,
     /// Prespecified paired, arm-stratified source and target bootstrap replicates.
     pub bootstrap_replicates: usize,
 }
@@ -959,18 +965,18 @@ struct ContinuousChainTransportWire {
     result_fingerprint: [u8; 32],
 }
 
-// OLS for one sequential structural equation. Inputs are intercept, baseline,
-// treatment, and all earlier mediators; partial pivoting rejects rank deficiency.
-fn continuous_chain_fit(rows: &[&ContinuousChainSourceRow], equation: usize)
+// OLS for one declared structural equation; partial pivoting rejects rank deficiency.
+fn continuous_chain_fit(rows: &[&ContinuousChainSourceRow], equation: usize,
+    parents: &[usize], treatment_edge: bool)
     -> Result<Vec<f64>, TemporalPathTransportError> {
-    let p = equation + 3;
+    let p = 2 + usize::from(treatment_edge) + parents.len();
     let mut matrix = vec![vec![0.0; p + 1]; p];
     for row in rows {
         let mut x = Vec::with_capacity(p);
         x.push(1.0);
         x.push(row.baseline);
-        x.push(if row.treated { 1.0 } else { 0.0 });
-        x.extend_from_slice(&row.mediators[..equation]);
+        if treatment_edge { x.push(if row.treated { 1.0 } else { 0.0 }); }
+        x.extend(parents.iter().map(|&parent| row.mediators[parent]));
         let y = if equation == row.mediators.len() { row.outcome } else { row.mediators[equation] };
         for i in 0..p {
             for j in 0..p { matrix[i][j] += x[i] * x[j]; }
@@ -1001,17 +1007,21 @@ fn continuous_chain_fit(rows: &[&ContinuousChainSourceRow], equation: usize)
     Ok(coefficients)
 }
 
-fn continuous_chain_worlds(rows: &[&ContinuousChainSourceRow], x: f64)
-    -> Result<(f64, f64), TemporalPathTransportError> {
+fn continuous_chain_worlds(rows: &[&ContinuousChainSourceRow], x: f64,
+    request: &ContinuousChainTransportRequest) -> Result<(f64, f64), TemporalPathTransportError> {
     let k = rows[0].mediators.len();
-    let coefficients = (0..=k).map(|equation| continuous_chain_fit(rows, equation))
+    let coefficients = (0..=k).map(|equation| continuous_chain_fit(rows, equation,
+        &request.mediator_parents[equation], request.treatment_edges[equation]))
         .collect::<Result<Vec<_>, _>>()?;
     let world = |active: bool| {
         let mut prior = Vec::with_capacity(k + 1);
         for (equation, beta) in coefficients.iter().enumerate() {
-            let treatment_input = if active && equation == 0 { 1.0 } else { 0.0 };
-            let mean = beta[0] + beta[1] * x + beta[2] * treatment_input
-                + prior.iter().zip(&beta[3..]).map(|(m, b)| m * b).sum::<f64>();
+            let has_treatment = request.treatment_edges[equation];
+            let treatment_input = if active && request.active_treatment_edges[equation] { 1.0 } else { 0.0 };
+            let mut mean = beta[0] + beta[1] * x;
+            let offset = if has_treatment { mean += beta[2] * treatment_input; 3 } else { 2 };
+            mean += request.mediator_parents[equation].iter().enumerate()
+                .map(|(i, &parent)| prior[parent] * beta[offset + i]).sum::<f64>();
             prior.push(mean);
         }
         prior[k]
@@ -1053,6 +1063,14 @@ pub fn compile_continuous_chain_transport(
         || request.source.iter().any(|row| !row.baseline.is_finite() || !row.outcome.is_finite()
             || row.mediators.len() != k || row.mediators.iter().any(|x| !x.is_finite()))
         || request.target_baseline.iter().any(|x| !x.is_finite())
+        || request.mediator_parents.len() != k + 1 || request.treatment_edges.len() != k + 1
+        || request.active_treatment_edges.len() != k + 1
+        || !request.active_treatment_edges.iter().any(|active| *active)
+        || request.active_treatment_edges.iter().zip(&request.treatment_edges)
+            .any(|(active, exists)| *active && !*exists)
+        || request.mediator_parents.iter().enumerate().any(|(node, parents)|
+            parents.iter().any(|&parent| parent >= node)
+                || parents.windows(2).any(|pair| pair[0] >= pair[1]))
     {
         return Err(TemporalPathTransportError::Invalid("invalid continuous chain source or schedule"));
     }
@@ -1067,7 +1085,7 @@ pub fn compile_continuous_chain_transport(
         }
     }
     let all_rows: Vec<_> = request.source.iter().collect();
-    continuous_chain_worlds(&all_rows, target_mean)?;
+    continuous_chain_worlds(&all_rows, target_mean, &request)?;
     let bytes = antecedent_io::to_cbor(&request)?;
     if bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(TemporalPathTransportError::Invalid("continuous chain source exceeds its byte bound"));
@@ -1081,8 +1099,8 @@ pub fn compile_continuous_chain_transport(
     let scientific = ScientificProblem {
         runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional { kind: FunctionalKind::PathSpecific, outcome: None, query },
-        plan_id: Arc::from("continuous_sequential_edge_chain_transport.v1"),
-        data: DataClassification::Tabular, graph_class: "declared_randomized_sequential_edge_chain",
+        plan_id: Arc::from("continuous_sequential_edge_dag_transport.v2"),
+        data: DataClassification::Tabular, graph_class: "declared_randomized_sequential_edge_dag",
         query_variables: Arc::from([]), source_digest: Some(source_digest),
         support_coordinate: None, supported: false, support_status: None,
     };
@@ -1139,7 +1157,7 @@ impl CompiledContinuousChainTransport {
             self.request.source.iter().filter(|row| row.treated == *arm).collect()).collect();
         let target_mean = self.request.target_baseline.iter().sum::<f64>() / self.request.target_baseline.len() as f64;
         let original: Vec<_> = self.request.source.iter().collect();
-        let (baseline, active) = continuous_chain_worlds(&original, target_mean)?;
+        let (baseline, active) = continuous_chain_worlds(&original, target_mean, &self.request)?;
         let contrast = active - baseline;
         let mut rng = scoped.rng.stream(0x434F_4E54_4348_4149);
         let mut replicates = Vec::with_capacity(self.request.bootstrap_replicates);
@@ -1151,7 +1169,7 @@ impl CompiledContinuousChainTransport {
                 self.request.target_baseline[continuous_chain_draw(&mut rng, self.request.target_baseline.len())]
             ).sum::<f64>() / self.request.target_baseline.len() as f64;
             let rows: Vec<_> = sampled.iter().flat_map(|arm| arm.iter().copied()).collect();
-            let (baseline, active) = continuous_chain_worlds(&rows, mean)?;
+            let (baseline, active) = continuous_chain_worlds(&rows, mean, &self.request)?;
             replicates.push(active - baseline);
         }
         replicates.sort_by(f64::total_cmp);
@@ -1174,7 +1192,7 @@ impl CompiledContinuousChainTransport {
             return Err(TemporalPathTransportError::Invalid("continuous chain result differs"));
         }
         let bytes = antecedent_io::to_cbor(&ContinuousChainTransportWire {
-            version: 1, feature: "continuous_sequential_edge_chain_transport_v1".into(),
+            version: 1, feature: "continuous_sequential_edge_dag_transport_v2".into(),
             request: self.request.clone(), seed: self.seed, program_identity: *self.lowered.identity().as_bytes(), result_fingerprint: fingerprint,
         })?;
         if bytes.len() > MAX_ARTIFACT_BYTES { return Err(TemporalPathTransportError::Invalid("continuous chain artifact exceeds its byte bound")); }
@@ -1190,7 +1208,7 @@ pub fn consume_continuous_chain_transport(bytes: &[u8], expected: SemanticDigest
     -> Result<ContinuousChainTransportResult, TemporalPathTransportError> {
     if bytes.len() > MAX_ARTIFACT_BYTES { return Err(TemporalPathTransportError::Invalid("continuous chain artifact exceeds its byte bound")); }
     let wire: ContinuousChainTransportWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.feature != "continuous_sequential_edge_chain_transport_v1"
+    if wire.version != 1 || wire.feature != "continuous_sequential_edge_dag_transport_v2"
         || wire.seed != ctx.rng.master_seed() || wire.program_identity != *expected.as_bytes() {
         return Err(TemporalPathTransportError::Invalid("continuous chain feature, seed or identity differs"));
     }
@@ -1219,11 +1237,16 @@ impl CompiledContinuousChainTransport {
         let result = self.execute(ctx)?;
         let n0 = self.request.source.iter().filter(|row| !row.treated).count();
         let n1 = self.request.source.len() - n0;
-        let functional = format!("sequential_edge_chain:horizon={}:source_control={n0}:source_active={n1}:target={}",
-            self.request.source[0].mediators.len(), self.request.target_baseline.len());
+        let mut writer = CanonicalWriter::new("antecedent.continuous_edge_dag.calibration_scope.v2");
+        writer.bytes(&antecedent_io::to_cbor(&self.request.mediator_parents)?)
+            .bytes(&antecedent_io::to_cbor(&self.request.treatment_edges)?)
+            .bytes(&antecedent_io::to_cbor(&self.request.active_treatment_edges)?);
+        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
+        let functional = format!("sequential_edge_dag:scope={scope}:source_control={n0}:source_active={n1}:target={}",
+            self.request.target_baseline.len());
         let basis = CalibrationBasis::new([
-            "PathSpecific", "randomized_sequential_edge_chain", "fixed", "tabular", "Frequentist",
-            "continuous_sequential_edge_chain_transport_v1", "paired_stratified_percentile_bootstrap_95",
+            "PathSpecific", "randomized_sequential_edge_dag", "fixed", "tabular", "Frequentist",
+            "continuous_sequential_edge_dag_transport_v2", "paired_stratified_percentile_bootstrap_95",
             "full_refit", "independent_units_within_unit_longitudinal_dependence", "", functional.as_str(),
         ].map(Arc::from), 0.95, Arc::from("point"), self.request.source.len() as u64,
             Some(self.request.bootstrap_replicates as u32), None, 0.0).with_validation("none");
@@ -1252,14 +1275,26 @@ mod continuous_chain_tests {
         }).collect();
         let request = ContinuousChainTransportRequest {
             source, target_baseline: (0..25).map(|i| i as f64 / 25.0).collect(),
-            bootstrap_replicates: 100,
+            mediator_parents: vec![vec![], vec![0], vec![0, 1]],
+            treatment_edges: vec![true, true, true],
+            active_treatment_edges: vec![true, false, false], bootstrap_replicates: 100,
         };
-        let plan = compile_continuous_chain_transport(request, &ctx).unwrap();
+        let plan = compile_continuous_chain_transport(request.clone(), &ctx).unwrap();
         let candidate = plan.calibration_candidate(&ctx).unwrap();
         assert!((candidate.result.contrast - 2.0).abs() < 1e-10);
         assert_eq!(candidate.result.calibration, "not_measured");
         let artifact = plan.export(&candidate.result, &ctx).unwrap();
         let replay = consume_continuous_chain_transport(&artifact, plan.lowered().identity(), &ctx).unwrap();
         assert_eq!(candidate.result, replay);
+        let mut alternate = request.clone();
+        alternate.active_treatment_edges = vec![false, true, true];
+        let alternate_plan = compile_continuous_chain_transport(alternate, &ctx).unwrap();
+        assert_ne!(plan.lowered().identity(), alternate_plan.lowered().identity());
+        let alternate_result = alternate_plan.execute(&ctx).unwrap();
+        assert!((alternate_result.contrast - 7.0).abs() < 1e-10);
+        assert!(consume_continuous_chain_transport(&artifact, alternate_plan.lowered().identity(), &ctx).is_err());
+        let mut invalid = request;
+        invalid.mediator_parents[1] = vec![1];
+        assert!(compile_continuous_chain_transport(invalid, &ctx).is_err());
     }
 }
