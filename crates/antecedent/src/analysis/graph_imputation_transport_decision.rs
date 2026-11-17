@@ -60,6 +60,8 @@ use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "graph_imputation_transport_decision_v1";
 const CONFOUNDED_FEATURE: &str = "graph_imputation_confounded_transport_decision_v1";
+const CONFOUNDED_BOOTSTRAP_FEATURE: &str =
+    "graph_imputation_confounded_transport_target_bootstrap_decision_v1";
 const BOOTSTRAP_FEATURE: &str = "graph_imputation_transport_target_bootstrap_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
@@ -203,7 +205,8 @@ fn lower_outer(
         .bytes(&coordinate).text(&contract);
     if confounded { writer.text(CONFOUNDED_FEATURE); }
     if let Some(policy) = target_bootstrap {
-        writer.text(BOOTSTRAP_FEATURE).word(u64::from(policy.replicates)).word(policy.seed);
+        writer.text(if confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE })
+            .word(u64::from(policy.replicates)).word(policy.seed);
     }
     let question = writer.finish();
     let rows = source.parts().rows().saturating_add(target.rows()) as u64;
@@ -214,7 +217,8 @@ fn lower_outer(
             kind: FunctionalKind::PolicyValue,
             outcome: Some(VariableId::from_raw(source.parts().outcome)), query: question,
         },
-        plan_id: Arc::from(if confounded { CONFOUNDED_FEATURE } else { "graph_imputation_transport_decision.v1" }),
+        plan_id: Arc::from(if confounded && target_bootstrap.is_some() { CONFOUNDED_BOOTSTRAP_FEATURE }
+            else if confounded { CONFOUNDED_FEATURE } else { "graph_imputation_transport_decision.v1" }),
         data: DataClassification::Tabular,
         graph_class: if confounded { "bounded_graph_imputation_confounded_binary_target" }
             else { "bounded_graph_imputation_binary_target_standardization" },
@@ -352,6 +356,32 @@ pub fn compile_graph_imputation_confounded_transport_decision(
     })
 }
 
+/// Compile target-frame IID resampling with the confounded-pretreatment
+/// graph route. Every resampled frame reruns imputation, graph selection,
+/// augmented backdoor validation, stratum overlap and child fitting; the
+/// resulting effect draws feed the final compiled utility decision.
+///
+/// # Errors
+/// Invalid source binding, unsafe graph, target, bootstrap policy or utility.
+pub fn compile_graph_imputation_confounded_transport_target_bootstrap_decision(
+    producer: CompiledGraphImputation, target: TransportStandardization,
+    quantity: ScientificQuantity, decision: DecisionContract, policy: TargetFrameBootstrap,
+) -> Result<CompiledGraphImputationTransportDecision, GraphImputationTransportDecisionError> {
+    let source = GraphImputationSource::decode(producer.source_bytes())
+        .map_err(GraphImputationTransportDecisionError::Invalid)?;
+    if source.program() != *producer.lowered().identity().as_bytes()
+        || target.source_sample != producer.source_identity().to_hex() {
+        return Err(GraphImputationTransportDecisionError::Invalid("confounded source identity differs"));
+    }
+    let lowered = lower_outer(&source, &target, &quantity, &decision, Some(policy), true)?;
+    let native_source = GraphImputationSource::new(source.parts().clone(), *lowered.identity().as_bytes())
+        .map_err(GraphImputationTransportDecisionError::Invalid)?.encode();
+    Ok(CompiledGraphImputationTransportDecision {
+        producer, target, quantity, decision, native_source, lowered,
+        target_bootstrap: Some(policy), confounded: true,
+    })
+}
+
 // SplitMix64 provides a stable, locally specified stream for portable replay.
 fn bootstrap_word(state: &mut u64) -> u64 {
     *state = state.wrapping_add(0x9e3779b97f4a7c15);
@@ -426,9 +456,9 @@ impl CompiledGraphImputationTransportDecision {
             let mut state = policy.seed;
             let rows = self.target.rows();
             let mut draws = Vec::with_capacity(policy.replicates as usize);
-            let mut receipt = CanonicalWriter::new(
-                "antecedent.graph_imputation_transport.target_bootstrap.execution.v1",
-            );
+            let mut receipt = CanonicalWriter::new(if self.confounded {
+                "antecedent.graph_imputation_confounded_transport.target_bootstrap.execution.v1"
+            } else { "antecedent.graph_imputation_transport.target_bootstrap.execution.v1" });
             receipt.bytes(self.lowered.identity().as_bytes())
                 .bytes(&self.target.digest()?).word(u64::from(policy.replicates)).word(policy.seed);
             for replicate in 0..policy.replicates {
@@ -449,7 +479,9 @@ impl CompiledGraphImputationTransportDecision {
                     *values = indices.iter().map(|&index| original[index]).collect();
                 }
                 // Unit IDs identify bootstrap slots; sampled indices are sealed below.
-                let run = replay_transport_point(&self.native_source, &sampled, ctx)?;
+                let run = if self.confounded {
+                    replay_confounded_transport_point(&self.native_source, &sampled, ctx)?
+                } else { replay_transport_point(&self.native_source, &sampled, ctx)? };
                 if run.draws.is_empty() { return Err(GraphImputationTransportDecisionError::Invalid("target bootstrap has no posterior draws")); }
                 let draw_index = replicate as usize % run.draws.len();
                 let draw = run.draws[draw_index];
@@ -515,8 +547,9 @@ impl CompiledGraphImputationTransportDecision {
                 ":target_bootstrap=iid_rows_v1:replicates={}:seed={}",
                 bootstrap.replicates, bootstrap.seed,
             ));
-            (BOOTSTRAP_FEATURE, "mar_graph_mixture_binary_target_iid_bootstrap_v1",
-                bootstrap.replicates)
+            (if self.confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE },
+                if self.confounded { "mar_confounded_graph_mixture_binary_target_iid_bootstrap_v1" }
+                else { "mar_graph_mixture_binary_target_iid_bootstrap_v1" }, bootstrap.replicates)
         } else if self.confounded {
             (CONFOUNDED_FEATURE, "mar_graph_mixture_confounded_target_standardization_v1",
                 parts.posterior_draws.saturating_mul(parts.imputations))
@@ -561,7 +594,9 @@ impl CompiledGraphImputationTransportDecision {
             effect_chain(&live.producer, &self.quantity), self.decision.clone(), ctx,
         )?;
         let wire = GraphImputationTransportDecisionWire {
-            version: 1, required_feature: if self.confounded { CONFOUNDED_FEATURE }
+            version: 1, required_feature: if self.confounded && self.target_bootstrap.is_some() {
+                CONFOUNDED_BOOTSTRAP_FEATURE
+            } else if self.confounded { CONFOUNDED_FEATURE }
                 else if self.target_bootstrap.is_some() { BOOTSTRAP_FEATURE } else { FEATURE }.into(),
             original_source: self.producer.source_bytes().to_vec(),
             target: self.target.clone(),
@@ -596,10 +631,9 @@ pub fn consume_graph_imputation_transport_decision(
         return Err(GraphImputationTransportDecisionError::Invalid("combined artifact exceeds its byte bound"));
     }
     let wire: GraphImputationTransportDecisionWire = antecedent_io::from_cbor(bytes)?;
-    if wire.confounded && wire.target_bootstrap.is_some() {
-        return Err(GraphImputationTransportDecisionError::Invalid("confounded target bootstrap is not supported"));
-    }
-    let expected_feature = if wire.confounded { CONFOUNDED_FEATURE }
+    let expected_feature = if wire.confounded && wire.target_bootstrap.is_some() {
+        CONFOUNDED_BOOTSTRAP_FEATURE
+    } else if wire.confounded { CONFOUNDED_FEATURE }
         else if wire.target_bootstrap.is_some() { BOOTSTRAP_FEATURE } else { FEATURE };
     if wire.version != 1 || wire.required_feature != expected_feature
         || wire.program_identity != *expected_program.as_bytes()
@@ -635,7 +669,11 @@ pub fn consume_graph_imputation_transport_decision(
     let contract = DecisionContractArtifact::from_bytes(
         &wire.decision_artifact, &wire.decision_identity,
     )?;
-    let plan = if wire.confounded {
+    let plan = if let (true, Some(policy)) = (wire.confounded, wire.target_bootstrap) {
+        compile_graph_imputation_confounded_transport_target_bootstrap_decision(
+            producer, wire.target, quantity, contract.contract().clone(), policy,
+        )?
+    } else if wire.confounded {
         compile_graph_imputation_confounded_transport_decision(
             producer, wire.target, quantity, contract.contract().clone(),
         )?
@@ -781,6 +819,26 @@ mod tests {
         let confounded = compile_graph_imputation_confounded_transport_decision(
             confounded_producer, confounded_target, quantity.clone(), decision.clone(),
         ).unwrap();
+        let confounded_bootstrap_table = TabularData::from_f64_columns(
+            parts.names.iter().zip(&parts.columns)
+                .map(|(name, column)| (name.as_str(), column.as_slice())),
+        ).unwrap();
+        let confounded_bootstrap_producer = CompiledGraphImputation::compile(
+            confounded_bootstrap_table, &GraphImputationSpec {
+                treatment: VariableId::from_raw(parts.treatment),
+                outcome: VariableId::from_raw(parts.outcome), support: GraphSupport::PreTreatmentCovariates,
+                imputation: ImputationSpec::new().with_imputations(parts.imputations)
+                    .with_iterations(parts.iterations).with_seed(parts.imputation_seed),
+                domains: Arc::from(parts.domains.clone()), posterior_draws: parts.posterior_draws,
+                prior_scale: parts.prior_scale, execution_seed: parts.execution_seed,
+            }, &ctx,
+        ).unwrap();
+        let mut confounded_bootstrap_target = target.clone();
+        confounded_bootstrap_target.source_sample = confounded_bootstrap_producer.source_identity().to_hex();
+        let confounded_bootstrap = compile_graph_imputation_confounded_transport_target_bootstrap_decision(
+            confounded_bootstrap_producer, confounded_bootstrap_target,
+            quantity.clone(), decision.clone(), TargetFrameBootstrap { replicates: 40, seed: 11 },
+        ).unwrap();
         let no_overlap_table = TabularData::from_f64_columns([
             ("t", covariate.as_slice()), ("y", outcome.as_slice()), ("x", covariate.as_slice()),
         ]).unwrap();
@@ -824,6 +882,25 @@ mod tests {
         ).unwrap();
         assert_eq!(confounded_candidate.result.producer.draws, confounded_replay.producer.draws);
         assert_eq!(confounded_candidate.result.decision.decision, confounded_replay.decision.decision);
+        assert_ne!(confounded_bootstrap.lowered().identity(), confounded.lowered().identity());
+        assert_ne!(confounded_bootstrap.lowered().identity(), bootstrap.lowered().identity());
+        let confounded_sampled = confounded_bootstrap.calibration_candidate(&ctx).unwrap();
+        assert_eq!(confounded_sampled.result.producer.draws.len(), 40);
+        assert_eq!(confounded_sampled.result.calibration, "not_measured");
+        assert_eq!(confounded_sampled.basis.estimator.as_ref(), CONFOUNDED_BOOTSTRAP_FEATURE);
+        let bytes = confounded_bootstrap.export(&confounded_sampled.result, "confounded-bootstrap", &ctx).unwrap();
+        let replay = consume_graph_imputation_transport_decision(
+            &bytes, confounded_sampled.result.lowered_program_identity, &ctx,
+        ).unwrap();
+        assert_eq!(replay.producer.draws, confounded_sampled.result.producer.draws);
+        assert_eq!(replay.producer.receipt, confounded_sampled.result.producer.receipt);
+        assert_eq!(replay.decision.decision, confounded_sampled.result.decision.decision);
+        let mut wire: GraphImputationTransportDecisionWire = antecedent_io::from_cbor(&bytes).unwrap();
+        wire.target_bootstrap.as_mut().unwrap().seed ^= 1;
+        let tampered = antecedent_io::to_cbor(&wire).unwrap();
+        assert!(consume_graph_imputation_transport_decision(
+            &tampered, confounded_sampled.result.lowered_program_identity, &ctx,
+        ).is_err());
         assert_ne!(bootstrap.lowered().identity(), plan.lowered().identity());
         let candidate = bootstrap.calibration_candidate(&ctx).unwrap();
         assert_eq!(candidate.result.producer.draws.len(), 40);
