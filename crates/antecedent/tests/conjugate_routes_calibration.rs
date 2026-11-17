@@ -162,7 +162,7 @@ fn measure_study(
         RecordKey { test, dgp, interval: POSTERIOR_INTERVAL },
         REPORTED_LEVEL,
     );
-    for run in map_replicates(n_sim(), |rep| runs(rep)) {
+    for run in map_replicates(n_sim(), runs) {
         let Some(((band, reported), truth)) = run else {
             tally.skip();
             continue;
@@ -272,7 +272,7 @@ fn measure_selection(
         RecordKey { test, dgp, interval: construction.0 },
         REPORTED_LEVEL,
     );
-    for run in map_replicates(n_sim(), |rep| interval(rep)) {
+    for run in map_replicates(n_sim(), interval) {
         let Some(band) = run else {
             tally.skip();
             continue;
