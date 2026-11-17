@@ -2927,15 +2927,6 @@ bound = 0.009375
 result = "mismatch"
 
 [[attestation]]
-record_id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_regime_survival_longer_horizon_bootstrap_interval.v2_validation_not_applicable.survival_difference"
-calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "eda2b7f8d2bd2383b6097814238f505208a28a5ccff89cb8a21dc078bdf5268d"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
 record_id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_frequentist_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
