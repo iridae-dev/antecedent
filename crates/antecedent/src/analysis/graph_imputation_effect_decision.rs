@@ -389,10 +389,10 @@ fn lower_paired_outer(
     writer.bytes(producer.as_bytes()).bytes(source.as_bytes())
         .bytes(&quantity_bytes).text(&decision_identity);
     if let Some(target) = target {
-        writer.text("graph_imputation_transport_paired_world_decision_v1").bytes(&target.digest()?);
+        writer.text("graph_imputation_transport_paired_world_decision_v2").bytes(&target.digest()?);
     }
     if let Some(policy) = bootstrap {
-        writer.text("graph_imputation_transport_paired_world_bootstrap_decision_v1")
+        writer.text("graph_imputation_transport_paired_world_bootstrap_decision_v2")
             .word(u64::from(policy.replicates)).word(policy.seed);
     }
     let question = writer.finish();
@@ -402,8 +402,8 @@ fn lower_paired_outer(
         target: ProblemTarget::QueryFunctional {
             kind: FunctionalKind::PolicyValue, outcome: None, query: question,
         },
-        plan_id: Arc::from(if bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision.v1" }
-            else if target.is_some() { "graph_imputation_transport_paired_world_decision.v1" }
+        plan_id: Arc::from(if bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision.v2" }
+            else if target.is_some() { "graph_imputation_transport_paired_world_decision.v2" }
             else { "graph_imputation_paired_world_decision.v1" }),
         data: DataClassification::Tabular,
         graph_class: "bounded_graph_imputation_paired_world_mixture",
@@ -673,12 +673,12 @@ impl CompiledGraphImputationWorldDecision {
             .word(parts.rows() as u64).text(&self.decision.identity()?)
             .bytes(&antecedent_io::to_cbor(&self.quantities.iter().map(ScientificQuantityWire::from).collect::<Vec<_>>())?);
         if let Some(target) = &self.target {
-            writer.text("binary_target_frame_v1").word(target.rows() as u64)
+            writer.text("binary_target_frame_s_admissible_v2").word(target.rows() as u64)
                 .words(&target.columns.iter().map(|(id, _)| u64::from(*id)).collect::<Vec<_>>())
                 .words(&target.selection_targets.iter().map(|id| u64::from(*id)).collect::<Vec<_>>());
         } else { writer.text("source_frame_v1"); }
         if let Some(policy) = self.bootstrap {
-            writer.text("iid_target_rows_paired_bootstrap_v1")
+            writer.text("iid_target_rows_paired_bootstrap_unbiased_pool_v2")
                 .word(u64::from(policy.replicates)).word(policy.seed);
         }
         let action_choice_basis = SemanticDigest::from_bytes(writer.finish());
@@ -692,16 +692,18 @@ impl CompiledGraphImputationWorldDecision {
             let rank = |numerator: usize| (ordered.len() * numerator).div_ceil(1000).saturating_sub(1);
             *interval = (ordered[rank(25)], ordered[rank(975)]);
         }
-        let feature = if self.bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision_v1" }
-            else if self.target.is_some() { "graph_imputation_transport_paired_world_decision_v1" }
+        let feature = if self.bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision_v2" }
+            else if self.target.is_some() { "graph_imputation_transport_paired_world_decision_v2" }
             else { "graph_imputation_paired_world_decision_v1" };
         let draws = self.bootstrap.map_or(parts.posterior_draws.saturating_mul(parts.imputations), |policy| policy.replicates);
         let rows = (parts.rows() as u64).saturating_add(self.target.as_ref().map_or(0, |target| target.rows() as u64));
         let coverage_bases = std::array::from_fn(|world| {
-            let functional = format!("paired_target_mean_world={world}:study={}", action_choice_basis.to_hex());
+            let functional = format!("paired_{}_mean_world={world}:study={}",
+                if self.target.is_some() { "target" } else { "source" }, action_choice_basis.to_hex());
+            let dependence = if self.target.is_some() { "independent_source_target_units" } else { "source_units" };
             CalibrationBasis::new([
                 "MeanOutcome", "Dag", "graph_posterior", "multi_env", "Bayesian", feature,
-                "nearest_rank_95", "", "independent_source_target_units",
+                "nearest_rank_95", "", dependence,
                 "mar_graph_mixture_paired_mean_worlds", &functional,
             ].map(Arc::from), 0.95, Arc::from("model_conditional"), rows,
                 None, Some(draws), 0.0).with_validation("none")
@@ -724,8 +726,8 @@ impl CompiledGraphImputationWorldDecision {
         let contract = DecisionContractArtifact::new(self.decision.clone())?;
         let chain = compile_action_world_chain_decision(paired_world_chain(&live.producer, &self.quantities), self.decision.clone(), ctx)?;
         let bytes = antecedent_io::to_cbor(&GraphImputationWorldDecisionWire {
-            version: 1, feature: if self.bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision_v1" }
-                else if self.target.is_some() { "graph_imputation_transport_paired_world_decision_v1" }
+            version: 1, feature: if self.bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision_v2" }
+                else if self.target.is_some() { "graph_imputation_transport_paired_world_decision_v2" }
                 else { "graph_imputation_paired_world_decision_v1" }.into(),
             source: self.producer.source_bytes().to_vec(), producer_program: *self.producer.lowered().identity().as_bytes(),
             source_identity: *self.producer.source_identity().as_bytes(), receipt: live.producer.receipt,
@@ -750,8 +752,8 @@ pub fn consume_graph_imputation_world_decision(bytes: &[u8], expected: SemanticD
     if wire.bootstrap.is_some() && wire.target.is_none() {
         return Err(GraphImputationEffectDecisionError::Invalid("paired bootstrap lacks target"));
     }
-    let feature = if wire.bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision_v1" }
-        else if wire.target.is_some() { "graph_imputation_transport_paired_world_decision_v1" }
+    let feature = if wire.bootstrap.is_some() { "graph_imputation_transport_paired_world_bootstrap_decision_v2" }
+        else if wire.target.is_some() { "graph_imputation_transport_paired_world_decision_v2" }
         else { "graph_imputation_paired_world_decision_v1" };
     if wire.version != 1 || wire.feature != feature || wire.program_identity != *expected.as_bytes() {
         return Err(GraphImputationEffectDecisionError::Invalid("paired world feature or identity differs"));

@@ -85,7 +85,8 @@ impl TransportStandardization {
     /// # Errors
     /// Missing, duplicate, nonbinary, or unsupported target rows or selections.
     pub fn validate(&self, parts: &GraphImputationParts) -> Result<(), IoError> {
-        self.validate_for_support(parts, GraphSupport::TreatmentRootPreTreatmentCovariates)
+        self.validate_for_support(parts, GraphSupport::TreatmentRootPreTreatmentCovariates)?;
+        validate_target_selection_admissibility(parts, &self.selection_targets)
     }
 
     /// Validate a separate confounded-pretreatment target, including the
@@ -113,6 +114,8 @@ impl TransportStandardization {
             if !separated {
                 return Err(invalid("selected covariates open a backdoor path in a retained graph"));
             }
+            validate_selection_admissibility(&dag, treatment, outcome, &adjustment,
+                &self.selection_targets)?;
         }
         Ok(())
     }
@@ -191,6 +194,58 @@ impl TransportStandardization {
     /// Number of representative target rows after validation.
     #[must_use]
     pub fn rows(&self) -> usize { self.columns.first().map_or(0, |column| column.1.len()) }
+}
+
+fn validate_target_selection_admissibility(
+    parts: &GraphImputationParts, selected: &[u32],
+) -> Result<(), IoError> {
+    let n = parts.names.len();
+    for atom in &parts.atoms {
+        let dag = dag_from_adjacency_mask(AdjacencyMask::from_word(atom.mask), n).map_err(invalid)?;
+        let mut adjustment = atom.adjustment.clone();
+        for &id in selected { if !adjustment.contains(&id) { adjustment.push(id); } }
+        let adjustment: Vec<_> = adjustment.into_iter().map(antecedent_graph::DenseNodeId::from_raw).collect();
+        validate_selection_admissibility(&dag, antecedent_graph::DenseNodeId::from_raw(parts.treatment),
+            antecedent_graph::DenseNodeId::from_raw(parts.outcome), &adjustment, selected)?;
+    }
+    Ok(())
+}
+
+// Add one exogenous selection node per checked mechanism, intervene on
+// treatment, then check whether the selection node and outcome are separated
+// conditional on treatment and the exact augmented standardization set.
+fn validate_selection_admissibility(
+    dag: &antecedent_graph::Dag, treatment: antecedent_graph::DenseNodeId,
+    outcome: antecedent_graph::DenseNodeId, adjustment: &[antecedent_graph::DenseNodeId],
+    selected: &[u32],
+) -> Result<(), IoError> {
+    let n = dag.node_count();
+    let expanded_len = n.checked_add(selected.len())
+        .ok_or_else(|| invalid("selection diagram node count overflow"))?;
+    let count = u32::try_from(expanded_len).map_err(invalid)?;
+    let mut expanded = antecedent_graph::Dag::with_variables(count);
+    for (parent, child) in dag.directed_edge_pairs_sorted() {
+        expanded.insert_directed(antecedent_graph::DenseNodeId::from_raw(parent),
+            antecedent_graph::DenseNodeId::from_raw(child)).map_err(invalid)?;
+    }
+    let mut selections = Vec::with_capacity(selected.len());
+    for (offset, &id) in selected.iter().enumerate() {
+        let selection = antecedent_graph::DenseNodeId::from_raw(
+            u32::try_from(n + offset).map_err(invalid)?,
+        );
+        expanded.insert_directed(selection, antecedent_graph::DenseNodeId::from_raw(id)).map_err(invalid)?;
+        selections.push(selection);
+    }
+    let overlay = antecedent_graph::overlay::GraphOverlay::do_intervention(expanded_len, &[treatment]);
+    let mut conditioned = adjustment.to_vec();
+    conditioned.push(treatment);
+    for selection in selections {
+        if !expanded.view(&overlay).is_d_separated(selection, outcome, &conditioned,
+            &mut antecedent_graph::DSeparationWorkspace::default()).map_err(invalid)? {
+            return Err(invalid("selected mechanisms are not S-admissible in a retained graph"));
+        }
+    }
+    Ok(())
 }
 
 /// Independent target frame for mixed binary and continuous pretreatment
@@ -298,6 +353,7 @@ impl KernelTransportStandardization {
         {
             return Err(invalid("each continuous target column needs one positive bandwidth"));
         }
+        validate_target_selection_admissibility(parts, &self.selection_targets)?;
         Ok(())
     }
 
@@ -1255,12 +1311,25 @@ pub fn replay_transport_paired_worlds(bytes: &[u8], target: &TransportStandardiz
     let target_bytes = (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
     let run = execute(&rec, Some(TransportTarget::Binary(target)), true, ctx)?;
-    let mut writer = CanonicalWriter::new("antecedent.graph_imputation_transport.paired_worlds.execution.v1");
+    let mut writer = CanonicalWriter::new("antecedent.graph_imputation_transport.paired_worlds.execution.v2");
     writer.bytes(&run.receipt).bytes(&target.digest()?).word(run.paired_worlds.len() as u64);
     for pair in &run.paired_worlds { writer.word(pair[0].to_bits()).word(pair[1].to_bits()); }
     Ok(GraphPairedWorldReading { worlds: run.paired_worlds, receipt: writer.finish(),
         program: rec.source.program(), source: rec.source.parts().data_digest,
         _lease: run.lease, _paired_leases: run.paired_leases })
+}
+
+fn paired_bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
+    let bound = len as u64;
+    let threshold = bound.wrapping_neg() % bound;
+    loop {
+        *state = state.wrapping_add(0x9e3779b97f4a7c15);
+        let mut z = *state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+        let word = z ^ (z >> 31);
+        if word >= threshold { return (word % bound) as usize; }
+    }
 }
 
 /// IID-resample aligned target rows and rerun the full paired-world route.
@@ -1280,8 +1349,9 @@ pub fn replay_transport_paired_worlds_bootstrap(bytes: &[u8], target: &Transport
             .map(|id| (id.len() as u64).saturating_add(24)).fold(0_u64, u64::saturating_add));
     let lease = ctx.acquire_admission(0, bootstrap_bytes).map_err(admission)?;
     let mut state = seed;
+    let mut draw_state = mix64(seed ^ 0x4452_4157_5f56_3201);
     let mut pairs = Vec::with_capacity(replicates as usize);
-    let mut receipt = CanonicalWriter::new("antecedent.graph_imputation_transport.paired_world_bootstrap.execution.v1");
+    let mut receipt = CanonicalWriter::new("antecedent.graph_imputation_transport.paired_world_bootstrap.execution.v2");
     receipt.bytes(&reading.program).bytes(&target.digest()?).word(u64::from(replicates)).word(seed);
     for replicate in 0..replicates {
         if ctx.cancellation.is_cancelled() { return Err(cancelled()); }
@@ -1304,7 +1374,7 @@ pub fn replay_transport_paired_worlds_bootstrap(bytes: &[u8], target: &Transport
         // Unit identities denote slots; the selected original indices are sealed.
         let run = replay_transport_paired_worlds(bytes, &sampled, ctx)?;
         if run.worlds.is_empty() { return Err(invalid("paired bootstrap produced no worlds")); }
-        let index = replicate as usize % run.worlds.len();
+        let index = paired_bootstrap_pool_index(&mut draw_state, run.worlds.len());
         let pair = run.worlds[index];
         receipt.word(u64::from(replicate));
         for index in indices { receipt.word(index as u64); }
@@ -1492,6 +1562,37 @@ pub fn calibration_candidate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "source-only paired bootstrap selector fixture"]
+    fn paired_selector_reaches_later_imputations() {
+        let mut state = mix64(7 ^ 0x4452_4157_5f56_3201);
+        let indices: Vec<_> = (0..40).map(|_| paired_bootstrap_pool_index(&mut state, 200)).collect();
+        assert!(indices.iter().any(|&index| index < 100));
+        assert!(indices.iter().any(|&index| index >= 100));
+    }
+
+    #[test]
+    #[ignore = "source-only selection-diagram refusal fixture"]
+    fn selection_collider_is_not_s_admissible() {
+        use antecedent_graph::{Dag, DenseNodeId};
+        let node = DenseNodeId::from_raw;
+        // T -> Y, U -> Y, U -> Z, S -> Z: conditioning on Z opens S--Y.
+        let mut collider = Dag::with_variables(5);
+        collider.insert_directed(node(0), node(1)).unwrap();
+        collider.insert_directed(node(3), node(1)).unwrap();
+        collider.insert_directed(node(3), node(2)).unwrap();
+        assert!(validate_selection_admissibility(&collider, node(0), node(1), &[node(2)], &[2]).is_err());
+        // With Z exogenous, conditioning on Z blocks the selected mechanism.
+        let mut root = Dag::with_variables(5);
+        root.insert_directed(node(0), node(1)).unwrap();
+        root.insert_directed(node(2), node(1)).unwrap();
+        assert!(validate_selection_admissibility(&root, node(0), node(1), &[node(2)], &[2]).is_ok());
+        // Check all selection nodes against one common expanded diagram.
+        root.insert_directed(node(4), node(1)).unwrap();
+        assert!(validate_selection_admissibility(&root, node(0), node(1), &[node(2), node(4)], &[2, 4]).is_ok());
+        assert!(validate_selection_admissibility(&collider, node(0), node(1), &[node(2), node(4)], &[2, 4]).is_err());
+    }
     use antecedent_core::graph_imputation_contract::GraphSupport;
     use antecedent_io_core::coverage_records_data::CoverageRecord;
 

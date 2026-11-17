@@ -58,11 +58,11 @@ use crate::planner::statistical::{
 };
 use crate::planner::{PlanStage, PlanView};
 
-const FEATURE: &str = "graph_imputation_transport_decision_v1";
-const CONFOUNDED_FEATURE: &str = "graph_imputation_confounded_transport_decision_v1";
+const FEATURE: &str = "graph_imputation_transport_decision_v2";
+const CONFOUNDED_FEATURE: &str = "graph_imputation_confounded_transport_decision_v2";
 const CONFOUNDED_BOOTSTRAP_FEATURE: &str =
-    "graph_imputation_confounded_transport_target_bootstrap_decision_v1";
-const BOOTSTRAP_FEATURE: &str = "graph_imputation_transport_target_bootstrap_decision_v1";
+    "graph_imputation_confounded_transport_target_bootstrap_decision_v2";
+const BOOTSTRAP_FEATURE: &str = "graph_imputation_transport_target_bootstrap_decision_v2";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 /// Refusal of the bound source, target, decision or portable replay.
@@ -204,6 +204,7 @@ fn lower_outer(
         .bytes(source_digest.as_bytes()).bytes(&target_digest)
         .bytes(&coordinate).text(&contract);
     if confounded { writer.text(CONFOUNDED_FEATURE); }
+    else { writer.text(FEATURE); }
     if let Some(policy) = target_bootstrap {
         writer.text(if confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE })
             .word(u64::from(policy.replicates)).word(policy.seed);
@@ -218,7 +219,8 @@ fn lower_outer(
             outcome: Some(VariableId::from_raw(source.parts().outcome)), query: question,
         },
         plan_id: Arc::from(if confounded && target_bootstrap.is_some() { CONFOUNDED_BOOTSTRAP_FEATURE }
-            else if confounded { CONFOUNDED_FEATURE } else { "graph_imputation_transport_decision.v1" }),
+            else if confounded { CONFOUNDED_FEATURE }
+            else if target_bootstrap.is_some() { BOOTSTRAP_FEATURE } else { FEATURE }),
         data: DataClassification::Tabular,
         graph_class: if confounded { "bounded_graph_imputation_confounded_binary_target" }
             else { "bounded_graph_imputation_binary_target_standardization" },
@@ -391,6 +393,15 @@ fn bootstrap_word(state: &mut u64) -> u64 {
     z ^ (z >> 31)
 }
 
+fn bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
+    let bound = len as u64;
+    let threshold = bound.wrapping_neg() % bound;
+    loop {
+        let word = bootstrap_word(state);
+        if word >= threshold { return (word % bound) as usize; }
+    }
+}
+
 pub(crate) fn effect_chain(
     reading: &GraphPointReading, quantity: &ScientificQuantity,
 ) -> PropagationChainRecordWire {
@@ -454,11 +465,13 @@ impl CompiledGraphImputationTransportDecision {
             let _bootstrap_lease = ctx.acquire_admission(0, bootstrap_bytes)
                 .map_err(|_| GraphImputationTransportDecisionError::Invalid("target bootstrap admission refused"))?;
             let mut state = policy.seed;
+            // Domain-separated stream selects uniformly across all imputation/graph draws.
+            let mut draw_state = antecedent_core::execution::mix64(policy.seed ^ 0x4452_4157_5f56_3201);
             let rows = self.target.rows();
             let mut draws = Vec::with_capacity(policy.replicates as usize);
             let mut receipt = CanonicalWriter::new(if self.confounded {
-                "antecedent.graph_imputation_confounded_transport.target_bootstrap.execution.v1"
-            } else { "antecedent.graph_imputation_transport.target_bootstrap.execution.v1" });
+                "antecedent.graph_imputation_confounded_transport.target_bootstrap.execution.v2"
+            } else { "antecedent.graph_imputation_transport.target_bootstrap.execution.v2" });
             receipt.bytes(self.lowered.identity().as_bytes())
                 .bytes(&self.target.digest()?).word(u64::from(policy.replicates)).word(policy.seed);
             for replicate in 0..policy.replicates {
@@ -483,7 +496,7 @@ impl CompiledGraphImputationTransportDecision {
                     replay_confounded_transport_point(&self.native_source, &sampled, ctx)?
                 } else { replay_transport_point(&self.native_source, &sampled, ctx)? };
                 if run.draws.is_empty() { return Err(GraphImputationTransportDecisionError::Invalid("target bootstrap has no posterior draws")); }
-                let draw_index = replicate as usize % run.draws.len();
+                let draw_index = bootstrap_pool_index(&mut draw_state, run.draws.len());
                 let draw = run.draws[draw_index];
                 receipt.word(u64::from(replicate));
                 for index in indices { receipt.word(index as u64); }
@@ -544,17 +557,19 @@ impl CompiledGraphImputationTransportDecision {
         );
         let (feature, model, draws) = if let Some(bootstrap) = self.target_bootstrap {
             functional.push_str(&format!(
-                ":target_bootstrap=iid_rows_v1:replicates={}:seed={}",
-                bootstrap.replicates, bootstrap.seed,
+                ":source_n={}:target_n={}:target_bootstrap=iid_rows_unbiased_pool_v2:replicates={}:seed={}",
+                parts.rows(), self.target.rows(), bootstrap.replicates, bootstrap.seed,
             ));
             (if self.confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE },
                 if self.confounded { "mar_confounded_graph_mixture_binary_target_iid_bootstrap_v1" }
                 else { "mar_graph_mixture_binary_target_iid_bootstrap_v1" }, bootstrap.replicates)
         } else if self.confounded {
-            (CONFOUNDED_FEATURE, "mar_graph_mixture_confounded_target_standardization_v1",
+            functional.push_str(&format!(":source_n={}:target_n={}:s_admissibility=v2", parts.rows(), self.target.rows()));
+            (CONFOUNDED_FEATURE, "mar_graph_mixture_confounded_target_standardization_v2",
                 parts.posterior_draws.saturating_mul(parts.imputations))
         } else {
-            (FEATURE, "mar_graph_mixture_target_standardization",
+            functional.push_str(&format!(":source_n={}:target_n={}:s_admissibility=v2", parts.rows(), self.target.rows()));
+            (FEATURE, "mar_graph_mixture_target_standardization_v2",
                 parts.posterior_draws.saturating_mul(parts.imputations))
         };
         let basis = CalibrationBasis::new(
@@ -707,6 +722,16 @@ pub fn consume_graph_imputation_transport_decision(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "source-only bootstrap selector fixture"]
+    fn pooled_selector_reaches_later_imputations() {
+        let mut state = antecedent_core::execution::mix64(7 ^ 0x4452_4157_5f56_3201);
+        let indices: Vec<_> = (0..40).map(|_| bootstrap_pool_index(&mut state, 200)).collect();
+        assert!(indices.iter().any(|&index| index < 100));
+        assert!(indices.iter().any(|&index| index >= 100));
+    }
+
     use antecedent_contract::QuantityRole;
     use antecedent_core::graph_imputation_contract::GraphSupport;
     use antecedent_design::decision_contract::{
