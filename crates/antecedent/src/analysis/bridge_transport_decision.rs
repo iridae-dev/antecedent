@@ -243,11 +243,10 @@ impl CompiledBridgeTransportDecision {
     pub fn execute(
         &self, ctx: &ExecutionContext,
     ) -> Result<BridgeTransportDecisionResult, BridgeTransportDecisionError> {
-        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let bridge = self.bridge.derive(&self.source, None, self.seed)?;
         let draft = self.chain_draft(&bridge)?;
-        let decision = compile_chain_decision(draft, self.decision.clone(), &scoped)?
-            .execute(&scoped)?;
+        let decision = compile_chain_decision(draft, self.decision.clone(), ctx)?
+            .execute(ctx)?;
         Ok(BridgeTransportDecisionResult {
             bridge, decision, lowered_program_identity: self.lowered.identity(),
         })

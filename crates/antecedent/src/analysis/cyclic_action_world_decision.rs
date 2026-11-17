@@ -294,8 +294,8 @@ impl CompiledCyclicActionDecision {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let cyclic = self.source.estimate(&scoped)?;
         let draft = self.joint_chain(&cyclic)?;
-        let decision = compile_action_world_chain_decision(draft, self.contract.clone(), &scoped)?
-            .execute(&scoped)?;
+        let decision = compile_action_world_chain_decision(draft, self.contract.clone(), ctx)?
+            .execute(ctx)?;
         Ok(CyclicActionDecisionResult {
             cyclic, decision, lowered_program_identity: self.lowered.identity(),
         })
