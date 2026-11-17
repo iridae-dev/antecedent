@@ -263,3 +263,43 @@ ignored = true
 grid = true
 whole = true
 reason = "A known two-equation Gaussian feedback model with independent target baseline units has an analytic positive promotional effect 0.2/0.94. Each replicate refits the shared mechanisms, predicts both target action worlds and scores the selected action against the known optimum, checking the design-level scope and reporting refusals. No decision-reliability record is earned."
+
+[[group]]
+label = "graph_imputation_predictive_cluster_calibration: graph_imputation_bernoulli_predictive_cluster_control_l95"
+package = "antecedent"
+target = "graph_imputation_predictive_cluster_calibration"
+tests = ["graph_imputation_bernoulli_predictive_cluster_control_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective Bernoulli control predictive coverage under independent two-row target clusters and a known treatment-response law. The full graph, imputation and target predictive fit reruns across 40 whole-cluster resamples; a future population outcome and known-optimum decision are scored under their exact unmeasured scopes."
+
+[[group]]
+label = "graph_imputation_predictive_cluster_calibration: graph_imputation_bernoulli_predictive_cluster_active_l95"
+package = "antecedent"
+target = "graph_imputation_predictive_cluster_calibration"
+tests = ["graph_imputation_bernoulli_predictive_cluster_active_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective Bernoulli active predictive coverage under independent two-row target clusters and a known treatment-response law. The full graph, imputation and target predictive fit reruns across 40 whole-cluster resamples; a future population outcome and known-optimum decision are scored under their exact unmeasured scopes."
+
+[[group]]
+label = "graph_imputation_predictive_cluster_calibration: graph_imputation_gaussian_predictive_cluster_control_l95"
+package = "antecedent"
+target = "graph_imputation_predictive_cluster_calibration"
+tests = ["graph_imputation_gaussian_predictive_cluster_control_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective Gaussian control predictive coverage under independent two-row target clusters and a known outcome and residual law. The full graph, imputation and target predictive fit reruns across 40 whole-cluster resamples; a future population outcome and known-optimum decision are scored under their exact unmeasured scopes."
+
+[[group]]
+label = "graph_imputation_predictive_cluster_calibration: graph_imputation_gaussian_predictive_cluster_active_l95"
+package = "antecedent"
+target = "graph_imputation_predictive_cluster_calibration"
+tests = ["graph_imputation_gaussian_predictive_cluster_active_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective Gaussian active predictive coverage under independent two-row target clusters and a known outcome and residual law. The full graph, imputation and target predictive fit reruns across 40 whole-cluster resamples; a future population outcome and known-optimum decision are scored under their exact unmeasured scopes."

@@ -613,7 +613,12 @@ declares independent outcome innovations. The Gaussian route binds a positive
 individual residual variance and a cross-world Gaussian correlation. These
 are model assumptions, not identified cross-world dependence, and their
 predictive study coordinates are unmeasured. They do not inherit a
-population-mean or target-bootstrap calibration record.
+population-mean or target-bootstrap calibration record. Separate predictive
+whole-target-cluster bootstrap routes rerun the complete graph-imputation
+and predictive fit for each resample, retaining one paired individual outcome
+from each. Their compiler identities bind the cluster rows and resampling
+policy; their prospective scopes distinguish cluster size, count and replicate
+count. The four corresponding known-truth grids are staged, not measured.
 
 The declared-MAR target route accepts raw target rows with stable row and
 cluster identities, positive sampling weights and declared complete-vector
