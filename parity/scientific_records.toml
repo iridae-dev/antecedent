@@ -13458,18 +13458,18 @@ dependency_manifest = "45bea8a890116db668d48f059b7251646e32135bab1317b738c8577a1
 test = "antecedent::weighted_target_trial_transport::a_kernel_target_effect_equals_the_closed_form_weighted_effect"
 roles = ["scientific"]
 passed = true
-commit = "3a907dea8bba5ee4a72e1e1f51c970b15744efaa"
+commit = "bb95e9d7f025db295b3a0dee513001e3187c1b3e"
 dirty = false
-fingerprint = "9fa0beb4458dbc7806d7182ae19dfd3c590084f6da01589abe2aabb387f4d5c1"
-recorded_at = "2026-11-16T23:59:06Z"
-dependency_manifest = "c4e1bf863dded010f6136f1340b5367b6723092b0fb0f26d3913acb1d2bad221"
+fingerprint = "c21e04553effac77f8712a287b639b329cabecbae658d9a3455d0422af678956"
+recorded_at = "2026-11-17T01:37:20Z"
+dependency_manifest = "6f40742dd1b7a00b7e184e3d5beea3d017f60990c876ad30c431c29d6ad96e53"
 
 [[record]]
 test = "antecedent::weighted_target_trial_transport::the_compiled_query_reports_the_closed_form_weighted_target_effect"
 roles = ["scientific"]
 passed = true
-commit = "3a907dea8bba5ee4a72e1e1f51c970b15744efaa"
+commit = "bb95e9d7f025db295b3a0dee513001e3187c1b3e"
 dirty = false
-fingerprint = "9fa0beb4458dbc7806d7182ae19dfd3c590084f6da01589abe2aabb387f4d5c1"
-recorded_at = "2026-11-16T23:59:06Z"
-dependency_manifest = "4765195b270264c05a8f892cf3c72773747065f6df25cc1c7273651635dfcf31"
+fingerprint = "c21e04553effac77f8712a287b639b329cabecbae658d9a3455d0422af678956"
+recorded_at = "2026-11-17T01:37:20Z"
+dependency_manifest = "a05b14b1744bae86cdb6c23928dfffe1504041d5d314cccb82771a95c6175326"
