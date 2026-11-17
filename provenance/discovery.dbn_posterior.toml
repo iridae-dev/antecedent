@@ -50,7 +50,7 @@ sha256 = "d476d5e163fff24927af3414c10c34ef896c67a4d5f9db37911a3c58b41d66e6"
 role = "implementation"
 path = "crates/antecedent-discovery/src/graph_posterior.rs"
 items = ["enum GraphPosteriorAtomKind", "fn algorithm", "fn atom_kind", "fn atoms", "fn bernoulli_edges", "fn default", "fn diagnostics", "fn distinct_graph_keys", "fn edge_ess", "fn edge_marginals", "fn edge_mcse", "fn edge_rhat", "fn ess", "fn from_atoms", "fn graph_keys", "fn lag_bidirected_masks", "fn lag_masks", "fn lagged_edge_marginals", "fn lagged_edge_mcse", "fn mark_atoms", "fn max_lag", "fn n", "fn n_graphs", "fn n_vars", "fn new", "fn orientation_marginals", "fn rejected_invalid", "fn uniform", "fn weights", "struct GraphPrior", "struct SamplingSummary"]
-sha256 = "d06f4bbf304cbdf141a8ee911279f177ac2e5703a79ee2a9d7d7c4fdd2b64f79"
+sha256 = "806c8774211b513e7a19b2206add174d40c765371c4988235eb22ac7b7568e5c"
 
 [[method_review.artifacts]]
 role = "assertion"
