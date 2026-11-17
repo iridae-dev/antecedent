@@ -564,7 +564,8 @@ impl CompiledGraphImputationKernelTransportDecision {
             [
                 "AverageEffect", "Dag", "graph_posterior", "multi_env", "Bayesian",
                 feature, "nearest_rank_95", "",
-                "independent_source_target_units", model, &functional,
+                if self.cluster_bootstrap.is_some() { "independent_source_units_and_target_clusters" }
+                    else { "independent_source_target_units" }, model, &functional,
             ].map(Arc::from),
             0.95, Arc::from("model_conditional"),
             (parts.rows() as u64).saturating_add(self.target.rows() as u64),

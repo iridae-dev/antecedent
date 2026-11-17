@@ -143,6 +143,8 @@ pub struct JointTransportPredictiveCalibrationCandidate {
     pub interval: (f64, f64),
     /// Exact execution coordinate and model scope for a future record.
     pub basis: CalibrationBasis,
+    /// Prospective action-choice scope, including the predictive coupling and utility.
+    pub action_choice_basis: SemanticDigest,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -478,10 +480,11 @@ impl CompiledJointTransportPredictiveDecision {
             JointTransportPredictiveDecisionError::Invalid("producer calibration scope is unavailable")
         })?;
         let functional = format!(
-            "target_treated_outcome:features={}:varying={:?}:shared_baseline:target_noise_bits={:016x}:cross_world_rho_bits={:016x}:empirical_target_frame",
+            "target_treated_outcome:features={}:varying={:?}:shared_baseline:target_noise_bits={:016x}:cross_world_rho_bits={:016x}:empirical_target_frame:target_rows={}:draws={}",
             self.request.model.features.len(), self.request.model.varying,
             self.request.target_noise_variance.to_bits(),
             self.request.target_noise_correlation.to_bits(),
+            self.request.target.rows, self.request.options.draws,
         );
         let basis = CalibrationBasis::new(
             [
@@ -492,7 +495,13 @@ impl CompiledJointTransportPredictiveDecision {
             0.95, Arc::from("model_conditional"), producer_basis.row_count,
             None, producer_basis.posterior_draws, 0.0,
         ).with_validation("none");
-        Ok(JointTransportPredictiveCalibrationCandidate { result, interval, basis })
+        let mut action = CanonicalWriter::new("antecedent.joint_transport_predictive.action_choice_study.v1");
+        action.text(FEATURE).text(producer_basis.posterior.as_ref())
+            .text(&functional).text(&self.request.decision.identity()?)
+            .bytes(&antecedent_io::to_cbor(&self.request.worlds.clone().map(|q| ScientificQuantityWire::from(&q)))?);
+        Ok(JointTransportPredictiveCalibrationCandidate {
+            result, interval, basis, action_choice_basis: SemanticDigest::from_bytes(action.finish()),
+        })
     }
 
     /// Reexecute before sealing the complete fitted prediction and decision.

@@ -157,6 +157,31 @@ impl SequentialPolicyReliabilityPlan {
     /// Inspect the compiled program.
     #[must_use]
     pub fn plan_view(&self) -> PlanView { PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled) }
+    /// Exact prospective action-choice study scope for fixed policies. It
+    /// binds the model, policy set and sampling design, excluding realized
+    /// trajectories and random seeds. No reliability claim is earned here.
+    ///
+    /// # Errors
+    /// The design cannot be encoded.
+    pub fn decision_reliability_scope(&self) -> Result<SemanticDigest, SequentialReliabilityError> {
+        let mut writer = CanonicalWriter::new("antecedent.sequential_policy_reliability.action_choice_study.v1");
+        writer.bytes(&antecedent_io::to_cbor(&self.declaration.model)?)
+            .bytes(&antecedent_io::to_cbor(&self.declaration.policies)?)
+            .text(&self.declaration.unit);
+        match &self.mode {
+            SequentialReliabilityMode::Rollout(config) => {
+                writer.text("common_stream_known_law_rollout_v1").word(config.rollouts);
+            }
+            SequentialReliabilityMode::OffPolicy { behaviour, log, replicates,
+                minimum_effective_sample_size, .. } => {
+                writer.text("whole_trajectory_bootstrap_uncalibrated_v1")
+                    .bytes(&antecedent_io::to_cbor(&policy_to_wire(behaviour))?)
+                    .word(log.len() as u64).word(*replicates)
+                    .word(minimum_effective_sample_size.to_bits());
+            }
+        }
+        Ok(SemanticDigest::from_bytes(writer.finish()))
+    }
     /// Rerun the raw evaluation and compute the diagnostic report.
     ///
     /// # Errors
