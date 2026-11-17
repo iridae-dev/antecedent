@@ -15,7 +15,7 @@ use antecedent_contract::bridge::{
 };
 use antecedent_contract::DataClassification;
 use antecedent_core::{
-    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect,
+    ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, PhysicalEffect,
     PhysicalOperator, ScoreFrequentist, ScoreModel, SemanticDigest,
 };
 use antecedent_io::IoError;
@@ -86,6 +86,16 @@ pub struct BridgeTransportPremiseAssessmentResult {
     pub calibration: &'static str,
     /// Complete compiler program identity.
     pub lowered_program_identity: SemanticDigest,
+}
+
+/// Source-only simultaneous discrepancy-band candidate and its exact design
+/// coordinate. No coverage or equivalence error control is claimed.
+#[derive(Clone, Debug)]
+pub struct BridgeTransportPremiseCalibrationCandidate {
+    /// Full validation result on the prespecified overlap grid.
+    pub result: BridgeTransportPremiseAssessmentResult,
+    /// Prospective whole-route calibration coordinate.
+    pub basis: CalibrationBasis,
 }
 
 /// Refusal of the trial design, fit, compiler or replay.
@@ -437,6 +447,57 @@ impl CompiledBridgeTransportPremiseAssessment {
             equivalence_screen_passed, calibration: "not_measured",
             lowered_program_identity: self.lowered.identity(),
         })
+    }
+
+    /// Candidate for whole-grid simultaneous coverage calibration. The scope
+    /// binds the trial surrogate designs, trial identities, premise and margin
+    /// while allowing terminal responses to vary across simulation replicates.
+    ///
+    /// # Errors
+    /// Trial fitting or discrepancy construction refused.
+    pub fn calibration_candidate(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<BridgeTransportPremiseCalibrationCandidate, BridgeTransportPremiseAssessmentError> {
+        let result = self.execute(ctx)?;
+        let request = &self.request;
+        let mut writer = CanonicalWriter::new(
+            "antecedent.bridge_transport_premise_assessment.calibration_scope.v1",
+        );
+        writer.text(&request.premise.id).text(&request.premise.statement)
+            .text(&request.premise.established_in.population_id)
+            .text(&request.premise.established_in.regime_id)
+            .text(&request.premise.applies_to.population_id)
+            .text(&request.premise.applies_to.regime_id)
+            .text(request.premise.evidence.as_deref().unwrap_or(""))
+            .word(request.source.min_trials as u64)
+            .word(request.source.min_r_squared.to_bits())
+            .word(request.target.min_trials as u64)
+            .word(request.target.min_r_squared.to_bits())
+            .word(request.equivalence_margin.to_bits());
+        for (ids, validation) in [
+            (&request.source_trial_ids, &request.source),
+            (&request.target_trial_ids, &request.target),
+        ] {
+            writer.word(ids.len() as u64);
+            for (id, trial) in ids.iter().zip(&validation.trials) {
+                writer.text(id).word(trial.surrogate_effect.to_bits());
+            }
+        }
+        writer.word(request.surrogate_grid.len() as u64);
+        for &x in &request.surrogate_grid { writer.word(x.to_bits()); }
+        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
+        let functional = format!("trial_mapping_discrepancy_grid:scope={scope}");
+        let basis = CalibrationBasis::new(
+            [
+                "MechanismChange", "TrialLevelBridge", "fixed", "two_scope_trials",
+                "Frequentist", FEATURE, "bonferroni_normal_wald_95_grid", "ols_residual",
+                "independent_source_target_trials", "none", functional.as_str(),
+            ].map(Arc::from),
+            0.95, Arc::from("model_conditional"),
+            (request.source.trials.len() + request.target.trials.len()) as u64,
+            None, None, 0.0,
+        ).with_validation("none");
+        Ok(BridgeTransportPremiseCalibrationCandidate { result, basis })
     }
 
     /// Recompute before sealing the independent validation evidence.

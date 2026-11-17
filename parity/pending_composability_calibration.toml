@@ -73,3 +73,13 @@ ignored = true
 grid = true
 whole = true
 reason = "A known two-equation Gaussian feedback system generates new intervention-labelled training rows and an independent future outcome each replicate. The 120/240/480-row grid reruns joint parameter MCMC, correlated-disturbance predictive equilibria, paired decision and the route's 95% ordinary-world outcome candidate. Diagnostics and exact runtime basis are checked; neither coverage nor decision reliability is earned."
+
+[[group]]
+label = "bridge_transport_premise_calibration: bridge_target_mapping_discrepancy_grid_l95"
+package = "antecedent"
+target = "bridge_transport_premise_calibration"
+tests = ["bridge_target_mapping_discrepancy_grid_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Independent Gaussian source and target trial lines share a fixed surrogate design and differ by a known intercept. Every replicate refits both lines through the compiler and checks simultaneous 95% discrepancy bands on five prespecified overlap points against the true target-minus-source difference. The 60/120/240-trial-per-scope grid binds the exact runtime design basis. No coverage, equivalence error control or final decision reliability is measured or earned."
