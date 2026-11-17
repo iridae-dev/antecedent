@@ -23419,6 +23419,13 @@ path = "crates/antecedent/tests/grid_functional_effect_calibration.rs"
 gates = ["inventory"]
 
 [[test]]
+id = "grid-functional-posterior-calibration"
+crate = "antecedent"
+cargo_target = "grid_functional_posterior_calibration"
+path = "crates/antecedent/tests/grid_functional_posterior_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
 id = "grid-temporal-effect-calibration"
 crate = "antecedent"
 cargo_target = "grid_temporal_effect_calibration"
@@ -23696,6 +23703,13 @@ id = "bounds-association-range-calibration"
 crate = "antecedent"
 cargo_target = "bounds_association_range_calibration"
 path = "crates/antecedent/tests/bounds_association_range_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "conjugate-routes-calibration"
+crate = "antecedent"
+cargo_target = "conjugate_routes_calibration"
+path = "crates/antecedent/tests/conjugate_routes_calibration.rs"
 gates = ["inventory"]
 
 [[test]]

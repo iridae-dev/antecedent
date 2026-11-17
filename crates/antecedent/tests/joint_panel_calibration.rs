@@ -85,6 +85,9 @@ use antecedent::analysis::joint_panel::{
     PanelExperimentEvidence, PanelExperimentMapping, PanelExperimentModularPolicy,
     PanelExperimentUpdate, PanelFutureSample, joint_panel_target,
 };
+use antecedent::analysis::joint_panel::{
+    JointPanelContinuousSearchRequest, JointPanelScientificScope, JointPanelSearchUncertainty,
+};
 use antecedent::analysis::joint_panel::{JointPanelContrast, JointPanelContrastUncertainty};
 use antecedent::{BayesianConfig, InferenceMode, PreparedStudy, RefuteSuite, Study};
 use antecedent_contract::bridge::*;
@@ -98,6 +101,15 @@ use antecedent_core::{
 use antecedent_data::{PanelData, PanelUnit, TableView, TabularData, TimeSeriesData};
 use antecedent_design::DesignError;
 use antecedent_design::decision::{DecisionProblem, Utility};
+use antecedent_design::decision_contract::{
+    ProgramObjective, ProgramSearchContract, ProgramSearchSpace, UtilityExpr,
+};
+use antecedent_design::decision_reliability::{
+    SELECTED_VALUE_INTERVAL_METHOD, selected_value_basis,
+};
+use antecedent_design::program_search::{
+    FiniteProgramDomain, ProgramControl, continuous::ContinuousSearchOptions,
+};
 use antecedent_estimate::joint_panel::time_varying::{
     PanelMeanParameter, TemporalModelChoice, TemporalPanelSpec,
 };
@@ -108,9 +120,9 @@ use antecedent_estimate::joint_panel::{
 };
 use antecedent_graph::Dag;
 use common::calibration::{
-    Construction, CoverageTally, RecordKey, ScopeFacts, Z95, gaussian, grid_n, grid_seed,
-    map_replicates, map_replicates_from, n_sim, normal_interval, quantile_interval, replicate_end,
-    replicate_start, stream_seed, uniform,
+    Construction, CoverageSide, CoverageTally, RecordKey, ScopeFacts, Z95, gaussian, grid_n,
+    grid_seed, map_replicates, map_replicates_from, n_sim, normal_interval, quantile_interval,
+    replicate_end, replicate_start, stream_seed, uniform,
 };
 use warp_speed::{Pooling, QuantileRule, Replicate, next_u64, pooled_draw_sets};
 
@@ -201,6 +213,7 @@ enum Mode {
 }
 
 /// Parameters the panels are generated from.
+#[derive(Clone)]
 struct Law {
     intercept: f64,
     channel: [f64; 2],
@@ -369,6 +382,8 @@ impl Law {
 /// One group's simulated series; the first `prefix` rows are pre-period history that carry
 /// assignments only.
 struct Raw {
+    /// The group's realized random intercept.
+    intercept: f64,
     a: Vec<f64>,
     b: Vec<f64>,
     y: Vec<f64>,
@@ -408,10 +423,12 @@ fn simulate_raw(cell: Cell, law: &Law, class: usize, periods: usize, seed: u64) 
             + intercept
             + error;
     }
-    Raw { a, b, y, z, season }
+    Raw { intercept, a, b, y, z, season }
 }
 
 struct Generated {
+    /// Realized random intercept of each group.
+    intercepts: Vec<f64>,
     data: PanelData,
     scenarios: Vec<PanelScenario>,
     truth: f64,
@@ -432,9 +449,11 @@ fn generate_from(cell: Cell, law: &Law, periods: usize, groups: usize, seed: u64
     let prefix = cell.prefix();
     let mut units = Vec::with_capacity(groups);
     let mut scenarios = Vec::with_capacity(groups);
+    let mut intercepts = Vec::with_capacity(groups);
     for group in 0..groups {
         let raw =
             simulate_raw(cell, law, law.class_of(group), periods, stream_seed(seed, group as u64));
+        intercepts.push(raw.intercept);
         let history = |x: &[f64]| if prefix == 2 { [x[0], x[1]] } else { [0.0; 2] };
         scenarios.push(PanelScenario {
             group: group.to_string(),
@@ -455,6 +474,7 @@ fn generate_from(cell: Cell, law: &Law, periods: usize, groups: usize, seed: u64
         units.push(PanelUnit { unit_id: u32::try_from(group).unwrap(), series });
     }
     Generated {
+        intercepts,
         data: PanelData::try_new(Arc::from(units)).unwrap(),
         scenarios,
         truth: law.terminal_contrast(groups),
@@ -602,7 +622,7 @@ fn fit_generated_with(
     generated: Generated,
     seed: u64,
 ) -> Result<Fitted, String> {
-    let Generated { data, scenarios, truth, rows } = generated;
+    let Generated { data, scenarios, truth, rows, .. } = generated;
     let ctx = ExecutionContext::for_tests(grid_seed(seed));
     let request = request(&data, cell, path, groups, &scenarios, inference);
     let prepared = Study::prepare_joint_panel(data, request, &ctx)
@@ -2260,3 +2280,363 @@ fn prepared_joint_response_contrast_frequentist_l95() {
 fn prepared_joint_response_contrast_bayesian_l95() {
     measure_response("prepared_joint_response_contrast_bayesian_l95", Mode::Bayesian, 36_100_000);
 }
+
+// ---------------------------------------------------------------------------------------
+// Whole-search reliability of the selected program.
+// ---------------------------------------------------------------------------------------
+//
+// The continuous program search polls programs on the one fitted response law (the frozen fit's
+// aligned draws) and returns the best it found. Its published reliability is the simultaneous
+// interval for the selected program's value over every retained proposal
+// (`ContinuousSearchReliability::Interval`). Every test repeats the whole procedure on
+// independent panels: data generation, the fit, the search and the interval, and scores the
+// interval against the value of the program the search returned under the generating law.
+//
+// Truth. The search maximizes the terminal mean response `TerminalMean` of the reference world
+// with the last periods' doses of both channels as controls (the last period for the static
+// cell, the last three for the carryover cell, where the exposure window of the terminal period
+// lies wholly inside the program) under a total-dose budget. For a program with exposures
+// `e_d` (the lag-weighted doses; the dose itself without carryover) the value over the panel's
+// groups is closed form,
+//
+//   value(x) = mean_g [ c + b0 s0(e0) + b1 s1(e1) + b01 s0(e0) s1(e1) + gamma z_gT + season_gT + u_g ],
+//
+// with `u_g` the group's realized intercept and `s_d` the saturation. The best program is the
+// maximizer of this function over the feasible doses; it needs no fit. Because every unit of
+// dose costs the same and no lag weight exceeds the current period's, the best program puts all
+// of each channel's dose at the terminal period, and the maximizer is found on a dense grid of
+// the two terminal doses. The value of the *selected* program, not the best, is what the
+// interval claims; the regret of the selection is reported next to it.
+//
+// The interval is a whole-procedure statement, so it must hold at least at its nominal level
+// (it is simultaneous over the proposals, conservative by construction): the frequentist panels
+// are fixed-truth, the Bayesian panels are simulation-based calibration (truths drawn from the
+// fit's own proper prior), as for the contrast intervals above.
+
+/// Total-dose budget of the searched programs.
+const SEARCH_BUDGET: f64 = 8.0;
+/// Largest dose of any scheduled control.
+const SEARCH_DOSE_CAP: f64 = 8.0;
+/// Proposals the search may evaluate. The step tolerance is far below any reachable step, so a
+/// search always stops at this count: every replicate has the same candidate-set size.
+const SEARCH_EVALUATIONS: usize = 40;
+
+/// The generating law's value of a program over the realized groups of one panel.
+struct ProgramTruth {
+    law: Law,
+    lagged: bool,
+    /// Confounder, season and realized intercept of each group at the terminal period.
+    groups: Vec<(f64, usize, f64)>,
+}
+
+impl ProgramTruth {
+    fn of(law: Law, cell: Cell, generated: &Generated) -> Self {
+        let groups = generated
+            .scenarios
+            .iter()
+            .zip(&generated.intercepts)
+            .map(|(scenario, &intercept)| {
+                (scenario.confounder[HORIZON - 1], scenario.season[HORIZON - 1], intercept)
+            })
+            .collect();
+        Self { law, lagged: cell.lagged, groups }
+    }
+
+    /// Lag-weighted doses of both channels at the terminal period.
+    fn exposures(&self, controls: &[f64]) -> [f64; 2] {
+        if self.lagged {
+            // The doses of a channel are the periods HORIZON-3, HORIZON-2, HORIZON-1.
+            let weighted = |channel: usize, doses: &[f64]| {
+                self.law.lag[channel][0] * doses[2]
+                    + self.law.lag[channel][1] * doses[1]
+                    + self.law.lag[channel][2] * doses[0]
+            };
+            [weighted(0, &controls[0..3]), weighted(1, &controls[3..6])]
+        } else {
+            [controls[0], controls[1]]
+        }
+    }
+
+    /// Value of the program with these scheduled doses.
+    fn value(&self, controls: &[f64]) -> f64 {
+        let law = &self.law;
+        let [e0, e1] = self.exposures(controls);
+        let (s0, s1) = (law.saturate(0, 0, e0), law.saturate(0, 1, e1));
+        let terminal = law.intercept
+            + law.channel[0] * s0
+            + law.channel[1] * s1
+            + law.interaction_at(HORIZON - 1) * s0 * s1;
+        self.groups
+            .iter()
+            .map(|&(z, season, intercept)| {
+                terminal + law.confounder * z + law.season[season] + intercept
+            })
+            .sum::<f64>()
+            / self.groups.len() as f64
+    }
+
+    /// The best feasible program's value, by a dense grid of the two terminal doses.
+    fn best_value(&self) -> f64 {
+        let steps = 400_usize;
+        let width = SEARCH_DOSE_CAP.min(SEARCH_BUDGET) / steps as f64;
+        let mut best = f64::NEG_INFINITY;
+        for i in 0..=steps {
+            for j in 0..=steps {
+                let (a, b) = (width * i as f64, width * j as f64);
+                if a + b > SEARCH_BUDGET + 1e-12 {
+                    continue;
+                }
+                let controls =
+                    if self.lagged { vec![0.0, 0.0, a, 0.0, 0.0, b] } else { vec![a, b] };
+                best = best.max(self.value(&controls));
+            }
+        }
+        best
+    }
+}
+
+/// One replicate: the interval the search published for its selected program, the truth value of
+/// that program and the construction the runtime keyed the interval under.
+enum SearchReading {
+    Scored {
+        interval: Option<(f64, f64)>,
+        truth: f64,
+        /// `true best value - true value of the selected program`, at least zero.
+        regret: f64,
+        bound: Option<(Construction, ScopeFacts, String)>,
+    },
+    Refused(String),
+}
+
+fn search_domain(lagged: bool) -> (FiniteProgramDomain, usize) {
+    let offsets: Vec<i32> = if lagged {
+        (HORIZON - 3..HORIZON).map(|offset| i32::try_from(offset).unwrap()).collect()
+    } else {
+        vec![i32::try_from(HORIZON - 1).unwrap()]
+    };
+    let controls: Vec<ProgramControl> = (0..2_u32)
+        .flat_map(|channel| {
+            offsets.iter().map(move |&offset| ProgramControl {
+                variable: VariableId::from_raw(channel),
+                offset,
+                lower: 0.0,
+                upper: SEARCH_DOSE_CAP,
+                unit_cost: 1.0,
+            })
+        })
+        .collect();
+    let n = controls.len();
+    (FiniteProgramDomain { controls, budget: Some(SEARCH_BUDGET), restrictions: vec![] }, n)
+}
+
+fn search_reading(
+    fitted: Result<Fitted, String>,
+    truth: &ProgramTruth,
+    best_value: f64,
+) -> SearchReading {
+    let (_, result, _, _, ctx) = match fitted {
+        Ok(fitted) => fitted,
+        Err(reason) => return SearchReading::Refused(reason),
+    };
+    let (domain, n) = search_domain(truth.lagged);
+    let search = match result.compile_continuous_search(
+        JointPanelContinuousSearchRequest {
+            base_world: ScientificWorldId::from_raw(0),
+            scope: JointPanelScientificScope::ModelConditional,
+            functional: JointPanelResponseFunctional::TerminalMean,
+            uncertainty: JointPanelSearchUncertainty::AlignedLaw,
+            contract: ProgramSearchContract {
+                space: ProgramSearchSpace {
+                    id: "selected_program_reliability".into(),
+                    variables: vec!["response".into()],
+                },
+                objective: ProgramObjective::ExpectedUtility(UtilityExpr::Input(0)),
+                constraints: vec![],
+            },
+            domain,
+            utility_units: "outcome".into(),
+            options: ContinuousSearchOptions {
+                max_evaluations: SEARCH_EVALUATIONS,
+                max_iterations: 10_000,
+                initial_step: 0.25,
+                step_tolerance: 1e-12,
+                objective_tolerance: 1e-12,
+            },
+            initial: vec![0.0; n],
+        },
+        &ctx,
+    ) {
+        Ok(search) => search,
+        Err(error) => return SearchReading::Refused(format!("compile search: {error}")),
+    };
+    let found = match search.execute(&ctx) {
+        Ok(found) => found,
+        Err(error) => return SearchReading::Refused(format!("execute search: {error}")),
+    };
+    let Some(best) = found.search.best.as_ref() else {
+        return SearchReading::Refused("no feasible program".into());
+    };
+    let selected_value = truth.value(&best.controls);
+    let interval = found.search.reliability.interval();
+    let bound = interval
+        .and_then(|interval| selected_value_basis(&interval.coordinate, LEVEL))
+        .map(|basis| {
+            let key = basis.key;
+            (
+                Construction {
+                    query: key.query,
+                    graph_class: key.graph_class,
+                    structure: key.structure,
+                    modality: key.modality,
+                    inference: key.inference,
+                    estimator: key.estimator,
+                    interval_method: key.interval_method,
+                    se_kind: key.se_kind,
+                    dependence: key.dependence,
+                    posterior: key.posterior,
+                    functional: key.functional,
+                    identification: key.identification,
+                    reported_level: key.level,
+                },
+                ScopeFacts {
+                    row_count: basis.scope.row_count,
+                    replicates_ok: basis.scope.replicates_ok,
+                    posterior_draws: basis.scope.posterior_draws,
+                    unidentified_mass: basis.scope.unidentified_mass,
+                },
+                key.validation,
+            )
+        });
+    SearchReading::Scored {
+        interval: interval.map(|interval| (interval.lower, interval.upper)),
+        truth: selected_value,
+        regret: (best_value - selected_value).max(0.0),
+        bound,
+    }
+}
+
+fn frequentist_search_reading(cell: Cell, seed: u64) -> SearchReading {
+    let groups = Path::Invariant.groups();
+    let generated = generate_panel(cell, Path::Invariant, groups, seed);
+    let truth = ProgramTruth::of(Law::of(cell), cell, &generated);
+    let best = truth.best_value();
+    let fitted = fit_generated(
+        cell,
+        Path::Invariant,
+        Mode::Frequentist,
+        default_sampling(),
+        groups,
+        generated,
+        seed,
+    );
+    search_reading(fitted, &truth, best)
+}
+
+fn bayesian_search_reading(cell: Cell, seed: u64) -> SearchReading {
+    let (law, _) = prior_law(cell, false, seed);
+    let generated = generate_from(cell, &law, HORIZON, CALIBRATION_GROUPS, seed);
+    let truth = ProgramTruth::of(law, cell, &generated);
+    let best = truth.best_value();
+    let fitted = fit_generated(
+        cell,
+        Path::Invariant,
+        Mode::Bayesian,
+        default_sampling(),
+        CALIBRATION_GROUPS,
+        generated,
+        seed,
+    );
+    search_reading(fitted, &truth, best)
+}
+
+fn measure_selected_program(
+    test: &'static str,
+    dgp: &'static str,
+    cell: Cell,
+    mode: Mode,
+    seed_base: u64,
+) {
+    let readings = map_replicates(n_sim(), |rep| match mode {
+        Mode::Frequentist => frequentist_search_reading(cell, seed_base + rep),
+        Mode::Bayesian => bayesian_search_reading(cell, seed_base + rep),
+    });
+    let mut tally = CoverageTally::for_record(
+        RecordKey { test, dgp, interval: SELECTED_VALUE_INTERVAL_METHOD },
+        LEVEL,
+    );
+    let mut refusals = BTreeMap::<String, usize>::new();
+    let (mut withheld, mut regret_sum, mut scored) = (0_usize, 0.0, 0_usize);
+    for reading in &readings {
+        match reading {
+            SearchReading::Refused(reason) => {
+                tally.skip();
+                *refusals.entry(reason.clone()).or_default() += 1;
+            }
+            SearchReading::Scored { interval, truth, regret, bound } => {
+                withheld += usize::from(interval.is_none());
+                regret_sum += regret;
+                scored += 1;
+                match bound {
+                    Some((construction, scope, validation)) => {
+                        tally.bind_validation(construction, *scope, validation);
+                        tally.record(*interval, *truth);
+                    }
+                    // No record can describe this coordinate: nothing to bind the score to.
+                    None => tally.skip(),
+                }
+            }
+        }
+    }
+    eprintln!(
+        "{test}: {withheld} search(es) published no interval (scored as misses); mean regret of \
+         the selected program against the true best {:.5} over {scored} replicates",
+        regret_sum / scored.max(1) as f64
+    );
+    for (reason, count) in &refusals {
+        eprintln!("{test}: {count} replicate(s) refused: {reason}");
+    }
+    tally.assert_one_sided(
+        CoverageSide::Upper,
+        "the simultaneous interval contains the value, under the generating law, of the program \
+         the search selected, at least at the nominal level",
+    );
+}
+
+macro_rules! selected_program_test {
+    ($name:ident, $dgp:literal, $cell:expr, $mode:expr, $seed:expr) => {
+        #[test]
+        #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+        fn $name() {
+            measure_selected_program(stringify!($name), $dgp, $cell, $mode, $seed);
+        }
+    };
+}
+
+selected_program_test!(
+    joint_panel_selected_program_value_static_frequentist_l95,
+    "generate_panel",
+    STATIC,
+    Mode::Frequentist,
+    33_000_000
+);
+selected_program_test!(
+    joint_panel_selected_program_value_static_bayesian_l95,
+    "generate_from",
+    STATIC,
+    Mode::Bayesian,
+    33_200_000
+);
+selected_program_test!(
+    joint_panel_selected_program_value_temporal_frequentist_l95,
+    "generate_panel",
+    LAGGED,
+    Mode::Frequentist,
+    33_400_000
+);
+selected_program_test!(
+    joint_panel_selected_program_value_temporal_bayesian_l95,
+    "generate_from",
+    LAGGED,
+    Mode::Bayesian,
+    33_600_000
+);

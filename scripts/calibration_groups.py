@@ -445,6 +445,12 @@ def only_matches(pattern: str, *names: str) -> bool:
     return any(pattern in name or fnmatch.fnmatchcase(name, pattern) for name in names if name)
 
 
+# Owed items that name the gate groups which measure them: an interval route with no record, and an
+# open ledger row (a cell owed to calibration, a published statement no measurement covers, a supported
+# coordinate with no measured estimator grid) whose groups have produced no record.
+GROUPED_KINDS = ("route", "ledger")
+
+
 def select_owed(groups: list[Group], only: list[str] | None = None) -> Selection:
     """Exactly the owed work, nothing alongside it.
 
@@ -477,13 +483,17 @@ def select_owed(groups: list[Group], only: list[str] | None = None) -> Selection
         routed = [
             i
             for i in items
-            if i["kind"] == "route"
+            if i["kind"] in GROUPED_KINDS
             and any(
                 route_group_matches(group, status.split_group(spec)) for spec in i["groups"]
             )
         ]
         if routed:
-            why.append(f"{len(routed)} interval route(s) with no record")
+            routes = [i for i in routed if i["kind"] == "route"]
+            if routes:
+                why.append(f"{len(routes)} interval route(s) with no record")
+            if len(routes) < len(routed):
+                why.append(f"{len(routed) - len(routes)} open ledger row(s) with no record")
         if only:
             names = [group.label]
             names += [rid for rid in owing] + [str(records[rid].get("test", "")) for rid in owing]
@@ -497,7 +507,7 @@ def select_owed(groups: list[Group], only: list[str] | None = None) -> Selection
     for rid in sorted(owed_ids - matched):
         print(f"warning: no gate group measures owed record {rid}", file=sys.stderr)
     for item in items:
-        if item["kind"] == "route":
+        if item["kind"] in GROUPED_KINDS:
             for spec in item["groups"]:
                 parsed = status.split_group(spec)
                 if not any(route_group_matches(g, parsed) for g in groups):

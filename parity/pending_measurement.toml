@@ -9,6 +9,11 @@
 # measured, and a record that carries the facet then closes the entry (the entry is removed and the
 # cell is delivered). scripts/scenario_matrix.py rejects an entry with no facet, a facet the
 # surface does not define, an unknown `owed` kind, or a row with no open cell on its axes.
+#
+# `groups` lists the gate groups (`<test file>: <test filter>`, as parity/calibration_groups.toml
+# labels them) whose coverage records close the entry. While any of them has produced no record the
+# entry is an owed item of `scripts/calibration_status.py status --owed`, so the owed calibration run
+# executes exactly those groups; an entry that names none is owed and unwired.
 
 schema = 1
 
@@ -17,131 +22,201 @@ row = "P12.counterfactual.static.frequentist"
 facet = "suite.calibration_counterfactual"
 owed = "interval_coverage"
 axes = ["uncertainty"]
+groups = [
+  "static_mechanism_bootstrap_calibration: counterfactual_dag_explicit_frequentist_bootstrap_coverage",
+]
 
 [[pending]]
 row = "P13.attribution.static.frequentist"
 facet = "suite.calibration_estimate"
 owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "static_mechanism_bootstrap_calibration: anomaly_attribution_dag_explicit_frequentist_bootstrap_coverage",
+]
 
 [[pending]]
 row = "P13.refuter.static.bayesian"
 facet = "suite.calibration_bayesian_static"
 owed = "refuter_error_rates"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "refuter_error_rates_calibration: static_bayesian_predictive_check_false_rejection_under_a_correct_model",
+  "refuter_error_rates_calibration: static_bayesian_predictive_check_power_against_a_misreported_target",
+]
 
 [[pending]]
 row = "P13.refuter.static.frequentist"
 facet = "suite.calibration_estimate"
 owed = "refuter_error_rates"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "refuter_error_rates_calibration: static_frequentist_refuters_false_rejection_under_a_sound_procedure",
+  "refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_spurious_effect",
+  "refuter_error_rates_calibration: static_frequentist_refuters_power_against_a_misreported_target",
+]
 
 [[pending]]
 row = "P13.refuter.temporal.bayesian"
 facet = "suite.bayesian_temporal"
 owed = "refuter_error_rates"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "refuter_error_rates_calibration: temporal_bayesian_predictive_check_false_rejection_under_a_correct_model",
+  "refuter_error_rates_calibration: temporal_bayesian_predictive_check_power_against_a_misreported_target",
+]
 
 [[pending]]
 row = "P13.refuter.temporal.frequentist"
 facet = "suite.temporal_frequentist"
 owed = "refuter_error_rates"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "refuter_error_rates_calibration: temporal_frequentist_refuters_false_rejection_under_a_sound_procedure",
+  "refuter_error_rates_calibration: temporal_facade_refuters_false_rejection_under_a_sound_procedure",
+  "refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_spurious_effect",
+  "refuter_error_rates_calibration: temporal_frequentist_refuters_power_against_a_misreported_target",
+]
 
 [[pending]]
 row = "P14.temporal.bayesian"
 facet = "suite.transport_statistical_calibration"
 owed = "posterior_calibration"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "temporal_transport_calibration: transport_series_block_posterior_coverage",
+]
 
 [[pending]]
 row = "P14.temporal.frequentist"
 facet = "suite.transport_statistical_calibration"
 owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "temporal_transport_calibration: transport_series_newey_west_interval_coverage",
+]
 
 [[pending]]
 row = "X02.broader.static.bayesian"
 facet = "suite.calibration_bayesian_static"
 owed = "posterior_calibration"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_posterior_calibration_broader_static_l95",
+]
 
 [[pending]]
 row = "X02.broader.static.frequentist"
 facet = "suite.static_calibration"
 owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_contrast_broader_static_frequentist_l95",
+]
 
 [[pending]]
 row = "X02.broader.temporal.bayesian"
 facet = "suite.bayesian_temporal"
 owed = "posterior_calibration"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_posterior_calibration_broader_lagged_l95",
+  "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_broader_l95",
+]
 
 [[pending]]
 row = "X02.broader.temporal.frequentist"
 facet = "suite.temporal_frequentist"
 owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_contrast_broader_lagged_frequentist_l95",
+  "joint_panel_calibration: joint_panel_time_varying_contrast_broader_frequentist_l95",
+]
 
 [[pending]]
 row = "X02.static.bayesian"
 facet = "suite.calibration_bayesian_static"
 owed = "posterior_calibration"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_posterior_calibration_static_l95",
+]
 
 [[pending]]
 row = "X02.static.frequentist"
 facet = "suite.static_calibration"
 owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_contrast_static_frequentist_l95",
+]
 
 [[pending]]
 row = "X02.temporal.bayesian"
 facet = "suite.bayesian_temporal"
 owed = "posterior_calibration"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_posterior_calibration_lagged_l95",
+  "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_l95",
+]
 
 [[pending]]
 row = "X02.temporal.frequentist"
 facet = "suite.temporal_frequentist"
 owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_contrast_lagged_frequentist_l95",
+  "joint_panel_calibration: joint_panel_time_varying_contrast_frequentist_l95",
+]
 
 [[pending]]
 row = "X03.temporal.bayesian"
 facet = "suite.bayesian_temporal"
 owed = "posterior_calibration"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_l95",
+]
 
 [[pending]]
 row = "X03.temporal.frequentist"
 facet = "suite.temporal_frequentist"
 owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_selection_false_change_frequentist",
+  "joint_panel_calibration: joint_panel_time_varying_contrast_frequentist_l95",
+]
 
 [[pending]]
 row = "X04.2.static.bayesian"
-facet = "suite.decision_reliability_calibration"
+facet = "suite.joint_panel_calibration"
 owed = "selected_decision_reliability"
+groups = ["joint_panel_calibration: joint_panel_selected_program_value_static_bayesian_l95"]
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
 row = "X04.2.static.frequentist"
-facet = "suite.decision_reliability_calibration"
+facet = "suite.joint_panel_calibration"
 owed = "selected_decision_reliability"
+groups = ["joint_panel_calibration: joint_panel_selected_program_value_static_frequentist_l95"]
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
 row = "X04.2.temporal.bayesian"
-facet = "suite.decision_reliability_calibration"
+facet = "suite.joint_panel_calibration"
 owed = "selected_decision_reliability"
+groups = ["joint_panel_calibration: joint_panel_selected_program_value_temporal_bayesian_l95"]
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
 row = "X04.2.temporal.frequentist"
-facet = "suite.decision_reliability_calibration"
+facet = "suite.joint_panel_calibration"
 owed = "selected_decision_reliability"
+groups = ["joint_panel_calibration: joint_panel_selected_program_value_temporal_frequentist_l95"]
 axes = ["design_inference", "uncertainty"]
 
 [[pending]]
@@ -149,15 +224,29 @@ row = "X05.temporal.bayesian"
 facet = "suite.bayesian_temporal"
 owed = "posterior_calibration"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_experiment_update_weights_finite_lag_bayesian_l95",
+  "joint_panel_calibration: joint_panel_experiment_update_weights_time_varying_bayesian_l95",
+  "joint_panel_calibration: joint_panel_future_sample_value_standard_error_finite_lag_bayesian_l95",
+  "joint_panel_calibration: joint_panel_future_sample_value_standard_error_time_varying_bayesian_l95",
+]
 
 [[pending]]
 row = "X06.temporal.bayesian"
 facet = "suite.bayesian_temporal"
 owed = "posterior_calibration"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_posterior_calibration_lagged_l95",
+  "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_l95",
+]
 
 [[pending]]
 row = "X06.temporal.frequentist"
 facet = "suite.temporal_frequentist"
 owed = "interval_coverage"
 axes = ["design_inference", "uncertainty"]
+groups = [
+  "joint_panel_calibration: joint_panel_contrast_lagged_frequentist_l95",
+  "joint_panel_calibration: joint_panel_time_varying_contrast_frequentist_l95",
+]

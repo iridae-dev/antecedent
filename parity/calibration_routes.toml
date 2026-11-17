@@ -580,3 +580,144 @@ groups = [
   "measured_exposure_calibration: measured_exposure_detection_rubin_l95",
   "measured_exposure_calibration: measured_exposure_repeat_codings_rubin_l95",
 ]
+
+[[route]]
+record = "estimate.weighted_target_effect"
+routes = [
+  "antecedent.analyze.weighted_target",
+  "antecedent.population.target_kernel",
+  "antecedent.population.target_row_weights",
+]
+groups = [
+  "weighted_target_effect_calibration: weighted_target_effect_interval_covers_across_bandwidths",
+  "weighted_target_effect_calibration: weighted_target_effect_interval_covers_under_thin_overlap",
+]
+
+[[route]]
+record = "estimate.weighted_target_effect"
+routes = [
+  "antecedent.analyze.transport_weighted_target",
+]
+groups = [
+  "weighted_target_transport_calibration: weighted_target_transport_interval_covers_across_bandwidths",
+  "weighted_target_transport_calibration: weighted_target_transport_interval_covers_under_thin_overlap",
+  "transport_weighted_target_calibration: gaussian_kernel_transported_estimate_covers_across_bandwidths",
+  "transport_weighted_target_calibration: epanechnikov_kernel_transported_estimate_covers_across_bandwidths",
+  "transport_weighted_target_calibration: tricube_kernel_transported_estimate_covers_across_bandwidths",
+]
+
+[[route]]
+record = "estimate.weighted_target_effect"
+routes = [
+  "antecedent.analyze.graph_posterior_weighted_target",
+]
+groups = [
+  "graph_posterior_weighted_target_calibration: graph_posterior_weighted_target_interval_covers_across_bandwidths",
+  "graph_posterior_weighted_target_calibration: graph_posterior_weighted_target_interval_covers_under_thin_overlap",
+  "graph_posterior_weighted_target_calibration: graph_posterior_weighted_target_credible_interval_covers_across_bandwidths",
+]
+
+[[route]]
+record = "estimate.outcome_nuisance_prior"
+routes = [
+  "antecedent_estimate.DmlAte.outcome_prior",
+  "antecedent.estimators.DML.prior_from",
+]
+groups = [
+  "dml_outcome_prior_calibration: dml_outcome_prior_weak_interval",
+  "dml_outcome_prior_calibration: dml_outcome_prior_informative_interval",
+  "dml_outcome_prior_calibration: dml_outcome_prior_misspecified_interval",
+]
+
+[[route]]
+record = "estimate.outcome_nuisance_prior"
+routes = [
+  "antecedent_estimate.AipwAte.outcome_prior",
+  "antecedent.estimators.Aipw.prior_from",
+]
+groups = [
+  "dml_outcome_prior_calibration: aipw_outcome_prior_weak_interval",
+  "dml_outcome_prior_calibration: aipw_outcome_prior_informative_interval",
+  "dml_outcome_prior_calibration: aipw_outcome_prior_misspecified_interval",
+]
+
+[[route]]
+record = "estimate.outcome_nuisance_prior"
+routes = [
+  "antecedent.estimators.DML.prior_from_composed",
+]
+groups = [
+  "dml_outcome_prior_calibration: dml_composed_prior_informative_interval",
+  "dml_outcome_prior_calibration: dml_composed_prior_misspecified_interval",
+]
+
+[[route]]
+record = "estimate.outcome_nuisance_prior"
+routes = [
+  "antecedent.estimators.Aipw.prior_from_composed",
+]
+groups = [
+  "dml_outcome_prior_calibration: aipw_composed_prior_informative_interval",
+]
+
+[[route]]
+record = "prior.composed_named_coordinates"
+routes = [
+  "antecedent_prob.select_coordinates_by_name",
+  "antecedent.inference.Bayesian.prior_from_named_composed",
+]
+groups = [
+  "dml_outcome_prior_calibration: dml_composed_prior_informative_interval",
+  "dml_outcome_prior_calibration: dml_composed_prior_misspecified_interval",
+  "dml_outcome_prior_calibration: aipw_composed_prior_informative_interval",
+]
+
+[[route]]
+record = "association.conjugate_count_posterior"
+routes = [
+  "antecedent_estimate.AssociationEstimator.count_prior",
+  "antecedent.descriptive.Association.exceedance",
+]
+groups = [
+  "conjugate_routes_calibration: association_exceedance_beta_stated_prior_posterior_equal_tailed_l95",
+  "conjugate_routes_calibration: association_count_rate_gamma_stated_prior_posterior_equal_tailed_l95",
+]
+
+[[route]]
+record = "association.conjugate_count_posterior"
+routes = [
+  "antecedent.inference.Bayesian.prior_from_count",
+]
+groups = [
+  "conjugate_routes_calibration: association_exceedance_prior_from_source_counts_posterior_equal_tailed_l95",
+]
+
+[[route]]
+record = "association.conjugate_count_posterior"
+routes = [
+  "antecedent.priors.select_alpha_prior_beta_binomial",
+]
+groups = [
+  "conjugate_routes_calibration: select_alpha_prior_beta_binomial_uniform_interval_l95",
+  "conjugate_routes_calibration: select_alpha_prior_beta_binomial_bias_aware_interval_l95",
+]
+
+[[route]]
+record = "association.conjugate_count_posterior"
+routes = [
+  "antecedent.priors.select_alpha_prior_gamma_poisson",
+]
+groups = [
+  "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_uniform_interval_l95",
+  "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_bias_aware_interval_l95",
+]
+
+[[route]]
+record = "prior.composed_named_coordinates"
+routes = [
+  "antecedent.priors.select_alpha_prior_linear",
+]
+groups = [
+  "conjugate_routes_calibration: select_alpha_prior_linear_uniform_interval_l95",
+  "conjugate_routes_calibration: select_alpha_prior_linear_bias_aware_interval_l95",
+]

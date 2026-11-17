@@ -80,6 +80,10 @@ name = "grid_functional_effect_calibration"
 required-features = ["calibration-internal"]
 
 [[test]]
+name = "grid_functional_posterior_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
 name = "grid_mechanism_design_calibration"
 required-features = ["calibration-internal"]
 
@@ -1732,6 +1736,9 @@ name = "temporal_routes_range_calibration"
 
 [[test]]
 name = "bounds_association_range_calibration"
+
+[[test]]
+name = "conjugate_routes_calibration"
 
 [[test]]
 name = "temporal_wider_range_calibration"

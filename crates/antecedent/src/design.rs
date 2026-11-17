@@ -774,7 +774,9 @@ pub mod program_search {
     }
     /// Bounded derivative-free search over actual compiled programs.
     pub mod continuous {
-        pub use antecedent_design::program_search::continuous::ContinuousSearchOptions;
+        pub use antecedent_design::program_search::continuous::{
+            ContinuousSearchOptions, ContinuousSearchReliability, SelectedProgramReliability,
+        };
     }
 }
 /// Per-proposal receipt linking identification repair and design ranking.

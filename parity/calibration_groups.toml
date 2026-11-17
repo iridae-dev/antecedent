@@ -14703,3 +14703,152 @@ target = "graph_posterior_weighted_target_calibration"
 tests = ["graph_posterior_weighted_target_credible_interval_covers_across_bandwidths"]
 ignored = true
 grid = true
+
+[[group]]
+label = "grid_functional_posterior_calibration: mediation_effect_pag_graph_posterior_frequentist_coverage"
+package = "antecedent"
+target = "grid_functional_posterior_calibration"
+features = ["calibration-internal"]
+tests = ["mediation_effect_pag_graph_posterior_frequentist_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_functional_posterior_calibration: mediation_effect_pag_graph_posterior_bayesian_coverage"
+package = "antecedent"
+target = "grid_functional_posterior_calibration"
+features = ["calibration-internal"]
+tests = ["mediation_effect_pag_graph_posterior_bayesian_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_functional_posterior_calibration: nested_counterfactual_effect_pag_graph_posterior_bayesian_coverage"
+package = "antecedent"
+target = "grid_functional_posterior_calibration"
+features = ["calibration-internal"]
+tests = ["nested_counterfactual_effect_pag_graph_posterior_bayesian_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_functional_posterior_calibration: temporal_mediation_effect_temporal_pag_graph_posterior_frequentist_coverage"
+package = "antecedent"
+target = "grid_functional_posterior_calibration"
+features = ["calibration-internal"]
+tests = ["temporal_mediation_effect_temporal_pag_graph_posterior_frequentist_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_functional_posterior_calibration: temporal_mediation_effect_temporal_pag_graph_posterior_bayesian_coverage"
+package = "antecedent"
+target = "grid_functional_posterior_calibration"
+features = ["calibration-internal"]
+tests = ["temporal_mediation_effect_temporal_pag_graph_posterior_bayesian_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: association_exceedance_beta_stated_prior_posterior_equal_tailed_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["association_exceedance_beta_stated_prior_posterior_equal_tailed_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: association_count_rate_gamma_stated_prior_posterior_equal_tailed_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["association_count_rate_gamma_stated_prior_posterior_equal_tailed_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: association_exceedance_prior_from_source_counts_posterior_equal_tailed_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["association_exceedance_prior_from_source_counts_posterior_equal_tailed_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_beta_binomial_uniform_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_beta_binomial_uniform_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_beta_binomial_bias_aware_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_beta_binomial_bias_aware_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_uniform_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_gamma_poisson_uniform_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_bias_aware_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_gamma_poisson_bias_aware_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_linear_uniform_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_linear_uniform_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_linear_bias_aware_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_linear_bias_aware_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_static_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_static_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_static_bayesian_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_static_bayesian_l95"]
+ignored = true
+grid = false
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_temporal_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_temporal_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_temporal_bayesian_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_temporal_bayesian_l95"]
+ignored = true
+grid = false

@@ -119,6 +119,8 @@ class CommandTests(unittest.TestCase):
             patch.object(status, "interval_routes", return_value=list(routes)),
             patch.object(status, "load_route_map", return_value={}),
             patch.object(status, "load_attestations", return_value=[]),
+            patch.object(status, "ledger_rows", return_value=[]),
+            patch.object(status, "backlog_rows", return_value=[]),
             patch.object(status, "tree_fingerprinter"),
             patch.object(status, "tree_fingerprints", return_value={"a": "manifest:" + NOW, "b": "manifest:" + NOW}),
             redirect_stdout(out),
