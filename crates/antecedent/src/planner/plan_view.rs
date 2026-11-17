@@ -1997,6 +1997,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::JointTransportPredictiveDecision => PlanRoute::JointTransportPredictiveDecision,
         ProgramCell::TemporalPathTransport => PlanRoute::TemporalPathTransport,
         ProgramCell::SamplingAssumptionUnion => PlanRoute::SamplingAssumptionUnion,
+        ProgramCell::IidSamplingAssumptionUnion => PlanRoute::IidSamplingAssumptionUnion,
         ProgramCell::BundleRecomputation => PlanRoute::BundleRecomputation,
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,
         ProgramCell::GraphImputationEffectDecision => PlanRoute::GraphImputationEffectDecision,

@@ -214,6 +214,7 @@ macro_rules! route_lowerings {
             TemporalPathTransport,
             /// Whole-chain resampling union around an assumption envelope.
             SamplingAssumptionUnion,
+            IidSamplingAssumptionUnion,
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation,
             /// A graph-selection imputation composite.
@@ -250,6 +251,7 @@ macro_rules! route_lowerings {
                     Self::JointTransportPredictiveDecision => "JointTransportPredictiveDecision",
                     Self::TemporalPathTransport => "TemporalPathTransport",
                     Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
+                    Self::IidSamplingAssumptionUnion => "IidSamplingAssumptionUnion",
                     Self::BundleRecomputation => "BundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
                     Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
@@ -283,6 +285,7 @@ macro_rules! route_lowerings {
                     Self::JointTransportPredictiveDecision => RouteFamily::Structural,
                     Self::TemporalPathTransport => RouteFamily::Temporal,
                     Self::SamplingAssumptionUnion => RouteFamily::PropagationChain,
+                    Self::IidSamplingAssumptionUnion => RouteFamily::PropagationChain,
                     Self::BundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::GraphImputationEffectDecision => RouteFamily::GraphImputation,

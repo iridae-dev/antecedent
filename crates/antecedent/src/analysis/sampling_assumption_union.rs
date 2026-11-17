@@ -36,6 +36,7 @@ use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "sampling_assumption_union_v1";
+const IID_FEATURE: &str = "iid_sampling_assumption_union_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 /// Prespecified original chain and whole-chain bootstrap replicates. The
@@ -384,6 +385,293 @@ pub fn consume_sampling_assumption_union(
     Ok(result)
 }
 
+/// One raw IID unit table and a deterministic whole-chain bootstrap schedule.
+/// All sampling-draw sources are columns of the same unit table; their rows
+/// are resampled together. Fixed point and interval sources are never sampled.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct IidSamplingAssumptionUnionRequest {
+    /// Draft chain over raw IID unit rows and fixed assumptions.
+    pub original: PropagationChainRecordWire,
+    /// Distinct unit identities in the common row order of every sampling source.
+    pub unit_ids: Vec<String>,
+    /// Number of complete-chain bootstrap resamples.
+    pub bootstrap_replicates: usize,
+    /// Nominal two-sided confidence level; no coverage is inferred from it.
+    pub level: f64,
+}
+
+/// Compiler-owned IID resampling and full-chain endpoint union.
+#[derive(Clone, Debug)]
+pub struct CompiledIidSamplingAssumptionUnion {
+    request: IidSamplingAssumptionUnionRequest,
+    original: PropagationChainPlan,
+    seed: u64,
+    lowered: Arc<LoweredProgram>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct IidSamplingAssumptionUnionWire {
+    version: u32,
+    required_feature: String,
+    request: IidSamplingAssumptionUnionRequest,
+    seed: u64,
+    program_identity: [u8; 32],
+    result_fingerprint: [u8; 32],
+}
+
+fn validate_iid_source(
+    request: &IidSamplingAssumptionUnionRequest,
+) -> Result<(), SamplingAssumptionUnionError> {
+    let draft = &request.original;
+    let n = request.unit_ids.len();
+    let mut units = BTreeSet::new();
+    let mut alignment = None;
+    let mut sampling = 0usize;
+    let mut assumptions = 0usize;
+    if n < 20 || n > 1_000_000
+        || request.bootstrap_replicates < 100 || request.bootstrap_replicates > 4096
+        || n.checked_mul(request.bootstrap_replicates).is_none_or(|work| work > 50_000_000)
+        || !request.level.is_finite() || !(0.0..1.0).contains(&request.level)
+        || request.unit_ids.iter().any(|id| id.trim().is_empty() || !units.insert(id.as_str()))
+        || draft.reading != "assumption_envelope" || draft.construction != "joint_draws"
+        || draft.output_quantity.is_none() || !draft.results.is_empty()
+        || !draft.identity.is_empty() || draft.output_draws.is_some()
+        || draft.output_weights.is_some() || draft.output_lower_bounds.is_some()
+        || draft.output_upper_bounds.is_some() || draft.joint_output_draws.is_some()
+        || draft.joint_output_weights.is_some()
+    {
+        return Err(SamplingAssumptionUnionError::Invalid("invalid raw-unit IID bootstrap declaration"));
+    }
+    for source in &draft.sources {
+        if !source.complete_disclosure || !source.factors.is_empty() {
+            return Err(SamplingAssumptionUnionError::Invalid("raw IID unit columns need complete, factor-free disclosure"));
+        }
+        match source.representation.as_str() {
+            "draws" if source.meaning.as_deref() == Some("sampling")
+                && source.values.len() == n
+                && source.alignment.as_deref().is_some_and(|id| !id.is_empty()) => {
+                let current = source.alignment.as_deref().ok_or(
+                    SamplingAssumptionUnionError::Invalid("raw sampling column lost alignment"),
+                )?;
+                if alignment.is_some_and(|previous| previous != current) {
+                    return Err(SamplingAssumptionUnionError::Invalid("IID unit columns are not jointly aligned"));
+                }
+                alignment = Some(current);
+                sampling += 1;
+            }
+            "interval" if source.values.len() == 2 => assumptions += 1,
+            "point" if source.values.len() == 1 => {},
+            _ => return Err(SamplingAssumptionUnionError::Invalid(
+                "IID bootstrap accepts only aligned raw sampling columns and fixed point or interval sources",
+            )),
+        }
+    }
+    if sampling == 0 || assumptions == 0 {
+        return Err(SamplingAssumptionUnionError::Invalid("IID bootstrap needs raw units and an assumption interval"));
+    }
+    Ok(())
+}
+
+/// Compile a raw IID sample and its complete resampling algorithm before
+/// drawing any bootstrap rows. The central chain compiler checks the original
+/// terminal coordinate and every generated replicate is recompiled at execute.
+///
+/// # Errors
+/// Malformed row identities, unaligned columns, non-IID source declaration,
+/// unsupported chain, level or resource bound.
+pub fn compile_iid_sampling_assumption_union(
+    request: IidSamplingAssumptionUnionRequest, ctx: &ExecutionContext,
+) -> Result<CompiledIidSamplingAssumptionUnion, SamplingAssumptionUnionError> {
+    validate_iid_source(&request)?;
+    let source_bytes = antecedent_io::to_cbor(&request)?;
+    if source_bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(SamplingAssumptionUnionError::Invalid("IID bootstrap source exceeds its byte bound"));
+    }
+    let original = compile_propagation_chain(request.original.clone(), ctx)?;
+    let source_digest = CanonicalWriter::digest_bytes(
+        "antecedent.iid_sampling_assumption_union.source.v1", &source_bytes,
+    );
+    let seed = ctx.rng.master_seed();
+    let mut writer = CanonicalWriter::new("antecedent.iid_sampling_assumption_union.question.v1");
+    writer.bytes(&source_digest).word(seed);
+    let query = writer.finish();
+    let design = DesignShape::quoted(request.unit_ids.len() as u64,
+        request.original.sources.len() as u64, true);
+    let scientific = ScientificProblem {
+        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::IdentifiedSet, outcome: None, query,
+        },
+        plan_id: Arc::from("iid_sampling_assumption_union.v1"),
+        data: DataClassification::Tabular,
+        graph_class: "compiler_resampled_iid_assumption_set",
+        query_variables: Arc::from([]), source_digest: Some(source_digest),
+        support_coordinate: None, supported: false, support_status: None,
+    };
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
+    let score = ScoreModel::new("iid_whole_chain_assumption_endpoint_bootstrap")
+        .map_err(|_| SamplingAssumptionUnionError::Invalid("invalid IID bootstrap score identity"))?;
+    let statistical = StatisticalProgram {
+        identifier: None, estimator: None,
+        realization: Realization::Frequentist(ScoreFrequentist::new(score)),
+        models: Arc::from([]), folds: None, resampling: None,
+        posterior: None, design, operators: Arc::from([]),
+    };
+    let evidence = EvidenceDecisionProgram {
+        sources: Arc::from([EvidenceSourceRef {
+            role: EvidenceRole::ChainSource, digest: Some(source_digest),
+        }]),
+        composition: Composition::Chained { stages: request.bootstrap_replicates + 1 },
+        decision: None, planning: None, chain: None,
+    };
+    let physical = PhysicalLayer {
+        operators: Arc::from([
+            PhysicalOperator::declare(PhysicalEffect::Read)
+                .estimates(ByteEstimates::absent().with_output(source_bytes.len() as u64))
+                .build().map_err(|_| SamplingAssumptionUnionError::Invalid("invalid IID read operator"))?,
+            PhysicalOperator::declare(PhysicalEffect::Select)
+                .build().map_err(|_| SamplingAssumptionUnionError::Invalid("invalid IID resampling operator"))?,
+        ]), design,
+    };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::IidSamplingAssumptionUnion,
+        scientific, identification, statistical, evidence, physical,
+        claim: ClaimDemand { uncertainty: UncertaintyReading::Sampling,
+            kind: Some(ClaimKind::Bounds) },
+    }.finish());
+    Ok(CompiledIidSamplingAssumptionUnion { request, original, seed, lowered })
+}
+
+fn uniform_row(rng: &mut antecedent_core::CausalRng, n: usize) -> usize {
+    let bound = n as u64;
+    let threshold = bound.wrapping_neg() % bound;
+    loop {
+        let value = rng.next_u64();
+        if value >= threshold { return (value % bound) as usize; }
+    }
+}
+
+impl CompiledIidSamplingAssumptionUnion {
+    /// Six-layer identity of the compiler-generated IID bootstrap.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the retained program without sampling rows.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Resample every raw-unit column jointly, recompile the whole chain for
+    /// every replicate and form the two endpoint bounds. Coverage remains
+    /// `not_measured` until the exact algorithm earns a record.
+    ///
+    /// # Errors
+    /// Changed seed, cancellation, nested chain or nonfinite bound.
+    pub fn execute(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
+        if ctx.rng.master_seed() != self.seed {
+            return Err(SamplingAssumptionUnionError::Invalid("IID bootstrap execution seed changed"));
+        }
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let original = self.original.execute(ctx)?;
+        let (original_lower, original_upper) = endpoint_means(&original)?;
+        let mut lows = Vec::with_capacity(self.request.bootstrap_replicates);
+        let mut highs = Vec::with_capacity(self.request.bootstrap_replicates);
+        let mut chain_identities = vec![original.identity().to_owned()];
+        let n = self.request.unit_ids.len();
+        let mut rng = scoped.rng.stream(0x1144_4253_5452_4150);
+        for replicate in 0..self.request.bootstrap_replicates {
+            if scoped.cancellation.is_cancelled() {
+                return Err(SamplingAssumptionUnionError::Invalid("IID whole-chain bootstrap was cancelled"));
+            }
+            let indices: Vec<usize> = (0..n).map(|_| uniform_row(&mut rng, n)).collect();
+            let mut draft = self.request.original.clone();
+            for (resampled, source) in draft.sources.iter_mut().zip(&self.request.original.sources) {
+                if source.representation == "draws" {
+                    resampled.values = indices.iter().map(|&row| source.values[row]).collect();
+                    resampled.alignment = Some(format!("iid-bootstrap:{}:{replicate}", self.lowered.identity().to_hex()));
+                }
+            }
+            let chain = compile_propagation_chain(draft, ctx)?.execute(ctx)?;
+            let (lower, upper) = endpoint_means(&chain)?;
+            lows.push(lower);
+            highs.push(upper);
+            chain_identities.push(chain.identity().to_owned());
+        }
+        lows.sort_by(f64::total_cmp);
+        highs.sort_by(f64::total_cmp);
+        let tail = (1.0 - self.request.level) / 2.0;
+        let union_lower = 2.0 * original_lower - quantile_type7_sorted(&lows, 1.0 - tail);
+        let union_upper = 2.0 * original_upper - quantile_type7_sorted(&highs, tail);
+        if !union_lower.is_finite() || !union_upper.is_finite() || union_lower > union_upper {
+            return Err(SamplingAssumptionUnionError::Invalid("IID bootstrap endpoint union is nonfinite or reversed"));
+        }
+        Ok(SamplingAssumptionUnionResult {
+            original_lower, original_upper, union_lower, union_upper,
+            level: self.request.level, calibration: "not_measured",
+            chain_identities, lowered_program_identity: self.lowered.identity(),
+        })
+    }
+
+    /// Seal the raw rows, unit identities, resampling rule and executed result.
+    ///
+    /// # Errors
+    /// A changed run or oversized artifact refuses.
+    pub fn export(
+        &self, result: &SamplingAssumptionUnionResult, ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, SamplingAssumptionUnionError> {
+        let live = self.execute(ctx)?;
+        if fingerprint(result) != fingerprint(&live) {
+            return Err(SamplingAssumptionUnionError::Invalid("IID bootstrap result changed"));
+        }
+        let bytes = antecedent_io::to_cbor(&IidSamplingAssumptionUnionWire {
+            version: 1, required_feature: IID_FEATURE.into(),
+            request: self.request.clone(), seed: self.seed,
+            program_identity: *self.lowered.identity().as_bytes(),
+            result_fingerprint: fingerprint(&live),
+        })?;
+        if bytes.len() > MAX_ARTIFACT_BYTES {
+            return Err(SamplingAssumptionUnionError::Invalid("IID bootstrap artifact exceeds its byte bound"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Independently recompile and rerun all IID bootstrap draws from a portable
+/// source declaration and an externally retained six-layer program identity.
+///
+/// # Errors
+/// A foreign feature, changed row schedule, chain or result refuses.
+pub fn consume_iid_sampling_assumption_union(
+    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<SamplingAssumptionUnionResult, SamplingAssumptionUnionError> {
+    if bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(SamplingAssumptionUnionError::Invalid("IID bootstrap artifact exceeds its byte bound"));
+    }
+    let wire: IidSamplingAssumptionUnionWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.required_feature != IID_FEATURE
+        || wire.program_identity != *expected_program.as_bytes()
+        || wire.seed != ctx.rng.master_seed()
+    {
+        return Err(SamplingAssumptionUnionError::Invalid("IID bootstrap feature, identity or seed differs"));
+    }
+    let plan = compile_iid_sampling_assumption_union(wire.request, ctx)?;
+    if plan.lowered().identity() != expected_program {
+        return Err(SamplingAssumptionUnionError::Invalid("recompiled IID bootstrap program differs"));
+    }
+    let live = plan.execute(ctx)?;
+    if fingerprint(&live) != wire.result_fingerprint {
+        return Err(SamplingAssumptionUnionError::Invalid("IID bootstrap result differs on replay"));
+    }
+    Ok(live)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -418,6 +706,33 @@ mod tests {
             functional_id: "mean".into(), conditioning: Vec::new(),
             transform_id: "identity".into(),
         })
+    }
+
+    #[test]
+    #[ignore = "source-only compiler-owned IID bootstrap assertion; coverage has not been earned"]
+    fn iid_raw_units_are_resampled_and_whole_chain_replayed() {
+        let ctx = ExecutionContext::for_tests(31);
+        let mut original = draft(0.0);
+        original.sources[0].values = (0..40)
+            .map(|row| (1.0 + row as f64 / 40.0).to_bits()).collect();
+        let request = IidSamplingAssumptionUnionRequest {
+            original,
+            unit_ids: (0..40).map(|row| format!("unit-{row}")).collect(),
+            bootstrap_replicates: 100,
+            level: 0.95,
+        };
+        let plan = compile_iid_sampling_assumption_union(request, &ctx).unwrap();
+        assert_eq!(plan.plan_view().route().as_str(), "IidSamplingAssumptionUnion");
+        let result = plan.execute(&ctx).unwrap();
+        assert!(result.union_lower <= result.original_lower);
+        assert!(result.union_upper >= result.original_upper);
+        assert_eq!(result.chain_identities.len(), 101);
+        assert_eq!(result.calibration, "not_measured");
+        let bytes = plan.export(&result, &ctx).unwrap();
+        let replay = consume_iid_sampling_assumption_union(
+            &bytes, result.lowered_program_identity, &ctx,
+        ).unwrap();
+        assert_eq!(fingerprint(&replay), fingerprint(&result));
     }
 
     #[test]
