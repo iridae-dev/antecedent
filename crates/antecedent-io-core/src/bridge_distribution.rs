@@ -66,7 +66,7 @@ use antecedent_contract::bridge::{
     draws_unusable,
 };
 use antecedent_contract::dependence::SharedFactorKind;
-use antecedent_contract::propagation_chain::{LawMeaning, StageKind};
+use antecedent_contract::propagation_chain::{ChainReading, LawMeaning, StageKind};
 use antecedent_contract::{
     ClaimDomains, ClaimEnvelope, ClaimKind, DomainStatus, ExternalRefusal, ReasoningView,
     ScientificQuantity, SlotAvailability,
@@ -283,14 +283,14 @@ impl BridgedDistribution {
         let slope_id = format!("{stage_id}.slope");
         let intercept_id = format!("{stage_id}.intercept");
         let residual_id = format!("{stage_id}.residual");
-        let meaning = LawMeaning::Posterior;
+        let meaning = source_law_meaning(self.source.semantic());
         let mapping_factor = format!("bridge_mapping:{contract}");
         let mut source =
             ChainSourceWire::draws(&source_id, meaning, &self.alignment, &self.source_column());
-        let mut slope = ChainSourceWire::draws(&slope_id, meaning, &self.alignment, &affine.slopes)
+        let mut slope = ChainSourceWire::draws(&slope_id, LawMeaning::Posterior, &self.alignment, &affine.slopes)
             .with_factor(SharedFactorKind::Parameter, &mapping_factor);
         let intercept =
-            ChainSourceWire::draws(&intercept_id, meaning, &self.alignment, &affine.intercepts)
+            ChainSourceWire::draws(&intercept_id, LawMeaning::Posterior, &self.alignment, &affine.intercepts)
                 .with_factor(SharedFactorKind::Parameter, &mapping_factor);
         if let Some(SourceMappingDependence::SlopeCovariance { evidence, .. }) =
             &self.claim.contract.source_dependence
@@ -306,7 +306,7 @@ impl BridgedDistribution {
             // The new trial's residual is a disturbance of its own. It shares only the
             // Student-t scale with the coefficients, a parameter of the mapping.
             sources.push(
-                ChainSourceWire::draws(&residual_id, meaning, &self.alignment, residuals)
+                ChainSourceWire::draws(&residual_id, LawMeaning::Innovation, &self.alignment, residuals)
                     .with_factor(
                         SharedFactorKind::Disturbance,
                         &format!("bridge_residual:{contract}"),
@@ -326,9 +326,19 @@ impl BridgedDistribution {
         } else {
             ChainOpWire::affine(ChainCoefficientWire::input(1), ChainCoefficientWire::input(2))
         };
-        let stage = ChainStageWire::new(stage_id, StageKind::MeasurementMapping, &inputs, op)
+        let stage_kind = if affine.residuals.is_some() {
+            StageKind::PredictiveMapping
+        } else {
+            StageKind::MeasurementMapping
+        };
+        let stage = ChainStageWire::new(stage_id, stage_kind, &inputs, op)
             .with_own_factor(SharedFactorKind::Model, &format!("bridge_contract:{contract}"));
-        BridgeChainStage { sources, stage }
+        BridgeChainStage {
+            sources,
+            stage,
+            reading: bridge_chain_reading(self.claim.contract.target_value),
+            output_quantity: ScientificQuantityWire::from(&self.claim.contract.target.quantity),
+        }
     }
 
     fn correction_stage(&self, stage_id: &str, correction: &CorrectionColumns) -> BridgeChainStage {
@@ -336,7 +346,7 @@ impl BridgedDistribution {
         let source_id = format!("{stage_id}.source");
         let sensitivity_id = format!("{stage_id}.sensitivity");
         let specificity_id = format!("{stage_id}.specificity");
-        let meaning = LawMeaning::Posterior;
+        let meaning = source_law_meaning(self.source.semantic());
         let mapping_factor = format!("bridge_mapping:{contract}");
         // Each row's rates were drawn conditionally on that row's source draw (the recorded
         // value must be attainable), so the source and the rates share this factor.
@@ -345,7 +355,7 @@ impl BridgedDistribution {
             ChainSourceWire::draws(&source_id, meaning, &self.alignment, &self.source_column())
                 .with_factor(SharedFactorKind::Model, &attainable);
         let rate = |id: &str, values: &[f64]| {
-            ChainSourceWire::draws(id, meaning, &self.alignment, values)
+            ChainSourceWire::draws(id, LawMeaning::Posterior, &self.alignment, values)
                 .with_factor(SharedFactorKind::Parameter, &mapping_factor)
                 .with_factor(SharedFactorKind::Model, &attainable)
         };
@@ -358,7 +368,12 @@ impl BridgedDistribution {
         let op = ChainOpWire::expression(correction_terms(correction));
         let stage = ChainStageWire::new(stage_id, StageKind::MeasurementMapping, &inputs, op)
             .with_own_factor(SharedFactorKind::Model, &format!("bridge_contract:{contract}"));
-        BridgeChainStage { sources, stage }
+        BridgeChainStage {
+            sources,
+            stage,
+            reading: bridge_chain_reading(self.claim.contract.target_value),
+            output_quantity: ScientificQuantityWire::from(&self.claim.contract.target.quantity),
+        }
     }
 }
 
@@ -412,6 +427,32 @@ pub struct BridgeChainStage {
     /// The measurement-mapping stage: its coefficients, rates and residual are
     /// inputs.
     pub stage: ChainStageWire,
+    /// Reading of the bridge output: a predictive residual cannot be read as a
+    /// parameter posterior, and a posterior map cannot become an outcome law.
+    pub reading: ChainReading,
+    /// Scientific coordinate of the bridge output for the chain compiler.
+    pub output_quantity: ScientificQuantityWire,
+}
+
+fn bridge_chain_reading(kind: ValueKind) -> ChainReading {
+    match kind {
+        ValueKind::PredictiveLaw | ValueKind::JointOutcomeLaw => ChainReading::Predictive,
+        ValueKind::Posterior => ChainReading::Posterior,
+        _ => ChainReading::Spread,
+    }
+}
+
+fn source_law_meaning(meaning: DistributionMeaningWire) -> LawMeaning {
+    match meaning {
+        DistributionMeaningWire::ParameterPosterior
+        | DistributionMeaningWire::CausalFunctionalPosterior => LawMeaning::Posterior,
+        DistributionMeaningWire::EstimatorSampling | DistributionMeaningWire::Bootstrap => {
+            LawMeaning::Sampling
+        }
+        DistributionMeaningWire::PosteriorPredictive
+        | DistributionMeaningWire::InterventionalPredictive
+        | DistributionMeaningWire::EmpiricalOutcome => LawMeaning::Predictive,
+    }
 }
 
 fn column_of(table: &DistributionArtifact, column: usize) -> Vec<f64> {

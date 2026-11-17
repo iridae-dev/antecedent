@@ -5,10 +5,15 @@ use antecedent_contract::propagation_chain::{
     ChainReading, LawMeaning, Representation, StageKind, TableConstruction,
 };
 use antecedent_core::{CanonicalEncode, CanonicalWriter};
+use antecedent_contract::ScientificQuantity;
 use std::collections::BTreeSet;
 
 use super::{
-    ChainChangeWire, ChainFactorWire, Error, PROPAGATION_CHAIN_TAG, PropagationChainRecordWire,
+    ChainChangeWire, ChainFactorWire, Error, PROPAGATION_CHAIN_TAG,
+    PROPAGATION_CHAIN_LAW_TAG, PROPAGATION_CHAIN_LAW_VERSION,
+    PROPAGATION_CHAIN_ASSUMPTION_TAG, PROPAGATION_CHAIN_ASSUMPTION_VERSION,
+    PROPAGATION_CHAIN_JOINT_LAW_TAG, PROPAGATION_CHAIN_JOINT_LAW_VERSION,
+    PropagationChainRecordWire,
     operator_class, parse, stage_op, word_of,
 };
 
@@ -49,7 +54,16 @@ const fn factor_kind_tag(kind: SharedFactorKind) -> u64 {
 /// # Errors
 /// A stored name that is not one of the format's names.
 pub fn propagation_chain_identity(record: &PropagationChainRecordWire) -> Result<String, Error> {
-    let mut writer = CanonicalWriter::new(PROPAGATION_CHAIN_TAG);
+    let tag = if record.version == PROPAGATION_CHAIN_JOINT_LAW_VERSION {
+        PROPAGATION_CHAIN_JOINT_LAW_TAG
+    } else if record.version == PROPAGATION_CHAIN_ASSUMPTION_VERSION {
+        PROPAGATION_CHAIN_ASSUMPTION_TAG
+    } else if record.version == PROPAGATION_CHAIN_LAW_VERSION {
+        PROPAGATION_CHAIN_LAW_TAG
+    } else {
+        PROPAGATION_CHAIN_TAG
+    };
+    let mut writer = CanonicalWriter::new(tag);
     writer.word(u64::from(record.version));
     let construction = parse(
         TableConstruction::from_name(&record.construction),
@@ -58,6 +72,25 @@ pub fn propagation_chain_identity(record: &PropagationChainRecordWire) -> Result
     )?;
     let reading = parse(ChainReading::from_name(&record.reading), "reading", &record.reading)?;
     writer.word(construction.tag()).word(reading.tag()).text(&record.output);
+    if matches!(record.version, PROPAGATION_CHAIN_LAW_VERSION | PROPAGATION_CHAIN_ASSUMPTION_VERSION | PROPAGATION_CHAIN_JOINT_LAW_VERSION) {
+        if let Some(wire) = &record.output_quantity {
+            let quantity: ScientificQuantity = wire
+                .clone()
+                .try_into()
+                .map_err(|message| Error::Malformed(format!("output quantity: {message}")))?;
+            writer.word(1).text(&quantity.canonical_identity());
+        } else {
+            writer.word(0);
+        }
+    }
+    if record.version == PROPAGATION_CHAIN_JOINT_LAW_VERSION {
+        writer.word(word_of(record.joint_outputs.len()));
+        for output in &record.joint_outputs {
+            let quantity: ScientificQuantity = output.quantity.clone().try_into()
+                .map_err(|message| Error::Malformed(format!("joint output quantity: {message}")))?;
+            writer.text(&output.stage).text(&quantity.canonical_identity());
+        }
+    }
     writer.word(word_of(record.sources.len()));
     for source in &record.sources {
         let representation = parse(

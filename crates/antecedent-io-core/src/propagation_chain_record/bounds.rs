@@ -3,7 +3,7 @@
 use super::{
     ChainChangeWire, ChainOpWire, Error, PropagationChainLimits, PropagationChainRecordWire,
 };
-use antecedent_stats::propagation_chain::{MAX_CHAIN_NODES, MAX_CHAIN_ROWS, MAX_EXPRESSION_TERMS};
+use antecedent_stats::propagation_chain::{MAX_CHAIN_CELLS, MAX_CHAIN_NODES, MAX_CHAIN_ROWS, MAX_EXPRESSION_TERMS};
 
 fn text_ok(text: &str, limits: &PropagationChainLimits) -> Result<(), Error> {
     if text.len() > limits.max_text_bytes {
@@ -26,8 +26,71 @@ pub(super) fn check_bounds(
     if record.results.len() > MAX_CHAIN_NODES {
         return Err(Error::LimitsExceeded("results"));
     }
+    if record.output_draws.as_ref().is_some_and(|values| values.len() > MAX_CHAIN_ROWS)
+        || record.output_weights.as_ref().is_some_and(|values| values.len() > MAX_CHAIN_ROWS)
+        || record.output_lower_bounds.as_ref().is_some_and(|values| values.len() > MAX_CHAIN_ROWS)
+        || record.output_upper_bounds.as_ref().is_some_and(|values| values.len() > MAX_CHAIN_ROWS)
+    {
+        return Err(Error::LimitsExceeded("output law rows"));
+    }
+    if record.joint_outputs.len() > MAX_CHAIN_NODES
+        || record.joint_output_draws.as_ref().is_some_and(|columns| {
+            columns.len() > MAX_CHAIN_NODES
+                || columns.iter().any(|column| column.len() > MAX_CHAIN_ROWS)
+                || columns.iter().try_fold(0_usize, |cells, column| {
+                    cells.checked_add(column.len())
+                }).is_none_or(|cells| cells > MAX_CHAIN_CELLS)
+        })
+        || record.joint_output_weights.as_ref().is_some_and(|values| values.len() > MAX_CHAIN_ROWS)
+    {
+        return Err(Error::LimitsExceeded("joint output law"));
+    }
     for text in [&record.construction, &record.reading, &record.output, &record.label] {
         text_ok(text, limits)?;
+    }
+    if let Some(quantity) = &record.output_quantity {
+        if quantity.conditioning.len() > MAX_CHAIN_NODES {
+            return Err(Error::LimitsExceeded("output conditions"));
+        }
+        for text in [
+            &quantity.variable_id,
+            &quantity.variable_name,
+            &quantity.role,
+            &quantity.units,
+            &quantity.population_id,
+            &quantity.regime_id,
+            &quantity.functional_id,
+            &quantity.transform_id,
+        ] {
+            text_ok(text, limits)?;
+        }
+        for condition in &quantity.conditioning {
+            text_ok(&condition.variable_id, limits)?;
+            text_ok(&condition.value_id, limits)?;
+        }
+    }
+    for output in &record.joint_outputs {
+        text_ok(&output.stage, limits)?;
+        let quantity = &output.quantity;
+        if quantity.conditioning.len() > MAX_CHAIN_NODES {
+            return Err(Error::LimitsExceeded("joint output conditions"));
+        }
+        for text in [
+            &quantity.variable_id,
+            &quantity.variable_name,
+            &quantity.role,
+            &quantity.units,
+            &quantity.population_id,
+            &quantity.regime_id,
+            &quantity.functional_id,
+            &quantity.transform_id,
+        ] {
+            text_ok(text, limits)?;
+        }
+        for condition in &quantity.conditioning {
+            text_ok(&condition.variable_id, limits)?;
+            text_ok(&condition.value_id, limits)?;
+        }
     }
     for source in &record.sources {
         text_ok(&source.id, limits)?;

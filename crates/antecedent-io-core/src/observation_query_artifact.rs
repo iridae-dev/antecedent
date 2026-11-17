@@ -98,6 +98,10 @@ pub const OBSERVATION_QUERY_ARTIFACT_FEATURE: &str = "observation_query_v1";
 pub const OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker of the general queries.
 pub const OBSERVATION_QUERY_GENERAL_FEATURE: &str = "observation_query_general_v1";
+/// Additive format for a declared joint measurement likelihood.
+pub const OBSERVATION_QUERY_JOINT_MEASURED_VERSION: u32 = 3;
+/// Required feature of the joint measured-signal query.
+pub const OBSERVATION_QUERY_JOINT_MEASURED_FEATURE: &str = "observation_query_joint_measured_v1";
 /// Most retained mechanisms, and most parent-configuration rows of one retained
 /// table, a redraw query may carry.
 pub const OBSERVATION_QUERY_MAX_RETAINED_ROWS: usize = 4096;
@@ -155,6 +159,16 @@ pub fn observation_query_identity(
     query: &ObservationQueryWire,
     inference_basis: &str,
 ) -> Result<String, IoError> {
+    if query.is_joint_measured() {
+        return crate::digest_hex(
+            IdentityDomain::Program,
+            &(
+                OBSERVATION_QUERY_JOINT_MEASURED_FEATURE,
+                OBSERVATION_QUERY_JOINT_MEASURED_VERSION,
+                query.operation(), inference_basis, premises, query,
+            ),
+        );
+    }
     if query.is_general() {
         return crate::digest_hex(
             IdentityDomain::Program,
@@ -195,6 +209,25 @@ fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), ObservationQue
         | ObservationQueryWire::GaussianOutcome { .. }
         | ObservationQueryWire::ConditionalInterventionalOutcome { .. }
         | ObservationQueryWire::ThresholdCrossing { .. } => Ok(()),
+        ObservationQueryWire::JointMeasuredOutcome { measured, dependence, .. } => {
+            if measured.len() < 2 || measured.len() > 16
+                || dependence != "conditionally_independent_given_construct"
+            {
+                return Err(ObservationQueryArtifactError::Malformed(
+                    "joint measurement needs 2-16 indicators and an explicit conditional-independence declaration".into(),
+                ));
+            }
+            let construct = &measured[0].construct;
+            let mut ids = std::collections::BTreeSet::new();
+            if measured.iter().any(|slot| {
+                slot.construct != *construct || !ids.insert(slot.indicator_id.as_str())
+            }) {
+                return Err(ObservationQueryArtifactError::Malformed(
+                    "joint indicators must be distinct and name one construct".into(),
+                ));
+            }
+            Ok(())
+        }
         ObservationQueryWire::ParameterRedraw { retained, draws, .. } => {
             if retained.len() > MAX_COMPOSED_MECHANISMS || *draws > MAX_REDRAWS {
                 return Err(ObservationQueryArtifactError::LimitsExceeded("redraw"));
@@ -563,6 +596,39 @@ fn evaluate_finite(
 ) -> Result<ObservationResultWire, ObservationQueryArtifactError> {
     let model = ComposedFinite::compile(spec).map_err(composition_error)?;
     match query {
+        ObservationQueryWire::JointMeasuredOutcome {
+            outcome, interventions, observed, measured, ..
+        } => {
+            let observed = refs(observed);
+            let interventions = refs(interventions);
+            let law = intervened_law(&model, &interventions, &observed, ctx)
+                .map_err(query_error)?;
+            let construct = &measured[0].construct;
+            if interventions.iter().any(|(variable, _)| *variable == construct) {
+                return Err(refused(mixed_conditioning_refusal(construct)));
+            }
+            let mut likelihood = measured_slot_likelihood(&measured[0], &law, spec)?;
+            for indicator in &measured[1..] {
+                let next = measured_slot_likelihood(indicator, &law, spec)?;
+                if next.len() != likelihood.len() {
+                    return Err(ObservationQueryArtifactError::Malformed(
+                        "joint indicator likelihoods have different construct levels".into(),
+                    ));
+                }
+                for (joint, factor) in likelihood.iter_mut().zip(next) {
+                    *joint *= factor;
+                }
+            }
+            let answer = condition_on_measured(
+                &law, outcome, construct, &observed, &likelihood, ctx,
+            ).map_err(query_error)?;
+            Ok(ObservationResultWire::Conditional {
+                operation: query.operation().to_owned(),
+                evidence_probability_bits: answer.evidence_probability.to_bits(),
+                levels: level_bits(&answer.outcome),
+                construct_posterior: Some(level_bits(&answer.construct_posterior)),
+            })
+        }
         ObservationQueryWire::ConditionalInterventionalOutcome {
             outcome,
             interventions,
@@ -847,7 +913,9 @@ pub fn evaluate_observation_query(
 
 /// The format version and feature marker a query is carried under.
 const fn format_of(query: &ObservationQueryWire) -> (u32, &'static str) {
-    if query.is_general() {
+    if query.is_joint_measured() {
+        (OBSERVATION_QUERY_JOINT_MEASURED_VERSION, OBSERVATION_QUERY_JOINT_MEASURED_FEATURE)
+    } else if query.is_general() {
         (OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION, OBSERVATION_QUERY_GENERAL_FEATURE)
     } else {
         (OBSERVATION_QUERY_ARTIFACT_VERSION, OBSERVATION_QUERY_ARTIFACT_FEATURE)
@@ -961,6 +1029,7 @@ impl ObservationQueryArtifactWire {
         let wire: Self = crate::decode_with_version(bytes, |version: u32| {
             if version == OBSERVATION_QUERY_ARTIFACT_VERSION
                 || version == OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION
+                || version == OBSERVATION_QUERY_JOINT_MEASURED_VERSION
             {
                 Ok(())
             } else {

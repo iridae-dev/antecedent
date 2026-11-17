@@ -6,7 +6,8 @@
 use antecedent::analysis::multi_level_treatment::AdjustmentColumn;
 use antecedent::analysis::observational_policy::{
     ObservationalPolicyReportWire, ObservationalPolicyRequest, ObservationalPolicySpecWire,
-    ObservationalPolicyValue,
+    ObservationalPolicyValue, compile_observational_policy,
+    consume_compiled_observational_policy,
 };
 use antecedent::analysis::observational_survival::{
     ObservationalSurvivalEffect, ObservationalSurvivalReportWire, ObservationalSurvivalRequest,
@@ -196,6 +197,23 @@ fn policy_spec(evaluation: &str) -> ObservationalPolicySpecWire {
         seed: 2,
         ..ObservationalPolicySpecWire::default()
     }
+}
+
+#[test]
+fn learned_policy_compiles_the_split_and_independently_replays_it() {
+    let request = policy_request(policy_spec("held_out"));
+    let ctx = antecedent::prelude::ExecutionContext::production_default(request.spec.seed);
+    let plan = compile_observational_policy(request, &ctx).expect("policy compiler");
+    assert_eq!(plan.plan_view().route().as_str(), "ObservationalPolicy");
+    let report = plan.execute(&ctx).expect("held-out estimate");
+    assert_eq!(report.calibration, "not_measured");
+    let bytes = plan.export(&report, &ctx).expect("replay artifact");
+    let replay = consume_compiled_observational_policy(
+        &bytes, Some(plan.lowered().identity()), &ctx,
+    ).expect("independent policy replay");
+    assert_eq!(replay, report);
+    let changed_seed = antecedent::prelude::ExecutionContext::production_default(3);
+    assert!(consume_compiled_observational_policy(&bytes, None, &changed_seed).is_err());
 }
 
 #[test]

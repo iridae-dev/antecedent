@@ -244,6 +244,21 @@ pub enum ObservationQueryWire {
         /// One recorded indicator value, applied through its model.
         measured: Option<MeasuredSlotWire>,
     },
+    /// A finite outcome conditional on several noisy indicators of the same
+    /// construct, with measurement errors declared independent given that
+    /// construct. May also condition an interventional world. Format version 3.
+    JointMeasuredOutcome {
+        /// Outcome variable.
+        outcome: String,
+        /// Assigned values before conditioning.
+        interventions: Vec<(String, String)>,
+        /// Values recorded without measurement error.
+        observed: Vec<(String, String)>,
+        /// At least two distinct recorded indicators of one construct.
+        measured: Vec<MeasuredSlotWire>,
+        /// Must be `conditionally_independent_given_construct`.
+        dependence: String,
+    },
     /// The parameter uncertainty of a conditional functional by retained-data
     /// redraw: aligned posterior draws of the queried quantities. Format
     /// version 2.
@@ -336,6 +351,9 @@ impl ObservationQueryWire {
                 }
             }
             Self::ConditionalInterventionalOutcome { .. } => "conditional_intervention",
+            Self::JointMeasuredOutcome { interventions, .. } => {
+                if interventions.is_empty() { "conditioning" } else { "conditional_intervention" }
+            }
             Self::ParameterRedraw { .. } => "parameter_redraw",
             Self::ConditionalOutcome { .. } => "conditioning",
             Self::InterventionalOutcome { .. } => "intervention",
@@ -359,6 +377,7 @@ impl ObservationQueryWire {
                 | Self::ThresholdCrossing { .. }
                 | Self::GaussianOutcome { .. }
                 | Self::ConditionalInterventionalOutcome { .. }
+                | Self::JointMeasuredOutcome { .. }
                 | Self::ParameterRedraw { .. }
         )
     }
@@ -373,6 +392,12 @@ impl ObservationQueryWire {
                 | Self::ConditionalInterventionalOutcome { .. }
                 | Self::ParameterRedraw { .. }
         )
+    }
+
+    /// The joint noisy-indicator query requires its own scientific format.
+    #[must_use]
+    pub const fn is_joint_measured(&self) -> bool {
+        matches!(self, Self::JointMeasuredOutcome { .. })
     }
 
     /// This query with every assignment list in canonical (variable, level)
@@ -392,6 +417,11 @@ impl ObservationQueryWire {
             Self::ConditionalInterventionalOutcome { interventions, observed, .. } => {
                 interventions.sort();
                 observed.sort();
+            }
+            Self::JointMeasuredOutcome { interventions, observed, measured, .. } => {
+                interventions.sort();
+                observed.sort();
+                measured.sort_by(|left, right| left.indicator_id.cmp(&right.indicator_id));
             }
             Self::ParameterRedraw { target, retained, .. } => {
                 match target {

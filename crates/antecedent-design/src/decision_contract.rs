@@ -631,6 +631,8 @@ impl std::fmt::Display for DecisionContractError {
     }
 }
 
+impl std::error::Error for DecisionContractError {}
+
 const MAX_ACTIONS: usize = 1_024;
 const MAX_INPUTS: usize = 256;
 const MAX_DEPTH: usize = 64;

@@ -1,0 +1,110 @@
+# Compiler routes for composition
+
+This is the implementation ledger for composition across Antecedent's existing
+families. Every executable addition starts with a declared scientific question,
+passes the identification and carrier checks, lowers to a six-layer program,
+executes that retained program, and publishes a versioned artifact with an
+independent consumer. A Python adapter may construct a declaration or read an
+answer; it cannot establish a new scientific claim.
+
+The **claim-change** column measures the existing scientific claims or
+calibration that would have to be withdrawn if the route were implemented by
+changing old semantics. An additive, separately versioned route should keep
+that number at zero. This is not an estimate of engineering effort. New routes
+still need their own identification proof and calibration where they assert
+coverage or error control.
+
+| Priority | Limitation impact | Useful flow and existing support | Remaining compiler obligation | Existing claim change |
+| --- | --- | --- | --- | --- |
+| 1 | Critical | A chain's posterior or predictive law reaches a decision with nonlinear utility; `chain_decision_v1` now compiles a multi-action contract over retained aligned output coordinates and independently replays it | Bind action-specific worlds and their cross-world coupling under a declared intervention model | None for a new route; high if parameter draws are reinterpreted as outcome risk |
+| 2 | Critical | Uncertainty survives discovery, imputation, estimation, transport and decision; individual and some composite routes exist | Lower the full selection, fitting and transport schedule with dependence; measure coverage at the final coordinate | None for a new route; high if component intervals are relabelled as whole-chain coverage |
+| 3 | High | Transported or synthesized evidence feeds a distributional decision; `compile_transported_law_chain_decision` now checks the transport support policy and compiles an aligned, equally weighted declared law with its receipt into multi-action utility | Lower producer fitting, target population, overlap and pooling dependence into that same program | None for a new route; medium if current point transport claims are promoted to laws |
+| 4 | High | Sampling error composes with an assumption range; the chain envelope keeps the axes distinct, and `chain_robust_decision_v1` compiles conservative multi-action dominance with nonlinear utilities and chance constraints | Compile a calibrated sampling union at the exact output coordinate | None for a new route; high if an assumption range is treated as a confidence interval |
+| 5 | High | A policy learned on logged data is evaluated on that data; `compile_observational_policy` now binds all rows, adjustment columns, split seed, folds, nuisance families and learning/scoring steps to a six-layer program, and its artifact independently replays the report | Extend this compiler route with explicit information sets and graph-checked exchangeability; the estimator's positivity check remains at execution | None for a new route; high if same-data scores acquire an unbiasedness claim |
+| 6 | High | Graph uncertainty and missingness already compose for selected effects, including graph search rerun per imputation | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
+| 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws | Lower the bridge declaration, transport and utility together with checked value kind and coordinate | None for a new route; high if a surrogate score is substituted for an endpoint |
+| 8 | Medium | `prepare_component_feedback` joins checked scalar interfaces into one certified, model-conditional cyclic program with aligned disturbances and named hard clamps | Generalize to multi-output components and evidence-ledger checked dependence | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
+| 9 | Medium | Static path-specific transport and fixed-population temporal counterfactuals exist separately | Prove the target temporal path functional under selection and mediator assumptions, then lower its estimator and claim | None for a new route; high if ordinary transport is relabelled path-specific |
+| 10 | Medium | `JointMeasuredObservationPlan` compiles 2-16 noisy indicators of one finite construct under an explicit conditional-independence declaration and replays a version-3 observation artifact after conditioning or intervention | Add declared dependent-error measurement families and new calibration records for fitted measurement models | None for the additive route; medium if independent indicators are silently treated as a joint model |
+| 11 | Lower | Bundles independently verify many artifacts, including recalculation receipts; several study routes already execute with receipts, while a loaded bundle reads its receipt as historical | Lower bundle recomputation against the retained executable program and bind every dependency's replay result | None for a new route; low for numerical claims, but identity-only plans cannot become execution receipts |
+
+## Current source slice
+
+`propagation_chain_law_v2` retains the aligned output column and row weights
+for posterior and predictive readings. Its predictive mapping distinguishes
+parameter posterior draws from an outcome innovation; a predictive output is
+required to declare an outcome or utility coordinate and is labelled noncausal and
+uncalibrated. The chain is still compiled by
+`compile_propagation_chain`, and the independent consumer replays the stored
+law. A single fixed-reference decision utility stage is represented in the
+lowered evidence and decision layer; its verdict is already replayed with the
+stage result. The version-2 decision must be the output utility stage and
+declare its utility coordinate. Version-1 records remain consumable. The
+additive `chain_decision_v1` route compiles an existing `DecisionContract` over
+one retained law coordinate or a version-4 joint output law, including nonlinear utility, multiple actions,
+constraints and regret. Its consumer independently replays the chain and
+decision; posterior parameter draws refuse predictive outcome risk. A joint
+output law retains multiple stage columns with one common row-weight vector;
+the consumer replays every column. Action-specific worlds and their coupling
+remain open.
+
+`propagation_chain_assumption_v3` adds a second route for aligned sampling or
+posterior draws combined with interval-valued assumptions through rowwise
+transformations. The compiler carries a separate `assumption_envelope` reading
+and realization, including the draw-law meaning; the retained record stores one lower and upper enclosure per
+draw row and replays them independently. Its reported `lower` and `upper` are
+the weighted means of those endpoint columns, bounding the mean under every
+fixed admissible assumption. They have **no measured coverage**. The route
+refuses pooling and preposterior updates, which require additional law methods.
+A terminal fixed-reference utility stage lowers with an identified-set carrier
+and reports whether every admissible assumption favors acting, favors withholding,
+or leaves the comparison unresolved, conditional on the supplied draw table.
+The additive robust-decision compiler evaluates a `DecisionContract` with
+maximin-over-structures criterion over those rowwise enclosures. Interval
+arithmetic bounds nonlinear utilities and chance constraints for every action;
+it reports a winner only when one certainly admissible action strictly
+dominates every possibly admissible competitor. The consumer replays the
+chain, contract and bounds. Neither route establishes a calibrated sampling
+union or confidence region; that compiler obligation remains open.
+
+The scientific bridge's exported chain stage now carries its source-law
+meaning, output reading and target quantity. A predictive source remains
+predictive when uncertain mapping coefficients are applied; a new outcome
+residual is separately labelled an innovation. The chain rule accepts that
+declared combination, and the checked result's `compile_chain_stage` lowers the handoff
+through the central chain compiler as a predictive law.
+The bridge preparation and transport declarations are not yet lowered in one
+compiler program, so the remaining row-7 obligation is still open.
+
+An already declared transported joint law can enter `chain_decision_v1` with
+its receipt identity bound to the compiled chain input. The ingress checks
+the response's support label against the caller's decision policy and refuses
+any unsupported law column. It requires equal weights because this chain
+adapter does not yet retain the transport artifact's weight vector. Independent
+consumption replays the chain and utility; it does not refit the original
+transport estimator or recheck its source population's evidence. The transport
+receipt remains a declared premise, with no new coverage claim.
+
+The cyclic component adapter checks each scientific port and joins scalar
+mechanisms before preparing the complete connected model through the existing
+cyclic compiler. It requires the solver's global contraction certificate and
+retains explicit aligned disturbances and hard-clamp worlds. Existing acyclic
+interface composition continues to refuse feedback. The adapter does not
+promote any local calibration or support label to the connected equilibrium;
+multi-output components and aggregate evidence-ledger checking remain open.
+
+The observational policy compiler retains the existing held-out and cross-fit
+learning estimators under a source digest of all scored rows, covariates,
+evaluation settings and the split seed. It refuses a policy declared as
+learned on its own scoring rows before fitting, and its replay consumer
+recompiles and re-executes the estimator. The existing estimate remains
+conditional on declared adjustment sufficiency; its standard error still has
+`not_measured` calibration.
+
+The joint measured-signal route multiplies each checked `P(m_i | C)` only under
+the explicit declaration that indicator errors are independent given the same
+construct. It then conditions the complete finite model law, optionally after
+an intervention, through a new compiler cell and a version-3 observation
+artifact. The producer and consumer evaluate the same joint likelihood;
+measurement-rate uncertainty and dependent errors require separate new
+methods and calibration records.

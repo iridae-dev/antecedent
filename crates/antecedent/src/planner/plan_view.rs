@@ -1986,6 +1986,8 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::CyclicFamily(family) => PlanRoute::CyclicFamily(family),
         ProgramCell::Planning(design) => PlanRoute::Planning(design),
         ProgramCell::PropagationChain(reading) => PlanRoute::PropagationChain(reading),
+        ProgramCell::ObservationalPolicy => PlanRoute::ObservationalPolicy,
+        ProgramCell::JointMeasuredObservation => PlanRoute::JointMeasuredObservation,
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,
         ProgramCell::CategoricalPosteriorCandidate => PlanRoute::CategoricalPosteriorCandidate,
         ProgramCell::MnarFixedShift => PlanRoute::MnarFixedShift,
@@ -2047,6 +2049,8 @@ const fn realization_name(realization: &Realization) -> &'static str {
         Realization::GraphImputationV1 => "graph_imputation_v1",
         Realization::CategoricalPosteriorCandidateV1 => "categorical_posterior_candidate_v1",
         Realization::ExactPoint { .. } => "exact_point",
+        Realization::DeclaredPredictive { .. } => "declared_predictive",
+        Realization::DeclaredAssumptionEnvelope { .. } => "declared_assumption_envelope",
     }
 }
 

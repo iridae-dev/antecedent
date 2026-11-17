@@ -21,16 +21,31 @@
 
 use std::sync::Arc;
 
-use antecedent_core::ExecutionContext;
+use antecedent_contract::{ClaimKind, DataClassification};
+use antecedent_core::{
+    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect,
+    PhysicalOperator, ScoreFrequentist, ScoreModel, SemanticDigest,
+};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::observational_policy::{
-    KnownPropensity, ObservationalPolicyValue as Estimator, PolicyData, PolicyEvaluation,
-    PolicyObjective, PolicyOrigin,
+    DEFAULT_POLICY_FOLDS, KnownPropensity, ObservationalPolicyValue as Estimator,
+    PolicyData, PolicyEvaluation, PolicyObjective, PolicyOrigin,
 };
 use serde::{Deserialize, Serialize};
 
 use super::multi_level_treatment::AdjustmentColumn;
 use crate::error::CausalError;
+use crate::planner::lowered::{
+    ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
+    EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell,
+    ProgramIdentityScope, ScientificProblem, StandaloneCompositionLoweredParts,
+    UncertaintyReading,
+};
+use crate::planner::statistical::{
+    FoldPlan, ModelRole, ModelSlot, Realization, ResampleUnit, StatisticalProgram,
+};
+use crate::planner::{PlanStage, PlanView};
 
 /// Calibration standing of the reported standard errors.
 pub const OBSERVATIONAL_POLICY_CALIBRATION: &str = "not_measured";
@@ -389,6 +404,297 @@ impl ObservationalPolicyValue {
             calibration: OBSERVATIONAL_POLICY_CALIBRATION.into(),
         })
     }
+}
+
+const POLICY_PROGRAM_TAG: &str = "antecedent.observational_policy_program.v1";
+const POLICY_ARTIFACT_FEATURE: &str = "observational_policy_compiled_v1";
+const MAX_POLICY_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
+
+fn policy_compiler_refusal(message: &str) -> CausalError {
+    CausalError::Estimate(EstimationError::refused_detail(
+        antecedent_core::reason_code!("invalid_argument"),
+        "observational_policy.compiler",
+        message,
+    ))
+}
+
+fn policy_request_digest(
+    request: &ObservationalPolicyRequest,
+    seed: u64,
+) -> Result<[u8; 32], CausalError> {
+    let mut writer = CanonicalWriter::new(POLICY_PROGRAM_TAG);
+    writer.word(seed).word(request.outcome.len() as u64);
+    for value in &request.outcome { writer.word(value.to_bits()); }
+    writer.word(request.treatment.len() as u64);
+    for value in &request.treatment { writer.word(value.to_bits()); }
+    writer.word(request.adjustment.len() as u64);
+    for column in &request.adjustment {
+        writer.text(&column.name).word(column.values.len() as u64);
+        for value in &column.values { writer.word(value.to_bits()); }
+    }
+    let spec = antecedent_io::to_cbor(&request.spec)?;
+    writer.bytes(&spec);
+    Ok(writer.finish())
+}
+
+/// The complete learning and evaluation schedule, bound to one six-layer
+/// compiler program. Its adjustment sufficiency remains a declared assumption.
+#[derive(Clone, Debug)]
+pub struct CompiledObservationalPolicy {
+    request: ObservationalPolicyRequest,
+    seed: u64,
+    lowered: Arc<LoweredProgram>,
+}
+
+impl CompiledObservationalPolicy {
+    /// Every layer of the retained program, before fitting any nuisance model.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// View the retained policy program without scoring data.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Fit and score only through the retained compiler dispatch. The context
+    /// must carry the same split seed that compilation bound.
+    ///
+    /// # Errors
+    /// A changed seed, unsupported split, positivity failure or estimator refusal.
+    pub fn execute(&self, ctx: &ExecutionContext) -> Result<ObservationalPolicyReportWire, CausalError> {
+        if ctx.rng.master_seed() != self.seed {
+            return Err(policy_compiler_refusal("the execution split seed differs from the compiled policy program"));
+        }
+        let expected = policy_request_digest(&self.request, self.seed)?;
+        if self.lowered.scientific().source_digest() != Some(expected) {
+            return Err(policy_compiler_refusal("the policy request changed after compilation"));
+        }
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        ObservationalPolicyValue::evaluate(&self.request, &scoped)
+    }
+
+    /// Seal a report with the complete request for independent compiler replay.
+    ///
+    /// # Errors
+    /// A report from a different program or an artifact over the byte bound.
+    pub fn export(&self, report: &ObservationalPolicyReportWire, ctx: &ExecutionContext)
+        -> Result<Vec<u8>, CausalError> {
+        if self.execute(ctx)? != *report {
+            return Err(policy_compiler_refusal("the policy report differs from its compiled execution"));
+        }
+        let report_bytes = antecedent_io::to_cbor(report)?;
+        let wire = CompiledPolicyArtifactWire {
+            version: 1,
+            required_feature: POLICY_ARTIFACT_FEATURE.into(),
+            request: PolicyRequestWire::from_request(&self.request),
+            seed: self.seed,
+            lowered_program_identity: *self.lowered.identity().as_bytes(),
+            report_fingerprint: CanonicalWriter::digest_bytes(
+                "antecedent.observational_policy_report.v1", &report_bytes,
+            ),
+        };
+        let bytes = antecedent_io::to_cbor(&wire)?;
+        if bytes.len() > MAX_POLICY_ARTIFACT_BYTES {
+            return Err(policy_compiler_refusal("compiled policy artifact exceeds its byte limit"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Compile a policy learning and scoring request before fitting. The source
+/// digest covers every row, adjustment column, split declaration and RNG seed;
+/// the statistical layer retains the fold schedule and nuisance families.
+///
+/// # Errors
+/// An incomplete or same-row learning declaration, malformed input shape or
+/// physical operator refusal.
+pub fn compile_observational_policy(
+    request: ObservationalPolicyRequest,
+    ctx: &ExecutionContext,
+) -> Result<CompiledObservationalPolicy, CausalError> {
+    let (support, objective, evaluation) = ObservationalPolicyValue::policy_declarations(&request.spec)?;
+    if matches!(evaluation, PolicyEvaluation::Prespecified {
+        origin: PolicyOrigin::LearnedOnEvaluationRows, ..
+    }) {
+        return Err(policy_compiler_refusal("a policy learned on scoring rows needs held-out or cross-fitted evaluation"));
+    }
+    let rows = request.outcome.len();
+    if rows == 0 || request.treatment.len() != rows
+        || request.adjustment.iter().any(|column| column.name.trim().is_empty()
+            || column.values.len() != rows)
+    {
+        return Err(policy_compiler_refusal("the policy request needs aligned outcome, treatment and adjustment rows"));
+    }
+    let mut names: Vec<&str> = request.adjustment.iter().map(|column| column.name.as_str()).collect();
+    names.sort_unstable();
+    if names.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(policy_compiler_refusal("policy adjustment column names must be distinct"));
+    }
+    let seed = ctx.rng.master_seed();
+    let digest = policy_request_digest(&request, seed)?;
+    let folds = request.spec.folds.unwrap_or(DEFAULT_POLICY_FOLDS);
+    if folds < 2 {
+        return Err(policy_compiler_refusal("policy cross-fitting requires at least two folds"));
+    }
+    let evaluation_name = request.spec.evaluation.as_deref().unwrap_or("invalid");
+    let design = DesignShape::quoted(rows as u64, request.adjustment.len() as u64 + 1, true);
+    let scientific = ScientificProblem {
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::PolicyValue, outcome: None, query: digest,
+        },
+        plan_id: Arc::from(format!("observational_policy.{evaluation_name}")),
+        data: DataClassification::Tabular,
+        graph_class: "declared_adjustment",
+        query_variables: Arc::from(Vec::new()),
+        source_digest: Some(digest),
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
+    };
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::DeclaredPolicyEvaluation { request: digest },
+    ));
+    let model = |role, name: String| ModelSlot {
+        role, family: Arc::from(name), inputs: Arc::from(Vec::new()), output: None,
+    };
+    let mut models = vec![model(ModelRole::Outcome, format!(
+        "cross_fitted_per_action_outcome.{}", support.len(),
+    ))];
+    models.push(model(ModelRole::Propensity, if request.spec.known_propensity.is_some()
+        || request.spec.known_propensity_columns.is_some() {
+        "declared_assignment_probabilities".into()
+    } else {
+        "cross_fitted_multinomial_logit".into()
+    }));
+    if !matches!(evaluation, PolicyEvaluation::Prespecified { .. }) {
+        models.push(model(ModelRole::Nuisance, format!(
+            "policy_learning.{evaluation_name}.{}", objective.as_str(),
+        )));
+    }
+    let score_name = ScoreModel::new("observational_policy.cross_fitted_dr")
+        .map_err(|error| policy_compiler_refusal(&error.to_string()))?;
+    let statistical = StatisticalProgram {
+        identifier: None, estimator: None,
+        realization: Realization::Frequentist(ScoreFrequentist::new(score_name)),
+        models: Arc::from(models),
+        folds: Some(FoldPlan { folds, unit: ResampleUnit::Row, embargo: None }),
+        resampling: None, posterior: None, design,
+        operators: Arc::from(Vec::new()),
+    };
+    let evidence = EvidenceDecisionProgram {
+        sources: Arc::from(vec![EvidenceSourceRef {
+            role: EvidenceRole::Observations, digest: Some(digest),
+        }]),
+        composition: Composition::Chained { stages: 3 },
+        decision: None, planning: None, chain: None,
+    };
+    let estimate = (rows as u64).saturating_mul(
+        (request.adjustment.len() as u64).saturating_add(support.len() as u64 + 4),
+    ).saturating_mul(8);
+    let physical = PhysicalLayer {
+        operators: Arc::from([
+            PhysicalOperator::declare(PhysicalEffect::Select)
+                .estimates(ByteEstimates::absent().with_output(estimate)).build()
+                .map_err(|error| policy_compiler_refusal(&error.to_string()))?,
+            PhysicalOperator::declare(PhysicalEffect::Fit)
+                .estimates(ByteEstimates::absent().with_output(estimate)).build()
+                .map_err(|error| policy_compiler_refusal(&error.to_string()))?,
+            PhysicalOperator::declare(PhysicalEffect::Condition)
+                .estimates(ByteEstimates::absent().with_output(estimate)).build()
+                .map_err(|error| policy_compiler_refusal(&error.to_string()))?,
+        ]),
+        design,
+    };
+    let claim = ClaimDemand {
+        uncertainty: UncertaintyReading::Sampling,
+        kind: Some(ClaimKind::PolicyValue),
+    };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::ObservationalPolicy,
+        scientific, identification, statistical, evidence, physical, claim,
+    }.finish());
+    Ok(CompiledObservationalPolicy { request, seed, lowered })
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PolicyRequestWire {
+    outcome: Vec<u64>,
+    treatment: Vec<u64>,
+    adjustment: Vec<(String, Vec<u64>)>,
+    spec: ObservationalPolicySpecWire,
+}
+
+impl PolicyRequestWire {
+    fn from_request(request: &ObservationalPolicyRequest) -> Self {
+        Self {
+            outcome: request.outcome.iter().map(|value| value.to_bits()).collect(),
+            treatment: request.treatment.iter().map(|value| value.to_bits()).collect(),
+            adjustment: request.adjustment.iter().map(|column| (
+                column.name.clone(), column.values.iter().map(|value| value.to_bits()).collect(),
+            )).collect(),
+            spec: request.spec.clone(),
+        }
+    }
+
+    fn into_request(self) -> ObservationalPolicyRequest {
+        ObservationalPolicyRequest {
+            outcome: self.outcome.into_iter().map(f64::from_bits).collect(),
+            treatment: self.treatment.into_iter().map(f64::from_bits).collect(),
+            adjustment: self.adjustment.into_iter().map(|(name, values)| AdjustmentColumn {
+                name, values: values.into_iter().map(f64::from_bits).collect(),
+            }).collect(),
+            spec: self.spec,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct CompiledPolicyArtifactWire {
+    version: u32,
+    required_feature: String,
+    request: PolicyRequestWire,
+    seed: u64,
+    lowered_program_identity: [u8; 32],
+    report_fingerprint: [u8; 32],
+}
+
+/// Independently recompile and execute a retained policy request. The caller's
+/// context must use the artifact's split seed; every report value is recomputed.
+///
+/// # Errors
+/// A foreign feature, changed compiler program, changed report or estimator refusal.
+pub fn consume_compiled_observational_policy(
+    bytes: &[u8], expected_program: Option<SemanticDigest>, ctx: &ExecutionContext,
+) -> Result<ObservationalPolicyReportWire, CausalError> {
+    if bytes.len() > MAX_POLICY_ARTIFACT_BYTES {
+        return Err(policy_compiler_refusal("compiled policy artifact exceeds its byte limit"));
+    }
+    let wire: CompiledPolicyArtifactWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.required_feature != POLICY_ARTIFACT_FEATURE
+        || wire.seed != ctx.rng.master_seed()
+    {
+        return Err(policy_compiler_refusal("compiled policy artifact version, feature or split seed differs"));
+    }
+    let plan = compile_observational_policy(wire.request.into_request(), ctx)?;
+    let identity = plan.lowered().identity();
+    if wire.lowered_program_identity != *identity.as_bytes()
+        || expected_program.is_some_and(|expected| expected != identity)
+    {
+        return Err(policy_compiler_refusal("compiled policy program identity differs"));
+    }
+    let report = plan.execute(ctx)?;
+    let fingerprint = CanonicalWriter::digest_bytes(
+        "antecedent.observational_policy_report.v1", &antecedent_io::to_cbor(&report)?,
+    );
+    if wire.report_fingerprint != fingerprint {
+        return Err(policy_compiler_refusal("compiled policy report differs on independent replay"));
+    }
+    Ok(report)
 }
 
 fn estimand(evaluation: &PolicyEvaluation) -> &'static str {

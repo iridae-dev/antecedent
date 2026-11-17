@@ -47,6 +47,18 @@ pub enum Realization {
         /// Name of the evaluator.
         evaluator: Arc<str>,
     },
+    /// A declared, aligned predictive outcome law transformed by the program.
+    DeclaredPredictive {
+        /// Name of the predictive evaluator.
+        evaluator: Arc<str>,
+    },
+    /// Aligned draws evaluated under each admissible interval assumption.
+    DeclaredAssumptionEnvelope {
+        /// Name of the interval evaluator.
+        evaluator: Arc<str>,
+        /// Whether the aligned row axis is a sampling law or a posterior.
+        draw_meaning: antecedent_contract::propagation_chain::LawMeaning,
+    },
 }
 
 impl Realization {
@@ -72,6 +84,12 @@ impl Realization {
             }
             Self::ExactPoint { evaluator } => {
                 writer.text("exact_point").text(evaluator);
+            }
+            Self::DeclaredPredictive { evaluator } => {
+                writer.text("declared_predictive").text(evaluator);
+            }
+            Self::DeclaredAssumptionEnvelope { evaluator, draw_meaning } => {
+                writer.text("declared_assumption_envelope").text(evaluator).word(draw_meaning.tag());
             }
         }
     }

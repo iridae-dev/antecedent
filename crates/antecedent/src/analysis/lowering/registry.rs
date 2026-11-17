@@ -193,6 +193,10 @@ macro_rules! route_lowerings {
             Planning(&'static str),
             /// A chain of transformations, by the reading it answers.
             PropagationChain(&'static str),
+            /// Complete observational policy learning and scoring.
+            ObservationalPolicy,
+            /// Joint measured-signal observation of a composed finite model.
+            JointMeasuredObservation,
             /// A graph-selection imputation composite.
             GraphImputation,
             /// A scientifically closed categorical posterior candidate.
@@ -212,6 +216,8 @@ macro_rules! route_lowerings {
                     Self::CyclicFamily(_) => "CyclicFamily",
                     Self::Planning(_) => "ExperimentPlanning",
                     Self::PropagationChain(_) => "PropagationChain",
+                    Self::ObservationalPolicy => "ObservationalPolicy",
+                    Self::JointMeasuredObservation => "JointMeasuredObservation",
                     Self::GraphImputation => "GraphImputation",
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
                     Self::MnarFixedShift => "MnarFixedShift",
@@ -231,6 +237,8 @@ macro_rules! route_lowerings {
                     Self::CyclicFamily(_) => RouteFamily::Cyclic,
                     Self::Planning(_) => RouteFamily::Planning,
                     Self::PropagationChain(_) => RouteFamily::PropagationChain,
+                    Self::ObservationalPolicy => RouteFamily::DesignBased,
+                    Self::JointMeasuredObservation => RouteFamily::Structural,
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,
                     Self::MnarFixedShift => RouteFamily::DesignBased,

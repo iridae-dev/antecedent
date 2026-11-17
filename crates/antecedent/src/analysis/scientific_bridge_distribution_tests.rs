@@ -384,3 +384,25 @@ fn a_chain_of_bridge_transport_and_utility_propagates_the_mapping_and_the_source
     .expect("consume");
     assert_eq!(consumed.output, "utility");
 }
+
+#[test]
+fn a_predictive_bridge_handoff_compiles_as_a_predictive_law() {
+    let mut declaration = uncertain();
+    declaration.source_value = ValueKind::PredictiveLaw;
+    declaration.target_value = ValueKind::PredictiveLaw;
+    let table = draws_table(1_001, 1.0, 0.3, DistributionMeaningWire::PosteriorPredictive);
+    let result = PreparedScientificBridgeDistribution::prepare(declaration)
+        .expect("predictive bridge")
+        .derive(&table, None, 9)
+        .expect("predictive mapped draws");
+    let parts = result.chain_stage("terminal").expect("aligned bridge stage");
+    assert_eq!(parts.reading, ChainReading::Predictive);
+    assert_eq!(parts.sources[0].meaning.as_deref(), Some("predictive"));
+    let ctx = ExecutionContext::for_tests(31);
+    let plan = result.compile_chain_stage("terminal", &ctx)
+        .expect("compiler accepts checked predictive handoff");
+    let chain = plan.execute(&ctx).expect("retained bridge program executes");
+    assert_eq!(chain.label(), "predictive_propagation");
+    let output = chain.stage("terminal").expect("mapped output");
+    assert!((output.value("mean").unwrap() - result.mean()).abs() < 1e-9);
+}

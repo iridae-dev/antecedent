@@ -134,7 +134,8 @@ pub use observation_query::{
     ContinuousSlotsRequest, InferenceBasis, MeasuredIndicator, OBSERVATION_QUERY_STAGE,
     ObservationContext, ObservationOperation, ObservationSlotsRequest, ObservedSlot,
     SlotProvenance, SlotValue, calibration_refusal, check_continuous_assignments,
-    check_observation_slots, interval_refusal, level_unreachable_refusal, measured_likelihood,
+    check_joint_measured_slots, check_observation_slots, interval_refusal,
+    level_unreachable_refusal, measured_likelihood,
     mixed_conditioning_refusal, zero_probability_evidence_refusal,
 };
 pub use plan::{

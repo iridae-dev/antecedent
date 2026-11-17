@@ -107,6 +107,8 @@ pub enum CarrierDemand {
     ParameterPosterior,
     /// Risk or a threshold of an individual outcome; only an outcome law carries it.
     OutcomeLaw,
+    /// A declared predictive law, without an interventional interpretation.
+    PredictiveLaw,
     /// A declared joint identified-set/scenario carrier for robust evaluation.
     IdentifiedSet,
 }
@@ -119,6 +121,7 @@ impl CarrierDemand {
             Self::Mean => "mean",
             Self::ParameterPosterior => "parameter_posterior",
             Self::OutcomeLaw => "outcome_law",
+            Self::PredictiveLaw => "predictive_law",
             Self::IdentifiedSet => "identified_set",
         }
     }
@@ -133,7 +136,7 @@ impl CarrierDemand {
         match self {
             Self::Mean | Self::IdentifiedSet => None,
             Self::ParameterPosterior => Some(DecisionRequest::ParameterPosterior),
-            Self::OutcomeLaw => Some(DecisionRequest::IndividualOutcomeRisk),
+            Self::OutcomeLaw | Self::PredictiveLaw => Some(DecisionRequest::IndividualOutcomeRisk),
         }
     }
 }

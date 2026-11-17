@@ -230,6 +230,8 @@ pub mod posterior_boundaries;
 pub mod predictive_assessment;
 mod preflight;
 pub mod propagation_chain;
+pub mod propagation_chain_decision;
+pub mod propagation_chain_robust_decision;
 pub mod provider_callbacks;
 pub(crate) mod query_support;
 mod rank_drop_estimate;
@@ -445,6 +447,14 @@ pub use propagation_chain::{
     ChainAuthority, FamilyDependence, FamilyEstimate, FamilyTable, PropagationChain,
     consume_propagation_chain, family_table, independent_product_table,
 };
+pub use propagation_chain_decision::{
+    ChainDecisionError, ChainDecisionPlan, ChainDecisionResult, compile_chain_decision,
+    compile_transported_law_chain_decision, consume_chain_decision,
+};
+pub use propagation_chain_robust_decision::{
+    ChainRobustDecisionPlan, ChainRobustDecisionResult, RobustActionBound,
+    RobustConstraintBound, compile_chain_robust_decision, consume_chain_robust_decision,
+};
 pub use provider_callbacks::{
     CallbackConnectionError, CallbackExecution, CallbackExecutionError, CallbackExecutionPolicy,
     CallbackRegistrationError, CallbackResume, CallbackSession, FnCallback, ProviderCallback,
@@ -460,7 +470,7 @@ pub use recovery::{
     consume_observation_recovery_artifact,
 };
 pub use scientific_bridge::{
-    BridgeInspection, ConsumedScientificBridge, ConsumedScientificBridgeDistribution,
+    BridgeChainCompileError, BridgeInspection, ConsumedScientificBridge, ConsumedScientificBridgeDistribution,
     DistributionBridgeInspection, PreparedScientificBridge, PreparedScientificBridgeDistribution,
     ScientificBridgeDistributionResult, ScientificBridgeExport, ScientificBridgeRefusal,
     ScientificBridgeResult, consume_scientific_bridge_artifact,
@@ -631,7 +641,13 @@ pub use antecedent_io::cyclic_family_artifact::{
 
 /// Cyclic specialization of the common retained prepared-analysis handle.
 pub mod cyclic;
+pub mod cyclic_component_composition;
 pub mod cyclic_evidence;
+pub use cyclic_component_composition::{
+    ComponentFeedbackError, ComponentFeedbackRequest, ComponentFeedbackWorld,
+    FeedbackConnection, PreparedComponentFeedback, ScalarFeedbackComponent,
+    prepare_component_feedback,
+};
 
 /// Checked nonlinear two-channel panel compiler and retained programs.
 pub mod joint_panel;
@@ -647,3 +663,7 @@ pub use data_diagnostics::{
 pub mod checked_claim_composition;
 
 pub mod robust_decision;
+
+#[cfg(test)]
+#[path = "propagation_chain_decision_tests.rs"]
+mod propagation_chain_decision_tests;

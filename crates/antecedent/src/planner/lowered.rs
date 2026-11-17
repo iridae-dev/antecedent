@@ -84,6 +84,8 @@ impl LoweringDepth {
 pub enum FunctionalKind {
     /// Law of an outcome under an intervention.
     InterventionalDistribution,
+    /// Conditional outcome law given recorded evidence, optionally after an intervention.
+    ConditionalObservation,
     /// Effect transmitted along a declared set of paths.
     PathSpecific,
     /// Unit-level counterfactual.
@@ -143,6 +145,7 @@ impl FunctionalKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::InterventionalDistribution => "interventional_distribution",
+            Self::ConditionalObservation => "conditional_observation",
             Self::PathSpecific => "path_specific",
             Self::Counterfactual => "counterfactual",
             Self::AnomalyAttribution => "anomaly_attribution",
@@ -389,6 +392,12 @@ pub(crate) enum NonGraphicalIdentification {
         /// Digest of the declared chain, which carries the declared factors.
         contract: [u8; 32],
     },
+    /// Observational policy adjustment and row-splitting are declared; the
+    /// graph-based exchangeability assumption is not verified by this route.
+    DeclaredPolicyEvaluation {
+        /// Digest of the complete rows, policy rule and evaluation split.
+        request: [u8; 32],
+    },
 }
 
 impl NonGraphicalIdentification {
@@ -399,6 +408,7 @@ impl NonGraphicalIdentification {
             Self::ExperimentalRecovery { .. } => "experimental_recovery",
             Self::CyclicIoScm { .. } => "cyclic_ioscm",
             Self::SharedEvidenceContract { .. } => "shared_evidence_contract",
+            Self::DeclaredPolicyEvaluation { .. } => "declared_policy_evaluation",
         }
     }
 
@@ -422,6 +432,9 @@ impl NonGraphicalIdentification {
             }
             Self::SharedEvidenceContract { contract } => {
                 writer.bytes(contract);
+            }
+            Self::DeclaredPolicyEvaluation { request } => {
+                writer.bytes(request);
             }
         }
     }
@@ -689,6 +702,10 @@ pub enum UncertaintyReading {
     Sampling,
     /// Posterior law under a declared likelihood and prior.
     Posterior,
+    /// Predictive law of a future outcome under a declared model.
+    Predictive,
+    /// Draw-indexed bounds under an interval-valued assumption, without coverage.
+    AssumptionEnvelope,
     /// Identified set or envelope.
     Envelope,
     /// Point claim with no uncertainty.
@@ -702,6 +719,8 @@ impl UncertaintyReading {
         match self {
             Self::Sampling => "sampling",
             Self::Posterior => "posterior",
+            Self::Predictive => "predictive",
+            Self::AssumptionEnvelope => "assumption_envelope",
             Self::Envelope => "envelope",
             Self::None => "none",
         }
@@ -895,6 +914,39 @@ impl ChainLoweredParts {
     }
 }
 
+/// Six-layer compilation of a standalone typed composition route. The cell
+/// selects the scientific family; each route supplies its own complete layers.
+pub(crate) struct StandaloneCompositionLoweredParts {
+    pub(crate) cell: ProgramCell,
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl StandaloneCompositionLoweredParts {
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = self.cell;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell, depth, scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical), evidence: self.evidence,
+            physical: self.physical, claim: self.claim, identity, binding: None,
+        }
+    }
+}
+
 /// The six layers of a bounded graph-selection imputation operation.
 pub(crate) struct GraphImputationLoweredParts {
     pub(crate) scientific: ScientificProblem,
@@ -1022,6 +1074,10 @@ pub(crate) enum ProgramCell {
     Planning(&'static str),
     /// A chain of transformations, by the reading it answers.
     PropagationChain(&'static str),
+    /// Complete observational policy learning and held-out scoring.
+    ObservationalPolicy,
+    /// Several noisy indicators of a construct in one observation query.
+    JointMeasuredObservation,
     /// A bounded graph-selection imputation composite.
     GraphImputation,
     /// A scientifically closed categorical posterior candidate.
@@ -1038,6 +1094,8 @@ impl ProgramCell {
             Self::CyclicFamily(_) => "CyclicFamily",
             Self::Planning(_) => "ExperimentPlanning",
             Self::PropagationChain(_) => "PropagationChain",
+            Self::ObservationalPolicy => "ObservationalPolicy",
+            Self::JointMeasuredObservation => "JointMeasuredObservation",
             Self::GraphImputation => "GraphImputation",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
             Self::MnarFixedShift => "MnarFixedShift",
@@ -1095,6 +1153,8 @@ impl LoweredProgram {
             ProgramCell::Route(_)
             | ProgramCell::Planning(_)
             | ProgramCell::PropagationChain(_)
+            | ProgramCell::ObservationalPolicy
+            | ProgramCell::JointMeasuredObservation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
@@ -1109,6 +1169,8 @@ impl LoweredProgram {
             ProgramCell::Route(_)
             | ProgramCell::CyclicFamily(_)
             | ProgramCell::PropagationChain(_)
+            | ProgramCell::ObservationalPolicy
+            | ProgramCell::JointMeasuredObservation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
@@ -1123,6 +1185,8 @@ impl LoweredProgram {
             ProgramCell::Route(_)
             | ProgramCell::CyclicFamily(_)
             | ProgramCell::Planning(_)
+            | ProgramCell::ObservationalPolicy
+            | ProgramCell::JointMeasuredObservation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,

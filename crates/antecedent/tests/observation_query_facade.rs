@@ -22,6 +22,7 @@ use antecedent::analysis::observation_posterior::{
 use antecedent::analysis::observation_query::{
     ContinuousAssignments, Direction, ObservationQueryRefusal, ObservationQueryWire,
     ObservationRequest, ObservationResultWire, ParameterRedrawRequest, RedrawPrior,
+    JointMeasuredObservationRequest,
     consume_observation_query_artifact, retain_counts, retain_regression,
 };
 use antecedent::{
@@ -222,6 +223,39 @@ fn measured(model: Option<MeasurementModel>, recorded: &str) -> ObservedSlot {
             representation: representation(),
         }),
     }
+}
+
+#[test]
+fn joint_measured_query_compiles_and_replays_two_indicators() {
+    let prepared = construct_model();
+    let first = measured(Some(assay_model("pop")), "1");
+    let mut second_model = assay_model("pop");
+    second_model.model_id = "assay-validation-2".into();
+    second_model.indicator.id = "test_result_2".into();
+    if let MeasurementParameters::Binary { rates, .. } = &mut second_model.parameters {
+        rates[0].sensitivity = 0.7;
+    }
+    let mut second = measured(Some(second_model), "1");
+    if let SlotValue::Measured(indicator) = &mut second.value {
+        indicator.indicator_id = "test_result_2".into();
+    }
+    let request = JointMeasuredObservationRequest {
+        outcome: "Y".into(), conditioning: vec![second, first],
+        interventions: Vec::new(),
+        dependence: "conditionally_independent_given_construct".into(),
+    };
+    let plan = prepared.compile_joint_measured_observation(&request).expect("joint compiler");
+    assert_eq!(plan.plan_view().route().as_str(), "JointMeasuredObservation");
+    let claim = plan.execute(&ctx()).expect("joint conditional law");
+    near(level(&claim.conditional_levels().expect("levels"), "1"),
+        (0.1 * 0.036 + 0.7 * 0.063) / 0.099);
+    let bytes = claim.export().expect("v3 artifact");
+    let replay = plan.consume(&bytes, plan.lowered().identity(), &ctx())
+        .expect("compiler and artifact replay");
+    assert_eq!(replay.result(), claim.result());
+    let mut missing = request;
+    missing.dependence = "unspecified".into();
+    assert!(prepared.compile_joint_measured_observation(&missing).is_err());
 }
 
 fn pair(variable: &str, level: &str) -> (String, String) {
