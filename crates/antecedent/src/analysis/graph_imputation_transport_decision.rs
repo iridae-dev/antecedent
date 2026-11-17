@@ -260,7 +260,7 @@ pub fn compile_graph_imputation_transport_decision(
     })
 }
 
-fn effect_chain(
+pub(crate) fn effect_chain(
     reading: &GraphPointReading, quantity: &ScientificQuantity,
 ) -> PropagationChainRecordWire {
     let receipt = SemanticDigest::from_bytes(reading.receipt).to_hex();

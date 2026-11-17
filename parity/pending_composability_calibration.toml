@@ -93,3 +93,13 @@ ignored = true
 grid = true
 whole = true
 reason = "Independent Gaussian clusters each contribute two correlated raw unit rows to an assumption-envelope chain with fixed bias [0,1]. Every outer replicate regenerates clusters, then the compiler draws 200 complete-cluster bootstrap resamples and recompiles the whole chain. The 60/120/240-row grid scores joint containment of true set [1,2] under the exact cluster-design basis. No coverage or decision record is measured or earned."
+
+[[group]]
+label = "graph_imputation_kernel_transport_calibration: graph_imputation_kernel_target_frame_l95"
+package = "antecedent"
+target = "graph_imputation_kernel_transport_calibration"
+tests = ["graph_imputation_kernel_target_frame_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Independent continuous source and target covariate frames, randomized binary treatment, MAR-missing Gaussian outcomes and known linear treatment-effect modification. Every replicate reruns source imputation, graph selection, kernel target standardization, child posterior fitting and final utility, then scores the route's exact 95% target-frame effect interval against analytic truth conditional on the target frame. The 60/120/240-row grid is prospective; no coverage or decision reliability is earned."

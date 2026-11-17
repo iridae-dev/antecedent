@@ -2005,6 +2005,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,
         ProgramCell::GraphImputationEffectDecision => PlanRoute::GraphImputationEffectDecision,
         ProgramCell::GraphImputationTransportDecision => PlanRoute::GraphImputationTransportDecision,
+        ProgramCell::GraphImputationKernelTransportDecision => PlanRoute::GraphImputationKernelTransportDecision,
         ProgramCell::CategoricalPosteriorCandidate => PlanRoute::CategoricalPosteriorCandidate,
         ProgramCell::MnarFixedShift => PlanRoute::MnarFixedShift,
     }

@@ -228,6 +228,8 @@ macro_rules! route_lowerings {
             GraphImputationEffectDecision,
             /// Graph-imputation target standardization and downstream utility.
             GraphImputationTransportDecision,
+            /// Graph-imputation transport over mixed target covariates.
+            GraphImputationKernelTransportDecision,
             /// A scientifically closed categorical posterior candidate.
             CategoricalPosteriorCandidate,
             /// A bounded fixed-shift MNAR operation.
@@ -264,6 +266,7 @@ macro_rules! route_lowerings {
                     Self::GraphImputation => "GraphImputation",
                     Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
                     Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
+                    Self::GraphImputationKernelTransportDecision => "GraphImputationKernelTransportDecision",
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
                     Self::MnarFixedShift => "MnarFixedShift",
                 }
@@ -301,6 +304,7 @@ macro_rules! route_lowerings {
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::GraphImputationEffectDecision => RouteFamily::GraphImputation,
                     Self::GraphImputationTransportDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationKernelTransportDecision => RouteFamily::GraphImputation,
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,
                     Self::MnarFixedShift => RouteFamily::DesignBased,
                 }

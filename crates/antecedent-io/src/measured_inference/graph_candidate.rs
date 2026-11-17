@@ -158,6 +158,130 @@ impl TransportStandardization {
     pub fn rows(&self) -> usize { self.columns.first().map_or(0, |column| column.1.len()) }
 }
 
+/// Independent target frame for mixed binary and continuous pretreatment
+/// covariates. Continuous columns use declared Gaussian kernel bandwidths for
+/// source-to-target density-ratio standardization on every completed table.
+/// The empirical target frame and bandwidths remain model assumptions; this
+/// route earns no interval coverage or decision reliability from the binary
+/// stratum route.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KernelTransportStandardization {
+    /// Complete target covariate columns in ascending source-schema order.
+    pub columns: Vec<(u32, Vec<f64>)>,
+    /// Pretreatment mechanisms allowed to differ, in ascending order.
+    pub selection_targets: Vec<u32>,
+    /// Source population represented by the graph-imputation sample.
+    pub source_population: String,
+    /// Population represented by the independent target frame.
+    pub target_population: String,
+    /// Source-sample identity bound to the upstream compiler.
+    pub source_sample: String,
+    /// Independent target-sample identity.
+    pub target_sample: String,
+    /// Source unit identities in original row order.
+    pub source_unit_ids: Vec<String>,
+    /// Target unit identities in representative row order.
+    pub target_unit_ids: Vec<String>,
+    /// One positive finite bandwidth for every continuous target column.
+    pub bandwidths: Vec<(u32, f64)>,
+    /// Minimum mean source kernel support at each target row in (0, 1).
+    pub min_kernel_overlap: f64,
+}
+
+impl KernelTransportStandardization {
+    /// Validate source and target independence, mixed domains, bandwidths and
+    /// the graph's pretreatment adjustment support before numerical execution.
+    ///
+    /// # Errors
+    /// Missing columns, unsafe selections, invalid data or kernel policy.
+    pub fn validate(&self, parts: &GraphImputationParts) -> Result<(), IoError> {
+        if self.source_population.trim().is_empty() || self.target_population.trim().is_empty()
+            || self.source_population == self.target_population
+            || self.source_sample.trim().is_empty() || self.target_sample.trim().is_empty()
+            || self.source_sample == self.target_sample
+            || self.columns.is_empty() || self.selection_targets.is_empty()
+            || parts.support != GraphSupport::TreatmentRootPreTreatmentCovariates
+            || !self.min_kernel_overlap.is_finite()
+            || !(0.0..1.0).contains(&self.min_kernel_overlap)
+        {
+            return Err(invalid("kernel transport needs distinct samples, pretreatment support and a bounded overlap floor"));
+        }
+        let rows = self.rows();
+        if rows < 2 || self.columns.iter().any(|(_, values)| values.len() != rows)
+            || self.source_unit_ids.len() != parts.rows()
+            || self.target_unit_ids.len() != rows
+            || parts.rows().checked_mul(rows.saturating_add(parts.rows()))
+                .and_then(|pairs| pairs.checked_mul(parts.atoms.len()))
+                .and_then(|pairs| pairs.checked_mul(parts.imputations as usize))
+                .is_none_or(|pairs| pairs > 50_000_000)
+        {
+            return Err(invalid("kernel target columns and unit identities must align"));
+        }
+        let mut units = BTreeSet::new();
+        if self.source_unit_ids.iter().chain(&self.target_unit_ids).any(|unit| {
+            unit.trim().is_empty() || !units.insert(unit.as_str())
+        }) {
+            return Err(invalid("source and target units must have distinct nonblank identities"));
+        }
+        let mut previous = None;
+        for (id, values) in &self.columns {
+            if previous.is_some_and(|last| last >= *id)
+                || *id as usize >= parts.names.len()
+                || *id == parts.treatment || *id == parts.outcome
+                || values.iter().any(|value| !value.is_finite())
+                || (parts.domains[*id as usize] == 1
+                    && values.iter().any(|value| *value != 0.0 && *value != 1.0))
+            {
+                return Err(invalid("kernel target columns must be unique complete pretreatment covariates in their domains"));
+            }
+            previous = Some(*id);
+        }
+        let mut last = None;
+        for &id in &self.selection_targets {
+            if last.is_some_and(|previous| previous >= id)
+                || !self.columns.iter().any(|(column, _)| *column == id)
+            {
+                return Err(invalid("selection targets must be unique target covariates"));
+            }
+            last = Some(id);
+        }
+        if parts.atoms.iter().any(|atom| atom.adjustment.iter().any(|id| {
+            !self.columns.iter().any(|(column, _)| column == id)
+        })) {
+            return Err(invalid("every graph adjustment needs a complete target column"));
+        }
+        let continuous: Vec<u32> = self.columns.iter().filter_map(|(id, _)| {
+            (parts.domains[*id as usize] == 0).then_some(*id)
+        }).collect();
+        if continuous.is_empty()
+            || !self.selection_targets.iter().any(|id| continuous.contains(id))
+            || self.bandwidths.len() != continuous.len()
+            || self.bandwidths.iter().zip(continuous).any(|(&(id, bandwidth), expected)| {
+                id != expected || !bandwidth.is_finite() || bandwidth <= 0.0
+            })
+        {
+            return Err(invalid("each continuous target column needs one positive bandwidth"));
+        }
+        Ok(())
+    }
+
+    /// Source-target frame, kernel policy and selection-premise digest.
+    ///
+    /// # Errors
+    /// Encoding refusal.
+    pub fn digest(&self) -> Result<[u8; 32], IoError> {
+        Ok(CanonicalWriter::digest_bytes(
+            "antecedent.graph_imputation_kernel_transport.target.v1",
+            &crate::to_cbor(self)?,
+        ))
+    }
+
+    /// Number of aligned target rows.
+    #[must_use]
+    pub fn rows(&self) -> usize { self.columns.first().map_or(0, |column| column.1.len()) }
+}
+
 fn invalid(message: impl std::fmt::Display) -> IoError {
     IoError::Refused {
         code: antecedent_core::reason_code!("invalid_argument"),
@@ -401,14 +525,103 @@ struct Execution {
     lease: AdmissionLease,
 }
 
+#[derive(Clone, Copy)]
+enum TransportTarget<'a> {
+    Binary(&'a TransportStandardization),
+    Kernel(&'a KernelTransportStandardization),
+}
+
+impl<'a> TransportTarget<'a> {
+    fn columns(self) -> &'a [(u32, Vec<f64>)] {
+        match self { Self::Binary(value) => &value.columns, Self::Kernel(value) => &value.columns }
+    }
+
+    fn selections(self) -> &'a [u32] {
+        match self {
+            Self::Binary(value) => &value.selection_targets,
+            Self::Kernel(value) => &value.selection_targets,
+        }
+    }
+
+    fn rows(self) -> usize {
+        match self { Self::Binary(value) => value.rows(), Self::Kernel(value) => value.rows() }
+    }
+
+    fn digest(self) -> Result<[u8; 32], IoError> {
+        match self { Self::Binary(value) => value.digest(), Self::Kernel(value) => value.digest() }
+    }
+}
+
+fn kernel_transport_weights(
+    source_columns: &[Vec<f64>], target_columns: &[&[f64]],
+    adjustment: &[u32], domains: &[u8], target: &KernelTransportStandardization,
+) -> Result<Vec<f64>, IoError> {
+    let source_rows = source_columns.first().map_or(0, Vec::len);
+    let target_rows = target.rows();
+    let kernel = |source: usize, other: usize, other_target: bool| -> f64 {
+        let mut log_weight = 0.0;
+        for (position, &id) in adjustment.iter().enumerate() {
+            let left = source_columns[position][source];
+            let right = if other_target {
+                target_columns[position][other]
+            } else {
+                source_columns[position][other]
+            };
+            if domains[id as usize] == 1 {
+                if left != right { return 0.0; }
+            } else {
+                let bandwidth = target.bandwidths.iter()
+                    .find(|(column, _)| *column == id)
+                    .map(|(_, bandwidth)| *bandwidth)
+                    .unwrap_or(f64::NAN);
+                let distance = (left - right) / bandwidth;
+                log_weight -= 0.5 * distance * distance;
+            }
+        }
+        log_weight.exp()
+    };
+    for target_row in 0..target_rows {
+        let support = (0..source_rows).map(|source_row| {
+            kernel(source_row, target_row, true)
+        }).sum::<f64>() / source_rows as f64;
+        if !support.is_finite() || support < target.min_kernel_overlap {
+            return Err(execution_refused("target covariate row lacks declared kernel overlap in the completed source"));
+        }
+    }
+    let mut weights = Vec::with_capacity(source_rows);
+    for source_row in 0..source_rows {
+        let numerator = (0..target_rows).map(|target_row| {
+            kernel(source_row, target_row, true)
+        }).sum::<f64>() / target_rows as f64;
+        let denominator = (0..source_rows).map(|other| {
+            kernel(source_row, other, false)
+        }).sum::<f64>() / source_rows as f64;
+        let weight = numerator / denominator;
+        if !weight.is_finite() || weight < 0.0 {
+            return Err(execution_refused("kernel target-to-source density ratio is invalid"));
+        }
+        weights.push(weight);
+    }
+    let total = weights.iter().sum::<f64>();
+    if !total.is_finite() || total <= 0.0 {
+        return Err(execution_refused("kernel transport has no positive source mass"));
+    }
+    let scale = source_rows as f64 / total;
+    for weight in &mut weights { *weight *= scale; }
+    if weights.iter().any(|weight| !weight.is_finite()) {
+        return Err(execution_refused("normalized kernel transport weights are nonfinite"));
+    }
+    Ok(weights)
+}
+
 fn transported_population(
     data: &TabularData,
     query: &AverageEffectQuery,
     atom: &DerivedAtom,
-    target: &TransportStandardization,
+    target: TransportTarget<'_>, domains: &[u8],
 ) -> Result<(AverageEffectQuery, PopulationRegistry, IdentifiedEstimand), IoError> {
     let mut adjustment = atom.operation.adjustment.clone();
-    for &selected in &target.selection_targets {
+    for &selected in target.selections() {
         if !adjustment.contains(&selected) { adjustment.push(selected); }
     }
     adjustment.sort_unstable();
@@ -419,7 +632,7 @@ fn transported_population(
     let mut target_columns = Vec::with_capacity(adjustment.len());
     for &id in &adjustment {
         source_columns.push(data.float64_values(VariableId::from_raw(id)).map_err(invalid)?);
-        target_columns.push(target.columns.iter().find(|(column, _)| *column == id)
+        target_columns.push(target.columns().iter().find(|(column, _)| *column == id)
             .ok_or_else(|| invalid("target is missing an identified adjustment covariate"))?.1.as_slice());
     }
     let binary_key = |columns: &[&[f64]], row: usize| -> Result<Vec<u8>, IoError> {
@@ -428,29 +641,36 @@ fn transported_population(
             _ => Err(execution_refused("completed source or target covariate is not binary")),
         }).collect()
     };
-    let source_slices: Vec<&[f64]> = source_columns.iter().map(Vec::as_slice).collect();
-    let source_rows = data.row_count();
-    let mut source_count = BTreeMap::<Vec<u8>, usize>::new();
-    let mut target_count = BTreeMap::<Vec<u8>, usize>::new();
-    let mut source_keys = Vec::with_capacity(source_rows);
-    for row in 0..source_rows {
-        let key = binary_key(&source_slices, row)?;
-        *source_count.entry(key.clone()).or_default() += 1;
-        source_keys.push(key);
-    }
-    for row in 0..target.rows() {
-        *target_count.entry(binary_key(&target_columns, row)?).or_default() += 1;
-    }
-    if target_count.iter().any(|(key, count)| *count > 0 && !source_count.contains_key(key)) {
-        return Err(execution_refused("target adjustment stratum has no completed source support"));
-    }
-    let source_n = source_rows as f64;
-    let target_n = target.rows() as f64;
-    let weights: Vec<f64> = source_keys.iter().map(|key| {
-        let target_count = *target_count.get(key).unwrap_or(&0) as f64;
-        let source_count = source_count[key] as f64;
-        target_count * source_n / (source_count * target_n)
-    }).collect();
+    let weights = match target {
+        TransportTarget::Binary(binary) => {
+            let source_slices: Vec<&[f64]> = source_columns.iter().map(Vec::as_slice).collect();
+            let source_rows = data.row_count();
+            let mut source_count = BTreeMap::<Vec<u8>, usize>::new();
+            let mut target_count = BTreeMap::<Vec<u8>, usize>::new();
+            let mut source_keys = Vec::with_capacity(source_rows);
+            for row in 0..source_rows {
+                let key = binary_key(&source_slices, row)?;
+                *source_count.entry(key.clone()).or_default() += 1;
+                source_keys.push(key);
+            }
+            for row in 0..binary.rows() {
+                *target_count.entry(binary_key(&target_columns, row)?).or_default() += 1;
+            }
+            if target_count.iter().any(|(key, count)| *count > 0 && !source_count.contains_key(key)) {
+                return Err(execution_refused("target adjustment stratum has no completed source support"));
+            }
+            let source_n = source_rows as f64;
+            let target_n = binary.rows() as f64;
+            source_keys.iter().map(|key| {
+                let target_count = *target_count.get(key).unwrap_or(&0) as f64;
+                let source_count = source_count[key] as f64;
+                target_count * source_n / (source_count * target_n)
+            }).collect()
+        }
+        TransportTarget::Kernel(kernel) => kernel_transport_weights(
+            &source_columns, &target_columns, &adjustment, domains, kernel,
+        )?,
+    };
     let handle = DistributionRef::from_raw(1);
     let mut registry = PopulationRegistry::new();
     registry.insert_distribution_with_dependence(
@@ -469,7 +689,7 @@ fn transported_population(
     reason = "the composite seals each completed table, graph fit and mixture together"
 )]
 fn execute(
-    rec: &Reconstructed, target: Option<&TransportStandardization>,
+    rec: &Reconstructed, target: Option<TransportTarget<'_>>,
     ctx: &ExecutionContext,
 ) -> Result<Execution, IoError> {
     let parts = rec.source.parts();
@@ -494,9 +714,11 @@ fn execute(
     let mut pooled = Vec::new();
     let mut unidentified_by_table = Vec::new();
     let mut table_leases = Vec::new();
-    let mut receipt = CanonicalWriter::new(if target.is_some() {
-        "antecedent.graph_imputation_transport.execution.v1"
-    } else { "antecedent.graph_candidate.execution.v1" });
+    let mut receipt = CanonicalWriter::new(match target {
+        Some(TransportTarget::Binary(_)) => "antecedent.graph_imputation_transport.execution.v1",
+        Some(TransportTarget::Kernel(_)) => "antecedent.graph_imputation_kernel_transport.execution.v1",
+        None => "antecedent.graph_candidate.execution.v1",
+    });
     receipt.bytes(program.as_bytes()).bytes(&contract).word(u64::from(parts.imputations));
     if let Some(target) = target { receipt.bytes(&target.digest()?); }
     for index in 0..parts.imputations {
@@ -561,7 +783,7 @@ fn execute(
                 };
             let fit = if let Some(target) = target {
                 let (query, registry, estimand) =
-                    transported_population(&data, &rec.query, atom, target)?;
+                    transported_population(&data, &rec.query, atom, target, &parts.domains)?;
                 fitter.prepare_for_population(&data, &estimand, &query, Some(&registry))
                     .and_then(|prepared| fitter.fit(
                         &prepared, atom.operation.status,
@@ -876,13 +1098,41 @@ pub fn replay_transport_point(
         .saturating_mul(target.columns.len() as u64)
         .saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(target), ctx)?;
+    let run = execute(&rec, Some(TransportTarget::Binary(target)), ctx)?;
     Ok(GraphPointReading {
         mean: run.mean,
         diagnostic_sd: run.sd,
         draws: run.draws,
         receipt: run.receipt,
         program: rec.source.program(),
+        source: rec.source.parts().data_digest,
+        unidentified_by_table: run.unidentified_by_table,
+        _lease: run.lease,
+    })
+}
+
+/// Refit the same graph and imputation schedule while standardizing each
+/// retained child to a mixed binary-continuous target frame with prespecified
+/// kernel density-ratio weights. The target frame is empirical and intervals
+/// remain unmeasured.
+///
+/// # Errors
+/// Invalid target evidence, insufficient kernel overlap, graph, fit,
+/// cancellation or admission refusal.
+pub fn replay_kernel_transport_point(
+    bytes: &[u8], target: &KernelTransportStandardization,
+    ctx: &ExecutionContext,
+) -> Result<GraphPointReading, IoError> {
+    let rec = reconstruct(bytes, ctx)?;
+    target.validate(rec.source.parts())?;
+    let target_bytes = (target.rows() as u64)
+        .saturating_mul(target.columns.len() as u64)
+        .saturating_mul(16);
+    let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
+    let run = execute(&rec, Some(TransportTarget::Kernel(target)), ctx)?;
+    Ok(GraphPointReading {
+        mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
+        receipt: run.receipt, program: rec.source.program(),
         source: rec.source.parts().data_digest,
         unidentified_by_table: run.unidentified_by_table,
         _lease: run.lease,
