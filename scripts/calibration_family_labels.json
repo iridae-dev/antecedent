@@ -1319,7 +1319,7 @@
     },
     {
       "path": "crates/antecedent/tests/dml_outcome_prior_calibration.rs",
-      "sha256": "e816dec96c96506ca6eee09826b86128546bbaf6a27607cca2a20e33002d8be8",
+      "sha256": "d5346576546e574d961f4841b5621addd033421ffba636fe4cf9a926a2440128",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1606,7 +1606,7 @@
     },
     {
       "path": "crates/antecedent/tests/joint_response_calibration.rs",
-      "sha256": "87e6fb9a688be317ef07f3a6d77223742f36865f99bc9e8143e3248a50370a92",
+      "sha256": "ea2675638eb0c810b92df8860e243e898cb7009ad349d1a9f36757f5cdf97b7e",
       "labelled_calls": [],
       "constructor_calls": [
         {
