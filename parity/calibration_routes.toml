@@ -671,3 +671,53 @@ groups = [
   "dml_outcome_prior_calibration: dml_composed_prior_misspecified_interval",
   "dml_outcome_prior_calibration: aipw_composed_prior_informative_interval",
 ]
+
+[[route]]
+record = "association.conjugate_count_posterior"
+routes = [
+  "antecedent_estimate.AssociationEstimator.count_prior",
+  "antecedent.descriptive.Association.exceedance",
+]
+groups = [
+  "conjugate_routes_calibration: association_exceedance_beta_stated_prior_posterior_equal_tailed_l95",
+  "conjugate_routes_calibration: association_count_rate_gamma_stated_prior_posterior_equal_tailed_l95",
+]
+
+[[route]]
+record = "association.conjugate_count_posterior"
+routes = [
+  "antecedent.inference.Bayesian.prior_from_count",
+]
+groups = [
+  "conjugate_routes_calibration: association_exceedance_prior_from_source_counts_posterior_equal_tailed_l95",
+]
+
+[[route]]
+record = "association.conjugate_count_posterior"
+routes = [
+  "antecedent.priors.select_alpha_prior_beta_binomial",
+]
+groups = [
+  "conjugate_routes_calibration: select_alpha_prior_beta_binomial_uniform_interval_l95",
+  "conjugate_routes_calibration: select_alpha_prior_beta_binomial_bias_aware_interval_l95",
+]
+
+[[route]]
+record = "association.conjugate_count_posterior"
+routes = [
+  "antecedent.priors.select_alpha_prior_gamma_poisson",
+]
+groups = [
+  "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_uniform_interval_l95",
+  "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_bias_aware_interval_l95",
+]
+
+[[route]]
+record = "prior.composed_named_coordinates"
+routes = [
+  "antecedent.priors.select_alpha_prior_linear",
+]
+groups = [
+  "conjugate_routes_calibration: select_alpha_prior_linear_uniform_interval_l95",
+  "conjugate_routes_calibration: select_alpha_prior_linear_bias_aware_interval_l95",
+]

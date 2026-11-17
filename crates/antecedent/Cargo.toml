@@ -1738,6 +1738,9 @@ name = "temporal_routes_range_calibration"
 name = "bounds_association_range_calibration"
 
 [[test]]
+name = "conjugate_routes_calibration"
+
+[[test]]
 name = "temporal_wider_range_calibration"
 
 [[test]]

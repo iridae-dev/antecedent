@@ -14748,3 +14748,75 @@ features = ["calibration-internal"]
 tests = ["temporal_mediation_effect_temporal_pag_graph_posterior_bayesian_coverage"]
 ignored = true
 grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: association_exceedance_beta_stated_prior_posterior_equal_tailed_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["association_exceedance_beta_stated_prior_posterior_equal_tailed_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: association_count_rate_gamma_stated_prior_posterior_equal_tailed_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["association_count_rate_gamma_stated_prior_posterior_equal_tailed_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: association_exceedance_prior_from_source_counts_posterior_equal_tailed_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["association_exceedance_prior_from_source_counts_posterior_equal_tailed_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_beta_binomial_uniform_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_beta_binomial_uniform_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_beta_binomial_bias_aware_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_beta_binomial_bias_aware_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_uniform_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_gamma_poisson_uniform_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_bias_aware_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_gamma_poisson_bias_aware_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_linear_uniform_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_linear_uniform_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "conjugate_routes_calibration: select_alpha_prior_linear_bias_aware_interval_l95"
+package = "antecedent"
+target = "conjugate_routes_calibration"
+tests = ["select_alpha_prior_linear_bias_aware_interval_l95"]
+ignored = true
+grid = true

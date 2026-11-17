@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "ff9c7a7fd1a383c68428829b9add1371bb7063279522f6aa73caf1163547e3cf",
+  "gate_sha256": "00ec275ead87caedf8b93a48ac8dc6d34f758e3d84eb8f3724df7a1c304ffa93",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "f534faa58b620261bebbbd752acd0a1d6681e1b546c0406a387520996f0bbee7",
+  "label_audit_sha256": "e8cd3f0509db3145df38fd2bbfe6e347de2889040d55fa039c9acf880be9623d",
   "groups": [
     {
       "index": 1,
@@ -8856,6 +8856,51 @@
     {
       "index": 1767,
       "label": "grid_functional_posterior_calibration: temporal_mediation_effect_temporal_pag_graph_posterior_bayesian_coverage",
+      "grid": true
+    },
+    {
+      "index": 1768,
+      "label": "conjugate_routes_calibration: association_exceedance_beta_stated_prior_posterior_equal_tailed_l95",
+      "grid": true
+    },
+    {
+      "index": 1769,
+      "label": "conjugate_routes_calibration: association_count_rate_gamma_stated_prior_posterior_equal_tailed_l95",
+      "grid": true
+    },
+    {
+      "index": 1770,
+      "label": "conjugate_routes_calibration: association_exceedance_prior_from_source_counts_posterior_equal_tailed_l95",
+      "grid": true
+    },
+    {
+      "index": 1771,
+      "label": "conjugate_routes_calibration: select_alpha_prior_beta_binomial_uniform_interval_l95",
+      "grid": true
+    },
+    {
+      "index": 1772,
+      "label": "conjugate_routes_calibration: select_alpha_prior_beta_binomial_bias_aware_interval_l95",
+      "grid": true
+    },
+    {
+      "index": 1773,
+      "label": "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_uniform_interval_l95",
+      "grid": true
+    },
+    {
+      "index": 1774,
+      "label": "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_bias_aware_interval_l95",
+      "grid": true
+    },
+    {
+      "index": 1775,
+      "label": "conjugate_routes_calibration: select_alpha_prior_linear_uniform_interval_l95",
+      "grid": true
+    },
+    {
+      "index": 1776,
+      "label": "conjugate_routes_calibration: select_alpha_prior_linear_bias_aware_interval_l95",
       "grid": true
     }
   ],

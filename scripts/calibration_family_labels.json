@@ -1166,6 +1166,24 @@
       "review": "Shared per-test reporting wrapper; one source-fixed test execution context, no empirical hypothesis selection."
     },
     {
+      "path": "crates/antecedent/tests/conjugate_routes_calibration.rs",
+      "sha256": "ee8bf9a29122fbd69544adace21fb161ddd8ec20e55f87c0075f641103e079d9",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 161,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: POSTERIOR_INTERVAL },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 271,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: construction.0 },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Nine source-fixed designs of the conjugate count routes and the select-then-estimate power priors (exceedance and rate under a stated or source-count prior drawn from itself; the Beta-Binomial, Gamma-Poisson and Gaussian-linear selections at a displaced truth for the uniform interval and a truth inside the declared bound for the bias-aware one), each scoring the one interval the route reports at the one declared 0.95 level against the drawn or fixed truth with literal record keys; no label, level, bound or truth is chosen from outcomes."
+    },
+    {
       "path": "crates/antecedent/tests/count_conjugate_calibration.rs",
       "sha256": "b1e92341076f9c763d99fc6b20035eea5fd27199dbd2039f20d736a571271359",
       "labelled_calls": [],

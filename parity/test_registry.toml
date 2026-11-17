@@ -23706,6 +23706,13 @@ path = "crates/antecedent/tests/bounds_association_range_calibration.rs"
 gates = ["inventory"]
 
 [[test]]
+id = "conjugate-routes-calibration"
+crate = "antecedent"
+cargo_target = "conjugate_routes_calibration"
+path = "crates/antecedent/tests/conjugate_routes_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
 id = "bayesian-randomized-statements-calibration"
 crate = "antecedent"
 cargo_target = "bayesian_randomized_statements_calibration"
