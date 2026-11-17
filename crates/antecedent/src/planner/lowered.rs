@@ -1125,6 +1125,8 @@ pub(crate) enum ProgramCell {
     BridgeBundleRecomputation,
     /// Bundle recomputation with a refitted cyclic posterior producer.
     CyclicPosteriorBundleRecomputation,
+    /// Checked connected components with a joint fitted action decision.
+    JointComponentPosteriorDecision,
     /// Bundle recomputation of a parameter-posterior decision.
     PosteriorDecisionBundleRecomputation,
     /// A bounded graph-selection imputation composite.
@@ -1170,6 +1172,7 @@ impl ProgramCell {
             Self::BundleRecomputation => "BundleRecomputation",
             Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
             Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
+            Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
             Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
@@ -1252,6 +1255,7 @@ impl LoweredProgram {
             | ProgramCell::BundleRecomputation
             | ProgramCell::BridgeBundleRecomputation
             | ProgramCell::CyclicPosteriorBundleRecomputation
+            | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
@@ -1291,6 +1295,7 @@ impl LoweredProgram {
             | ProgramCell::BundleRecomputation
             | ProgramCell::BridgeBundleRecomputation
             | ProgramCell::CyclicPosteriorBundleRecomputation
+            | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
@@ -1330,6 +1335,7 @@ impl LoweredProgram {
             | ProgramCell::BundleRecomputation
             | ProgramCell::BridgeBundleRecomputation
             | ProgramCell::CyclicPosteriorBundleRecomputation
+            | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision

@@ -9,6 +9,7 @@
 //! calibrated causal claim from the interface declarations.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use antecedent_contract::interface_contract::{
     CalibrationStatus, ComponentConnection, DependenceRequirement, EvidenceBasis, InterfaceContract,
@@ -23,6 +24,12 @@ use antecedent_model::nonlinear_equilibrium::{
 
 use super::cyclic::CyclicPreparedState;
 use super::{PreparedStudy, Study};
+use crate::planner::lowered::{
+    EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell,
+    StandaloneCompositionLoweredParts,
+};
+use crate::planner::{PlanStage, PlanView};
 
 const COMPOSITION_TAG: &str = "antecedent.cyclic_component_composition.v1";
 
@@ -532,6 +539,327 @@ fn prepare_component_feedback_inner(
     Ok(PreparedComponentFeedback { prepared, order, composition_identity })
 }
 
+/// Shared raw evidence and sampler schedule for one connected-model fit.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ComponentJointPosteriorSchedule {
+    /// Jointly fitted coordinates in sorted component order.
+    pub parameters: Vec<antecedent_estimate::cyclic_likelihood::CyclicParameter>,
+    /// Common intervention-labelled rows for the complete system.
+    pub training: Vec<antecedent_model::nonlinear_equilibrium::RegimeRow>,
+    /// Shared independent normal parameter prior scale.
+    pub prior_sd: f64,
+    /// Independent MCMC chains.
+    pub chains: usize,
+    /// Discarded draws per chain.
+    pub warmup: usize,
+    /// Retained draws per chain.
+    pub draws_per_chain: usize,
+    /// Proposal standard deviation.
+    pub proposal_scale: f64,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ComponentConnectionWire {
+    producer: String, produced_port: String, consumer: String, consumed_port: String,
+    coefficient: f64,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ComponentWorldWire { clamps: Vec<(String, f64)> }
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ComponentFeedbackWire {
+    components: Vec<(antecedent_io::interface_contract_artifact::ContractWire, Equation)>,
+    connections: Vec<ComponentConnectionWire>,
+    noise_covariance: Vec<f64>, noise: Vec<Vec<f64>>, initial: Vec<f64>,
+    worlds: Vec<ComponentWorldWire>, policy: SolvePolicy,
+}
+
+impl ComponentFeedbackWire {
+    fn from_request(request: &ComponentFeedbackRequest) -> Self {
+        Self {
+            components: request.components.iter().map(|component| (
+                antecedent_io::interface_contract_artifact::contract_to_wire(&component.interface),
+                component.equation.clone(),
+            )).collect(),
+            connections: request.connections.iter().map(|connection| ComponentConnectionWire {
+                producer: connection.ports.producer.clone(),
+                produced_port: connection.ports.produced_port.clone(),
+                consumer: connection.ports.consumer.clone(),
+                consumed_port: connection.ports.consumed_port.clone(),
+                coefficient: connection.coefficient,
+            }).collect(),
+            noise_covariance: request.noise_covariance.clone(), noise: request.noise.clone(),
+            initial: request.initial.clone(),
+            worlds: request.worlds.iter().map(|world| ComponentWorldWire {
+                clamps: world.clamps.clone(),
+            }).collect(), policy: request.policy,
+        }
+    }
+
+    fn to_request(&self) -> Result<ComponentFeedbackRequest, JointComponentPosteriorError> {
+        let components = self.components.iter().map(|(wire, equation)| {
+            let interface = antecedent_io::interface_contract_artifact::contract_from_wire(wire)
+                .map_err(|_| JointComponentPosteriorError::Invalid("invalid component interface wire"))?;
+            Ok(ScalarFeedbackComponent { interface, equation: equation.clone() })
+        }).collect::<Result<Vec<_>, JointComponentPosteriorError>>()?;
+        Ok(ComponentFeedbackRequest {
+            components,
+            connections: self.connections.iter().map(|connection| FeedbackConnection {
+                ports: ComponentConnection::new(connection.producer.as_str(), connection.produced_port.as_str(),
+                    connection.consumer.as_str(), connection.consumed_port.as_str()),
+                coefficient: connection.coefficient,
+            }).collect(),
+            noise_covariance: self.noise_covariance.clone(), noise: self.noise.clone(),
+            initial: self.initial.clone(),
+            worlds: self.worlds.iter().map(|world| ComponentFeedbackWorld {
+                clamps: world.clamps.clone(),
+            }).collect(), policy: self.policy, factual: None,
+        })
+    }
+}
+
+/// Refusal of a checked connected-component posterior handoff.
+#[derive(Debug, thiserror::Error)]
+pub enum JointComponentPosteriorError {
+    /// Component interfaces, connections or cyclic preparation refused.
+    #[error("connected component posterior: {0}")]
+    Component(#[from] ComponentFeedbackError),
+    /// The jointly fitted posterior or its decision refused.
+    #[error("connected component posterior: {0}")]
+    Posterior(#[from] super::cyclic_posterior_action_decision::CyclicPosteriorDecisionError),
+    /// Portable encoding or decoding failed.
+    #[error("connected component posterior artifact: {0}")]
+    Io(#[from] antecedent_io::IoError),
+    /// An unsupported or inconsistent binding was supplied.
+    #[error("connected component posterior: {0}")]
+    Invalid(&'static str),
+}
+
+/// Checked component graph and its shared-data, jointly fitted action program.
+#[derive(Clone, Debug)]
+pub struct CompiledJointComponentPosteriorDecision {
+    component_wire: ComponentFeedbackWire,
+    schedule: ComponentJointPosteriorSchedule,
+    outputs: Vec<super::cyclic_action_world_decision::CyclicDecisionOutput>,
+    contract: antecedent_design::decision_contract::DecisionContract,
+    posterior: super::cyclic_posterior_action_decision::CompiledCyclicPosteriorDecision,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// A fitted child decision and the complete component compiler identity.
+#[derive(Clone, Debug)]
+pub struct JointComponentPosteriorDecisionResult {
+    /// The fitted posterior and decision produced by the child program.
+    pub child: super::cyclic_posterior_action_decision::CyclicPosteriorDecisionResult,
+    /// Identity of the outer program binding the component wire and child.
+    pub lowered_program_identity: SemanticDigest,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JointComponentPosteriorWire {
+    version: u32, required_feature: String,
+    components: ComponentFeedbackWire, schedule: ComponentJointPosteriorSchedule,
+    outputs: Vec<super::cyclic_action_world_decision::CyclicDecisionOutput>,
+    contract_artifact: Vec<u8>, contract_identity: String,
+    program_identity: [u8; 32], posterior_artifact: Vec<u8>,
+}
+
+const JOINT_COMPONENT_POSTERIOR_FEATURE: &str = "joint_component_posterior_decision_v1";
+const MAX_JOINT_COMPONENT_BYTES: usize = 80 * 1024 * 1024;
+
+/// Compile checked connected components, one common raw evidence schedule,
+/// the joint covariance and action worlds through the cyclic posterior route.
+/// The component-preparation noise must be one zero placeholder row; all
+/// predictive disturbances are instead generated jointly from its covariance.
+///
+/// # Errors
+/// Invalid component ports, coordinate bindings, evidence or posterior schedule.
+pub fn compile_joint_component_posterior_decision(
+    request: ComponentFeedbackRequest, schedule: ComponentJointPosteriorSchedule,
+    outputs: Vec<super::cyclic_action_world_decision::CyclicDecisionOutput>,
+    contract: antecedent_design::decision_contract::DecisionContract,
+    ctx: &ExecutionContext,
+) -> Result<CompiledJointComponentPosteriorDecision, JointComponentPosteriorError> {
+    if request.factual.is_some() || request.noise.len() != 1
+        || request.noise[0].iter().any(|value| *value != 0.0)
+    {
+        return Err(JointComponentPosteriorError::Invalid(
+            "posterior handoff requires one zero placeholder noise row and no factual state",
+        ));
+    }
+    if request.components.iter().any(|component| {
+        component.interface.produces.iter().any(|port| {
+            !matches!(port.support, antecedent_contract::interface_contract::SupportDomain::Real)
+        }) || component.interface.consumes.iter().any(|port| {
+            !matches!(port.support, antecedent_contract::interface_contract::SupportDomain::Real)
+        })
+    }) {
+        return Err(JointComponentPosteriorError::Invalid(
+            "joint posterior handoff requires finite real component ports",
+        ));
+    }
+    let wire = ComponentFeedbackWire::from_request(&request);
+    let declarations = request.components.clone();
+    let prepared = prepare_component_feedback(request, ctx)?;
+    for output in &outputs {
+        let name = prepared.order.get(output.equation)
+            .ok_or(JointComponentPosteriorError::Invalid("output component is absent"))?;
+        let component = declarations.iter().find(|component| &component.interface.component == name)
+            .ok_or(JointComponentPosteriorError::Invalid("output component interface is absent"))?;
+        let port = component.interface.produces.first()
+            .ok_or(JointComponentPosteriorError::Invalid("output port is absent"))?;
+        let quantity: antecedent_contract::ScientificQuantity = output.quantity.clone().try_into()
+            .map_err(|_| JointComponentPosteriorError::Invalid("output coordinate is invalid"))?;
+        let mut declared = port.quantity.clone();
+        // Each action world changes regime; all other scientific coordinate
+        // fields, including variable identity, come from the checked port.
+        declared.regime_id = quantity.regime_id.clone();
+        declared.require_same_coordinate(&quantity).map_err(|_| {
+            JointComponentPosteriorError::Invalid("output coordinate differs from component port")
+        })?;
+    }
+    let cyclic = prepared.prepared.request();
+    let posterior_request = super::cyclic_posterior_action_decision::CyclicPosteriorDecisionRequest {
+        model: cyclic.model.clone(), parameters: schedule.parameters.clone(),
+        training: schedule.training.clone(), prior_sd: schedule.prior_sd,
+        chains: schedule.chains, warmup: schedule.warmup,
+        draws_per_chain: schedule.draws_per_chain, proposal_scale: schedule.proposal_scale,
+        worlds: cyclic.worlds.clone(), initial: cyclic.initial.clone(), solve_policy: cyclic.policy,
+    };
+    let posterior = super::cyclic_posterior_action_decision::compile_cyclic_component_posterior_decision(
+        posterior_request, outputs.clone(), contract.clone(), ctx,
+    )?;
+    let component_bytes = antecedent_io::to_cbor(&wire)?;
+    let component_digest = CanonicalWriter::digest_bytes(
+        "antecedent.joint_component_posterior.component_wire.v1", &component_bytes,
+    );
+    let mut writer = CanonicalWriter::new("antecedent.joint_component_posterior.question.v1");
+    writer.text(JOINT_COMPONENT_POSTERIOR_FEATURE).bytes(&component_digest)
+        .bytes(posterior.lowered().identity().as_bytes())
+        .bytes(&antecedent_io::to_cbor(&outputs)?);
+    let query = writer.finish();
+    let mut scientific = posterior.lowered().scientific().clone();
+    scientific.target = ProblemTarget::QueryFunctional {
+        kind: FunctionalKind::PropagatedChain, outcome: None, query,
+    };
+    scientific.plan_id = Arc::from("joint_component_posterior_decision.v1");
+    scientific.source_digest = Some(component_digest);
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
+    let mut evidence = posterior.lowered().evidence().clone();
+    let mut sources = evidence.sources.to_vec();
+    sources.push(EvidenceSourceRef { role: EvidenceRole::ChainSource, digest: Some(component_digest) });
+    evidence.sources = Arc::from(sources);
+    let mut operators = posterior.lowered().physical().operators().to_vec();
+    operators.push(antecedent_core::PhysicalOperator::declare(antecedent_core::PhysicalEffect::Read)
+        .estimates(antecedent_core::ByteEstimates::absent().with_output(component_bytes.len() as u64))
+        .build().map_err(|_| JointComponentPosteriorError::Invalid("component wire read cannot be lowered"))?);
+    let physical = PhysicalLayer { operators: Arc::from(operators),
+        design: posterior.lowered().physical().design() };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::JointComponentPosteriorDecision, scientific, identification,
+        statistical: posterior.lowered().statistical().clone(), evidence, physical,
+        claim: *posterior.lowered().claim(),
+    }.finish());
+    Ok(CompiledJointComponentPosteriorDecision {
+        component_wire: wire, schedule, outputs, contract, posterior, lowered,
+    })
+}
+
+impl CompiledJointComponentPosteriorDecision {
+    /// Outer six-layer program binding the full checked component declaration.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the whole compiled route without fitting.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Refit the common evidence schedule and solve all paired action worlds.
+    /// Connected calibration is unmeasured.
+    ///
+    /// # Errors
+    /// Fit, posterior diagnostics, equilibrium or decision refusal.
+    pub fn execute(&self, ctx: &ExecutionContext)
+        -> Result<JointComponentPosteriorDecisionResult, JointComponentPosteriorError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let child = self.posterior.execute(&scoped)?;
+        Ok(JointComponentPosteriorDecisionResult {
+            child, lowered_program_identity: self.lowered.identity(),
+        })
+    }
+
+    /// Reexecute and seal both the checked component declarations and joint fit.
+    ///
+    /// # Errors
+    /// A changed result or oversized portable artifact.
+    pub fn export(&self, result: &JointComponentPosteriorDecisionResult,
+        ctx: &ExecutionContext) -> Result<Vec<u8>, JointComponentPosteriorError> {
+        if result.lowered_program_identity != self.lowered.identity() {
+            return Err(JointComponentPosteriorError::Invalid("component execution program differs"));
+        }
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let contract = antecedent_design::decision_artifact::DecisionContractArtifact::new(self.contract.clone())
+            .map_err(super::cyclic_posterior_action_decision::CyclicPosteriorDecisionError::from)?;
+        let bytes = antecedent_io::to_cbor(&JointComponentPosteriorWire {
+            version: 1, required_feature: JOINT_COMPONENT_POSTERIOR_FEATURE.into(),
+            components: self.component_wire.clone(), schedule: self.schedule.clone(),
+            outputs: self.outputs.clone(), contract_identity: contract.identity().into(),
+            contract_artifact: contract.to_bytes("joint-component-contract")?,
+            program_identity: *self.lowered().identity().as_bytes(),
+            posterior_artifact: self.posterior.export(&result.child, "joint-component-posterior", &scoped)?,
+        })?;
+        if bytes.len() > MAX_JOINT_COMPONENT_BYTES {
+            return Err(JointComponentPosteriorError::Invalid("portable component posterior exceeds its bound"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Recheck the component interfaces and coupling, recompile the joint posterior,
+/// refit shared raw evidence and independently verify the portable result.
+///
+/// # Errors
+/// Changed feature, component binding, compiler identity, fit or decision.
+pub fn consume_joint_component_posterior_decision(
+    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<JointComponentPosteriorDecisionResult, JointComponentPosteriorError> {
+    if bytes.len() > MAX_JOINT_COMPONENT_BYTES {
+        return Err(JointComponentPosteriorError::Invalid("portable component posterior exceeds its bound"));
+    }
+    let wire: JointComponentPosteriorWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.required_feature != JOINT_COMPONENT_POSTERIOR_FEATURE
+        || wire.program_identity != *expected_program.as_bytes()
+    {
+        return Err(JointComponentPosteriorError::Invalid("component posterior feature or program differs"));
+    }
+    let contract = antecedent_design::decision_artifact::DecisionContractArtifact::from_bytes(
+        &wire.contract_artifact, &wire.contract_identity,
+    )?;
+    let plan = compile_joint_component_posterior_decision(
+        wire.components.to_request()?, wire.schedule, wire.outputs, contract.contract().clone(), ctx,
+    )?;
+    if plan.lowered().identity() != expected_program {
+        return Err(JointComponentPosteriorError::Invalid("recompiled component posterior differs"));
+    }
+    let scoped = ctx.enter_lowered_dispatch(plan.lowered.identity());
+    let child = super::cyclic_posterior_action_decision::consume_cyclic_component_posterior_decision(
+        &wire.posterior_artifact, plan.posterior.lowered().identity(), &scoped,
+    )?;
+    Ok(JointComponentPosteriorDecisionResult {
+        child, lowered_program_identity: plan.lowered.identity(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -601,6 +929,84 @@ mod tests {
             policy: SolvePolicy::default(),
             factual: None,
         }
+    }
+
+    #[test]
+    #[ignore = "source-only joint component posterior; no connected calibration is earned"]
+    fn common_training_rows_refit_and_replay_the_connected_action_decision() {
+        use antecedent_design::decision_contract::{
+            ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
+        };
+        use antecedent_estimate::cyclic_likelihood::CyclicParameter;
+        use antecedent_io::quantity_wire::ScientificQuantityWire;
+        use antecedent_model::nonlinear_equilibrium::RegimeRow;
+        use super::super::cyclic_action_world_decision::CyclicDecisionOutput;
+        let mut components = request();
+        components.noise_covariance = vec![0.04, 0.0, 0.0, 0.04];
+        components.worlds = vec![
+            ComponentFeedbackWorld { clamps: vec![("traffic".into(), 0.0)] },
+            ComponentFeedbackWorld { clamps: vec![("traffic".into(), 1.0)] },
+        ];
+        let training = (0..260).map(|i| {
+            let traffic = (i % 5) as f64 * 0.4;
+            let disturbance = (i as f64 * 0.19).sin() * 0.2;
+            RegimeRow {
+                values: vec![traffic, (1.0 + 0.3 * traffic + disturbance) / 0.8],
+                clamps: vec![Clamp { variable: 0, value: traffic }],
+            }
+        }).collect();
+        let schedule = ComponentJointPosteriorSchedule {
+            parameters: vec![CyclicParameter::Weight { equation: 1, parent: 0 }],
+            training, prior_sd: 1.0, chains: 2, warmup: 300,
+            draws_per_chain: 300, proposal_scale: 0.08,
+        };
+        let quantities: Vec<_> = ["ordinary", "promoted"].iter().map(|regime| {
+            let mut q = quantity();
+            q.regime_id = (*regime).into();
+            q
+        }).collect();
+        let outputs = quantities.iter().enumerate().map(|(world, quantity)| CyclicDecisionOutput {
+            world, equation: 1, quantity: ScientificQuantityWire::from(quantity),
+        }).collect();
+        let contract = DecisionContract {
+            actions: quantities.iter().enumerate().map(|(i, q)| DecisionAction {
+                id: ["ordinary", "promoted"][i].into(), kind: ActionKind::Intervention,
+                inputs: vec![q.clone()], utility: UtilityExpr::Input(0),
+            }).collect(),
+            utility_units: "count".into(), criterion: DecisionCriterion::ExpectedRegret,
+            constraints: vec![], target_population: quantities[0].population_id.clone(),
+            horizon: quantities[0].horizon, structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        let ctx = ExecutionContext::for_tests(47);
+        let plan = compile_joint_component_posterior_decision(
+            components, schedule, outputs, contract, &ctx,
+        ).expect("compile checked components and common fit");
+        let result = plan.execute(&ctx).expect("joint posterior and action worlds");
+        let bytes = plan.export(&result, &ctx).expect("portable handoff");
+        let replay = consume_joint_component_posterior_decision(
+            &bytes, plan.lowered().identity(), &ctx,
+        ).expect("independent component and fit replay");
+        assert_eq!(replay.child.decision.decision, result.child.decision.decision);
+        assert_eq!(replay.lowered_program_identity, plan.lowered().identity());
+        assert_eq!(plan.plan_view().route().as_str(), "JointComponentPosteriorDecision");
+        let mut reordered: JointComponentPosteriorWire = antecedent_io::from_cbor(&bytes).unwrap();
+        reordered.components.components.reverse();
+        let changed_plan = compile_joint_component_posterior_decision(
+            reordered.components.to_request().unwrap(), reordered.schedule.clone(),
+            reordered.outputs.clone(), plan.contract.clone(), &ctx,
+        ).unwrap();
+        assert_eq!(changed_plan.posterior.lowered().identity(), plan.posterior.lowered().identity());
+        assert_ne!(changed_plan.lowered().identity(), plan.lowered().identity());
+        let changed = antecedent_io::to_cbor(&reordered).unwrap();
+        assert!(consume_joint_component_posterior_decision(
+            &changed, plan.lowered().identity(), &ctx,
+        ).is_err());
+        let mut wire: JointComponentPosteriorWire = antecedent_io::from_cbor(&bytes).unwrap();
+        wire.outputs[0].quantity.variable_id = "different-port".into();
+        let changed = antecedent_io::to_cbor(&wire).unwrap();
+        assert!(consume_joint_component_posterior_decision(
+            &changed, plan.lowered().identity(), &ctx,
+        ).is_err());
     }
 
     #[test]

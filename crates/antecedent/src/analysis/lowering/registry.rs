@@ -229,6 +229,8 @@ macro_rules! route_lowerings {
             BridgeBundleRecomputation,
             /// Bundle replay with a refitted cyclic posterior producer.
             CyclicPosteriorBundleRecomputation,
+            /// Checked connected components and a joint posterior decision.
+            JointComponentPosteriorDecision,
             /// Bundle replay with a parameter-posterior decision terminal.
             PosteriorDecisionBundleRecomputation,
             /// A graph-selection imputation composite.
@@ -277,6 +279,7 @@ macro_rules! route_lowerings {
                     Self::BundleRecomputation => "BundleRecomputation",
                     Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
                     Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
+                    Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
                     Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
                     Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
@@ -321,6 +324,7 @@ macro_rules! route_lowerings {
                     Self::BundleRecomputation => RouteFamily::PropagationChain,
                     Self::BridgeBundleRecomputation => RouteFamily::PropagationChain,
                     Self::CyclicPosteriorBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::JointComponentPosteriorDecision => RouteFamily::PropagationChain,
                     Self::PosteriorDecisionBundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::GraphImputationEffectDecision => RouteFamily::GraphImputation,

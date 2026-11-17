@@ -21,7 +21,7 @@ use antecedent_core::{
     SemanticDigest,
 };
 use antecedent_design::decision_artifact::DecisionContractArtifact;
-use antecedent_design::decision_contract::{ActionKind, DecisionContract, DecisionContractError};
+use antecedent_design::decision_contract::{ActionKind, DecisionContract, DecisionContractError, DecisionCriterion};
 use antecedent_estimate::cyclic_likelihood::{
     CyclicParameter, CyclicPosterior, sample_cyclic_posterior, with_parameters,
 };
@@ -141,6 +141,24 @@ pub struct CyclicPosteriorPredictiveCalibrationCandidate {
     pub basis: CalibrationBasis,
 }
 
+/// Prospective action-selection reliability observation for a fixed design.
+/// It is one complete fit, certified world solve and decision, not a measured
+/// reliability claim. A future experiment must supply the true best action and
+/// retain ties, refusals and diagnostic failures in its denominator.
+#[derive(Clone, Debug)]
+pub struct CyclicPosteriorDecisionReliabilityCandidate {
+    /// Complete fitted model, joint worlds and decision, including its verdict.
+    pub result: CyclicPosteriorDecisionResult,
+    /// Fixed model template, training intervention design, sampler, worlds,
+    /// coordinates and decision contract; excludes observed training values
+    /// and the execution seed so independent replicates can share a scope.
+    pub scope: SemanticDigest,
+    /// Number of independent intervention-labelled training rows.
+    pub training_rows: usize,
+    /// Always `not_measured`: no reliability record is earned by this method.
+    pub calibration: &'static str,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct CyclicPosteriorDecisionWire {
@@ -169,6 +187,23 @@ pub fn compile_cyclic_posterior_action_decision(
     contract: DecisionContract,
     ctx: &ExecutionContext,
 ) -> Result<CompiledCyclicPosteriorDecision, CyclicPosteriorDecisionError> {
+    compile_cyclic_posterior_action_decision_checked(request, outputs, contract, ctx, false)
+}
+
+// Only the component compiler calls this after checking every output coordinate
+// against its corresponding original produced port.
+pub(super) fn compile_cyclic_component_posterior_decision(
+    request: CyclicPosteriorDecisionRequest,
+    outputs: Vec<CyclicDecisionOutput>, contract: DecisionContract, ctx: &ExecutionContext,
+) -> Result<CompiledCyclicPosteriorDecision, CyclicPosteriorDecisionError> {
+    compile_cyclic_posterior_action_decision_checked(request, outputs, contract, ctx, true)
+}
+
+fn compile_cyclic_posterior_action_decision_checked(
+    request: CyclicPosteriorDecisionRequest,
+    outputs: Vec<CyclicDecisionOutput>, contract: DecisionContract, ctx: &ExecutionContext,
+    checked_component_outputs: bool,
+) -> Result<CompiledCyclicPosteriorDecision, CyclicPosteriorDecisionError> {
     contract.validate()?;
     request.model.validate()?;
     let n = request.model.order();
@@ -196,7 +231,7 @@ pub fn compile_cyclic_posterior_action_decision(
             .ok_or(CyclicPosteriorDecisionError::Invalid("output equation is absent"))?;
         if !seen_worlds.insert(output.world)
             || request.worlds.get(output.world).is_none()
-            || equation.id != output.quantity.variable_id
+            || (!checked_component_outputs && equation.id != output.quantity.variable_id)
             || output.quantity.role != "outcome"
             || output.quantity.population_id != contract.target_population
             || output.quantity.horizon != contract.horizon
@@ -412,6 +447,58 @@ impl CompiledCyclicPosteriorDecision {
         })
     }
 
+    /// Fixed design identity for a prospective action-selection experiment.
+    /// It is available before fitting, so a refused replicate remains in the
+    /// same experiment rather than being silently discarded.
+    ///
+    /// # Errors
+    /// The criterion or constraints are outside this prospective design.
+    pub fn decision_reliability_scope(&self) -> Result<SemanticDigest, CyclicPosteriorDecisionError> {
+        if !matches!(self.contract.criterion,
+            DecisionCriterion::PosteriorExpectedUtility | DecisionCriterion::ExpectedRegret)
+            || !self.contract.constraints.is_empty()
+        {
+            return Err(CyclicPosteriorDecisionError::Invalid(
+                "action reliability needs unconstrained expected utility or expected regret",
+            ));
+        }
+        let mut writer = CanonicalWriter::new(
+            "antecedent.cyclic_posterior_action_decision.reliability_scope.v1",
+        );
+        writer.bytes(&antecedent_io::to_cbor(&self.request.model)?)
+            .bytes(&antecedent_io::to_cbor(&self.request.parameters)?)
+            .word(self.request.prior_sd.to_bits())
+            .word(self.request.chains as u64).word(self.request.warmup as u64)
+            .word(self.request.draws_per_chain as u64).word(self.request.proposal_scale.to_bits())
+            .word(self.request.training.len() as u64);
+        for row in &self.request.training {
+            writer.bytes(&antecedent_io::to_cbor(&row.clamps)?);
+        }
+        writer.bytes(&antecedent_io::to_cbor(&self.request.worlds)?)
+            .bytes(&antecedent_io::to_cbor(&self.outputs)?)
+            .bytes(&antecedent_io::to_cbor(&self.request.initial)?)
+            .bytes(&antecedent_io::to_cbor(&self.request.solve_policy)?)
+            .text(&self.contract.identity()?);
+        Ok(SemanticDigest::from_bytes(writer.finish()))
+    }
+
+    /// Execute the whole fitted action route as a prospective reliability
+    /// observation. This supports unconstrained expected utility or expected
+    /// regret, whose best action can be compared with a separately specified
+    /// population truth. No confidence or selection guarantee is asserted.
+    ///
+    /// # Errors
+    /// An unsupported criterion, hard constraint, fit, diagnostic or world solve.
+    pub fn decision_reliability_candidate(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<CyclicPosteriorDecisionReliabilityCandidate, CyclicPosteriorDecisionError> {
+        let scope = self.decision_reliability_scope()?;
+        let result = self.execute(ctx)?;
+        Ok(CyclicPosteriorDecisionReliabilityCandidate {
+            result, scope, training_rows: self.request.training.len(), calibration: "not_measured",
+        })
+    }
+
     /// Expose the final predictive outcome for a prespecified action world as
     /// a prospective whole-route coverage candidate. The interval has no
     /// measured status, and this does not calibrate the action choice.
@@ -514,6 +601,19 @@ impl CompiledCyclicPosteriorDecision {
 pub fn consume_cyclic_posterior_action_decision(
     bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
 ) -> Result<CyclicPosteriorDecisionResult, CyclicPosteriorDecisionError> {
+    consume_cyclic_posterior_action_decision_checked(bytes, expected_program, ctx, false)
+}
+
+pub(super) fn consume_cyclic_component_posterior_decision(
+    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<CyclicPosteriorDecisionResult, CyclicPosteriorDecisionError> {
+    consume_cyclic_posterior_action_decision_checked(bytes, expected_program, ctx, true)
+}
+
+fn consume_cyclic_posterior_action_decision_checked(
+    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+    checked_component_outputs: bool,
+) -> Result<CyclicPosteriorDecisionResult, CyclicPosteriorDecisionError> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(CyclicPosteriorDecisionError::Invalid("posterior action artifact exceeds its bound"));
     }
@@ -527,8 +627,8 @@ pub fn consume_cyclic_posterior_action_decision(
     let contract = DecisionContractArtifact::from_bytes(
         &wire.contract_artifact, &wire.contract_identity,
     )?;
-    let plan = compile_cyclic_posterior_action_decision(
-        wire.request, wire.outputs, contract.contract().clone(), ctx,
+    let plan = compile_cyclic_posterior_action_decision_checked(
+        wire.request, wire.outputs, contract.contract().clone(), ctx, checked_component_outputs,
     )?;
     if plan.lowered().identity() != expected_program {
         return Err(CyclicPosteriorDecisionError::Invalid("recompiled posterior action program differs"));
@@ -631,6 +731,52 @@ mod tests {
             horizon: 0,
             structural_policy: StructuralPolicy::RequireInvariantBestAction,
         }
+    }
+
+    #[test]
+    #[ignore = "prospective source-only reliability grid; no selection record is earned"]
+    fn prospective_action_selection_grid_keeps_failures_and_design_scope() {
+        use antecedent_design::decision_eval::Verdict;
+        let mut refused = 0_usize;
+        let mut selected_true_best = 0_usize;
+        let mut tied_or_wrong = 0_usize;
+        let mut scope = None;
+        for replicate in 0..4_u64 {
+            let mut declaration = request();
+            let mut rng = antecedent_core::CausalRng::from_seed(10_000 + replicate);
+            for row in &mut declaration.training {
+                let ad = row.clamps[0].value;
+                let ew = standard_normal(&mut rng) * 0.2;
+                let et = standard_normal(&mut rng) * 0.2;
+                let wishlist = (0.2 * ad + ew + 0.3 * et) / (1.0 - 0.06);
+                row.values = vec![wishlist, 0.2 * wishlist + et, ad];
+            }
+            // The planted linear system has positive mean promotion effect;
+            // training outcomes and fit streams vary across replicates.
+            let ctx = ExecutionContext::for_tests(47 + replicate);
+            let plan = compile_cyclic_posterior_action_decision(
+                declaration, outputs(), contract(), &ctx,
+            ).expect("compile fixed grid design");
+            let design_scope = plan.decision_reliability_scope().expect("fixed design scope");
+            if let Some(previous) = scope { assert_eq!(design_scope, previous); }
+            scope = Some(design_scope);
+            match plan.decision_reliability_candidate(&ctx) {
+                Ok(candidate) => {
+                    assert_eq!(candidate.calibration, "not_measured");
+                    assert_eq!(candidate.training_rows, 260);
+                    assert_eq!(candidate.scope, design_scope);
+                    match &candidate.result.decision.decision.verdict {
+                        Verdict::UniquelyOptimal(action) if action == "promoted" => {
+                            selected_true_best += 1;
+                        }
+                        _ => tied_or_wrong += 1,
+                    }
+                }
+                Err(_) => refused += 1,
+            }
+        }
+        // Failures and ties remain observations, never silently dropped.
+        assert_eq!(selected_true_best + tied_or_wrong + refused, 4);
     }
 
     #[test]
