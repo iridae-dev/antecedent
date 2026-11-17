@@ -16,14 +16,14 @@ coverage or error control.
 
 | Priority | Limitation impact | Useful flow and existing support | Remaining compiler obligation | Existing claim change |
 | --- | --- | --- | --- | --- |
-| 1 | Critical | A chain's posterior or predictive law reaches nonlinear multi-action utility; the stricter action-world entry point checks distinct regime outputs and shared factors before compiling paired regret; a new cyclic-model route derives paired rows from shared disturbances and hard-clamp worlds | Fit mechanism uncertainty jointly with the intervention worlds and calibrate any population predictive interpretation; the new route is conditional on its specified model and disturbance table | None for a new route; high if parameter draws are reinterpreted as outcome risk |
+| 1 | Critical | A new joint cyclic posterior route samples fitted mechanisms from one likelihood, draws population disturbances from the specified covariance, solves each hard-clamp world on the same parameter and disturbance pair, then compiles nonlinear multi-action utility | Prespecify and earn final population-predictive reliability or coverage at the exact decision coordinate; the model and covariance remain assumptions | None for an additive route; high if parameter draws are reinterpreted as outcome risk |
 | 2 | Critical | Uncertainty survives discovery, imputation, estimation, transport and decision; individual and some composite routes exist | Lower the full selection, fitting and transport schedule with dependence; measure coverage at the final coordinate | None for a new route; high if component intervals are relabelled as whole-chain coverage |
 | 3 | High | Transported or synthesized evidence feeds a distributional decision; `compile_transported_law_chain_decision` now checks the transport support policy and compiles an aligned, equally weighted declared law with its receipt into multi-action utility | Lower producer fitting, target population, overlap and pooling dependence into that same program | None for a new route; medium if current point transport claims are promoted to laws |
 | 4 | High | Sampling error composes with an assumption range; the chain envelope keeps the axes distinct, and `chain_robust_decision_v1` compiles conservative multi-action dominance with nonlinear utilities and chance constraints | Compile a calibrated sampling union at the exact output coordinate | None for a new route; high if an assumption range is treated as a confidence interval |
 | 5 | High | The graph-checked policy route separates a narrower policy information set from the full nuisance adjustment set in a version-3 artifact, while retaining held-out or cross-fit scoring | Calibrate the selection-aware standard error for the exact learner and evaluation schedule | None for the additive route; high if same-data scores acquire an unbiasedness claim |
 | 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; the retained mixture draws now export an unverified typed effect law | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws; the new predictive bridge-transport-decision cell binds all three declarations in one program and replays both the bridge and utility | Estimate or validate the transport premise itself, rather than only carrying its declared evidence; measure any final decision reliability claim | None for a new route; high if a surrogate score is substituted for an endpoint |
-| 8 | Medium | Scalar and vector feedback compile one cyclic program with aligned disturbances and named hard clamps; optional ledger entry points check disjointness across all inputs of the original component and bind the ledger state into the program | Establish statistical dependence of fitted mechanism errors and calibrate the connected equilibrium before promoting component evidence to an inferential claim | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
+| 8 | Medium | Scalar and vector feedback compile one cyclic program; a new joint likelihood posterior carries fitted parameter dependence into connected predictive equilibria and paired decisions | Calibrate the connected equilibrium and generalize fitted component evidence beyond one specified model and covariance | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | A new time-ordered finite path-specific transport cell identifies each edge-intervention world under a selection diagram, evaluates the target contrast on exact laws, and replays both derivations | Develop sampled and continuous longitudinal path estimators, with uncertainty at the transported contrast | None for the additive point route; high if ordinary transport is relabelled path-specific |
 | 10 | Medium | Independent indicators retain the version-3 route; a separate fitted joint-error compiler cell propagates labelled validation uncertainty; an ignored fixed-truth grid harness and exact model-coordinate calibration lookup are source-ready | Register and earn whole-route coverage records before the new equal-tail interval can report a measured status | None for the additive route; medium if independent indicators are silently treated as a joint model |
 | 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together; a version-2 portable receipt reconstructs the graph and terminal compiler from bytes, reruns every dependency consumer and compares the live result | Generalize live recomputation to other executable node kinds | None for the additive route; low for numerical claims, but identity-only plans cannot become execution receipts |
@@ -64,6 +64,21 @@ model-to-decision program and consumes the chain decision. This method is a
 finite empirical disturbance-scenario comparison conditional on specified
 mechanisms. It does not fit uncertain mechanisms, infer the disturbance law
 from a population or claim measured coverage. The source test is unearned.
+
+`cyclic_posterior_action_decision_v1` jointly fits the selected cyclic
+parameters from intervention-labelled rows under the specified likelihood and
+normal prior. It draws one parameter vector from that joint posterior and one
+Gaussian disturbance from the declared covariance per retained row, then
+solves every hard-clamp action world on that same pair. All worlds must have a
+certified unique equilibrium; MCMC convergence diagnostics must pass. The
+joint predictive outcomes enter the action-world chain and decision compiler,
+and a portable consumer reruns the posterior, worlds and decision under the
+outer six-layer identity. Model structure, covariance, prior, training rows,
+sampler policy, seed, action worlds and utility all enter that identity. This
+is a model-conditional population predictive method; the covariance and
+structural equations are assumptions. Its ignored reference assertion is
+unearned, and no calibrated population coverage or decision reliability is
+claimed.
 
 `propagation_chain_assumption_v3` adds a second route for aligned sampling or
 posterior draws combined with interval-valued assumptions through rowwise

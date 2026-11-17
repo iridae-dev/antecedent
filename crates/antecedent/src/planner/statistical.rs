@@ -298,6 +298,8 @@ pub enum PosteriorAlgorithm {
     DiscreteMcmc,
     /// Bayesian bootstrap: Dirichlet weights on rows, or on contiguous blocks of a series.
     BayesianBootstrap,
+    /// Random-walk Metropolis over jointly fitted cyclic mechanisms.
+    RandomWalkMetropolis,
 }
 
 impl PosteriorAlgorithm {
@@ -312,6 +314,7 @@ impl PosteriorAlgorithm {
             Self::Enumeration => "enumeration",
             Self::DiscreteMcmc => "discrete_mcmc",
             Self::BayesianBootstrap => "bayesian_bootstrap",
+            Self::RandomWalkMetropolis => "random_walk_metropolis",
         }
     }
 }

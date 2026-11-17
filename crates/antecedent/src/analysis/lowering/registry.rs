@@ -203,6 +203,8 @@ macro_rules! route_lowerings {
             FittedDependentMeasuredObservation,
             /// Model-derived paired intervention worlds and a decision.
             CyclicActionWorldDecision,
+            /// Joint fitted-mechanism posterior predictive action worlds.
+            CyclicPosteriorActionDecision,
             /// Checked bridge transport and predictive utility.
             BridgeTransportDecision,
             /// Target-population time-ordered path-specific transport.
@@ -233,6 +235,7 @@ macro_rules! route_lowerings {
                     Self::DependentMeasuredObservation => "DependentMeasuredObservation",
                     Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
                     Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
+                    Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
                     Self::BridgeTransportDecision => "BridgeTransportDecision",
                     Self::TemporalPathTransport => "TemporalPathTransport",
                     Self::BundleRecomputation => "BundleRecomputation",
@@ -260,6 +263,7 @@ macro_rules! route_lowerings {
                     Self::DependentMeasuredObservation => RouteFamily::Structural,
                     Self::FittedDependentMeasuredObservation => RouteFamily::Structural,
                     Self::CyclicActionWorldDecision => RouteFamily::Cyclic,
+                    Self::CyclicPosteriorActionDecision => RouteFamily::Cyclic,
                     Self::BridgeTransportDecision => RouteFamily::Structural,
                     Self::TemporalPathTransport => RouteFamily::Temporal,
                     Self::BundleRecomputation => RouteFamily::PropagationChain,

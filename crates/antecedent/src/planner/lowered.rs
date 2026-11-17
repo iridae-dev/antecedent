@@ -1094,6 +1094,8 @@ pub(crate) enum ProgramCell {
     FittedDependentMeasuredObservation,
     /// Paired intervention worlds derived from one compiled cyclic model.
     CyclicActionWorldDecision,
+    /// Joint fitted-mechanism posterior predictive action worlds.
+    CyclicPosteriorActionDecision,
     /// Checked bridge transport and predictive utility in one program.
     BridgeTransportDecision,
     /// Target-population time-ordered path-specific transport.
@@ -1121,6 +1123,7 @@ impl ProgramCell {
             Self::DependentMeasuredObservation => "DependentMeasuredObservation",
             Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
             Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
+            Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
             Self::BridgeTransportDecision => "BridgeTransportDecision",
             Self::TemporalPathTransport => "TemporalPathTransport",
             Self::BundleRecomputation => "BundleRecomputation",
@@ -1186,6 +1189,7 @@ impl LoweredProgram {
             | ProgramCell::DependentMeasuredObservation
             | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::CyclicActionWorldDecision
+            | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::TemporalPathTransport
             | ProgramCell::BundleRecomputation
@@ -1208,6 +1212,7 @@ impl LoweredProgram {
             | ProgramCell::DependentMeasuredObservation
             | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::CyclicActionWorldDecision
+            | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::TemporalPathTransport
             | ProgramCell::BundleRecomputation
@@ -1230,6 +1235,7 @@ impl LoweredProgram {
             | ProgramCell::DependentMeasuredObservation
             | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::CyclicActionWorldDecision
+            | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::TemporalPathTransport
             | ProgramCell::BundleRecomputation
