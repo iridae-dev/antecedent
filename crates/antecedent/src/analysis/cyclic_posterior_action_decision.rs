@@ -353,10 +353,15 @@ impl CompiledCyclicPosteriorDecision {
         PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
     }
 
-    fn joint_chain(
+    pub(super) fn joint_chain(
         &self, outcomes: &[Vec<f64>],
     ) -> Result<PropagationChainRecordWire, CyclicPosteriorDecisionError> {
-        let alignment = self.lowered.identity().to_hex();
+        self.joint_chain_with_alignment(outcomes, &self.lowered.identity().to_hex())
+    }
+
+    pub(super) fn joint_chain_with_alignment(
+        &self, outcomes: &[Vec<f64>], alignment: &str,
+    ) -> Result<PropagationChainRecordWire, CyclicPosteriorDecisionError> {
         let mut sources = Vec::with_capacity(self.outputs.len());
         let mut stages = Vec::with_capacity(self.outputs.len());
         let mut joint = Vec::with_capacity(self.outputs.len());
@@ -367,9 +372,9 @@ impl CompiledCyclicPosteriorDecision {
             let source_id = format!("cyclic.posterior.world.{index}");
             let stage_id = format!("cyclic.posterior.outcome.{index}");
             sources.push(ChainSourceWire::draws(
-                &source_id, LawMeaning::Predictive, &alignment, values,
-            ).with_factor(SharedFactorKind::Model, &alignment)
-             .with_factor(SharedFactorKind::Disturbance, &alignment));
+                &source_id, LawMeaning::Predictive, alignment, values,
+            ).with_factor(SharedFactorKind::Model, alignment)
+             .with_factor(SharedFactorKind::Disturbance, alignment));
             stages.push(ChainStageWire::new(
                 &stage_id, StageKind::DerivedQuantity, &[source_id.as_str()],
                 ChainOpWire::affine(
