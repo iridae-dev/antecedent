@@ -467,7 +467,7 @@ fn bootstrap_word(state: &mut u64) -> u64 {
     z ^ (z >> 31)
 }
 
-fn bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
+pub(crate) fn bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
     let bound = len as u64;
     let threshold = bound.wrapping_neg() % bound;
     loop {

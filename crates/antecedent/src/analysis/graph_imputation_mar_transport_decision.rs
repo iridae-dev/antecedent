@@ -310,7 +310,15 @@ impl CompiledMarTransportDecision {
         receipt.bytes(self.lowered.identity().as_bytes()).bytes(&self.target.digest()?).word(u64::from(policy.replicates)).word(policy.seed);
         for replicate in 0..policy.replicates {
             if ctx.cancellation.is_cancelled() { return Err(MarTransportError::Invalid("cluster bootstrap cancelled")); }
-            let indices = super::graph_imputation_transport_decision::bootstrap_cluster_rows(&mut state, &groups);
+            let mut indices = Vec::new();
+            let mut cluster_slots = Vec::new();
+            for slot in 0..groups.len() {
+                let selected = super::graph_imputation_transport_decision::bootstrap_pool_index(&mut state, groups.len());
+                for &row in &groups[selected] {
+                    indices.push(row);
+                    cluster_slots.push(slot);
+                }
+            }
             let mut sampled = self.target.clone();
             for ((_, values), (_, original)) in sampled.frame.columns.iter_mut().zip(&self.target.frame.columns) {
                 *values = indices.iter().map(|&i| original[i]).collect();
@@ -324,8 +332,8 @@ impl CompiledMarTransportDecision {
                 nonce = nonce.checked_add(1).ok_or(MarTransportError::Invalid("bootstrap identity overflow"))?;
             };
             sampled.frame.row_ids = (0..indices.len()).map(|i| format!("{prefix}{i}")).collect();
-            // Cluster IDs are not used to calculate the weighted estimate within a replicate.
-            sampled.frame.cluster_ids = (0..indices.len()).map(|i| format!("{prefix}cluster:{i}")).collect();
+            sampled.frame.cluster_ids = cluster_slots.into_iter()
+                .map(|slot| format!("{prefix}cluster:{slot}")).collect();
             let run = replay_mar_transport_point(&self.native_source, &sampled, ctx)?;
             if run.draws.is_empty() { return Err(MarTransportError::Invalid("bootstrap replicate has no posterior draws")); }
             let bound = run.draws.len() as u64;
