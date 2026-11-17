@@ -398,6 +398,12 @@ pub(crate) enum NonGraphicalIdentification {
         /// Digest of the complete rows, policy rule and evaluation split.
         request: [u8; 32],
     },
+    /// Backdoor separation and pre-treatment information were checked on the
+    /// caller's declared causal DAG before policy learning or scoring.
+    GraphCheckedPolicyEvaluation {
+        /// Digest of the rows, graph, information set and split.
+        request: [u8; 32],
+    },
 }
 
 impl NonGraphicalIdentification {
@@ -409,6 +415,7 @@ impl NonGraphicalIdentification {
             Self::CyclicIoScm { .. } => "cyclic_ioscm",
             Self::SharedEvidenceContract { .. } => "shared_evidence_contract",
             Self::DeclaredPolicyEvaluation { .. } => "declared_policy_evaluation",
+            Self::GraphCheckedPolicyEvaluation { .. } => "graph_checked_policy_evaluation",
         }
     }
 
@@ -434,6 +441,9 @@ impl NonGraphicalIdentification {
                 writer.bytes(contract);
             }
             Self::DeclaredPolicyEvaluation { request } => {
+                writer.bytes(request);
+            }
+            Self::GraphCheckedPolicyEvaluation { request } => {
                 writer.bytes(request);
             }
         }

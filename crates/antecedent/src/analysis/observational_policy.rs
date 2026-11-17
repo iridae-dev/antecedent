@@ -20,6 +20,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
+use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_core::{
@@ -27,6 +28,7 @@ use antecedent_core::{
     PhysicalOperator, ScoreFrequentist, ScoreModel, SemanticDigest,
 };
 use antecedent_estimate::EstimationError;
+use antecedent_graph::{Dag, DenseNodeId, DSeparationWorkspace};
 use antecedent_estimate::observational_policy::{
     DEFAULT_POLICY_FOLDS, KnownPropensity, ObservationalPolicyValue as Estimator,
     PolicyData, PolicyEvaluation, PolicyObjective, PolicyOrigin,
@@ -49,6 +51,24 @@ use crate::planner::{PlanStage, PlanView};
 
 /// Calibration standing of the reported standard errors.
 pub const OBSERVATIONAL_POLICY_CALIBRATION: &str = "not_measured";
+
+/// A declared causally sufficient DAG for the policy's treatment and outcome.
+/// The information set names columns available when the policy acts. Every
+/// adjustment and information variable must precede treatment in this graph.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PolicyGraphDeclaration {
+    /// Distinct node names, including treatment, outcome and adjustment columns.
+    pub nodes: Vec<String>,
+    /// Directed edges in the declared DAG.
+    pub edges: Vec<(String, String)>,
+    /// Name of the treatment node.
+    pub treatment: String,
+    /// Name of the outcome node.
+    pub outcome: String,
+    /// Adjustment columns observable when the policy selects an action.
+    pub information_set: Vec<String>,
+}
 
 /// The declared support, objective and evaluation.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -90,6 +110,10 @@ pub struct ObservationalPolicySpecWire {
     /// order. Exclusive with `known_propensity`.
     #[serde(default)]
     pub known_propensity_columns: Option<Vec<Vec<f64>>>,
+    /// Optional graph-checked exchangeability and policy information set.
+    /// Absent requests keep the version-1 declared-adjustment route.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub causal_graph: Option<PolicyGraphDeclaration>,
     /// Seed of the fold plan or held-out split. `evaluate` runs under the caller's context and
     /// its seed; bindings that build the context from this declaration use this value.
     #[serde(default)]
@@ -292,11 +316,13 @@ impl ObservationalPolicyValue {
 
     /// Estimate the declared policy's value under the caller's `ctx`.
     ///
-    /// This is a specialized checked path outside the central compiler. It checks the
+    /// A graph declaration enters the central compiler before fitting. The
+    /// declaration-only route checks the
     /// declared support, objective, evaluation scheme and policy origin (a policy learned on
     /// the scoring rows is refused), the columns and the propensity floor. It does not check
-    /// the adjustment columns against a graph: the report lists exchangeability as a declared
-    /// assumption. The cross-fit seed, cancellation and admission pool are `ctx`'s.
+    /// adjustment columns against a graph only when one is supplied. The
+    /// graph check is conditional on its declared causal sufficiency. The
+    /// cross-fit seed, cancellation and admission pool are `ctx`'s.
     ///
     /// # Errors
     /// `required_option_missing` for an absent support, objective, evaluation or policy
@@ -309,6 +335,9 @@ impl ObservationalPolicyValue {
         request: &ObservationalPolicyRequest,
         ctx: &ExecutionContext,
     ) -> Result<ObservationalPolicyReportWire, CausalError> {
+        if request.spec.causal_graph.is_some() && ctx.lowered_dispatch().is_none() {
+            return compile_observational_policy(request.clone(), ctx)?.execute(ctx);
+        }
         let spec = &request.spec;
         let (support, objective, evaluation) = Self::policy_declarations(spec)?;
         let invalid = |detail: &str, message: &str| {
@@ -367,7 +396,7 @@ impl ObservationalPolicyValue {
         Ok(ObservationalPolicyReportWire {
             evaluation: estimate.evaluation.as_str().into(),
             estimand: estimand(&estimate.evaluation).into(),
-            assumptions: assumptions(&estimate.evaluation),
+            assumptions: assumptions(&estimate.evaluation, spec.causal_graph.is_some()),
             objective: objective.as_str().into(),
             support,
             value: estimate.value,
@@ -408,6 +437,7 @@ impl ObservationalPolicyValue {
 
 const POLICY_PROGRAM_TAG: &str = "antecedent.observational_policy_program.v1";
 const POLICY_ARTIFACT_FEATURE: &str = "observational_policy_compiled_v1";
+const GRAPH_POLICY_ARTIFACT_FEATURE: &str = "observational_policy_graph_checked_v2";
 const MAX_POLICY_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 fn policy_compiler_refusal(message: &str) -> CausalError {
@@ -416,6 +446,79 @@ fn policy_compiler_refusal(message: &str) -> CausalError {
         "observational_policy.compiler",
         message,
     ))
+}
+
+fn check_policy_graph(
+    request: &ObservationalPolicyRequest,
+    declaration: &PolicyGraphDeclaration,
+) -> Result<(), CausalError> {
+    if declaration.nodes.len() < 2 || declaration.nodes.len() > 128
+        || declaration.edges.len() > 2048
+    {
+        return Err(policy_compiler_refusal("policy graph size is outside the checked bounds"));
+    }
+    let mut positions = BTreeMap::new();
+    for (index, name) in declaration.nodes.iter().enumerate() {
+        if name.trim().is_empty() || positions.insert(name.as_str(), DenseNodeId::from_raw(index as u32)).is_some() {
+            return Err(policy_compiler_refusal("policy graph nodes need distinct nonempty names"));
+        }
+    }
+    let treatment = *positions.get(declaration.treatment.as_str())
+        .ok_or_else(|| policy_compiler_refusal("the graph has no treatment node"))?;
+    let outcome = *positions.get(declaration.outcome.as_str())
+        .ok_or_else(|| policy_compiler_refusal("the graph has no outcome node"))?;
+    if treatment == outcome {
+        return Err(policy_compiler_refusal("treatment and outcome must be distinct"));
+    }
+    let mut graph = Dag::with_variables(declaration.nodes.len() as u32);
+    for (from, to) in &declaration.edges {
+        let from = *positions.get(from.as_str())
+            .ok_or_else(|| policy_compiler_refusal("an edge has an unknown parent"))?;
+        let to = *positions.get(to.as_str())
+            .ok_or_else(|| policy_compiler_refusal("an edge has an unknown child"))?;
+        graph.insert_directed(from, to)
+            .map_err(|_| policy_compiler_refusal("policy graph edges must form a DAG"))?;
+    }
+    let mut adjustment = BTreeSet::new();
+    for column in &request.adjustment {
+        let node = *positions.get(column.name.as_str())
+            .ok_or_else(|| policy_compiler_refusal("an adjustment column is absent from the graph"))?;
+        if node == treatment || node == outcome || !adjustment.insert(node) {
+            return Err(policy_compiler_refusal("adjustment columns must be distinct pretreatment nodes"));
+        }
+    }
+    let mut information = BTreeSet::new();
+    for name in &declaration.information_set {
+        let node = *positions.get(name.as_str())
+            .ok_or_else(|| policy_compiler_refusal("a policy information variable is absent from the graph"))?;
+        if !adjustment.contains(&node) || !information.insert(node) {
+            return Err(policy_compiler_refusal("policy information must be distinct adjustment columns"));
+        }
+    }
+    if information != adjustment {
+        return Err(policy_compiler_refusal(
+            "this policy learner reads all adjustment columns, so its information set must name exactly those columns",
+        ));
+    }
+    let mut descendants = BTreeSet::new();
+    let mut frontier = vec![treatment];
+    while let Some(parent) = frontier.pop() {
+        for &child in graph.children(parent) {
+            if descendants.insert(child) { frontier.push(child); }
+        }
+    }
+    if adjustment.iter().any(|node| descendants.contains(node)) {
+        return Err(policy_compiler_refusal("post-treatment adjustment or policy information is forbidden"));
+    }
+    let backdoor = graph.copy_filtered(|from, _| from != treatment)
+        .map_err(|_| policy_compiler_refusal("the policy backdoor graph could not be formed"))?;
+    let set: Vec<_> = adjustment.into_iter().collect();
+    if !backdoor.is_d_separated(treatment, outcome, &set, &mut DSeparationWorkspace::default())
+        .map_err(|_| policy_compiler_refusal("policy graph separation could not be checked"))?
+    {
+        return Err(policy_compiler_refusal("the declared adjustment set leaves an open backdoor path"));
+    }
+    Ok(())
 }
 
 fn policy_request_digest(
@@ -438,7 +541,8 @@ fn policy_request_digest(
 }
 
 /// The complete learning and evaluation schedule, bound to one six-layer
-/// compiler program. Its adjustment sufficiency remains a declared assumption.
+/// compiler program. A graph declaration is checked conditionally on its
+/// causal sufficiency; otherwise adjustment sufficiency remains declared.
 #[derive(Clone, Debug)]
 pub struct CompiledObservationalPolicy {
     request: ObservationalPolicyRequest,
@@ -484,9 +588,10 @@ impl CompiledObservationalPolicy {
             return Err(policy_compiler_refusal("the policy report differs from its compiled execution"));
         }
         let report_bytes = antecedent_io::to_cbor(report)?;
+        let checked = self.request.spec.causal_graph.is_some();
         let wire = CompiledPolicyArtifactWire {
-            version: 1,
-            required_feature: POLICY_ARTIFACT_FEATURE.into(),
+            version: if checked { 2 } else { 1 },
+            required_feature: if checked { GRAPH_POLICY_ARTIFACT_FEATURE } else { POLICY_ARTIFACT_FEATURE }.into(),
             request: PolicyRequestWire::from_request(&self.request),
             seed: self.seed,
             lowered_program_identity: *self.lowered.identity().as_bytes(),
@@ -531,6 +636,9 @@ pub fn compile_observational_policy(
     if names.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err(policy_compiler_refusal("policy adjustment column names must be distinct"));
     }
+    if let Some(graph) = &request.spec.causal_graph {
+        check_policy_graph(&request, graph)?;
+    }
     let seed = ctx.rng.master_seed();
     let digest = policy_request_digest(&request, seed)?;
     let folds = request.spec.folds.unwrap_or(DEFAULT_POLICY_FOLDS);
@@ -547,7 +655,11 @@ pub fn compile_observational_policy(
         },
         plan_id: Arc::from(format!("observational_policy.{evaluation_name}")),
         data: DataClassification::Tabular,
-        graph_class: "declared_adjustment",
+        graph_class: if request.spec.causal_graph.is_some() {
+            "declared_dag_checked_backdoor"
+        } else {
+            "declared_adjustment"
+        },
         query_variables: Arc::from(Vec::new()),
         source_digest: Some(digest),
         support_coordinate: None,
@@ -555,7 +667,11 @@ pub fn compile_observational_policy(
         support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
-        NonGraphicalIdentification::DeclaredPolicyEvaluation { request: digest },
+        if request.spec.causal_graph.is_some() {
+            NonGraphicalIdentification::GraphCheckedPolicyEvaluation { request: digest }
+        } else {
+            NonGraphicalIdentification::DeclaredPolicyEvaluation { request: digest }
+        },
     ));
     let model = |role, name: String| ModelSlot {
         role, family: Arc::from(name), inputs: Arc::from(Vec::new()), output: None,
@@ -675,9 +791,11 @@ pub fn consume_compiled_observational_policy(
         return Err(policy_compiler_refusal("compiled policy artifact exceeds its byte limit"));
     }
     let wire: CompiledPolicyArtifactWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != POLICY_ARTIFACT_FEATURE
-        || wire.seed != ctx.rng.master_seed()
-    {
+    let checked = wire.request.spec.causal_graph.is_some();
+    let expected_version = if checked { 2 } else { 1 };
+    let expected_feature = if checked { GRAPH_POLICY_ARTIFACT_FEATURE } else { POLICY_ARTIFACT_FEATURE };
+    if wire.version != expected_version || wire.required_feature != expected_feature
+        || wire.seed != ctx.rng.master_seed() {
         return Err(policy_compiler_refusal("compiled policy artifact version, feature or split seed differs"));
     }
     let plan = compile_observational_policy(wire.request.into_request(), ctx)?;
@@ -711,9 +829,13 @@ fn estimand(evaluation: &PolicyEvaluation) -> &'static str {
     }
 }
 
-fn assumptions(evaluation: &PolicyEvaluation) -> Vec<String> {
+fn assumptions(evaluation: &PolicyEvaluation, graph_checked: bool) -> Vec<String> {
     let mut list = vec![
-        "conditional exchangeability: the declared covariates are a sufficient adjustment set (declared, not checked)".to_owned(),
+        if graph_checked {
+            "conditional exchangeability: the declared adjustment set blocks every backdoor path in the declared causally sufficient DAG; graph truth remains an assumption"
+        } else {
+            "conditional exchangeability: the declared covariates are a sufficient adjustment set (declared, not checked)"
+        }.to_owned(),
         "positivity: every action of the declared support has propensity above the floor at every scored row".to_owned(),
         "consistency and no interference between units".to_owned(),
         "the propensity model or the per-action outcome models are correctly specified (double robustness needs one side)".to_owned(),

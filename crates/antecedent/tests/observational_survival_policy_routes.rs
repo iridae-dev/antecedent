@@ -6,6 +6,7 @@
 use antecedent::analysis::multi_level_treatment::AdjustmentColumn;
 use antecedent::analysis::observational_policy::{
     ObservationalPolicyReportWire, ObservationalPolicyRequest, ObservationalPolicySpecWire,
+    PolicyGraphDeclaration,
     ObservationalPolicyValue, compile_observational_policy,
     consume_compiled_observational_policy,
 };
@@ -214,6 +215,37 @@ fn learned_policy_compiles_the_split_and_independently_replays_it() {
     assert_eq!(replay, report);
     let changed_seed = antecedent::prelude::ExecutionContext::production_default(3);
     assert!(consume_compiled_observational_policy(&bytes, None, &changed_seed).is_err());
+}
+
+#[test]
+fn graph_checked_policy_binds_backdoor_proof_and_information_to_the_compiler() {
+    let mut request = policy_request(policy_spec("held_out"));
+    let graph = PolicyGraphDeclaration {
+        nodes: vec!["z".into(), "a".into(), "y".into()],
+        edges: vec![("z".into(), "a".into()), ("z".into(), "y".into()),
+                    ("a".into(), "y".into())],
+        treatment: "a".into(), outcome: "y".into(),
+        information_set: vec!["z".into()],
+    };
+    request.spec.causal_graph = Some(graph.clone());
+    let ctx = antecedent::prelude::ExecutionContext::production_default(request.spec.seed);
+    let plan = compile_observational_policy(request.clone(), &ctx).expect("backdoor compiler");
+    let report = plan.execute(&ctx).expect("graph checked estimate");
+    assert_eq!(ObservationalPolicyValue::evaluate(&request, &ctx)
+        .expect("public entry compiles first"), report);
+    assert!(report.assumptions.iter().any(|text| text.contains("declared causally sufficient DAG")));
+    let bytes = plan.export(&report, &ctx).expect("versioned artifact");
+    assert_eq!(consume_compiled_observational_policy(
+        &bytes, Some(plan.lowered().identity()), &ctx,
+    ).expect("independent graph check"), report);
+    let mut confounded = request;
+    confounded.adjustment.clear();
+    confounded.spec.causal_graph.as_mut().expect("graph").information_set.clear();
+    assert!(compile_observational_policy(confounded, &ctx).is_err());
+    let mut late = policy_request(policy_spec("held_out"));
+    late.spec.causal_graph = Some(graph);
+    late.spec.causal_graph.as_mut().expect("graph").edges.push(("a".into(), "z".into()));
+    assert!(compile_observational_policy(late, &ctx).is_err());
 }
 
 #[test]
