@@ -150,13 +150,6 @@ groups = [
 ]
 
 [[statement]]
-route = "temporal_design.regime_survival"
-statement = "horizons above three"
-groups = [
-  "temporal_design_statements_calibration: temporal_design_regime_survival_longer_horizon_bootstrap_interval",
-]
-
-[[statement]]
 route = "quasi.staggered_heterogeneity_robust"
 statement = "dynamic aggregation"
 groups = [
