@@ -2012,6 +2012,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::GraphImputationTransportNodeBundleRecomputation => PlanRoute::GraphImputationTransportNodeBundleRecomputation,
         ProgramCell::JointTransportEffectNodeBundleRecomputation => PlanRoute::JointTransportEffectNodeBundleRecomputation,
         ProgramCell::JointComponentPosteriorDecision => PlanRoute::JointComponentPosteriorDecision,
+        ProgramCell::BoundedComponentPosteriorDecision => PlanRoute::BoundedComponentPosteriorDecision,
         ProgramCell::PosteriorDecisionBundleRecomputation => PlanRoute::PosteriorDecisionBundleRecomputation,
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,
         ProgramCell::GraphImputationEffectDecision => PlanRoute::GraphImputationEffectDecision,

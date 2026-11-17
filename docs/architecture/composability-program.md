@@ -102,6 +102,17 @@ real-valued ports are admitted. The connected predictive and decision claims
 remain model-conditional and unmeasured; bounded and categorical ports and
 component-level evidence-ledger support remain open.
 
+`bounded_joint_component_posterior_decision.v1` adds a separate fitted
+handoff for bounded **derived** outputs. It first refits the real-valued
+multi-output feedback system, then applies a declared logistic transform to
+each aligned predictive action world through the chain compiler. The outer
+compiler binds the transformed, dimensionless quantities and decision
+contract; its portable consumer refits the child and replays the transformed
+joint law and utility. The structural ports and Gaussian disturbances remain
+real-valued. This route therefore does not establish bounded structural
+mechanisms or categorical ports. A fixed-design action reliability scope is
+available before fitting and remains `not_measured`.
+
 `propagation_chain_assumption_v3` adds a second route for aligned sampling or
 posterior draws combined with interval-valued assumptions through rowwise
 transformations. The compiler carries a separate `assumption_envelope` reading

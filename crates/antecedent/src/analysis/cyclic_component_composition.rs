@@ -1131,6 +1131,277 @@ pub fn consume_joint_vector_component_posterior_decision(
     })
 }
 
+/// A bounded logistic transform of each real-valued fitted action-world output.
+/// This transforms predictive outputs after fitting; the structural ports and
+/// Gaussian disturbances remain real-valued and are never claimed bounded.
+#[derive(Clone, Debug)]
+pub struct CompiledBoundedComponentPosteriorDecision {
+    inner: CompiledJointVectorComponentPosteriorDecision,
+    quantities: Vec<antecedent_contract::ScientificQuantity>,
+    contract: antecedent_design::decision_contract::DecisionContract,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// Complete fitted producer and bounded predictive action decision.
+pub struct BoundedComponentPosteriorDecisionResult {
+    /// Original real-valued predictive component fit and paired worlds.
+    pub inner: JointComponentPosteriorDecisionResult,
+    /// Logistic-transformed paired predictive law and utility.
+    pub decision: super::propagation_chain_decision::ChainDecisionResult,
+    /// Full compiler identity.
+    pub lowered_program_identity: SemanticDigest,
+    /// Always unmeasured.
+    pub calibration: &'static str,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BoundedComponentPosteriorWire {
+    version: u32, feature: String, program_identity: [u8; 32],
+    inner_identity: [u8; 32], inner_artifact: Vec<u8>,
+    quantities: Vec<antecedent_io::quantity_wire::ScientificQuantityWire>,
+    contract_identity: String, contract_artifact: Vec<u8>,
+    chain_identity: [u8; 32], chain_artifact: Vec<u8>,
+}
+
+/// Compile logistic bounded outputs after the real-valued joint component fit.
+/// Each output retains the source variable, regime, population and functional;
+/// its units must be dimensionless and transform identity `logistic`.
+///
+/// # Errors
+/// Wrong output coordinates, action contract, or unsupported lowering.
+pub fn compile_bounded_component_posterior_decision(
+    inner: CompiledJointVectorComponentPosteriorDecision,
+    quantities: Vec<antecedent_contract::ScientificQuantity>,
+    contract: antecedent_design::decision_contract::DecisionContract,
+) -> Result<CompiledBoundedComponentPosteriorDecision, JointComponentPosteriorError> {
+    contract.validate().map_err(super::cyclic_posterior_action_decision::CyclicPosteriorDecisionError::from)?;
+    if quantities.len() != inner.outputs.len() || quantities.len() < 2 {
+        return Err(JointComponentPosteriorError::Invalid("bounded outputs must cover every paired component world"));
+    }
+    for (quantity, output) in quantities.iter().zip(&inner.outputs) {
+        let raw: antecedent_contract::ScientificQuantity = output.quantity.clone().try_into()
+            .map_err(|_| JointComponentPosteriorError::Invalid("invalid raw component quantity"))?;
+        let mut expected = raw.clone();
+        expected.units = "dimensionless".into(); expected.transform_id = "logistic".into();
+        if expected.require_same_coordinate(quantity).is_err()
+            || quantity.population_id != contract.target_population || quantity.horizon != contract.horizon {
+            return Err(JointComponentPosteriorError::Invalid("bounded output must be the logistic transform of its exact real port"));
+        }
+    }
+    if contract.actions.len() != quantities.len() || contract.actions.iter().any(|action|
+        action.inputs.len() != 1 || !quantities.iter().any(|quantity|
+            action.inputs[0].require_same_coordinate(quantity).is_ok())) {
+        return Err(JointComponentPosteriorError::Invalid("bounded actions must each name an output world"));
+    }
+    let quantity_wires: Vec<_> = quantities.iter().map(antecedent_io::quantity_wire::ScientificQuantityWire::from).collect();
+    let mut writer = CanonicalWriter::new("antecedent.bounded_component_posterior.question.v1");
+    writer.bytes(inner.lowered.identity().as_bytes()).bytes(&antecedent_io::to_cbor(&quantity_wires)?)
+        .text(&contract.identity().map_err(super::cyclic_posterior_action_decision::CyclicPosteriorDecisionError::from)?)
+        .text("logistic_after_joint_predictive_fit_v1");
+    let query = writer.finish();
+    let mut scientific = inner.lowered.scientific().clone();
+    scientific.target = ProblemTarget::QueryFunctional { kind: FunctionalKind::PolicyValue, outcome: None, query };
+    scientific.plan_id = Arc::from("bounded_joint_component_posterior_decision.v1");
+    scientific.graph_class = "real_fitted_component_logistic_predictive_output";
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
+    let mut statistical = inner.lowered.statistical().clone();
+    statistical.realization = crate::planner::statistical::Realization::NestedFit {
+        producer_program: inner.lowered.identity(), method: Arc::from("joint_component_posterior_logistic_predictive_v1"),
+        law: crate::planner::statistical::NestedFitLaw::Predictive,
+    };
+    let mut evidence = inner.lowered.evidence().clone();
+    let mut sources = evidence.sources.to_vec();
+    sources.push(EvidenceSourceRef { role: EvidenceRole::ChainSource, digest: Some(*inner.lowered.identity().as_bytes()) });
+    evidence.sources = Arc::from(sources);
+    let mut operators = inner.lowered.physical().operators().to_vec();
+    operators.push(antecedent_core::PhysicalOperator::declare(antecedent_core::PhysicalEffect::Condition).build()
+        .map_err(|_| JointComponentPosteriorError::Invalid("bounded transform cannot be lowered"))?);
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::BoundedComponentPosteriorDecision, scientific, identification, statistical, evidence,
+        physical: PhysicalLayer { operators: Arc::from(operators), design: inner.lowered.physical().design() },
+        claim: *inner.lowered.claim(),
+    }.finish());
+    Ok(CompiledBoundedComponentPosteriorDecision { inner, quantities, contract, lowered })
+}
+
+impl CompiledBoundedComponentPosteriorDecision {
+    /// Full component, fit, transform and decision compiler program.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    /// Inspect the retained program before fitting.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView { PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled) }
+
+    fn chain(&self, inner: &JointComponentPosteriorDecisionResult, ctx: &ExecutionContext)
+        -> Result<super::propagation_chain_decision::ChainDecisionPlan, JointComponentPosteriorError> {
+        use antecedent_contract::dependence::SharedFactorKind;
+        use antecedent_contract::propagation_chain::{ChainReading, LawMeaning, StageKind, TableConstruction};
+        use antecedent_io::propagation_chain_record::{ChainJointOutputWire, ChainOpWire, ChainSourceWire, ChainStageWire, ChainUnaryWire, PropagationChainRecordWire};
+        let (columns, weights) = inner.child.decision.chain.joint_output_law()
+            .ok_or(JointComponentPosteriorError::Invalid("real fitted worlds have no joint law"))?;
+        if columns.len() != self.quantities.len() || weights.is_some() {
+            return Err(JointComponentPosteriorError::Invalid("bounded route requires unweighted aligned fitted worlds"));
+        }
+        let alignment = inner.child.decision.chain.identity();
+        let mut sources = Vec::new(); let mut stages = Vec::new(); let mut outputs = Vec::new();
+        for (i, (column, quantity)) in columns.iter().zip(&self.quantities).enumerate() {
+            let source = format!("real.world.{i}"); let stage = format!("bounded.world.{i}");
+            let values: Vec<_> = column.iter().copied().map(f64::from_bits).collect();
+            sources.push(ChainSourceWire::draws(&source, LawMeaning::Predictive, alignment, &values)
+                .with_factor(SharedFactorKind::Model, alignment));
+            stages.push(ChainStageWire::new(&stage, StageKind::DerivedQuantity, &[&source],
+                ChainOpWire::unary(ChainUnaryWire::Logistic)));
+            outputs.push(ChainJointOutputWire { stage, quantity: antecedent_io::quantity_wire::ScientificQuantityWire::from(quantity) });
+        }
+        let draft = PropagationChainRecordWire::draft(TableConstruction::JointDraws, ChainReading::Predictive,
+            &outputs[0].stage, sources, stages).with_output_quantity(outputs[0].quantity.clone()).with_joint_outputs(outputs);
+        super::propagation_chain_decision::compile_action_world_chain_decision(draft, self.contract.clone(), ctx)
+            .map_err(super::cyclic_posterior_action_decision::CyclicPosteriorDecisionError::from).map_err(Into::into)
+    }
+
+    /// Refit all components and evaluate logistic outputs under their shared worlds.
+    ///
+    /// # Errors
+    /// A fit, diagnostics, equilibrium, transform or decision refusal.
+    pub fn execute(&self, ctx: &ExecutionContext) -> Result<BoundedComponentPosteriorDecisionResult, JointComponentPosteriorError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let inner = self.inner.execute(&scoped)?;
+        let decision = self.chain(&inner, &scoped)?.execute(&scoped)
+            .map_err(super::cyclic_posterior_action_decision::CyclicPosteriorDecisionError::from)?;
+        Ok(BoundedComponentPosteriorDecisionResult { inner, decision, lowered_program_identity: self.lowered.identity(), calibration: "not_measured" })
+    }
+
+    /// Seal a fresh complete fit and transformed decision for replay.
+    ///
+    /// # Errors
+    /// Changed fit/decision or oversized artifact.
+    pub fn export(&self, result: &BoundedComponentPosteriorDecisionResult, ctx: &ExecutionContext)
+        -> Result<Vec<u8>, JointComponentPosteriorError> {
+        let live = self.execute(ctx)?;
+        if result.lowered_program_identity != self.lowered.identity() || result.calibration != "not_measured"
+            || result.inner.lowered_program_identity != live.inner.lowered_program_identity
+            || result.inner.child.lowered_program_identity != live.inner.child.lowered_program_identity
+            || result.inner.child.posterior != live.inner.child.posterior
+            || result.inner.child.decision.decision != live.inner.child.decision.decision
+            || result.inner.child.decision.chain.identity() != live.inner.child.decision.chain.identity()
+            || result.decision.chain.identity() != live.decision.chain.identity()
+            || result.decision.decision != live.decision.decision {
+            return Err(JointComponentPosteriorError::Invalid("bounded component result differs on replay"));
+        }
+        let contract = antecedent_design::decision_artifact::DecisionContractArtifact::new(self.contract.clone())
+            .map_err(super::cyclic_posterior_action_decision::CyclicPosteriorDecisionError::from)?;
+        let chain = self.chain(&live.inner, ctx)?;
+        let bytes = antecedent_io::to_cbor(&BoundedComponentPosteriorWire {
+            version: 1, feature: "bounded_joint_component_posterior_decision_v1".into(),
+            program_identity: *self.lowered.identity().as_bytes(), inner_identity: *self.inner.lowered.identity().as_bytes(),
+            inner_artifact: self.inner.export(&live.inner, ctx)?,
+            quantities: self.quantities.iter().map(antecedent_io::quantity_wire::ScientificQuantityWire::from).collect(),
+            contract_identity: contract.identity().into(), contract_artifact: contract.to_bytes("bounded-component-contract")?,
+            chain_identity: *chain.lowered().identity().as_bytes(), chain_artifact: chain.export(&live.decision, "bounded-component-chain")?,
+        })?;
+        if bytes.len() > MAX_JOINT_COMPONENT_BYTES { return Err(JointComponentPosteriorError::Invalid("bounded component artifact exceeds its bound")); }
+        Ok(bytes)
+    }
+}
+
+/// Independently recompile the vector component source, refit and replay the
+/// logistic action-world chain under an externally retained program identity.
+///
+/// # Errors
+/// Changed source, fit, transform, contract or decision.
+pub fn consume_bounded_component_posterior_decision(bytes: &[u8], expected: SemanticDigest, ctx: &ExecutionContext)
+    -> Result<BoundedComponentPosteriorDecisionResult, JointComponentPosteriorError> {
+    if bytes.len() > MAX_JOINT_COMPONENT_BYTES { return Err(JointComponentPosteriorError::Invalid("bounded component artifact exceeds its bound")); }
+    let wire: BoundedComponentPosteriorWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.feature != "bounded_joint_component_posterior_decision_v1" || wire.program_identity != *expected.as_bytes() {
+        return Err(JointComponentPosteriorError::Invalid("bounded component feature or identity differs"));
+    }
+    let retained = consume_joint_vector_component_posterior_decision(&wire.inner_artifact,
+        SemanticDigest::from_bytes(wire.inner_identity), ctx)?;
+    let inner_wire: JointVectorComponentPosteriorWire = antecedent_io::from_cbor(&wire.inner_artifact)?;
+    let inner_contract = antecedent_design::decision_artifact::DecisionContractArtifact::from_bytes(
+        &inner_wire.contract_artifact, &inner_wire.contract_identity)?;
+    let inner = compile_joint_vector_component_posterior_decision(inner_wire.components.to_request()?,
+        inner_wire.schedule, inner_wire.outputs, inner_contract.contract().clone(), ctx)?;
+    let contract = antecedent_design::decision_artifact::DecisionContractArtifact::from_bytes(
+        &wire.contract_artifact, &wire.contract_identity)?;
+    let quantities = wire.quantities.into_iter().map(|q| q.try_into()
+        .map_err(|_| JointComponentPosteriorError::Invalid("bounded output coordinate is invalid")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let plan = compile_bounded_component_posterior_decision(inner, quantities, contract.contract().clone())?;
+    if plan.lowered.identity() != expected { return Err(JointComponentPosteriorError::Invalid("bounded component compiler differs")); }
+    let live = plan.execute(ctx)?;
+    if live.inner.lowered_program_identity != retained.lowered_program_identity
+        || live.inner.child.lowered_program_identity != retained.child.lowered_program_identity
+        || live.inner.child.posterior != retained.child.posterior
+        || live.inner.child.decision.chain.identity() != retained.child.decision.chain.identity()
+        || live.inner.child.decision.decision != retained.child.decision.decision
+        || live.decision.lowered_program_identity != SemanticDigest::from_bytes(wire.chain_identity) {
+        return Err(JointComponentPosteriorError::Invalid("bounded component inner result differs"));
+    }
+    let replay = super::propagation_chain_decision::consume_chain_decision(&wire.chain_artifact,
+        Some(live.decision.lowered_program_identity), ctx)
+        .map_err(super::cyclic_posterior_action_decision::CyclicPosteriorDecisionError::from)?;
+    if replay.chain.identity() != live.decision.chain.identity() || replay.decision != live.decision.decision {
+        return Err(JointComponentPosteriorError::Invalid("bounded component decision differs"));
+    }
+    Ok(live)
+}
+
+/// Prospective reliability scope for the full bounded-output decision.
+pub struct BoundedComponentReliabilityCandidate {
+    /// Complete fitted and transformed decision.
+    pub result: BoundedComponentPosteriorDecisionResult,
+    /// Exact source-bound design identity for a future reliability record.
+    pub scope: SemanticDigest,
+    /// Always `not_measured`.
+    pub calibration: &'static str,
+}
+
+impl CompiledBoundedComponentPosteriorDecision {
+    /// Fixed, pre-fit reliability scope excluding observed training values and seed.
+    ///
+    /// # Errors
+    /// Either inner or outer criterion is not eligible, constraints are present,
+    /// or the fixed declaration cannot be encoded.
+    pub fn reliability_scope(&self) -> Result<SemanticDigest, JointComponentPosteriorError> {
+        use antecedent_design::decision_contract::DecisionCriterion;
+        if !matches!(self.contract.criterion,
+            DecisionCriterion::PosteriorExpectedUtility | DecisionCriterion::ExpectedRegret)
+            || !self.contract.constraints.is_empty() {
+            return Err(JointComponentPosteriorError::Invalid("bounded reliability needs unconstrained expected utility or expected regret"));
+        }
+        let inner_scope = self.inner.posterior.decision_reliability_scope()?;
+        let component_bytes = antecedent_io::to_cbor(&self.inner.component_wire)?;
+        let component_digest = CanonicalWriter::digest_bytes(
+            "antecedent.bounded_component.reliability_component.v1", &component_bytes,
+        );
+        let quantities: Vec<_> = self.quantities.iter()
+            .map(antecedent_io::quantity_wire::ScientificQuantityWire::from).collect();
+        let mut writer = CanonicalWriter::new("antecedent.bounded_component.reliability_scope.v1");
+        writer.bytes(inner_scope.as_bytes()).bytes(&component_digest)
+            .bytes(&antecedent_io::to_cbor(&quantities)?)
+            .text(&self.contract.identity().map_err(super::cyclic_posterior_action_decision::CyclicPosteriorDecisionError::from)?)
+            .text("logistic_after_joint_predictive_fit_v1");
+        Ok(SemanticDigest::from_bytes(writer.finish()))
+    }
+
+    /// Execute the full route and expose its pre-fit, unmeasured reliability scope.
+    ///
+    /// # Errors
+    /// Ineligible scope or any nested fit or decision refusal.
+    pub fn reliability_candidate(&self, ctx: &ExecutionContext)
+        -> Result<BoundedComponentReliabilityCandidate, JointComponentPosteriorError> {
+        let scope = self.reliability_scope()?;
+        let result = self.execute(ctx)?;
+        Ok(BoundedComponentReliabilityCandidate { result, scope, calibration: "not_measured" })
+    }
+
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1510,6 +1781,135 @@ mod tests {
         wire.components.connections[0].consumer_output = "missing".into();
         let changed = antecedent_io::to_cbor(&wire).unwrap();
         assert!(consume_joint_vector_component_posterior_decision(&changed, plan.lowered().identity(), &ctx).is_err());
+    }
+
+    #[test]
+    #[ignore = "source-only bounded fitted component output; reliability not earned"]
+    fn bounded_component_worlds_replay_after_joint_fit() {
+        use antecedent_design::decision_contract::{ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr};
+        use antecedent_estimate::cyclic_likelihood::CyclicParameter;
+        use antecedent_io::quantity_wire::ScientificQuantityWire;
+        use antecedent_model::nonlinear_equilibrium::RegimeRow;
+        use super::super::cyclic_action_world_decision::CyclicDecisionOutput;
+        let original = request();
+        let mut traffic = original.components[1].clone();
+        traffic.interface.produces[0].name = "traffic".into();
+        traffic.interface.produces[0].quantity.variable_id = "game:traffic".into();
+        traffic.interface.produces[0].quantity.variable_name = "traffic".into();
+        traffic.interface.consumes[0].name = "from_wishlists".into();
+        let mut wishlists = original.components[0].clone();
+        wishlists.interface.produces[0].name = "wishlists".into();
+        wishlists.interface.consumes[0].name = "from_traffic".into();
+        wishlists.interface.consumes[0].quantity.variable_id = "game:traffic".into();
+        wishlists.interface.consumes[0].quantity.variable_name = "traffic".into();
+        let mut vector = VectorFeedbackRequest {
+            components: vec![VectorFeedbackComponent {
+                interface: InterfaceContract {
+                    component: "game".into(),
+                    produces: vec![traffic.interface.produces[0].clone(),
+                                   wishlists.interface.produces[0].clone()],
+                    consumes: vec![traffic.interface.consumes[0].clone(),
+                                   wishlists.interface.consumes[0].clone()],
+                },
+                outputs: vec![
+                    VectorFeedbackOutput {
+                        produced_port: "traffic".into(),
+                        equation: traffic.equation,
+                        consumed_ports: vec!["from_wishlists".into()],
+                    },
+                    VectorFeedbackOutput {
+                        produced_port: "wishlists".into(),
+                        equation: wishlists.equation,
+                        consumed_ports: vec!["from_traffic".into()],
+                    },
+                ],
+            }],
+            connections: vec![
+                VectorFeedbackConnection {
+                    ports: ComponentConnection::new("game", "traffic", "game", "from_traffic"),
+                    consumer_output: "wishlists".into(),
+                    coefficient: 0.3,
+                },
+                VectorFeedbackConnection {
+                    ports: ComponentConnection::new("game", "wishlists", "game", "from_wishlists"),
+                    consumer_output: "traffic".into(),
+                    coefficient: 0.2,
+                },
+            ],
+            noise_covariance: original.noise_covariance,
+            noise: original.noise, initial: original.initial,
+            worlds: original.worlds, policy: original.policy, factual: original.factual,
+        };
+        vector.noise_covariance = vec![0.04, 0.0, 0.0, 0.04];
+        vector.worlds = vec![
+            ComponentFeedbackWorld { clamps: vec![("game::traffic".into(), 0.0)] },
+            ComponentFeedbackWorld { clamps: vec![("game::traffic".into(), 1.0)] },
+        ];
+        let training = (0..260).map(|i| {
+            let traffic = (i % 5) as f64 * 0.4;
+            let disturbance = (i as f64 * 0.19).sin() * 0.2;
+            RegimeRow { values: vec![traffic, (1.0 + 0.3 * traffic + disturbance) / 0.8],
+                clamps: vec![Clamp { variable: 0, value: traffic }] }
+        }).collect();
+        let schedule = ComponentJointPosteriorSchedule {
+            parameters: vec![CyclicParameter::Weight { equation: 1, parent: 0 }],
+            training, prior_sd: 1.0, chains: 2, warmup: 300, draws_per_chain: 300, proposal_scale: 0.08,
+        };
+        let quantities: Vec<_> = ["ordinary", "promoted"].iter().map(|regime| {
+            let mut q = quantity(); q.regime_id = (*regime).into(); q
+        }).collect();
+        let outputs: Vec<_> = quantities.iter().enumerate().map(|(world, quantity)| CyclicDecisionOutput {
+            world, equation: 1, quantity: ScientificQuantityWire::from(quantity),
+        }).collect();
+        let contract = DecisionContract {
+            actions: quantities.iter().enumerate().map(|(i, q)| DecisionAction {
+                id: ["ordinary", "promoted"][i].into(), kind: ActionKind::Intervention,
+                inputs: vec![q.clone()], utility: UtilityExpr::Input(0),
+            }).collect(), utility_units: "count".into(), criterion: DecisionCriterion::ExpectedRegret,
+            constraints: vec![], target_population: quantities[0].population_id.clone(),
+            horizon: quantities[0].horizon, structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        let ctx = ExecutionContext::for_tests(47);
+        let plan = compile_joint_vector_component_posterior_decision(
+            vector.clone(), schedule.clone(), outputs.clone(), contract.clone(), &ctx,
+        ).unwrap();
+        let bounded_quantities: Vec<_> = quantities.iter().map(|q| {
+            let mut bounded = q.clone(); bounded.units = "dimensionless".into();
+            bounded.transform_id = "logistic".into(); bounded
+        }).collect();
+        let bounded_contract = DecisionContract {
+            actions: bounded_quantities.iter().enumerate().map(|(i, q)| DecisionAction {
+                id: ["ordinary", "promoted"][i].into(), kind: ActionKind::Intervention,
+                inputs: vec![q.clone()], utility: UtilityExpr::Input(0),
+            }).collect(), utility_units: "dimensionless".into(), criterion: DecisionCriterion::ExpectedRegret,
+            constraints: vec![], target_population: bounded_quantities[0].population_id.clone(),
+            horizon: bounded_quantities[0].horizon, structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        let bounded = compile_bounded_component_posterior_decision(plan, bounded_quantities.clone(), bounded_contract.clone()).unwrap();
+        assert_eq!(bounded.plan_view().route().as_str(), "BoundedComponentPosteriorDecision");
+        let scope = bounded.reliability_scope().unwrap();
+        let mut alternate_schedule = schedule;
+        alternate_schedule.training[0].values[1] += 0.01;
+        let alternate_ctx = ExecutionContext::for_tests(48);
+        let alternate_inner = compile_joint_vector_component_posterior_decision(
+            vector, alternate_schedule, outputs, contract, &alternate_ctx,
+        ).unwrap();
+        let alternate = compile_bounded_component_posterior_decision(alternate_inner, bounded_quantities, bounded_contract).unwrap();
+        assert_eq!(scope, alternate.reliability_scope().unwrap());
+        assert_ne!(bounded.lowered().identity(), alternate.lowered().identity());
+        let mut result = bounded.execute(&ctx).unwrap();
+        let (columns, _) = result.decision.chain.joint_output_law().unwrap();
+        assert!(columns.iter().flatten().all(|bits| (0.0..=1.0).contains(&f64::from_bits(*bits))));
+        assert_eq!(result.calibration, "not_measured");
+        let artifact = bounded.export(&result, &ctx).unwrap();
+        let replay = consume_bounded_component_posterior_decision(&artifact, bounded.lowered().identity(), &ctx).unwrap();
+        assert_eq!(result.decision.decision, replay.decision.decision);
+        let mut wire: BoundedComponentPosteriorWire = antecedent_io::from_cbor(&artifact).unwrap();
+        wire.quantities[0].transform_id = "identity".into();
+        let changed = antecedent_io::to_cbor(&wire).unwrap();
+        assert!(consume_bounded_component_posterior_decision(&changed, bounded.lowered().identity(), &ctx).is_err());
+        result.inner.child.posterior.samples[0][0] += 1.0;
+        assert!(bounded.export(&result, &ctx).is_err());
     }
 
 }
