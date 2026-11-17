@@ -23,7 +23,7 @@ pub use antecedent_design::composition_bundle::{
     CompositionBundle, ConsumedBundle, ConsumedNode, EvidenceRelationship, FACT_EVIDENCE_DIGEST,
     FACT_LAW, FACT_QUANTITY_DIGEST, FACT_REQUEST, FACT_REQUIRES_LAW, FACT_SNAPSHOT, FACT_TRUST,
     LAW_JOINT, LAW_MEAN_ONLY, NodeFailure, NodeKind, NodeSource, NodeStatus, ProviderOrData,
-    SuppliedData, SuppliedProvider, SuppliedSources,
+    SuppliedData, SuppliedProvider, SuppliedSources, NodeVerifier, UpstreamNode, VerifiedNode,
 };
 pub use antecedent_design::composition_verifiers::{
     ArtifactDescription, FACT_COORDINATES, FACT_MEAN_SOURCE, FACT_PROVIDER_BINDING,
@@ -165,6 +165,31 @@ impl BundleBuilder {
         self.ensure_new(&id)?;
         self.nodes.push(BundleNode::embedded(&id, kind, &described.identity, bytes.to_vec()));
         Ok(id)
+    }
+
+    /// Add a versioned native cyclic posterior producer node. Its artifact is
+    /// independently recompiled and refitted before the node is accepted.
+    ///
+    /// # Errors
+    /// Changed producer program, failed fit, repeated id or a size bound.
+    pub fn add_cyclic_posterior_fit(
+        &mut self, node_id: &str, artifact: &[u8], program: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<(), CyclicPosteriorBundleError> {
+        self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
+        let bytes = antecedent_io::to_cbor(&CyclicPosteriorFitWire {
+            version: 1, required_feature: CYCLIC_POSTERIOR_FIT_FEATURE.into(),
+            producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
+        }).map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > self.limits.max_embedded_bytes {
+            return Err(CyclicPosteriorBundleError::Invalid("fit node exceeds its embedded bound"));
+        }
+        let inspected = CyclicPosteriorFitVerifier { ctx: ctx.clone() }
+            .verify(node_id, &bytes, &[])
+            .map_err(|failure| ChainBundleRecomputeError::Bundle(node_refused(node_id, &failure)))?;
+        self.nodes.push(BundleNode::embedded(node_id, NodeKind::CyclicPosteriorFit,
+            &inspected.identity, bytes));
+        Ok(())
     }
 
     /// Embed an artifact whose kind is read from its container.
@@ -962,6 +987,53 @@ pub fn consume_portable_bridge_bundle_recomputation(
     Ok(live)
 }
 
+const CYCLIC_POSTERIOR_FIT_FEATURE: &str = "cyclic_posterior_fit_bundle_node_v1";
+const CYCLIC_FIT_CHAIN_FACT: &str = "cyclic_posterior_fit_chain_identity";
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct CyclicPosteriorFitWire {
+    version: u32,
+    required_feature: String,
+    producer_program: [u8; 32],
+    artifact: Vec<u8>,
+}
+
+struct CyclicPosteriorFitVerifier { ctx: ExecutionContext }
+
+impl NodeVerifier for CyclicPosteriorFitVerifier {
+    fn kind(&self) -> NodeKind { NodeKind::CyclicPosteriorFit }
+
+    fn verify(&self, _node_id: &str, bytes: &[u8], _upstream: &[UpstreamNode<'_>])
+        -> Result<VerifiedNode, NodeFailure> {
+        let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(fail("cyclic posterior fit node exceeds its bound".into()));
+        }
+        let wire: CyclicPosteriorFitWire = antecedent_io::from_cbor(bytes)
+            .map_err(|error| fail(error.to_string()))?;
+        if wire.version != 1 || wire.required_feature != CYCLIC_POSTERIOR_FIT_FEATURE {
+            return Err(fail("cyclic posterior fit feature differs".into()));
+        }
+        let producer = super::cyclic_posterior_action_decision::consume_cyclic_posterior_action_decision(
+            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &self.ctx,
+        ).map_err(|error| fail(error.to_string()))?;
+        let mut facts = std::collections::BTreeMap::new();
+        facts.insert(CYCLIC_FIT_CHAIN_FACT.into(), producer.decision.chain.identity().into());
+        Ok(VerifiedNode {
+            identity: CanonicalWriter::digest_bytes_hex("antecedent.cyclic_posterior_fit_node.v1", bytes),
+            facts, values: Vec::new(),
+        })
+    }
+}
+
+/// A bundle consumer able to refit native cyclic posterior nodes with `ctx`.
+/// Other embedded artifacts retain their usual independent verifiers.
+#[must_use]
+pub fn cyclic_posterior_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
+    standard_consumer().register(Box::new(CyclicPosteriorFitVerifier { ctx: ctx.clone() }))
+}
+
 /// A bundle terminal backed by a cyclic posterior fit. The producer artifact
 /// retains the raw training evidence and is recompiled on every execution.
 #[derive(Clone, Debug)]
@@ -1169,6 +1241,172 @@ pub fn consume_portable_cyclic_posterior_bundle_recomputation(
     let live = plan.execute(ctx)?;
     if live != wire.receipt {
         return Err(CyclicPosteriorBundleError::Invalid("portable receipt differs"));
+    }
+    Ok(live)
+}
+
+/// A compiler-owned chain terminal whose cyclic fitted source is an embedded
+/// bundle dependency, independently refitted by the bundle consumer.
+#[derive(Clone, Debug)]
+pub struct CompiledCyclicPosteriorNodeBundle {
+    inner: CompiledCyclicPosteriorBundleRecomputation,
+    producer_node: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PortableCyclicPosteriorNodeBundleWire {
+    version: u32,
+    required_feature: String,
+    bundle_bytes: Vec<u8>,
+    bundle_identity: String,
+    producer_node: String,
+    terminal_node: String,
+    receipt: CyclicPosteriorBundleReceipt,
+}
+
+const CYCLIC_NODE_BUNDLE_FEATURE: &str = "cyclic_posterior_node_bundle_recomputation_v1";
+
+/// Compile a live chain terminal with its embedded native fit dependency.
+/// The graph must contain a direct fit-to-terminal edge. No fitting occurs
+/// during compilation; the node verifier performs it at execution.
+///
+/// # Errors
+/// Missing nodes or edge, malformed fit declaration or chain compiler refusal.
+pub fn compile_cyclic_posterior_node_bundle_recomputation(
+    bundle: CompositionBundle, producer_node: &str, terminal_node: &str,
+    ctx: &ExecutionContext,
+) -> Result<CompiledCyclicPosteriorNodeBundle, CyclicPosteriorBundleError> {
+    if !bundle.edges().iter().any(|edge| edge.from == producer_node && edge.to == terminal_node) {
+        return Err(CyclicPosteriorBundleError::Invalid("fit must be a direct terminal dependency"));
+    }
+    let node = bundle.nodes().iter().find(|node| node.id == producer_node)
+        .ok_or(CyclicPosteriorBundleError::Invalid("fit node is absent"))?;
+    if node.kind != NodeKind::CyclicPosteriorFit {
+        return Err(CyclicPosteriorBundleError::Invalid("producer node is not a cyclic posterior fit"));
+    }
+    let NodeSource::Embedded { bytes } = &node.source else {
+        return Err(CyclicPosteriorBundleError::Invalid("fit node is not embedded"));
+    };
+    let wire: CyclicPosteriorFitWire = antecedent_io::from_cbor(bytes)
+        .map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1 || wire.required_feature != CYCLIC_POSTERIOR_FIT_FEATURE {
+        return Err(CyclicPosteriorBundleError::Invalid("fit node feature differs"));
+    }
+    let inner = compile_cyclic_posterior_bundle_recomputation(
+        bundle, terminal_node, wire.artifact, SemanticDigest::from_bytes(wire.producer_program), ctx,
+    )?;
+    Ok(CompiledCyclicPosteriorNodeBundle { inner, producer_node: producer_node.into() })
+}
+
+impl CompiledCyclicPosteriorNodeBundle {
+    /// Complete compiler program, binding the graph, fit and terminal.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { self.inner.lowered() }
+
+    /// Refit the embedded source through the bundle consumer and execute the
+    /// terminal chain, requiring the source's fresh chain identity to match.
+    ///
+    /// # Errors
+    /// A failed embedded verifier, changed fitted source or terminal.
+    pub fn execute(&self, ctx: &ExecutionContext)
+        -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
+        let scoped = ctx.enter_lowered_dispatch(self.inner.lowered.identity());
+        let bundle = &self.inner.chain.bundle;
+        let bytes = export_bundle(bundle, "cyclic-posterior-node-bundle")
+            .map_err(ChainBundleRecomputeError::Bundle)?;
+        let consumed = cyclic_posterior_bundle_consumer(&scoped).consume(
+            &bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
+        ).map_err(ChainBundleRecomputeError::Bundle)?;
+        if !consumed.all_replayed() {
+            return Err(CyclicPosteriorBundleError::Invalid("bundle dependency did not replay"));
+        }
+        let fit = consumed.node(&self.producer_node)
+            .ok_or(CyclicPosteriorBundleError::Invalid("consumed fit is absent"))?;
+        let terminal = bundle.nodes().iter().find(|node| node.id == self.inner.chain.terminal_node)
+            .ok_or(CyclicPosteriorBundleError::Invalid("terminal disappeared"))?;
+        let NodeSource::Embedded { bytes: terminal_bytes } = &terminal.source else {
+            return Err(CyclicPosteriorBundleError::Invalid("terminal became a reference"));
+        };
+        let recorded = PropagationChainRecordWire::decode(terminal_bytes)
+            .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
+        recorded.consume(Some(&terminal.identity), &scoped)
+            .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
+        let live = self.inner.chain.chain.execute(&scoped).map_err(ChainBundleRecomputeError::Chain)?;
+        if &recorded != live.record() || terminal.identity != live.identity()
+            || fit.facts.get(CYCLIC_FIT_CHAIN_FACT).map(String::as_str) != Some(live.identity())
+        {
+            return Err(CyclicPosteriorBundleError::Invalid("refitted source and live terminal differ"));
+        }
+        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
+            node_id: node.id.clone(), artifact_identity: node.identity.clone(),
+            chain_digest: node.chain_digest.clone(),
+        }).collect();
+        Ok(CyclicPosteriorBundleReceipt {
+            bundle: ChainBundleRecomputationReceipt {
+                bundle_identity: consumed.identity().into(),
+                terminal_node: self.inner.chain.terminal_node.clone(),
+                terminal_identity: live.identity().into(),
+                lowered_program_identity: *self.inner.chain.lowered.identity().as_bytes(),
+                dependencies,
+            },
+            producer_program_identity: *self.inner.producer_program.as_bytes(),
+            lowered_program_identity: *self.inner.lowered.identity().as_bytes(),
+        })
+    }
+
+    /// Export the embedded graph and independently replayable receipt.
+    ///
+    /// # Errors
+    /// Changed live execution or oversized artifact.
+    pub fn export_portable(&self, receipt: &CyclicPosteriorBundleReceipt, ctx: &ExecutionContext)
+        -> Result<Vec<u8>, CyclicPosteriorBundleError> {
+        if self.execute(ctx)? != *receipt {
+            return Err(CyclicPosteriorBundleError::Invalid("node bundle receipt differs"));
+        }
+        let bytes = antecedent_io::to_cbor(&PortableCyclicPosteriorNodeBundleWire {
+            version: 1, required_feature: CYCLIC_NODE_BUNDLE_FEATURE.into(),
+            bundle_bytes: export_bundle(&self.inner.chain.bundle, "portable-cyclic-node-bundle")
+                .map_err(ChainBundleRecomputeError::Bundle)?,
+            bundle_identity: self.inner.chain.bundle.identity().into(),
+            producer_node: self.producer_node.clone(), terminal_node: self.inner.chain.terminal_node.clone(),
+            receipt: receipt.clone(),
+        }).map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(CyclicPosteriorBundleError::Invalid("portable node bundle exceeds its bound"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Independently reconstruct and refit a portable native-fit bundle.
+///
+/// # Errors
+/// Changed graph, fit, compiler identity, terminal or receipt.
+pub fn consume_portable_cyclic_posterior_node_bundle_recomputation(
+    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
+    if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+        return Err(CyclicPosteriorBundleError::Invalid("portable node bundle exceeds its bound"));
+    }
+    let wire: PortableCyclicPosteriorNodeBundleWire = antecedent_io::from_cbor(bytes)
+        .map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1 || wire.required_feature != CYCLIC_NODE_BUNDLE_FEATURE
+        || wire.bundle_identity != expected_bundle
+    {
+        return Err(CyclicPosteriorBundleError::Invalid("portable node feature or bundle differs"));
+    }
+    let bundle = CompositionBundle::from_bytes(&wire.bundle_bytes, expected_bundle, &BundleLimits::default())
+        .map_err(ChainBundleRecomputeError::Bundle)?;
+    let plan = compile_cyclic_posterior_node_bundle_recomputation(
+        bundle, &wire.producer_node, &wire.terminal_node, ctx,
+    )?;
+    if plan.lowered().identity() != expected_program {
+        return Err(CyclicPosteriorBundleError::Invalid("portable node compiler differs"));
+    }
+    let live = plan.execute(ctx)?;
+    if live != wire.receipt {
+        return Err(CyclicPosteriorBundleError::Invalid("portable node receipt differs"));
     }
     Ok(live)
 }

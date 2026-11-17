@@ -118,3 +118,46 @@ fn cyclic_fit_reproduces_the_bundle_terminal_from_raw_evidence() {
         &changed, &bundle_id, plan.lowered().identity(), &ctx,
     ).is_err());
 }
+
+#[test]
+#[ignore = "source-only cyclic posterior fit; scientific record has not been earned"]
+fn embedded_fit_node_is_refitted_by_the_bundle_consumer() {
+    let ctx = ExecutionContext::for_tests(47);
+    let producer = compile_cyclic_posterior_action_decision(request(), outputs(), contract(), &ctx)
+        .expect("compile producer");
+    let result = producer.execute(&ctx).expect("fit producer");
+    let artifact = producer.export(&result, "producer", &ctx).expect("export producer");
+    let mut corrupted = artifact.clone();
+    corrupted[0] ^= 1;
+    assert!(BundleBuilder::new().add_cyclic_posterior_fit(
+        "fit", &corrupted, producer.lowered().identity(), &ctx,
+    ).is_err());
+    let mut builder = BundleBuilder::new();
+    builder.add_cyclic_posterior_fit("fit", &artifact, producer.lowered().identity(), &ctx)
+        .expect("add replayable fit");
+    builder.add_artifact(Some("terminal"), NodeKind::PropagationChain,
+        &result.decision.chain.export().expect("export chain")).expect("add terminal");
+    let disconnected = builder.build().unwrap();
+    assert!(compile_cyclic_posterior_node_bundle_recomputation(
+        disconnected, "fit", "terminal", &ctx,
+    ).is_err());
+    builder.connect("fit", "terminal").unwrap();
+    let bundle = builder.build().unwrap();
+    let bundle_bytes = export_bundle(&bundle, "fit-bundle").unwrap();
+    let consumed = cyclic_posterior_bundle_consumer(&ctx).consume(
+        &bundle_bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
+    ).unwrap();
+    assert!(consumed.node_replayed("fit"));
+    assert!(consumed.all_replayed());
+    let plan = compile_cyclic_posterior_node_bundle_recomputation(bundle.clone(), "fit", "terminal", &ctx)
+        .expect("compile fit dependency");
+    let receipt = plan.execute(&ctx).expect("refit node and recompute chain");
+    assert!(receipt.bundle.dependencies.iter().any(|dependency| dependency.node_id == "fit"));
+    let portable = plan.export_portable(&receipt, &ctx).expect("portable node bundle");
+    assert_eq!(consume_portable_cyclic_posterior_node_bundle_recomputation(
+        &portable, bundle.identity(), plan.lowered().identity(), &ctx,
+    ).expect("portable refit"), receipt);
+    assert!(consume_portable_cyclic_posterior_node_bundle_recomputation(
+        &portable, "wrong", plan.lowered().identity(), &ctx,
+    ).is_err());
+}

@@ -17,6 +17,8 @@ pub enum NodeKind {
     CausalContract,
     /// A native execution or a portable fit.
     ExecutionOrFit,
+    /// A host-replayed cyclic posterior fit and action producer.
+    CyclicPosteriorFit,
     /// An external claim.
     ExternalClaim,
     /// An attestation of an external claim.
@@ -64,6 +66,7 @@ named_variants! {
     NodeKind {
         CausalContract => "causal_contract",
         ExecutionOrFit => "execution_or_fit",
+        CyclicPosteriorFit => "cyclic_posterior_fit",
         ExternalClaim => "external_claim",
         Attestation => "attestation",
         EvidenceRelationship => "evidence_relationship",
@@ -92,7 +95,7 @@ impl NodeKind {
     pub const fn stage(self) -> CompositionStage {
         match self {
             Self::CausalContract => CompositionStage::CausalContract,
-            Self::ExecutionOrFit | Self::Distribution | Self::FrozenScores => {
+            Self::ExecutionOrFit | Self::CyclicPosteriorFit | Self::Distribution | Self::FrozenScores => {
                 CompositionStage::DistributionArtifact
             }
             Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,
