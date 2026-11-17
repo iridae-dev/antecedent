@@ -43,3 +43,13 @@ ignored = true
 grid = true
 whole = true
 reason = "A source and target sharing a Gaussian baseline and known target noise. Every replicate refits source trial units, redraws paired predictive target outcomes through the compiled route and scores its 95% treated-outcome interval against an independent future target unit. The 60/120/240 source-and-target grid is prospective; neither outcome coverage nor decision reliability is earned."
+
+[[group]]
+label = "iid_sampling_assumption_union_calibration: iid_sampling_assumption_union_joint_endpoints_l95"
+package = "antecedent"
+target = "iid_sampling_assumption_union_calibration"
+tests = ["iid_sampling_assumption_union_joint_endpoints_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Raw IID Gaussian unit rows feed a complete assumption-envelope chain with fixed bias range [0,1]. Every outer replicate has an independent unit sample and the compiler generates 200 paired whole-chain bootstrap resamples. Joint coverage of the true set [1,2] is scored on the 60/120/240-row grid under the route's exact basis. No record is measured or earned."

@@ -14,7 +14,7 @@ use std::sync::Arc;
 use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_contract::propagation_chain::ChainRefusal;
 use antecedent_core::{
-    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect,
+    ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, PhysicalEffect,
     PhysicalOperator, ScoreFrequentist, ScoreModel, SemanticDigest,
 };
 use antecedent_io::IoError;
@@ -410,6 +410,15 @@ pub struct CompiledIidSamplingAssumptionUnion {
     lowered: Arc<LoweredProgram>,
 }
 
+/// Unmeasured joint-endpoint coverage candidate for a fixed assumption set.
+#[derive(Clone, Debug)]
+pub struct IidSamplingAssumptionCalibrationCandidate {
+    /// Complete compiler-generated bootstrap execution.
+    pub result: SamplingAssumptionUnionResult,
+    /// Executed route and fixed assumption template used by a future record.
+    pub basis: CalibrationBasis,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct IidSamplingAssumptionUnionWire {
@@ -617,6 +626,44 @@ impl CompiledIidSamplingAssumptionUnion {
             level: self.request.level, calibration: "not_measured",
             chain_identities, lowered_program_identity: self.lowered.identity(),
         })
+    }
+
+    /// Expose the exact whole-chain construction for a prospective coverage
+    /// experiment. The event to score is containment of both true set
+    /// endpoints; this does not activate or earn a confidence claim.
+    ///
+    /// # Errors
+    /// A route refusal or a malformed fixed-stage template.
+    pub fn calibration_candidate(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<IidSamplingAssumptionCalibrationCandidate, SamplingAssumptionUnionError> {
+        let result = self.execute(ctx)?;
+        let mut template = self.request.original.clone();
+        for source in &mut template.sources {
+            if source.representation == "draws" {
+                source.values.clear();
+                source.alignment = Some("iid_raw_units".into());
+            }
+        }
+        let template_digest = CanonicalWriter::digest_bytes(
+            "antecedent.iid_sampling_assumption_union.template.v1",
+            &antecedent_io::to_cbor(&template)?,
+        );
+        let functional = format!(
+            "joint_set_endpoints:template={}:replicates={}",
+            SemanticDigest::from_bytes(template_digest).to_hex(),
+            self.request.bootstrap_replicates,
+        );
+        let basis = CalibrationBasis::new(
+            [
+                "IdentifiedSet", "None", "fixed", "tabular", "Frequentist",
+                IID_FEATURE, "bonferroni_basic_bootstrap", "",
+                "iid_units_joint_resampling", "", functional.as_str(),
+            ].map(Arc::from),
+            self.request.level, Arc::from("partial"), self.request.unit_ids.len() as u64,
+            Some(self.request.bootstrap_replicates as u32), None, 0.0,
+        ).with_validation("none");
+        Ok(IidSamplingAssumptionCalibrationCandidate { result, basis })
     }
 
     /// Seal the raw rows, unit identities, resampling rule and executed result.
