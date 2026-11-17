@@ -595,6 +595,70 @@ diagnostic, not a proof of population positivity. Fixed bandwidth, Gaussian
 child outcome model and independent target sampling remain premises. The
 prospective bases and decision reliability are unmeasured.
 
+Independent target-cluster bootstraps are separate source-only binary and
+mixed-kernel transport schedules, including the confounded pretreatment
+variants. Each binds the original row and cluster identities, resamples whole
+clusters, and repeats the graph, imputation, target fitting and decision
+schedule. Their portable consumers reconstruct the original source and replay
+the cluster policy. Four ignored prospective grids draw independent two-row
+target clusters and score the exact runtime interval against known target
+population effects. They are staged in
+`parity/pending_composability_calibration.toml`; no coverage or decision
+reliability has been earned.
+
+Separate target individual predictive world routes carry one graph,
+imputation, coefficient draw and target covariate row across both actions.
+The Bernoulli route uses a Laplace joint coefficient approximation and
+declares independent outcome innovations. The Gaussian route binds a positive
+individual residual variance and a cross-world Gaussian correlation. These
+are model assumptions, not identified cross-world dependence, and their
+predictive study coordinates are unmeasured. They do not inherit a
+population-mean or target-bootstrap calibration record.
+
+The declared-MAR target route accepts raw target rows with stable row and
+cluster identities, positive sampling weights and declared complete-vector
+observation probabilities conditional on always-observed covariates. It uses
+complete rows weighted by sampling weight divided by observation probability.
+Separate binary and mixed-kernel, root-treatment and confounded schedules
+rerun the full source graph/imputation fit and target integration; an optional
+whole-cluster bootstrap reruns the same schedule on each resampled frame.
+The observation mechanism and cluster design have caller-declared identities;
+MAR and those declarations are premises. Unsupported overlap and incomplete
+replicate support refuse. The four known-truth grids remain ignored and their
+interval and action-choice coordinates remain unmeasured.
+
+The trial-IPW predictive route draws both outcome marginals from one
+Dirichlet-weighted empirical trial support using supplied fixed assignment and
+selection probabilities. Its joint action-world law requires a declared
+conditional-independence premise for potential-outcome innovations. The
+joint Gaussian transport predictive route reuses its existing source fit and
+now exposes an exact prospective action-choice coordinate. Each route has a
+distinct compiler identity, predictive law, utility decision and raw-evidence
+portable consumer. The new target-feedback route instead jointly fits the
+connected structural equations from intervention-labelled source rows, draws
+a separate target baseline, and solves paired action equilibria under shared
+parameters and disturbances. It admits selection into the baseline frame
+only and refuses unsupported target baselines or nonunique equilibria.
+
+Fixed finite sequential policies can now enter a compiler-owned reliability
+diagnostic from one known-law model or from common whole-trajectory off-policy
+bootstrap resamples. Per-rollout utilities and per-replicate policy estimates
+stay aligned in `DecisionDraws`; exact enumeration remains a point evaluation.
+The logged-data result is an uncalibrated sampling distribution. Changed
+policies, unsupported actions, insufficient trajectory support and inconsistent
+streams refuse. Ignored known-optimum grids report correct choices and
+refusals without earning decision reliability.
+
+Typed live bundles connect the joint, trial, graph and feedback predictive
+producers to a retained predictive chain and decision. A separate sequential
+bundle connects a raw policy evaluation to aligned `DecisionDraws` and a live
+diagnostic. Each outer compiler binds the embedded identities and direct
+edges; a portable consumer reconstructs the bundle, reruns the producer and
+compares the final result. Reference-only nodes cannot satisfy live replay.
+All new interval and action-choice studies are staged only in
+`parity/pending_composability_calibration.toml`; no active calibration roster
+entry or earned scientific record changes here.
+
 Bundle recomputation has a first executable slice: a fully embedded bundle
 whose terminal is a propagation chain. A new six-layer program binds the
 bundle identity, terminal node and retained chain declaration. Execution

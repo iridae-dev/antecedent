@@ -13,13 +13,14 @@ use antecedent::analysis::joint_transport_predictive_decision::{
 };
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::{
-    CalibrationBasis, ContinuousDomain, ExecutionContext, GridSpec,
+    CalibrationBasis, ContinuousDomain, ExecutionContext, GridSpec, SemanticDigest,
     ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
 };
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion,
     StructuralPolicy, UtilityExpr,
 };
+use antecedent_design::decision_eval::Verdict;
 use antecedent_estimate::joint_bayesian_transport::{
     DataIdentity, GaussianPrior, JointPriors, JointTransportModel,
     JointTransportOptions, PriorProvenance, SourceData, SourceDependence,
@@ -46,7 +47,7 @@ fn world(value: u8) -> ScientificQuantity {
     }
 }
 
-fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis)> {
+fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis, SemanticDigest, bool)> {
     let mut assignment = uniform(seed, 0xA01C_F101);
     let mut source_noise = gaussian(seed ^ 0xA01C_F102);
     let mut future_noise = gaussian(seed ^ 0xA01C_F103);
@@ -125,7 +126,8 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis)>
     assert_eq!(candidate.result.calibration, "not_measured");
     assert_eq!(candidate.basis.interval_method.as_ref(), INTERVAL);
     let future_treated_outcome = 5.0 + NOISE_VARIANCE.sqrt() * future_noise();
-    Some((candidate.interval, future_treated_outcome, candidate.basis))
+    let correct = matches!(&candidate.result.decision.decision.verdict, Verdict::UniquelyOptimal(id) if id == "treat");
+    Some((candidate.interval, future_treated_outcome, candidate.basis, candidate.action_choice_basis, correct))
 }
 
 #[test]
@@ -135,8 +137,13 @@ fn joint_transport_predictive_treated_outcome_l95() {
     let mut tally = CoverageTally::for_record(RecordKey {
         test: TEST, dgp: DGP, interval: INTERVAL,
     }, REPORTED_LEVEL);
+    let mut action_scope = None;
+    let (mut choices, mut correct) = (0_u32, 0_u32);
     for result in map_replicates(n_sim(), |rep| replicate(0xD0C0_6001 + rep, n)) {
-        if let Some((interval, truth, basis)) = result {
+        if let Some((interval, truth, basis, scope, optimal)) = result {
+            if let Some(previous) = action_scope { assert_eq!(previous, scope); } else { action_scope = Some(scope); }
+            choices += 1;
+            correct += u32::from(optimal);
             let construction = Construction {
                 query: basis.query.to_string(),
                 graph_class: basis.graph_class.to_string(),
@@ -163,5 +170,6 @@ fn joint_transport_predictive_treated_outcome_l95() {
             tally.skip();
         }
     }
+    eprintln!("prospective action choices: {correct}/{choices} correct; no decision record earned");
     tally.assert();
 }

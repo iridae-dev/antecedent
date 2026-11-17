@@ -103,3 +103,163 @@ ignored = true
 grid = true
 whole = true
 reason = "Independent continuous source and target covariate frames, randomized binary treatment, MAR-missing Gaussian outcomes and known linear treatment-effect modification. Every replicate reruns source imputation, graph selection, kernel target standardization, child posterior fitting and final utility, then scores the route's exact 95% target-frame effect interval against analytic truth conditional on the target frame. The 60/120/240-row grid is prospective; no coverage or decision reliability is earned."
+
+[[group]]
+label = "graph_imputation_binary_cluster_calibration: graph_imputation_binary_cluster_target_l95"
+package = "antecedent"
+target = "graph_imputation_binary_cluster_calibration"
+tests = ["graph_imputation_binary_cluster_target_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective binary target, randomized treatment graph-imputation study with independent two-row target clusters. Each replicate draws a new MAR-outcome source sample and target clusters, executes 40 whole-cluster target resamples with full graph, imputation, transport, fit and decision schedules, and compares the route's nearest-rank 95% effect interval against known target-population truth. The 60/120/240-row grid verifies its exact runtime basis and has no earned coverage or decision record."
+
+[[group]]
+label = "graph_imputation_binary_cluster_calibration: graph_imputation_confounded_binary_cluster_target_l95"
+package = "antecedent"
+target = "graph_imputation_binary_cluster_calibration"
+tests = ["graph_imputation_confounded_binary_cluster_target_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective binary target, pretreatment-confounded assignment graph-imputation study with independent two-row target clusters. Each replicate draws a new MAR-outcome source sample and target clusters, executes 40 whole-cluster target resamples with full graph, imputation, transport, fit and decision schedules, and compares the route's nearest-rank 95% effect interval against known target-population truth. The 60/120/240-row grid verifies its exact runtime basis and has no earned coverage or decision record."
+
+[[group]]
+label = "graph_imputation_kernel_cluster_calibration: graph_imputation_kernel_cluster_target_l95"
+package = "antecedent"
+target = "graph_imputation_kernel_cluster_calibration"
+tests = ["graph_imputation_kernel_cluster_target_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective continuous target, randomized treatment graph-imputation study with independent two-row target clusters. Each replicate draws a new MAR-outcome source sample and target clusters, executes 40 whole-cluster target resamples with full graph, imputation, transport, fit and decision schedules, and compares the route's nearest-rank 95% effect interval against known target-population truth. The 60/120/240-row grid verifies its exact runtime basis and has no earned coverage or decision record."
+
+[[group]]
+label = "graph_imputation_kernel_cluster_calibration: graph_imputation_confounded_kernel_cluster_target_l95"
+package = "antecedent"
+target = "graph_imputation_kernel_cluster_calibration"
+tests = ["graph_imputation_confounded_kernel_cluster_target_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective continuous target, pretreatment-confounded assignment graph-imputation study with independent two-row target clusters. Each replicate draws a new MAR-outcome source sample and target clusters, executes 40 whole-cluster target resamples with full graph, imputation, transport, fit and decision schedules, and compares the route's nearest-rank 95% effect interval against known target-population truth. The 60/120/240-row grid verifies its exact runtime basis and has no earned coverage or decision record."
+
+[[group]]
+label = "graph_imputation_predictive_calibration: graph_imputation_bernoulli_predictive_control_l95"
+package = "antecedent"
+target = "graph_imputation_predictive_calibration"
+tests = ["graph_imputation_bernoulli_predictive_control_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective bernoulli individual control outcome study with MAR source outcomes, an independent binary target frame and a future individual drawn from that frame. Every replicate recompiles graph selection, imputation, target transport, predictive worlds and the joint decision; it checks the exact world-specific runtime basis and scores the 95% predictive interval against the generated future outcome. The known treatment advantage also permits reporting action choices under a stable separate action-study scope; no predictive coverage or decision reliability has been earned."
+
+[[group]]
+label = "graph_imputation_predictive_calibration: graph_imputation_bernoulli_predictive_active_l95"
+package = "antecedent"
+target = "graph_imputation_predictive_calibration"
+tests = ["graph_imputation_bernoulli_predictive_active_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective bernoulli individual active outcome study with MAR source outcomes, an independent binary target frame and a future individual drawn from that frame. Every replicate recompiles graph selection, imputation, target transport, predictive worlds and the joint decision; it checks the exact world-specific runtime basis and scores the 95% predictive interval against the generated future outcome. The known treatment advantage also permits reporting action choices under a stable separate action-study scope; no predictive coverage or decision reliability has been earned."
+
+[[group]]
+label = "graph_imputation_predictive_calibration: graph_imputation_gaussian_predictive_control_l95"
+package = "antecedent"
+target = "graph_imputation_predictive_calibration"
+tests = ["graph_imputation_gaussian_predictive_control_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective gaussian individual control outcome study with MAR source outcomes, an independent binary target frame and a future individual drawn from that frame. Every replicate recompiles graph selection, imputation, target transport, predictive worlds and the joint decision; it checks the exact world-specific runtime basis and scores the 95% predictive interval against the generated future outcome. The known treatment advantage also permits reporting action choices under a stable separate action-study scope; no predictive coverage or decision reliability has been earned."
+
+[[group]]
+label = "graph_imputation_predictive_calibration: graph_imputation_gaussian_predictive_active_l95"
+package = "antecedent"
+target = "graph_imputation_predictive_calibration"
+tests = ["graph_imputation_gaussian_predictive_active_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective gaussian individual active outcome study with MAR source outcomes, an independent binary target frame and a future individual drawn from that frame. Every replicate recompiles graph selection, imputation, target transport, predictive worlds and the joint decision; it checks the exact world-specific runtime basis and scores the 95% predictive interval against the generated future outcome. The known treatment advantage also permits reporting action choices under a stable separate action-study scope; no predictive coverage or decision reliability has been earned."
+
+[[group]]
+label = "graph_imputation_mar_cluster_calibration: graph_imputation_mar_binary_cluster_l95"
+package = "antecedent"
+target = "graph_imputation_mar_cluster_calibration"
+tests = ["graph_imputation_mar_binary_cluster_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective declared-MAR binary target-cluster study. Two-row independent target clusters carry a partially observed modifier whose known positive observation probability depends on an always-observed binary covariate; complete rows use inverse-observation weights. Every replicate refits the complete 40-resample graph-imputation transport and utility schedule and scores its 95% interval against the analytic target-population effect. Exact runtime interval scope is bound; no coverage or decision reliability is earned."
+
+[[group]]
+label = "graph_imputation_mar_cluster_calibration: graph_imputation_mar_confounded_binary_cluster_l95"
+package = "antecedent"
+target = "graph_imputation_mar_cluster_calibration"
+tests = ["graph_imputation_mar_confounded_binary_cluster_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective declared-MAR confounded binary target-cluster study. Two-row independent target clusters carry a partially observed modifier whose known positive observation probability depends on an always-observed binary covariate; complete rows use inverse-observation weights. Every replicate refits the complete 40-resample graph-imputation transport and utility schedule and scores its 95% interval against the analytic target-population effect. Exact runtime interval scope is bound; no coverage or decision reliability is earned."
+
+[[group]]
+label = "graph_imputation_mar_cluster_calibration: graph_imputation_mar_kernel_cluster_l95"
+package = "antecedent"
+target = "graph_imputation_mar_cluster_calibration"
+tests = ["graph_imputation_mar_kernel_cluster_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective declared-MAR kernel target-cluster study. Two-row independent target clusters carry a partially observed modifier whose known positive observation probability depends on an always-observed binary covariate; complete rows use inverse-observation weights. Every replicate refits the complete 40-resample graph-imputation transport and utility schedule and scores its 95% interval against the analytic target-population effect. Exact runtime interval scope is bound; no coverage or decision reliability is earned."
+
+[[group]]
+label = "graph_imputation_mar_cluster_calibration: graph_imputation_mar_confounded_kernel_cluster_l95"
+package = "antecedent"
+target = "graph_imputation_mar_cluster_calibration"
+tests = ["graph_imputation_mar_confounded_kernel_cluster_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Prospective declared-MAR confounded kernel target-cluster study. Two-row independent target clusters carry a partially observed modifier whose known positive observation probability depends on an always-observed binary covariate; complete rows use inverse-observation weights. Every replicate refits the complete 40-resample graph-imputation transport and utility schedule and scores its 95% interval against the analytic target-population effect. Exact runtime interval scope is bound; no coverage or decision reliability is earned."
+
+[[group]]
+label = "trial_ipw_predictive_calibration: trial_ipw_predictive_treated_outcome_l95"
+package = "antecedent"
+target = "trial_ipw_predictive_calibration"
+tests = ["trial_ipw_predictive_treated_outcome_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "Known-randomization trial and independent target units share a Gaussian outcome law with a known treatment effect. Each replicate fits the complete normalized IPW predictive decision and scores its treated-outcome interval against a fresh target outcome, checks its exact interval basis and stable action-choice scope, and reports the true-optimum choice rate. No predictive coverage or decision reliability is earned."
+
+[[group]]
+label = "sequential_policy_choice_calibration: sequential_known_law_action_choice"
+package = "antecedent"
+target = "sequential_policy_choice_calibration"
+tests = ["sequential_known_law_action_choice"]
+ignored = true
+grid = true
+whole = true
+reason = "Two fixed policies act on a known two-state law with analytic values 1 and 0.5. Each replicate reruns common-stream model rollouts and the reliability decision, checks the design-level action-choice scope and records correct choices and refusals. This prospective study has no earned decision-reliability record."
+
+[[group]]
+label = "sequential_policy_choice_calibration: sequential_logged_bootstrap_action_choice"
+package = "antecedent"
+target = "sequential_policy_choice_calibration"
+tests = ["sequential_logged_bootstrap_action_choice"]
+ignored = true
+grid = true
+whole = true
+reason = "Two fixed policies have known values 1 and 0.5 under a two-state law. Each replicate draws independently randomized logged trajectories and reruns the complete paired whole-trajectory bootstrap and reliability decision; its design-level action-choice scope, correct choices and refusals are recorded. This prospective study has no earned decision-reliability record."
+
+[[group]]
+label = "cyclic_target_feedback_choice_calibration: cyclic_target_feedback_action_choice"
+package = "antecedent"
+target = "cyclic_target_feedback_choice_calibration"
+tests = ["cyclic_target_feedback_action_choice"]
+ignored = true
+grid = true
+whole = true
+reason = "A known two-equation Gaussian feedback model with independent target baseline units has an analytic positive promotional effect 0.2/0.94. Each replicate refits the shared mechanisms, predicts both target action worlds and scores the selected action against the known optimum, checking the design-level scope and reporting refusals. No decision-reliability record is earned."
