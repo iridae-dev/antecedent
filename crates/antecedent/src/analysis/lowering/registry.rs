@@ -203,6 +203,8 @@ macro_rules! route_lowerings {
             FittedDependentMeasuredObservation,
             /// Model-derived paired intervention worlds and a decision.
             CyclicActionWorldDecision,
+            /// Checked bridge transport and predictive utility.
+            BridgeTransportDecision,
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation,
             /// A graph-selection imputation composite.
@@ -229,6 +231,7 @@ macro_rules! route_lowerings {
                     Self::DependentMeasuredObservation => "DependentMeasuredObservation",
                     Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
                     Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
+                    Self::BridgeTransportDecision => "BridgeTransportDecision",
                     Self::BundleRecomputation => "BundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
@@ -254,6 +257,7 @@ macro_rules! route_lowerings {
                     Self::DependentMeasuredObservation => RouteFamily::Structural,
                     Self::FittedDependentMeasuredObservation => RouteFamily::Structural,
                     Self::CyclicActionWorldDecision => RouteFamily::Cyclic,
+                    Self::BridgeTransportDecision => RouteFamily::Structural,
                     Self::BundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,

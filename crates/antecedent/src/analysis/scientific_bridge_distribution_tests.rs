@@ -7,7 +7,7 @@
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeEndpoint, BridgeMapping, BridgeScope,
     MappingUncertainty, QuantityClass, SourceMappingDependence, TrialEffectPair,
-    TrialLevelValidation,
+    TrialLevelValidation, TransportabilityPremise,
 };
 use antecedent_contract::propagation_chain::{ChainReading, StageKind, TableConstruction};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
@@ -23,6 +23,12 @@ use antecedent_io::quantity_wire::DistributionMeaningWire;
 use antecedent_stats::normal_ppf;
 
 use super::*;
+use crate::analysis::bridge_transport_decision::{
+    compile_bridge_transport_decision, consume_bridge_transport_decision,
+};
+use antecedent_design::decision_contract::{
+    ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
+};
 use crate::analysis::propagation_chain::PropagationChain;
 
 fn quantity(variable: &str, units: &str) -> ScientificQuantity {
@@ -115,6 +121,61 @@ fn contract(
         source_dependence: dependence,
         estimand_bridge: None,
     }
+}
+
+#[test]
+fn predictive_transport_bridge_and_nonlinear_utility_compile_together() {
+    let mut declaration = contract(
+        BridgeMapping::Affine { intercept: 0.5, slope: 2.0 }, None, None,
+    );
+    declaration.source_value = ValueKind::PredictiveLaw;
+    declaration.target_value = ValueKind::PredictiveLaw;
+    let established = BridgeScope {
+        population_id: "validation-adults".into(), regime_id: "do(t=1)".into(),
+    };
+    let target = BridgeScope {
+        population_id: "adults".into(), regime_id: "do(t=1)".into(),
+    };
+    declaration.evidence_scope = established.clone();
+    declaration.transport = Some(TransportabilityPremise {
+        id: "validation-to-target".into(),
+        statement: "the trial-level surrogate relation holds in the target population".into(),
+        established_in: established, applies_to: target,
+        evidence: Some("selection-diagram-review".into()),
+    });
+    let outcome = declaration.target.quantity.clone();
+    let decision = DecisionContract {
+        actions: vec![
+            DecisionAction {
+                id: "risk-sensitive".into(), kind: ActionKind::External,
+                inputs: vec![outcome.clone()],
+                utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(0)),
+            },
+            DecisionAction {
+                id: "linear".into(), kind: ActionKind::External,
+                inputs: vec![outcome], utility: UtilityExpr::Input(0),
+            },
+        ],
+        utility_units: "score".into(),
+        criterion: DecisionCriterion::PosteriorExpectedUtility,
+        constraints: Vec::new(), target_population: "adults".into(),
+        horizon: 0, structural_policy: StructuralPolicy::RequireInvariantBestAction,
+    };
+    let ctx = ExecutionContext::for_tests(31);
+    let plan = compile_bridge_transport_decision(
+        declaration, draws_table(64, 1.0, 0.3, DistributionMeaningWire::PosteriorPredictive),
+        9, decision,
+    ).expect("bridge, transport and utility compiler");
+    assert_eq!(plan.plan_view().route().as_str(), "BridgeTransportDecision");
+    let result = plan.execute(&ctx).expect("transported bridge utility");
+    assert!(result.bridge.inspect().transported);
+    assert_eq!(result.decision.decision.n_draws, 64);
+    let bytes = plan.export(&result, "bridge-transport-utility", &ctx)
+        .expect("complete composite artifact");
+    let replay = consume_bridge_transport_decision(
+        &bytes, plan.lowered().identity(), &ctx,
+    ).expect("independent bridge and decision replay");
+    assert_eq!(replay.decision.decision, result.decision.decision);
 }
 
 fn uncertain() -> BridgeContract {

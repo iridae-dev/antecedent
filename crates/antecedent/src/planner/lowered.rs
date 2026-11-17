@@ -1094,6 +1094,8 @@ pub(crate) enum ProgramCell {
     FittedDependentMeasuredObservation,
     /// Paired intervention worlds derived from one compiled cyclic model.
     CyclicActionWorldDecision,
+    /// Checked bridge transport and predictive utility in one program.
+    BridgeTransportDecision,
     /// Bundle replay with a live executable chain terminal.
     BundleRecomputation,
     /// A bounded graph-selection imputation composite.
@@ -1117,6 +1119,7 @@ impl ProgramCell {
             Self::DependentMeasuredObservation => "DependentMeasuredObservation",
             Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
             Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
+            Self::BridgeTransportDecision => "BridgeTransportDecision",
             Self::BundleRecomputation => "BundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
@@ -1180,6 +1183,7 @@ impl LoweredProgram {
             | ProgramCell::DependentMeasuredObservation
             | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::CyclicActionWorldDecision
+            | ProgramCell::BridgeTransportDecision
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1200,6 +1204,7 @@ impl LoweredProgram {
             | ProgramCell::DependentMeasuredObservation
             | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::CyclicActionWorldDecision
+            | ProgramCell::BridgeTransportDecision
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1220,6 +1225,7 @@ impl LoweredProgram {
             | ProgramCell::DependentMeasuredObservation
             | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::CyclicActionWorldDecision
+            | ProgramCell::BridgeTransportDecision
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate

@@ -22,7 +22,7 @@ coverage or error control.
 | 4 | High | Sampling error composes with an assumption range; the chain envelope keeps the axes distinct, and `chain_robust_decision_v1` compiles conservative multi-action dominance with nonlinear utilities and chance constraints | Compile a calibrated sampling union at the exact output coordinate | None for a new route; high if an assumption range is treated as a confidence interval |
 | 5 | High | A policy learned on logged data is evaluated on that data; the version-2 graph route checks a declared causally sufficient DAG for backdoor separation, pre-treatment adjustment and an explicit policy information set before compiling the same held-out or cross-fit estimator | Permit an information set narrower than the estimator's adjustment set by separating policy-learning features from nuisance features; calibrate the selection-aware standard error | None for the additive route; high if same-data scores acquire an unbiasedness claim |
 | 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; the retained mixture draws now export an unverified typed effect law | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
-| 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws | Lower the bridge declaration, transport and utility together with checked value kind and coordinate | None for a new route; high if a surrogate score is substituted for an endpoint |
+| 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws; the new predictive bridge-transport-decision cell binds all three declarations in one program and replays both the bridge and utility | Estimate or validate the transport premise itself, rather than only carrying its declared evidence; measure any final decision reliability claim | None for a new route; high if a surrogate score is substituted for an endpoint |
 | 8 | Medium | Scalar and vector feedback compile one cyclic program with aligned disturbances and named hard clamps; optional ledger entry points check disjointness across all inputs of the original component and bind the ledger state into the program | Establish statistical dependence of fitted mechanism errors and calibrate the connected equilibrium before promoting component evidence to an inferential claim | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | Static path-specific transport and fixed-population temporal counterfactuals exist separately | Prove the target temporal path functional under selection and mediator assumptions, then lower its estimator and claim | None for a new route; high if ordinary transport is relabelled path-specific |
 | 10 | Medium | Independent indicators retain the version-3 route; a separate fitted joint-error compiler cell now uses labelled validation counts and a Dirichlet posterior to propagate dependent measurement uncertainty through the finite query; an ignored fixed-truth grid harness is source-ready | Register and earn whole-route coverage records, then add a calibration lookup for the equal-tail outcome-probability interval; its present status is `not_measured` | None for the additive route; medium if independent indicators are silently treated as a joint model |
@@ -90,8 +90,15 @@ predictive when uncertain mapping coefficients are applied; a new outcome
 residual is separately labelled an innovation. The chain rule accepts that
 declared combination, and the checked result's `compile_chain_stage` lowers the handoff
 through the central chain compiler as a predictive law.
-The bridge preparation and transport declarations are not yet lowered in one
-compiler program, so the remaining row-7 obligation is still open.
+`bridge_transport_decision_v1` now lowers a predictive source table, its
+checked bridge contract and explicit target-scope transport premise, and the
+nonlinear decision contract together. It requires the exact terminal-outcome
+coordinate and predictive value kind before mapping, then derives the bridge
+law and compiles its stage and decision. The portable consumer replays both
+the scientific bridge artifact and the chain decision under the outer program
+identity. The premise is still an assumption, not an estimated transport
+functional. It earns no new coverage or decision-reliability claim; its source
+reference assertion has not been run.
 
 An already declared transported joint law can enter `chain_decision_v1` with
 its receipt identity bound to the compiled chain input. The ingress checks

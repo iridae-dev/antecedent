@@ -1,0 +1,336 @@
+//! One compiler program for a predictive bridge, transport premise and utility.
+//!
+//! The bridge's target coordinate and transport premise are checked before
+//! mapping draws. Execution derives the terminal-outcome law, lowers that
+//! stage through the chain compiler, and evaluates nonlinear utility on the
+//! retained rows. Its decision is conditional on the bridge's explicitly
+//! declared transport premise; this route does not estimate that premise or
+//! acquire coverage from the source.
+
+use std::sync::Arc;
+
+use antecedent_contract::{ClaimKind, DataClassification};
+use antecedent_contract::bridge::{BridgeContract, ValueKind};
+use antecedent_contract::propagation_chain::TableConstruction;
+use antecedent_core::{
+    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect,
+    PhysicalOperator, SemanticDigest,
+};
+use antecedent_design::decision_artifact::DecisionContractArtifact;
+use antecedent_design::decision_contract::{DecisionContract, DecisionContractError};
+use antecedent_io::IoError;
+use antecedent_io::distribution_artifact::DistributionArtifact;
+use antecedent_io::propagation_chain_record::PropagationChainRecordWire;
+use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
+use serde::{Deserialize, Serialize};
+
+use super::propagation_chain_decision::{
+    ChainDecisionError, ChainDecisionResult, compile_chain_decision,
+    consume_chain_decision,
+};
+use super::scientific_bridge::{
+    PreparedScientificBridgeDistribution, ScientificBridgeDistributionResult,
+    ScientificBridgeRefusal, consume_scientific_bridge_distribution_artifact,
+};
+use crate::planner::lowered::{
+    CarrierDemand, ClaimDemand, Composition, DecisionProgram,
+    EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef, FunctionalKind,
+    IdentificationLayer, LoweredProgram, NonGraphicalIdentification,
+    PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
+    ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
+};
+use crate::planner::statistical::{Realization, StatisticalProgram};
+use crate::planner::{PlanStage, PlanView};
+
+const FEATURE: &str = "bridge_transport_decision_v1";
+const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
+
+/// Refusal of a bridge, coordinate, decision or independent artifact replay.
+#[derive(Debug, thiserror::Error)]
+pub enum BridgeTransportDecisionError {
+    /// A required predictive or transport declaration is absent or mismatched.
+    #[error("bridge transport decision: {0}")]
+    Invalid(&'static str),
+    /// Bridge preparation, derivation or replay refused.
+    #[error("bridge transport decision bridge: {0}")]
+    Bridge(#[from] ScientificBridgeRefusal),
+    /// Decision contract refused.
+    #[error("bridge transport decision contract: {0}")]
+    Contract(#[from] DecisionContractError),
+    /// Chain or utility compiler refused.
+    #[error("bridge transport decision chain: {0}")]
+    Chain(#[from] ChainDecisionError),
+    /// Artifact encoding or decoding refused.
+    #[error("bridge transport decision artifact: {0}")]
+    Io(#[from] IoError),
+}
+
+/// Checked declaration, aligned source law and retained six-layer program.
+#[derive(Clone, Debug)]
+pub struct CompiledBridgeTransportDecision {
+    bridge: PreparedScientificBridgeDistribution,
+    source: DistributionArtifact,
+    seed: u64,
+    decision: DecisionContract,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// Mapped terminal-outcome law and decision on the exact target coordinate.
+#[derive(Clone, Debug)]
+pub struct BridgeTransportDecisionResult {
+    /// Replayed bridge mapping and transported law.
+    pub bridge: ScientificBridgeDistributionResult,
+    /// Compiler-retained output law and nonlinear decision.
+    pub decision: ChainDecisionResult,
+    /// Identity of the complete bridge-to-utility program.
+    pub lowered_program_identity: SemanticDigest,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct BridgeTransportDecisionWire {
+    version: u32,
+    required_feature: String,
+    program_identity: [u8; 32],
+    bridge_identity: String,
+    bridge_artifact: Vec<u8>,
+    decision_identity: String,
+    decision_artifact: Vec<u8>,
+    chain_artifact: Vec<u8>,
+}
+
+/// Compile a validated predictive source law, scientific bridge with an
+/// explicit transport premise, and a nonlinear decision as one program.
+/// The actions must read precisely the bridge's terminal-outcome quantity.
+/// The bridge mapping is executed later, under this retained program.
+///
+/// # Errors
+/// An unsupported law kind, absent transport premise, mismatched coordinate,
+/// invalid contract or physical lowering refusal.
+pub fn compile_bridge_transport_decision(
+    contract: BridgeContract,
+    source: DistributionArtifact,
+    seed: u64,
+    decision: DecisionContract,
+) -> Result<CompiledBridgeTransportDecision, BridgeTransportDecisionError> {
+    decision.validate()?;
+    if contract.transport.is_none() || contract.source_value != ValueKind::PredictiveLaw
+        || contract.target_value != ValueKind::PredictiveLaw
+        || !matches!(source.semantic(),
+            DistributionMeaningWire::PosteriorPredictive
+                | DistributionMeaningWire::InterventionalPredictive
+                | DistributionMeaningWire::EmpiricalOutcome)
+        || !source.quantities().contains(&ScientificQuantityWire::from(&contract.source.quantity))
+        || source.n_draws() < 2
+        || contract.target.quantity.population_id != decision.target_population
+        || contract.target.quantity.horizon != decision.horizon
+        || decision.actions.is_empty()
+        || decision.actions.iter().any(|action| {
+            action.inputs.len() != 1
+                || action.inputs[0].require_same_coordinate(&contract.target.quantity).is_err()
+        })
+    {
+        return Err(BridgeTransportDecisionError::Invalid(
+            "a predictive terminal bridge, transport premise and exact decision coordinate are required",
+        ));
+    }
+    let bridge = PreparedScientificBridgeDistribution::prepare(contract)?;
+    let decision_identity = decision.identity()?;
+    let source_bytes = source.to_bytes("bridge-transport-source")?;
+    let source_digest = CanonicalWriter::digest_bytes(
+        "antecedent.bridge_transport_decision.source.v1", &source_bytes,
+    );
+    let mut writer = CanonicalWriter::new("antecedent.bridge_transport_decision.question.v1");
+    writer.bytes(&source_digest).bytes(bridge.contract_identity().as_bytes())
+        .text(&decision_identity).word(seed);
+    let query = writer.finish();
+    let design = crate::planner::lowered::DesignShape::quoted(source.n_draws() as u64, 1, true);
+    let scientific = ScientificProblem {
+        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::PolicyValue, outcome: None, query,
+        },
+        plan_id: Arc::from("bridge_transport_decision.v1"),
+        data: DataClassification::Tabular,
+        graph_class: "declared_transportable_bridge",
+        query_variables: Arc::from(Vec::new()),
+        source_digest: Some(source_digest),
+        support_coordinate: None, supported: false, support_status: None,
+    };
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
+    let statistical = StatisticalProgram {
+        identifier: None, estimator: None,
+        realization: Realization::DeclaredPredictive {
+            evaluator: Arc::from("scientific_bridge.predictive_transport"),
+        },
+        models: Arc::from([]), folds: None, resampling: None,
+        posterior: None, design, operators: Arc::from([]),
+    };
+    let evidence = EvidenceDecisionProgram {
+        sources: Arc::from([EvidenceSourceRef {
+            role: EvidenceRole::TransportSource, digest: Some(source_digest),
+        }]),
+        composition: Composition::Chained { stages: 3 },
+        decision: Some(DecisionProgram {
+            carrier: CarrierDemand::PredictiveLaw,
+            utility: DecisionProgram::utility_form(None),
+            actions: decision.actions.len(), constraints: decision.constraints.len(),
+            chance_threshold: decision.constraints.iter()
+                .map(|constraint| constraint.min_probability).fold(0.0_f64, f64::max),
+            utility_unit: Some(Arc::from(decision.utility_units.as_str())),
+            contract_identity: Some(Arc::from(decision_identity.as_str())),
+            information_value: None,
+            scenario_source: Some(Arc::from("transported_bridge_joint_draws_v1")),
+        }),
+        planning: None, chain: None,
+    };
+    let physical = PhysicalLayer {
+        operators: Arc::from([
+            PhysicalOperator::declare(PhysicalEffect::Read)
+                .estimates(ByteEstimates::absent().with_output(source_bytes.len() as u64))
+                .build().map_err(|_| BridgeTransportDecisionError::Invalid(
+                    "bridge source intake cannot be lowered",
+                ))?,
+            PhysicalOperator::declare(PhysicalEffect::Transport)
+                .estimates(ByteEstimates::absent().with_output(
+                    (source.n_draws() as u64).saturating_mul(8),
+                )).build().map_err(|_| BridgeTransportDecisionError::Invalid(
+                    "bridge transport cannot be lowered",
+                ))?,
+        ]),
+        design,
+    };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::BridgeTransportDecision,
+        scientific, identification, statistical, evidence, physical,
+        claim: ClaimDemand { uncertainty: UncertaintyReading::Predictive,
+            kind: Some(ClaimKind::PolicyValue) },
+    }.finish());
+    Ok(CompiledBridgeTransportDecision { bridge, source, seed, decision, lowered })
+}
+
+impl CompiledBridgeTransportDecision {
+    /// All compiler layers of the bridge, premise and utility.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the retained program without mapping or scoring draws.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    fn chain_draft(
+        &self, result: &ScientificBridgeDistributionResult,
+    ) -> Result<PropagationChainRecordWire, BridgeTransportDecisionError> {
+        result.require_value_kind(ValueKind::PredictiveLaw)?;
+        let parts = result.chain_stage("bridged.outcome")?;
+        let output = parts.stage.id.clone();
+        Ok(PropagationChainRecordWire::draft(
+            TableConstruction::JointDraws, parts.reading, &output,
+            parts.sources, vec![parts.stage],
+        ).with_output_quantity(parts.output_quantity))
+    }
+
+    /// Derive the transported terminal-outcome law and score its utility.
+    /// The reported spread stays uncalibrated and the transport premise stays
+    /// a declared assumption.
+    ///
+    /// # Errors
+    /// A bridge mapping, chain or decision refusal.
+    pub fn execute(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<BridgeTransportDecisionResult, BridgeTransportDecisionError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let bridge = self.bridge.derive(&self.source, None, self.seed)?;
+        let draft = self.chain_draft(&bridge)?;
+        let decision = compile_chain_decision(draft, self.decision.clone(), &scoped)?
+            .execute(&scoped)?;
+        Ok(BridgeTransportDecisionResult {
+            bridge, decision, lowered_program_identity: self.lowered.identity(),
+        })
+    }
+
+    /// Export the independently replayable bridge and chain decision after a
+    /// fresh execution matches this result.
+    ///
+    /// # Errors
+    /// Changed derivation, decision or artifact encoding failure.
+    pub fn export(
+        &self, result: &BridgeTransportDecisionResult, artifact_id: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, BridgeTransportDecisionError> {
+        let replay = self.execute(ctx)?;
+        if result.lowered_program_identity != self.lowered.identity()
+            || result.bridge.inspect() != replay.bridge.inspect()
+            || result.decision.decision != replay.decision.decision
+            || result.decision.chain.identity() != replay.decision.chain.identity()
+        {
+            return Err(BridgeTransportDecisionError::Invalid("bridge decision differs on replay"));
+        }
+        let bridge = result.bridge.export(artifact_id)?;
+        let contract = DecisionContractArtifact::new(self.decision.clone())?;
+        let chain = compile_chain_decision(self.chain_draft(&replay.bridge)?,
+            self.decision.clone(), ctx)?;
+        let wire = BridgeTransportDecisionWire {
+            version: 1, required_feature: FEATURE.into(),
+            program_identity: *self.lowered.identity().as_bytes(),
+            bridge_identity: bridge.identity, bridge_artifact: bridge.bytes,
+            decision_identity: contract.identity().into(),
+            decision_artifact: contract.to_bytes(artifact_id)?,
+            chain_artifact: chain.export(&result.decision, artifact_id)?,
+        };
+        let bytes = antecedent_io::to_cbor(&wire)?;
+        if bytes.len() > MAX_ARTIFACT_BYTES {
+            return Err(BridgeTransportDecisionError::Invalid("combined artifact exceeds its bound"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Independently replay the bridge mapping, transport premise and utility
+/// from their embedded artifacts under an externally retained program id.
+///
+/// # Errors
+/// A changed bridge, contract, law, decision or program identity.
+pub fn consume_bridge_transport_decision(
+    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<BridgeTransportDecisionResult, BridgeTransportDecisionError> {
+    if bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(BridgeTransportDecisionError::Invalid("combined artifact exceeds its bound"));
+    }
+    let wire: BridgeTransportDecisionWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.required_feature != FEATURE
+        || wire.program_identity != *expected_program.as_bytes()
+    {
+        return Err(BridgeTransportDecisionError::Invalid("combined feature or identity differs"));
+    }
+    let bridge = consume_scientific_bridge_distribution_artifact(
+        &wire.bridge_artifact, Some(&wire.bridge_identity),
+    )?;
+    let contract = DecisionContractArtifact::from_bytes(
+        &wire.decision_artifact, &wire.decision_identity,
+    )?;
+    let plan = compile_bridge_transport_decision(
+        bridge.bridged.claim().contract.clone(), bridge.bridged.source().clone(),
+        bridge.bridged.claim().stream, contract.contract().clone(),
+    )?;
+    if plan.lowered.identity() != expected_program {
+        return Err(BridgeTransportDecisionError::Invalid("recompiled bridge decision differs"));
+    }
+    let live = plan.execute(ctx)?;
+    if live.bridge.inspect().claim_id != bridge.bridged.claim().claim.claim_id.to_hex() {
+        return Err(BridgeTransportDecisionError::Invalid("mapped bridge law changed on replay"));
+    }
+    let inner = consume_chain_decision(
+        &wire.chain_artifact, Some(live.decision.lowered_program_identity), ctx,
+    )?;
+    if inner.chain.identity() != live.decision.chain.identity()
+        || inner.decision != live.decision.decision
+    {
+        return Err(BridgeTransportDecisionError::Invalid("utility changed on replay"));
+    }
+    Ok(live)
+}

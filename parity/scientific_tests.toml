@@ -9,6 +9,13 @@
 # evidence_audit fails when a row's test or assertion does not exist.
 
 [[test]]
+evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
+evidence_assertion = "predictive_transport_bridge_and_nonlinear_utility_compile_together"
+kind = "reference"
+fixtures = []
+why = "The predictive bridge declaration, target-scope transport premise and nonlinear decision share one compiler identity and a portable replay artifact. This source assertion is unearned."
+
+[[test]]
 evidence_test = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
 evidence_assertion = "paired_equilibrium_worlds_are_derived_and_replayed"
 kind = "reference"
