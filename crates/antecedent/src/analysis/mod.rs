@@ -133,6 +133,7 @@ pub mod cohort_decision;
 pub mod compact_export;
 pub mod compiled_linear;
 pub mod composition;
+pub mod composition_decision_terminal;
 pub mod composition_verification;
 mod conditional_admg;
 pub mod conditional_study_ranking;

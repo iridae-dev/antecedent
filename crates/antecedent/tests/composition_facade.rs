@@ -12,13 +12,17 @@ use antecedent::analysis::composition::{
     ProviderOrData, SuppliedSources, TRUST_ATTESTED, consume, export_bundle, mean_result_to_bytes,
     mean_source_of,
 };
+use antecedent::analysis::composition_decision_terminal::{
+    compile_decision_bundle_recomputation,
+    consume_portable_decision_bundle_recomputation,
+};
 use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
     ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
     ExternalUncertaintyMeaning, LawProviderContract, ProviderObjectIdentity, QuantityRole,
     ScientificQuantity, bind_external_result,
 };
-use antecedent_core::{IdentificationStatus, SupportStatus};
+use antecedent_core::{ExecutionContext, IdentificationStatus, SupportStatus};
 use antecedent_design::decision_artifact::{DecisionContractArtifact, DecisionResultArtifact};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
@@ -250,6 +254,24 @@ fn native_builder(n: &Native, reverse: bool) -> BundleBuilder {
     builder.connect("distribution", "result").unwrap();
     builder.connect("contract", "result").unwrap();
     builder
+}
+
+#[test]
+fn live_decision_terminal_replays_from_an_embedded_bundle() {
+    let native = native();
+    let bundle = native_builder(&native, false).build().unwrap();
+    let ctx = ExecutionContext::for_tests(77);
+    let plan = compile_decision_bundle_recomputation(
+        bundle.clone(), "result", contract(), source(),
+    ).unwrap();
+    let receipt = plan.execute(&ctx).unwrap();
+    assert_eq!(receipt.dependencies.len(), 3);
+    assert!(!receipt.decision_fingerprint.is_empty());
+    let bytes = plan.export_portable(&receipt, &ctx).unwrap();
+    let replay = consume_portable_decision_bundle_recomputation(
+        &bytes, bundle.identity(), plan.lowered().identity(), &ctx,
+    ).unwrap();
+    assert_eq!(replay, receipt);
 }
 
 #[test]
