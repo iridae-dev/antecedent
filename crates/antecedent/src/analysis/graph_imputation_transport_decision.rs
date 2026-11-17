@@ -52,10 +52,13 @@ use crate::planner::lowered::{
     PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
-use crate::planner::statistical::{Realization, StatisticalProgram};
+use crate::planner::statistical::{
+    Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
+};
 use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "graph_imputation_transport_decision_v1";
+const BOOTSTRAP_FEATURE: &str = "graph_imputation_transport_target_bootstrap_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 /// Refusal of the bound source, target, decision or portable replay.
@@ -86,6 +89,20 @@ pub struct CompiledGraphImputationTransportDecision {
     decision: DecisionContract,
     native_source: Vec<u8>,
     lowered: Arc<LoweredProgram>,
+    target_bootstrap: Option<TargetFrameBootstrap>,
+}
+
+/// Prespecified iid empirical bootstrap of independent target units.
+/// Each replicate refits the full graph-imputation transport schedule and
+/// contributes one posterior draw. This is a source-only uncertainty model;
+/// it has no earned population coverage or decision reliability.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TargetFrameBootstrap {
+    /// Number of independent target-frame bootstrap replicates, from 40 to 256.
+    pub replicates: u32,
+    /// Deterministic seed for target-row resampling.
+    pub seed: u64,
 }
 
 /// Target-standardized effect posterior and utility over its aligned draws.
@@ -125,6 +142,8 @@ struct GraphImputationTransportDecisionWire {
     producer_receipt: [u8; 32],
     program_identity: [u8; 32],
     calibration: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    target_bootstrap: Option<TargetFrameBootstrap>,
 }
 
 fn check_quantity(
@@ -159,8 +178,12 @@ fn check_quantity(
 fn lower_outer(
     source: &GraphImputationSource, target: &TransportStandardization,
     quantity: &ScientificQuantity, decision: &DecisionContract,
+    target_bootstrap: Option<TargetFrameBootstrap>,
 ) -> Result<Arc<LoweredProgram>, GraphImputationTransportDecisionError> {
     target.validate(source.parts())?;
+    if target_bootstrap.is_some_and(|policy| !(40..=256).contains(&policy.replicates)) {
+        return Err(GraphImputationTransportDecisionError::Invalid("target bootstrap needs 40 to 256 replicates"));
+    }
     check_quantity(source, target, quantity, decision)?;
     let target_digest = target.digest()?;
     let source_digest = SemanticDigest::from_bytes(source.parts().data_digest);
@@ -170,6 +193,9 @@ fn lower_outer(
     writer.bytes(&source.program()).bytes(&source.parts().contract_digest())
         .bytes(source_digest.as_bytes()).bytes(&target_digest)
         .bytes(&coordinate).text(&contract);
+    if let Some(policy) = target_bootstrap {
+        writer.text(BOOTSTRAP_FEATURE).word(u64::from(policy.replicates)).word(policy.seed);
+    }
     let question = writer.finish();
     let rows = source.parts().rows().saturating_add(target.rows()) as u64;
     let design = DesignShape::quoted(rows, source.parts().names.len() as u64, true);
@@ -191,7 +217,11 @@ fn lower_outer(
     let statistical = StatisticalProgram {
         identifier: None, estimator: None,
         realization: Realization::GraphImputationV1,
-        models: Arc::from([]), folds: None, resampling: None,
+        models: Arc::from([]), folds: None,
+        resampling: target_bootstrap.map(|policy| ResamplingPlan {
+            method: ResamplingMethod::Bootstrap, replicates: policy.replicates,
+            unit: ResampleUnit::Row,
+        }),
         posterior: None, design, operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
@@ -213,18 +243,18 @@ fn lower_outer(
             scenario_source: Some(Arc::from("graph_imputation_target_effect_draws_v1")),
         }), planning: None, chain: None,
     };
-    let physical = PhysicalLayer {
-        operators: Arc::from([
-            PhysicalOperator::declare(PhysicalEffect::Read)
-                .estimates(ByteEstimates::absent().with_output(
-                    (source.parts().rows() as u64).saturating_add(target.rows() as u64),
-                )).build().map_err(|_| GraphImputationTransportDecisionError::Invalid("invalid source read operator"))?,
-            PhysicalOperator::declare(PhysicalEffect::Fit)
-                .build().map_err(|_| GraphImputationTransportDecisionError::Invalid("invalid graph fit operator"))?,
-            PhysicalOperator::declare(PhysicalEffect::Transport)
-                .build().map_err(|_| GraphImputationTransportDecisionError::Invalid("invalid target standardization operator"))?,
-        ]), design,
-    };
+    let mut operators = vec![PhysicalOperator::declare(PhysicalEffect::Read)
+        .estimates(ByteEstimates::absent().with_output(rows))
+        .build().map_err(|_| GraphImputationTransportDecisionError::Invalid("invalid source read operator"))?];
+    // The empirical fit and each bootstrap replicate run sequentially.
+    let executions = 1 + target_bootstrap.map_or(0, |policy| policy.replicates);
+    for _ in 0..executions {
+        operators.push(PhysicalOperator::declare(PhysicalEffect::Fit)
+            .build().map_err(|_| GraphImputationTransportDecisionError::Invalid("invalid graph fit operator"))?);
+        operators.push(PhysicalOperator::declare(PhysicalEffect::Transport)
+            .build().map_err(|_| GraphImputationTransportDecisionError::Invalid("invalid target standardization operator"))?);
+    }
+    let physical = PhysicalLayer { operators: Arc::from(operators), design };
     Ok(Arc::new(StandaloneCompositionLoweredParts {
         cell: ProgramCell::GraphImputationTransportDecision,
         scientific, identification, statistical, evidence, physical,
@@ -251,13 +281,48 @@ pub fn compile_graph_imputation_transport_decision(
             "target source-sample identity differs from the retained producer",
         ));
     }
-    let lowered = lower_outer(&source, &target, &quantity, &decision)?;
+    let lowered = lower_outer(&source, &target, &quantity, &decision, None)?;
+    let native_source = GraphImputationSource::new(
+        source.parts().clone(), *lowered.identity().as_bytes(),
+    ).map_err(GraphImputationTransportDecisionError::Invalid)?.encode();
+    Ok(CompiledGraphImputationTransportDecision {
+        producer, target, quantity, decision, native_source, lowered, target_bootstrap: None,
+    })
+}
+
+/// Compile an independent iid target-frame bootstrap into the complete
+/// graph-imputation, binary-stratum transport and utility program. The empirical
+/// target rows are resampled together, preserving their joint distribution.
+///
+/// # Errors
+/// Invalid source, target, bootstrap policy or compiler binding.
+pub fn compile_graph_imputation_transport_target_bootstrap_decision(
+    producer: CompiledGraphImputation, target: TransportStandardization,
+    quantity: ScientificQuantity, decision: DecisionContract, policy: TargetFrameBootstrap,
+) -> Result<CompiledGraphImputationTransportDecision, GraphImputationTransportDecisionError> {
+    let source = GraphImputationSource::decode(producer.source_bytes()).map_err(GraphImputationTransportDecisionError::Invalid)?;
+    if source.program() != *producer.lowered().identity().as_bytes()
+        || target.source_sample != producer.source_identity().to_hex()
+    {
+        return Err(GraphImputationTransportDecisionError::Invalid("target source-sample identity differs from retained producer"));
+    }
+    let lowered = lower_outer(&source, &target, &quantity, &decision, Some(policy))?;
     let native_source = GraphImputationSource::new(
         source.parts().clone(), *lowered.identity().as_bytes(),
     ).map_err(GraphImputationTransportDecisionError::Invalid)?.encode();
     Ok(CompiledGraphImputationTransportDecision {
         producer, target, quantity, decision, native_source, lowered,
+        target_bootstrap: Some(policy),
     })
+}
+
+// SplitMix64 provides a stable, locally specified stream for portable replay.
+fn bootstrap_word(state: &mut u64) -> u64 {
+    *state = state.wrapping_add(0x9e3779b97f4a7c15);
+    let mut z = *state;
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+    z ^ (z >> 31)
 }
 
 pub(crate) fn effect_chain(
@@ -306,7 +371,63 @@ impl CompiledGraphImputationTransportDecision {
         {
             return Err(GraphImputationTransportDecisionError::Invalid("retained native source changed"));
         }
-        let reading = replay_transport_point(&self.native_source, &self.target, ctx)?;
+        let mut reading = replay_transport_point(&self.native_source, &self.target, ctx)?;
+        if let Some(policy) = self.target_bootstrap {
+            // Account for the sampled column copy, row indices and pooled draws;
+            // each nested replay separately admits its own fitting workspace.
+            let bootstrap_bytes = (self.target.rows() as u64)
+                .saturating_mul((self.target.columns.len() as u64).saturating_mul(2) + 1)
+                .saturating_mul(8)
+                .saturating_add(self.target.source_unit_ids.iter()
+                    .chain(&self.target.target_unit_ids)
+                    .map(|id| (id.len() as u64).saturating_add(24))
+                    .fold(0_u64, u64::saturating_add))
+                .saturating_add(u64::from(policy.replicates).saturating_mul(8));
+            let _bootstrap_lease = ctx.acquire_admission(0, bootstrap_bytes)
+                .map_err(|_| GraphImputationTransportDecisionError::Invalid("target bootstrap admission refused"))?;
+            let mut state = policy.seed;
+            let rows = self.target.rows();
+            let mut draws = Vec::with_capacity(policy.replicates as usize);
+            let mut receipt = CanonicalWriter::new(
+                "antecedent.graph_imputation_transport.target_bootstrap.execution.v1",
+            );
+            receipt.bytes(self.lowered.identity().as_bytes())
+                .bytes(&self.target.digest()?).word(u64::from(policy.replicates)).word(policy.seed);
+            for replicate in 0..policy.replicates {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(GraphImputationTransportDecisionError::Invalid("target bootstrap execution cancelled"));
+                }
+                let mut sampled = self.target.clone();
+                let indices: Vec<usize> = (0..rows).map(|_| {
+                    // Rejection avoids modulo bias for arbitrary frame sizes.
+                    let bound = rows as u64;
+                    let threshold = bound.wrapping_neg() % bound;
+                    loop {
+                        let word = bootstrap_word(&mut state);
+                        if word >= threshold { break (word % bound) as usize; }
+                    }
+                }).collect();
+                for ((_, values), (_, original)) in sampled.columns.iter_mut().zip(&self.target.columns) {
+                    *values = indices.iter().map(|&index| original[index]).collect();
+                }
+                // Unit IDs identify bootstrap slots; sampled indices are sealed below.
+                let run = replay_transport_point(&self.native_source, &sampled, ctx)?;
+                if run.draws.is_empty() { return Err(GraphImputationTransportDecisionError::Invalid("target bootstrap has no posterior draws")); }
+                let draw_index = replicate as usize % run.draws.len();
+                let draw = run.draws[draw_index];
+                receipt.word(u64::from(replicate));
+                for index in indices { receipt.word(index as u64); }
+                receipt.bytes(&run.receipt).word(draw_index as u64).word(draw.to_bits());
+                draws.push(draw);
+            }
+            let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+            let variance = draws.iter().map(|value| (value - mean).powi(2)).sum::<f64>()
+                / (draws.len() - 1) as f64;
+            reading.mean = mean;
+            reading.diagnostic_sd = variance.sqrt();
+            reading.draws = draws;
+            reading.receipt = receipt.finish();
+        }
         if reading.program != *self.lowered.identity().as_bytes()
             || reading.source != *self.producer.source_identity().as_bytes()
         {
@@ -344,23 +465,33 @@ impl CompiledGraphImputationTransportDecision {
         let source = GraphImputationSource::decode(&self.native_source)
             .map_err(GraphImputationTransportDecisionError::Invalid)?;
         let parts = source.parts();
-        let functional = format!(
+        let mut functional = format!(
             "target_average_effect:graph_support={}:graphs={}:variables={}:domains={}:selected={:?}:m={}:sweeps={}:draws={}:prior_bits={:016x}:target_columns={}",
             parts.support.as_str(), parts.atoms.len(), parts.names.len(),
             parts.domains.iter().map(u8::to_string).collect::<String>(),
             self.target.selection_targets, parts.imputations, parts.iterations,
             parts.posterior_draws, parts.prior_scale.to_bits(), self.target.columns.len(),
         );
+        let (feature, model, draws) = if let Some(bootstrap) = self.target_bootstrap {
+            functional.push_str(&format!(
+                ":target_bootstrap=iid_rows_v1:replicates={}:seed={}",
+                bootstrap.replicates, bootstrap.seed,
+            ));
+            (BOOTSTRAP_FEATURE, "mar_graph_mixture_binary_target_iid_bootstrap_v1",
+                bootstrap.replicates)
+        } else {
+            (FEATURE, "mar_graph_mixture_target_standardization",
+                parts.posterior_draws.saturating_mul(parts.imputations))
+        };
         let basis = CalibrationBasis::new(
             [
                 "AverageEffect", "Dag", "graph_posterior", "multi_env", "Bayesian",
-                "graph_imputation_transport_decision_v1", "nearest_rank_95", "",
-                "independent_source_target_units", "mar_graph_mixture_target_standardization",
-                &functional,
+                feature, "nearest_rank_95", "",
+                "independent_source_target_units", model, &functional,
             ].map(Arc::from),
             0.95, Arc::from("model_conditional"),
             (parts.rows() as u64).saturating_add(self.target.rows() as u64),
-            None, Some(parts.posterior_draws.saturating_mul(parts.imputations)), 0.0,
+            None, Some(draws), 0.0,
         ).with_validation("none");
         Ok(GraphImputationTransportCalibrationCandidate { result, interval, basis })
     }
@@ -389,7 +520,7 @@ impl CompiledGraphImputationTransportDecision {
             effect_chain(&live.producer, &self.quantity), self.decision.clone(), ctx,
         )?;
         let wire = GraphImputationTransportDecisionWire {
-            version: 1, required_feature: FEATURE.into(),
+            version: 1, required_feature: if self.target_bootstrap.is_some() { BOOTSTRAP_FEATURE } else { FEATURE }.into(),
             original_source: self.producer.source_bytes().to_vec(),
             target: self.target.clone(),
             quantity: ScientificQuantityWire::from(&self.quantity),
@@ -399,6 +530,7 @@ impl CompiledGraphImputationTransportDecision {
             producer_receipt: live.producer.receipt,
             program_identity: *self.lowered.identity().as_bytes(),
             calibration: "not_measured".into(),
+            target_bootstrap: self.target_bootstrap,
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
@@ -421,7 +553,8 @@ pub fn consume_graph_imputation_transport_decision(
         return Err(GraphImputationTransportDecisionError::Invalid("combined artifact exceeds its byte bound"));
     }
     let wire: GraphImputationTransportDecisionWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != FEATURE
+    let expected_feature = if wire.target_bootstrap.is_some() { BOOTSTRAP_FEATURE } else { FEATURE };
+    if wire.version != 1 || wire.required_feature != expected_feature
         || wire.program_identity != *expected_program.as_bytes()
         || wire.calibration != "not_measured"
     {
@@ -455,9 +588,15 @@ pub fn consume_graph_imputation_transport_decision(
     let contract = DecisionContractArtifact::from_bytes(
         &wire.decision_artifact, &wire.decision_identity,
     )?;
-    let plan = compile_graph_imputation_transport_decision(
-        producer, wire.target, quantity, contract.contract().clone(),
-    )?;
+    let plan = if let Some(policy) = wire.target_bootstrap {
+        compile_graph_imputation_transport_target_bootstrap_decision(
+            producer, wire.target, quantity, contract.contract().clone(), policy,
+        )?
+    } else {
+        compile_graph_imputation_transport_decision(
+            producer, wire.target, quantity, contract.contract().clone(),
+        )?
+    };
     if plan.lowered.identity() != expected_program {
         return Err(GraphImputationTransportDecisionError::Invalid("outer compiler changed"));
     }
@@ -552,6 +691,25 @@ mod tests {
             constraints: Vec::new(), target_population: "target".into(), horizon: 0,
             structural_policy: StructuralPolicy::RequireInvariantBestAction,
         };
+        let parts = original.parts();
+        let bootstrap_table = TabularData::from_f64_columns(
+            parts.names.iter().zip(&parts.columns)
+                .map(|(name, column)| (name.as_str(), column.as_slice())),
+        ).unwrap();
+        let bootstrap_producer = CompiledGraphImputation::compile(
+            bootstrap_table, &GraphImputationSpec {
+                treatment: VariableId::from_raw(parts.treatment),
+                outcome: VariableId::from_raw(parts.outcome), support: parts.support,
+                imputation: ImputationSpec::new().with_imputations(parts.imputations)
+                    .with_iterations(parts.iterations).with_seed(parts.imputation_seed),
+                domains: Arc::from(parts.domains.clone()), posterior_draws: parts.posterior_draws,
+                prior_scale: parts.prior_scale, execution_seed: parts.execution_seed,
+            }, &ctx,
+        ).unwrap();
+        let bootstrap = compile_graph_imputation_transport_target_bootstrap_decision(
+            bootstrap_producer, target.clone(), quantity.clone(), decision.clone(),
+            TargetFrameBootstrap { replicates: 40, seed: 7 },
+        ).unwrap();
         let plan = compile_graph_imputation_transport_decision(
             producer, target, quantity, decision,
         ).unwrap();
@@ -567,5 +725,23 @@ mod tests {
         ).unwrap();
         assert_eq!(replay.producer.receipt, result.producer.receipt);
         assert_eq!(replay.decision.decision, result.decision.decision);
+        assert_ne!(bootstrap.lowered().identity(), plan.lowered().identity());
+        let candidate = bootstrap.calibration_candidate(&ctx).unwrap();
+        assert_eq!(candidate.result.producer.draws.len(), 40);
+        assert_eq!(candidate.result.calibration, "not_measured");
+        assert!(candidate.interval.0 <= candidate.interval.1);
+        let bytes = bootstrap.export(&candidate.result, "binary-target-bootstrap", &ctx).unwrap();
+        let replay = consume_graph_imputation_transport_decision(
+            &bytes, candidate.result.lowered_program_identity, &ctx,
+        ).unwrap();
+        assert_eq!(candidate.result.producer.draws, replay.producer.draws);
+        assert_eq!(candidate.result.producer.receipt, replay.producer.receipt);
+        assert_eq!(candidate.result.decision.decision, replay.decision.decision);
+        let mut wire: GraphImputationTransportDecisionWire = antecedent_io::from_cbor(&bytes).unwrap();
+        wire.target_bootstrap.as_mut().unwrap().seed ^= 1;
+        let changed = antecedent_io::to_cbor(&wire).unwrap();
+        assert!(consume_graph_imputation_transport_decision(
+            &changed, candidate.result.lowered_program_identity, &ctx,
+        ).is_err());
     }
 }
