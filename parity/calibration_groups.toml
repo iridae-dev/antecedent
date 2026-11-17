@@ -14703,3 +14703,35 @@ target = "graph_posterior_weighted_target_calibration"
 tests = ["graph_posterior_weighted_target_credible_interval_covers_across_bandwidths"]
 ignored = true
 grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_static_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_static_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_static_bayesian_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_static_bayesian_l95"]
+ignored = true
+grid = false
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_temporal_frequentist_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_temporal_frequentist_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "joint_panel_calibration: joint_panel_selected_program_value_temporal_bayesian_l95"
+package = "antecedent"
+target = "joint_panel_calibration"
+tests = ["joint_panel_selected_program_value_temporal_bayesian_l95"]
+ignored = true
+grid = false

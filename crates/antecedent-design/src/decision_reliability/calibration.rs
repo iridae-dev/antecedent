@@ -277,6 +277,84 @@ pub fn support_route(
     support_route_at(route, coordinate, DEFAULT_SUPPORT_LEVEL)
 }
 
+/// Estimator label of the record that supports the selected-program value interval.
+pub const SELECTED_VALUE_ESTIMATOR: &str = "decision_reliability_selected_program_value";
+/// Interval method of that record: the sup-t band over the shared draws.
+pub const SELECTED_VALUE_INTERVAL_METHOD: &str = "simultaneous_sup_t_draws";
+
+/// The `functional` label of a selected-value record: the banded label of
+/// [`banded_record_functional`] plus the way the candidates came to exist.
+fn selected_value_functional(coordinate: &CalibrationCoordinate) -> Option<String> {
+    let banded = banded_record_functional(coordinate)?;
+    Some(if coordinate.adaptively_generated {
+        format!("{banded};generation=adaptive_search")
+    } else {
+        banded
+    })
+}
+
+/// The calibration basis of the selected-program value interval at `coordinate` and
+/// nominal `level`: the key a coverage record must equal and the draw budget it must cover.
+/// `None` when the coordinate carries a declaration no record can cover (undeclared serial
+/// dependence or coupling, importance weights, a candidate-set size outside every band).
+#[must_use]
+pub fn selected_value_basis(
+    coordinate: &CalibrationCoordinate,
+    level: f64,
+) -> Option<CalibrationBasisWire> {
+    if coordinate.within_stream == WithinStreamDependence::Unknown
+        || coordinate.importance_weighted
+        || coordinate.coupling == CandidateCoupling::Unknown
+    {
+        return None;
+    }
+    let posterior = coordinate.paradigm == SourceParadigm::Posterior;
+    let draws = u32::try_from(coordinate.mc_budget).unwrap_or(u32::MAX);
+    Some(CalibrationBasisWire {
+        key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
+            query: RECORD_QUERY.to_owned(),
+            graph_class: "NotApplicable".to_owned(),
+            structure: "fixed".to_owned(),
+            modality: "decision_draws".to_owned(),
+            inference: if posterior { "Bayesian" } else { "Frequentist" }.to_owned(),
+            estimator: SELECTED_VALUE_ESTIMATOR.to_owned(),
+            interval_method: SELECTED_VALUE_INTERVAL_METHOD.to_owned(),
+            se_kind: "source_draws".to_owned(),
+            dependence: format!(
+                "{}.{}",
+                coordinate.coupling.as_str(),
+                coordinate.within_stream.as_str()
+            ),
+            posterior: if posterior { "draws" } else { "" }.to_owned(),
+            functional: selected_value_functional(coordinate)?,
+            level,
+            identification: "model_conditional".into(),
+        },
+        scope: CalibrationScopeWire {
+            row_count: coordinate.mc_budget,
+            replicates_ok: (!posterior).then_some(draws),
+            posterior_draws: posterior.then_some(draws),
+            unidentified_mass: 0.0,
+        },
+    })
+}
+
+/// The calibration slot of the selected-program value interval at a coordinate and level:
+/// `calibrated` when a current, attesting coverage record measured the construction there,
+/// otherwise the status and reason of the closest record or `not_measured`. An annotation;
+/// the interval is reported either way.
+#[must_use]
+pub fn selected_value_calibration(
+    coordinate: &CalibrationCoordinate,
+    level: f64,
+) -> CalibrationSlotWire {
+    selected_value_basis(coordinate, level).map_or_else(
+        || CalibrationSlotWire::not_measured(BASIS_MISSING),
+        |basis| calibration_slot(&basis),
+    )
+}
+
 /// The calibration slot of a published route at a coordinate and nominal level.
 ///
 /// The slot is `calibrated` when the shipped coverage table holds a current,

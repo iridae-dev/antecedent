@@ -157,8 +157,37 @@ impl PyJointPanelResult {
                             "metadata":law.metadata(),"draws":law.draws(),"frequentist_selected_value_coverage":false})),
                         antecedent::design::scientific_source::ScientificSourcePayload::Means(_)=>None,
                     }),
-                    "selected_value_reliability":result.search.reliability }),
+                    "selected_value_reliability":selected_value_reliability(&result.search.reliability) }),
             }.to_string())
         })
+    }
+}
+
+/// The selected-program reliability of a best-found search as a report value: the simultaneous
+/// interval with its calibration annotation, or the plain status when none is derived.
+fn selected_value_reliability(
+    reliability: &antecedent::design::program_search::continuous::ContinuousSearchReliability,
+) -> serde_json::Value {
+    use antecedent::design::program_search::continuous::ContinuousSearchReliability as Reliability;
+    match reliability {
+        Reliability::Interval(selected) => {
+            let interval = &selected.interval;
+            serde_json::json!({
+                "status": reliability.label(),
+                "selected_id": interval.selected_id,
+                "value": interval.value,
+                "lower": interval.lower,
+                "upper": interval.upper,
+                "level": interval.level,
+                "critical_value": interval.critical_value,
+                "n_considered": interval.n_considered,
+                "n_retained": interval.n_retained,
+                "calibration": interval.calibration,
+            })
+        }
+        Reliability::Unavailable(reason) => {
+            serde_json::json!({"status": reliability.label(), "reason": reason})
+        }
+        other => serde_json::json!(other.label()),
     }
 }
