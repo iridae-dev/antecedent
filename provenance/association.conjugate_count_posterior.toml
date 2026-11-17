@@ -1,0 +1,27 @@
+feature_id = "association.conjugate_count_posterior"
+implementation_crate = "antecedent-prob"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Power prior distributions for regression models", doi = "10.1214/ss/1009212673", sections = ["Power prior: source likelihood raised to a discount alpha, here applied to Beta-Binomial and Gamma-Poisson counts"] },
+ { title = "Bayesian Data Analysis", sections = ["Beta-Binomial conjugacy and posterior predictive", "Gamma-Poisson conjugacy and negative-binomial predictive"] },
+]
+
+implementation_deviations = [
+ "For Beta and Gamma count models the power prior at discount alpha adds alpha times the source counts, which is exactly the power prior of the source likelihood in these conjugate families; non-integer pseudo-counts are allowed.",
+ "Intervals are equal-tailed credible intervals of the posterior quantiles; they are not claimed to have frequentist coverage.",
+ "The result is a noncausal association description: it never upgrades identification, and a prior of the wrong family or a continuous conditional mean is refused.",
+ "The empirical-Bayes and cross-validated alpha selection (power_prior_alpha) is a data-chosen discount and is not the fully Bayesian power prior with a prior on alpha.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/association_count_conjugate.rs (the_exceedance_of_each_cell_is_the_beta_binomial_posterior_in_closed_form, the_rate_of_a_count_outcome_in_each_cell_is_the_gamma_poisson_posterior_in_closed_form, a_prior_of_the_wrong_family_or_a_continuous_conditional_mean_is_refused_with_the_next_attempt)",
+ "crates/antecedent/tests/count_conjugate_calibration.rs (the_route_reports_the_closed_form_interval_for_a_known_cell)",
+ "crates/antecedent-prob/src/power_prior_alpha.rs (the_selected_beta_prior_is_the_power_prior_at_the_selected_alpha)",
+ "python/tests/test_composed_prior_currency.py (test_the_exceedance_of_each_cell_is_the_beta_binomial_posterior, test_count_sources_compose_by_the_power_prior)",
+]

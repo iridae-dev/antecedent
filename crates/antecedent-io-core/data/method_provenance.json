@@ -51,6 +51,9 @@
   "adaptive_inference.unsupported_guarantees": [
    "adaptive_inference.unsupported_guarantees"
   ],
+  "association.conjugate_count_posterior": [
+   "association.conjugate_count_posterior"
+  ],
   "attribution.mechanism_change_detection": [
    "attribution.mechanism_change_detection"
   ],
@@ -471,6 +474,9 @@
   "estimate.observational_survival_effect": [
    "estimate.observational_survival_effect"
   ],
+  "estimate.outcome_nuisance_prior": [
+   "estimate.outcome_nuisance_prior"
+  ],
   "estimate.penalized_propensity_aipw": [
    "estimate.penalized_propensity_aipw"
   ],
@@ -506,6 +512,9 @@
   ],
   "estimate.vector_treatment.bayesian": [
    "estimate.vector_treatment.bayesian"
+  ],
+  "estimate.weighted_target_effect": [
+   "estimate.weighted_target_effect"
   ],
   "evidence_ledger.dependence_range": [
    "evidence_ledger.dependence_range"
@@ -699,8 +708,17 @@
   "measurement.classical_continuous_error": [
    "measurement.classical_continuous_error"
   ],
+  "measurement.detection_dependent_prevalence": [
+   "measurement.detection_dependent_prevalence"
+  ],
+  "measurement.exposure_misclassification": [
+   "measurement.exposure_misclassification"
+  ],
   "measurement.external_latent_posterior": [
    "measurement.external_latent_posterior"
+  ],
+  "measurement.measured_exposure_effect": [
+   "measurement.measured_exposure_effect"
   ],
   "measurement.model_contract": [
    "measurement.model_contract"
@@ -708,8 +726,14 @@
   "measurement.probabilistic_categorical": [
    "measurement.probabilistic_categorical"
   ],
+  "measurement.repeat_codings_latent_class": [
+   "measurement.repeat_codings_latent_class"
+  ],
   "measurement.repeated_measurements": [
    "measurement.repeated_measurements"
+  ],
+  "measurement.soft_exposure": [
+   "measurement.soft_exposure"
   ],
   "measurement.static.bayesian": [
    "composition.multi_source"
@@ -940,6 +964,9 @@
   ],
   "predictive_assessment.score_interval": [
    "predictive_assessment.score_interval"
+  ],
+  "prior.composed_named_coordinates": [
+   "prior.composed_named_coordinates"
   ],
   "provider_callback.consumers": [
    "provider_callback.consumers"
@@ -2042,6 +2069,40 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
+  },
+  {
+   "deviations": [
+    "For Beta and Gamma count models the power prior at discount alpha adds alpha times the source counts, which is exactly the power prior of the source likelihood in these conjugate families; non-integer pseudo-counts are allowed.",
+    "Intervals are equal-tailed credible intervals of the posterior quantiles; they are not claimed to have frequentist coverage.",
+    "The result is a noncausal association description: it never upgrades identification, and a prior of the wrong family or a continuous conditional mean is refused.",
+    "The empirical-Bayes and cross-validated alpha selection (power_prior_alpha) is a data-chosen discount and is not the fully Bayesian power prior with a prior on alpha."
+   ],
+   "digest": "b1d8ad2cd4808e3341fc80f07fc34daef7df7c9f9ec9ce76b1a5061d06246793",
+   "id": "association.conjugate_count_posterior",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Ming-Hui Chen",
+      "Joseph G. Ibrahim"
+     ],
+     "doi": "10.1214/ss/1009212673",
+     "doi_verified": true,
+     "sections": [
+      "Power prior: source likelihood raised to a discount alpha, here applied to Beta-Binomial and Gamma-Poisson counts"
+     ],
+     "title": "Power prior distributions for regression models",
+     "year": 2000
+    },
+    {
+     "sections": [
+      "Beta-Binomial conjugacy and posterior predictive",
+      "Gamma-Poisson conjugacy and negative-binomial predictive"
+     ],
+     "title": "Bayesian Data Analysis"
+    }
+   ]
   },
   {
    "deviations": [
@@ -6727,20 +6788,29 @@
      "year": 2014
     },
     {
+     "authors": [
+      "G. Imbens",
+      "K. Kalyanaraman"
+     ],
      "doi": "10.1093/restud/rdr043",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "plug-in bandwidth minimizing the asymptotic mean squared error of the boundary estimate from pilot variance, density and curvature estimates"
      ],
-     "title": "Optimal Bandwidth Choice for the Regression Discontinuity Estimator"
+     "title": "Optimal Bandwidth Choice for the Regression Discontinuity Estimator",
+     "year": 2011
     },
     {
+     "authors": [
+      "Justin McCrary"
+     ],
      "doi": "10.1016/j.jeconom.2007.05.005",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "binned local linear test of a discontinuity in the density of the running variable at the cutoff"
      ],
-     "title": "Manipulation of the Running Variable in the Regression Discontinuity Design: A Density Test"
+     "title": "Manipulation of the Running Variable in the Regression Discontinuity Design: A Density Test",
+     "year": 2008
     },
     {
      "authors": [
@@ -6758,12 +6828,17 @@
      "year": 2015
     },
     {
+     "authors": [
+      "Donald W. K. Andrews",
+      "J. Christopher Monahan"
+     ],
      "doi": "10.2307/2951574",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "prewhitening a dependent series by a low-order autoregression before estimating its long-run variance, and recoloring"
      ],
-     "title": "An Improved Heteroskedasticity and Autocorrelation Consistent Covariance Matrix Estimator"
+     "title": "An Improved Heteroskedasticity and Autocorrelation Consistent Covariance Matrix Estimator",
+     "year": 1992
     },
     {
      "authors": [
@@ -7076,6 +7151,71 @@
      ],
      "title": "Semiparametric Efficiency in Multivariate Regression Models with Missing Data",
      "year": 1995
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "The per-fold, per-arm outcome regression is the posterior mode under a Gaussian coefficient prior centred on the hydrated prior mean, a ridge-toward-prior learner; this is not one of the learner classes analysed in the cited cross-fitting theory.",
+    "An absolute-scale prior is converted using the training rows' unpenalized residual variance, which is a plug-in choice made in-repo.",
+    "The prior has fixed strength per fold, not growing with n; consistency follows from the propensity (double robustness), and the prior is claimed to shape efficiency only. The influence-function standard error is that of the unregularized score and does not account for prior-induced bias.",
+    "Partially linear DML does not carry the prior and refuses."
+   ],
+   "digest": "2cfe876541d30b0a3a485f602051fd99c2b7a8b55d8f5f16152292a0b719e484",
+   "id": "estimate.outcome_nuisance_prior",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "James M. Robins",
+      "Andrea Rotnitzky",
+      "Lue Ping Zhao"
+     ],
+     "doi": "10.1080/01621459.1994.10476818",
+     "doi_verified": true,
+     "sections": [
+      "Augmented inverse-probability-weighted score"
+     ],
+     "title": "Estimation of Regression Coefficients When Some Regressors are not Always Observed",
+     "year": 1994
+    },
+    {
+     "authors": [
+      "Heejung Bang",
+      "James M. Robins"
+     ],
+     "doi": "10.1111/j.1541-0420.2005.00377.x",
+     "doi_verified": true,
+     "sections": [
+      "Doubly robust estimator: consistent when either the outcome regression or the propensity is"
+     ],
+     "title": "Doubly Robust Estimation in Missing Data and Causal Inference Models",
+     "year": 2005
+    },
+    {
+     "authors": [
+      "Victor Chernozhukov",
+      "Denis Chetverikov",
+      "Mert Demirer",
+      "Esther Duflo",
+      "Christian Hansen",
+      "Whitney Newey",
+      "James Robins"
+     ],
+     "doi": "10.1111/ectj.12097",
+     "doi_verified": true,
+     "sections": [
+      "Cross-fitting with Neyman-orthogonal scores"
+     ],
+     "title": "Double/debiased machine learning for treatment and structural parameters",
+     "year": 2018
+    },
+    {
+     "sections": [
+      "conjugate Normal linear regression: posterior mean (X'X + V0^-1)^-1 (X'y + V0^-1 m)"
+     ],
+     "title": "Bayesian Data Analysis"
     }
    ]
   },
@@ -8827,6 +8967,61 @@
   },
   {
    "deviations": [
+    "The target is a declared reweighting of the analysed rows (explicit per-row weights or a kernel over scaled covariate distance), not a separately sampled target population; Dahabreh et al. estimate the target mean from target-sample covariates.",
+    "The effect is the weighted mean of the cross-fitted AIPW score contrast, sum w phi / sum w, with the weighted influence-function variance; weights are fixed and declared, so the sampling variability of estimated weights is not propagated.",
+    "The weights must be a function of the certified adjustment covariates only (checked from the declared dependence); this is stronger than a general transport selection model and is enforced, not assumed.",
+    "Overlap is gated by the Kish effective sample size and fraction floors and a per-arm weighted overlap gate; the thresholds are repository defaults, not taken from a cited source.",
+    "No coverage claim is inherited from the cited papers; coverage under a far-from-rows target is checked only as refusal."
+   ],
+   "digest": "4ae982f3e763ff280d3124fa80cdcdf83f9294ada5ee73a9e13a58cdd9afbcda",
+   "id": "estimate.weighted_target_effect",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Issa J. Dahabreh",
+      "Sarah E. Robertson",
+      "Jon A. Steingrimsson",
+      "Elizabeth A. Stuart",
+      "Miguel A. Hernán"
+     ],
+     "doi": "10.1002/sim.8426",
+     "doi_verified": true,
+     "sections": [
+      "Section 2 estimands over a target population; weighting a covariate-conditional effect to a target covariate distribution"
+     ],
+     "title": "Extending inferences from a randomized trial to a new target population",
+     "year": 2020
+    },
+    {
+     "authors": [
+      "Victor Chernozhukov",
+      "Denis Chetverikov",
+      "Mert Demirer",
+      "Esther Duflo",
+      "Christian Hansen",
+      "Whitney Newey",
+      "James Robins"
+     ],
+     "doi": "10.1111/ectj.12097",
+     "doi_verified": true,
+     "sections": [
+      "Neyman-orthogonal (AIPW) score with cross-fitting"
+     ],
+     "title": "Double/debiased machine learning for treatment and structural parameters",
+     "year": 2018
+    },
+    {
+     "sections": [
+      "effective sample size, (sum w)^2 / sum w^2"
+     ],
+     "title": "Survey Sampling"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Only one common pairwise correlation (equicorrelation) is ranged over; arbitrary correlation matrices, per-pair intervals and a general positive semidefinite completion are not implemented.",
     "The mean's monotonicity and the variance's stationarity quadratic are derived in-repo and checked against a brute-force grid, not taken from a paper.",
     "The envelope is an assumption range; it is never presented as a confidence or credible interval."
@@ -10319,6 +10514,75 @@
   },
   {
    "deviations": [
+    "Rogan and Gladen assume one sensitivity; here sensitivity is a declared function d(c) of a per-unit covariate (logistic or piecewise-linear) and the inversion pi = (sum D - n f)/(sum d(c) - n f) is derived in-repo, assuming the presence probability does not depend on c.",
+    "The variance adds Bernoulli sampling variance, the covariance of the declared function's parameters and Var(f) by the delta method; it is first order and not validated for coverage.",
+    "A partially declared monotone detection function yields sharp bounds [A/G(hi), A/G(lo)] on prevalence for the declaration; no interval over the bounds is offered.",
+    "Refused when the mean detection net of false positives is at or below a floor, which plays the role of the Youden index."
+   ],
+   "digest": "89165eeae990973d52152e3728aa7b69c26df641ca697ecf00f01fea59fcf432",
+   "id": "measurement.detection_dependent_prevalence",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "WALTER J. ROGAN",
+      "BETH GLADEN"
+     ],
+     "doi": "10.1093/oxfordjournals.aje.a112510",
+     "doi_verified": true,
+     "sections": [
+      "Prevalence inversion pi = (observed rate - false-positive rate)/(sensitivity - false-positive rate), here with a unit-specific sensitivity d(c)"
+     ],
+     "title": "ESTIMATING PREVALENCE FROM THE RESULTS OF A SCREENING TEST",
+     "year": 1978
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Rogan and Gladen give the variance for known rates; the delta-method variance adding the rate estimates, the independent per-level versus one shared pair rule, is derived in-repo.",
+    "The exposure odds ratio is formed from the two corrected level shares; the case-control and cohort equivalence of the outcome odds ratio is used as stated, not re-derived.",
+    "Refused when either level's Youden index is at or below a declared minimum or a corrected share leaves (0, 1); corrected shares are never clipped.",
+    "The interval is a Wald interval on the log odds ratio; coverage is not measured."
+   ],
+   "digest": "d51ced76a5fa0cb0b759c59bd271db4e41fd918456258d7ee1b61de653d7b7a5",
+   "id": "measurement.exposure_misclassification",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "WALTER J. ROGAN",
+      "BETH GLADEN"
+     ],
+     "doi": "10.1093/oxfordjournals.aje.a112510",
+     "doi_verified": true,
+     "sections": [
+      "Estimator pi = (p* + Sp - 1)/(Se + Sp - 1) applied within each outcome level"
+     ],
+     "title": "ESTIMATING PREVALENCE FROM THE RESULTS OF A SCREENING TEST",
+     "year": 1978
+    },
+    {
+     "authors": [
+      "Raymond J. Carroll",
+      "David Ruppert",
+      "Leonard A. Stefanski",
+      "Ciprian M. Crainiceanu"
+     ],
+     "doi": "10.1201/9781420010138",
+     "doi_verified": true,
+     "sections": [
+      "Ch. 8 misclassification and the corrected-proportion / odds-ratio forms"
+     ],
+     "title": "Measurement Error in Nonlinear Models",
+     "year": 2006
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Posterior-mean substitution is exact for a linear outcome model only; the provider's hyperparameter uncertainty is not representable and is labelled not_propagated.",
     "Rubin's rules assume proper imputations conditional on the outcome; the model must declare that, and it is not verifiable here.",
     "No interval; coverage is not measured."
@@ -10362,6 +10626,75 @@
   },
   {
    "deviations": [
+    "The latent exposure is imputed per unit from prior x measurement likelihood x outcome density; the exposure model (softmax in covariates or supplied probabilities) and outcome model (Gaussian, or logistic for a 0/1 outcome) are fitted by EM on a row bootstrap. This is a proper multiple imputation only when the imputation models contain the relations the analysis uses; that is an assumption of the route.",
+    "Measurement parameters are redrawn per draw (Beta posteriors of validation rates, multivariate normal for detection parameters, bootstrap refits of the latent-class model); the Beta and normal posteriors are working approximations.",
+    "Each completed table is analysed by the ordinary study and the per-draw estimates are pooled with Rubin's rules; the degrees-of-freedom and interval are Rubin's, with no coverage measured.",
+    "Partially declared monotone detection is not offered, since an effect is not monotone in the detection function in general.",
+    "Unidentified declarations are refused before any draw."
+   ],
+   "digest": "a0751427f6f1d479283bdef77b9c636ea207f7f7a6291eb6f2a1a298a5fb06f5",
+   "id": "measurement.measured_exposure_effect",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Donald B. Rubin"
+     ],
+     "doi": "10.1002/9780470316696",
+     "doi_verified": true,
+     "sections": [
+      "Ch. 3 multiple imputation and combining rules"
+     ],
+     "title": "Multiple Imputation for Nonresponse in Surveys",
+     "year": 1987
+    },
+    {
+     "authors": [
+      "Raymond J. Carroll",
+      "David Ruppert",
+      "Leonard A. Stefanski",
+      "Ciprian M. Crainiceanu"
+     ],
+     "doi": "10.1201/9781420010138",
+     "doi_verified": true,
+     "sections": [
+      "Ch. 5 and Ch. 8 multiple-imputation style correction for misclassified and mismeasured covariates"
+     ],
+     "title": "Measurement Error in Nonlinear Models",
+     "year": 2006
+    },
+    {
+     "authors": [
+      "A. P. Dempster",
+      "N. M. Laird",
+      "D. B. Rubin"
+     ],
+     "doi": "10.1111/j.2517-6161.1977.tb01600.x",
+     "doi_verified": true,
+     "sections": [
+      "EM algorithm for the exposure and outcome models"
+     ],
+     "title": "Maximum Likelihood from Incomplete Data Via the EM Algorithm",
+     "year": 1977
+    },
+    {
+     "authors": [
+      "A. P. Dawid",
+      "A. M. Skene"
+     ],
+     "doi": "10.2307/2346806",
+     "doi_verified": true,
+     "sections": [
+      "Latent-class response laws for repeat codings"
+     ],
+     "title": "Maximum Likelihood Estimation of Observer Error-Rates Using the EM Algorithm",
+     "year": 1979
+    }
+   ]
+  },
+  {
+   "deviations": [
     "No estimator: the contract states which request may use a model and inherits no theorem.",
     "Measurement-error structure (non-differential error) is taken from Carroll et al. (2006) ch. 1-2 as a declaration, not verified from data."
    ],
@@ -10396,6 +10729,85 @@
      ],
      "title": "ESTIMATING PREVALENCE FROM THE RESULTS OF A SCREENING TEST",
      "year": 1978
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Conditional independence of codings given the latent level is assumed and not tested.",
+    "Identification is checked by Kruskal's sufficient k-rank condition over a split of the codings; designs that are identified but fail that sufficient condition are refused, except two exchangeable codings of a binary facet with a declared lowest-class law (a Hui-Walter style constraint).",
+    "The fit is EM from several starts; the covariance is the inverse outer product of per-unit scores in a softmax parametrization carried by the delta method, reported only when invertible. This is not the observed-information matrix.",
+    "Classes are ordered by expected coding score to remove label switching; nearly equal class-conditional laws are refused.",
+    "Coverage and robustness to dependence between codings are not inherited."
+   ],
+   "digest": "0543eca29601832e273a762feb2451a0dfb794ad2e323e2b98623cce863132a8",
+   "id": "measurement.repeat_codings_latent_class",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "A. P. Dawid",
+      "A. M. Skene"
+     ],
+     "doi": "10.2307/2346806",
+     "doi_verified": true,
+     "sections": [
+      "EM for per-coder response laws and latent true levels"
+     ],
+     "title": "Maximum Likelihood Estimation of Observer Error-Rates Using the EM Algorithm",
+     "year": 1979
+    },
+    {
+     "authors": [
+      "S. L. Hui",
+      "S. D. Walter"
+     ],
+     "doi": "10.2307/2530508",
+     "doi_verified": true,
+     "sections": [
+      "Two-test binary latent-class model and the constraints under which it is identified"
+     ],
+     "title": "Estimating the Error Rates of Diagnostic Tests",
+     "year": 1980
+    },
+    {
+     "authors": [
+      "Joseph B. Kruskal"
+     ],
+     "doi": "10.1016/0024-3795(77)90069-6",
+     "doi_verified": true,
+     "sections": [
+      "Uniqueness of trilinear decompositions; the k-rank condition for identifiability of the latent-class model"
+     ],
+     "title": "Three-way arrays: rank and uniqueness of trilinear decompositions, with application to arithmetic complexity and statistics",
+     "year": 1977
+    },
+    {
+     "authors": [
+      "LEO A. GOODMAN"
+     ],
+     "doi": "10.1093/biomet/61.2.215",
+     "doi_verified": true,
+     "sections": [
+      "Latent-class model with conditionally independent indicators; identifiability"
+     ],
+     "title": "Exploratory latent structure analysis using both identifiable and unidentifiable models",
+     "year": 1974
+    },
+    {
+     "authors": [
+      "A. P. Dempster",
+      "N. M. Laird",
+      "D. B. Rubin"
+     ],
+     "doi": "10.1111/j.2517-6161.1977.tb01600.x",
+     "doi_verified": true,
+     "sections": [
+      "EM algorithm"
+     ],
+     "title": "Maximum Likelihood from Incomplete Data Via the EM Algorithm",
+     "year": 1977
     }
    ]
   },
@@ -10441,6 +10853,62 @@
      ],
      "title": "Variance Components",
      "year": 1992
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Posterior-mean substitution is regression calibration with the supplied per-unit probabilities as the calibrated E[X | .]; the claim that the probabilities are calibrated is the analyst's declaration and is not tested.",
+    "The reported covariance is the HC0 sandwich with the extra residual variance beta^2 q(1-q) accounted for as derived in-repo, not a published estimator.",
+    "Imputation draws X given the outcome from a Gaussian outcome model fitted by EM with the probabilities as prior and bootstrapped refits; Rubin's rules are valid only when that model contains the relation the analysis relies on.",
+    "The reliability report compares stated probabilities with repeat codings in bins and never gates an analysis.",
+    "Coverage is not inherited and not measured."
+   ],
+   "digest": "c46515a824e5aa08171d5850d836a85ed3590a9dd7d5dedb0b1249c06efbc549",
+   "id": "measurement.soft_exposure",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Raymond J. Carroll",
+      "David Ruppert",
+      "Leonard A. Stefanski",
+      "Ciprian M. Crainiceanu"
+     ],
+     "doi": "10.1201/9781420010138",
+     "doi_verified": true,
+     "sections": [
+      "Ch. 4 regression calibration: substituting E[X | W] for the mismeasured covariate in a linear model"
+     ],
+     "title": "Measurement Error in Nonlinear Models",
+     "year": 2006
+    },
+    {
+     "authors": [
+      "Donald B. Rubin"
+     ],
+     "doi": "10.1002/9780470316696",
+     "doi_verified": true,
+     "sections": [
+      "Ch. 3 combining multiple imputations (Rubin's rules)"
+     ],
+     "title": "Multiple Imputation for Nonresponse in Surveys",
+     "year": 1987
+    },
+    {
+     "authors": [
+      "A. P. Dempster",
+      "N. M. Laird",
+      "D. B. Rubin"
+     ],
+     "doi": "10.1111/j.2517-6161.1977.tb01600.x",
+     "doi_verified": true,
+     "sections": [
+      "EM algorithm for the Gaussian outcome model used to condition imputation draws on the outcome"
+     ],
+     "title": "Maximum Likelihood from Incomplete Data Via the EM Algorithm",
+     "year": 1977
     }
    ]
   },
@@ -10981,6 +11449,39 @@
   },
   {
    "deviations": [
+    "Selecting a named subset of a Gaussian prior's coordinates is the Gaussian marginal, and extending with the analysis's baseline prior is independent extension; neither is in the cited paper and both are standard multivariate normal facts applied in-repo.",
+    "The composition of the mapped sources is the Gaussian tempered-product (precision sum) of the external-prior record, not the historical-data power prior of the cited paper.",
+    "An unnamed prior is positional; a prior with no coordinate matching the design is refused, and an effect-functional mapping is refused.",
+    "Dropping coordinates the target lacks discards cross-covariance only by taking the marginal, which is exact for a Gaussian."
+   ],
+   "digest": "9dc0b858a392ec2c3ec08118c5f1c824f1f515a11af6d025e87690ee215a7f2e",
+   "id": "prior.composed_named_coordinates",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Ming-Hui Chen",
+      "Joseph G. Ibrahim"
+     ],
+     "doi": "10.1214/ss/1009212673",
+     "doi_verified": true,
+     "sections": [
+      "Power-prior composition of Gaussian priors; the discount exponent alpha"
+     ],
+     "title": "Power prior distributions for regression models",
+     "year": 2000
+    },
+    {
+     "sections": [
+      "conjugate Normal linear regression; marginals of a multivariate normal"
+     ],
+     "title": "Bayesian Data Analysis"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Coefficient covariance uses the conjugate scale convention beta|sigma2 ~ N(m0, sigma2 V0), including dense correlated V0 priors; the supplied coefficient variances are V0, not unconditional beta variances.",
     "Nonnegative weights enter the Gaussian log likelihood as powers: the NIG shape increment is sum(weights)/2. This is not automatically a calibrated sampling-variance treatment for arbitrary survey or precision weights.",
     "An absolute coefficient-scale marker is converted to V0 using known residual variance when supplied, otherwise a target-data weighted least-squares residual-variance plug-in with positive-row-count minus coefficient-count degrees of freedom. The latter makes the prior data-dependent; ordinary conjugate formulas conditional on the plug-in do not account for its uncertainty.",
@@ -11168,20 +11669,34 @@
      "year": 2010
     },
     {
+     "authors": [
+      "Dmitry Arkhangelsky",
+      "Susan Athey",
+      "David A. Hirshberg",
+      "Guido W. Imbens",
+      "Stefan Wager"
+     ],
      "doi": "10.1257/aer.20190159",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "unit and time weights with an additive unit and time effect"
      ],
-     "title": "Synthetic Difference-in-Differences"
+     "title": "Synthetic Difference-in-Differences",
+     "year": 2021
     },
     {
+     "authors": [
+      "Eli Ben-Michael",
+      "Avi Feller",
+      "Jesse Rothstein"
+     ],
      "doi": "10.1080/01621459.2021.1929245",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "ridge outcome-model correction of the synthetic-control estimate"
      ],
-     "title": "The Augmented Synthetic Control Method"
+     "title": "The Augmented Synthetic Control Method",
+     "year": 2021
     }
    ]
   },
@@ -11258,7 +11773,7 @@
     "Execution measures actual nuisance and final-stage learner work and successful score-table builds (two on initial preparation/estimation); bounded physical-input reuse avoids duplicate nuisance fits and includes fold-unit kind/seed. Canonical graph/target/utility identities permit independent score consumption; reported analytic diagnostics and point predictions retain not-measured calibration, with no interval or coverage claim.",
     "Historical receipts contain no executable state. Fresh processes require independently verified scores or predictors for their separately supported operations, or supplied raw data for refitting."
    ],
-   "digest": "45eef005bc468eba648570940d22a250a451646be18c7a299de60f24180a979f",
+   "digest": "3d2cf29a463aeb990eb2799a68c343e2c77d8acb570ed2b40c1c415a3a58a5a7",
    "id": "recalculation.doubly_robust",
    "review": "none",
    "scope_limits": [],
@@ -11539,28 +12054,41 @@
    ],
    "sources": [
     {
+     "authors": [
+      "Bradley P. Carlin",
+      "Siddhartha Chib"
+     ],
      "doi": "10.1111/j.2517-6161.1995.tb02042.x",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "model choice as a discrete state sampled jointly with the parameters of every candidate model on one fixed-dimension product space"
      ],
-     "title": "Bayesian Model Choice Via Markov Chain Monte Carlo Methods"
+     "title": "Bayesian Model Choice Via Markov Chain Monte Carlo Methods",
+     "year": 1995
     },
     {
+     "authors": [
+      "PETER J. GREEN"
+     ],
      "doi": "10.1093/biomet/82.4.711",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "the acceptance ratio of a between-model move through a deterministic change of variables carries the Jacobian of the map"
      ],
-     "title": "Reversible jump Markov chain Monte Carlo computation and Bayesian model determination"
+     "title": "Reversible jump Markov chain Monte Carlo computation and Bayesian model determination",
+     "year": 1995
     },
     {
+     "authors": [
+      "W. K. Hastings"
+     ],
      "doi": "10.1093/biomet/57.1.97",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Metropolis-Hastings acceptance rule with a symmetric proposal"
      ],
-     "title": "Monte Carlo sampling methods using Markov chains and their applications"
+     "title": "Monte Carlo sampling methods using Markov chains and their applications",
+     "year": 1970
     }
    ]
   },

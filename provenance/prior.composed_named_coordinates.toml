@@ -1,0 +1,25 @@
+feature_id = "prior.composed_named_coordinates"
+implementation_crate = "antecedent-prob"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Power prior distributions for regression models", doi = "10.1214/ss/1009212673", sections = ["Power-prior composition of Gaussian priors; the discount exponent alpha"] },
+ { title = "Bayesian Data Analysis", sections = ["conjugate Normal linear regression; marginals of a multivariate normal"] },
+]
+
+implementation_deviations = [
+ "Selecting a named subset of a Gaussian prior's coordinates is the Gaussian marginal, and extending with the analysis's baseline prior is independent extension; neither is in the cited paper and both are standard multivariate normal facts applied in-repo.",
+ "The composition of the mapped sources is the Gaussian tempered-product (precision sum) of the external-prior record, not the historical-data power prior of the cited paper.",
+ "An unnamed prior is positional; a prior with no coordinate matching the design is refused, and an effect-functional mapping is refused.",
+ "Dropping coordinates the target lacks discards cross-covariance only by taking the marginal, which is exact for a Gaussian.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/named_composed_prior.rs (a_named_prior_maps_by_name_onto_the_design_and_equals_the_positional_prior, a_named_prior_with_no_coordinate_of_the_design_is_refused_with_the_next_attempt, a_selected_power_prior_discount_is_part_of_the_composed_prior)",
+ "python/tests/test_composed_prior_currency.py (test_a_named_prior_maps_by_name_onto_the_bayesian_design_and_equals_the_closed_form, test_names_flow_through_composition_and_a_kernel_weighted_target)",
+]

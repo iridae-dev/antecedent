@@ -1,0 +1,28 @@
+feature_id = "estimate.outcome_nuisance_prior"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Estimation of Regression Coefficients When Some Regressors are not Always Observed", doi = "10.1080/01621459.1994.10476818", sections = ["Augmented inverse-probability-weighted score"] },
+ { title = "Doubly Robust Estimation in Missing Data and Causal Inference Models", doi = "10.1111/j.1541-0420.2005.00377.x", sections = ["Doubly robust estimator: consistent when either the outcome regression or the propensity is"] },
+ { title = "Double/debiased machine learning for treatment and structural parameters", doi = "10.1111/ectj.12097", sections = ["Cross-fitting with Neyman-orthogonal scores"] },
+ { title = "Bayesian Data Analysis", sections = ["conjugate Normal linear regression: posterior mean (X'X + V0^-1)^-1 (X'y + V0^-1 m)"] },
+]
+
+implementation_deviations = [
+ "The per-fold, per-arm outcome regression is the posterior mode under a Gaussian coefficient prior centred on the hydrated prior mean, a ridge-toward-prior learner; this is not one of the learner classes analysed in the cited cross-fitting theory.",
+ "An absolute-scale prior is converted using the training rows' unpenalized residual variance, which is a plug-in choice made in-repo.",
+ "The prior has fixed strength per fold, not growing with n; consistency follows from the propensity (double robustness), and the prior is claimed to shape efficiency only. The influence-function standard error is that of the unregularized score and does not account for prior-induced bias.",
+ "Partially linear DML does not carry the prior and refuses.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/tests/dml_outcome_prior_reference.rs (the_aipw_point_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits, a_correct_propensity_keeps_the_estimate_consistent_under_a_badly_misspecified_prior, a_very_wide_prior_returns_the_unpenalized_cross_fitted_estimate, a_prior_that_does_not_map_onto_the_outcome_design_is_refused_with_the_next_attempt)",
+ "crates/antecedent/tests/dml_outcome_prior_calibration.rs (the_scored_interval_is_ordered_and_centred_near_the_effect)",
+ "python/tests/test_dml_outcome_prior.py (test_a_named_prior_regularizes_the_aipw_estimator_outcome_nuisance)",
+]

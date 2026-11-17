@@ -1,0 +1,28 @@
+feature_id = "measurement.measured_exposure_effect"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Multiple Imputation for Nonresponse in Surveys", doi = "10.1002/9780470316696", sections = ["Ch. 3 multiple imputation and combining rules"] },
+ { title = "Measurement Error in Nonlinear Models", doi = "10.1201/9781420010138", sections = ["Ch. 5 and Ch. 8 multiple-imputation style correction for misclassified and mismeasured covariates"] },
+ { title = "Maximum Likelihood from Incomplete Data Via the EM Algorithm", doi = "10.1111/j.2517-6161.1977.tb01600.x", sections = ["EM algorithm for the exposure and outcome models"] },
+ { title = "Maximum Likelihood Estimation of Observer Error-Rates Using the EM Algorithm", doi = "10.2307/2346806", sections = ["Latent-class response laws for repeat codings"] },
+]
+
+implementation_deviations = [
+ "The latent exposure is imputed per unit from prior x measurement likelihood x outcome density; the exposure model (softmax in covariates or supplied probabilities) and outcome model (Gaussian, or logistic for a 0/1 outcome) are fitted by EM on a row bootstrap. This is a proper multiple imputation only when the imputation models contain the relations the analysis uses; that is an assumption of the route.",
+ "Measurement parameters are redrawn per draw (Beta posteriors of validation rates, multivariate normal for detection parameters, bootstrap refits of the latent-class model); the Beta and normal posteriors are working approximations.",
+ "Each completed table is analysed by the ordinary study and the per-draw estimates are pooled with Rubin's rules; the degrees-of-freedom and interval are Rubin's, with no coverage measured.",
+ "Partially declared monotone detection is not offered, since an effect is not monotone in the detection function in general.",
+ "Unidentified declarations are refused before any draw.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/measured_exposure_known_truth.rs (shared_misclassification_recovers_the_planted_effect, outcome_differential_misclassification_recovers_the_planted_risk_difference, repeat_codings_recover_the_planted_effect_of_the_latent_facet, an_unidentified_error_declaration_refuses_before_any_draw)",
+ "python/tests/test_exposure_measurement.py (test_rubin_pooling_matches_the_hand_computation, test_the_pooled_point_equals_rubin_over_the_per_draw_analyses, test_misclassified_exposure_recovers_the_planted_effect_through_analyze)",
+]

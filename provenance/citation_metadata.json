@@ -171,6 +171,18 @@
     "url": "https://api.crossref.org/works/10.1007/bf02846028",
     "year": 1955
   },
+  "10.1016/0024-3795(77)90069-6": {
+    "authors": [
+      "Joseph B. Kruskal"
+    ],
+    "doi": "10.1016/0024-3795(77)90069-6",
+    "response_sha256": "4e7b992e06722d7b9afd5859cd1b885e87d43b3a3b0f27ece65167c6eb387a4b",
+    "titles": [
+      "Three-way arrays: rank and uniqueness of trilinear decompositions, with application to arithmetic complexity and statistics"
+    ],
+    "url": "https://api.crossref.org/works/10.1016/0024-3795%2877%2990069-6",
+    "year": 1977
+  },
   "10.1016/0167-2789(92)90102-s": {
     "authors": [
       "James Theiler",
@@ -292,6 +304,18 @@
     "url": "https://api.crossref.org/works/10.1016/j.jeconom.2007.05.001",
     "year": 2008
   },
+  "10.1016/j.jeconom.2007.05.005": {
+    "authors": [
+      "Justin McCrary"
+    ],
+    "doi": "10.1016/j.jeconom.2007.05.005",
+    "response_sha256": "70c2a8f1216fa30a44407af95db1de846ee8a7349e4c9346b9144a98cd25bd4d",
+    "titles": [
+      "Manipulation of the running variable in the regression discontinuity design: A density test"
+    ],
+    "url": "https://api.crossref.org/works/10.1016/j.jeconom.2007.05.005",
+    "year": 2008
+  },
   "10.1016/j.jeconom.2009.09.023": {
     "authors": [
       "Matias D. Cattaneo"
@@ -316,6 +340,19 @@
     ],
     "url": "https://api.crossref.org/works/10.1016/j.jeconom.2020.06.003",
     "year": 2020
+  },
+  "10.1016/j.jeconom.2020.09.006": {
+    "authors": [
+      "Liyang Sun",
+      "Sarah Abraham"
+    ],
+    "doi": "10.1016/j.jeconom.2020.09.006",
+    "response_sha256": "b99097380348ab9aa069d9599586ef7f87085d95dab0bc06279185cb50790b2c",
+    "titles": [
+      "Estimating dynamic treatment effects in event studies with heterogeneous treatment effects"
+    ],
+    "url": "https://api.crossref.org/works/10.1016/j.jeconom.2020.09.006",
+    "year": 2021
   },
   "10.1016/j.jeconom.2020.12.001": {
     "authors": [
@@ -367,6 +404,19 @@
     ],
     "url": "https://api.crossref.org/works/10.1017/cbo9780511803161",
     "year": 2009
+  },
+  "10.1017/s0266466605050565": {
+    "authors": [
+      "Nicholas M. Kiefer",
+      "Timothy J. Vogelsang"
+    ],
+    "doi": "10.1017/s0266466605050565",
+    "response_sha256": "fd014f10fa7eff6cd06438c6164b0d4066a8f2b882a889827774c73b016a7bbc",
+    "titles": [
+      "A NEW ASYMPTOTIC THEORY FOR HETEROSKEDASTICITY-AUTOCORRELATION ROBUST TESTS"
+    ],
+    "url": "https://api.crossref.org/works/10.1017/s0266466605050565",
+    "year": 2005
   },
   "10.1017/s0305004100019897": {
     "authors": [
@@ -753,6 +803,34 @@
     "url": "https://api.crossref.org/works/10.1080/01621459.2017.1319839",
     "year": 2018
   },
+  "10.1080/01621459.2021.1920957": {
+    "authors": [
+      "Victor Chernozhukov",
+      "Kaspar W\u00fcthrich",
+      "Yinchu Zhu"
+    ],
+    "doi": "10.1080/01621459.2021.1920957",
+    "response_sha256": "56fd44d763a8c1994ac5e065e709c84fa86a55963c64039544a38027f40b5446",
+    "titles": [
+      "An Exact and Robust Conformal Inference Method for Counterfactual and Synthetic Controls"
+    ],
+    "url": "https://api.crossref.org/works/10.1080/01621459.2021.1920957",
+    "year": 2021
+  },
+  "10.1080/01621459.2021.1929245": {
+    "authors": [
+      "Eli Ben-Michael",
+      "Avi Feller",
+      "Jesse Rothstein"
+    ],
+    "doi": "10.1080/01621459.2021.1929245",
+    "response_sha256": "07d6c3e45d5a307bcddb746a08e6f82447f9f284cf9a80aa6524d3474a919ee2",
+    "titles": [
+      "The Augmented Synthetic Control Method"
+    ],
+    "url": "https://api.crossref.org/works/10.1080/01621459.2021.1929245",
+    "year": 2021
+  },
   "10.1080/01621459.2021.1955691": {
     "authors": [
       "Iv\u00e1n D\u00edaz",
@@ -911,6 +989,30 @@
     "url": "https://api.crossref.org/works/10.1093/biomet/49.1-2.65",
     "year": 1962
   },
+  "10.1093/biomet/57.1.97": {
+    "authors": [
+      "W. K. Hastings"
+    ],
+    "doi": "10.1093/biomet/57.1.97",
+    "response_sha256": "23f6131dd1d3fdc6e4d2f8b9aad9720ccc7eb2b9424d609fe79c866842af764d",
+    "titles": [
+      "Monte Carlo sampling methods using Markov chains and their applications"
+    ],
+    "url": "https://api.crossref.org/works/10.1093/biomet/57.1.97",
+    "year": 1970
+  },
+  "10.1093/biomet/61.2.215": {
+    "authors": [
+      "LEO A. GOODMAN"
+    ],
+    "doi": "10.1093/biomet/61.2.215",
+    "response_sha256": "76ab3017014bbd093fbf7739c9de75bc10aa38cc31f5d928b748abaee20b5d94",
+    "titles": [
+      "Exploratory latent structure analysis using both identifiable and unidentifiable models"
+    ],
+    "url": "https://api.crossref.org/works/10.1093/biomet/61.2.215",
+    "year": 1974
+  },
   "10.1093/biomet/62.2.441": {
     "authors": [
       "D. R. COX"
@@ -1012,6 +1114,18 @@
     "url": "https://api.crossref.org/works/10.1093/biomet/82.4.669",
     "year": 1995
   },
+  "10.1093/biomet/82.4.711": {
+    "authors": [
+      "PETER J. GREEN"
+    ],
+    "doi": "10.1093/biomet/82.4.711",
+    "response_sha256": "d75c93823d660713cdf338b25ae23c621cf5443be261d9e05dd9c2af1137c4e0",
+    "titles": [
+      "Reversible jump Markov chain Monte Carlo computation and Bayesian model determination"
+    ],
+    "url": "https://api.crossref.org/works/10.1093/biomet/82.4.711",
+    "year": 1995
+  },
   "10.1093/biomet/87.3.706": {
     "authors": [
       "G. Imbens"
@@ -1109,6 +1223,33 @@
     ],
     "url": "https://api.crossref.org/works/10.1093/oxfordjournals.aje.a112510",
     "year": 1978
+  },
+  "10.1093/restud/rdae007": {
+    "authors": [
+      "Kirill Borusyak",
+      "Xavier Jaravel",
+      "Jann Spiess"
+    ],
+    "doi": "10.1093/restud/rdae007",
+    "response_sha256": "c04a5a270d1977fa86a55aeaf57890831401c2ec4534e5daf72080c0f13a06c4",
+    "titles": [
+      "Revisiting Event-Study Designs: Robust and Efficient Estimation"
+    ],
+    "url": "https://api.crossref.org/works/10.1093/restud/rdae007",
+    "year": 2024
+  },
+  "10.1093/restud/rdr043": {
+    "authors": [
+      "G. Imbens",
+      "K. Kalyanaraman"
+    ],
+    "doi": "10.1093/restud/rdr043",
+    "response_sha256": "dde64e3c20ffea09e2f1bec34ff3bbfd22eb286573d7ac7aeb05c95e9d5277df",
+    "titles": [
+      "Optimal Bandwidth Choice for the Regression Discontinuity Estimator"
+    ],
+    "url": "https://api.crossref.org/works/10.1093/restud/rdr043",
+    "year": 2011
   },
   "10.1097/00001648-200009000-00011": {
     "authors": [
@@ -1351,6 +1492,20 @@
     "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1972.tb00899.x",
     "year": 1972
   },
+  "10.1111/j.2517-6161.1977.tb01600.x": {
+    "authors": [
+      "A. P. Dempster",
+      "N. M. Laird",
+      "D. B. Rubin"
+    ],
+    "doi": "10.1111/j.2517-6161.1977.tb01600.x",
+    "response_sha256": "cec8c4e138245db57fc69d5911d35fe812c1612952bc10dd341d4d25eba00c47",
+    "titles": [
+      "Maximum Likelihood from Incomplete Data Via the\n                    <i>EM</i>\n                    Algorithm"
+    ],
+    "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1977.tb01600.x",
+    "year": 1977
+  },
   "10.1111/j.2517-6161.1988.tb01735.x": {
     "authors": [
       "Peter Hall",
@@ -1375,6 +1530,19 @@
       "Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing"
     ],
     "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1995.tb02031.x",
+    "year": 1995
+  },
+  "10.1111/j.2517-6161.1995.tb02042.x": {
+    "authors": [
+      "Bradley P. Carlin",
+      "Siddhartha Chib"
+    ],
+    "doi": "10.1111/j.2517-6161.1995.tb02042.x",
+    "response_sha256": "7b850e1347786c350138f23202656726e1c6c95c20279cc4d75a63d1a7b753a2",
+    "titles": [
+      "Bayesian Model Choice Via Markov Chain Monte Carlo Methods"
+    ],
+    "url": "https://api.crossref.org/works/10.1111/j.2517-6161.1995.tb02042.x",
     "year": 1995
   },
   "10.1111/j.2517-6161.1996.tb02080.x": {
@@ -1954,6 +2122,19 @@
     "url": "https://api.crossref.org/works/10.1214/13-aos1145",
     "year": 2013
   },
+  "10.1214/14-aos1255": {
+    "authors": [
+      "G\u00e1bor J. Sz\u00e9kely",
+      "Maria L. Rizzo"
+    ],
+    "doi": "10.1214/14-aos1255",
+    "response_sha256": "5fcf09d58ee5730c2f8b335d4a92c839d89ba82c2c4ca60444592174148ccf62",
+    "titles": [
+      "Partial distance correlation with methods for dissimilarities"
+    ],
+    "url": "https://api.crossref.org/works/10.1214/14-aos1255",
+    "year": 2014
+  },
   "10.1214/14-sts486": {
     "authors": [
       "Judea Pearl",
@@ -2237,6 +2418,18 @@
     "url": "https://api.crossref.org/works/10.1214/aos/1176347265",
     "year": 1989
   },
+  "10.1214/aos/1176349025": {
+    "authors": [
+      "Enno Mammen"
+    ],
+    "doi": "10.1214/aos/1176349025",
+    "response_sha256": "bdeca7c5dd3fd269de99b32c03a9dafbc2510d8c79347c3dbe599f0a4f7c4400",
+    "titles": [
+      "Bootstrap and Wild Bootstrap for High Dimensional Linear Models"
+    ],
+    "url": "https://api.crossref.org/works/10.1214/aos/1176349025",
+    "year": 1993
+  },
   "10.1214/aos/1176350933": {
     "authors": [
       "Peter Hall"
@@ -2367,6 +2560,22 @@
     ],
     "url": "https://api.crossref.org/works/10.1257/000282803321946921",
     "year": 2003
+  },
+  "10.1257/aer.20190159": {
+    "authors": [
+      "Dmitry Arkhangelsky",
+      "Susan Athey",
+      "David A. Hirshberg",
+      "Guido W. Imbens",
+      "Stefan Wager"
+    ],
+    "doi": "10.1257/aer.20190159",
+    "response_sha256": "4c42e8f9589921b51ce05064ddae4986c272b3742c79f01428251fdaf1610b67",
+    "titles": [
+      "Synthetic Difference-in-Differences"
+    ],
+    "url": "https://api.crossref.org/works/10.1257/aer.20190159",
+    "year": 2021
   },
   "10.1287/mnsc.1050.0451": {
     "authors": [
@@ -2600,6 +2809,19 @@
     "url": "https://api.crossref.org/works/10.2307/2344614",
     "year": 1972
   },
+  "10.2307/2346806": {
+    "authors": [
+      "A. P. Dawid",
+      "A. M. Skene"
+    ],
+    "doi": "10.2307/2346806",
+    "response_sha256": "0be4a23c2251021795b8a59dd5a93eb25b626ef8fc4137149748833f179639bc",
+    "titles": [
+      "Maximum Likelihood Estimation of Observer Error-Rates Using the EM Algorithm"
+    ],
+    "url": "https://api.crossref.org/works/10.2307/2346806",
+    "year": 1979
+  },
   "10.2307/2530245": {
     "authors": [
       "Peter C. O'Brien",
@@ -2612,6 +2834,19 @@
     ],
     "url": "https://api.crossref.org/works/10.2307/2530245",
     "year": 1979
+  },
+  "10.2307/2530508": {
+    "authors": [
+      "S. L. Hui",
+      "S. D. Walter"
+    ],
+    "doi": "10.2307/2530508",
+    "response_sha256": "ed3dcea394ba9e0838f9ceecb081a96976e62d3526f8a059ee24f5ac04ab649c",
+    "titles": [
+      "Estimating the Error Rates of Diagnostic Tests"
+    ],
+    "url": "https://api.crossref.org/works/10.2307/2530508",
+    "year": 1980
   },
   "10.2307/2530924": {
     "authors": [
@@ -2626,6 +2861,19 @@
     ],
     "url": "https://api.crossref.org/works/10.2307/2530924",
     "year": 1984
+  },
+  "10.2307/2951574": {
+    "authors": [
+      "Donald W. K. Andrews",
+      "J. Christopher Monahan"
+    ],
+    "doi": "10.2307/2951574",
+    "response_sha256": "61d42fa0d298a21ddc4ae570bbc263e0eda53ef9b2990496f7184d6dc0435201",
+    "titles": [
+      "An Improved Heteroskedasticity and Autocorrelation Consistent Covariance Matrix Estimator"
+    ],
+    "url": "https://api.crossref.org/works/10.2307/2951574",
+    "year": 1992
   },
   "10.2307/2951620": {
     "authors": [
@@ -2663,6 +2911,18 @@
     ],
     "url": "https://api.crossref.org/works/10.2307/2982063",
     "year": 1980
+  },
+  "10.2307/3002019": {
+    "authors": [
+      "F. E. Satterthwaite"
+    ],
+    "doi": "10.2307/3002019",
+    "response_sha256": "6549e2a37ebad7bbee1f8524bf45d2c81a5fdaa893b35ca8e9ece8e3653df630",
+    "titles": [
+      "An Approximate Distribution of Estimates of Variance Components"
+    ],
+    "url": "https://api.crossref.org/works/10.2307/3002019",
+    "year": 1946
   },
   "10.2514/3.3166": {
     "authors": [
