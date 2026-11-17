@@ -43,7 +43,7 @@ use antecedent_contract::propagation_chain::ChainRefusal;
 use antecedent_io::propagation_chain_record::PropagationChainRecordWire;
 use antecedent_io::IoError;
 use serde::{Deserialize, Serialize};
-use super::propagation_chain::PropagationChainPlan;
+use super::propagation_chain::{PropagationChainPlan, compile_propagation_chain};
 use crate::planner::lowered::{
     Composition, EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef,
     FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -340,6 +340,7 @@ pub fn consume_with_limits(
 }
 
 const BUNDLE_RECOMPUTE_FEATURE: &str = "chain_bundle_recomputation_v1";
+const PORTABLE_BUNDLE_RECOMPUTE_FEATURE: &str = "chain_bundle_recomputation_portable_v2";
 const MAX_BUNDLE_RECOMPUTE_BYTES: usize = 16 * 1024 * 1024;
 
 /// A bundle whose dependencies are all independently replayable, with one
@@ -403,6 +404,17 @@ pub enum ChainBundleRecomputeError {
 struct ChainBundleRecomputationWire {
     version: u32,
     required_feature: String,
+    receipt: ChainBundleRecomputationReceipt,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PortableChainBundleRecomputationWire {
+    version: u32,
+    required_feature: String,
+    bundle_bytes: Vec<u8>,
+    bundle_identity: String,
+    terminal_node: String,
     receipt: ChainBundleRecomputationReceipt,
 }
 
@@ -554,6 +566,33 @@ impl CompiledChainBundleRecomputation {
         Ok(bytes)
     }
 
+    /// Export the embedded graph and live receipt so a fresh process can
+    /// reconstruct the terminal compiler without holding this plan.
+    ///
+    /// # Errors
+    /// A changed receipt or a container over the portable byte limit.
+    pub fn export_portable(
+        &self, receipt: &ChainBundleRecomputationReceipt, ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, ChainBundleRecomputeError> {
+        if self.execute(ctx)? != *receipt {
+            return Err(ChainBundleRecomputeError::Invalid("bundle execution receipt differs"));
+        }
+        let bytes = antecedent_io::to_cbor(&PortableChainBundleRecomputationWire {
+            version: 2,
+            required_feature: PORTABLE_BUNDLE_RECOMPUTE_FEATURE.into(),
+            bundle_bytes: export_bundle(&self.bundle, "portable-chain-bundle-recomputation")?,
+            bundle_identity: self.bundle.identity().to_owned(),
+            terminal_node: self.terminal_node.clone(),
+            receipt: receipt.clone(),
+        })?;
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(ChainBundleRecomputeError::Invalid(
+                "portable bundle receipt exceeds its byte bound",
+            ));
+        }
+        Ok(bytes)
+    }
+
     /// Independently re-run every dependency consumer and the retained chain,
     /// then compare the complete receipt under a separately retained program id.
     ///
@@ -578,6 +617,51 @@ impl CompiledChainBundleRecomputation {
         }
         Ok(live)
     }
+}
+
+/// Rebuild a portable bundle and its chain declaration, compile the full
+/// six-layer terminal program, replay every dependency and compare the live
+/// receipt against independently retained bundle and program identities.
+///
+/// # Errors
+/// A foreign feature, changed graph or program, failed embedded consumer or
+/// changed live terminal value.
+pub fn consume_portable_chain_bundle_recomputation(
+    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
+) -> Result<ChainBundleRecomputationReceipt, ChainBundleRecomputeError> {
+    if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+        return Err(ChainBundleRecomputeError::Invalid("portable bundle receipt exceeds its byte bound"));
+    }
+    let wire: PortableChainBundleRecomputationWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 2 || wire.required_feature != PORTABLE_BUNDLE_RECOMPUTE_FEATURE
+        || wire.bundle_identity != expected_bundle
+    {
+        return Err(ChainBundleRecomputeError::Invalid("portable bundle feature or identity differs"));
+    }
+    let bundle = CompositionBundle::from_bytes(
+        &wire.bundle_bytes, expected_bundle, &BundleLimits::default(),
+    )?;
+    let terminal = bundle.nodes().iter().find(|node| node.id == wire.terminal_node)
+        .ok_or(ChainBundleRecomputeError::Invalid("portable terminal node is absent"))?;
+    if terminal.kind != NodeKind::PropagationChain {
+        return Err(ChainBundleRecomputeError::Invalid("portable terminal is not a propagation chain"));
+    }
+    let NodeSource::Embedded { bytes: terminal_bytes } = &terminal.source else {
+        return Err(ChainBundleRecomputeError::Invalid("portable terminal is not embedded"));
+    };
+    let recorded = PropagationChainRecordWire::decode(terminal_bytes)
+        .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
+    let chain = compile_propagation_chain(recorded, ctx)?;
+    let plan = compile_chain_bundle_recomputation(bundle, &wire.terminal_node, chain)?;
+    if plan.lowered().identity() != expected_program {
+        return Err(ChainBundleRecomputeError::Invalid("portable bundle compiler program differs"));
+    }
+    let live = plan.execute(ctx)?;
+    if wire.receipt != live {
+        return Err(ChainBundleRecomputeError::Invalid("portable bundle live receipt differs"));
+    }
+    Ok(live)
 }
 
 #[cfg(test)]
@@ -623,5 +707,9 @@ mod compiler_recomputation_tests {
         let bytes = plan.export(&receipt, &ctx).expect("recalculation receipt");
         assert_eq!(plan.consume(&bytes, plan.lowered().identity(), &ctx)
             .expect("independent replay"), receipt);
+        let portable = plan.export_portable(&receipt, &ctx).expect("portable artifact");
+        assert_eq!(consume_portable_chain_bundle_recomputation(
+            &portable, plan.bundle.identity(), plan.lowered().identity(), &ctx,
+        ).expect("fresh compiler replay"), receipt);
     }
 }

@@ -502,6 +502,33 @@ pub struct CompositionBundle {
 }
 
 impl CompositionBundle {
+    /// Reconstruct a bundle from its portable container, verifying its
+    /// complete Merkle graph against an independently retained identity.
+    /// Embedded node consumers run separately when the bundle is consumed.
+    ///
+    /// # Errors
+    /// A malformed container, graph, edge digest or changed identity.
+    pub fn from_bytes(
+        bytes: &[u8],
+        expected_identity: &str,
+        limits: &BundleLimits,
+    ) -> Result<Self, BundleError> {
+        let decoded = decode(bytes, limits)?;
+        let dependencies: Vec<_> = decoded.edges.iter()
+            .map(|edge| (edge.from.clone(), edge.to.clone())).collect();
+        let bundle = Self::new(decoded.nodes, &dependencies, limits)?;
+        if bundle.edges != decoded.edges || bundle.identity != decoded.stored_identity
+            || bundle.identity != expected_identity
+        {
+            return Err(refused(
+                BundleStage::ExpectedIdentityMismatch,
+                "the reconstructed bundle graph differs from the retained identity or edges",
+                None,
+            ));
+        }
+        Ok(bundle)
+    }
+
     /// Build a bundle from nodes and dependencies `(upstream, dependent)`. Node
     /// and edge declaration order does not affect the identity.
     ///

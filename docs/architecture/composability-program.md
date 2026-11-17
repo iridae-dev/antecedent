@@ -26,7 +26,7 @@ coverage or error control.
 | 8 | Medium | Scalar and vector feedback compile one cyclic program with aligned disturbances and named hard clamps; optional ledger entry points check disjointness across all inputs of the original component and bind the ledger state into the program | Establish statistical dependence of fitted mechanism errors and calibrate the connected equilibrium before promoting component evidence to an inferential claim | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | Static path-specific transport and fixed-population temporal counterfactuals exist separately | Prove the target temporal path functional under selection and mediator assumptions, then lower its estimator and claim | None for a new route; high if ordinary transport is relabelled path-specific |
 | 10 | Medium | Independent indicators retain the version-3 route; `compile_dependent_measured_observation` adds a complete scoped joint-error table, separate compiler cell and version-4 artifact for dependent indicators | Fit the joint table with parameter uncertainty and earn new calibration records for fitted measurement models | None for the additive route; medium if independent indicators are silently treated as a joint model |
-| 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together, requires every dependency's artifact consumer to replay, reexecutes the terminal and records each dependency's Merkle digest | Generalize live recomputation to other executable node kinds and independently reconstructed plans | None for the additive route; low for numerical claims, but identity-only plans cannot become execution receipts |
+| 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together; a version-2 portable receipt reconstructs the graph and terminal compiler from bytes, reruns every dependency consumer and compares the live result | Generalize live recomputation to other executable node kinds | None for the additive route; low for numerical claims, but identity-only plans cannot become execution receipts |
 
 ## Current source slice
 
@@ -152,3 +152,8 @@ requires every embedded artifact's consumer to replay and then compares the
 live compiler result with the terminal record; its receipt carries every
 dependency's artifact identity and Merkle digest. Reference nodes and a
 historical recalculation receipt alone do not qualify as live execution.
+The portable version-2 receipt additionally embeds the bundle so a new
+consumer can reconstruct its Merkle graph under an independently retained
+identity, compile the terminal from the embedded chain declaration and replay
+the same live receipt without the original in-memory plan. Other executable
+terminal kinds still need their own compiler adapters.
