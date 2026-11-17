@@ -17,11 +17,11 @@ coverage or error control.
 | Priority | Limitation impact | Useful flow and existing support | Remaining compiler obligation | Existing claim change |
 | --- | --- | --- | --- | --- |
 | 1 | Critical | A new joint cyclic posterior route samples fitted mechanisms from one likelihood, draws population disturbances from the specified covariance, solves each hard-clamp world on the same parameter and disturbance pair, then compiles nonlinear multi-action utility | Prespecify and earn final population-predictive reliability or coverage at the exact decision coordinate; the model and covariance remain assumptions | None for an additive route; high if parameter draws are reinterpreted as outcome risk |
-| 2 | Critical | Uncertainty survives discovery, imputation, estimation, transport and decision; individual and some composite routes exist | Lower the full selection, fitting and transport schedule with dependence; measure coverage at the final coordinate | None for a new route; high if component intervals are relabelled as whole-chain coverage |
+| 2 | Critical | A new graph-imputation effect decision cell binds graph selection, missing-row imputation, child fitting and target effect utility through one compiler and portable replay; fitted transport-effect utility is a separate whole producer route | Join selection, imputation, fitting, transport and decision in one dependent schedule; measure final-coordinate coverage and decision reliability | None for a new route; high if component intervals are relabelled as whole-chain coverage |
 | 3 | High | A declared transported law can enter multi-action utility; a new joint Bayesian transport-effect decision program binds the raw selection diagram, source and target rows, shared Gaussian fit, overlap rule and effect utility, then independently refits and replays them | Extend producer-fitted decisions to outcome-predictive and other transport families; earn final decision reliability at each exact coordinate | None for the additive route; medium if current point transport claims are promoted to laws |
 | 4 | High | A new compiler cell replays the original and whole-chain bootstrap assumption envelopes at one terminal coordinate and forms a Bonferroni-split basic-bootstrap union; robust decisions remain conditional on the supplied draw table | Prespecify and earn coverage of the whole bootstrap schedule before calling the candidate interval calibrated or feeding it into a confidence decision | None for the additive route; high if an assumption range is treated as a confidence interval |
 | 5 | High | The graph-checked policy route separates a narrower policy information set from the full nuisance adjustment set in a version-3 artifact, while retaining held-out or cross-fit scoring | Calibrate the selection-aware standard error for the exact learner and evaluation schedule | None for the additive route; high if same-data scores acquire an unbiasedness claim |
-| 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; the retained mixture draws now export an unverified typed effect law | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
+| 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; a new effect decision cell consumes the retained mixture draws and replays the entire source schedule | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws; the new predictive bridge-transport-decision cell binds all three declarations in one program and replays both the bridge and utility | Estimate or validate the transport premise itself, rather than only carrying its declared evidence; measure any final decision reliability claim | None for a new route; high if a surrogate score is substituted for an endpoint |
 | 8 | Medium | Scalar and vector feedback compile one cyclic program; a new joint likelihood posterior carries fitted parameter dependence into connected predictive equilibria and paired decisions | Calibrate the connected equilibrium and generalize fitted component evidence beyond one specified model and covariance | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | A new time-ordered finite path-specific transport cell identifies each edge-intervention world under a selection diagram, evaluates the target contrast on exact laws, and replays both derivations | Develop sampled and continuous longitudinal path estimators, with uncertainty at the transported contrast | None for the additive point route; high if ordinary transport is relabelled path-specific |
@@ -254,6 +254,18 @@ exact binary average-effect quantity and the replay receipt. It labels them a
 model-conditional causal-functional posterior with unverified trust and
 point-only calibration. This is a narrow downstream law handoff, not a
 whole-schedule calibration or a treatment-world predictive law.
+`graph_imputation_effect_decision_v1` binds the compiled graph-imputation
+program identity, its original table identity, exact binary effect coordinate
+and multi-action decision contract in a separate six-layer program before
+execution. The producer still reruns graph selection per imputed table and
+fits each retained graph's child model; its resulting aligned effect rows enter
+the posterior chain and utility compiler. A combined receipt embeds the
+original native graph source and separately checked identities, plus the
+decision artifact. Its consumer replays all native child operations, rebuilds
+the outer program from the sealed producer and source identities, and
+recompiles the effect utility. It reports `not_measured` for the composed
+decision. This does not introduce transport or a predictive outcome law; the
+source known-truth assertion remains ignored and unearned.
 
 Bundle recomputation has a first executable slice: a fully embedded bundle
 whose terminal is a propagation chain. A new six-layer program binds the

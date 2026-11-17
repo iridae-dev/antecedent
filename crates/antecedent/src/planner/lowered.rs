@@ -1108,6 +1108,8 @@ pub(crate) enum ProgramCell {
     BundleRecomputation,
     /// A bounded graph-selection imputation composite.
     GraphImputation,
+    /// Graph-imputation effect posterior and downstream utility.
+    GraphImputationEffectDecision,
     /// A scientifically closed categorical posterior candidate.
     CategoricalPosteriorCandidate,
     /// A fixed declared MNAR operation.
@@ -1134,6 +1136,7 @@ impl ProgramCell {
             Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
             Self::BundleRecomputation => "BundleRecomputation",
             Self::GraphImputation => "GraphImputation",
+            Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
             Self::MnarFixedShift => "MnarFixedShift",
         }
@@ -1202,6 +1205,7 @@ impl LoweredProgram {
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
+            | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
         }
@@ -1227,6 +1231,7 @@ impl LoweredProgram {
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
+            | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
         }
@@ -1252,6 +1257,7 @@ impl LoweredProgram {
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
+            | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
         }

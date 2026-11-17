@@ -1998,6 +1998,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::SamplingAssumptionUnion => PlanRoute::SamplingAssumptionUnion,
         ProgramCell::BundleRecomputation => PlanRoute::BundleRecomputation,
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,
+        ProgramCell::GraphImputationEffectDecision => PlanRoute::GraphImputationEffectDecision,
         ProgramCell::CategoricalPosteriorCandidate => PlanRoute::CategoricalPosteriorCandidate,
         ProgramCell::MnarFixedShift => PlanRoute::MnarFixedShift,
     }

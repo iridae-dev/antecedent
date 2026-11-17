@@ -217,6 +217,8 @@ macro_rules! route_lowerings {
             BundleRecomputation,
             /// A graph-selection imputation composite.
             GraphImputation,
+            /// Graph-imputation effect posterior and downstream utility.
+            GraphImputationEffectDecision,
             /// A scientifically closed categorical posterior candidate.
             CategoricalPosteriorCandidate,
             /// A bounded fixed-shift MNAR operation.
@@ -246,6 +248,7 @@ macro_rules! route_lowerings {
                     Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
                     Self::BundleRecomputation => "BundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
+                    Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
                     Self::MnarFixedShift => "MnarFixedShift",
                 }
@@ -276,6 +279,7 @@ macro_rules! route_lowerings {
                     Self::SamplingAssumptionUnion => RouteFamily::PropagationChain,
                     Self::BundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
+                    Self::GraphImputationEffectDecision => RouteFamily::GraphImputation,
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,
                     Self::MnarFixedShift => RouteFamily::DesignBased,
                 }

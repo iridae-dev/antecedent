@@ -328,6 +328,34 @@ impl GraphImputationPoint {
 }
 
 impl CompiledGraphImputation {
+    /// The retained six-layer graph, imputation and child-fit program.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
+
+    /// Identity of the original observed table sealed by this compiler.
+    #[must_use]
+    pub fn source_identity(&self) -> SemanticDigest {
+        SemanticDigest::from_bytes(self.source_digest)
+    }
+
+    /// Check a proposed decision input against the outcome and treatment of
+    /// this compiled mixture before any graph search or imputation executes.
+    pub(crate) fn matches_effect_quantity(
+        &self, quantity: &ScientificQuantity,
+    ) -> Result<bool, GraphImputationError> {
+        let source = GraphImputationSource::decode(&self.source_bytes).map_err(invalid)?;
+        let parts = source.parts();
+        let treatment = &parts.names[parts.treatment as usize];
+        let outcome = &parts.names[parts.outcome as usize];
+        Ok(quantity.role == QuantityRole::Outcome
+            && quantity.variable_id == outcome.as_str()
+            && quantity.functional_id == "average_effect"
+            && quantity.regime_id == format!("do({treatment}=1)-do({treatment}=0)")
+            && quantity.horizon == 0)
+    }
+
     fn validate_compile_input(
         source: &TabularData,
         spec: &GraphImputationSpec,
@@ -945,5 +973,58 @@ mod compiled_tests {
         let slot = point.calibration().expect("the calibration slot");
         assert_eq!(slot.status.as_str(), "not_measured");
         assert_eq!(slot.reason.as_deref(), Some("estimator_grid_not_measured"));
+    }
+
+    #[test]
+    #[ignore = "source-only whole-schedule reference assertion; decision reliability not earned"]
+    fn graph_imputation_effect_decision_replays_known_positive_effect() {
+        use antecedent_design::decision_contract::{
+            ActionKind, DecisionAction, DecisionContract, DecisionCriterion,
+            StructuralPolicy, UtilityExpr,
+        };
+        use super::super::graph_imputation_effect_decision::{
+            compile_graph_imputation_effect_decision,
+            consume_graph_imputation_effect_decision,
+        };
+
+        let ctx = ExecutionContext::for_tests(19);
+        let producer = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 40, false);
+        let quantity = ScientificQuantity {
+            variable_id: "y".into(), variable_name: "outcome effect".into(),
+            role: QuantityRole::Outcome, units: "outcome_units".into(),
+            population_id: "declared_population".into(),
+            regime_id: "do(t=1)-do(t=0)".into(), horizon: 0,
+            functional_id: "average_effect".into(), conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+        let contract = DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: "treat".into(), kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::difference(
+                        UtilityExpr::Input(0), UtilityExpr::Const(0.1)),
+                },
+                DecisionAction {
+                    id: "hold".into(), kind: ActionKind::External,
+                    inputs: vec![quantity.clone()], utility: UtilityExpr::Const(0.0),
+                },
+            ],
+            utility_units: "outcome_units".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(),
+            target_population: "declared_population".into(), horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        let plan = compile_graph_imputation_effect_decision(producer, quantity, contract).unwrap();
+        let result = plan.execute(&ctx).unwrap();
+        assert!(result.producer.mean > 0.1);
+        assert_eq!(result.calibration, "not_measured");
+        let bytes = plan.export(&result, "graph-effect-decision-known-truth", &ctx).unwrap();
+        let replay = consume_graph_imputation_effect_decision(
+            &bytes, result.lowered_program_identity, &ctx,
+        ).unwrap();
+        assert_eq!(replay.producer.receipt, result.producer.receipt);
+        assert_eq!(replay.decision.decision, result.decision.decision);
     }
 }
