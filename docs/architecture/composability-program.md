@@ -23,7 +23,7 @@ coverage or error control.
 | 5 | High | A policy learned on logged data is evaluated on that data; `compile_observational_policy` now binds all rows, adjustment columns, split seed, folds, nuisance families and learning/scoring steps to a six-layer program, and its artifact independently replays the report | Extend this compiler route with explicit information sets and graph-checked exchangeability; the estimator's positivity check remains at execution | None for a new route; high if same-data scores acquire an unbiasedness claim |
 | 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; the retained mixture draws now export an unverified typed effect law | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws | Lower the bridge declaration, transport and utility together with checked value kind and coordinate | None for a new route; high if a surrogate score is substituted for an endpoint |
-| 8 | Medium | `prepare_component_feedback` joins checked scalar interfaces; `prepare_vector_component_feedback` expands multi-output interfaces into one certified cyclic program with aligned disturbances and named hard clamps | Check dependence across the aggregate evidence ledger before claiming independent component evidence | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
+| 8 | Medium | Scalar and vector feedback compile one cyclic program with aligned disturbances and named hard clamps; optional ledger entry points check disjointness across all inputs of the original component and bind the ledger state into the program | Establish statistical dependence of fitted mechanism errors and calibrate the connected equilibrium before promoting component evidence to an inferential claim | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | Static path-specific transport and fixed-population temporal counterfactuals exist separately | Prove the target temporal path functional under selection and mediator assumptions, then lower its estimator and claim | None for a new route; high if ordinary transport is relabelled path-specific |
 | 10 | Medium | Independent indicators retain the version-3 route; `compile_dependent_measured_observation` adds a complete scoped joint-error table, separate compiler cell and version-4 artifact for dependent indicators | Fit the joint table with parameter uncertainty and earn new calibration records for fitted measurement models | None for the additive route; medium if independent indicators are silently treated as a joint model |
 | 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together, requires every dependency's artifact consumer to replay, reexecutes the terminal and records each dependency's Merkle digest | Generalize live recomputation to other executable node kinds and independently reconstructed plans | None for the additive route; low for numerical claims, but identity-only plans cannot become execution receipts |
@@ -99,7 +99,14 @@ promote any local calibration or support label to the connected equilibrium;
 the multi-output entry point names each produced equation and its consumed
 ports, then compiles the expanded system through the same cyclic compiler.
 One input may feed several output equations with separate coefficients.
-Aggregate evidence-ledger checking remains open.
+The additive `prepare_component_feedback_with_ledger` and
+`prepare_vector_component_feedback_with_ledger` entry points check every pair
+of inputs marked `DisjointEvidence` against active row-level ledger sources.
+The vector check runs before output expansion, so inputs read by separate
+equations of one component are still compared. An unknown or shared overlap
+refuses; the ledger state digest enters the structural equation identities and
+therefore the central cyclic compiler program. This is an evidence identity
+and overlap check, not a calibrated inferential claim for the equilibrium.
 
 The observational policy compiler retains the existing held-out and cross-fit
 learning estimators under a source digest of all scored rows, covariates,

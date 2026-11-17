@@ -11,9 +11,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_contract::interface_contract::{
-    CalibrationStatus, ComponentConnection, DependenceRequirement, InterfaceContract,
+    CalibrationStatus, ComponentConnection, DependenceRequirement, EvidenceBasis, InterfaceContract,
     InterfaceRefusal, check_connection,
 };
+use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_io::cyclic_system_artifact::{CyclicArtifactError, CyclicExecutionRequest};
 use antecedent_model::nonlinear_equilibrium::{
@@ -152,6 +153,30 @@ pub fn prepare_vector_component_feedback(
     request: VectorFeedbackRequest,
     ctx: &ExecutionContext,
 ) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
+    prepare_vector_component_feedback_inner(request, None, ctx)
+}
+
+/// Compile multi-output feedback with a ledger check over the original
+/// component's inputs, including inputs read by different output equations.
+/// The ledger state is bound into the central cyclic program identity.
+pub fn prepare_vector_component_feedback_with_ledger(
+    request: VectorFeedbackRequest,
+    ledger: &EvidenceLedger,
+    ctx: &ExecutionContext,
+) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
+    prepare_vector_component_feedback_inner(request, Some(ledger), ctx)
+}
+
+fn prepare_vector_component_feedback_inner(
+    request: VectorFeedbackRequest,
+    ledger: Option<&EvidenceLedger>,
+    ctx: &ExecutionContext,
+) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
+    check_aggregate_evidence(
+        &request.components.iter().map(|component| &component.interface).collect::<Vec<_>>(),
+        &request.connections.iter().map(|connection| &connection.ports).collect::<Vec<_>>(),
+        ledger,
+    )?;
     let mut produced = BTreeMap::<(String, String), String>::new();
     let mut consumed = BTreeMap::<(String, String, String), String>::new();
     let mut scalar = Vec::new();
@@ -214,12 +239,73 @@ pub fn prepare_vector_component_feedback(
             coefficient: connection.coefficient,
         });
     }
-    prepare_component_feedback(ComponentFeedbackRequest {
+    prepare_component_feedback_inner(ComponentFeedbackRequest {
         components: scalar, connections,
         noise_covariance: request.noise_covariance, noise: request.noise,
         initial: request.initial, worlds: request.worlds,
         policy: request.policy, factual: request.factual,
-    }, ctx)
+    }, ledger, ctx)
+}
+
+fn check_aggregate_evidence(
+    components: &[&InterfaceContract],
+    connections: &[&ComponentConnection],
+    ledger: Option<&EvidenceLedger>,
+) -> Result<(), ComponentFeedbackError> {
+    let by_name: BTreeMap<&str, &InterfaceContract> = components.iter()
+        .map(|contract| (contract.component.as_str(), *contract)).collect();
+    for consumer in components {
+        let inputs: Vec<_> = consumer.consumes.iter()
+            .filter(|port| port.dependence == DependenceRequirement::DisjointEvidence)
+            .collect();
+        for (index, first) in inputs.iter().enumerate() {
+            for second in &inputs[index + 1..] {
+                let sources = |port_name: &str| -> Result<_, ComponentFeedbackError> {
+                    let mut incoming = connections.iter().filter(|connection| {
+                        connection.consumer == consumer.component
+                            && connection.consumed_port == port_name
+                    });
+                    let connection = incoming.next().ok_or(ComponentFeedbackError::Invalid(
+                        "a disjoint-evidence input has no producer",
+                    ))?;
+                    if incoming.next().is_some() {
+                        return Err(ComponentFeedbackError::Invalid(
+                            "a disjoint-evidence input is multiply fed",
+                        ));
+                    }
+                    let producer = by_name.get(connection.producer.as_str())
+                        .ok_or(ComponentFeedbackError::Invalid("an evidence producer is unknown"))?;
+                    let output = producer.produces.iter()
+                        .find(|port| port.name == connection.produced_port)
+                        .ok_or(ComponentFeedbackError::Invalid("an evidence output is unknown"))?;
+                    match &output.evidence {
+                        EvidenceBasis::Declared(sources) if !sources.is_empty() => Ok(sources),
+                        _ => Err(ComponentFeedbackError::Invalid(
+                            "disjoint-evidence inputs need declared producer sources",
+                        )),
+                    }
+                };
+                let (left, right) = (sources(&first.name)?, sources(&second.name)?);
+                let ledger = ledger.ok_or(ComponentFeedbackError::Invalid(
+                    "multiple disjoint-evidence inputs require an evidence ledger",
+                ))?;
+                for a in left {
+                    for b in right {
+                        if a == b
+                            || !ledger.source(*a).is_some_and(|source| source.status.is_active())
+                            || !ledger.source(*b).is_some_and(|source| source.status.is_active())
+                            || !matches!(ledger.overlap(*a, *b), Ok(Overlap::Independent))
+                        {
+                            return Err(ComponentFeedbackError::Invalid(
+                                "the aggregate ledger does not prove input evidence disjoint",
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The interface check or central cyclic compiler refused the system.
@@ -273,9 +359,33 @@ impl PreparedComponentFeedback {
 /// A missing or multiply fed port, malformed equation or intervention, failed
 /// scientific interface check, or refusal of the central cyclic compiler.
 pub fn prepare_component_feedback(
-    mut request: ComponentFeedbackRequest,
+    request: ComponentFeedbackRequest,
     ctx: &ExecutionContext,
 ) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
+    prepare_component_feedback_inner(request, None, ctx)
+}
+
+/// Compile scalar feedback with a checked aggregate evidence ledger. The
+/// ledger's state digest enters the six-layer cyclic program through the
+/// structural equation identities.
+pub fn prepare_component_feedback_with_ledger(
+    request: ComponentFeedbackRequest,
+    ledger: &EvidenceLedger,
+    ctx: &ExecutionContext,
+) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
+    prepare_component_feedback_inner(request, Some(ledger), ctx)
+}
+
+fn prepare_component_feedback_inner(
+    mut request: ComponentFeedbackRequest,
+    ledger: Option<&EvidenceLedger>,
+    ctx: &ExecutionContext,
+) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
+    check_aggregate_evidence(
+        &request.components.iter().map(|component| &component.interface).collect::<Vec<_>>(),
+        &request.connections.iter().map(|connection| &connection.ports).collect::<Vec<_>>(),
+        ledger,
+    )?;
     if request.components.is_empty() || !request.policy.require_contraction {
         return Err(ComponentFeedbackError::Invalid(
             "at least one component and a global contraction certificate are required",
@@ -301,6 +411,9 @@ pub fn prepare_component_feedback(
         .map(|(index, name)| (name.as_str(), index)).collect();
     let mut writer = CanonicalWriter::new(COMPOSITION_TAG);
     writer.word(order.len() as u64);
+    if let Some(ledger) = ledger {
+        writer.bytes(ledger.state_digest().as_bytes());
+    }
     for component in &request.components {
         component.interface.validate().map_err(|refusal| {
             ComponentFeedbackError::Interface(vec![refusal])
@@ -422,6 +535,7 @@ pub fn prepare_component_feedback(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use antecedent_contract::evidence_ledger::{ObservationId, SourceDeclaration, SourceKind};
     use antecedent_contract::{QuantityRole, ScientificQuantity};
     use antecedent_contract::interface_contract::{
         ConsumedPort, ContractOperation, ProducedPort, SupportDomain,
@@ -506,6 +620,45 @@ mod tests {
         let mut draft = request();
         draft.policy.require_contraction = false;
         assert!(prepare_component_feedback(draft, &ctx).is_err());
+    }
+
+    #[test]
+    fn aggregate_ledger_checks_disjoint_inputs_and_binds_compiler_identity() {
+        let ctx = ExecutionContext::for_tests(37);
+        let mut ledger = EvidenceLedger::new();
+        let first = ledger.add_source(SourceDeclaration::new("ads", SourceKind::ObservationSet)
+            .with_observations([ObservationId::from_key("campaign", b"ads")]))
+            .expect("first source");
+        let second = ledger.add_source(SourceDeclaration::new("community", SourceKind::ObservationSet)
+            .with_observations([ObservationId::from_key("campaign", b"community")]))
+            .expect("second source");
+        let mut draft = request();
+        draft.components.push(component("community", 0.1));
+        draft.components[0].interface.consumes.push(
+            ConsumedPort::new("community_in", quantity(), "model:specified",
+                SupportDomain::Real, [ContractOperation::Mean])
+                .with_dependence(DependenceRequirement::DisjointEvidence),
+        );
+        draft.components[0].interface.consumes[0].dependence = DependenceRequirement::DisjointEvidence;
+        draft.components[1].interface.produces[0].evidence = EvidenceBasis::Declared([first].into());
+        draft.components[2].interface.produces[0].evidence = EvidenceBasis::Declared([second].into());
+        draft.connections.push(FeedbackConnection {
+            ports: ComponentConnection::new("community", "out", "wishlists", "community_in"),
+            coefficient: 0.1,
+        });
+        draft.connections.push(FeedbackConnection {
+            ports: ComponentConnection::new("wishlists", "out", "community", "in"),
+            coefficient: 0.1,
+        });
+        draft.noise_covariance = vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
+        draft.noise = vec![vec![0.0; 3]];
+        draft.initial = vec![0.0; 3];
+        assert!(prepare_component_feedback(draft.clone(), &ctx).is_err());
+        let prepared = prepare_component_feedback_with_ledger(draft.clone(), &ledger, &ctx)
+            .expect("known disjoint evidence");
+        assert_eq!(prepared.component_order().len(), 3);
+        draft.components[2].interface.produces[0].evidence = EvidenceBasis::Declared([first].into());
+        assert!(prepare_component_feedback_with_ledger(draft, &ledger, &ctx).is_err());
     }
 
     #[test]

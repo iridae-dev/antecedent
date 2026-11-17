@@ -648,7 +648,8 @@ pub use cyclic_component_composition::{
     ComponentFeedbackError, ComponentFeedbackRequest, ComponentFeedbackWorld,
     FeedbackConnection, PreparedComponentFeedback, ScalarFeedbackComponent,
     VectorFeedbackComponent, VectorFeedbackConnection, VectorFeedbackOutput, VectorFeedbackRequest,
-    prepare_component_feedback, prepare_vector_component_feedback,
+    prepare_component_feedback, prepare_component_feedback_with_ledger,
+    prepare_vector_component_feedback, prepare_vector_component_feedback_with_ledger,
 };
 
 /// Checked nonlinear two-channel panel compiler and retained programs.
