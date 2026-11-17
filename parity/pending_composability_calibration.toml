@@ -1,0 +1,15 @@
+# Prospective additions to the frozen calibration roster. These are source
+# declarations only: this file is not read by the measurement gate. Move each
+# reviewed group to the end of calibration_groups.toml and refresh the frozen
+# family manifest and label audit when builds and calibration runs resume.
+# Existing measured groups must retain their order and hypotheses.
+
+[[group]]
+label = "fitted_dependent_measurement_calibration: fitted_dependent_measurement_joint_error_l95"
+package = "antecedent"
+target = "fitted_dependent_measurement_calibration"
+tests = ["fitted_dependent_measurement_joint_error_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "One fixed binary construct, a complete two-indicator joint error table, labelled validation samples at 150/300/600 observations per construct level, a fixed symmetric Dirichlet prior and a 95% equal-tail interval for P(Y=1 | assay_a=1, assay_b=1). The truth is analytic and the runtime calibration basis is checked in every replicate. This group is not measured or earned."

@@ -178,7 +178,10 @@ the older independent and declared dependent routes retain their meanings.
 table, a labelled multinomial sampling design, a 150/300/600-per-construct
 grid, the exact outcome-probability truth and the route's equal-tail 95% rule.
 It is ignored and has not been added to the frozen calibration family roster;
-no record is earned by that source-only fixture.
+no record is earned by that source-only fixture. A prospective group, its
+source-fixed-family review and the exact 150/300/600 design are staged in
+`parity/pending_composability_calibration.toml`. The active gate and its
+measured-family manifest remain unchanged until a permitted refresh and run.
 The compiled plan can now construct the exact calibration basis from its
 mechanism-plan identity, measured cell, scoped joint-error table shape, prior,
 outcome level, validation size and posterior draw count. Its interval lookup
