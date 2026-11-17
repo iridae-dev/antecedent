@@ -37,7 +37,7 @@ use antecedent_estimate::{
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::{BackdoorIdentifier, IdentificationWorkspace};
 use antecedent_prob::{
-    BayesLikelihood, GraphIdentFlag, InferenceDiagnostics, WeightedGraphSamples,
+    BayesLikelihood, GraphIdentFlag, InferenceDiagnostics, PosteriorQuantityKind, WeightedGraphSamples,
 };
 use serde::{Deserialize, Serialize};
 
@@ -518,11 +518,13 @@ fn reconstruct(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reconstructed, Io
 
 struct Execution {
     draws: Vec<f64>,
+    paired_worlds: Vec<[f64; 2]>,
     mean: f64,
     sd: f64,
     receipt: [u8; 32],
     unidentified_by_table: Vec<f64>,
     lease: AdmissionLease,
+    paired_leases: Vec<AdmissionLease>,
 }
 
 #[derive(Clone, Copy)]
@@ -689,7 +691,7 @@ fn transported_population(
     reason = "the composite seals each completed table, graph fit and mixture together"
 )]
 fn execute(
-    rec: &Reconstructed, target: Option<TransportTarget<'_>>,
+    rec: &Reconstructed, target: Option<TransportTarget<'_>>, paired: bool,
     ctx: &ExecutionContext,
 ) -> Result<Execution, IoError> {
     let parts = rec.source.parts();
@@ -712,8 +714,15 @@ fn execute(
             .map_err(|receipt| execution_refused(receipt.summary()))?;
     let retained: Vec<u64> = rec.atoms.iter().map(|atom| atom.operation.mask).collect();
     let mut pooled = Vec::new();
+    let mut pooled_worlds = Vec::new();
     let mut unidentified_by_table = Vec::new();
     let mut table_leases = Vec::new();
+    let mut paired_leases = Vec::new();
+    if paired {
+        let bytes = u64::from(parts.imputations).checked_mul(u64::from(parts.posterior_draws))
+            .and_then(|n| n.checked_mul(16)).ok_or_else(|| invalid("paired world admission overflow"))?;
+        paired_leases.push(scoped.acquire_admission(0, bytes).map_err(admission)?);
+    }
     let mut receipt = CanonicalWriter::new(match target {
         Some(TransportTarget::Binary(_)) => "antecedent.graph_imputation_transport.execution.v1",
         Some(TransportTarget::Kernel(_)) => "antecedent.graph_imputation_kernel_transport.execution.v1",
@@ -747,6 +756,7 @@ fn execute(
         let mut flags = Vec::new();
         let mut keys = Vec::new();
         let mut effects = Vec::new();
+        let mut world_atoms: Vec<(u64, f64, Vec<[f64; 2]>)> = Vec::new();
         let mut assumptions = AssumptionSet::new();
         let mut total = 0.0;
         let mut value_count: u64 = 0;
@@ -781,23 +791,48 @@ fn execute(
                         execution_refused(format!("graph mask {mask}: {error}"))
                     }
                 };
-            let fit = if let Some(target) = target {
+            let prepared = if let Some(target) = target {
                 let (query, registry, estimand) =
                     transported_population(&data, &rec.query, atom, target, &parts.domains)?;
                 fitter.prepare_for_population(&data, &estimand, &query, Some(&registry))
-                    .and_then(|prepared| fitter.fit(
-                        &prepared, atom.operation.status,
-                        &mut BayesianGCompWorkspace::default(), &child_ctx,
-                    ))
                     .map_err(fit_error)?
             } else {
-                fitter.prepare(&data, &atom.estimand, &rec.query)
-                    .and_then(|prepared| fitter.fit(
-                        &prepared, atom.operation.status,
-                        &mut BayesianGCompWorkspace::default(), &child_ctx,
-                    ))
-                    .map_err(fit_error)?
+                fitter.prepare(&data, &atom.estimand, &rec.query).map_err(fit_error)?
             };
+            let fit = fitter.fit(&prepared, atom.operation.status,
+                &mut BayesianGCompWorkspace::default(), &child_ctx).map_err(fit_error)?;
+            if paired {
+                if target.is_some() {
+                    return Err(invalid("paired graph worlds currently require the source population"));
+                }
+                let design = &prepared.design;
+                let t = design.treatment_column().ok_or_else(|| invalid("paired worlds lack treatment column"))?;
+                let mut columns = Vec::with_capacity(design.ncols);
+                for index in 0..design.ncols {
+                    let column = fit.draws.schema.quantities.iter().position(|quantity|
+                        matches!(quantity, PosteriorQuantityKind::Coefficient { index: i, .. } if *i == index))
+                        .ok_or_else(|| invalid("paired worlds lack coefficient draws"))?;
+                    columns.push(fit.draws.column(column).map_err(execution_refused)?);
+                }
+                let bytes = (fit.draws.n_draws as u64).checked_mul(16)
+                    .ok_or_else(|| invalid("paired atom admission overflow"))?;
+                paired_leases.push(scoped.acquire_admission(0, bytes).map_err(admission)?);
+                let mut world_values = Vec::with_capacity(fit.draws.n_draws);
+                for draw in 0..fit.draws.n_draws {
+                    let mut mean = 0.0;
+                    for col in 0..design.ncols {
+                        let value = if col == t { 0.0 } else {
+                            design.matrix[col * design.nrows..(col + 1) * design.nrows].iter().sum::<f64>() / design.nrows as f64
+                        };
+                        mean += value * columns[col][draw];
+                    }
+                    let control = mean + prepared.control * columns[t][draw];
+                    let active = mean + prepared.active * columns[t][draw];
+                    if !control.is_finite() || !active.is_finite() { return Err(invalid("paired worlds are nonfinite")); }
+                    world_values.push([control, active]);
+                }
+                world_atoms.push((mask, weight, world_values));
+            }
             if !matches!(
                 fit.identification,
                 IdentificationStatus::NonparametricallyIdentified
@@ -858,6 +893,25 @@ fn execute(
             return Err(execution_refused("completed tables returned different draw counts"));
         }
         pooled.extend_from_slice(values);
+        if paired {
+            // Draw one graph and one coefficient row jointly for both worlds.
+            // Do not apply the scalar mixture's moment adjustment to either world.
+            let mut rng = antecedent_core::CausalRng::from_seed(mix64(
+                parts.execution_seed ^ (u64::from(index) << 32) ^ 0x574F_524C_4450_4149,
+            ));
+            for _ in 0..values.len() {
+                let u = rng.next_f64();
+                let mut cumulative = 0.0;
+                let mut selected = world_atoms.len() - 1;
+                for (i, (_, weight, _)) in world_atoms.iter().enumerate() {
+                    cumulative += weight / total;
+                    if u < cumulative { selected = i; break; }
+                }
+                let draws = &world_atoms[selected].2;
+                let row = ((rng.next_f64() * draws.len() as f64) as usize).min(draws.len() - 1);
+                pooled_worlds.push(draws[row]);
+            }
+        }
         receipt.word(kept.len() as u64);
         for (mask, weight, digest) in &kept {
             receipt.word(*mask).word(weight.to_bits()).bytes(digest);
@@ -873,11 +927,13 @@ fn execute(
     receipt.word(pooled.len() as u64).word(mean.to_bits()).word(sd.to_bits());
     Ok(Execution {
         draws: pooled,
+        paired_worlds: pooled_worlds,
         mean,
         sd,
         receipt: receipt.finish(),
         unidentified_by_table,
         lease,
+        paired_leases,
     })
 }
 
@@ -1019,7 +1075,7 @@ struct Reading {
 // measured route.
 fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reading, IoError> {
     let rec = reconstruct(bytes, ctx)?;
-    let run = execute(&rec, None, ctx)?;
+    let run = execute(&rec, None, false, ctx)?;
     let mut sorted = run.draws.clone();
     sorted.sort_by(f64::total_cmp);
     // Fixed nearest-rank 95% interval; a record must measure exactly this algorithm.
@@ -1035,6 +1091,38 @@ fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reading, IoErr
         receipt: run.receipt,
         unidentified_by_table: run.unidentified_by_table,
         lease: run.lease,
+    })
+}
+
+/// Joint source-population potential-outcome means from one graph, imputation,
+/// and coefficient draw per row. Model-conditional; not predictive or calibrated.
+pub struct GraphPairedWorldReading {
+    /// `[control, active]` coordinates from the same fitted draw.
+    pub worlds: Vec<[f64; 2]>,
+    /// Source-bound paired execution receipt.
+    pub receipt: [u8; 32],
+    /// Retained producer program and source identities.
+    pub program: [u8; 32],
+    /// Original source data identity.
+    pub source: [u8; 32],
+    _lease: AdmissionLease,
+    _paired_leases: Vec<AdmissionLease>,
+}
+
+/// Reconstruct and refit the entire graph/imputation schedule and sample paired
+/// Gaussian mean worlds with a shared graph and coefficient selector.
+///
+/// # Errors
+/// Changed source, unsupported child, numerical failure or incomplete schedule.
+pub fn replay_paired_worlds(bytes: &[u8], ctx: &ExecutionContext) -> Result<GraphPairedWorldReading, IoError> {
+    let rec = reconstruct(bytes, ctx)?;
+    let run = execute(&rec, None, true, ctx)?;
+    let mut writer = CanonicalWriter::new("antecedent.graph_imputation.paired_worlds.execution.v1");
+    writer.bytes(&run.receipt).word(run.paired_worlds.len() as u64);
+    for pair in &run.paired_worlds { writer.word(pair[0].to_bits()).word(pair[1].to_bits()); }
+    Ok(GraphPairedWorldReading {
+        worlds: run.paired_worlds, receipt: writer.finish(), program: rec.source.program(),
+        source: rec.source.parts().data_digest, _lease: run.lease, _paired_leases: run.paired_leases,
     })
 }
 
@@ -1098,7 +1186,7 @@ pub fn replay_transport_point(
         .saturating_mul(target.columns.len() as u64)
         .saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::Binary(target)), ctx)?;
+    let run = execute(&rec, Some(TransportTarget::Binary(target)), false, ctx)?;
     Ok(GraphPointReading {
         mean: run.mean,
         diagnostic_sd: run.sd,
@@ -1129,7 +1217,7 @@ pub fn replay_kernel_transport_point(
         .saturating_mul(target.columns.len() as u64)
         .saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
-    let run = execute(&rec, Some(TransportTarget::Kernel(target)), ctx)?;
+    let run = execute(&rec, Some(TransportTarget::Kernel(target)), false, ctx)?;
     Ok(GraphPointReading {
         mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
         receipt: run.receipt, program: rec.source.program(),
@@ -1302,6 +1390,20 @@ mod tests {
 
     fn encoded(parts: GraphImputationParts) -> Vec<u8> {
         GraphImputationSource::new(parts, [9; 32]).unwrap().encode()
+    }
+
+    #[test]
+    #[ignore = "source-only paired graph and imputation worlds; calibration not earned"]
+    fn paired_worlds_share_each_graph_and_coefficient_draw() {
+        let bytes = encoded(parts(GraphSupport::TreatmentRootPreTreatmentCovariates, 3, 100));
+        let ctx = ExecutionContext::for_tests(19);
+        let first = replay_paired_worlds(&bytes, &ctx).unwrap();
+        let second = replay_paired_worlds(&bytes, &ctx).unwrap();
+        assert_eq!(first.receipt, second.receipt);
+        assert_eq!(first.worlds, second.worlds);
+        assert_eq!(first.worlds.len(), 200);
+        assert!(first.worlds.iter().all(|pair| pair[0].is_finite() && pair[1].is_finite()));
+        assert!(first.worlds.windows(2).any(|pair| pair[0] != pair[1]));
     }
 
     // An attesting record keyed exactly as the route's own basis is, covering a row range.
