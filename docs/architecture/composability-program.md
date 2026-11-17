@@ -24,7 +24,7 @@ coverage or error control.
 | 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; the retained mixture draws now export an unverified typed effect law | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws; the new predictive bridge-transport-decision cell binds all three declarations in one program and replays both the bridge and utility | Estimate or validate the transport premise itself, rather than only carrying its declared evidence; measure any final decision reliability claim | None for a new route; high if a surrogate score is substituted for an endpoint |
 | 8 | Medium | Scalar and vector feedback compile one cyclic program with aligned disturbances and named hard clamps; optional ledger entry points check disjointness across all inputs of the original component and bind the ledger state into the program | Establish statistical dependence of fitted mechanism errors and calibrate the connected equilibrium before promoting component evidence to an inferential claim | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
-| 9 | Medium | Static path-specific transport and fixed-population temporal counterfactuals exist separately | Prove the target temporal path functional under selection and mediator assumptions, then lower its estimator and claim | None for a new route; high if ordinary transport is relabelled path-specific |
+| 9 | Medium | A new time-ordered finite path-specific transport cell identifies each edge-intervention world under a selection diagram, evaluates the target contrast on exact laws, and replays both derivations | Develop sampled and continuous longitudinal path estimators, with uncertainty at the transported contrast | None for the additive point route; high if ordinary transport is relabelled path-specific |
 | 10 | Medium | Independent indicators retain the version-3 route; a separate fitted joint-error compiler cell propagates labelled validation uncertainty; an ignored fixed-truth grid harness and exact model-coordinate calibration lookup are source-ready | Register and earn whole-route coverage records before the new equal-tail interval can report a measured status | None for the additive route; medium if independent indicators are silently treated as a joint model |
 | 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together; a version-2 portable receipt reconstructs the graph and terminal compiler from bytes, reruns every dependency consumer and compares the live result | Generalize live recomputation to other executable node kinds | None for the additive route; low for numerical claims, but identity-only plans cannot become execution receipts |
 
@@ -179,6 +179,19 @@ uses that basis and currently returns `not_measured`. The ignored harness binds
 the construction it receives from this runtime lookup, so a future earned
 record is constrained to the same model and query coordinate rather than
 generalizing one fixed-truth simulation to unrelated mechanisms.
+
+`temporal_path_transport_v1` takes a finite selection-diagram problem, labels
+every node with a time, and requires every directed edge to advance time. It
+constructs the baseline and active edge-intervention worlds through the
+cross-world query contract, identifies each target-population outcome event
+against the same catalog, and evaluates their contrast on the same exact
+regime laws. Time, path edges, selection premises, laws and evaluator limits
+enter its six-layer compiler identity. A portable artifact independently
+consumes both finite counterfactual transport proofs and reconstitutes the
+outer program and contrast. A source known-truth test compares the result to
+an independent target SCM oracle; it is not earned. This route makes an exact
+point claim conditional on the supplied finite laws. It has no sampled
+transport interval or general continuous longitudinal estimator.
 
 The graph-imputation point consumer retains the actual pooled effect draws
 from its source-bound execution. An additive exporter binds those draws to the

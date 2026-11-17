@@ -9,6 +9,13 @@
 # evidence_audit fails when a row's test or assertion does not exist.
 
 [[test]]
+evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs"
+evidence_assertion = "time_ordered_direct_path_transport_matches_independent_oracle"
+kind = "known_truth"
+fixtures = []
+why = "A time-ordered path intervention is identified under the declared selection diagram, evaluated against an independent finite-SCM target truth, and replayed from a portable artifact. This source assertion is unearned."
+
+[[test]]
 evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
 evidence_assertion = "predictive_transport_bridge_and_nonlinear_utility_compile_together"
 kind = "reference"

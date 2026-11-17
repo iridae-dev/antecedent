@@ -205,6 +205,8 @@ macro_rules! route_lowerings {
             CyclicActionWorldDecision,
             /// Checked bridge transport and predictive utility.
             BridgeTransportDecision,
+            /// Target-population time-ordered path-specific transport.
+            TemporalPathTransport,
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation,
             /// A graph-selection imputation composite.
@@ -232,6 +234,7 @@ macro_rules! route_lowerings {
                     Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
                     Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
                     Self::BridgeTransportDecision => "BridgeTransportDecision",
+                    Self::TemporalPathTransport => "TemporalPathTransport",
                     Self::BundleRecomputation => "BundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
@@ -258,6 +261,7 @@ macro_rules! route_lowerings {
                     Self::FittedDependentMeasuredObservation => RouteFamily::Structural,
                     Self::CyclicActionWorldDecision => RouteFamily::Cyclic,
                     Self::BridgeTransportDecision => RouteFamily::Structural,
+                    Self::TemporalPathTransport => RouteFamily::Temporal,
                     Self::BundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,
