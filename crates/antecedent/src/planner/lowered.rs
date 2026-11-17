@@ -1142,6 +1142,9 @@ pub(crate) enum ProgramCell {
     JointTransportEffectNodeBundleRecomputation,
     JointTransportPredictiveNodeDecisionBundleRecomputation,
     TrialIpwPredictiveNodeDecisionBundleRecomputation,
+    CyclicTargetFeedbackNodeDecisionBundleRecomputation,
+    GraphImputationPredictiveNodeDecisionBundleRecomputation,
+    SequentialPolicyReliabilityNodeBundleRecomputation,
     /// Checked connected components with a joint fitted action decision.
     JointComponentPosteriorDecision,
     /// Bounded transformation of jointly fitted component action worlds.
@@ -1209,6 +1212,9 @@ impl ProgramCell {
             Self::JointTransportEffectNodeBundleRecomputation => "JointTransportEffectNodeBundleRecomputation",
             Self::JointTransportPredictiveNodeDecisionBundleRecomputation => "JointTransportPredictiveNodeDecisionBundleRecomputation",
             Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => "TrialIpwPredictiveNodeDecisionBundleRecomputation",
+            Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => "CyclicTargetFeedbackNodeDecisionBundleRecomputation",
+            Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => "GraphImputationPredictiveNodeDecisionBundleRecomputation",
+            Self::SequentialPolicyReliabilityNodeBundleRecomputation => "SequentialPolicyReliabilityNodeBundleRecomputation",
             Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
             Self::BoundedComponentPosteriorDecision => "BoundedComponentPosteriorDecision",
             Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
@@ -1310,6 +1316,9 @@ impl LoweredProgram {
             | ProgramCell::JointTransportEffectNodeBundleRecomputation
             | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
             | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
+            | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::BoundedComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
@@ -1368,6 +1377,9 @@ impl LoweredProgram {
             | ProgramCell::JointTransportEffectNodeBundleRecomputation
             | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
             | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
+            | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::BoundedComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
@@ -1426,6 +1438,9 @@ impl LoweredProgram {
             | ProgramCell::JointTransportEffectNodeBundleRecomputation
             | ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation
             | ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation
+            | ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation
+            | ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::BoundedComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation

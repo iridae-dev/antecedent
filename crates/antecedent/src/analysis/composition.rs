@@ -1166,6 +1166,14 @@ pub fn native_fit_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
         .register(Box::new(TrialIpwFitVerifier { ctx: ctx.clone() }))
         .register(Box::new(GraphImputationTransportFitVerifier { ctx: ctx.clone() }))
         .register(Box::new(JointTransportEffectFitVerifier { ctx: ctx.clone() }))
+        .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Joint }))
+        .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Trial }))
+        .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Cyclic }))
+        .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Graph }))
+        .register(Box::new(PredictiveTerminalVerifier { ctx: ctx.clone() }))
+        .register(Box::new(sequential_live::SequentialFitVerifier { ctx: ctx.clone() }))
+        .register(Box::new(sequential_live::SequentialDrawsVerifier))
+        .register(Box::new(sequential_live::SequentialDiagnosticVerifier { ctx: ctx.clone() }))
 }
 
 /// A bundle terminal backed by a cyclic posterior fit. The producer artifact
@@ -2377,6 +2385,319 @@ pub fn consume_portable_joint_transport_effect_node_bundle_recomputation(
     Ok(live)
 }
 
+// Predictive fit nodes retain full raw-evidence artifacts and a separate,
+// executable chain-decision terminal. The outer compiler checks both edges.
+const PREDICTIVE_FIT_FEATURE: &str = "predictive_fit_bundle_node_v1";
+const PREDICTIVE_DECISION_FEATURE: &str = "predictive_chain_decision_bundle_node_v1";
+const PREDICTIVE_BUNDLE_FEATURE: &str = "predictive_fit_decision_bundle_v1";
+const PREDICTIVE_CHAIN_FACT: &str = "predictive_fit_chain_identity";
+const PREDICTIVE_DECISION_FACT: &str = "predictive_fit_decision_fingerprint";
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+enum PredictiveFitKind { Joint, Trial, Cyclic, Graph }
+impl PredictiveFitKind {
+    fn node(self) -> NodeKind { match self { Self::Joint => NodeKind::JointTransportPredictiveFit,
+        Self::Trial => NodeKind::TrialIpwPredictiveFit, Self::Cyclic => NodeKind::CyclicTargetFeedbackFit,
+        Self::Graph => NodeKind::GraphImputationPredictiveFit } }
+    fn cell(self) -> ProgramCell { match self { Self::Joint => ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation,
+        Self::Trial => ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation,
+        Self::Cyclic => ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation,
+        Self::Graph => ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation } }
+    fn name(self) -> &'static str { match self { Self::Joint => "joint_transport_predictive_decision_v2",
+        Self::Trial => "trial_ipw_transport_predictive_decision_v1",
+        Self::Cyclic => "cyclic_target_feedback_decision_v1", Self::Graph => "graph_imputation_predictive_world_decision_v1" } }
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PredictiveFitWire { version: u32, feature: String, kind: PredictiveFitKind,
+    seed: u64, program: [u8; 32], artifact: Vec<u8> }
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PredictiveTerminalWire { version: u32, feature: String, seed: u64, artifact: Vec<u8> }
+// Mirrors the portable chain-decision envelope solely to compile its retained
+// declaration without scoring it. Execution always uses its own consumer.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PredictiveChainDeclaration {
+    version: u32, required_feature: String, chain_record: Vec<u8>, chain_identity: String,
+    contract: Vec<u8>, contract_identity: String, decision_fingerprint: String,
+    lowered_program_identity: [u8; 32],
+}
+
+fn predictive_facts(result: &super::propagation_chain_decision::ChainDecisionResult)
+    -> Result<std::collections::BTreeMap<String, String>, IoError> {
+    let mut facts = std::collections::BTreeMap::new();
+    facts.insert(PREDICTIVE_CHAIN_FACT.into(), result.chain.identity().into());
+    facts.insert(PREDICTIVE_DECISION_FACT.into(), antecedent_design::decision_artifact::decision_result_fingerprint(
+        &result.decision, result.chain.identity())?);
+    Ok(facts)
+}
+struct PredictiveFitVerifier { ctx: ExecutionContext, kind: PredictiveFitKind }
+impl NodeVerifier for PredictiveFitVerifier {
+    fn kind(&self) -> NodeKind { self.kind.node() }
+    fn verify(&self, _id: &str, bytes: &[u8], _upstream: &[UpstreamNode<'_>]) -> Result<VerifiedNode, NodeFailure> {
+        let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES { return Err(fail("predictive fit exceeds bound".into())); }
+        let wire: PredictiveFitWire = antecedent_io::from_cbor(bytes).map_err(|e| fail(e.to_string()))?;
+        if wire.version != 1 || wire.feature != PREDICTIVE_FIT_FEATURE || wire.kind != self.kind {
+            return Err(fail("predictive fit feature differs".into()));
+        }
+        let ctx = fit_node_context(&self.ctx, Some(wire.seed));
+        let program = SemanticDigest::from_bytes(wire.program);
+        let decision = match wire.kind {
+            PredictiveFitKind::Joint => super::joint_transport_predictive_decision::consume_joint_transport_predictive_decision(
+                &wire.artifact, program, &ctx).map_err(|e| fit_node_failure(&ctx, &e))?.decision,
+            PredictiveFitKind::Trial => super::trial_ipw_predictive_decision::consume_trial_ipw_predictive_decision(
+                &wire.artifact, program, &ctx).map_err(|e| fit_node_failure(&ctx, &e))?.decision,
+            PredictiveFitKind::Cyclic => super::cyclic_target_feedback_decision::consume_cyclic_target_feedback_decision(
+                &wire.artifact, program, &ctx).map_err(|e| fit_node_failure(&ctx, &e))?.decision,
+            PredictiveFitKind::Graph => super::graph_imputation_effect_decision::consume_graph_imputation_world_decision(
+                &wire.artifact, program, &ctx).map_err(|e| fit_node_failure(&ctx, &e))?.decision,
+        };
+        if decision.chain.record().reading != "predictive" { return Err(fail("producer law is not predictive".into())); }
+        Ok(VerifiedNode { identity: CanonicalWriter::digest_bytes_hex("antecedent.predictive_fit_node.v1", bytes),
+            facts: predictive_facts(&decision).map_err(|e| fail(e.to_string()))?, values: Vec::new() })
+    }
+}
+struct PredictiveTerminalVerifier { ctx: ExecutionContext }
+impl NodeVerifier for PredictiveTerminalVerifier {
+    fn kind(&self) -> NodeKind { NodeKind::PredictiveChainDecision }
+    fn verify(&self, _id: &str, bytes: &[u8], _upstream: &[UpstreamNode<'_>]) -> Result<VerifiedNode, NodeFailure> {
+        let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES { return Err(fail("predictive decision exceeds bound".into())); }
+        let wire: PredictiveTerminalWire = antecedent_io::from_cbor(bytes).map_err(|e| fail(e.to_string()))?;
+        if wire.version != 1 || wire.feature != PREDICTIVE_DECISION_FEATURE { return Err(fail("predictive decision feature differs".into())); }
+        let ctx = fit_node_context(&self.ctx, Some(wire.seed));
+        let result = super::propagation_chain_decision::consume_chain_decision(&wire.artifact, None, &ctx)
+            .map_err(|e| fit_node_failure(&ctx, &e))?;
+        if result.chain.record().reading != "predictive" { return Err(fail("decision law is not predictive".into())); }
+        Ok(VerifiedNode { identity: CanonicalWriter::digest_bytes_hex("antecedent.predictive_chain_decision_node.v1", bytes),
+            facts: predictive_facts(&result).map_err(|e| fail(e.to_string()))?, values: Vec::new() })
+    }
+}
+
+/// Failure to bind, refit or score a live predictive fit decision bundle.
+#[derive(Debug, thiserror::Error)]
+pub enum PredictiveFitDecisionBundleError {
+    #[error("predictive fit decision bundle: {0}")]
+    Bundle(#[from] ChainBundleRecomputeError),
+    #[error("predictive fit decision bundle: {0}")]
+    Invalid(&'static str),
+}
+
+impl BundleBuilder {
+    fn add_predictive_fit(&mut self, node_id: &str, artifact: &[u8], program: SemanticDigest,
+        ctx: &ExecutionContext, kind: PredictiveFitKind) -> Result<(), PredictiveFitDecisionBundleError> {
+        self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
+        let bytes = antecedent_io::to_cbor(&PredictiveFitWire { version: 1, feature: PREDICTIVE_FIT_FEATURE.into(),
+            kind, seed: ctx.rng.master_seed(), program: *program.as_bytes(), artifact: artifact.to_vec() })
+            .map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > self.limits.max_embedded_bytes { return Err(PredictiveFitDecisionBundleError::Invalid("fit exceeds bound")); }
+        let inspected = PredictiveFitVerifier { ctx: ctx.clone(), kind }.verify(node_id, &bytes, &[])
+            .map_err(|e| ChainBundleRecomputeError::Bundle(node_refused(node_id, &e)))?;
+        self.nodes.push(BundleNode::embedded(node_id, kind.node(), &inspected.identity, bytes));
+        Ok(())
+    }
+    /// Embed a joint transport predictive producer, refitting its raw evidence.
+    pub fn add_joint_transport_predictive_fit(&mut self, id: &str, artifact: &[u8], program: SemanticDigest,
+        ctx: &ExecutionContext) -> Result<(), PredictiveFitDecisionBundleError> {
+        self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Joint)
+    }
+    /// Embed a trial IPW predictive producer, refitting its raw evidence.
+    pub fn add_trial_ipw_predictive_fit(&mut self, id: &str, artifact: &[u8], program: SemanticDigest,
+        ctx: &ExecutionContext) -> Result<(), PredictiveFitDecisionBundleError> {
+        self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Trial)
+    }
+    /// Embed a cyclic target-feedback fit and predictive decision.
+    pub fn add_cyclic_target_feedback_fit(&mut self, id: &str, artifact: &[u8], program: SemanticDigest,
+        ctx: &ExecutionContext) -> Result<(), PredictiveFitDecisionBundleError> {
+        self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Cyclic)
+    }
+    /// Embed a predictive graph-imputation fit and action-world decision.
+    pub fn add_graph_imputation_predictive_fit(&mut self, id: &str, artifact: &[u8], program: SemanticDigest,
+        ctx: &ExecutionContext) -> Result<(), PredictiveFitDecisionBundleError> {
+        self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Graph)
+    }
+    /// Embed a chain decision artifact that will be recompiled and scored live.
+    pub fn add_predictive_chain_decision(&mut self, id: &str, artifact: &[u8], ctx: &ExecutionContext)
+        -> Result<(), PredictiveFitDecisionBundleError> {
+        self.ensure_new(id).map_err(ChainBundleRecomputeError::Bundle)?;
+        let bytes = antecedent_io::to_cbor(&PredictiveTerminalWire { version: 1, feature: PREDICTIVE_DECISION_FEATURE.into(),
+            seed: ctx.rng.master_seed(), artifact: artifact.to_vec() }).map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > self.limits.max_embedded_bytes { return Err(PredictiveFitDecisionBundleError::Invalid("decision exceeds bound")); }
+        let inspected = PredictiveTerminalVerifier { ctx: ctx.clone() }.verify(id, &bytes, &[])
+            .map_err(|e| ChainBundleRecomputeError::Bundle(node_refused(id, &e)))?;
+        self.nodes.push(BundleNode::embedded(id, NodeKind::PredictiveChainDecision, &inspected.identity, bytes));
+        Ok(())
+    }
+}
+
+/// Compiled producer -> retained chain -> live decision graph.
+pub struct CompiledPredictiveFitDecisionBundle {
+    bundle: CompositionBundle, kind: PredictiveFitKind, producer_node: String, chain_node: String,
+    terminal_node: String, producer_program: SemanticDigest,
+    chain: super::propagation_chain_decision::ChainDecisionPlan, lowered: Arc<LoweredProgram>,
+}
+/// Replayed bundle identities and live decision fingerprint; no calibration is earned.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct PredictiveFitDecisionBundleReceipt {
+    pub bundle_identity: String, pub chain_identity: String, pub decision_fingerprint: String,
+    pub producer_program_identity: [u8; 32], pub lowered_program_identity: [u8; 32],
+    pub dependencies: Vec<ReplayedBundleDependency>,
+}
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PortablePredictiveFitDecisionBundle {
+    version: u32, feature: String, kind: PredictiveFitKind, bundle: Vec<u8>, bundle_identity: String,
+    producer: String, chain: String, terminal: String, receipt: PredictiveFitDecisionBundleReceipt,
+}
+fn embedded_node<'a>(bundle: &'a CompositionBundle, id: &str, kind: NodeKind)
+    -> Result<&'a [u8], PredictiveFitDecisionBundleError> {
+    let node = bundle.nodes().iter().find(|n| n.id == id).ok_or(PredictiveFitDecisionBundleError::Invalid("node absent"))?;
+    if node.kind != kind { return Err(PredictiveFitDecisionBundleError::Invalid("node kind differs")); }
+    match &node.source { NodeSource::Embedded { bytes } => Ok(bytes),
+        _ => Err(PredictiveFitDecisionBundleError::Invalid("node must be embedded")) }
+}
+fn compile_predictive_fit_decision_bundle(bundle: CompositionBundle, producer: &str, chain_id: &str,
+    terminal: &str, ctx: &ExecutionContext, kind: PredictiveFitKind)
+    -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    for (from, to) in [(producer, chain_id), (chain_id, terminal)] {
+        if !bundle.edges().iter().any(|edge| edge.from == from && edge.to == to) {
+            return Err(PredictiveFitDecisionBundleError::Invalid("producer, chain and decision need direct dependency edges"));
+        }
+    }
+    let fit: PredictiveFitWire = antecedent_io::from_cbor(embedded_node(&bundle, producer, kind.node())?)
+        .map_err(ChainBundleRecomputeError::Io)?;
+    if fit.version != 1 || fit.feature != PREDICTIVE_FIT_FEATURE || fit.kind != kind {
+        return Err(PredictiveFitDecisionBundleError::Invalid("fit declaration differs"));
+    }
+    let terminal_wire: PredictiveTerminalWire = antecedent_io::from_cbor(embedded_node(&bundle, terminal, NodeKind::PredictiveChainDecision)?)
+        .map_err(ChainBundleRecomputeError::Io)?;
+    if terminal_wire.version != 1 || terminal_wire.feature != PREDICTIVE_DECISION_FEATURE {
+        return Err(PredictiveFitDecisionBundleError::Invalid("decision declaration differs"));
+    }
+    let declaration: PredictiveChainDeclaration = antecedent_io::from_cbor(&terminal_wire.artifact).map_err(ChainBundleRecomputeError::Io)?;
+    if declaration.version != 1 || declaration.required_feature != "chain_action_world_decision_v1" {
+        return Err(PredictiveFitDecisionBundleError::Invalid("paired action-world decision required"));
+    }
+    let record = PropagationChainRecordWire::decode(embedded_node(&bundle, chain_id, NodeKind::PropagationChain)?)
+        .map_err(|e| ChainBundleRecomputeError::Chain(e.to_refusal()))?;
+    let declared_record = PropagationChainRecordWire::decode(&declaration.chain_record)
+        .map_err(|e| ChainBundleRecomputeError::Chain(e.to_refusal()))?;
+    let retained_identity = &bundle.nodes().iter().find(|node| node.id == chain_id)
+        .ok_or(PredictiveFitDecisionBundleError::Invalid("chain node absent"))?.identity;
+    if record != declared_record || record.reading != "predictive"
+        || &declaration.chain_identity != retained_identity || declaration.decision_fingerprint.is_empty() {
+        return Err(PredictiveFitDecisionBundleError::Invalid("decision and predictive chain differ"));
+    }
+    let contract = antecedent_design::decision_artifact::DecisionContractArtifact::from_bytes(&declaration.contract, &declaration.contract_identity)
+        .map_err(ChainBundleRecomputeError::Io)?;
+    let chain = super::propagation_chain_decision::compile_action_world_chain_decision(record, contract.contract().clone(), ctx)
+        .map_err(|_| PredictiveFitDecisionBundleError::Invalid("decision chain refused"))?;
+    if chain.lowered().identity().as_bytes() != &declaration.lowered_program_identity {
+        return Err(PredictiveFitDecisionBundleError::Invalid("decision compiler differs"));
+    }
+    let producer_program = SemanticDigest::from_bytes(fit.program);
+    let digest = CanonicalWriter::digest_bytes("antecedent.predictive_fit_decision_bundle.graph.v1", bundle.identity().as_bytes());
+    let mut writer = CanonicalWriter::new("antecedent.predictive_fit_decision_bundle.question.v1");
+    writer.bytes(&digest).text(producer).text(chain_id).text(terminal).bytes(producer_program.as_bytes())
+        .bytes(chain.lowered().identity().as_bytes()).text(kind.name());
+    let query = writer.finish();
+    let mut scientific = chain.lowered().scientific().clone();
+    scientific.target = ProblemTarget::QueryFunctional { kind: FunctionalKind::PolicyValue, outcome: None, query };
+    scientific.plan_id = Arc::from(kind.name()); scientific.source_digest = Some(digest);
+    let identification = IdentificationLayer::NonGraphical(Arc::new(NonGraphicalIdentification::SharedEvidenceContract { contract: query }));
+    let mut statistical = chain.lowered().statistical().clone();
+    statistical.realization = Realization::NestedFit { producer_program, method: Arc::from(kind.name()), law: NestedFitLaw::Predictive };
+    let mut evidence = chain.lowered().evidence().clone();
+    let mut sources = evidence.sources.to_vec(); sources.push(EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(digest) });
+    evidence.sources = Arc::from(sources); evidence.composition = Composition::Chained { stages: bundle.nodes().len() + 1 };
+    let mut operators = Vec::new();
+    for effect in [PhysicalEffect::Read, PhysicalEffect::Fit, PhysicalEffect::Transport] {
+        operators.push(PhysicalOperator::declare(effect).build().map_err(|_| PredictiveFitDecisionBundleError::Invalid("physical operator refused"))?);
+    }
+    operators.extend_from_slice(chain.lowered().physical().operators());
+    let physical = PhysicalLayer { operators: Arc::from(operators), design: chain.lowered().physical().design() };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts { cell: kind.cell(), scientific, identification,
+        statistical, evidence, physical, claim: *chain.lowered().claim() }.finish());
+    Ok(CompiledPredictiveFitDecisionBundle { bundle, kind, producer_node: producer.into(), chain_node: chain_id.into(),
+        terminal_node: terminal.into(), producer_program, chain, lowered })
+}
+/// Compile a live joint transport predictive fit and decision bundle.
+pub fn compile_joint_transport_predictive_node_decision_bundle(bundle: CompositionBundle, producer: &str,
+    chain: &str, terminal: &str, ctx: &ExecutionContext) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Joint)
+}
+/// Compile a live trial IPW predictive fit and decision bundle.
+pub fn compile_trial_ipw_predictive_node_decision_bundle(bundle: CompositionBundle, producer: &str,
+    chain: &str, terminal: &str, ctx: &ExecutionContext) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Trial)
+}
+/// Compile a live cyclic target-feedback predictive fit and decision bundle.
+pub fn compile_cyclic_target_feedback_node_decision_bundle(bundle: CompositionBundle, producer: &str,
+    chain: &str, terminal: &str, ctx: &ExecutionContext) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Cyclic)
+}
+/// Compile a live predictive graph-imputation fit and decision bundle.
+pub fn compile_graph_imputation_predictive_node_decision_bundle(bundle: CompositionBundle, producer: &str,
+    chain: &str, terminal: &str, ctx: &ExecutionContext) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Graph)
+}
+impl CompiledPredictiveFitDecisionBundle {
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn plan_view(&self) -> PlanView { PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled) }
+    /// Refit raw evidence, execute the predictive chain and rescore its decision.
+    pub fn execute(&self, ctx: &ExecutionContext) -> Result<PredictiveFitDecisionBundleReceipt, PredictiveFitDecisionBundleError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let bytes = export_bundle(&self.bundle, "predictive-fit-decision-bundle").map_err(ChainBundleRecomputeError::Bundle)?;
+        let consumed = native_fit_bundle_consumer(&scoped).consume(&bytes, &BundleLimits::default(), self.bundle.identity(), &SuppliedSources::default())
+            .map_err(ChainBundleRecomputeError::Bundle)?;
+        if !consumed.all_replayed() { return Err(PredictiveFitDecisionBundleError::Invalid("dependency did not replay")); }
+        let fit = consumed.node(&self.producer_node).ok_or(PredictiveFitDecisionBundleError::Invalid("producer missing"))?;
+        let terminal = consumed.node(&self.terminal_node).ok_or(PredictiveFitDecisionBundleError::Invalid("decision missing"))?;
+        let live = self.chain.execute(&scoped).map_err(|_| PredictiveFitDecisionBundleError::Invalid("live decision refused"))?;
+        let facts = predictive_facts(&live).map_err(ChainBundleRecomputeError::Io)?;
+        let chain_node = self.bundle.nodes().iter().find(|n| n.id == self.chain_node).ok_or(PredictiveFitDecisionBundleError::Invalid("chain missing"))?;
+        if chain_node.identity != live.chain.identity() || fit.facts.get(PREDICTIVE_CHAIN_FACT) != facts.get(PREDICTIVE_CHAIN_FACT)
+            || fit.facts.get(PREDICTIVE_DECISION_FACT) != facts.get(PREDICTIVE_DECISION_FACT)
+            || terminal.facts.get(PREDICTIVE_CHAIN_FACT) != facts.get(PREDICTIVE_CHAIN_FACT)
+            || terminal.facts.get(PREDICTIVE_DECISION_FACT) != facts.get(PREDICTIVE_DECISION_FACT) {
+            return Err(PredictiveFitDecisionBundleError::Invalid("refitted predictive fit, live chain and decision differ"));
+        }
+        Ok(PredictiveFitDecisionBundleReceipt { bundle_identity: consumed.identity().into(), chain_identity: live.chain.identity().into(),
+            decision_fingerprint: facts[PREDICTIVE_DECISION_FACT].clone(), producer_program_identity: *self.producer_program.as_bytes(),
+            lowered_program_identity: *self.lowered.identity().as_bytes(), dependencies: consumed.nodes().iter().map(|node| ReplayedBundleDependency {
+                node_id: node.id.clone(), artifact_identity: node.identity.clone(), chain_digest: node.chain_digest.clone(),
+            }).collect() })
+    }
+    pub fn export_portable(&self, receipt: &PredictiveFitDecisionBundleReceipt, ctx: &ExecutionContext)
+        -> Result<Vec<u8>, PredictiveFitDecisionBundleError> {
+        if self.execute(ctx)? != *receipt { return Err(PredictiveFitDecisionBundleError::Invalid("receipt changed")); }
+        let bytes = antecedent_io::to_cbor(&PortablePredictiveFitDecisionBundle { version: 1, feature: PREDICTIVE_BUNDLE_FEATURE.into(),
+            kind: self.kind, bundle: export_bundle(&self.bundle, "portable-predictive-fit-decision").map_err(ChainBundleRecomputeError::Bundle)?,
+            bundle_identity: self.bundle.identity().into(), producer: self.producer_node.clone(), chain: self.chain_node.clone(),
+            terminal: self.terminal_node.clone(), receipt: receipt.clone() }).map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES { return Err(PredictiveFitDecisionBundleError::Invalid("portable bundle exceeds bound")); }
+        Ok(bytes)
+    }
+}
+/// Independently reconstruct, refit and rescore the portable predictive bundle.
+pub fn consume_portable_predictive_fit_decision_bundle(bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
+    ctx: &ExecutionContext) -> Result<PredictiveFitDecisionBundleReceipt, PredictiveFitDecisionBundleError> {
+    if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES { return Err(PredictiveFitDecisionBundleError::Invalid("portable bundle exceeds bound")); }
+    let wire: PortablePredictiveFitDecisionBundle = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1 || wire.feature != PREDICTIVE_BUNDLE_FEATURE || wire.bundle_identity != expected_bundle {
+        return Err(PredictiveFitDecisionBundleError::Invalid("portable identity differs"));
+    }
+    let bundle = CompositionBundle::from_bytes(&wire.bundle, expected_bundle, &BundleLimits::default()).map_err(ChainBundleRecomputeError::Bundle)?;
+    let plan = compile_predictive_fit_decision_bundle(bundle, &wire.producer, &wire.chain, &wire.terminal, ctx, wire.kind)?;
+    if plan.lowered.identity() != expected_program { return Err(PredictiveFitDecisionBundleError::Invalid("portable compiler differs")); }
+    let live = plan.execute(ctx)?;
+    if live != wire.receipt { return Err(PredictiveFitDecisionBundleError::Invalid("portable receipt differs")); }
+    Ok(live)
+}
+
 #[cfg(test)]
 mod compiler_recomputation_tests {
     use super::*;
@@ -2434,3 +2755,11 @@ mod cyclic_bundle_tests;
 #[cfg(test)]
 #[path = "composition_joint_transport_bundle_tests.rs"]
 mod joint_transport_bundle_tests;
+
+#[cfg(test)]
+#[path = "composition_predictive_bundle_tests.rs"]
+mod predictive_bundle_tests;
+
+#[path = "composition_sequential_bundle.rs"]
+mod sequential_live;
+pub use sequential_live::*;

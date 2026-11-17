@@ -381,7 +381,7 @@ pub fn consume_cyclic_target_feedback_decision(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use antecedent_contract::{QuantityRole, ScientificQuantity};
     use antecedent_design::decision_contract::{ActionKind, DecisionAction, DecisionCriterion,
@@ -397,7 +397,7 @@ mod tests {
             conditioning: Vec::new(), transform_id: "identity".into() }
     }
 
-    fn fixture() -> (CyclicTargetFeedbackRequest, DecisionContract) {
+    pub(crate) fn fixture() -> (CyclicTargetFeedbackRequest, DecisionContract) {
         let training = (0..260).map(|i| {
             let ad = (i % 5) as f64 * 0.4;
             let baseline = (i % 9) as f64 * 0.2;
