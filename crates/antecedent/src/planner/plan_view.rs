@@ -2001,8 +2001,12 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::SamplingAssumptionUnion => PlanRoute::SamplingAssumptionUnion,
         ProgramCell::IidSamplingAssumptionUnion => PlanRoute::IidSamplingAssumptionUnion,
         ProgramCell::ClusterSamplingAssumptionUnion => PlanRoute::ClusterSamplingAssumptionUnion,
+        ProgramCell::MovingBlockSamplingAssumptionUnion => PlanRoute::MovingBlockSamplingAssumptionUnion,
+        ProgramCell::PolicySubsampling => PlanRoute::PolicySubsampling,
         ProgramCell::BundleRecomputation => PlanRoute::BundleRecomputation,
         ProgramCell::BridgeBundleRecomputation => PlanRoute::BridgeBundleRecomputation,
+        ProgramCell::CyclicPosteriorBundleRecomputation => PlanRoute::CyclicPosteriorBundleRecomputation,
+        ProgramCell::PosteriorDecisionBundleRecomputation => PlanRoute::PosteriorDecisionBundleRecomputation,
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,
         ProgramCell::GraphImputationEffectDecision => PlanRoute::GraphImputationEffectDecision,
         ProgramCell::GraphImputationTransportDecision => PlanRoute::GraphImputationTransportDecision,
@@ -2068,6 +2072,7 @@ const fn realization_name(realization: &Realization) -> &'static str {
         Realization::CategoricalPosteriorCandidateV1 => "categorical_posterior_candidate_v1",
         Realization::ExactPoint { .. } => "exact_point",
         Realization::DeclaredPredictive { .. } => "declared_predictive",
+        Realization::DeclaredPosterior { .. } => "declared_posterior",
         Realization::DeclaredAssumptionEnvelope { .. } => "declared_assumption_envelope",
     }
 }

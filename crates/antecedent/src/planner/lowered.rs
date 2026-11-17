@@ -1114,10 +1114,18 @@ pub(crate) enum ProgramCell {
     IidSamplingAssumptionUnion,
     /// Compiler-generated whole-cluster bootstrap assumption union.
     ClusterSamplingAssumptionUnion,
+    /// Compiler-generated moving-block bootstrap assumption union.
+    MovingBlockSamplingAssumptionUnion,
+    /// Full-refit cross-fitted policy subsampling.
+    PolicySubsampling,
     /// Bundle replay with a live executable chain terminal.
     BundleRecomputation,
     /// Bundle replay with a live scientific bridge terminal.
     BridgeBundleRecomputation,
+    /// Bundle recomputation with a refitted cyclic posterior producer.
+    CyclicPosteriorBundleRecomputation,
+    /// Bundle recomputation of a parameter-posterior decision.
+    PosteriorDecisionBundleRecomputation,
     /// A bounded graph-selection imputation composite.
     GraphImputation,
     /// Graph-imputation effect posterior and downstream utility.
@@ -1155,8 +1163,12 @@ impl ProgramCell {
             Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
             Self::IidSamplingAssumptionUnion => "IidSamplingAssumptionUnion",
             Self::ClusterSamplingAssumptionUnion => "ClusterSamplingAssumptionUnion",
+            Self::MovingBlockSamplingAssumptionUnion => "MovingBlockSamplingAssumptionUnion",
+            Self::PolicySubsampling => "PolicySubsampling",
             Self::BundleRecomputation => "BundleRecomputation",
             Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
+            Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
+            Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
             Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
@@ -1232,8 +1244,12 @@ impl LoweredProgram {
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::IidSamplingAssumptionUnion
             | ProgramCell::ClusterSamplingAssumptionUnion
+            | ProgramCell::MovingBlockSamplingAssumptionUnion
+            | ProgramCell::PolicySubsampling
             | ProgramCell::BundleRecomputation
             | ProgramCell::BridgeBundleRecomputation
+            | ProgramCell::CyclicPosteriorBundleRecomputation
+            | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::GraphImputationTransportDecision
@@ -1266,8 +1282,12 @@ impl LoweredProgram {
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::IidSamplingAssumptionUnion
             | ProgramCell::ClusterSamplingAssumptionUnion
+            | ProgramCell::MovingBlockSamplingAssumptionUnion
+            | ProgramCell::PolicySubsampling
             | ProgramCell::BundleRecomputation
             | ProgramCell::BridgeBundleRecomputation
+            | ProgramCell::CyclicPosteriorBundleRecomputation
+            | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::GraphImputationTransportDecision
@@ -1300,8 +1320,12 @@ impl LoweredProgram {
             | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::IidSamplingAssumptionUnion
             | ProgramCell::ClusterSamplingAssumptionUnion
+            | ProgramCell::MovingBlockSamplingAssumptionUnion
+            | ProgramCell::PolicySubsampling
             | ProgramCell::BundleRecomputation
             | ProgramCell::BridgeBundleRecomputation
+            | ProgramCell::CyclicPosteriorBundleRecomputation
+            | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
             | ProgramCell::GraphImputationTransportDecision

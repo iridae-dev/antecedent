@@ -220,10 +220,16 @@ macro_rules! route_lowerings {
             IidSamplingAssumptionUnion,
             /// Compiler-generated whole-cluster bootstrap assumption union.
             ClusterSamplingAssumptionUnion,
+            MovingBlockSamplingAssumptionUnion,
+            PolicySubsampling,
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation,
             /// Bundle replay with a live scientific bridge terminal.
             BridgeBundleRecomputation,
+            /// Bundle replay with a refitted cyclic posterior producer.
+            CyclicPosteriorBundleRecomputation,
+            /// Bundle replay with a parameter-posterior decision terminal.
+            PosteriorDecisionBundleRecomputation,
             /// A graph-selection imputation composite.
             GraphImputation,
             /// Graph-imputation effect posterior and downstream utility.
@@ -264,8 +270,12 @@ macro_rules! route_lowerings {
                     Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
                     Self::IidSamplingAssumptionUnion => "IidSamplingAssumptionUnion",
                     Self::ClusterSamplingAssumptionUnion => "ClusterSamplingAssumptionUnion",
+                    Self::MovingBlockSamplingAssumptionUnion => "MovingBlockSamplingAssumptionUnion",
+                    Self::PolicySubsampling => "PolicySubsampling",
                     Self::BundleRecomputation => "BundleRecomputation",
                     Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
+                    Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
+                    Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
                     Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
                     Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
@@ -303,8 +313,12 @@ macro_rules! route_lowerings {
                     Self::SamplingAssumptionUnion => RouteFamily::PropagationChain,
                     Self::IidSamplingAssumptionUnion => RouteFamily::PropagationChain,
                     Self::ClusterSamplingAssumptionUnion => RouteFamily::PropagationChain,
+                    Self::MovingBlockSamplingAssumptionUnion => RouteFamily::PropagationChain,
+                    Self::PolicySubsampling => RouteFamily::DesignBased,
                     Self::BundleRecomputation => RouteFamily::PropagationChain,
                     Self::BridgeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::CyclicPosteriorBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::PosteriorDecisionBundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::GraphImputationEffectDecision => RouteFamily::GraphImputation,
                     Self::GraphImputationTransportDecision => RouteFamily::GraphImputation,

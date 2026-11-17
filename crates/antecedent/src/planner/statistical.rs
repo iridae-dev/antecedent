@@ -47,6 +47,11 @@ pub enum Realization {
         /// Name of the evaluator.
         evaluator: Arc<str>,
     },
+    /// A declared, aligned parameter posterior evaluated by the program.
+    DeclaredPosterior {
+        /// Name of the posterior evaluator.
+        evaluator: Arc<str>,
+    },
     /// A declared, aligned predictive outcome law transformed by the program.
     DeclaredPredictive {
         /// Name of the predictive evaluator.
@@ -84,6 +89,9 @@ impl Realization {
             }
             Self::ExactPoint { evaluator } => {
                 writer.text("exact_point").text(evaluator);
+            }
+            Self::DeclaredPosterior { evaluator } => {
+                writer.text("declared_posterior").text(evaluator);
             }
             Self::DeclaredPredictive { evaluator } => {
                 writer.text("declared_predictive").text(evaluator);

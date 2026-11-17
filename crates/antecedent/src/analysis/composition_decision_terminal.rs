@@ -1,4 +1,4 @@
-//! Live predictive decision terminals for fully embedded composition bundles.
+//! Live predictive and parameter-posterior decision terminals for embedded bundles.
 //!
 //! The bundle consumer checks every dependency, then this compiler evaluates
 //! the contract on the bound aligned source law and compares its complete
@@ -18,7 +18,7 @@ use antecedent_design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, decision_result_fingerprint,
     source_digest,
 };
-use antecedent_design::decision_contract::{DecisionContract, DecisionContractError};
+use antecedent_design::decision_contract::{DecisionContract, DecisionContractError, DecisionCriterion};
 use antecedent_design::decision_eval::evaluate_contract;
 use antecedent_io::IoError;
 use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionIdentity};
@@ -40,10 +40,11 @@ use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "decision_bundle_recomputation_portable_v1";
+const POSTERIOR_FEATURE: &str = "posterior_decision_bundle_recomputation_portable_v1";
 const MAX_BYTES: usize = 32 * 1024 * 1024;
 
-/// A bundle whose predictive decision terminal is recomputed from its
-/// compiler-bound contract and aligned distribution.
+/// A bundle whose decision terminal is recomputed from its compiler-bound
+/// contract and aligned predictive or parameter-posterior distribution.
 #[derive(Clone, Debug)]
 pub struct CompiledDecisionBundleRecomputation {
     bundle: CompositionBundle,
@@ -53,6 +54,7 @@ pub struct CompiledDecisionBundleRecomputation {
     contract_identity: String,
     source_digest: String,
     lowered: Arc<LoweredProgram>,
+    posterior: bool,
 }
 
 /// A live decision fingerprint and every independently replayed dependency.
@@ -73,7 +75,7 @@ pub struct DecisionBundleRecomputationReceipt {
     pub dependencies: Vec<ReplayedBundleDependency>,
 }
 
-/// Refusal of the bundle, predictive carrier, decision or portable replay.
+/// Refusal of the bundle, carrier, decision or portable replay.
 #[derive(Debug, thiserror::Error)]
 pub enum DecisionBundleRecomputeError {
     /// Bundle structure or embedded dependency refused.
@@ -118,6 +120,25 @@ pub fn compile_decision_bundle_recomputation(
     bundle: CompositionBundle, terminal_node: &str,
     contract: DecisionContract, source: DistributionArtifact,
 ) -> Result<CompiledDecisionBundleRecomputation, DecisionBundleRecomputeError> {
+    compile_decision_bundle(bundle, terminal_node, contract, source, false)
+}
+
+/// Compile a nonpredictive decision over a parameter posterior. Outcome-risk
+/// coordinates and identified-set decisions are refused.
+///
+/// # Errors
+/// Missing terminal, invalid contract or unsupported posterior carrier.
+pub fn compile_posterior_decision_bundle_recomputation(
+    bundle: CompositionBundle, terminal_node: &str,
+    contract: DecisionContract, source: DistributionArtifact,
+) -> Result<CompiledDecisionBundleRecomputation, DecisionBundleRecomputeError> {
+    compile_decision_bundle(bundle, terminal_node, contract, source, true)
+}
+
+fn compile_decision_bundle(
+    bundle: CompositionBundle, terminal_node: &str,
+    contract: DecisionContract, source: DistributionArtifact, posterior: bool,
+) -> Result<CompiledDecisionBundleRecomputation, DecisionBundleRecomputeError> {
     let node = bundle.nodes().iter().find(|node| node.id == terminal_node)
         .ok_or(DecisionBundleRecomputeError::Invalid("decision terminal is absent"))?;
     if node.kind != NodeKind::DecisionResult
@@ -126,7 +147,18 @@ pub fn compile_decision_bundle_recomputation(
             "decision terminal must be an embedded decision result",
         ));
     }
-    if !matches!(source.semantic(),
+    if posterior {
+        if !matches!(source.semantic(), DistributionMeaningWire::ParameterPosterior)
+            || !matches!(contract.criterion, DecisionCriterion::PosteriorExpectedUtility
+                | DecisionCriterion::PosteriorExpectedLoss)
+            || contract.actions.iter().flat_map(|action| &action.inputs)
+                .any(|quantity| quantity.functional_id == "outcome")
+        {
+            return Err(DecisionBundleRecomputeError::Invalid(
+                "posterior decision requires parameter draws and a non-outcome expected utility or loss",
+            ));
+        }
+    } else if !matches!(source.semantic(),
         DistributionMeaningWire::PosteriorPredictive
             | DistributionMeaningWire::InterventionalPredictive
             | DistributionMeaningWire::EmpiricalOutcome) {
@@ -159,7 +191,8 @@ pub fn compile_decision_bundle_recomputation(
         target: ProblemTarget::QueryFunctional {
             kind: FunctionalKind::PropagatedChain, outcome: None, query,
         },
-        plan_id: Arc::from("decision_bundle_recomputation.v1"),
+        plan_id: Arc::from(if posterior { "posterior_decision_bundle_recomputation.v1" }
+            else { "decision_bundle_recomputation.v1" }),
         data: DataClassification::Tabular,
         graph_class: "bundle_decision_dependency_graph",
         query_variables: Arc::from(Vec::new()),
@@ -171,14 +204,20 @@ pub fn compile_decision_bundle_recomputation(
     ));
     let statistical = StatisticalProgram {
         identifier: None, estimator: None,
-        realization: Realization::DeclaredPredictive {
-            evaluator: Arc::from("decision_bundle.live_predictive_terminal"),
+        realization: if posterior {
+            Realization::DeclaredPosterior {
+                evaluator: Arc::from("decision_bundle.live_parameter_posterior_terminal"),
+            }
+        } else {
+            Realization::DeclaredPredictive {
+                evaluator: Arc::from("decision_bundle.live_predictive_terminal"),
+            }
         },
         models: Arc::from([]), folds: None, resampling: None,
         posterior: None, design, operators: Arc::from([]),
     };
     let decision = DecisionProgram {
-        carrier: CarrierDemand::PredictiveLaw,
+        carrier: if posterior { CarrierDemand::ParameterPosterior } else { CarrierDemand::PredictiveLaw },
         utility: DecisionProgram::utility_form(None),
         actions: contract.actions.len(), constraints: contract.constraints.len(),
         chance_threshold: contract.constraints.iter()
@@ -211,13 +250,15 @@ pub fn compile_decision_bundle_recomputation(
         ]), design,
     };
     let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::BundleRecomputation,
+        cell: if posterior { ProgramCell::PosteriorDecisionBundleRecomputation }
+            else { ProgramCell::BundleRecomputation },
         scientific, identification, statistical, evidence, physical,
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Predictive, kind: None },
+        claim: ClaimDemand { uncertainty: if posterior { UncertaintyReading::Posterior }
+            else { UncertaintyReading::Predictive }, kind: None },
     }.finish());
     Ok(CompiledDecisionBundleRecomputation {
         bundle, terminal_node: terminal_node.to_owned(), contract, source,
-        contract_identity, source_digest, lowered,
+        contract_identity, source_digest, lowered, posterior,
     })
 }
 
@@ -232,7 +273,7 @@ impl CompiledDecisionBundleRecomputation {
         PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
     }
 
-    /// Replay every embedded dependency, score the predictive decision and
+    /// Replay every embedded dependency, score the decision and
     /// compare its whole result with the embedded terminal.
     ///
     /// # Errors
@@ -290,7 +331,7 @@ impl CompiledDecisionBundleRecomputation {
             return Err(DecisionBundleRecomputeError::Invalid("decision bundle receipt differs"));
         }
         let bytes = antecedent_io::to_cbor(&PortableDecisionBundleWire {
-            version: 1, required_feature: FEATURE.into(),
+            version: 1, required_feature: if self.posterior { POSTERIOR_FEATURE } else { FEATURE }.into(),
             bundle_bytes: export_bundle(&self.bundle, "portable-decision-bundle")?,
             bundle_identity: self.bundle.identity().to_owned(),
             terminal_node: self.terminal_node.clone(),
@@ -318,11 +359,30 @@ pub fn consume_portable_decision_bundle_recomputation(
     bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
+    consume_portable_decision_bundle(bytes, expected_bundle, expected_program, ctx, false)
+}
+
+/// Independently reconstruct and score a parameter-posterior decision bundle.
+///
+/// # Errors
+/// Changed graph, carrier, program, dependency or result.
+pub fn consume_portable_posterior_decision_bundle_recomputation(
+    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
+) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
+    consume_portable_decision_bundle(bytes, expected_bundle, expected_program, ctx, true)
+}
+
+fn consume_portable_decision_bundle(
+    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
+    ctx: &ExecutionContext, posterior: bool,
+) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
     if bytes.len() > MAX_BYTES {
         return Err(DecisionBundleRecomputeError::Invalid("portable decision bundle exceeds its byte bound"));
     }
     let wire: PortableDecisionBundleWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != FEATURE
+    let expected_feature = if posterior { POSTERIOR_FEATURE } else { FEATURE };
+    if wire.version != 1 || wire.required_feature != expected_feature
         || wire.bundle_identity != expected_bundle {
         return Err(DecisionBundleRecomputeError::Invalid("portable decision bundle feature differs"));
     }
@@ -358,8 +418,8 @@ pub fn consume_portable_decision_bundle_recomputation(
     let source = matched_source.ok_or(DecisionBundleRecomputeError::Invalid(
         "portable predictive decision source is absent",
     ))?;
-    let plan = compile_decision_bundle_recomputation(
-        bundle, &wire.terminal_node, contract, source,
+    let plan = compile_decision_bundle(
+        bundle, &wire.terminal_node, contract, source, posterior,
     )?;
     if plan.lowered().identity() != expected_program {
         return Err(DecisionBundleRecomputeError::Invalid(

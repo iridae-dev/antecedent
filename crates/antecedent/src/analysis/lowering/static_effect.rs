@@ -308,6 +308,7 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
             }
             Realization::Envelope(_) => UncertaintyReading::Envelope,
             Realization::DeclaredPredictive { .. } => UncertaintyReading::Predictive,
+            Realization::DeclaredPosterior { .. } => UncertaintyReading::Posterior,
             Realization::DeclaredAssumptionEnvelope { .. } => UncertaintyReading::AssumptionEnvelope,
             Realization::GraphImputationV1
             | Realization::CategoricalPosteriorCandidateV1

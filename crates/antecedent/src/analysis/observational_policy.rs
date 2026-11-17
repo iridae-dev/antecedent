@@ -795,6 +795,86 @@ impl CompiledObservationalPolicy {
         Ok(CrossFittedPolicyValueCandidate { report, interval, basis, slot })
     }
 
+    /// Form a separately keyed, unmeasured m-out-of-n subsampling candidate.
+    /// Each sample contains distinct original rows, and the compiler refits the
+    /// learner, nuisance models and folds for every sample. The basic interval
+    /// scales the subsample deviations by sqrt(m/n). It targets the original
+    /// empirical-frame fold-policy average, not one final policy. Its validity
+    /// depends on an appropriate subsampling limit and scaling; near decision
+    /// ties or for unstable learners those conditions may fail. No stability or
+    /// coverage is inferred from successful execution.
+    ///
+    /// # Errors
+    /// Invalid schedule, missing cells, changed seed, cancellation, or any
+    /// replicate compiler or estimator refusal. Failed replicates are not dropped.
+    fn cross_fitted_subsampling_candidate(
+        &self, subsample_rows: usize, replicates: usize, outer_identity: SemanticDigest, ctx: &ExecutionContext,
+    ) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
+        let n = self.request.outcome.len();
+        if subsample_rows < 20 || subsample_rows >= n || replicates < 100 || replicates > 4096
+            || n.checked_mul(replicates).is_none_or(|work| work > 50_000_000)
+            || self.request.outcome.iter().chain(&self.request.treatment).any(|x| !x.is_finite())
+            || self.request.adjustment.iter().flat_map(|c| &c.values).any(|x| !x.is_finite())
+            || self.request.spec.known_propensity_columns.as_ref().is_some_and(|columns|
+                columns.iter().any(|column| column.len() != n || column.iter().any(|x| !x.is_finite())))
+        {
+            return Err(policy_compiler_refusal("invalid complete-row policy subsampling schedule"));
+        }
+        let mut candidate = self.cross_fitted_value_candidate(ctx)?;
+        let scoped = ctx.enter_lowered_dispatch(outer_identity);
+        let mut rng = scoped.rng.stream(0x504F_4C53_5542_5341);
+        let mut deviations = Vec::with_capacity(replicates);
+        for _ in 0..replicates {
+            if scoped.cancellation.is_cancelled() {
+                return Err(policy_compiler_refusal("policy subsampling was cancelled"));
+            }
+            let mut indices: Vec<usize> = (0..n).collect();
+            for i in 0..subsample_rows {
+                let bound = (n - i) as u64;
+                let threshold = bound.wrapping_neg() % bound;
+                let draw = loop {
+                    let value = rng.next_u64();
+                    if value >= threshold { break (value % bound) as usize; }
+                };
+                indices.swap(i, i + draw);
+            }
+            indices.truncate(subsample_rows);
+            indices.sort_unstable();
+            let mut sample = self.request.clone();
+            sample.outcome = indices.iter().map(|&i| self.request.outcome[i]).collect();
+            sample.treatment = indices.iter().map(|&i| self.request.treatment[i]).collect();
+            for (column, original) in sample.adjustment.iter_mut().zip(&self.request.adjustment) {
+                column.values = indices.iter().map(|&i| original.values[i]).collect();
+            }
+            if let Some(columns) = &self.request.spec.known_propensity_columns {
+                sample.spec.known_propensity_columns = Some(columns.iter().map(|column|
+                    indices.iter().map(|&i| column[i]).collect()).collect());
+            }
+            let report = compile_observational_policy(sample, ctx)?.execute(ctx)?;
+            if report.evaluation_rows != subsample_rows as u64 || !report.value.is_finite() {
+                return Err(policy_compiler_refusal("policy subsampling replicate lost rows or value"));
+            }
+            deviations.push(report.value - candidate.report.value);
+        }
+        deviations.sort_by(f64::total_cmp);
+        let scale = (subsample_rows as f64 / n as f64).sqrt();
+        let lower = candidate.report.value - scale * antecedent_kernels::quantile_type7_sorted(&deviations, 0.975);
+        let upper = candidate.report.value - scale * antecedent_kernels::quantile_type7_sorted(&deviations, 0.025);
+        if !lower.is_finite() || !upper.is_finite() || lower > upper {
+            return Err(policy_compiler_refusal("policy subsampling interval is nonfinite or reversed"));
+        }
+        candidate.basis.key.interval_method = "cross_fitted_policy_subsampling_basic_v1".into();
+        candidate.basis.key.se_kind = "full_refit_subsample_distribution".into();
+        candidate.basis.key.dependence = "iid_rows_subsampling_limit_assumed".into();
+        candidate.basis.key.functional.push_str(&format!(".subsample_{subsample_rows}_of_{n}.replicates_{replicates}"));
+        candidate.basis.scope.replicates_ok = Some(replicates as u32);
+        candidate.slot = calibration_slot(&candidate.basis);
+        candidate.interval = CrossFittedPolicyValueInterval {
+            lower, upper, level: 0.95, calibration: candidate.slot.status.as_str().into(),
+        };
+        Ok(candidate)
+    }
+
     /// Seal a report with the complete request for independent compiler replay.
     ///
     /// # Errors
@@ -986,6 +1066,189 @@ impl PolicyRequestWire {
             spec: self.spec,
         }
     }
+}
+
+/// Compiler-owned m-out-of-n full-refit policy subsampling schedule.
+#[derive(Clone, Debug)]
+pub struct CompiledPolicySubsampling {
+    policy: CompiledObservationalPolicy,
+    subsample_rows: usize,
+    replicates: usize,
+    seed: u64,
+    lowered: Arc<LoweredProgram>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PolicySubsamplingArtifactWire {
+    version: u32,
+    feature: String,
+    request: PolicyRequestWire,
+    subsample_rows: usize,
+    replicates: usize,
+    seed: u64,
+    program_identity: [u8; 32],
+    result_fingerprint: [u8; 32],
+}
+
+/// Compile the original policy and the full-refit subsampling law before drawing rows.
+/// The fixed schedule assumes IID rows and a valid m-out-of-n scaling limit.
+/// The returned candidate has no earned coverage merely from compilation.
+///
+/// # Errors
+/// Invalid policy, graph, schedule, input rows, or resource bound.
+pub fn compile_policy_subsampling(
+    request: ObservationalPolicyRequest, subsample_rows: usize, replicates: usize,
+    ctx: &ExecutionContext,
+) -> Result<CompiledPolicySubsampling, CausalError> {
+    let n = request.outcome.len();
+    if subsample_rows < 20 || subsample_rows >= n || replicates < 100 || replicates > 4096
+        || n.checked_mul(replicates).is_none_or(|work| work > 50_000_000)
+        || request.spec.evaluation.as_deref() != Some("cross_fitted_learning")
+        || request.spec.causal_graph.is_none() || policy_feature_indices(&request).is_none()
+        || request.outcome.iter().chain(&request.treatment).any(|x| !x.is_finite())
+        || request.adjustment.iter().flat_map(|c| &c.values).any(|x| !x.is_finite())
+        || request.spec.known_propensity_columns.as_ref().is_some_and(|columns|
+            columns.iter().any(|column| column.len() != n || column.iter().any(|x| !x.is_finite())))
+    {
+        return Err(policy_compiler_refusal("invalid complete-row policy subsampling declaration"));
+    }
+    if antecedent_io::to_cbor(&PolicyRequestWire::from_request(&request))?.len() > 80 * 1024 * 1024 {
+        return Err(policy_compiler_refusal("policy subsampling source exceeds its byte bound"));
+    }
+    let policy = compile_observational_policy(request, ctx)?;
+    let seed = ctx.rng.master_seed();
+    let mut writer = CanonicalWriter::new("antecedent.policy_subsampling.schedule.v1");
+    writer.bytes(policy.lowered().identity().as_bytes()).word(seed)
+        .word(subsample_rows as u64).word(replicates as u64);
+    let digest = writer.finish();
+    let design = DesignShape::quoted(n as u64, policy.request.adjustment.len() as u64 + 1, true);
+    let scientific = ScientificProblem {
+        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::PolicyValue, outcome: None, query: digest,
+        },
+        plan_id: Arc::from("cross_fitted_policy_subsampling.v1"),
+        data: DataClassification::Tabular, graph_class: "declared_dag_checked_backdoor",
+        query_variables: Arc::from([]), source_digest: Some(digest),
+        support_coordinate: None, supported: false, support_status: None,
+    };
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: digest },
+    ));
+    let score = ScoreModel::new("cross_fitted_policy_full_refit_subsampling")
+        .map_err(|error| policy_compiler_refusal(&error.to_string()))?;
+    let statistical = StatisticalProgram {
+        identifier: None, estimator: None,
+        realization: Realization::Frequentist(ScoreFrequentist::new(score)),
+        models: Arc::from([]), folds: None, resampling: None, posterior: None,
+        design, operators: Arc::from([]),
+    };
+    let evidence = EvidenceDecisionProgram {
+        sources: Arc::from([EvidenceSourceRef {
+            role: EvidenceRole::Observations, digest: Some(*policy.lowered().identity().as_bytes()),
+        }]),
+        composition: Composition::Chained { stages: replicates + 1 },
+        decision: None, planning: None, chain: None,
+    };
+    let physical = PhysicalLayer {
+        operators: Arc::from([
+            PhysicalOperator::declare(PhysicalEffect::Select).build()
+                .map_err(|error| policy_compiler_refusal(&error.to_string()))?,
+            PhysicalOperator::declare(PhysicalEffect::Fit).build()
+                .map_err(|error| policy_compiler_refusal(&error.to_string()))?,
+        ]), design,
+    };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::PolicySubsampling,
+        scientific, identification, statistical, evidence, physical,
+        claim: ClaimDemand { uncertainty: UncertaintyReading::Sampling,
+            kind: Some(ClaimKind::PolicyValue) },
+    }.finish());
+    Ok(CompiledPolicySubsampling { policy, subsample_rows, replicates, seed, lowered })
+}
+
+fn policy_subsampling_fingerprint(candidate: &CrossFittedPolicyValueCandidate) -> Result<[u8; 32], CausalError> {
+    let mut writer = CanonicalWriter::new("antecedent.policy_subsampling.result.v1");
+    writer.bytes(&antecedent_io::to_cbor(&candidate.report)?)
+        .word(candidate.interval.lower.to_bits()).word(candidate.interval.upper.to_bits())
+        .word(candidate.interval.level.to_bits()).text(&candidate.interval.calibration)
+        .bytes(&antecedent_io::to_cbor(&candidate.basis)?);
+    Ok(writer.finish())
+}
+
+impl CompiledPolicySubsampling {
+    /// The retained six-layer resampling program.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the compiled resampling program.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Execute all compiler-refitted subsamples; no coverage is presumed.
+    ///
+    /// # Errors
+    /// Seed mismatch, cancellation, or any nested fitting refusal.
+    pub fn execute(&self, ctx: &ExecutionContext) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
+        if ctx.rng.master_seed() != self.seed {
+            return Err(policy_compiler_refusal("policy subsampling execution seed changed"));
+        }
+        self.policy.cross_fitted_subsampling_candidate(
+            self.subsample_rows, self.replicates, self.lowered.identity(), ctx,
+        )
+    }
+
+    /// Seal source rows and a freshly verified result for independent replay.
+    ///
+    /// # Errors
+    /// A changed result, execution refusal or oversized artifact.
+    pub fn export(&self, result: &CrossFittedPolicyValueCandidate, ctx: &ExecutionContext) -> Result<Vec<u8>, CausalError> {
+        let fingerprint = policy_subsampling_fingerprint(result)?;
+        if fingerprint != policy_subsampling_fingerprint(&self.execute(ctx)?)? {
+            return Err(policy_compiler_refusal("policy subsampling result changed"));
+        }
+        let bytes = antecedent_io::to_cbor(&PolicySubsamplingArtifactWire {
+            version: 1, feature: "cross_fitted_policy_subsampling_v1".into(),
+            request: PolicyRequestWire::from_request(&self.policy.request),
+            subsample_rows: self.subsample_rows, replicates: self.replicates,
+            seed: self.seed, program_identity: *self.lowered.identity().as_bytes(),
+            result_fingerprint: fingerprint,
+        })?;
+        if bytes.len() > 80 * 1024 * 1024 {
+            return Err(policy_compiler_refusal("policy subsampling artifact exceeds its byte bound"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Independently recompile and rerun the retained policy subsampling schedule.
+///
+/// # Errors
+/// Changed feature, seed, identity, source or result.
+pub fn consume_policy_subsampling(
+    bytes: &[u8], expected: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
+    if bytes.len() > 80 * 1024 * 1024 {
+        return Err(policy_compiler_refusal("policy subsampling artifact exceeds its byte bound"));
+    }
+    let wire: PolicySubsamplingArtifactWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.feature != "cross_fitted_policy_subsampling_v1"
+        || wire.seed != ctx.rng.master_seed() || wire.program_identity != *expected.as_bytes()
+    {
+        return Err(policy_compiler_refusal("policy subsampling feature, seed or identity differs"));
+    }
+    let plan = compile_policy_subsampling(wire.request.into_request(), wire.subsample_rows, wire.replicates, ctx)?;
+    if plan.lowered().identity() != expected {
+        return Err(policy_compiler_refusal("recompiled policy subsampling program differs"));
+    }
+    let candidate = plan.execute(ctx)?;
+    if policy_subsampling_fingerprint(&candidate)? != wire.result_fingerprint {
+        return Err(policy_compiler_refusal("policy subsampling result differs on replay"));
+    }
+    Ok(candidate)
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
