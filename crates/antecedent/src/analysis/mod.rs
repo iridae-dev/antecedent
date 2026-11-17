@@ -222,6 +222,7 @@ pub mod nonlinear_mediation;
 pub mod observation_evidence;
 pub mod observation_posterior;
 pub mod observation_query;
+pub mod fitted_dependent_measurement;
 pub mod observational_policy;
 pub mod observational_survival;
 pub mod per_population_discovery;

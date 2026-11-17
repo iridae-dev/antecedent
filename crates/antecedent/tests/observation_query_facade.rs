@@ -26,6 +26,7 @@ use antecedent::analysis::observation_query::{
     JointMeasuredObservationRequest,
     consume_observation_query_artifact, retain_counts, retain_regression,
 };
+use antecedent::analysis::fitted_dependent_measurement::FittedDependentMeasurementRequest;
 use antecedent::{
     DependenceInput, MechanismCompositionRequest, MechanismInput, MechanismRefit, MechanismSource,
     PreparedMechanismComposition, StudyBuilder,
@@ -291,6 +292,49 @@ fn dependent_indicator_errors_use_the_joint_table_and_replay() {
     let mut unnormalized = request;
     unnormalized.error_law.probability_bits[3] = 0.2_f64.to_bits();
     assert!(prepared.compile_dependent_measured_observation(&unnormalized).is_err());
+}
+
+#[test]
+fn fitted_joint_error_table_propagates_labelled_count_uncertainty() {
+    let prepared = construct_model();
+    let observation = DependentMeasuredObservationRequest {
+        outcome: "Y".into(), observed: Vec::new(),
+        measured: vec![pair("assay_a", "1"), pair("assay_b", "1")],
+        interventions: Vec::new(),
+        error_law: DependentMeasurementWire {
+            construct: "C".into(), population_id: "pop".into(),
+            regime_id: "observational".into(), evidence_id: "labelled-joint-validation".into(),
+            indicator_ids: vec!["assay_a".into(), "assay_b".into()],
+            indicator_levels: vec![vec!["0".into(), "1".into()],
+                                   vec!["0".into(), "1".into()]],
+            construct_levels: vec!["0".into(), "1".into()],
+            probability_bits: Vec::new(),
+        },
+    };
+    let request = FittedDependentMeasurementRequest {
+        observation, counts: vec![70, 10, 10, 10, 5, 5, 5, 85],
+        prior_alpha: 1.0, draws: 16, seed: 91,
+    };
+    let plan = prepared.compile_fitted_dependent_measurement(request.clone())
+        .expect("fitted measurement compiler");
+    assert_eq!(plan.plan_view().route().as_str(), "FittedDependentMeasuredObservation");
+    let report = plan.execute(&ctx()).expect("posterior measurement draws");
+    let construct_posterior = (0.1 * 86.0) / (0.9 * 11.0 + 0.1 * 86.0);
+    near(report.plug_in[1], 0.1 * (1.0 - construct_posterior) + 0.7 * construct_posterior);
+    assert_eq!(report.posterior_draws.len(), 16);
+    assert!(report.posterior_draws.iter().all(|row| row.len() == 2));
+    assert_eq!(report.calibration, "not_measured");
+    let interval = report.nominal_interval("1", 0.95).expect("uncalibrated posterior interval");
+    assert!(interval.lower < interval.upper);
+    assert_eq!(interval.calibration, "not_measured");
+    let artifact = plan.export(&report, &ctx()).expect("fitted artifact");
+    assert_eq!(plan.consume(&artifact, plan.lowered().identity(), &ctx())
+        .expect("fitted replay"), report);
+    let mut changed = request;
+    changed.counts[7] += 1;
+    let other = prepared.compile_fitted_dependent_measurement(changed)
+        .expect("changed validation counts");
+    assert_ne!(plan.lowered().identity(), other.lowered().identity());
 }
 
 fn pair(variable: &str, level: &str) -> (String, String) {

@@ -199,6 +199,8 @@ macro_rules! route_lowerings {
             JointMeasuredObservation,
             /// Dependent-error measurement of one finite construct.
             DependentMeasuredObservation,
+            /// Fitted dependent-error measurement with posterior draws.
+            FittedDependentMeasuredObservation,
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation,
             /// A graph-selection imputation composite.
@@ -223,6 +225,7 @@ macro_rules! route_lowerings {
                     Self::ObservationalPolicy => "ObservationalPolicy",
                     Self::JointMeasuredObservation => "JointMeasuredObservation",
                     Self::DependentMeasuredObservation => "DependentMeasuredObservation",
+                    Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
                     Self::BundleRecomputation => "BundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
@@ -246,6 +249,7 @@ macro_rules! route_lowerings {
                     Self::ObservationalPolicy => RouteFamily::DesignBased,
                     Self::JointMeasuredObservation => RouteFamily::Structural,
                     Self::DependentMeasuredObservation => RouteFamily::Structural,
+                    Self::FittedDependentMeasuredObservation => RouteFamily::Structural,
                     Self::BundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,

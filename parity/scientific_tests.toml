@@ -9,6 +9,13 @@
 # evidence_audit fails when a row's test or assertion does not exist.
 
 [[test]]
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "fitted_joint_error_table_propagates_labelled_count_uncertainty"
+kind = "reference"
+fixtures = []
+why = "The new fitted dependent-indicator compiler's posterior-mean plug-in probability is checked against a hand-computed binary construct calculation; the source test also binds posterior draws and independent artifact replay. This row is unearned until the scientific-record runner executes it."
+
+[[test]]
 evidence_test = "crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs"
 evidence_assertion = "path_specific_graph_posterior_executes_from_the_retained_plan_without_the_builder"
 kind = "known_truth"

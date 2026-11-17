@@ -1090,6 +1090,8 @@ pub(crate) enum ProgramCell {
     JointMeasuredObservation,
     /// Dependent-error joint measurement on a finite construct.
     DependentMeasuredObservation,
+    /// Joint indicator error fitted from labelled validation counts.
+    FittedDependentMeasuredObservation,
     /// Bundle replay with a live executable chain terminal.
     BundleRecomputation,
     /// A bounded graph-selection imputation composite.
@@ -1111,6 +1113,7 @@ impl ProgramCell {
             Self::ObservationalPolicy => "ObservationalPolicy",
             Self::JointMeasuredObservation => "JointMeasuredObservation",
             Self::DependentMeasuredObservation => "DependentMeasuredObservation",
+            Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
             Self::BundleRecomputation => "BundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
@@ -1172,6 +1175,7 @@ impl LoweredProgram {
             | ProgramCell::ObservationalPolicy
             | ProgramCell::JointMeasuredObservation
             | ProgramCell::DependentMeasuredObservation
+            | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1190,6 +1194,7 @@ impl LoweredProgram {
             | ProgramCell::ObservationalPolicy
             | ProgramCell::JointMeasuredObservation
             | ProgramCell::DependentMeasuredObservation
+            | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1208,6 +1213,7 @@ impl LoweredProgram {
             | ProgramCell::ObservationalPolicy
             | ProgramCell::JointMeasuredObservation
             | ProgramCell::DependentMeasuredObservation
+            | ProgramCell::FittedDependentMeasuredObservation
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate

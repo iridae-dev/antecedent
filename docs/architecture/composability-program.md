@@ -25,7 +25,7 @@ coverage or error control.
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws | Lower the bridge declaration, transport and utility together with checked value kind and coordinate | None for a new route; high if a surrogate score is substituted for an endpoint |
 | 8 | Medium | Scalar and vector feedback compile one cyclic program with aligned disturbances and named hard clamps; optional ledger entry points check disjointness across all inputs of the original component and bind the ledger state into the program | Establish statistical dependence of fitted mechanism errors and calibrate the connected equilibrium before promoting component evidence to an inferential claim | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | Static path-specific transport and fixed-population temporal counterfactuals exist separately | Prove the target temporal path functional under selection and mediator assumptions, then lower its estimator and claim | None for a new route; high if ordinary transport is relabelled path-specific |
-| 10 | Medium | Independent indicators retain the version-3 route; `compile_dependent_measured_observation` adds a complete scoped joint-error table, separate compiler cell and version-4 artifact for dependent indicators | Fit the joint table with parameter uncertainty and earn new calibration records for fitted measurement models | None for the additive route; medium if independent indicators are silently treated as a joint model |
+| 10 | Medium | Independent indicators retain the version-3 route; a separate fitted joint-error compiler cell now uses labelled validation counts and a Dirichlet posterior to propagate dependent measurement uncertainty through the finite query | Add whole-route coverage records and a calibration lookup for the new equal-tail outcome-probability interval; its present status is `not_measured` | None for the additive route; medium if independent indicators are silently treated as a joint model |
 | 11 | Lower | `compile_chain_bundle_recomputation` lowers a fully embedded bundle and executable propagation-chain terminal together; a version-2 portable receipt reconstructs the graph and terminal compiler from bytes, reruns every dependency consumer and compares the live result | Generalize live recomputation to other executable node kinds | None for the additive route; low for numerical claims, but identity-only plans cannot become execution receipts |
 
 ## Current source slice
@@ -136,7 +136,18 @@ requires the complete normalized `P(m_1,...,m_k | C)` table for every construct
 level, with indicator domains, population, regime and evidence identity. It
 looks up the recorded indicator cell once and conditions the finite law using
 that joint likelihood. It has a separate compiler cell and version-4 replay
-artifact; fitting uncertainty and coverage remain unmeasured.
+artifact; fitting uncertainty and coverage remain unmeasured on that declared-law route.
+The additive fitted route accepts complete labelled joint-cell counts, one
+positive symmetric Dirichlet concentration per cell and a declared validation
+evidence identity. It compiles fitting, posterior draws and conditioning as one
+new six-layer program, samples each construct row jointly, then runs each
+sampled table through the dependent-measurement compiler. The reported plug-in
+law uses the posterior mean table; its aligned draw rows represent uncertainty
+in the fitted error table only, conditional on the composed mechanism model.
+An equal-tail posterior interval of any outcome-level probability is available
+with `not_measured` calibration. The retained-plan consumer recomputes every
+draw and compares the report. New whole-route coverage records are owed;
+the older independent and declared dependent routes retain their meanings.
 
 The graph-imputation point consumer retains the actual pooled effect draws
 from its source-bound execution. An additive exporter binds those draws to the
