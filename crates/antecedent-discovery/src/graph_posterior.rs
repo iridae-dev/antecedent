@@ -99,9 +99,10 @@ impl GraphPrior {
         if !(p > 0.0 && p < 1.0) {
             return Err(DiscoveryError::Refused {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                message: "structure_posterior.edge_prior_probability: the Bernoulli edge prior \
-                          requires p in (0, 1)"
-                    .to_owned(),
+                message: format!(
+                    "{}: the Bernoulli edge prior requires p in (0, 1)",
+                    antecedent_core::reason_details::structure_posterior::EDGE_PRIOR_PROBABILITY
+                ),
             });
         }
         Ok(Self {
@@ -123,9 +124,10 @@ impl GraphPrior {
         if self.edge_inclusion.is_some_and(|p| !(p > 0.0 && p < 1.0)) {
             return Err(DiscoveryError::Refused {
                 code: antecedent_core::reason_code!("invalid_argument"),
-                message: "structure_posterior.edge_prior_probability: the Bernoulli edge prior \
-                          requires p in (0, 1)"
-                    .to_owned(),
+                message: format!(
+                    "{}: the Bernoulli edge prior requires p in (0, 1)",
+                    antecedent_core::reason_details::structure_posterior::EDGE_PRIOR_PROBABILITY
+                ),
             });
         }
         Ok(())

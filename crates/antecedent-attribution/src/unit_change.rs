@@ -57,7 +57,7 @@ pub fn unit_change(
     if parents.is_empty() {
         return Err(AttributionError::refused(
             antecedent_core::reason_code!("route_not_supported"),
-            "unit_change.outcome_without_parents",
+            antecedent_core::reason_details::unit_change::OUTCOME_WITHOUT_PARENTS,
             "unit_change requires parents of the outcome",
         ));
     }

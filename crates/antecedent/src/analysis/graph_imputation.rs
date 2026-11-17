@@ -264,7 +264,8 @@ impl CompiledGraphImputation {
         if ctx.lowered_dispatch().is_some() {
             return Err(crate::unsupported_reason!(
                 "public_builder_reentry",
-                "graph_imputation.reentry: compile is not permitted inside another lowered dispatch"
+                detail = antecedent_core::reason_details::graph_imputation::REENTRY,
+                "compile is not permitted inside another lowered dispatch"
             )
             .into());
         }

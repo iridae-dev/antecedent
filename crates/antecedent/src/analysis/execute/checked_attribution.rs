@@ -319,8 +319,8 @@ impl CheckedAttributionOperation {
         if blocks.is_some() && fitted_model {
             return Err(crate::compile_reason!(
                 "route_not_supported",
-                "attribute_refit.noise_blocks_unsupported: noise-block attribution supports only \
-                 anomaly and change targets"
+                "{}: noise-block attribution supports only anomaly and change targets",
+                antecedent_core::reason_details::attribute_refit::NOISE_BLOCKS_UNSUPPORTED
             ));
         }
         let target_query = target.query();
@@ -335,7 +335,8 @@ impl CheckedAttributionOperation {
         {
             return Err(crate::unsupported_reason!(
                 "option_not_applicable",
-                "simulate_refit.temporal_rollout_required: on a TemporalDag a simulation is a \
+                detail = antecedent_core::reason_details::simulate_refit::TEMPORAL_ROLLOUT_REQUIRED,
+                "on a TemporalDag a simulation is a \
                  temporal rollout of the fitted dynamics: draws, policy values and \
                  counterfactuals of the unfolded graph would sample the lagged copies as \
                  exogenous columns. Next attempt: use a TemporalRollout \

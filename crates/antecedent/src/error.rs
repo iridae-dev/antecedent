@@ -872,6 +872,21 @@ macro_rules! unsupported_reason {
         );
         $crate::CausalError::Unsupported { message: concat!("reason=", $code, ": ", $message) }
     }};
+    // A message that leads with a registered detail id: `reason=<code>: <detail>: <message>`.
+    // The id is a constant, which `concat!` cannot take, so the text is built once per site
+    // (the message is a format string: it holds no braces).
+    ($code:literal, detail = $detail:expr, $message:literal) => {{
+        const _: () = assert!(
+            $crate::error::is_runtime_refusal_code($code),
+            concat!("`", $code, "` is not a runtime_refusal code in parity/reason_codes.toml")
+        );
+        static TEXT: ::std::sync::OnceLock<String> = ::std::sync::OnceLock::new();
+        $crate::CausalError::Unsupported {
+            message: TEXT
+                .get_or_init(|| format!(concat!("reason=", $code, ": {}: ", $message), $detail))
+                .as_str(),
+        }
+    }};
 }
 
 /// [`unsupported_reason!`] for a support-matrix refusal, which carries the

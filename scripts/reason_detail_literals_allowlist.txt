@@ -3,7 +3,7 @@
 # converting a site lowers the count. The list shrinks to empty.
 crates/antecedent-contract/src/composition_verification/view.rs	2
 crates/antecedent-contract/src/evidence_ledger/ledger.rs	54
-crates/antecedent-contract/src/joint_law_rule.rs	18
+crates/antecedent-contract/src/joint_law_rule.rs	16
 crates/antecedent-design/src/sequential_evaluation.rs	4
 crates/antecedent-design/src/sequential_evaluation/belief.rs	9
 crates/antecedent-design/src/sequential_evaluation/comparison.rs	11
@@ -45,7 +45,6 @@ crates/antecedent/src/analysis/composition_verification.rs	7
 crates/antecedent/src/analysis/counterfactual_transport.rs	1
 crates/antecedent/src/analysis/decision_reliability.rs	1
 crates/antecedent/src/analysis/graph_imputation.rs	1
-crates/antecedent/src/analysis/horizon_composition.rs	13
 crates/antecedent/src/analysis/imputed_graph_selection.rs	1
 crates/antecedent/src/analysis/interface_contract.rs	3
 crates/antecedent/src/analysis/joint_panel/imputed.rs	2
@@ -54,7 +53,6 @@ crates/antecedent/src/analysis/lowering/mnar_fixed_shift.rs	1
 crates/antecedent/src/analysis/missing_imputation.rs	2
 crates/antecedent/src/analysis/missing_imputation_vector.rs	1
 crates/antecedent/src/analysis/mz_transport.rs	2
-crates/antecedent/src/analysis/preflight.rs	2
 crates/antecedent/src/analysis/prepared/estimate.rs	2
 crates/antecedent/src/analysis/rank_drop_estimate.rs	3
 crates/antecedent/src/analysis/recalc_receipt.rs	73

@@ -1950,7 +1950,10 @@ fn selected_value_readings_are_the_heldout_normal_interval() {
     assert_eq!(&*reading.basis.functional, "selected_program_value");
     assert_eq!(reading.basis.row_count, 240);
     let refusal = result.selected_value_reading(1.5).unwrap_err().to_string();
-    assert!(refusal.contains("joint_response.reading_level_invalid"), "{refusal}");
+    assert!(
+        refusal.contains(antecedent_core::reason_details::joint_response::READING_LEVEL_INVALID),
+        "{refusal}"
+    );
     let bytes = result.export().unwrap();
     assert_eq!(prepared.consume_current(&bytes, &ctx).unwrap().report(), result.report());
 
@@ -2089,7 +2092,10 @@ fn updated_contrast_reading_is_the_weighted_equal_tailed_interval() {
         .updated_contrast_reading(&chain.updated, &chain.ledger, &chain.coefficients[..3], LEVEL)
         .unwrap_err()
         .to_string();
-    assert!(refusal.contains("joint_response.reading_level_invalid"), "{refusal}");
+    assert!(
+        refusal.contains(antecedent_core::reason_details::joint_response::READING_LEVEL_INVALID),
+        "{refusal}"
+    );
     // The updated law and its source design replay for a current consumer.
     let _ = experiment_update_reading(&chain);
 }

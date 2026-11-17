@@ -159,7 +159,7 @@ pub(super) fn resolve_candidates(
     };
     if constraint.allowed.as_ref().is_some_and(|a| a.is_empty()) {
         return Err(invalid(
-            "mechanism_selection.constraint_contradictory",
+            antecedent_core::reason_details::mechanism_selection::CONSTRAINT_CONTRADICTORY,
             format!("variable {variable}: the allowed family list is empty"),
         ));
     }
@@ -173,14 +173,14 @@ pub(super) fn resolve_candidates(
     if let Some(required) = constraint.required {
         if constraint.excluded.contains(&required) {
             return Err(invalid(
-                "mechanism_selection.constraint_contradictory",
+                antecedent_core::reason_details::mechanism_selection::CONSTRAINT_CONTRADICTORY,
                 format!("variable {variable}: required family {} is also excluded", required.id()),
             ));
         }
         if !set.contains(&required) {
             if constraint.allowed.is_some() {
                 return Err(invalid(
-                    "mechanism_selection.constraint_contradictory",
+                    antecedent_core::reason_details::mechanism_selection::CONSTRAINT_CONTRADICTORY,
                     format!(
                         "variable {variable}: required family {} is not in the allowed list",
                         required.id()
@@ -198,7 +198,7 @@ pub(super) fn resolve_candidates(
         && !fits_node(&required)
     {
         return Err(invalid(
-            "mechanism_selection.family_outcome_mismatch",
+            antecedent_core::reason_details::mechanism_selection::FAMILY_OUTCOME_MISMATCH,
             format!(
                 "variable {variable} is typed {} but required family {} models a {} outcome",
                 if categorical_node { "categorical" } else { "continuous" },
@@ -214,7 +214,7 @@ pub(super) fn resolve_candidates(
     set.retain(fits_node);
     if set.is_empty() {
         return Err(invalid(
-            "mechanism_selection.constraint_contradictory",
+            antecedent_core::reason_details::mechanism_selection::CONSTRAINT_CONTRADICTORY,
             format!("variable {variable}: no candidate family remains"),
         ));
     }

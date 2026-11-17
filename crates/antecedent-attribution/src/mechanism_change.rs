@@ -146,7 +146,7 @@ pub(crate) fn detect_mechanism_changes_with_correction(
     if baseline.row_count() < MIN_POPULATION_ROWS || comparison.row_count() < MIN_POPULATION_ROWS {
         return Err(AttributionError::refused(
             antecedent_core::reason_code!("invalid_argument"),
-            "mechanism_change.population_too_small",
+            antecedent_core::reason_details::mechanism_change::POPULATION_TOO_SMALL,
             "baseline and comparison populations need at least 10 rows each: fewer cannot \
              support a calibrated residual distribution and risk a degenerate (e.g. constant) \
              segment",
@@ -168,7 +168,7 @@ pub(crate) fn detect_mechanism_changes_with_correction(
         if parent_covariate_shift_detected(graph_model, &baseline, &comparison, target)? {
             return Err(AttributionError::refused(
                 antecedent_core::reason_code!("invalid_argument"),
-                "mechanism_change.parent_covariate_shift",
+                antecedent_core::reason_details::mechanism_change::PARENT_COVARIATE_SHIFT,
                 "baseline and comparison populations differ materially in a tested \
                  mechanism's parent covariates; residual two-sample tests are not \
                  calibrated under a covariate shift with no accompanying mechanism change, \
@@ -329,7 +329,7 @@ fn residual_pairs(
     if baseline.row_count() < MIN_POPULATION_ROWS || comparison.row_count() < MIN_POPULATION_ROWS {
         return Err(AttributionError::refused(
             antecedent_core::reason_code!("invalid_argument"),
-            "mechanism_change.population_too_small",
+            antecedent_core::reason_details::mechanism_change::POPULATION_TOO_SMALL,
             "baseline and comparison populations need at least 10 rows each: fewer cannot \
              support a calibrated residual distribution and risk a degenerate (e.g. constant) \
              segment",
@@ -339,7 +339,7 @@ fn residual_pairs(
         if parent_covariate_shift_detected(graph_model, &baseline, &comparison, target)? {
             return Err(AttributionError::refused(
                 antecedent_core::reason_code!("invalid_argument"),
-                "mechanism_change.parent_covariate_shift",
+                antecedent_core::reason_details::mechanism_change::PARENT_COVARIATE_SHIFT,
                 "baseline and comparison populations differ materially in a tested \
                  mechanism's parent covariates; residual two-sample tests are not \
                  calibrated under a covariate shift with no accompanying mechanism change, \

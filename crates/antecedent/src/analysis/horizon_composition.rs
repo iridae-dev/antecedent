@@ -110,7 +110,7 @@ pub fn horizon_draws(
     ) else {
         return Err(refuse(
             antecedent_core::reason_code!("joint_law_required"),
-            "joint_law_propagation.horizon_draws_not_joint",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_DRAWS_NOT_JOINT,
             "response",
             "the response retains no draws coupled across its horizons: horizons fit one by \\
              one are independent marginals and are never paired by draw index; run the \\
@@ -123,7 +123,7 @@ pub fn horizon_draws(
     else {
         return Err(refuse(
             antecedent_core::reason_code!("option_not_applicable"),
-            "joint_law_propagation.horizon_draws_mean_curve",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_DRAWS_MEAN_CURVE,
             "estimand",
             "compose the horizons of a temporal mean curve or intervention response",
         ));
@@ -131,7 +131,7 @@ pub fn horizon_draws(
     let Some(horizons) = response.horizon_identification.as_ref() else {
         return Err(refuse(
             antecedent_core::reason_code!("option_not_applicable"),
-            "joint_law_propagation.horizon_draws_mean_curve",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_DRAWS_MEAN_CURVE,
             "horizon_identification",
             "compose the horizons of a temporal response",
         ));
@@ -148,7 +148,7 @@ pub fn horizon_draws(
     {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_law_propagation.horizon_draws_layout",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_DRAWS_LAYOUT,
             "layout",
             "the retained replicates do not match the response's horizons",
         ));
@@ -157,7 +157,7 @@ pub fn horizon_draws(
     if dose_index >= doses {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_law_propagation.horizon_draws_dose",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_DRAWS_DOSE,
             format!("dose[{dose_index}]"),
             "name a dose inside the curve's grid",
         ));
@@ -166,7 +166,7 @@ pub fn horizon_draws(
     if center.len() < cells {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_law_propagation.horizon_draws_layout",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_DRAWS_LAYOUT,
             "estimate",
             "the point surface does not match the retained replicate cells",
         ));
@@ -207,7 +207,7 @@ pub fn compose_horizons(
     if coefficients.len() != draws.horizons.len() {
         return Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_law_propagation.horizon_composition",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_COMPOSITION,
             "coefficients",
             "give one coefficient per horizon of the draws",
         ));
@@ -223,7 +223,7 @@ pub fn compose_horizons(
     let composed = aligned_linear_draws(coefficients, &columns).map_err(|error| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_law_propagation.horizon_composition",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_COMPOSITION,
             error.to_string(),
             "compose finite draws of equal length",
         )
@@ -231,7 +231,7 @@ pub fn compose_horizons(
     let spread = draw_spread(&composed, None).map_err(|error| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_law_propagation.horizon_composition",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_COMPOSITION,
             error.to_string(),
             "compose at least two joint realizations",
         )
@@ -317,7 +317,7 @@ pub fn horizon_composition_interval(
     if operation.class() == antecedent_contract::PropagationClass::Nonlinear {
         return Err(refuse(
             antecedent_core::reason_code!("option_not_applicable"),
-            "joint_law_propagation.horizon_composition",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_COMPOSITION,
             operation.as_str(),
             "a nonlinear composition of horizons has a spread and no interval; ask for the \
              interval of a linear combination",
@@ -328,7 +328,7 @@ pub fn horizon_composition_interval(
     let unreadable = || {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_law_propagation.horizon_draws_layout",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_DRAWS_LAYOUT,
             "dispersion",
             "the response carries no dispersion and influence readings matching its joint \
              replicates (a series with missing time points publishes none): the composed spread \
@@ -383,7 +383,7 @@ pub fn horizon_composition_interval(
     let spread = draw_spread(&deviations, None).map_err(|error| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_law_propagation.horizon_composition",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_COMPOSITION,
             error.to_string(),
             "compose at least two joint realizations",
         )
@@ -395,7 +395,7 @@ pub fn horizon_composition_interval(
         if !(blocks.is_finite() && blocks >= 3.0 && fixed_b.is_finite() && *fixed_b > 0.0) {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "joint_law_propagation.horizon_composition",
+                antecedent_core::reason_details::joint_law_propagation::HORIZON_COMPOSITION,
                 "blocks",
                 "block-weight draws over fewer than three effective blocks carry no interval; \
                  use a longer series",
@@ -459,7 +459,7 @@ pub fn compose_horizons_with(
     if operation.class() != antecedent_contract::PropagationClass::Nonlinear {
         return Err(refuse(
             antecedent_core::reason_code!("option_not_applicable"),
-            "joint_law_propagation.horizon_composition",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_COMPOSITION,
             operation.as_str(),
             "compose a linear combination of horizons with compose_horizons; this call takes a \
              product, a nonlinear functional or a chain",
@@ -476,7 +476,7 @@ pub fn compose_horizons_with(
     let composed = aligned_map_draws(&columns, map, &ctx.cancellation).map_err(|error| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_law_propagation.horizon_composition",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_COMPOSITION,
             error.to_string(),
             "compose finite draws of equal length with a finite map",
         )
@@ -484,7 +484,7 @@ pub fn compose_horizons_with(
     let spread = draw_spread(&composed, None).map_err(|error| {
         refuse(
             antecedent_core::reason_code!("invalid_argument"),
-            "joint_law_propagation.horizon_composition",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_COMPOSITION,
             error.to_string(),
             "compose at least two joint realizations",
         )
@@ -511,7 +511,7 @@ fn center_of(response: &CausalResponse) -> Result<Vec<f64>, ExternalRefusal> {
         }
         _ => Err(refuse(
             antecedent_core::reason_code!("option_not_applicable"),
-            "joint_law_propagation.horizon_draws_mean_curve",
+            antecedent_core::reason_details::joint_law_propagation::HORIZON_DRAWS_MEAN_CURVE,
             "estimate",
             "compose the horizons of a point-identified temporal surface",
         )),
