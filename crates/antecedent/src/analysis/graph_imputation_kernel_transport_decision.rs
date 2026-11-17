@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use super::graph_imputation::{CompiledGraphImputation, GraphImputationSpec};
 use super::graph_imputation_transport_decision::{
     GraphImputationTransportDecisionError as Error,
-    GraphImputationTransportDecisionResult, effect_chain,
+    GraphImputationTransportDecisionResult, TargetClusterBootstrap, bootstrap_cluster_rows, effect_chain,
 };
 use super::propagation_chain_decision::{compile_chain_decision, consume_chain_decision};
 use crate::planner::lowered::{
@@ -49,6 +49,8 @@ const FEATURE: &str = "graph_imputation_kernel_transport_decision_v2";
 const BOOTSTRAP_FEATURE: &str = "graph_imputation_kernel_transport_target_bootstrap_decision_v2";
 const CONFOUNDED_FEATURE: &str = "graph_imputation_confounded_kernel_transport_decision_v1";
 const CONFOUNDED_BOOTSTRAP_FEATURE: &str = "graph_imputation_confounded_kernel_transport_target_bootstrap_decision_v1";
+const CLUSTER_FEATURE: &str = "graph_imputation_kernel_transport_target_cluster_bootstrap_decision_v1";
+const CONFOUNDED_CLUSTER_FEATURE: &str = "graph_imputation_confounded_kernel_transport_target_cluster_bootstrap_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 /// Source graph-imputation plan, mixed target frame and final utility under
@@ -61,6 +63,7 @@ pub struct CompiledGraphImputationKernelTransportDecision {
     native_source: Vec<u8>,
     lowered: Arc<LoweredProgram>,
     target_bootstrap: Option<TargetFrameBootstrap>,
+    cluster_bootstrap: Option<TargetClusterBootstrap>,
     confounded: bool,
 }
 
@@ -105,6 +108,8 @@ struct KernelTransportDecisionWire {
     target_bootstrap: Option<TargetFrameBootstrap>,
     #[serde(default, skip_serializing_if = "is_false")]
     confounded: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cluster_bootstrap: Option<TargetClusterBootstrap>,
 }
 
 fn is_false(value: &bool) -> bool { !*value }
@@ -139,11 +144,16 @@ fn lower_outer(
     source: &GraphImputationSource, target: &KernelTransportStandardization,
     quantity: &ScientificQuantity, decision: &DecisionContract,
     target_bootstrap: Option<TargetFrameBootstrap>, confounded: bool,
+    cluster_bootstrap: Option<&TargetClusterBootstrap>,
 ) -> Result<Arc<LoweredProgram>, Error> {
     if confounded { target.validate_confounded(source.parts())?; }
     else { target.validate(source.parts())?; }
     if target_bootstrap.is_some_and(|policy| !(40..=256).contains(&policy.replicates)) {
         return Err(Error::Invalid("target bootstrap needs 40 to 256 replicates"));
+    }
+    if let Some(policy) = cluster_bootstrap {
+        if target_bootstrap.is_some() { return Err(Error::Invalid("row and cluster bootstrap are exclusive")); }
+        policy.groups(target.rows())?;
     }
     check_quantity(source, target, quantity, decision)?;
     let target_digest = target.digest()?;
@@ -160,6 +170,10 @@ fn lower_outer(
     if let Some(policy) = target_bootstrap {
         writer.text(if confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE }).word(u64::from(policy.replicates)).word(policy.seed);
     }
+    if let Some(policy) = cluster_bootstrap {
+        writer.text(if confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE })
+            .bytes(&antecedent_io::to_cbor(policy)?);
+    }
     let question = writer.finish();
     let rows = source.parts().rows().saturating_add(target.rows()) as u64;
     let design = DesignShape::quoted(rows, source.parts().names.len() as u64, true);
@@ -169,7 +183,8 @@ fn lower_outer(
             kind: FunctionalKind::PolicyValue,
             outcome: Some(VariableId::from_raw(source.parts().outcome)), query: question,
         },
-        plan_id: Arc::from(if confounded && target_bootstrap.is_some() { CONFOUNDED_BOOTSTRAP_FEATURE }
+        plan_id: Arc::from(if cluster_bootstrap.is_some() { if confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE } }
+            else if confounded && target_bootstrap.is_some() { CONFOUNDED_BOOTSTRAP_FEATURE }
             else if confounded { CONFOUNDED_FEATURE }
             else if target_bootstrap.is_some() { BOOTSTRAP_FEATURE } else { FEATURE }),
         data: DataClassification::Tabular,
@@ -185,10 +200,12 @@ fn lower_outer(
         identifier: None, estimator: None,
         realization: Realization::GraphImputationV1,
         models: Arc::from([]), folds: None,
-        resampling: target_bootstrap.map(|policy| ResamplingPlan {
+        resampling: if let Some(policy) = cluster_bootstrap { Some(ResamplingPlan {
+            method: ResamplingMethod::Bootstrap, replicates: policy.replicates, unit: ResampleUnit::Cluster,
+        }) } else { target_bootstrap.map(|policy| ResamplingPlan {
             method: ResamplingMethod::Bootstrap, replicates: policy.replicates,
             unit: ResampleUnit::Row,
-        }),
+        }) },
         posterior: None, design, operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
@@ -216,7 +233,7 @@ fn lower_outer(
     // The empirical-frame fit runs once, followed by one complete fit and
     // transport per bootstrap replicate. Keep the repeated work visible in
     // the physical schedule; these operations execute sequentially.
-    let executions = 1 + target_bootstrap.map_or(0, |policy| policy.replicates);
+    let executions = 1 + cluster_bootstrap.map_or_else(|| target_bootstrap.map_or(0, |policy| policy.replicates), |policy| policy.replicates);
     for _ in 0..executions {
         operators.push(PhysicalOperator::declare(PhysicalEffect::Fit)
             .build().map_err(|_| Error::Invalid("invalid mixed graph fit operator"))?);
@@ -225,7 +242,10 @@ fn lower_outer(
     }
     let physical = PhysicalLayer { operators: Arc::from(operators), design };
     Ok(Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::GraphImputationKernelTransportDecision,
+        cell: if cluster_bootstrap.is_some() {
+            if confounded { ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision }
+            else { ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision }
+        } else { ProgramCell::GraphImputationKernelTransportDecision },
         scientific, identification, statistical, evidence, physical,
         claim: ClaimDemand { uncertainty: UncertaintyReading::Posterior,
             kind: Some(ClaimKind::PolicyValue) },
@@ -249,12 +269,12 @@ pub fn compile_graph_imputation_kernel_transport_decision(
     {
         return Err(Error::Invalid("mixed target source-sample identity differs from retained producer"));
     }
-    let lowered = lower_outer(&source, &target, &quantity, &decision, None, false)?;
+    let lowered = lower_outer(&source, &target, &quantity, &decision, None, false, None)?;
     let native_source = GraphImputationSource::new(
         source.parts().clone(), *lowered.identity().as_bytes(),
     ).map_err(Error::Invalid)?.encode();
     Ok(CompiledGraphImputationKernelTransportDecision {
-        producer, target, quantity, decision, native_source, lowered, target_bootstrap: None, confounded: false,
+        producer, target, quantity, decision, native_source, lowered, target_bootstrap: None, cluster_bootstrap: None, confounded: false,
     })
 }
 
@@ -274,13 +294,13 @@ pub fn compile_graph_imputation_kernel_transport_target_bootstrap_decision(
     {
         return Err(Error::Invalid("mixed target source-sample identity differs from retained producer"));
     }
-    let lowered = lower_outer(&source, &target, &quantity, &decision, Some(policy), false)?;
+    let lowered = lower_outer(&source, &target, &quantity, &decision, Some(policy), false, None)?;
     let native_source = GraphImputationSource::new(
         source.parts().clone(), *lowered.identity().as_bytes(),
     ).map_err(Error::Invalid)?.encode();
     Ok(CompiledGraphImputationKernelTransportDecision {
         producer, target, quantity, decision, native_source, lowered,
-        target_bootstrap: Some(policy), confounded: false,
+        target_bootstrap: Some(policy), cluster_bootstrap: None, confounded: false,
     })
 }
 
@@ -301,13 +321,35 @@ pub fn compile_graph_imputation_confounded_kernel_transport_decision(
         || target.source_sample != producer.source_identity().to_hex() {
         return Err(Error::Invalid("confounded kernel source identity differs"));
     }
-    let lowered = lower_outer(&source, &target, &quantity, &decision, bootstrap, true)?;
+    let lowered = lower_outer(&source, &target, &quantity, &decision, bootstrap, true, None)?;
     let native_source = GraphImputationSource::new(source.parts().clone(), *lowered.identity().as_bytes())
         .map_err(Error::Invalid)?.encode();
     Ok(CompiledGraphImputationKernelTransportDecision {
         producer, target, quantity, decision, native_source, lowered,
-        target_bootstrap: bootstrap, confounded: true,
+        target_bootstrap: bootstrap, cluster_bootstrap: None, confounded: true,
     })
+}
+
+/// Compile independent-cluster mixed-target resampling with either supported
+/// pretreatment graph family. Each replicate reruns the complete schedule.
+///
+/// # Errors
+/// Invalid source, target, cluster policy, graph premise or decision.
+pub fn compile_graph_imputation_kernel_transport_cluster_bootstrap_decision(
+    producer: CompiledGraphImputation, target: KernelTransportStandardization,
+    quantity: ScientificQuantity, decision: DecisionContract, policy: TargetClusterBootstrap,
+    confounded: bool,
+) -> Result<CompiledGraphImputationKernelTransportDecision, Error> {
+    let source = GraphImputationSource::decode(producer.source_bytes()).map_err(Error::Invalid)?;
+    if source.program() != *producer.lowered().identity().as_bytes()
+        || target.source_sample != producer.source_identity().to_hex() {
+        return Err(Error::Invalid("cluster mixed-target source identity differs"));
+    }
+    let lowered = lower_outer(&source, &target, &quantity, &decision, None, confounded, Some(&policy))?;
+    let native_source = GraphImputationSource::new(source.parts().clone(), *lowered.identity().as_bytes())
+        .map_err(Error::Invalid)?.encode();
+    Ok(CompiledGraphImputationKernelTransportDecision { producer, target, quantity, decision, native_source,
+        lowered, target_bootstrap: None, cluster_bootstrap: Some(policy), confounded })
 }
 
 // SplitMix64 provides a stable, locally specified stream for portable replay.
@@ -356,17 +398,23 @@ impl CompiledGraphImputationKernelTransportDecision {
         let mut reading = if self.confounded {
             replay_confounded_kernel_transport_point(&self.native_source, &self.target, ctx)?
         } else { replay_kernel_transport_point(&self.native_source, &self.target, ctx)? };
-        if let Some(policy) = self.target_bootstrap {
+        let cluster_groups = self.cluster_bootstrap.as_ref().map(|policy| policy.groups(self.target.rows())).transpose()?;
+        let effective_bootstrap = self.target_bootstrap.or_else(|| self.cluster_bootstrap.as_ref().map(|policy|
+            TargetFrameBootstrap { replicates: policy.replicates, seed: policy.seed }));
+        if let Some(policy) = effective_bootstrap {
             // Account for the sampled column copy, row indices and pooled draws;
             // each nested replay separately admits its own fitting workspace.
-            let bootstrap_bytes = (self.target.rows() as u64)
+            let max_rows = cluster_groups.as_ref().map_or(self.target.rows(), |groups|
+                groups.len() * groups.iter().map(Vec::len).max().unwrap_or(0));
+            let bootstrap_bytes = (max_rows as u64)
                 .saturating_mul((self.target.columns.len() as u64).saturating_mul(2) + 1)
                 .saturating_mul(8)
                 .saturating_add(self.target.source_unit_ids.iter()
                     .chain(&self.target.target_unit_ids)
                     .map(|id| (id.len() as u64).saturating_add(24))
                     .fold(0_u64, u64::saturating_add))
-                .saturating_add(u64::from(policy.replicates).saturating_mul(8));
+                .saturating_add(u64::from(policy.replicates).saturating_mul(8))
+                .saturating_add(if cluster_groups.is_some() { (max_rows as u64).saturating_mul(128) } else { 0 });
             let _bootstrap_lease = ctx.acquire_admission(0, bootstrap_bytes)
                 .map_err(|_| Error::Invalid("target bootstrap admission refused"))?;
             let mut state = policy.seed;
@@ -374,7 +422,9 @@ impl CompiledGraphImputationKernelTransportDecision {
             let mut draw_state = antecedent_core::execution::mix64(policy.seed ^ 0x4452_4157_5f56_3201);
             let rows = self.target.rows();
             let mut draws = Vec::with_capacity(policy.replicates as usize);
-            let mut receipt = CanonicalWriter::new(if self.confounded {
+            let mut receipt = CanonicalWriter::new(if cluster_groups.is_some() {
+                "antecedent.graph_imputation_kernel_transport.target_cluster_bootstrap.execution.v1"
+            } else if self.confounded {
                 "antecedent.graph_imputation_confounded_kernel_transport.target_bootstrap.execution.v1"
             } else { "antecedent.graph_imputation_kernel_transport.target_bootstrap.execution.v2" });
             receipt.bytes(self.lowered.identity().as_bytes())
@@ -384,7 +434,9 @@ impl CompiledGraphImputationKernelTransportDecision {
                     return Err(Error::Invalid("target bootstrap execution cancelled"));
                 }
                 let mut sampled = self.target.clone();
-                let indices: Vec<usize> = (0..rows).map(|_| {
+                let indices: Vec<usize> = if let Some(groups) = &cluster_groups {
+                    bootstrap_cluster_rows(&mut state, groups)
+                } else { (0..rows).map(|_| {
                     // Rejection avoids modulo bias for arbitrary frame sizes.
                     let bound = rows as u64;
                     let threshold = bound.wrapping_neg() % bound;
@@ -392,11 +444,20 @@ impl CompiledGraphImputationKernelTransportDecision {
                         let word = bootstrap_word(&mut state);
                         if word >= threshold { break (word % bound) as usize; }
                     }
-                }).collect();
+                }).collect() };
                 for ((_, values), (_, original)) in sampled.columns.iter_mut().zip(&self.target.columns) {
                     *values = indices.iter().map(|&index| original[index]).collect();
                 }
-                // Unit IDs identify bootstrap slots; sampled indices are sealed below.
+                if cluster_groups.is_some() {
+                    let source_ids: std::collections::BTreeSet<&str> = sampled.source_unit_ids.iter().map(String::as_str).collect();
+                    let mut nonce = 0_u64;
+                    let prefix = loop {
+                        let candidate = format!("bootstrap-slot:{nonce}:");
+                        if !source_ids.iter().any(|id| id.starts_with(&candidate)) { break candidate; }
+                        nonce = nonce.checked_add(1).ok_or_else(|| Error::Invalid("bootstrap slot identity overflow"))?;
+                    };
+                    sampled.target_unit_ids = (0..indices.len()).map(|row| format!("{prefix}{row}")).collect();
+                }
                 let run = if self.confounded {
                     replay_confounded_kernel_transport_point(&self.native_source, &sampled, ctx)?
                 } else { replay_kernel_transport_point(&self.native_source, &sampled, ctx)? };
@@ -406,6 +467,13 @@ impl CompiledGraphImputationKernelTransportDecision {
                 receipt.word(u64::from(replicate));
                 for index in indices { receipt.word(index as u64); }
                 receipt.bytes(&run.receipt).word(draw_index as u64).word(draw.to_bits());
+                if cluster_groups.is_some() {
+                    let replicate_decision = compile_chain_decision(
+                        effect_chain(&run, &self.quantity), self.decision.clone(), ctx,
+                    )?.execute(ctx)?;
+                    receipt.bytes(replicate_decision.chain.identity().as_bytes())
+                        .bytes(replicate_decision.lowered_program_identity.as_bytes());
+                }
                 draws.push(draw);
             }
             let mean = draws.iter().sum::<f64>() / draws.len() as f64;
@@ -467,7 +535,15 @@ impl CompiledGraphImputationKernelTransportDecision {
             self.target.selection_targets, parts.imputations, parts.iterations,
             parts.posterior_draws, parts.prior_scale.to_bits(),
         );
-        let (feature, model, draws) = if let Some(bootstrap) = self.target_bootstrap {
+        let (feature, model, draws) = if let Some(bootstrap) = &self.cluster_bootstrap {
+            let mut sizes: Vec<_> = bootstrap.groups(self.target.rows())?.iter().map(Vec::len).collect();
+            sizes.sort_unstable();
+            functional.push_str(&format!(":source_n={}:target_n={}:target_bootstrap=independent_clusters:replicates={}",
+                parts.rows(), self.target.rows(), bootstrap.replicates));
+            functional.push_str(&format!(":cluster_sizes={sizes:?}"));
+            (if self.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE },
+                "mar_graph_mixture_kernel_target_cluster_bootstrap_v1", bootstrap.replicates)
+        } else if let Some(bootstrap) = self.target_bootstrap {
             functional.push_str(&format!(
                 ":source_n={}:target_n={}:target_bootstrap=iid_rows_unbiased_pool_v2:replicates={}:seed={}",
                 parts.rows(), self.target.rows(), bootstrap.replicates, bootstrap.seed,
@@ -521,7 +597,8 @@ impl CompiledGraphImputationKernelTransportDecision {
             effect_chain(&live.producer, &self.quantity), self.decision.clone(), ctx,
         )?;
         let wire = KernelTransportDecisionWire {
-            version: 1, required_feature: if self.confounded && self.target_bootstrap.is_some() { CONFOUNDED_BOOTSTRAP_FEATURE }
+            version: 1, required_feature: if self.cluster_bootstrap.is_some() { if self.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE } }
+                else if self.confounded && self.target_bootstrap.is_some() { CONFOUNDED_BOOTSTRAP_FEATURE }
                 else if self.confounded { CONFOUNDED_FEATURE }
                 else if self.target_bootstrap.is_some() { BOOTSTRAP_FEATURE } else { FEATURE }.into(),
             original_source: self.producer.source_bytes().to_vec(),
@@ -533,7 +610,7 @@ impl CompiledGraphImputationKernelTransportDecision {
             producer_receipt: live.producer.receipt,
             program_identity: *self.lowered.identity().as_bytes(),
             calibration: "not_measured".into(),
-            target_bootstrap: self.target_bootstrap, confounded: self.confounded,
+            target_bootstrap: self.target_bootstrap, confounded: self.confounded, cluster_bootstrap: self.cluster_bootstrap.clone(),
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
@@ -555,7 +632,11 @@ pub fn consume_graph_imputation_kernel_transport_decision(
         return Err(Error::Invalid("mixed target artifact exceeds its byte bound"));
     }
     let wire: KernelTransportDecisionWire = antecedent_io::from_cbor(bytes)?;
-    let expected_feature = if wire.confounded && wire.target_bootstrap.is_some() { CONFOUNDED_BOOTSTRAP_FEATURE }
+    if wire.cluster_bootstrap.is_some() && wire.target_bootstrap.is_some() {
+        return Err(Error::Invalid("stored bootstrap policies conflict"));
+    }
+    let expected_feature = if wire.cluster_bootstrap.is_some() { if wire.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE } }
+        else if wire.confounded && wire.target_bootstrap.is_some() { CONFOUNDED_BOOTSTRAP_FEATURE }
         else if wire.confounded { CONFOUNDED_FEATURE }
         else if wire.target_bootstrap.is_some() { BOOTSTRAP_FEATURE } else { FEATURE };
     if wire.version != 1 || wire.required_feature != expected_feature
@@ -591,7 +672,11 @@ pub fn consume_graph_imputation_kernel_transport_decision(
     let contract = DecisionContractArtifact::from_bytes(
         &wire.decision_artifact, &wire.decision_identity,
     )?;
-    let plan = if wire.confounded {
+    let plan = if let Some(policy) = wire.cluster_bootstrap {
+        compile_graph_imputation_kernel_transport_cluster_bootstrap_decision(
+            producer, wire.target, quantity, contract.contract().clone(), policy, wire.confounded,
+        )?
+    } else if wire.confounded {
         compile_graph_imputation_confounded_kernel_transport_decision(
             producer, wire.target, quantity, contract.contract().clone(), wire.target_bootstrap,
         )?
@@ -728,6 +813,29 @@ mod tests {
             bootstrap_producer, target.clone(), quantity.clone(), decision.clone(),
             TargetFrameBootstrap { replicates: 40, seed: 7 },
         ).unwrap();
+        let cluster_table = TabularData::from_f64_columns(
+            parts.names.iter().zip(&parts.columns).map(|(name, column)| (name.as_str(), column.as_slice())),
+        ).unwrap();
+        let cluster_producer = CompiledGraphImputation::compile(cluster_table, &GraphImputationSpec {
+            treatment: VariableId::from_raw(parts.treatment), outcome: VariableId::from_raw(parts.outcome),
+            support: parts.support, imputation: ImputationSpec::new().with_imputations(parts.imputations)
+                .with_iterations(parts.iterations).with_seed(parts.imputation_seed),
+            domains: Arc::from(parts.domains.clone()), posterior_draws: parts.posterior_draws,
+            prior_scale: parts.prior_scale, execution_seed: parts.execution_seed,
+        }, &ctx).unwrap();
+        let cluster = compile_graph_imputation_kernel_transport_cluster_bootstrap_decision(
+            cluster_producer, target.clone(), quantity.clone(), decision.clone(),
+            TargetClusterBootstrap { replicates: 40, seed: 29,
+                cluster_ids: (0..80).map(|row| format!("cluster-{}", row / 2)).collect() }, false,
+        ).unwrap();
+        let cluster_result = cluster.execute(&ctx).unwrap();
+        assert_eq!(cluster_result.producer.draws.len(), 40);
+        let cluster_bytes = cluster.export(&cluster_result, "kernel-cluster-target", &ctx).unwrap();
+        let cluster_replay = consume_graph_imputation_kernel_transport_decision(&cluster_bytes, cluster.lowered().identity(), &ctx).unwrap();
+        assert_eq!(cluster_result.producer.receipt, cluster_replay.producer.receipt);
+        let mut cluster_wire: KernelTransportDecisionWire = antecedent_io::from_cbor(&cluster_bytes).unwrap();
+        cluster_wire.cluster_bootstrap.as_mut().unwrap().cluster_ids[0].push('x');
+        assert!(consume_graph_imputation_kernel_transport_decision(&antecedent_io::to_cbor(&cluster_wire).unwrap(), cluster.lowered().identity(), &ctx).is_err());
         let plan = compile_graph_imputation_kernel_transport_decision(
             producer, target, quantity, decision,
         ).unwrap();
@@ -829,11 +937,16 @@ mod tests {
         let fixed = compile_graph_imputation_confounded_kernel_transport_decision(
             fixed_producer, target.clone(), quantity.clone(), decision.clone(), None,
         ).unwrap();
+        let cluster = compile_graph_imputation_kernel_transport_cluster_bootstrap_decision(
+            producer(), target.clone(), quantity.clone(), decision.clone(),
+            TargetClusterBootstrap { replicates: 40, seed: 19,
+                cluster_ids: (0..80).map(|row| format!("cluster-{}", row / 2)).collect() }, true,
+        ).unwrap();
         let sampled = compile_graph_imputation_confounded_kernel_transport_decision(
             producer(), target, quantity, decision, Some(TargetFrameBootstrap { replicates: 40, seed: 13 }),
         ).unwrap();
         assert_ne!(fixed.lowered().identity(), sampled.lowered().identity());
-        for plan in [&fixed, &sampled] {
+        for plan in [&fixed, &sampled, &cluster] {
             let candidate = plan.calibration_candidate(&ctx).unwrap();
             assert_eq!(candidate.result.calibration, "not_measured");
             assert_eq!(candidate.basis.validation.as_ref(), "none");
