@@ -1100,6 +1100,8 @@ pub(crate) enum ProgramCell {
     BridgeTransportDecision,
     /// Independent source-target trial-level bridge premise assessment.
     BridgeTransportPremiseAssessment,
+    /// Matched bridge validation and conditional predictive utility.
+    AssessedBridgeTransportDecision,
     /// Fitted source-target effect posterior and utility in one program.
     JointTransportEffectDecision,
     /// Fitted target outcome prediction and paired-world utility.
@@ -1140,6 +1142,7 @@ impl ProgramCell {
             Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
             Self::BridgeTransportDecision => "BridgeTransportDecision",
             Self::BridgeTransportPremiseAssessment => "BridgeTransportPremiseAssessment",
+            Self::AssessedBridgeTransportDecision => "AssessedBridgeTransportDecision",
             Self::JointTransportEffectDecision => "JointTransportEffectDecision",
             Self::JointTransportPredictiveDecision => "JointTransportPredictiveDecision",
             Self::TemporalPathTransport => "TemporalPathTransport",
@@ -1213,6 +1216,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::BridgeTransportPremiseAssessment
+            | ProgramCell::AssessedBridgeTransportDecision
             | ProgramCell::JointTransportEffectDecision
             | ProgramCell::JointTransportPredictiveDecision
             | ProgramCell::TemporalPathTransport
@@ -1243,6 +1247,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::BridgeTransportPremiseAssessment
+            | ProgramCell::AssessedBridgeTransportDecision
             | ProgramCell::JointTransportEffectDecision
             | ProgramCell::JointTransportPredictiveDecision
             | ProgramCell::TemporalPathTransport
@@ -1273,6 +1278,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::BridgeTransportPremiseAssessment
+            | ProgramCell::AssessedBridgeTransportDecision
             | ProgramCell::JointTransportEffectDecision
             | ProgramCell::JointTransportPredictiveDecision
             | ProgramCell::TemporalPathTransport

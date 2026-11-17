@@ -24,7 +24,11 @@ use antecedent_stats::normal_ppf;
 
 use super::*;
 use crate::analysis::bridge_transport_decision::{
-    compile_bridge_transport_decision, consume_bridge_transport_decision,
+    compile_assessed_bridge_transport_decision, compile_bridge_transport_decision,
+    consume_assessed_bridge_transport_decision, consume_bridge_transport_decision,
+};
+use crate::analysis::bridge_transport_premise_assessment::{
+    BridgeTransportPremiseAssessmentRequest, compile_bridge_transport_premise_assessment,
 };
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
@@ -176,6 +180,73 @@ fn predictive_transport_bridge_and_nonlinear_utility_compile_together() {
         &bytes, plan.lowered().identity(), &ctx,
     ).expect("independent bridge and decision replay");
     assert_eq!(replay.decision.decision, result.decision.decision);
+}
+
+#[test]
+#[ignore = "source-only matched validation and decision replay; scientific records are unearned"]
+fn matched_trial_validation_and_bridge_decision_replay_together() {
+    let trials = |offset: f64| TrialLevelValidation {
+        trials: (0..20).map(|index| {
+            let x = -1.0 + 2.0 * index as f64 / 19.0;
+            TrialEffectPair { surrogate_effect: x,
+                terminal_effect: 0.5 + 2.0 * x + offset
+                    + (if index % 2 == 0 { 0.01 } else { -0.01 }),
+            }
+        }).collect(),
+        min_trials: 3, min_r_squared: 0.0,
+    };
+    let source = trials(0.0);
+    let premise = TransportabilityPremise {
+        id: "validation-to-target".into(),
+        statement: "trial surrogate relation transfers".into(),
+        established_in: BridgeScope {
+            population_id: "validation-adults".into(), regime_id: "do(t=1)".into(),
+        },
+        applies_to: BridgeScope {
+            population_id: "adults".into(), regime_id: "do(t=1)".into(),
+        },
+        evidence: Some("independent-target-validation".into()),
+    };
+    let mut declaration = contract(BridgeMapping::TrialLevelLinear(source.clone()), None, None);
+    declaration.source_value = ValueKind::PredictiveLaw;
+    declaration.target_value = ValueKind::PredictiveLaw;
+    declaration.evidence_scope = premise.established_in.clone();
+    declaration.transport = Some(premise.clone());
+    let outcome = declaration.target.quantity.clone();
+    let decision = DecisionContract {
+        actions: vec![DecisionAction {
+            id: "use-bridge".into(), kind: ActionKind::External,
+            inputs: vec![outcome], utility: UtilityExpr::Input(0),
+        }],
+        utility_units: "score".into(),
+        criterion: DecisionCriterion::PosteriorExpectedUtility,
+        constraints: Vec::new(), target_population: "adults".into(),
+        horizon: 0, structural_policy: StructuralPolicy::RequireInvariantBestAction,
+    };
+    let ctx = ExecutionContext::for_tests(43);
+    let assessment = compile_bridge_transport_premise_assessment(
+        BridgeTransportPremiseAssessmentRequest {
+            premise, source, target: trials(0.05),
+            source_trial_ids: (0..20).map(|i| format!("source-trial-{i}")).collect(),
+            target_trial_ids: (0..20).map(|i| format!("target-trial-{i}")).collect(),
+            surrogate_grid: vec![-0.8, 0.0, 0.8], equivalence_margin: 0.2,
+        },
+    ).unwrap();
+    let bridge = compile_bridge_transport_decision(
+        declaration, draws_table(64, 1.0, 0.3, DistributionMeaningWire::PosteriorPredictive),
+        11, decision,
+    ).unwrap();
+    let plan = compile_assessed_bridge_transport_decision(assessment, bridge).unwrap();
+    assert_eq!(plan.plan_view().route().as_str(), "AssessedBridgeTransportDecision");
+    let result = plan.execute(&ctx).unwrap();
+    assert!(result.assessment.equivalence_screen_passed);
+    assert_eq!(result.assessment.calibration, "not_measured");
+    let bytes = plan.export(&result, "assessed-bridge-decision", &ctx).unwrap();
+    let replay = consume_assessed_bridge_transport_decision(
+        &bytes, result.lowered_program_identity, &ctx,
+    ).unwrap();
+    assert_eq!(replay.assessment, result.assessment);
+    assert_eq!(replay.bridge.decision.decision, result.bridge.decision.decision);
 }
 
 fn uncertain() -> BridgeContract {

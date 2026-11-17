@@ -208,6 +208,8 @@ macro_rules! route_lowerings {
             /// Checked bridge transport and predictive utility.
             BridgeTransportDecision,
             BridgeTransportPremiseAssessment,
+            /// Matched bridge validation and conditional predictive utility.
+            AssessedBridgeTransportDecision,
             /// Fitted source-target effect posterior and utility.
             JointTransportEffectDecision,
             JointTransportPredictiveDecision,
@@ -249,6 +251,7 @@ macro_rules! route_lowerings {
                     Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
                     Self::BridgeTransportDecision => "BridgeTransportDecision",
                     Self::BridgeTransportPremiseAssessment => "BridgeTransportPremiseAssessment",
+                    Self::AssessedBridgeTransportDecision => "AssessedBridgeTransportDecision",
                     Self::JointTransportEffectDecision => "JointTransportEffectDecision",
                     Self::JointTransportPredictiveDecision => "JointTransportPredictiveDecision",
                     Self::TemporalPathTransport => "TemporalPathTransport",
@@ -284,6 +287,7 @@ macro_rules! route_lowerings {
                     Self::CyclicPosteriorActionDecision => RouteFamily::Cyclic,
                     Self::BridgeTransportDecision => RouteFamily::Structural,
                     Self::BridgeTransportPremiseAssessment => RouteFamily::Structural,
+                    Self::AssessedBridgeTransportDecision => RouteFamily::Structural,
                     Self::JointTransportEffectDecision => RouteFamily::Structural,
                     Self::JointTransportPredictiveDecision => RouteFamily::Structural,
                     Self::TemporalPathTransport => RouteFamily::Temporal,

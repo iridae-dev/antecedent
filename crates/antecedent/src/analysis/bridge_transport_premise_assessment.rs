@@ -470,6 +470,12 @@ impl CompiledBridgeTransportPremiseAssessment {
 pub fn consume_bridge_transport_premise_assessment(
     bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
 ) -> Result<BridgeTransportPremiseAssessmentResult, BridgeTransportPremiseAssessmentError> {
+    Ok(recompile_bridge_transport_premise_assessment(bytes, expected_program, ctx)?.1)
+}
+
+pub(crate) fn recompile_bridge_transport_premise_assessment(
+    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<(CompiledBridgeTransportPremiseAssessment, BridgeTransportPremiseAssessmentResult), BridgeTransportPremiseAssessmentError> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(invalid("bridge premise artifact exceeds its byte bound"));
     }
@@ -487,7 +493,7 @@ pub fn consume_bridge_transport_premise_assessment(
     if fingerprint(&live) != wire.result_fingerprint {
         return Err(invalid("bridge premise assessment differs on replay"));
     }
-    Ok(live)
+    Ok((plan, live))
 }
 
 #[cfg(test)]
