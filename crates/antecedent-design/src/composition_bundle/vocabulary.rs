@@ -23,6 +23,8 @@ pub enum NodeKind {
     TrialIpwTransportFit,
     /// A host-replayed graph-imputation transport fit and decision.
     GraphImputationTransportFit,
+    /// A host-replayed joint source-target effect fit and decision.
+    JointTransportEffectFit,
     /// An external claim.
     ExternalClaim,
     /// An attestation of an external claim.
@@ -73,6 +75,7 @@ named_variants! {
         CyclicPosteriorFit => "cyclic_posterior_fit",
         TrialIpwTransportFit => "trial_ipw_transport_fit",
         GraphImputationTransportFit => "graph_imputation_transport_fit",
+        JointTransportEffectFit => "joint_transport_effect_fit",
         ExternalClaim => "external_claim",
         Attestation => "attestation",
         EvidenceRelationship => "evidence_relationship",
@@ -102,7 +105,7 @@ impl NodeKind {
         match self {
             Self::CausalContract => CompositionStage::CausalContract,
             Self::ExecutionOrFit | Self::CyclicPosteriorFit | Self::TrialIpwTransportFit
-            | Self::GraphImputationTransportFit
+            | Self::GraphImputationTransportFit | Self::JointTransportEffectFit
             | Self::Distribution | Self::FrozenScores => {
                 CompositionStage::DistributionArtifact
             }

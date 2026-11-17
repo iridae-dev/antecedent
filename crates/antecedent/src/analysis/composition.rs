@@ -241,6 +241,30 @@ impl BundleBuilder {
         Ok(())
     }
 
+    /// Add an independently reidentified and refitted joint transport effect producer.
+    ///
+    /// # Errors
+    /// The producer replay, graph id or embedded byte limit refuses.
+    pub fn add_joint_transport_effect_fit(
+        &mut self, node_id: &str, artifact: &[u8], program: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<(), JointTransportEffectBundleError> {
+        self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
+        let bytes = antecedent_io::to_cbor(&JointTransportEffectFitWire {
+            version: 2, required_feature: JOINT_TRANSPORT_EFFECT_FIT_FEATURE_V2.into(),
+            replay_seed: Some(ctx.rng.master_seed()), producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
+        }).map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > self.limits.max_embedded_bytes {
+            return Err(JointTransportEffectBundleError::Invalid("joint transport effect fit exceeds its embedded bound"));
+        }
+        let inspected = JointTransportEffectFitVerifier { ctx: ctx.clone() }
+            .verify(node_id, &bytes, &[])
+            .map_err(|failure| ChainBundleRecomputeError::Bundle(node_refused(node_id, &failure)))?;
+        self.nodes.push(BundleNode::embedded(node_id, NodeKind::JointTransportEffectFit,
+            &inspected.identity, bytes));
+        Ok(())
+    }
+
     /// Embed an artifact whose kind is read from its container.
     ///
     /// # Errors
@@ -1141,6 +1165,7 @@ pub fn native_fit_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
         .register(Box::new(CyclicPosteriorFitVerifier { ctx: ctx.clone() }))
         .register(Box::new(TrialIpwFitVerifier { ctx: ctx.clone() }))
         .register(Box::new(GraphImputationTransportFitVerifier { ctx: ctx.clone() }))
+        .register(Box::new(JointTransportEffectFitVerifier { ctx: ctx.clone() }))
 }
 
 /// A bundle terminal backed by a cyclic posterior fit. The producer artifact
@@ -2082,6 +2107,276 @@ pub fn consume_portable_graph_imputation_transport_node_bundle_recomputation(
     Ok(live)
 }
 
+const JOINT_TRANSPORT_EFFECT_FIT_FEATURE: &str = "joint_transport_effect_fit_bundle_node_v1";
+const JOINT_TRANSPORT_EFFECT_FIT_FEATURE_V2: &str = "joint_transport_effect_fit_bundle_node_v2";
+const JOINT_TRANSPORT_EFFECT_NODE_FEATURE: &str = "joint_transport_effect_node_bundle_recomputation_v1";
+const JOINT_TRANSPORT_EFFECT_CHAIN_FACT: &str = "joint_transport_effect_fit_chain_identity";
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct JointTransportEffectFitWire {
+    version: u32, required_feature: String,
+    producer_program: [u8; 32], artifact: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    replay_seed: Option<u64>,
+}
+
+struct JointTransportEffectFitVerifier { ctx: ExecutionContext }
+
+impl NodeVerifier for JointTransportEffectFitVerifier {
+    fn kind(&self) -> NodeKind { NodeKind::JointTransportEffectFit }
+
+    fn verify(&self, _node_id: &str, bytes: &[u8], _upstream: &[UpstreamNode<'_>])
+        -> Result<VerifiedNode, NodeFailure> {
+        let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(NodeFailure { stage: BundleStage::Oversized, reason: "joint transport effect fit node exceeds its bound".into() });
+        }
+        let wire: JointTransportEffectFitWire = antecedent_io::from_cbor(bytes)
+            .map_err(|error| fail(error.to_string()))?;
+        if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, JOINT_TRANSPORT_EFFECT_FIT_FEATURE, JOINT_TRANSPORT_EFFECT_FIT_FEATURE_V2) {
+            return Err(NodeFailure { stage: BundleStage::IncompatibleVersion, reason: "joint transport effect fit feature differs".into() });
+        }
+        let node_ctx = fit_node_context(&self.ctx, wire.replay_seed);
+        let producer = super::joint_transport_effect_decision::consume_joint_transport_effect_decision(
+            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &node_ctx,
+        ).map_err(|error| fit_node_failure(&node_ctx, &error))?;
+        let mut facts = std::collections::BTreeMap::new();
+        facts.insert(JOINT_TRANSPORT_EFFECT_CHAIN_FACT.into(), producer.decision.chain.identity().into());
+        Ok(VerifiedNode {
+            identity: CanonicalWriter::digest_bytes_hex("antecedent.joint_transport_effect_fit_node.v1", bytes),
+            facts, values: Vec::new(),
+        })
+    }
+}
+
+/// Consumer that independently reidentifies and refits joint transport effect nodes.
+/// It requires a runtime context; the generic consumer does not replay these nodes.
+#[must_use]
+pub fn joint_transport_effect_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
+    native_fit_bundle_consumer(ctx)
+}
+
+/// Refusal of a joint transport effect fit node or compiler-owned bundle terminal.
+#[derive(Debug, thiserror::Error)]
+pub enum JointTransportEffectBundleError {
+    /// Bundle structure, chain or codec refused.
+    #[error("joint transport effect bundle: {0}")]
+    Bundle(#[from] ChainBundleRecomputeError),
+    /// Invalid fit or terminal binding.
+    #[error("joint transport effect bundle: {0}")]
+    Invalid(&'static str),
+}
+
+/// A joint transport effect fit and live chain, compiled together before replay.
+#[derive(Clone, Debug)]
+pub struct CompiledJointTransportEffectNodeBundle {
+    chain: CompiledChainBundleRecomputation,
+    producer_node: String,
+    producer_program: SemanticDigest,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// Whole-route receipt; no sampling coverage or decision reliability is earned.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct JointTransportEffectNodeBundleReceipt {
+    /// The independently consumed graph and freshly executed chain.
+    pub bundle: ChainBundleRecomputationReceipt,
+    /// Joint source-target transport producer compiler identity.
+    pub producer_program_identity: [u8; 32],
+    /// Outer compiler identity.
+    pub lowered_program_identity: [u8; 32],
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PortableJointTransportEffectNodeBundleWire {
+    version: u32, required_feature: String, bundle_bytes: Vec<u8>,
+    bundle_identity: String, producer_node: String, terminal_node: String,
+    receipt: JointTransportEffectNodeBundleReceipt,
+}
+
+/// Compile an embedded joint transport effect fit and directly dependent chain terminal.
+/// The node graph, fit bytes and program identity enter a distinct outer
+/// six-layer program; compilation does not fit the raw evidence.
+///
+/// # Errors
+/// Missing node or edge, malformed fit declaration or chain compiler refusal.
+pub fn compile_joint_transport_effect_node_bundle_recomputation(
+    bundle: CompositionBundle, producer_node: &str, terminal_node: &str, ctx: &ExecutionContext,
+) -> Result<CompiledJointTransportEffectNodeBundle, JointTransportEffectBundleError> {
+    if !bundle.edges().iter().any(|edge| edge.from == producer_node && edge.to == terminal_node) {
+        return Err(JointTransportEffectBundleError::Invalid("joint transport effect fit must be a direct terminal dependency"));
+    }
+    let node = bundle.nodes().iter().find(|node| node.id == producer_node)
+        .ok_or(JointTransportEffectBundleError::Invalid("joint transport effect fit node is absent"))?;
+    if node.kind != NodeKind::JointTransportEffectFit {
+        return Err(JointTransportEffectBundleError::Invalid("producer is not a joint transport effect fit"));
+    }
+    let NodeSource::Embedded { bytes } = &node.source else {
+        return Err(JointTransportEffectBundleError::Invalid("joint transport effect fit is not embedded"));
+    };
+    let wire: JointTransportEffectFitWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, JOINT_TRANSPORT_EFFECT_FIT_FEATURE, JOINT_TRANSPORT_EFFECT_FIT_FEATURE_V2) {
+        return Err(JointTransportEffectBundleError::Invalid("joint transport effect fit feature differs"));
+    }
+    let producer_program = SemanticDigest::from_bytes(wire.producer_program);
+    let fit_digest = CanonicalWriter::digest_bytes("antecedent.joint_transport_effect_bundle.fit.v1", bytes);
+    let terminal = bundle.nodes().iter().find(|node| node.id == terminal_node)
+        .ok_or(JointTransportEffectBundleError::Invalid("joint transport effect terminal is absent"))?;
+    if terminal.kind != NodeKind::PropagationChain {
+        return Err(JointTransportEffectBundleError::Invalid("joint transport effect terminal is not a propagation chain"));
+    }
+    let NodeSource::Embedded { bytes } = &terminal.source else {
+        return Err(JointTransportEffectBundleError::Invalid("joint transport effect terminal is not embedded"));
+    };
+    let record = PropagationChainRecordWire::decode(bytes)
+        .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
+    let child = compile_propagation_chain(record, ctx).map_err(ChainBundleRecomputeError::Chain)?;
+    let chain = compile_chain_bundle_recomputation(bundle, terminal_node, child)?;
+    let mut writer = CanonicalWriter::new("antecedent.joint_transport_effect_bundle.question.v1");
+    writer.bytes(chain.lowered().identity().as_bytes()).text(producer_node)
+        .bytes(producer_program.as_bytes()).bytes(&fit_digest);
+    let query = writer.finish();
+    let mut scientific = chain.lowered().scientific().clone();
+    scientific.target = ProblemTarget::QueryFunctional {
+        kind: FunctionalKind::PropagatedChain, outcome: None, query,
+    };
+    scientific.plan_id = Arc::from("joint_transport_effect_node_bundle_recomputation.v1");
+    scientific.source_digest = Some(fit_digest);
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
+    let mut evidence = chain.lowered().evidence().clone();
+    let mut sources = evidence.sources.to_vec();
+    sources.push(EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(fit_digest) });
+    evidence.sources = Arc::from(sources);
+    let mut operators = Vec::new();
+    for effect in [PhysicalEffect::Read, PhysicalEffect::Fit] {
+        operators.push(PhysicalOperator::declare(effect).build().map_err(|_| {
+            JointTransportEffectBundleError::Invalid("joint transport effect fit physical operator cannot be lowered")
+        })?);
+    }
+    operators.extend_from_slice(chain.lowered().physical().operators());
+    let physical = PhysicalLayer {
+        operators: Arc::from(operators), design: chain.lowered().physical().design(),
+    };
+    let mut statistical = chain.lowered().statistical().clone();
+    statistical.realization = Realization::NestedFit {
+        producer_program, method: Arc::from("joint_transport_effect_decision_v1"), law: NestedFitLaw::Posterior,
+    };
+    let lowered = Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::JointTransportEffectNodeBundleRecomputation, scientific, identification,
+        statistical, evidence, physical,
+        claim: *chain.lowered().claim(),
+    }.finish());
+    Ok(CompiledJointTransportEffectNodeBundle { chain, producer_node: producer_node.into(), producer_program, lowered })
+}
+
+impl CompiledJointTransportEffectNodeBundle {
+    /// Complete distinct compiler identity for this joint transport effect fit and graph.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the outer program without fitting.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Reidentify and refit the source through the bundle consumer, then
+    /// independently execute its direct chain terminal.
+    ///
+    /// # Errors
+    /// A failed dependency, changed fitted chain or terminal.
+    pub fn execute(&self, ctx: &ExecutionContext) -> Result<JointTransportEffectNodeBundleReceipt, JointTransportEffectBundleError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let bundle = &self.chain.bundle;
+        let bytes = export_bundle(bundle, "joint-transport-effect-node-bundle").map_err(ChainBundleRecomputeError::Bundle)?;
+        let consumed = joint_transport_effect_bundle_consumer(&scoped).consume(
+            &bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
+        ).map_err(ChainBundleRecomputeError::Bundle)?;
+        if !consumed.all_replayed() {
+            return Err(JointTransportEffectBundleError::Invalid("joint transport effect bundle dependency did not replay"));
+        }
+        let fit = consumed.node(&self.producer_node).ok_or(JointTransportEffectBundleError::Invalid("joint transport effect fit disappeared"))?;
+        let terminal = bundle.nodes().iter().find(|node| node.id == self.chain.terminal_node)
+            .ok_or(JointTransportEffectBundleError::Invalid("joint transport effect terminal disappeared"))?;
+        let NodeSource::Embedded { bytes } = &terminal.source else {
+            return Err(JointTransportEffectBundleError::Invalid("joint transport effect terminal became a reference"));
+        };
+        let record = PropagationChainRecordWire::decode(bytes)
+            .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
+        record.consume(Some(&terminal.identity), &scoped)
+            .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
+        let live = self.chain.chain.execute(&scoped).map_err(ChainBundleRecomputeError::Chain)?;
+        if &record != live.record() || terminal.identity != live.identity()
+            || fit.facts.get(JOINT_TRANSPORT_EFFECT_CHAIN_FACT).map(String::as_str) != Some(live.identity())
+        {
+            return Err(JointTransportEffectBundleError::Invalid("refitted joint transport effect source and live chain differ"));
+        }
+        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
+            node_id: node.id.clone(), artifact_identity: node.identity.clone(),
+            chain_digest: node.chain_digest.clone(),
+        }).collect();
+        Ok(JointTransportEffectNodeBundleReceipt {
+            bundle: ChainBundleRecomputationReceipt {
+                bundle_identity: consumed.identity().into(), terminal_node: self.chain.terminal_node.clone(),
+                terminal_identity: live.identity().into(),
+                lowered_program_identity: *self.chain.lowered.identity().as_bytes(), dependencies,
+            },
+            producer_program_identity: *self.producer_program.as_bytes(),
+            lowered_program_identity: *self.lowered.identity().as_bytes(),
+        })
+    }
+
+    /// Export the graph and verified whole-route receipt for fresh replay.
+    ///
+    /// # Errors
+    /// Changed receipt, codec or byte-bound refusal.
+    pub fn export_portable(&self, receipt: &JointTransportEffectNodeBundleReceipt, ctx: &ExecutionContext)
+        -> Result<Vec<u8>, JointTransportEffectBundleError> {
+        if self.execute(ctx)? != *receipt { return Err(JointTransportEffectBundleError::Invalid("joint transport effect bundle receipt differs")); }
+        let bytes = antecedent_io::to_cbor(&PortableJointTransportEffectNodeBundleWire {
+            version: 1, required_feature: JOINT_TRANSPORT_EFFECT_NODE_FEATURE.into(),
+            bundle_bytes: export_bundle(&self.chain.bundle, "portable-joint-transport-effect-node-bundle")
+                .map_err(ChainBundleRecomputeError::Bundle)?,
+            bundle_identity: self.chain.bundle.identity().into(), producer_node: self.producer_node.clone(),
+            terminal_node: self.chain.terminal_node.clone(), receipt: receipt.clone(),
+        }).map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(JointTransportEffectBundleError::Invalid("portable joint transport effect bundle exceeds its bound"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Independently recompile and replay an embedded joint transport effect bundle.
+///
+/// # Errors
+/// Changed graph, fit, compiler, terminal or receipt.
+pub fn consume_portable_joint_transport_effect_node_bundle_recomputation(
+    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<JointTransportEffectNodeBundleReceipt, JointTransportEffectBundleError> {
+    if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+        return Err(JointTransportEffectBundleError::Invalid("portable joint transport effect bundle exceeds its bound"));
+    }
+    let wire: PortableJointTransportEffectNodeBundleWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1 || wire.required_feature != JOINT_TRANSPORT_EFFECT_NODE_FEATURE || wire.bundle_identity != expected_bundle {
+        return Err(JointTransportEffectBundleError::Invalid("portable joint transport effect bundle feature or identity differs"));
+    }
+    let bundle = CompositionBundle::from_bytes(&wire.bundle_bytes, expected_bundle, &BundleLimits::default())
+        .map_err(ChainBundleRecomputeError::Bundle)?;
+    let plan = compile_joint_transport_effect_node_bundle_recomputation(bundle, &wire.producer_node, &wire.terminal_node, ctx)?;
+    if plan.lowered().identity() != expected_program {
+        return Err(JointTransportEffectBundleError::Invalid("portable joint transport effect bundle compiler differs"));
+    }
+    let live = plan.execute(ctx)?;
+    if live != wire.receipt { return Err(JointTransportEffectBundleError::Invalid("portable joint transport effect bundle receipt differs")); }
+    Ok(live)
+}
+
 #[cfg(test)]
 mod compiler_recomputation_tests {
     use super::*;
@@ -2135,3 +2430,7 @@ mod compiler_recomputation_tests {
 #[cfg(test)]
 #[path = "composition_cyclic_bundle_tests.rs"]
 mod cyclic_bundle_tests;
+
+#[cfg(test)]
+#[path = "composition_joint_transport_bundle_tests.rs"]
+mod joint_transport_bundle_tests;

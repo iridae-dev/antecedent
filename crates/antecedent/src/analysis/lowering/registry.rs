@@ -235,6 +235,8 @@ macro_rules! route_lowerings {
             TrialIpwNodeBundleRecomputation,
             /// Bundle replay with a graph-imputation transport fit.
             GraphImputationTransportNodeBundleRecomputation,
+            /// Bundle replay with a joint source-target effect fit.
+            JointTransportEffectNodeBundleRecomputation,
             /// Checked connected components and a joint posterior decision.
             JointComponentPosteriorDecision,
             /// Bundle replay with a parameter-posterior decision terminal.
@@ -289,6 +291,7 @@ macro_rules! route_lowerings {
                     Self::CyclicPosteriorNodeBundleRecomputation => "CyclicPosteriorNodeBundleRecomputation",
                     Self::TrialIpwNodeBundleRecomputation => "TrialIpwNodeBundleRecomputation",
                     Self::GraphImputationTransportNodeBundleRecomputation => "GraphImputationTransportNodeBundleRecomputation",
+                    Self::JointTransportEffectNodeBundleRecomputation => "JointTransportEffectNodeBundleRecomputation",
                     Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
                     Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
@@ -338,6 +341,7 @@ macro_rules! route_lowerings {
                     Self::CyclicPosteriorNodeBundleRecomputation => RouteFamily::PropagationChain,
                     Self::TrialIpwNodeBundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputationTransportNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::JointTransportEffectNodeBundleRecomputation => RouteFamily::PropagationChain,
                     Self::JointComponentPosteriorDecision => RouteFamily::PropagationChain,
                     Self::PosteriorDecisionBundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,

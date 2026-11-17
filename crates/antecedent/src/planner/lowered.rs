@@ -1131,6 +1131,8 @@ pub(crate) enum ProgramCell {
     TrialIpwNodeBundleRecomputation,
     /// A live bundle with a graph-imputation transport fit.
     GraphImputationTransportNodeBundleRecomputation,
+    /// A live bundle with a joint source-target effect fit.
+    JointTransportEffectNodeBundleRecomputation,
     /// Checked connected components with a joint fitted action decision.
     JointComponentPosteriorDecision,
     /// Bundle recomputation of a parameter-posterior decision.
@@ -1182,6 +1184,7 @@ impl ProgramCell {
             Self::CyclicPosteriorNodeBundleRecomputation => "CyclicPosteriorNodeBundleRecomputation",
             Self::TrialIpwNodeBundleRecomputation => "TrialIpwNodeBundleRecomputation",
             Self::GraphImputationTransportNodeBundleRecomputation => "GraphImputationTransportNodeBundleRecomputation",
+            Self::JointTransportEffectNodeBundleRecomputation => "JointTransportEffectNodeBundleRecomputation",
             Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
             Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
             Self::GraphImputation => "GraphImputation",
@@ -1269,6 +1272,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorNodeBundleRecomputation
             | ProgramCell::TrialIpwNodeBundleRecomputation
             | ProgramCell::GraphImputationTransportNodeBundleRecomputation
+            | ProgramCell::JointTransportEffectNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
@@ -1313,6 +1317,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorNodeBundleRecomputation
             | ProgramCell::TrialIpwNodeBundleRecomputation
             | ProgramCell::GraphImputationTransportNodeBundleRecomputation
+            | ProgramCell::JointTransportEffectNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
@@ -1357,6 +1362,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorNodeBundleRecomputation
             | ProgramCell::TrialIpwNodeBundleRecomputation
             | ProgramCell::GraphImputationTransportNodeBundleRecomputation
+            | ProgramCell::JointTransportEffectNodeBundleRecomputation
             | ProgramCell::JointComponentPosteriorDecision
             | ProgramCell::PosteriorDecisionBundleRecomputation
             | ProgramCell::GraphImputation
