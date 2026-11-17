@@ -149,11 +149,42 @@ def test_a_named_prior_maps_by_name_onto_the_bayesian_design_and_equals_the_clos
             )
         ).effect
 
-    positional, named = fit(composed), fit(shuffled)
-    # The coordinate the design lacks is dropped and the order is the design's: the same prior.
-    assert named == pytest.approx(positional, abs=1e-9)
+    positional = fit(composed)
     closed = _ridge_effect(data, np.asarray(composed.mean), np.asarray(composed.variance))
     assert positional == pytest.approx(closed, abs=0.01)
+    assert fit(shuffled) == pytest.approx(closed, abs=0.01)
+
+
+def test_the_coordinates_of_a_named_prior_are_selected_by_name_in_the_design_order() -> None:
+    data = _confounded()
+    composed = compose_external_priors(_sources())
+    shuffled = compose_external_priors(
+        [
+            ExternalPriorSourceSpec(
+                s.id,
+                (s.mean[2], 7.0, s.mean[0], s.mean[1]),
+                (s.variance[2], 3.0, s.variance[0], s.variance[1]),
+                coefficient_names=("coef_z", "extra", "intercept", "coef_t"),
+            )
+            for s in _sources()
+        ],
+        baseline=([0.0] * 4, [100.0] * 4),
+    )
+
+    def fit(prior: object) -> float:
+        return require_success(
+            ant.analyze(
+                data,
+                graph=GRAPH,
+                query=QUERY,
+                inference=ant.Bayesian(backend="conjugate", n_draws=4000, prior_from=prior),
+                refute=False,
+                execution=ant.Execution(seed=7),
+            )
+        ).effect
+
+    # The coordinate the design lacks is dropped and the order is the design's: the same prior.
+    assert fit(shuffled) == pytest.approx(fit(composed), abs=1e-9)
 
 
 def test_a_named_prior_with_no_coordinate_of_the_design_is_refused() -> None:
@@ -184,8 +215,15 @@ def _outcome_sources(names: tuple[str, ...] | None) -> list[ExternalPriorSourceS
     ]
 
 
-@pytest.mark.parametrize("estimator", [DML, Aipw])
-def test_a_named_composed_prior_regularizes_the_outcome_nuisance(estimator: type) -> None:
+def test_a_named_composed_prior_regularizes_the_outcome_nuisance() -> None:
+    _named_composed_prior_regularizes_the_outcome_nuisance(DML)
+
+
+def test_a_named_composed_prior_regularizes_the_aipw_outcome_nuisance() -> None:
+    _named_composed_prior_regularizes_the_outcome_nuisance(Aipw)
+
+
+def _named_composed_prior_regularizes_the_outcome_nuisance(estimator: type) -> None:
     data = _confounded(seed=2)
     kwargs = {"bootstrap": 0} if estimator is Aipw else {}
     composed = compose_external_priors(_outcome_sources(("intercept", "coef_z")))
@@ -376,6 +414,20 @@ def test_the_rate_of_each_count_cell_is_the_gamma_poisson_posterior() -> None:
 
 
 def test_a_power_prior_discount_selected_from_the_data_is_a_count_prior() -> None:
+    _a_beta_binomial_power_prior_discount_is_selected_from_the_data()
+
+
+def test_a_power_prior_discount_selected_from_event_counts_is_a_gamma_prior() -> None:
+    selected = select_alpha_prior_gamma_poisson(
+        40, 20.0, [1, 2, 2, 1, 3, 2], base=GammaHyperparameters(1.0, 1.0), grid=[0.0, 1.0]
+    )
+    assert selected.family == "gamma" and selected.alpha_selection is not None
+    alpha = selected.alpha_selection.selected_alpha
+    assert alpha in (0.0, 1.0)
+    assert selected.hyper == GammaHyperparameters(1.0 + alpha * 40, 1.0 + alpha * 20.0)
+
+
+def _a_beta_binomial_power_prior_discount_is_selected_from_the_data() -> None:
     data = _cells()
     base = BetaHyperparameters(1.0, 1.0)
     cell = data["y"][data["x"] == 1.0] > 0.5
@@ -408,10 +460,6 @@ def test_a_power_prior_discount_selected_from_the_data_is_a_count_prior() -> Non
     assert term.posterior_mean == pytest.approx(
         posterior.alpha / (posterior.alpha + posterior.beta), abs=1e-12
     )
-    gamma = select_alpha_prior_gamma_poisson(
-        40, 20.0, [1, 2, 2, 1, 3, 2], base=GammaHyperparameters(1.0, 1.0), grid=[0.0, 1.0]
-    )
-    assert gamma.family == "gamma"
 
 
 def test_count_sources_compose_by_the_power_prior() -> None:

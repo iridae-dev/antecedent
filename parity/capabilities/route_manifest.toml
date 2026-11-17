@@ -4124,7 +4124,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AnomalyAttribution.Admg.gcm.fit.bayesian.bayesian"
@@ -4152,7 +4152,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.gcm.fit.bayesian", "estimate.gcm.fit.bayesian"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AnomalyAttribution.Cpdag.gcm.fit.frequentist"
@@ -4180,7 +4180,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AnomalyAttribution.Cpdag.gcm.fit.bayesian.bayesian"
@@ -4208,7 +4208,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.gcm.fit.bayesian", "estimate.gcm.fit.bayesian"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AnomalyAttribution.Dag.gcm.fit.frequentist"
@@ -4292,7 +4292,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AnomalyAttribution.Pag.gcm.fit.bayesian.bayesian"
@@ -4320,7 +4320,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.gcm.fit.bayesian", "estimate.gcm.fit.bayesian"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AnomalyAttribution.TemporalAdmg.gcm.fit.frequentist"
@@ -4572,7 +4572,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/lowering/static_response.rs"]
 provenance = ["estimate.response.riesz_ade", "estimate.response.riesz_ade"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AverageDerivative.Admg.response.riesz_ade.frequentist"
@@ -4600,7 +4600,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/lowering/static_response.rs"]
 provenance = ["estimate.response.riesz_ade", "estimate.response.riesz_ade"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AverageDerivative.Cpdag.response.riesz_ade.bayesian"
@@ -4628,7 +4628,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/lowering/static_response.rs"]
 provenance = ["estimate.response.riesz_ade", "estimate.response.riesz_ade"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AverageDerivative.Cpdag.response.riesz_ade.frequentist"
@@ -4656,7 +4656,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/lowering/static_response.rs"]
 provenance = ["estimate.response.riesz_ade", "estimate.response.riesz_ade"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AverageDerivative.Dag.response.riesz_ade.bayesian"
@@ -4740,7 +4740,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/lowering/static_response.rs"]
 provenance = ["estimate.response.riesz_ade", "estimate.response.riesz_ade"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AverageDerivative.Pag.response.riesz_ade.frequentist"
@@ -4768,7 +4768,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/lowering/static_response.rs"]
 provenance = ["estimate.response.riesz_ade", "estimate.response.riesz_ade"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AverageDerivative.TemporalAdmg.response.riesz_ade.bayesian"
@@ -6056,7 +6056,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_explicit_bayesian_none", "crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_explicit_bayesian_cheap", "crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_explicit_bayesian_full", "crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_accepted_bayesian_none"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/identity_contract.rs::supported_family_path_specific_frequentist_consumes"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AverageEffect.Dag.functional.effect.frequentist"
@@ -6084,7 +6084,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_explicit_frequentist_none", "crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_explicit_frequentist_cheap", "crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_explicit_frequentist_full", "crates/antecedent/tests/functional_effect_average_dag_known_truth.rs::dag_accepted_frequentist_none"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/identity_contract.rs::supported_family_path_specific_frequentist_consumes"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.AverageEffect.Dag.glm.adjustment.frequentist"
@@ -7260,7 +7260,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.gcm.attribution.bayesian", "estimate.gcm.attribution.bayesian"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ChangeAttribution.Admg.gcm.fit.frequentist"
@@ -7288,7 +7288,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ChangeAttribution.Cpdag.gcm.attribution.bayesian.bayesian"
@@ -7316,7 +7316,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.gcm.attribution.bayesian", "estimate.gcm.attribution.bayesian"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ChangeAttribution.Cpdag.gcm.fit.frequentist"
@@ -7344,7 +7344,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ChangeAttribution.Dag.gcm.attribution.bayesian.bayesian"
@@ -7428,7 +7428,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/checked_attribution.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.gcm.attribution.bayesian", "estimate.gcm.attribution.bayesian"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_attribution_route_evidence.rs::all_bayesian_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ChangeAttribution.Pag.gcm.fit.frequentist"
@@ -7456,7 +7456,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/class_attribution_known_truth.rs::class_attribution_executes_from_retained_plan_after_builder_is_dropped", "crates/antecedent/tests/class_attribution_known_truth.rs::class_graph_posterior_attribution_executes_from_retained_plan_after_builder_is_dropped"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ChangeAttribution.TemporalAdmg.gcm.attribution.bayesian.bayesian"
@@ -8072,7 +8072,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs::counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_validation_executes_from_the_retained_plan_without_the_builder"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.Counterfactual.Cpdag.gcm.fit.frequentist"
@@ -8100,7 +8100,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/attribution_path.rs", "crates/antecedent/src/analysis/execute/attribution_path/contrast_set.rs"]
 provenance = ["estimate.gcm.fit", "estimate.gcm.fit"]
 evidence = ["crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs::counterfactual_graph_posterior_executes_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder", "crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_validation_executes_from_the_retained_plan_without_the_builder"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/temporal_attribution_route_evidence.rs::temporal_attribution_frequentist_known_truth"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.Counterfactual.Dag.gcm.fit.bayesian"
@@ -8492,7 +8492,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.DirectionalDerivative.Admg.response.gam_derivative.frequentist"
@@ -8520,7 +8520,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.DirectionalDerivative.Cpdag.response.gam_derivative.bayesian"
@@ -8548,7 +8548,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.DirectionalDerivative.Cpdag.response.gam_derivative.frequentist"
@@ -8576,7 +8576,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.DirectionalDerivative.Dag.response.gam_derivative.bayesian"
@@ -8660,7 +8660,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.DirectionalDerivative.Pag.response.gam_derivative.frequentist"
@@ -8688,7 +8688,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.DirectionalDerivative.TemporalAdmg.response.gam_derivative.bayesian"
@@ -8996,7 +8996,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch/sealed.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.Elasticity.Admg.response.kennedy_dr.frequentist"
@@ -9024,7 +9024,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch/sealed.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.Elasticity.Cpdag.response.kennedy_dr.bayesian"
@@ -9500,7 +9500,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_interference.rs", "crates/antecedent/src/analysis/execute/transport_interference_path.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.interference.bayesian_gaussian", "estimate.interference.bayesian_gaussian"]
 evidence = ["crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_interference_lifecycle.rs::conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scoped"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.InterferenceQuery.Admg.interference.cluster_bayesian_bootstrap.bayesian"
@@ -9584,7 +9584,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_interference.rs", "crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/transport_interference_path.rs"]
 provenance = ["estimate.interference.ht_hajek", "estimate.interference.ht_hajek"]
 evidence = ["crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_interference_lifecycle.rs::bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scoped"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.InterferenceQuery.Admg.interference.observational_ipw.frequentist"
@@ -9668,7 +9668,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_interference.rs", "crates/antecedent/src/analysis/execute/transport_interference_path.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.interference.bayesian_gaussian", "estimate.interference.bayesian_gaussian"]
 evidence = ["crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_interference_lifecycle.rs::conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scoped"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.InterferenceQuery.Cpdag.interference.cluster_bayesian_bootstrap.bayesian"
@@ -9752,7 +9752,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_interference.rs", "crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/transport_interference_path.rs"]
 provenance = ["estimate.interference.ht_hajek", "estimate.interference.ht_hajek"]
 evidence = ["crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_interference_lifecycle.rs::bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scoped"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.InterferenceQuery.Cpdag.interference.observational_ipw.frequentist"
@@ -10004,7 +10004,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_interference.rs", "crates/antecedent/src/analysis/execute/transport_interference_path.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.interference.bayesian_gaussian", "estimate.interference.bayesian_gaussian"]
 evidence = ["crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_interference_lifecycle.rs::conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scoped"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.InterferenceQuery.Pag.interference.cluster_bayesian_bootstrap.bayesian"
@@ -10088,7 +10088,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_interference.rs", "crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/transport_interference_path.rs"]
 provenance = ["estimate.interference.ht_hajek", "estimate.interference.ht_hajek"]
 evidence = ["crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_interference_lifecycle.rs::bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scoped"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.InterferenceQuery.Pag.interference.observational_ipw.frequentist"
@@ -10396,7 +10396,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_level_refutation.rs", "crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/class_posterior_response.rs"]
 provenance = ["estimate.response.bayesian", "estimate.response.bayesian"]
 evidence = ["crates/antecedent/tests/admg_response_known_truth.rs::bayesian_response_level_matches_the_closed_form_on_admg_coordinates"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.InterventionResponse.Admg.response.intervention_gcomp.frequentist"
@@ -10424,7 +10424,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch/sealed.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.intervention_gcomp", "estimate.response.intervention_gcomp"]
 evidence = ["crates/antecedent/tests/admg_response_known_truth.rs::intervention_gcomp_level_matches_the_closed_form_on_admg_coordinates"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_graph_posterior_response_route_evidence.rs::graph_posterior_responses_are_sealed_for_every_atom_kind_and_inference"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.InterventionResponse.CoDetermined.cell.aipw.frequentist"
@@ -11824,7 +11824,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/identity_contract.rs::supported_family_path_specific_frequentist_consumes"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.NestedCounterfactualEffect.Dag.functional.effect.frequentist"
@@ -11852,7 +11852,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/admg_posterior.rs", "crates/antecedent/src/analysis/execute/admg_posterior_response.rs", "crates/antecedent/src/analysis/execute/class_counterfactual.rs"]
 provenance = ["estimate.functional_effect", "estimate.functional_effect"]
 evidence = ["crates/antecedent/tests/point_only_routes.rs::a_frequentist_dag_posterior_natural_direct_effect_publishes_the_point_and_no_interval", "crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/identity_contract.rs::supported_family_path_specific_frequentist_consumes"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.NestedCounterfactualEffect.Dag.mediation.linear.bayesian"
@@ -12664,7 +12664,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch/sealed.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.PointDerivative.Admg.response.kennedy_dr.frequentist"
@@ -12692,7 +12692,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch/sealed.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.PointDerivative.Cpdag.response.kennedy_dr.bayesian"
@@ -13588,7 +13588,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/bayesian_level_refutation.rs", "crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/class_posterior_response.rs"]
 provenance = ["estimate.response.bayesian", "estimate.response.bayesian"]
 evidence = ["crates/antecedent/tests/response_cells_known_truth.rs::bayesian_response_curve_matches_the_closed_form_levels"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_bayesian_static_dag_response_route_evidence.rs::bayesian_static_dag_responses_are_sealed_for_explicit_and_accepted_graphs"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ResponseCurve.Admg.response.kennedy_dr.frequentist"
@@ -13616,7 +13616,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch/sealed.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
 evidence = ["crates/antecedent/tests/response_cells_known_truth.rs::kennedy_dr_response_curve_matches_the_closed_form_levels", "crates/antecedent/tests/response_curve_validation_known_truth.rs::response_curve_validation_adjustable_admg_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ResponseCurve.Cpdag.response.bayesian.bayesian"
@@ -14092,7 +14092,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ResponseJacobian.Admg.response.gam_derivative.frequentist"
@@ -14120,7 +14120,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ResponseJacobian.Cpdag.response.gam_derivative.bayesian"
@@ -14148,7 +14148,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ResponseJacobian.Cpdag.response.gam_derivative.frequentist"
@@ -14176,7 +14176,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ResponseJacobian.Dag.response.gam_derivative.bayesian"
@@ -14260,7 +14260,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ResponseJacobian.Pag.response.gam_derivative.frequentist"
@@ -14288,7 +14288,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent-io-core/src/contract_section/verify.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs"]
 provenance = ["estimate.response.gam_derivative", "estimate.response.gam_derivative"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.ResponseJacobian.TemporalAdmg.response.gam_derivative.bayesian"
@@ -14596,7 +14596,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch/sealed.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.SemiElasticity.Admg.response.kennedy_dr.frequentist"
@@ -14624,7 +14624,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_static_response.rs", "crates/antecedent/src/analysis/execute/dispatch/sealed.rs", "crates/antecedent-io-core/src/contract_section/verify.rs"]
 provenance = ["estimate.response.kennedy_dr", "estimate.response.kennedy_dr"]
 evidence = ["crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::class_graph_posterior_derivative_routes_and_refuter_states_known_truth", "crates/antecedent/tests/class_derivative_known_truth.rs::class_derivative_routes_and_refuter_states_known_truth"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_bayesian_static_dag_derivative_coordinates_execute_retained_operations"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.SemiElasticity.Cpdag.response.kennedy_dr.bayesian"
@@ -16416,7 +16416,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/transport_interference_path.rs", "crates/antecedent/src/analysis/execute/checked_transport_trial.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.transport.trial_bayesian_bootstrap", "estimate.transport.trial_bayesian_bootstrap"]
 evidence = ["crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_transport_trial_route_evidence.rs::transport_trial_executes_from_retained_sid_proof_after_builder_drop"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.TransportQuery.Cpdag.transport.trial_ipw.frequentist"
@@ -16444,7 +16444,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_transport_trial.rs", "crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/transport_class.rs"]
 provenance = ["estimate.transport.trial_ipw", "estimate.transport.trial_ipw"]
 evidence = ["crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_transport_trial_route_evidence.rs::transport_trial_executes_from_retained_sid_proof_after_builder_drop"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.TransportQuery.Dag.transport.trial_bayesian_bootstrap.bayesian"
@@ -16528,7 +16528,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/transport_interference_path.rs", "crates/antecedent/src/analysis/execute/checked_transport_trial.rs", "crates/antecedent/src/analysis/execute/compile.rs"]
 provenance = ["estimate.transport.trial_bayesian_bootstrap", "estimate.transport.trial_bayesian_bootstrap"]
 evidence = ["crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_transport_trial_route_evidence.rs::transport_trial_executes_from_retained_sid_proof_after_builder_drop"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.TransportQuery.Pag.transport.trial_ipw.frequentist"
@@ -16556,7 +16556,7 @@ owning_module = "crates/antecedent/src/analysis/execute/compile.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_transport_trial.rs", "crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/transport_class.rs"]
 provenance = ["estimate.transport.trial_ipw", "estimate.transport.trial_ipw"]
 evidence = ["crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
-artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/checked_transport_trial_route_evidence.rs::transport_trial_executes_from_retained_sid_proof_after_builder_drop"]
+artifact_consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::replay_analysis_result", "crates/antecedent/tests/supported_compiler.rs::the_sharp_regression_discontinuity_route_recovers_the_jump_a_local_fit_measures"]
 
 [[method]]
 id = "method.TransportQuery.TemporalAdmg.transport.trial_bayesian_bootstrap.bayesian"
@@ -19930,7 +19930,7 @@ estimator = "unlisted"
 identifier = []
 lowering = []
 inference = "frequentist"
-design_time_model = "declaration-bound exposure-error corrections (outcome-specific or shared exposure misclassification, per-unit soft exposures, covariate-dependent detection, repeat codings as replicates), standalone and as measured-exposure declarations on the analysed variable"
+design_time_model = "declaration-bound exposure-error corrections (outcome-specific or shared exposure misclassification, per-unit soft exposures, covariate-dependent detection, repeat codings as replicates) called through antecedent.measurement_exposure"
 status = "capability"
 structures = []
 validations = []
@@ -19943,8 +19943,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent-estimate/src/measurement/exposure_routes.rs"
 implementation = ["crates/antecedent-estimate/src/measurement/exposure_routes.rs", "crates/antecedent-estimate/src/measurement/measured_exposure.rs", "crates/antecedent/src/analysis/measured_exposure.rs"]
 provenance = []
-evidence = ["crates/antecedent-estimate/tests/measurement_exposure_reference.rs", "crates/antecedent/tests/measured_exposure_known_truth.rs", "crates/antecedent/tests/measurement_exposure_calibration.rs", "crates/antecedent/tests/measured_exposure_calibration.rs"]
-artifact_consumer = "unlisted"
+evidence = ["crates/antecedent/tests/measured_exposure_known_truth.rs::shared_misclassification_recovers_the_planted_effect", "crates/antecedent/tests/measured_exposure_known_truth.rs::covariate_dependent_detection_recovers_the_planted_effect", "crates/antecedent/tests/measured_exposure_known_truth.rs::repeat_codings_recover_the_planted_effect_of_the_latent_facet", "crates/antecedent-estimate/tests/measurement_exposure_reference.rs::soft_exposure_substitution_and_rubin_match_exact_rational_arithmetic"]
+artifact_consumer = ["crates/antecedent/src/analysis/measured_exposure.rs", "crates/antecedent/tests/measured_exposure_known_truth.rs::the_exposure_draws_export_as_a_posterior_artifact_and_read_back"]
 
 [[method]]
 id = "method.measurement.static.bayesian"

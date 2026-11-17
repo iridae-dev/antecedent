@@ -156,6 +156,7 @@ DECLARED_KIND = {
     "gcm.simulate.temporal.frequentist": "design_aware_resampling",
     "gcm.simulate.temporal.bayesian": "posterior",
     "measurement.static.frequentist": "analytic",
+    "measurement.static.exposure": "analytic",
     "measurement.static.bayesian": "posterior",
     "measurement.temporal.frequentist": "analytic",
     "measurement.temporal.bayesian": "posterior",
@@ -467,6 +468,14 @@ EVIDENCE_OVERRIDE = {
         T
         + "attribute_mechanism_posterior.rs::a_temporal_rollout_steps_the_fitted_dynamics_and_carries_block_refit_uncertainty",
     ],
+    "measurement.static.exposure": [
+        T + "measured_exposure_known_truth.rs::shared_misclassification_recovers_the_planted_effect",
+        T
+        + "measured_exposure_known_truth.rs::covariate_dependent_detection_recovers_the_planted_effect",
+        T
+        + "measured_exposure_known_truth.rs::repeat_codings_recover_the_planted_effect_of_the_latent_facet",
+        "crates/antecedent-estimate/tests/measurement_exposure_reference.rs::soft_exposure_substitution_and_rubin_match_exact_rational_arithmetic",
+    ],
     "measurement.transport.pooled_differential": [
         "python/tests/test_pooled_differential_transport.py::test_heterogeneity_widens_and_a_target_sample_narrows_the_interval"
     ],
@@ -584,6 +593,10 @@ CONSUMER_OVERRIDE = {
     "measurement.static.frequentist": [
         "crates/antecedent-io-core/src/measurement_model_wire.rs",
         "crates/antecedent-estimate/tests/measurement_models.rs::artifact_replays_independently_and_refuses_semantic_mutation",
+    ],
+    "measurement.static.exposure": [
+        "crates/antecedent/src/analysis/measured_exposure.rs",
+        T + "measured_exposure_known_truth.rs::the_exposure_draws_export_as_a_posterior_artifact_and_read_back",
     ],
     "measurement.static.bayesian": [
         "crates/antecedent-io-core/src/measurement_model_wire.rs",
@@ -1546,6 +1559,10 @@ IMPLEMENTATION_EXTRA = {
     "association.descriptive.temporal": "crates/antecedent-estimate/src/association.rs",
     "bayesian.association.descriptive.static": "crates/antecedent-estimate/src/association.rs",
     "bayesian.association.descriptive.temporal": "crates/antecedent-estimate/src/association.rs",
+    "measurement.static.exposure": [
+        "crates/antecedent-estimate/src/measurement/measured_exposure.rs",
+        "crates/antecedent/src/analysis/measured_exposure.rs",
+    ],
 }
 
 

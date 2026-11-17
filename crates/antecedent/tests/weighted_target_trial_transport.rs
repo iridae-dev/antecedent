@@ -130,6 +130,22 @@ fn a_kernel_target_effect_equals_the_closed_form_weighted_effect() {
             "aipw {aipw} truth {truth}"
         );
     }
+    // The compiled study executes from its retained plan once its builder is gone.
+    let fx = fixture(12_000, 36);
+    let z = compiled::z_of(&fx);
+    let ctx = ExecutionContext::for_tests(37);
+    let builder = compiled::study(&fx, &z, Some(compiled::declaration(0.8, 1.0))).unwrap();
+    let mut prepared = builder.prepare(&ctx).unwrap();
+    drop(builder);
+    assert!(prepared.plan().lowered().is_some(), "a lowered plan");
+    let result = prepared.estimate(&compiled::table(&fx, &z), &ctx).unwrap();
+    let effect = result.estimate().as_effect().unwrap();
+    let truth = closed_form(1.0, 0.8);
+    assert!(
+        (effect.ate - truth).abs() < 4.0 * effect.se_analytic(),
+        "ate {} truth {truth}",
+        effect.ate
+    );
 }
 
 #[test]
@@ -216,7 +232,7 @@ mod compiled {
     const PROP: u32 = 4;
     const Z: u32 = 5;
 
-    fn table(fx: &Fixture, z: &[f64]) -> TabularData {
+    pub(super) fn table(fx: &Fixture, z: &[f64]) -> TabularData {
         let flag = |values: &[bool]| -> Vec<f64> { values.iter().map(|v| f64::from(*v)).collect() };
         let columns: Vec<(&str, Vec<f64>)> = vec![
             ("a", flag(&fx.treatment)),
@@ -242,7 +258,7 @@ mod compiled {
         TransportQuery::new(response, "trial", "target", [VariableId::from_raw(A)])
     }
 
-    fn study(
+    pub(super) fn study(
         fx: &Fixture,
         z: &[f64],
         target: Option<WeightedTargetDeclaration>,
@@ -266,11 +282,11 @@ mod compiled {
         builder.build()
     }
 
-    fn z_of(fx: &Fixture) -> Vec<f64> {
+    pub(super) fn z_of(fx: &Fixture) -> Vec<f64> {
         fx.data.float64_values(VariableId::from_raw(0)).unwrap()
     }
 
-    fn declaration(bandwidth: f64, centre: f64) -> WeightedTargetDeclaration {
+    pub(super) fn declaration(bandwidth: f64, centre: f64) -> WeightedTargetDeclaration {
         WeightedTargetDeclaration::kernel(
             TransportKernel::new(KernelFamily::Gaussian, bandwidth).unwrap(),
             vec![VariableId::from_raw(Z)],

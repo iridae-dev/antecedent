@@ -11461,6 +11461,34 @@ incomplete_reasons = []
 conflicts = []
 
 [[row]]
+id = "measurement.static.exposure#static.frequentist"
+kind = "counterpart_route"
+route = "measurement.static.exposure"
+method = "MeasurementCorrectedFunctional"
+design = "static"
+inference = "frequentist"
+target = "MeasurementCorrectedFunctional"
+compiler_execution = "crates/antecedent/tests/measured_exposure_known_truth.rs::shared_misclassification_recovers_the_planted_effect"
+status = "not_supported"
+scientific_claim = "unsupported"
+support_obligations = []
+uncertainty = "analytic"
+uncertainty_basis = "declared_and_corroborated"
+uncertainty_support = "not_measured"
+consumer = "crates/antecedent/src/analysis/measured_exposure.rs"
+decision_port = "unlisted"
+closure_kind = "delivered"
+scope_status = "mandatory"
+scope_list = ""
+gap = "none"
+family = "propagation_chain"
+representative = ""
+obligations = []
+acceptance = "complete"
+incomplete_reasons = []
+conflicts = []
+
+[[row]]
 id = "measurement.static.frequentist#static.frequentist"
 kind = "counterpart_route"
 route = "measurement.static.frequentist"
@@ -19523,31 +19551,3 @@ obligations = []
 acceptance = "complete"
 incomplete_reasons = []
 conflicts = []
-
-[[row]]
-id = "route:measurement.static.exposure"
-kind = "manifest_route"
-route = "measurement.static.exposure"
-method = ""
-design = ""
-inference = "Frequentist"
-target = "MeasurementCorrectedFunctional"
-compiler_execution = ""
-status = "capability"
-scientific_claim = "supported"
-support_obligations = []
-uncertainty = "none"
-uncertainty_basis = ""
-uncertainty_support = "not_measured"
-consumer = ""
-decision_port = "unlisted"
-closure_kind = ""
-scope_status = ""
-scope_list = ""
-gap = ""
-family = ""
-representative = ""
-obligations = []
-acceptance = "incomplete"
-incomplete_reasons = ["no artifact consumer is named", "no compiler execution is cited", "publishes no uncertainty and no test asserts that the result carries no interval", "route measurement.static.exposure has no counterpart row recording its static/temporal x frequentist/Bayesian quadrants"]
-conflicts = ["route measurement.static.exposure is in no conformance family"]

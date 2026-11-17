@@ -71,7 +71,7 @@ from typing import Any
 
 import numpy as np
 
-from . import _native
+from . import _native, _reason_details
 from ._artifact_protocol import container_bytes
 from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -484,7 +484,7 @@ class DetectedExposure(ExposureMeasurement):
             raise MeasurementModelRefusal(
                 {
                     "code": "measurement_not_identified",
-                    "detail": "measurement_model.insufficient_replicates",
+                    "detail": _reason_details.measurement_model.INSUFFICIENT_REPLICATES,
                     "message": "a partially declared monotone detection function identifies "
                     "bounds on the prevalence, not per-unit exposure draws",
                     "remedy": "Declare the detection function fully (logistic or table), or use "

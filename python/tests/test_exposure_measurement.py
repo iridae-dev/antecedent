@@ -22,6 +22,7 @@ import math
 import antecedent as ant
 import numpy as np
 import pytest
+from antecedent import _reason_details
 from antecedent import exposure_measurement as em
 from antecedent import measurement_exposure as mx
 from antecedent._posterior_artifact import consume_posterior
@@ -345,7 +346,7 @@ def test_an_unidentified_error_declaration_is_refused_before_any_draw():
     )
     with pytest.raises(MeasurementModelRefusal) as refusal:
         declaration.realize({"x": x, "y": y, "z": z}, outcome="y", covariates=("z",), draws=3)
-    assert refusal.value.detail == "measurement_model.youden_too_small"
+    assert refusal.value.detail == _reason_details.measurement_model.YOUDEN_TOO_SMALL
     assert refusal.value.code == "measurement_not_identified"
 
 
@@ -357,7 +358,9 @@ def test_an_outcome_specific_error_needs_a_binary_outcome():
     )
     with pytest.raises(MeasurementModelRefusal) as refusal:
         declaration.realize({"x": x, "y": y, "z": z}, outcome="y", draws=3)
-    assert refusal.value.detail == "measurement_model.binary_outcome_continuous_error"
+    assert refusal.value.detail == (
+        _reason_details.measurement_model.BINARY_OUTCOME_CONTINUOUS_ERROR
+    )
 
 
 def test_a_partially_declared_detection_function_gives_no_unit_draws():

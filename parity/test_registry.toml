@@ -23921,6 +23921,20 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_exposure_measurement.py"
 gates = ["inventory"]
+
+[[test]]
+id = "python-weighted-target-population"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_weighted_target_population.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-weighted-target-transport"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_weighted_target_transport.py"
+gates = ["inventory"]
 [[test]]
 id = "dml-outcome-prior-calibration"
 crate = "antecedent"
