@@ -53,3 +53,13 @@ ignored = true
 grid = true
 whole = true
 reason = "Raw IID Gaussian unit rows feed a complete assumption-envelope chain with fixed bias range [0,1]. Every outer replicate has an independent unit sample and the compiler generates 200 paired whole-chain bootstrap resamples. Joint coverage of the true set [1,2] is scored on the 60/120/240-row grid under the route's exact basis. No record is measured or earned."
+
+[[group]]
+label = "graph_narrow_cross_fitted_policy_calibration: graph_narrow_cross_fitted_policy_l95"
+package = "antecedent"
+target = "graph_narrow_cross_fitted_policy_calibration"
+tests = ["graph_narrow_cross_fitted_policy_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "A graph-checked three-fold learner sees binary x while nuisance models use x,w and known row assignment. The 500/1000/2000-row grid reruns all folds and scores a separately keyed 95% interval against the exact conditional mean of the realized fold actions on the empirical scored-row frame. Unstable fold policies remain in the experiment. No record is measured or earned."

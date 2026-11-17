@@ -233,6 +233,33 @@ pub struct HeldOutPolicyValueCandidate {
     pub slot: CalibrationSlotWire,
 }
 
+/// Separate unearned interval for the cross-fitted learning procedure's
+/// fold-policy average. It does not describe the value of one final policy.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CrossFittedPolicyValueInterval {
+    /// Lower endpoint of the two-sided interval.
+    pub lower: f64,
+    /// Upper endpoint of the two-sided interval.
+    pub upper: f64,
+    /// Nominal level, without an earned coverage claim.
+    pub level: f64,
+    /// Standing of the exact cross-fitted construction.
+    pub calibration: String,
+}
+
+/// One compiler execution and its separately keyed cross-fitted candidate.
+#[derive(Clone, Debug)]
+pub struct CrossFittedPolicyValueCandidate {
+    /// Ordinary cross-fitted report from the retained program.
+    pub report: ObservationalPolicyReportWire,
+    /// Wald candidate for the fold-policy average.
+    pub interval: CrossFittedPolicyValueInterval,
+    /// Exact construction and runtime scope.
+    pub basis: CalibrationBasisWire,
+    /// Matching scientific record status, if ever earned.
+    pub slot: CalibrationSlotWire,
+}
+
 /// Observational policy value.
 pub struct ObservationalPolicyValue;
 
@@ -691,6 +718,81 @@ impl CompiledObservationalPolicy {
             level: LEVEL, calibration: slot.status.as_str().into(),
         };
         Ok(HeldOutPolicyValueCandidate { report, interval, basis, slot })
+    }
+
+    /// Score the graph-checked cross-fitted learner and form a separate
+    /// candidate interval for the average value of its fold-specific policies.
+    /// The row-score SE assumes the policies stabilise across folds; coverage
+    /// must be measured for this exact learner and graph schedule.
+    ///
+    /// # Errors
+    /// A non-graph or non-cross-fitted route, malformed score or estimator
+    /// refusal.
+    pub fn cross_fitted_value_candidate(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
+        let graph = self.request.spec.causal_graph.as_ref()
+            .ok_or_else(|| policy_compiler_refusal("a cross-fit candidate requires the graph-checked route"))?;
+        let information = policy_feature_indices(&self.request)
+            .ok_or_else(|| policy_compiler_refusal("a cross-fit candidate requires a strict policy information subset"))?;
+        if self.request.spec.evaluation.as_deref() != Some("cross_fitted_learning") {
+            return Err(policy_compiler_refusal("a cross-fit candidate requires cross-fitted learning"));
+        }
+        let report = self.execute(ctx)?;
+        if report.evaluation != "cross_fitted_learning" || report.evaluation_rows == 0
+            || report.evaluation_rows as usize != report.row_index.len()
+            || report.row_index.len() != report.policy_actions.len()
+            || report.row_index.len() != report.scores.len()
+            || !report.value.is_finite() || !report.se.is_finite() || report.se <= 0.0
+        {
+            return Err(policy_compiler_refusal("cross-fitted policy score cannot form a candidate interval"));
+        }
+        const LEVEL: f64 = 0.95;
+        const Z: f64 = 1.959_963_984_540_054;
+        let mut writer = CanonicalWriter::new("antecedent.cross_fitted_policy_value.calibration_coordinate.v1");
+        writer.text(&graph.treatment).text(&graph.outcome)
+            .word(graph.nodes.len() as u64).word(graph.edges.len() as u64);
+        for node in &graph.nodes { writer.text(node); }
+        for (parent, child) in &graph.edges { writer.text(parent).text(child); }
+        for column in &self.request.adjustment { writer.text(&column.name); }
+        for index in information { writer.word(index as u64); }
+        writer.word(self.request.spec.folds.unwrap_or(DEFAULT_POLICY_FOLDS) as u64)
+            .text(self.request.spec.objective.as_deref().unwrap_or(""))
+            .word(self.request.spec.min_propensity.unwrap_or_default().to_bits());
+        for action in &report.support { writer.word(action.to_bits()); }
+        let graph_schedule = SemanticDigest::from_bytes(writer.finish()).to_hex();
+        let assignment = if self.request.spec.known_propensity_columns.is_some() {
+            "known_row_assignment"
+        } else if self.request.spec.known_propensity.is_some() {
+            "known_fixed_assignment"
+        } else { "estimated_assignment" };
+        let basis = CalibrationBasisWire {
+            key: CalibrationKeyWire {
+                validation: "not_applicable".into(),
+                query: "cross_fitted_learned_policy_value".into(),
+                graph_class: "declared_dag_checked_backdoor".into(),
+                structure: "fixed".into(), modality: "tabular".into(),
+                inference: "frequentist".into(),
+                estimator: "graph_narrow_policy_cross_fitted_v3".into(),
+                interval_method: "cross_fitted_policy_score_wald_v1".into(),
+                se_kind: "cross_fitted_influence_score".into(),
+                dependence: "fold_policy_stability_assumed".into(),
+                posterior: String::new(),
+                functional: format!("empirical_frame_fold_policy_average_value.{assignment}.{graph_schedule}"),
+                level: LEVEL, identification: "point_conditional_on_declared_dag".into(),
+            },
+            scope: CalibrationScopeWire {
+                row_count: report.evaluation_rows, replicates_ok: None,
+                posterior_draws: None, unidentified_mass: 0.0,
+            },
+        };
+        let slot = calibration_slot(&basis);
+        let interval = CrossFittedPolicyValueInterval {
+            lower: report.value - Z * report.se,
+            upper: report.value + Z * report.se,
+            level: LEVEL, calibration: slot.status.as_str().into(),
+        };
+        Ok(CrossFittedPolicyValueCandidate { report, interval, basis, slot })
     }
 
     /// Seal a report with the complete request for independent compiler replay.
