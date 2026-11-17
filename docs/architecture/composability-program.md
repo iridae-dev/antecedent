@@ -20,7 +20,7 @@ coverage or error control.
 | 2 | Critical | A new graph-imputation effect decision cell binds graph selection, missing-row imputation, child fitting and target effect utility through one compiler and portable replay; fitted transport-effect utility is a separate whole producer route | Join selection, imputation, fitting, transport and decision in one dependent schedule; measure final-coordinate coverage and decision reliability | None for a new route; high if component intervals are relabelled as whole-chain coverage |
 | 3 | High | A declared transported law can enter multi-action utility; a new joint Bayesian transport-effect decision program binds the raw selection diagram, source and target rows, shared Gaussian fit, overlap rule and effect utility, then independently refits and replays them | Extend producer-fitted decisions to outcome-predictive and other transport families; earn final decision reliability at each exact coordinate | None for the additive route; medium if current point transport claims are promoted to laws |
 | 4 | High | A new compiler cell replays the original and whole-chain bootstrap assumption envelopes at one terminal coordinate and forms a Bonferroni-split basic-bootstrap union; robust decisions remain conditional on the supplied draw table | Prespecify and earn coverage of the whole bootstrap schedule before calling the candidate interval calibrated or feeding it into a confidence decision | None for the additive route; high if an assumption range is treated as a confidence interval |
-| 5 | High | The graph-checked policy route separates a narrower policy information set from the full nuisance adjustment set in a version-3 artifact, while retaining held-out or cross-fit scoring | Calibrate the selection-aware standard error for the exact learner and evaluation schedule | None for the additive route; high if same-data scores acquire an unbiasedness claim |
+| 5 | High | The graph-checked policy route separates a narrower policy information set from the full nuisance adjustment set in a version-3 artifact, while retaining held-out or cross-fit scoring; a source-only held-out candidate and exact conditional-truth coverage harness are staged | Earn the held-out learner's coverage record, then extend evidence to cross-fit learning and other information sets | None for the additive route; high if same-data scores acquire an unbiasedness claim |
 | 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; a new effect decision cell consumes the retained mixture draws and replays the entire source schedule | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws; the new predictive bridge-transport-decision cell binds all three declarations in one program and replays both the bridge and utility | Estimate or validate the transport premise itself, rather than only carrying its declared evidence; measure any final decision reliability claim | None for a new route; high if a surrogate score is substituted for an endpoint |
 | 8 | Medium | Scalar and vector feedback compile one cyclic program; a new joint likelihood posterior carries fitted parameter dependence into connected predictive equilibria and paired decisions | Calibrate the connected equilibrium and generalize fitted component evidence beyond one specified model and covariance | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
@@ -195,6 +195,19 @@ from different policy schedules cannot be reused. The graph declaration and
 all rows remain bound to the compiler identity, and independent replay refits
 both model families. The held-out and cross-fit score standard errors still
 report `not_measured`; no selection-aware coverage record is earned.
+For strict narrower-information held-out learning, the compiled plan can now
+return a separate 95% score-Wald interval candidate, its exact calibration
+basis and registry slot from the same execution. It leaves the original point
+report unchanged. The ignored `graph_narrow_policy_calibration.rs` design uses
+two finite policy-information strata, wider nuisance adjustment, and known
+row-level assignment probabilities. The executed learner's action must be
+constant within each stratum, so the true population value of each learned
+rule is analytic conditional on its learning data; the coverage tally scores
+that truth against the reported interval. The prospective group is staged in
+`parity/pending_composability_calibration.toml`, outside the active roster. Its
+500/1000/2000-row grid, method and source review are fixed in source, but no
+measurement or record has been earned. The candidate's empirical domain does
+not by itself justify coverage for arbitrary outcome laws or cross-fit schedules.
 
 The joint measured-signal route multiplies each checked `P(m_i | C)` only under
 the explicit declaration that indicator errors are independent given the same

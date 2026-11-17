@@ -28,6 +28,10 @@ use antecedent_core::{
     PhysicalOperator, ScoreFrequentist, ScoreModel, SemanticDigest,
 };
 use antecedent_estimate::EstimationError;
+use antecedent_io::calibration::{
+    CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
+};
+use antecedent_io::contract_section::CalibrationSlotWire;
 use antecedent_graph::{Dag, DenseNodeId, DSeparationWorkspace};
 use antecedent_estimate::observational_policy::{
     DEFAULT_POLICY_FOLDS, KnownPropensity, ObservationalPolicyValue as Estimator,
@@ -199,6 +203,34 @@ pub struct ObservationalPolicyReportWire {
     pub scores: Vec<f64>,
     /// Calibration standing of the standard errors.
     pub calibration: String,
+}
+
+/// A candidate Wald interval for a held-out learned policy. Its coverage is
+/// reported separately from the point report and only through its exact
+/// calibration slot; the point report keeps its original standing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HeldOutPolicyValueInterval {
+    /// Lower endpoint of the two-sided interval.
+    pub lower: f64,
+    /// Upper endpoint of the two-sided interval.
+    pub upper: f64,
+    /// Nominal coverage level.
+    pub level: f64,
+    /// Registry standing of this exact construction.
+    pub calibration: String,
+}
+
+/// One compiler execution and its separately keyed interval candidate.
+#[derive(Clone, Debug)]
+pub struct HeldOutPolicyValueCandidate {
+    /// The ordinary policy report from the retained program.
+    pub report: ObservationalPolicyReportWire,
+    /// Wald interval of the learned policy's held-out value.
+    pub interval: HeldOutPolicyValueInterval,
+    /// Exact key and execution scope used for calibration matching.
+    pub basis: CalibrationBasisWire,
+    /// Matching record status, if a prospective record has been earned.
+    pub slot: CalibrationSlotWire,
 }
 
 /// Observational policy value.
@@ -584,6 +616,81 @@ impl CompiledObservationalPolicy {
         }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         ObservationalPolicyValue::evaluate(&self.request, &scoped)
+    }
+
+    /// Score the held-out learned policy once, then form a separate candidate
+    /// interval whose calibration key describes the exact learner, split and
+    /// narrower information route. No existing point-report claim is changed.
+    ///
+    /// # Errors
+    /// A non-graph or non-held-out route, malformed score, mismatched execution
+    /// context, or an estimator refusal.
+    pub fn held_out_value_candidate(
+        &self, ctx: &ExecutionContext,
+    ) -> Result<HeldOutPolicyValueCandidate, CausalError> {
+        let graph = self.request.spec.causal_graph.as_ref()
+            .ok_or_else(|| policy_compiler_refusal("a calibration candidate requires the graph-checked route"))?;
+        let information = policy_feature_indices(&self.request)
+            .ok_or_else(|| policy_compiler_refusal("a calibration candidate requires a strict policy information subset"))?;
+        if self.request.spec.evaluation.as_deref() != Some("held_out") {
+            return Err(policy_compiler_refusal("a calibration candidate requires held-out policy learning"));
+        }
+        let report = self.execute(ctx)?;
+        if report.evaluation != "held_out" || report.evaluation_rows == 0
+            || report.evaluation_rows as usize != report.row_index.len()
+            || report.row_index.len() != report.policy_actions.len()
+            || report.row_index.len() != report.scores.len()
+            || !report.value.is_finite() || !report.se.is_finite() || report.se <= 0.0
+        {
+            return Err(policy_compiler_refusal("held-out policy score cannot form a candidate interval"));
+        }
+        const LEVEL: f64 = 0.95;
+        const Z: f64 = 1.959_963_984_540_054;
+        let mut writer = CanonicalWriter::new("antecedent.held_out_policy_value.calibration_coordinate.v1");
+        writer.text(&graph.treatment).text(&graph.outcome)
+            .word(graph.nodes.len() as u64).word(graph.edges.len() as u64);
+        for node in &graph.nodes { writer.text(node); }
+        for (parent, child) in &graph.edges { writer.text(parent).text(child); }
+        for column in &self.request.adjustment { writer.text(&column.name); }
+        for index in information { writer.word(index as u64); }
+        writer.word(self.request.spec.folds.unwrap_or(DEFAULT_POLICY_FOLDS) as u64)
+            .word(self.request.spec.evaluation_fraction.unwrap_or_default().to_bits())
+            .text(self.request.spec.objective.as_deref().unwrap_or(""))
+            .word(self.request.spec.min_propensity.unwrap_or_default().to_bits());
+        for action in &report.support { writer.word(action.to_bits()); }
+        let graph_schedule = SemanticDigest::from_bytes(writer.finish()).to_hex();
+        let assignment = if self.request.spec.known_propensity_columns.is_some() {
+            "known_row_assignment"
+        } else if self.request.spec.known_propensity.is_some() {
+            "known_fixed_assignment"
+        } else { "estimated_assignment" };
+        let basis = CalibrationBasisWire {
+            key: CalibrationKeyWire {
+                validation: "not_applicable".into(),
+                query: "held_out_learned_policy_value".into(),
+                graph_class: "declared_dag_checked_backdoor".into(),
+                structure: "fixed".into(), modality: "tabular".into(),
+                inference: "frequentist".into(),
+                estimator: "graph_narrow_policy_held_out_v3".into(),
+                interval_method: "held_out_policy_score_wald_v1".into(),
+                se_kind: "held_out_influence_score".into(),
+                dependence: "independent_learning_evaluation_rows".into(),
+                posterior: String::new(),
+                functional: format!("policy_value.{assignment}.{graph_schedule}"),
+                level: LEVEL, identification: "point_conditional_on_declared_dag".into(),
+            },
+            scope: CalibrationScopeWire {
+                row_count: report.evaluation_rows, replicates_ok: None,
+                posterior_draws: None, unidentified_mass: 0.0,
+            },
+        };
+        let slot = calibration_slot(&basis);
+        let interval = HeldOutPolicyValueInterval {
+            lower: report.value - Z * report.se,
+            upper: report.value + Z * report.se,
+            level: LEVEL, calibration: slot.status.as_str().into(),
+        };
+        Ok(HeldOutPolicyValueCandidate { report, interval, basis, slot })
     }
 
     /// Seal a report with the complete request for independent compiler replay.

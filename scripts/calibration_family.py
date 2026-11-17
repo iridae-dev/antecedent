@@ -80,6 +80,7 @@ LABEL_REVIEW = {
 # approval for a new unlabelled constructor file.
 SOURCE_REVIEW = {
     "fitted_dependent_measurement_calibration.rs": "One source-fixed labelled joint-indicator validation design with two construct rows and four fixed joint cells per row. The 150/300/600 sample-size grid, Dirichlet prior, equal-tail 0.95 interval, outcome coordinate and analytic truth are fixed before sampling; the runtime calibration basis is checked against the declared record. No label or target is chosen from outcomes.",
+    "graph_narrow_policy_calibration.rs": "One source-fixed graph-checked held-out policy design with binary policy information x, wider nuisance adjustment x,w, known assignment probabilities and a 500/1000/2000-row grid. The executed action in each x stratum determines the exact conditional target before interval scoring; the 0.95 Wald method and runtime calibration basis are fixed. No label or target is chosen by observed coverage.",
     "conjugate_prior_calibration.rs": "Fixed conjugate-posterior and select-then-estimate power-prior procedures, closed-form or declared truths and one reported confidence level; the discount selection is part of each scored procedure, never chosen from empirical coverage.",
     "calibration_coverage.rs": "Runtime coverage consumer/tests only; no Monte Carlo hypothesis producer.",
     "adaptive_inference_calibration.rs": "Fixed declared adaptive procedure, arm truths, stopping rules and source-selected confidence levels; whole-procedure target is fixed.",

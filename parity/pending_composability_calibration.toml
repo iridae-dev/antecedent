@@ -13,3 +13,13 @@ ignored = true
 grid = true
 whole = true
 reason = "One fixed binary construct, a complete two-indicator joint error table, labelled validation samples at 150/300/600 observations per construct level, a fixed symmetric Dirichlet prior and a 95% equal-tail interval for P(Y=1 | assay_a=1, assay_b=1). The truth is analytic and the runtime calibration basis is checked in every replicate. This group is not measured or earned."
+
+[[group]]
+label = "graph_narrow_policy_calibration: graph_narrow_held_out_policy_l95"
+package = "antecedent"
+target = "graph_narrow_policy_calibration"
+tests = ["graph_narrow_held_out_policy_l95"]
+ignored = true
+grid = true
+whole = true
+reason = "A graph-checked held-out learned policy uses only binary x while outcome nuisance models use x and w and known row-level assignment probabilities. The 500/1000/2000-row grid has an analytic truth conditional on each learned two-stratum rule. The route's exact 95% Wald candidate, calibration basis and slot are checked before scoring. No record is measured or earned."
