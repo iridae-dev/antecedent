@@ -18,9 +18,15 @@ use antecedent_core::query::{
 };
 use antecedent_core::{
     ByteEstimates, CanonicalWriter, EvidenceCatalog, ExecutionContext,
-    PhysicalEffect, PhysicalOperator, QueryError, SemanticDigest, VariableId,
+    PhysicalEffect, PhysicalOperator, QueryError, ScoreFrequentist, ScoreModel,
+    SearchLimits, SemanticDigest, VariableId,
 };
-use antecedent_expr::ExactTransportData;
+use antecedent_estimate::counterfactual_transport_sampled::{
+    SampledTransportContrastEstimate, SampledTransportRequest,
+    estimate_sampled_counterfactual_transport_contrast,
+};
+use antecedent_estimate::EstimationError;
+use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
     CounterfactualTransportProblem, CounterfactualTransportQuery,
     CounterfactualTransportSource,
@@ -29,6 +35,13 @@ use antecedent_io::IoError;
 use antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits;
 use antecedent_io::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity;
 use antecedent_io::exact_law_wire::ExactLawWire;
+use antecedent_io::sampled_counterfactual_transport_artifact::{
+    SampledCountTableWire, SampledLimitsWire, SampledOverlapWire,
+    SampledUnseenRuleWire,
+};
+use antecedent_io::counterfactual_transport_wire::{
+    CounterfactualTransportProblemWire, CounterfactualTransportQueryWire,
+};
 use antecedent_io::transport_catalog_wire::EvidenceCatalogWire;
 use serde::{Deserialize, Serialize};
 
@@ -49,6 +62,7 @@ use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "temporal_path_transport_v1";
+const SAMPLED_FEATURE: &str = "sampled_temporal_path_transport_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 /// The time-indexed edge intervention whose target outcome probability is
@@ -85,6 +99,9 @@ pub enum TemporalPathTransportError {
     /// An exact law, identification or artifact step refused.
     #[error("temporal path transport: {0}")]
     Io(#[from] IoError),
+    /// Sampled count estimation or paired uncertainty refused.
+    #[error("temporal path sampled estimate: {0}")]
+    Estimate(#[from] EstimationError),
     /// A finite two-model witness proves the requested event is not transportable.
     #[error("the declared evidence does not transport a path world")]
     ProvenNonTransportable,
@@ -166,6 +183,20 @@ impl From<&CounterfactualTransportOptions> for TemporalPathOptionsWire {
             evaluation_operations: value.evaluation.operations,
             evaluation_depth: value.evaluation.depth,
             variable_names: value.variable_names.clone(),
+        }
+    }
+}
+
+impl TemporalPathOptionsWire {
+    fn to_options(&self) -> CounterfactualTransportOptions {
+        CounterfactualTransportOptions {
+            search: SearchLimits {
+                operations: self.search_operations, depth: self.search_depth,
+            },
+            evaluation: ExactEvaluationLimits {
+                operations: self.evaluation_operations, depth: self.evaluation_depth,
+            },
+            variable_names: self.variable_names.clone(),
         }
     }
 }
@@ -480,4 +511,318 @@ pub fn consume_temporal_path_transport(
     Ok(TemporalPathTransportResult {
         active, baseline, contrast, lowered_program_identity: lowered.identity(),
     })
+}
+
+/// The sampled evidence is embedded in the portable receipt. Its table order
+/// is canonical; the two path derivations are independently reidentified by
+/// the consumer before the paired estimator is rerun.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct SampledPathRequestWire {
+    tables: Vec<SampledCountTableWire>,
+    overlap: SampledOverlapWire,
+    unseen_rule: SampledUnseenRuleWire,
+    limits: SampledLimitsWire,
+}
+
+impl SampledPathRequestWire {
+    fn from_request(request: &SampledTransportRequest) -> Self {
+        let mut tables = request.tables.clone();
+        tables.sort_by_key(|table| table.key());
+        Self {
+            tables: tables.iter().map(SampledCountTableWire::from_table).collect(),
+            overlap: SampledOverlapWire::from_declaration(&request.overlap),
+            unseen_rule: SampledUnseenRuleWire::from_rule(request.unseen_rule),
+            limits: SampledLimitsWire::from_limits(&request.limits),
+        }
+    }
+
+    fn to_request(&self) -> Result<SampledTransportRequest, TemporalPathTransportError> {
+        let tables = self.tables.iter().map(SampledCountTableWire::to_table)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| IoError::Convert(error.to_string()))?;
+        let overlap = self.overlap.to_declaration()
+            .map_err(|error| IoError::Convert(error.to_string()))?;
+        let unseen_rule = self.unseen_rule.to_rule()
+            .map_err(|error| IoError::Convert(error.to_string()))?;
+        let request = SampledTransportRequest {
+            tables, overlap, unseen_rule, limits: self.limits.to_limits(),
+        };
+        if Self::from_request(&request).tables != self.tables {
+            return Err(TemporalPathTransportError::Invalid("sampled path tables are not canonical"));
+        }
+        Ok(request)
+    }
+}
+
+/// A compiler-owned sampled path contrast, including the two stored
+/// identification derivations and one count/overlap schedule.
+#[derive(Clone, Debug)]
+pub struct CompiledSampledTemporalPathTransport {
+    spec: TemporalPathSpec,
+    options: TemporalPathOptionsWire,
+    request: SampledTransportRequest,
+    active: PreparedCounterfactualTransport,
+    baseline: PreparedCounterfactualTransport,
+    lowered: Arc<LoweredProgram>,
+}
+
+/// A paired sampled contrast with an uncalibrated shared-data standard error.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SampledTemporalPathTransportResult {
+    /// The paired estimate; no coverage claim has been earned.
+    pub estimate: SampledTransportContrastEstimate,
+    /// Six-layer identity binding path, selection, counts and sampling design.
+    pub lowered_program_identity: SemanticDigest,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct SampledPathResultWire {
+    active_bits: u64,
+    baseline_bits: u64,
+    contrast_bits: u64,
+    standard_error_bits: Option<u64>,
+    withheld_reason: Option<String>,
+    evidence_identity: String,
+}
+
+impl SampledPathResultWire {
+    fn from_result(result: &SampledTemporalPathTransportResult) -> Self {
+        let estimate = &result.estimate;
+        Self {
+            active_bits: estimate.active.to_bits(),
+            baseline_bits: estimate.baseline.to_bits(),
+            contrast_bits: estimate.contrast.to_bits(),
+            standard_error_bits: estimate.standard_error.as_ref().map(|se| se.value.to_bits()),
+            withheld_reason: estimate.standard_error_withheld_reason.map(str::to_owned),
+            evidence_identity: estimate.evidence_identity.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct SampledPathArtifactWire {
+    version: u32,
+    required_feature: String,
+    program_identity: [u8; 32],
+    problem: CounterfactualTransportProblemWire,
+    active_query: CounterfactualTransportQueryWire,
+    catalog: EvidenceCatalogWire,
+    spec: TemporalPathSpec,
+    options: TemporalPathOptionsWire,
+    request: SampledPathRequestWire,
+    result: SampledPathResultWire,
+}
+
+fn lower_sampled(
+    problem: &CounterfactualTransportProblem,
+    active: &CounterfactualTransportQuery,
+    baseline: &CounterfactualTransportQuery,
+    catalog: &EvidenceCatalog,
+    request: &SampledPathRequestWire,
+    spec: &TemporalPathSpec,
+    options: &TemporalPathOptionsWire,
+) -> Result<Arc<LoweredProgram>, TemporalPathTransportError> {
+    let request_bytes = antecedent_io::to_cbor(request)?;
+    let catalog_bytes = antecedent_io::to_cbor(&EvidenceCatalogWire::from_catalog(catalog))?;
+    let spec_bytes = antecedent_io::to_cbor(spec)?;
+    let options_bytes = antecedent_io::to_cbor(options)?;
+    let mut source_writer = CanonicalWriter::new("antecedent.sampled_temporal_path.evidence.v1");
+    source_writer.bytes(&request_bytes);
+    let source_digest = source_writer.finish();
+    let mut writer = CanonicalWriter::new("antecedent.sampled_temporal_path.question.v1");
+    writer.text(&problem.canonical_text()).text(&active.canonical_text())
+        .text(&baseline.canonical_text()).bytes(&catalog_bytes)
+        .bytes(&spec_bytes).bytes(&options_bytes).bytes(&source_digest);
+    let query = writer.finish();
+    let design = DesignShape::quoted(request.tables.len() as u64,
+        problem.variable_count() as u64, true);
+    let scientific = ScientificProblem {
+        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::PathSpecific,
+            outcome: Some(VariableId::from_raw(spec.outcome)), query,
+        },
+        plan_id: Arc::from("sampled_temporal_path_transport.v1"),
+        data: DataClassification::Tabular,
+        graph_class: "time_ordered_selection_admg",
+        query_variables: Arc::from(problem.variables().to_vec()),
+        source_digest: Some(source_digest),
+        support_coordinate: None, supported: false, support_status: None,
+    };
+    let score = ScoreModel::new("paired_sampled_transport_delta")
+        .map_err(|_| TemporalPathTransportError::Invalid("sampled path score identity is invalid"))?;
+    let statistical = StatisticalProgram {
+        identifier: None, estimator: None,
+        realization: Realization::Frequentist(ScoreFrequentist::new(score)),
+        models: Arc::from([]), folds: None, resampling: None,
+        posterior: None, design, operators: Arc::from([]),
+    };
+    let evidence = EvidenceDecisionProgram {
+        sources: Arc::from([EvidenceSourceRef {
+            role: EvidenceRole::TransportSource, digest: Some(source_digest),
+        }]),
+        composition: Composition::Chained { stages: 3 },
+        decision: None, planning: None, chain: None,
+    };
+    let mut operators = Vec::new();
+    for effect in [PhysicalEffect::Read, PhysicalEffect::Intervene,
+        PhysicalEffect::Transport, PhysicalEffect::Fit] {
+        operators.push(PhysicalOperator::declare(effect).build().map_err(|_| {
+            TemporalPathTransportError::Invalid("sampled path operator cannot be lowered")
+        })?);
+    }
+    let physical = PhysicalLayer { operators: operators.into(), design };
+    Ok(Arc::new(StandaloneCompositionLoweredParts {
+        cell: ProgramCell::TemporalPathTransport,
+        scientific,
+        identification: IdentificationLayer::NonGraphical(Arc::new(
+            NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+        )),
+        statistical, evidence, physical,
+        claim: ClaimDemand { uncertainty: UncertaintyReading::Sampling,
+            kind: Some(ClaimKind::Point) },
+    }.finish()))
+}
+
+/// Compile time-checked path worlds and a shared sampled count schedule before
+/// numerical execution. The two derivations are identified under one selection
+/// catalog. The new standard error carries no inherited calibration.
+///
+/// # Errors
+/// Invalid time/path/evidence declarations or nontransportability.
+#[allow(clippy::too_many_arguments, reason = "one path, selection and sampled-evidence declaration")]
+pub fn compile_sampled_temporal_path_transport(
+    problem: CounterfactualTransportProblem,
+    target: Arc<str>, sources: Arc<[CounterfactualTransportSource]>,
+    catalog: EvidenceCatalog, request: SampledTransportRequest,
+    spec: TemporalPathSpec, options: CounterfactualTransportOptions,
+    ctx: &ExecutionContext,
+) -> Result<CompiledSampledTemporalPathTransport, TemporalPathTransportError> {
+    let catalog = catalog.canonicalized()?;
+    let (active_query, baseline_query) = queries(&problem, target, sources, &spec)?;
+    let options_wire = TemporalPathOptionsWire::from(&options);
+    let request_wire = SampledPathRequestWire::from_request(&request);
+    let lowered = lower_sampled(&problem, &active_query, &baseline_query,
+        &catalog, &request_wire, &spec, &options_wire)?;
+    let scoped = ctx.enter_lowered_dispatch(lowered.identity());
+    let prepare = |query| prepare_counterfactual_transport(
+        &problem, query, &catalog, None, &options, &scoped,
+    );
+    let active = match prepare(&active_query)? {
+        CounterfactualTransportPreparation::Identified(value) => *value,
+        CounterfactualTransportPreparation::ProvenNonTransportable(_) => {
+            return Err(TemporalPathTransportError::ProvenNonTransportable);
+        }
+    };
+    let baseline = match prepare(&baseline_query)? {
+        CounterfactualTransportPreparation::Identified(value) => *value,
+        CounterfactualTransportPreparation::ProvenNonTransportable(_) => {
+            return Err(TemporalPathTransportError::ProvenNonTransportable);
+        }
+    };
+    Ok(CompiledSampledTemporalPathTransport {
+        spec, options: options_wire, request, active, baseline, lowered,
+    })
+}
+
+impl CompiledSampledTemporalPathTransport {
+    /// The complete compiler program, including the sampled evidence identity.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+
+    /// Inspect the compiled route without estimating the contrast.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Evaluate both stored derivations and their shared-data delta gradient.
+    ///
+    /// # Errors
+    /// Missing or unsupported sampled evidence, budget or numerical refusal.
+    pub fn execute(&self, ctx: &ExecutionContext)
+        -> Result<SampledTemporalPathTransportResult, TemporalPathTransportError> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let estimate = estimate_sampled_counterfactual_transport_contrast(
+            self.active.derivation(), self.baseline.derivation(), &self.request, &scoped,
+        )?;
+        Ok(SampledTemporalPathTransportResult {
+            estimate, lowered_program_identity: self.lowered.identity(),
+        })
+    }
+
+    /// Seal the sampled request and result after a fresh compiler execution.
+    ///
+    /// # Errors
+    /// A changed result or artifact encoding refusal.
+    pub fn export(&self, result: &SampledTemporalPathTransportResult,
+        ctx: &ExecutionContext) -> Result<Vec<u8>, TemporalPathTransportError> {
+        let live = self.execute(ctx)?;
+        if live != *result {
+            return Err(TemporalPathTransportError::Invalid("sampled path result differs on replay"));
+        }
+        let derivation = self.active.derivation();
+        let wire = SampledPathArtifactWire {
+            version: 1, required_feature: SAMPLED_FEATURE.into(),
+            program_identity: *self.lowered.identity().as_bytes(),
+            problem: CounterfactualTransportProblemWire::from_problem(&derivation.problem),
+            active_query: CounterfactualTransportQueryWire::from_query(&derivation.query),
+            catalog: EvidenceCatalogWire::from_catalog(&derivation.catalog),
+            spec: self.spec.clone(), options: self.options.clone(),
+            request: SampledPathRequestWire::from_request(&self.request),
+            result: SampledPathResultWire::from_result(&live),
+        };
+        let bytes = antecedent_io::to_cbor(&wire)?;
+        if bytes.len() > MAX_ARTIFACT_BYTES {
+            return Err(TemporalPathTransportError::Invalid("sampled path artifact exceeds its bound"));
+        }
+        Ok(bytes)
+    }
+}
+
+/// Recompile both sampled path derivations and rerun the paired estimator from
+/// an embedded count schedule under an externally retained program identity.
+///
+/// # Errors
+/// Foreign feature, changed path/evidence/derivation, or changed result.
+pub fn consume_sampled_temporal_path_transport(
+    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+) -> Result<SampledTemporalPathTransportResult, TemporalPathTransportError> {
+    if bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(TemporalPathTransportError::Invalid("sampled path artifact exceeds its bound"));
+    }
+    let wire: SampledPathArtifactWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.required_feature != SAMPLED_FEATURE
+        || wire.program_identity != *expected_program.as_bytes() {
+        return Err(TemporalPathTransportError::Invalid("sampled path feature or program differs"));
+    }
+    let problem = wire.problem.to_problem()
+        .map_err(|error| IoError::Convert(error.to_string()))?;
+    let active_query = wire.active_query.to_query()
+        .map_err(|error| IoError::Convert(error.to_string()))?;
+    let catalog = wire.catalog.to_catalog()?;
+    let request = wire.request.to_request()?;
+    let compiled = compile_sampled_temporal_path_transport(
+        problem, Arc::clone(&active_query.target), Arc::clone(&active_query.sources),
+        catalog, request, wire.spec, wire.options.to_options(), ctx,
+    )?;
+    if compiled.lowered.identity() != expected_program
+        || compiled.active.derivation().query.canonical_text() != active_query.canonical_text()
+    {
+        return Err(TemporalPathTransportError::Invalid("sampled path program does not recompile"));
+    }
+    let live = compiled.execute(ctx)?;
+    let replayed = SampledPathResultWire::from_result(&live);
+    if replayed.active_bits != wire.result.active_bits
+        || replayed.baseline_bits != wire.result.baseline_bits
+        || replayed.contrast_bits != wire.result.contrast_bits
+        || replayed.standard_error_bits != wire.result.standard_error_bits
+        || replayed.withheld_reason != wire.result.withheld_reason
+        || replayed.evidence_identity != wire.result.evidence_identity {
+        return Err(TemporalPathTransportError::Invalid("sampled path estimate differs on replay"));
+    }
+    Ok(live)
 }
