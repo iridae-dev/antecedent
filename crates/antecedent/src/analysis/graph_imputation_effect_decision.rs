@@ -391,7 +391,7 @@ fn lower_paired_outer(
         plan_id: Arc::from("graph_imputation_paired_world_decision.v1"),
         data: DataClassification::Tabular,
         graph_class: "bounded_graph_imputation_paired_world_mixture",
-        query_variables: Arc::from([]), source_digest: Some(source),
+        query_variables: Arc::from([]), source_digest: Some(*source.as_bytes()),
         support_coordinate: None, supported: false, support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
@@ -405,7 +405,7 @@ fn lower_paired_outer(
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([EvidenceSourceRef {
-            role: EvidenceRole::ChainSource, digest: Some(source),
+            role: EvidenceRole::ChainSource, digest: Some(*source.as_bytes()),
         }]),
         composition: Composition::Chained { stages: 2 },
         decision: Some(DecisionProgram {
