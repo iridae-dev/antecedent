@@ -335,9 +335,14 @@ impl CompiledMarTransportDecision {
                 if draw_state >= threshold { break (draw_state % bound) as usize; }
             };
             let draw = run.draws[index];
+            let replicate_decision = compile_chain_decision(
+                effect_chain(&run, &self.quantity), self.decision.clone(), ctx,
+            )?.execute(ctx)?;
             receipt.word(u64::from(replicate)).word(indices.len() as u64);
             for index in indices { receipt.word(index as u64); }
-            receipt.bytes(&run.receipt).word(index as u64).word(draw.to_bits());
+            receipt.bytes(&run.receipt).word(index as u64).word(draw.to_bits())
+                .bytes(replicate_decision.chain.identity().as_bytes())
+                .bytes(replicate_decision.lowered_program_identity.as_bytes());
             draws.push(draw);
         }
         let mean = draws.iter().sum::<f64>() / draws.len() as f64;
