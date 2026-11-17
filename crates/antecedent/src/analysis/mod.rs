@@ -647,6 +647,7 @@ pub mod cyclic_action_world_decision;
 pub mod cyclic_posterior_action_decision;
 pub mod bridge_transport_decision;
 pub mod temporal_path_transport;
+pub mod sampling_assumption_union;
 pub mod cyclic_component_composition;
 pub mod cyclic_evidence;
 pub use cyclic_component_composition::{

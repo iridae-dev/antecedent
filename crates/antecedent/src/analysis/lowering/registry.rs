@@ -209,6 +209,8 @@ macro_rules! route_lowerings {
             BridgeTransportDecision,
             /// Target-population time-ordered path-specific transport.
             TemporalPathTransport,
+            /// Whole-chain resampling union around an assumption envelope.
+            SamplingAssumptionUnion,
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation,
             /// A graph-selection imputation composite.
@@ -238,6 +240,7 @@ macro_rules! route_lowerings {
                     Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
                     Self::BridgeTransportDecision => "BridgeTransportDecision",
                     Self::TemporalPathTransport => "TemporalPathTransport",
+                    Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
                     Self::BundleRecomputation => "BundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
@@ -266,6 +269,7 @@ macro_rules! route_lowerings {
                     Self::CyclicPosteriorActionDecision => RouteFamily::Cyclic,
                     Self::BridgeTransportDecision => RouteFamily::Structural,
                     Self::TemporalPathTransport => RouteFamily::Temporal,
+                    Self::SamplingAssumptionUnion => RouteFamily::PropagationChain,
                     Self::BundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,

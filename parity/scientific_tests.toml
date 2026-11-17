@@ -9,6 +9,13 @@
 # evidence_audit fails when a row's test or assertion does not exist.
 
 [[test]]
+evidence_test = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
+evidence_assertion = "whole_chain_bootstrap_union_replays_at_the_final_coordinate"
+kind = "reference"
+fixtures = []
+why = "The original and one hundred source-declared whole-chain bootstrap reruns share fixed assumption bounds and the same terminal coordinate; a Bonferroni-split basic-bootstrap candidate is independently replayed. The ignored source assertion is unearned and the interval remains not_measured."
+
+[[test]]
 evidence_test = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs"
 evidence_assertion = "joint_cyclic_parameter_and_disturbance_worlds_replay"
 kind = "reference"

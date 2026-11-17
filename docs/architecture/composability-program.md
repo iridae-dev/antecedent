@@ -19,7 +19,7 @@ coverage or error control.
 | 1 | Critical | A new joint cyclic posterior route samples fitted mechanisms from one likelihood, draws population disturbances from the specified covariance, solves each hard-clamp world on the same parameter and disturbance pair, then compiles nonlinear multi-action utility | Prespecify and earn final population-predictive reliability or coverage at the exact decision coordinate; the model and covariance remain assumptions | None for an additive route; high if parameter draws are reinterpreted as outcome risk |
 | 2 | Critical | Uncertainty survives discovery, imputation, estimation, transport and decision; individual and some composite routes exist | Lower the full selection, fitting and transport schedule with dependence; measure coverage at the final coordinate | None for a new route; high if component intervals are relabelled as whole-chain coverage |
 | 3 | High | Transported or synthesized evidence feeds a distributional decision; `compile_transported_law_chain_decision` now checks the transport support policy and compiles an aligned, equally weighted declared law with its receipt into multi-action utility | Lower producer fitting, target population, overlap and pooling dependence into that same program | None for a new route; medium if current point transport claims are promoted to laws |
-| 4 | High | Sampling error composes with an assumption range; the chain envelope keeps the axes distinct, and `chain_robust_decision_v1` compiles conservative multi-action dominance with nonlinear utilities and chance constraints | Compile a calibrated sampling union at the exact output coordinate | None for a new route; high if an assumption range is treated as a confidence interval |
+| 4 | High | A new compiler cell replays the original and whole-chain bootstrap assumption envelopes at one terminal coordinate and forms a Bonferroni-split basic-bootstrap union; robust decisions remain conditional on the supplied draw table | Prespecify and earn coverage of the whole bootstrap schedule before calling the candidate interval calibrated or feeding it into a confidence decision | None for the additive route; high if an assumption range is treated as a confidence interval |
 | 5 | High | The graph-checked policy route separates a narrower policy information set from the full nuisance adjustment set in a version-3 artifact, while retaining held-out or cross-fit scoring | Calibrate the selection-aware standard error for the exact learner and evaluation schedule | None for the additive route; high if same-data scores acquire an unbiasedness claim |
 | 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; the retained mixture draws now export an unverified typed effect law | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws; the new predictive bridge-transport-decision cell binds all three declarations in one program and replays both the bridge and utility | Estimate or validate the transport premise itself, rather than only carrying its declared evidence; measure any final decision reliability claim | None for a new route; high if a surrogate score is substituted for an endpoint |
@@ -96,8 +96,21 @@ maximin-over-structures criterion over those rowwise enclosures. Interval
 arithmetic bounds nonlinear utilities and chance constraints for every action;
 it reports a winner only when one certainly admissible action strictly
 dominates every possibly admissible competitor. The consumer replays the
-chain, contract and bounds. Neither route establishes a calibrated sampling
-union or confidence region; that compiler obligation remains open.
+chain, contract and bounds. Neither route by itself establishes a calibrated
+sampling confidence region.
+
+`sampling_assumption_union_v1` binds the original sampling-plus-assumption
+chain and each full-chain bootstrap rerun to one six-layer program. It requires
+the same terminal quantity and stage schedule and fixes every interval-valued
+assumption while allowing sampling rows to change. The weighted lower and
+upper means are recomputed through each chain compiler. A basic bootstrap
+one-sided bound for each endpoint uses half the nominal error budget, giving
+one conservative union candidate for the final identified set. The portable
+consumer recompiles all nested chains and compares the terminal result. The
+replicate generator and its sampling-unit design remain declared provenance;
+the route reports `not_measured` and cannot confer coverage on a robust
+decision until an exact-coordinate whole-schedule record is earned. Its
+ignored reference assertion is unearned.
 
 The scientific bridge's exported chain stage now carries its source-law
 meaning, output reading and target quantity. A predictive source remains

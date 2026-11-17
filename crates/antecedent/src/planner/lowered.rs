@@ -1100,6 +1100,8 @@ pub(crate) enum ProgramCell {
     BridgeTransportDecision,
     /// Target-population time-ordered path-specific transport.
     TemporalPathTransport,
+    /// Whole-chain resampling union around a fixed assumption envelope.
+    SamplingAssumptionUnion,
     /// Bundle replay with a live executable chain terminal.
     BundleRecomputation,
     /// A bounded graph-selection imputation composite.
@@ -1126,6 +1128,7 @@ impl ProgramCell {
             Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
             Self::BridgeTransportDecision => "BridgeTransportDecision",
             Self::TemporalPathTransport => "TemporalPathTransport",
+            Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
             Self::BundleRecomputation => "BundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
@@ -1192,6 +1195,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::TemporalPathTransport
+            | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1215,6 +1219,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::TemporalPathTransport
+            | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
@@ -1238,6 +1243,7 @@ impl LoweredProgram {
             | ProgramCell::CyclicPosteriorActionDecision
             | ProgramCell::BridgeTransportDecision
             | ProgramCell::TemporalPathTransport
+            | ProgramCell::SamplingAssumptionUnion
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::CategoricalPosteriorCandidate
