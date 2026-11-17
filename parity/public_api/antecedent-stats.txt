@@ -316,13 +316,33 @@ impl core::clone::Clone for antecedent_stats::measurement_error::BinaryErrorRate
 impl core::clone::Clone for antecedent_stats::measurement_error::CombinedImputations
 impl core::clone::Clone for antecedent_stats::measurement_error::ConfusionMatrix
 impl core::clone::Clone for antecedent_stats::measurement_error::CorrectedCategorical
+impl core::clone::Clone for antecedent_stats::measurement_error::CorrectedExposureAssociation
 impl core::clone::Clone for antecedent_stats::measurement_error::CorrectedLinear
 impl core::clone::Clone for antecedent_stats::measurement_error::CorrectedProportion
 impl core::clone::Clone for antecedent_stats::measurement_error::CorrectedRiskDifference
+impl core::clone::Clone for antecedent_stats::measurement_error::DetectionAdjusted
+impl core::clone::Clone for antecedent_stats::measurement_error::DetectionAnchor
+impl core::clone::Clone for antecedent_stats::measurement_error::DetectionBounds
+impl core::clone::Clone for antecedent_stats::measurement_error::DetectionDeclaration
+impl core::clone::Clone for antecedent_stats::measurement_error::DetectionDirection
+impl core::clone::Clone for antecedent_stats::measurement_error::DetectionFunction
+impl core::clone::Clone for antecedent_stats::measurement_error::DetectionPoint
 impl core::clone::Clone for antecedent_stats::measurement_error::ErrorVariance
+impl core::clone::Clone for antecedent_stats::measurement_error::ExposureErrorStructure
+impl core::clone::Clone for antecedent_stats::measurement_error::ExposureOutcomeCounts
+impl core::clone::Clone for antecedent_stats::measurement_error::FalsePositiveRate
+impl core::clone::Clone for antecedent_stats::measurement_error::LatentClassConstraints
+impl core::clone::Clone for antecedent_stats::measurement_error::LatentClassFit
+impl core::clone::Clone for antecedent_stats::measurement_error::LatentClassIdentification
+impl core::clone::Clone for antecedent_stats::measurement_error::LatentClassSettings
+impl core::clone::Clone for antecedent_stats::measurement_error::LatentClassStandardErrors
 impl core::clone::Clone for antecedent_stats::measurement_error::LinearMoments
 impl core::clone::Clone for antecedent_stats::measurement_error::MeasurementErrorError
 impl core::clone::Clone for antecedent_stats::measurement_error::ObservedClassSummary
+impl core::clone::Clone for antecedent_stats::measurement_error::ReliabilityBin
+impl core::clone::Clone for antecedent_stats::measurement_error::SoftExposureDraws
+impl core::clone::Clone for antecedent_stats::measurement_error::SoftExposureReliability
+impl core::clone::Clone for antecedent_stats::measurement_error::SoftExposureSubstitution
 impl core::clone::Clone for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::clone::Clone for antecedent_stats::measurement_error::ValidationSummary
 impl core::clone::Clone for antecedent_stats::measurement_error::VarianceComponents
@@ -392,6 +412,9 @@ impl core::cmp::Eq for antecedent_stats::layout_rules::LayoutRequest
 impl core::cmp::Eq for antecedent_stats::layout_rules::Product
 impl core::cmp::Eq for antecedent_stats::layout_rules::StorageLayout
 impl core::cmp::Eq for antecedent_stats::longitudinal_regime::RegimeKernelError
+impl core::cmp::Eq for antecedent_stats::measurement_error::DetectionDirection
+impl core::cmp::Eq for antecedent_stats::measurement_error::ExposureOutcomeCounts
+impl core::cmp::Eq for antecedent_stats::measurement_error::LatentClassIdentification
 impl core::cmp::Eq for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::cmp::PartialEq for antecedent_stats::BasisKind
 impl core::cmp::PartialEq for antecedent_stats::BetweenStudyMethod
@@ -608,13 +631,33 @@ impl core::cmp::PartialEq for antecedent_stats::measurement_error::BinaryErrorRa
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::CombinedImputations
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::ConfusionMatrix
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::CorrectedCategorical
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::CorrectedExposureAssociation
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::CorrectedLinear
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::CorrectedProportion
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::CorrectedRiskDifference
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::DetectionAdjusted
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::DetectionAnchor
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::DetectionBounds
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::DetectionDeclaration
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::DetectionDirection
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::DetectionFunction
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::DetectionPoint
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::ErrorVariance
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::ExposureErrorStructure
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::ExposureOutcomeCounts
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::FalsePositiveRate
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::LatentClassConstraints
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::LatentClassFit
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::LatentClassIdentification
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::LatentClassSettings
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::LatentClassStandardErrors
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::LinearMoments
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::MeasurementErrorError
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::ObservedClassSummary
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::ReliabilityBin
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::SoftExposureDraws
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::SoftExposureReliability
+impl core::cmp::PartialEq for antecedent_stats::measurement_error::SoftExposureSubstitution
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::ValidationSummary
 impl core::cmp::PartialEq for antecedent_stats::measurement_error::VarianceComponents
@@ -672,6 +715,8 @@ impl core::default::Default for antecedent_stats::adaptive_inference::ResourceRe
 impl core::default::Default for antecedent_stats::continuous_error::SimexConfig
 impl core::default::Default for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace
 impl core::default::Default for antecedent_stats::faer_backend::SolverTraffic
+impl core::default::Default for antecedent_stats::measurement_error::LatentClassConstraints
+impl core::default::Default for antecedent_stats::measurement_error::LatentClassSettings
 impl core::error::Error for antecedent_stats::ChainError
 impl core::error::Error for antecedent_stats::JointLawError
 impl core::error::Error for antecedent_stats::StatsError
@@ -943,13 +988,33 @@ impl core::fmt::Debug for antecedent_stats::measurement_error::BinaryErrorRates
 impl core::fmt::Debug for antecedent_stats::measurement_error::CombinedImputations
 impl core::fmt::Debug for antecedent_stats::measurement_error::ConfusionMatrix
 impl core::fmt::Debug for antecedent_stats::measurement_error::CorrectedCategorical
+impl core::fmt::Debug for antecedent_stats::measurement_error::CorrectedExposureAssociation
 impl core::fmt::Debug for antecedent_stats::measurement_error::CorrectedLinear
 impl core::fmt::Debug for antecedent_stats::measurement_error::CorrectedProportion
 impl core::fmt::Debug for antecedent_stats::measurement_error::CorrectedRiskDifference
+impl core::fmt::Debug for antecedent_stats::measurement_error::DetectionAdjusted
+impl core::fmt::Debug for antecedent_stats::measurement_error::DetectionAnchor
+impl core::fmt::Debug for antecedent_stats::measurement_error::DetectionBounds
+impl core::fmt::Debug for antecedent_stats::measurement_error::DetectionDeclaration
+impl core::fmt::Debug for antecedent_stats::measurement_error::DetectionDirection
+impl core::fmt::Debug for antecedent_stats::measurement_error::DetectionFunction
+impl core::fmt::Debug for antecedent_stats::measurement_error::DetectionPoint
 impl core::fmt::Debug for antecedent_stats::measurement_error::ErrorVariance
+impl core::fmt::Debug for antecedent_stats::measurement_error::ExposureErrorStructure
+impl core::fmt::Debug for antecedent_stats::measurement_error::ExposureOutcomeCounts
+impl core::fmt::Debug for antecedent_stats::measurement_error::FalsePositiveRate
+impl core::fmt::Debug for antecedent_stats::measurement_error::LatentClassConstraints
+impl core::fmt::Debug for antecedent_stats::measurement_error::LatentClassFit
+impl core::fmt::Debug for antecedent_stats::measurement_error::LatentClassIdentification
+impl core::fmt::Debug for antecedent_stats::measurement_error::LatentClassSettings
+impl core::fmt::Debug for antecedent_stats::measurement_error::LatentClassStandardErrors
 impl core::fmt::Debug for antecedent_stats::measurement_error::LinearMoments
 impl core::fmt::Debug for antecedent_stats::measurement_error::MeasurementErrorError
 impl core::fmt::Debug for antecedent_stats::measurement_error::ObservedClassSummary
+impl core::fmt::Debug for antecedent_stats::measurement_error::ReliabilityBin
+impl core::fmt::Debug for antecedent_stats::measurement_error::SoftExposureDraws
+impl core::fmt::Debug for antecedent_stats::measurement_error::SoftExposureReliability
+impl core::fmt::Debug for antecedent_stats::measurement_error::SoftExposureSubstitution
 impl core::fmt::Debug for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::fmt::Debug for antecedent_stats::measurement_error::ValidationSummary
 impl core::fmt::Debug for antecedent_stats::measurement_error::VarianceComponents
@@ -1125,8 +1190,19 @@ impl core::marker::Copy for antecedent_stats::layout_rules::StorageLayout
 impl core::marker::Copy for antecedent_stats::longitudinal_regime::RegimeKernelError
 impl core::marker::Copy for antecedent_stats::longitudinal_regime::RegimeValueSummary
 impl core::marker::Copy for antecedent_stats::measurement_error::BinaryErrorRates
+impl core::marker::Copy for antecedent_stats::measurement_error::CorrectedExposureAssociation
 impl core::marker::Copy for antecedent_stats::measurement_error::CorrectedProportion
 impl core::marker::Copy for antecedent_stats::measurement_error::CorrectedRiskDifference
+impl core::marker::Copy for antecedent_stats::measurement_error::DetectionAdjusted
+impl core::marker::Copy for antecedent_stats::measurement_error::DetectionAnchor
+impl core::marker::Copy for antecedent_stats::measurement_error::DetectionBounds
+impl core::marker::Copy for antecedent_stats::measurement_error::DetectionDirection
+impl core::marker::Copy for antecedent_stats::measurement_error::DetectionPoint
+impl core::marker::Copy for antecedent_stats::measurement_error::ExposureErrorStructure
+impl core::marker::Copy for antecedent_stats::measurement_error::ExposureOutcomeCounts
+impl core::marker::Copy for antecedent_stats::measurement_error::FalsePositiveRate
+impl core::marker::Copy for antecedent_stats::measurement_error::LatentClassIdentification
+impl core::marker::Copy for antecedent_stats::measurement_error::LatentClassSettings
 impl core::marker::Copy for antecedent_stats::measurement_error::ObservedClassSummary
 impl core::marker::Copy for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::marker::Copy for antecedent_stats::power::EquicorrelatedComparisons
@@ -1391,13 +1467,33 @@ impl core::marker::Freeze for antecedent_stats::measurement_error::BinaryErrorRa
 impl core::marker::Freeze for antecedent_stats::measurement_error::CombinedImputations [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::ConfusionMatrix [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::CorrectedCategorical [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::CorrectedExposureAssociation [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::CorrectedLinear [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::CorrectedProportion [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::CorrectedRiskDifference [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::DetectionAdjusted [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::DetectionAnchor [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::DetectionBounds [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::DetectionDeclaration [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::DetectionDirection [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::DetectionFunction [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::DetectionPoint [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::ErrorVariance [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::ExposureErrorStructure [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::ExposureOutcomeCounts [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::FalsePositiveRate [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::LatentClassConstraints [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::LatentClassFit [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::LatentClassIdentification [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::LatentClassSettings [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::LatentClassStandardErrors [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::LinearMoments [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::MeasurementErrorError [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::ObservedClassSummary [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::ReliabilityBin [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::SoftExposureDraws [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::SoftExposureReliability [auto]
+impl core::marker::Freeze for antecedent_stats::measurement_error::SoftExposureSubstitution [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Freeze for antecedent_stats::measurement_error::VarianceComponents [auto]
@@ -1672,13 +1768,33 @@ impl core::marker::Send for antecedent_stats::measurement_error::BinaryErrorRate
 impl core::marker::Send for antecedent_stats::measurement_error::CombinedImputations [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::ConfusionMatrix [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::CorrectedCategorical [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::CorrectedExposureAssociation [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::CorrectedLinear [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::CorrectedProportion [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::CorrectedRiskDifference [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::DetectionAdjusted [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::DetectionAnchor [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::DetectionBounds [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::DetectionDeclaration [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::DetectionDirection [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::DetectionFunction [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::DetectionPoint [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::ErrorVariance [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::ExposureErrorStructure [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::ExposureOutcomeCounts [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::FalsePositiveRate [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::LatentClassConstraints [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::LatentClassFit [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::LatentClassIdentification [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::LatentClassSettings [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::LatentClassStandardErrors [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::LinearMoments [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::MeasurementErrorError [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::ObservedClassSummary [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::ReliabilityBin [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::SoftExposureDraws [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::SoftExposureReliability [auto]
+impl core::marker::Send for antecedent_stats::measurement_error::SoftExposureSubstitution [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Send for antecedent_stats::measurement_error::VarianceComponents [auto]
@@ -1905,13 +2021,33 @@ impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::CombinedImputations
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::ConfusionMatrix
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::CorrectedCategorical
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::CorrectedExposureAssociation
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::CorrectedLinear
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::CorrectedProportion
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::CorrectedRiskDifference
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::DetectionAdjusted
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::DetectionAnchor
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::DetectionBounds
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::DetectionDeclaration
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::DetectionDirection
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::DetectionFunction
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::DetectionPoint
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::ErrorVariance
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::ExposureErrorStructure
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::ExposureOutcomeCounts
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::FalsePositiveRate
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::LatentClassConstraints
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::LatentClassFit
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::LatentClassIdentification
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::LatentClassSettings
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::LatentClassStandardErrors
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::LinearMoments
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::MeasurementErrorError
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::ObservedClassSummary
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::ReliabilityBin
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::SoftExposureDraws
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::SoftExposureReliability
+impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::SoftExposureSubstitution
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::TwoByTwoCounts
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::ValidationSummary
 impl core::marker::StructuralPartialEq for antecedent_stats::measurement_error::VarianceComponents
@@ -2186,13 +2322,33 @@ impl core::marker::Sync for antecedent_stats::measurement_error::BinaryErrorRate
 impl core::marker::Sync for antecedent_stats::measurement_error::CombinedImputations [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::ConfusionMatrix [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::CorrectedCategorical [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::CorrectedExposureAssociation [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::CorrectedLinear [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::CorrectedProportion [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::CorrectedRiskDifference [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::DetectionAdjusted [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::DetectionAnchor [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::DetectionBounds [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::DetectionDeclaration [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::DetectionDirection [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::DetectionFunction [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::DetectionPoint [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::ErrorVariance [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::ExposureErrorStructure [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::ExposureOutcomeCounts [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::FalsePositiveRate [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::LatentClassConstraints [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::LatentClassFit [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::LatentClassIdentification [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::LatentClassSettings [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::LatentClassStandardErrors [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::LinearMoments [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::MeasurementErrorError [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::ObservedClassSummary [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::ReliabilityBin [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::SoftExposureDraws [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::SoftExposureReliability [auto]
+impl core::marker::Sync for antecedent_stats::measurement_error::SoftExposureSubstitution [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Sync for antecedent_stats::measurement_error::VarianceComponents [auto]
@@ -2467,13 +2623,33 @@ impl core::marker::Unpin for antecedent_stats::measurement_error::BinaryErrorRat
 impl core::marker::Unpin for antecedent_stats::measurement_error::CombinedImputations [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::ConfusionMatrix [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::CorrectedCategorical [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::CorrectedExposureAssociation [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::CorrectedLinear [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::CorrectedProportion [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::CorrectedRiskDifference [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::DetectionAdjusted [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::DetectionAnchor [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::DetectionBounds [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::DetectionDeclaration [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::DetectionDirection [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::DetectionFunction [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::DetectionPoint [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::ErrorVariance [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::ExposureErrorStructure [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::ExposureOutcomeCounts [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::FalsePositiveRate [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::LatentClassConstraints [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::LatentClassFit [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::LatentClassIdentification [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::LatentClassSettings [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::LatentClassStandardErrors [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::LinearMoments [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::MeasurementErrorError [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::ObservedClassSummary [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::ReliabilityBin [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::SoftExposureDraws [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::SoftExposureReliability [auto]
+impl core::marker::Unpin for antecedent_stats::measurement_error::SoftExposureSubstitution [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::marker::Unpin for antecedent_stats::measurement_error::VarianceComponents [auto]
@@ -2749,13 +2925,33 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_e
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::CombinedImputations [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::ConfusionMatrix [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::CorrectedCategorical [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::CorrectedExposureAssociation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::CorrectedLinear [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::CorrectedProportion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::CorrectedRiskDifference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::DetectionAdjusted [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::DetectionAnchor [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::DetectionBounds [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::DetectionDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::DetectionDirection [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::DetectionFunction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::DetectionPoint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::ErrorVariance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::ExposureErrorStructure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::ExposureOutcomeCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::FalsePositiveRate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LatentClassConstraints [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LatentClassFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LatentClassIdentification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LatentClassSettings [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LatentClassStandardErrors [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LinearMoments [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::MeasurementErrorError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::ObservedClassSummary [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::ReliabilityBin [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::SoftExposureDraws [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::SoftExposureReliability [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::SoftExposureSubstitution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::VarianceComponents [auto]
@@ -3030,13 +3226,33 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_erro
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::CombinedImputations [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::ConfusionMatrix [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::CorrectedCategorical [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::CorrectedExposureAssociation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::CorrectedLinear [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::CorrectedProportion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::CorrectedRiskDifference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::DetectionAdjusted [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::DetectionAnchor [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::DetectionBounds [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::DetectionDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::DetectionDirection [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::DetectionFunction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::DetectionPoint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::ErrorVariance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::ExposureErrorStructure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::ExposureOutcomeCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::FalsePositiveRate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LatentClassConstraints [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LatentClassFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LatentClassIdentification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LatentClassSettings [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LatentClassStandardErrors [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LinearMoments [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::MeasurementErrorError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::ObservedClassSummary [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::ReliabilityBin [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::SoftExposureDraws [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::SoftExposureReliability [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::SoftExposureSubstitution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::TwoByTwoCounts [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::ValidationSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::VarianceComponents [auto]
@@ -3064,8 +3280,14 @@ impl<'a> core::clone::Clone for antecedent_stats::gram::ColumnMajorDesign<'a>
 impl<'a> core::clone::Clone for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::clone::Clone for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 impl<'a> core::clone::Clone for antecedent_stats::longitudinal_regime::SubjectHistories<'a>
+impl<'a> core::clone::Clone for antecedent_stats::measurement_error::DetectionData<'a>
+impl<'a> core::clone::Clone for antecedent_stats::measurement_error::LatentClassData<'a>
 impl<'a> core::clone::Clone for antecedent_stats::measurement_error::LinearErrorData<'a>
+impl<'a> core::clone::Clone for antecedent_stats::measurement_error::SoftExposureData<'a>
+impl<'a> core::cmp::Eq for antecedent_stats::measurement_error::LatentClassData<'a>
 impl<'a> core::cmp::PartialEq for antecedent_stats::adaptive_inference::UnitRecord<'a>
+impl<'a> core::cmp::PartialEq for antecedent_stats::measurement_error::DetectionData<'a>
+impl<'a> core::cmp::PartialEq for antecedent_stats::measurement_error::LatentClassData<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::BlockTest<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::CiBatchRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::GlmDesignRef<'a>
@@ -3082,7 +3304,10 @@ impl<'a> core::fmt::Debug for antecedent_stats::gram::ColumnMajorDesign<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::longitudinal_regime::SubjectHistories<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::measurement_error::DetectionData<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::measurement_error::LatentClassData<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::measurement_error::LinearErrorData<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::measurement_error::SoftExposureData<'a>
 impl<'a> core::marker::Copy for antecedent_stats::BlockTest<'a>
 impl<'a> core::marker::Copy for antecedent_stats::GlmDesignRef<'a>
 impl<'a> core::marker::Copy for antecedent_stats::IvBlocks<'a>
@@ -3098,7 +3323,10 @@ impl<'a> core::marker::Copy for antecedent_stats::gram::ColumnMajorDesign<'a>
 impl<'a> core::marker::Copy for antecedent_stats::gram::DesignRow<'a>
 impl<'a> core::marker::Copy for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a>
 impl<'a> core::marker::Copy for antecedent_stats::longitudinal_regime::SubjectHistories<'a>
+impl<'a> core::marker::Copy for antecedent_stats::measurement_error::DetectionData<'a>
+impl<'a> core::marker::Copy for antecedent_stats::measurement_error::LatentClassData<'a>
 impl<'a> core::marker::Copy for antecedent_stats::measurement_error::LinearErrorData<'a>
+impl<'a> core::marker::Copy for antecedent_stats::measurement_error::SoftExposureData<'a>
 impl<'a> core::marker::Freeze for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -3116,7 +3344,10 @@ impl<'a> core::marker::Freeze for antecedent_stats::gram::ColumnMajorDesign<'a> 
 impl<'a> core::marker::Freeze for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::measurement_error::DetectionData<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -3134,8 +3365,13 @@ impl<'a> core::marker::Send for antecedent_stats::gram::ColumnMajorDesign<'a> [a
 impl<'a> core::marker::Send for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::measurement_error::DetectionData<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::UnitRecord<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_stats::measurement_error::DetectionData<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_stats::measurement_error::LatentClassData<'a>
 impl<'a> core::marker::Sync for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -3153,7 +3389,10 @@ impl<'a> core::marker::Sync for antecedent_stats::gram::ColumnMajorDesign<'a> [a
 impl<'a> core::marker::Sync for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::measurement_error::DetectionData<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -3171,7 +3410,10 @@ impl<'a> core::marker::Unpin for antecedent_stats::gram::ColumnMajorDesign<'a> [
 impl<'a> core::marker::Unpin for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::measurement_error::DetectionData<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -3189,7 +3431,10 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::Col
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::DetectionData<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -3207,7 +3452,10 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::Column
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::DetectionData<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
 impl<E> core::convert::From<antecedent_core::execution::pipeline::MapExecutionError<E>> for antecedent_stats::StatsError where Self: core::convert::From<E>
 pub const <antecedent_stats::Combine>::ALL: [Self; 4]
 pub const <antecedent_stats::IdentifiedSetIntervalMethod>::ALL: [Self; 3]
@@ -3216,6 +3464,7 @@ pub const <antecedent_stats::adaptive_inference::BetaPrior>::UNIFORM: Self
 pub const <antecedent_stats::adaptive_inference::OutcomeObservation>::COMPLETE: Self
 pub const <antecedent_stats::adaptive_inference::ResourceBudget>::DEFAULT: Self
 pub const <antecedent_stats::adaptive_inference::StopReason>::ALL: [Self; 4]
+pub const <antecedent_stats::measurement_error::FalsePositiveRate>::NONE: Self
 pub const antecedent_stats::CALIBRATION_STATUS: &str
 pub const antecedent_stats::CORRELATION_RANGE_LABEL: &str
 pub const antecedent_stats::DEFAULT_MECHANISM_PERMUTATIONS: usize
@@ -3283,6 +3532,9 @@ pub const antecedent_stats::interference::EXPOSURE_PROBABILITY_MAX_WORK: u64
 pub const antecedent_stats::joint_law::MAX_COMPONENTS: usize
 pub const antecedent_stats::joint_law::MAX_LATTICE_CHECKS: usize
 pub const antecedent_stats::joint_law::MAX_MARGINAL_ATOMS: usize
+pub const antecedent_stats::measurement_error::MAX_LATENT_CATEGORIES: usize
+pub const antecedent_stats::measurement_error::MAX_LATENT_CODINGS: usize
+pub const antecedent_stats::measurement_error::MAX_LATENT_LEVELS: usize
 pub const antecedent_stats::measurement_error::MAX_MEASUREMENT_CATEGORIES: usize
 pub const antecedent_stats::measurement_error::MAX_MEASUREMENT_COVARIATES: usize
 pub const antecedent_stats::measurement_error::MAX_MEASUREMENT_ROWS: usize
@@ -3337,6 +3589,11 @@ pub enum antecedent_stats::continuous_error::SimexExtrapolant
 pub enum antecedent_stats::layout_rules::LayoutOp
 pub enum antecedent_stats::layout_rules::Product
 pub enum antecedent_stats::layout_rules::StorageLayout
+pub enum antecedent_stats::measurement_error::DetectionAdjusted
+pub enum antecedent_stats::measurement_error::DetectionDeclaration
+pub enum antecedent_stats::measurement_error::DetectionDirection
+pub enum antecedent_stats::measurement_error::DetectionFunction
+pub enum antecedent_stats::measurement_error::ExposureErrorStructure
 pub enum antecedent_stats::synthesis_transport::SummaryOrigin
 pub field antecedent_stats::BlockTest::x_cols: &'a [usize]
 pub field antecedent_stats::BlockTest::y_cols: &'a [usize]
@@ -4152,6 +4409,19 @@ pub field antecedent_stats::measurement_error::CorrectedCategorical::outcome_mea
 pub field antecedent_stats::measurement_error::CorrectedCategorical::outside_unit_interval: bool
 pub field antecedent_stats::measurement_error::CorrectedCategorical::proportion_covariance: alloc::vec::Vec<f64>
 pub field antecedent_stats::measurement_error::CorrectedCategorical::proportions: alloc::vec::Vec<f64>
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::differential: bool
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::log_odds_ratio: f64
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::naive_log_odds_ratio: core::option::Option<f64>
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::observed_prevalence_cases: f64
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::observed_prevalence_controls: f64
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::odds_ratio: f64
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::prevalence_cases: f64
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::prevalence_controls: f64
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::variance: f64
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::variance_rates: f64
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::variance_sampling: f64
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::youden_cases: f64
+pub field antecedent_stats::measurement_error::CorrectedExposureAssociation::youden_controls: f64
 pub field antecedent_stats::measurement_error::CorrectedLinear::coefficients: alloc::vec::Vec<f64>
 pub field antecedent_stats::measurement_error::CorrectedLinear::covariance: alloc::vec::Vec<f64>
 pub field antecedent_stats::measurement_error::CorrectedLinear::covariance_given_error_variance: alloc::vec::Vec<f64>
@@ -4178,9 +4448,68 @@ pub field antecedent_stats::measurement_error::CorrectedRiskDifference::variance
 pub field antecedent_stats::measurement_error::CorrectedRiskDifference::variance_sampling: f64
 pub field antecedent_stats::measurement_error::CorrectedRiskDifference::youden_exposed: f64
 pub field antecedent_stats::measurement_error::CorrectedRiskDifference::youden_unexposed: f64
+pub field antecedent_stats::measurement_error::DetectionAnchor::covariate: f64
+pub field antecedent_stats::measurement_error::DetectionAnchor::lower: f64
+pub field antecedent_stats::measurement_error::DetectionAnchor::upper: f64
+pub field antecedent_stats::measurement_error::DetectionBounds::lower: f64
+pub field antecedent_stats::measurement_error::DetectionBounds::lower_standard_error: f64
+pub field antecedent_stats::measurement_error::DetectionBounds::mean_detection_lower: f64
+pub field antecedent_stats::measurement_error::DetectionBounds::mean_detection_upper: f64
+pub field antecedent_stats::measurement_error::DetectionBounds::observed_rate: f64
+pub field antecedent_stats::measurement_error::DetectionBounds::units: usize
+pub field antecedent_stats::measurement_error::DetectionBounds::upper: f64
+pub field antecedent_stats::measurement_error::DetectionBounds::upper_standard_error: f64
+pub field antecedent_stats::measurement_error::DetectionData::covariate: &'a [f64]
+pub field antecedent_stats::measurement_error::DetectionData::detected: &'a [bool]
+pub field antecedent_stats::measurement_error::DetectionPoint::mean_detection: f64
+pub field antecedent_stats::measurement_error::DetectionPoint::observed_rate: f64
+pub field antecedent_stats::measurement_error::DetectionPoint::outside_unit_interval: bool
+pub field antecedent_stats::measurement_error::DetectionPoint::prevalence: f64
+pub field antecedent_stats::measurement_error::DetectionPoint::units: usize
+pub field antecedent_stats::measurement_error::DetectionPoint::variance: f64
+pub field antecedent_stats::measurement_error::DetectionPoint::variance_parameters: f64
+pub field antecedent_stats::measurement_error::DetectionPoint::variance_sampling: f64
 pub field antecedent_stats::measurement_error::ErrorVariance::estimate_variance: f64
 pub field antecedent_stats::measurement_error::ErrorVariance::influence: core::option::Option<alloc::vec::Vec<f64>>
 pub field antecedent_stats::measurement_error::ErrorVariance::variance: f64
+pub field antecedent_stats::measurement_error::ExposureOutcomeCounts::cases: u64
+pub field antecedent_stats::measurement_error::ExposureOutcomeCounts::controls: u64
+pub field antecedent_stats::measurement_error::ExposureOutcomeCounts::exposed_cases: u64
+pub field antecedent_stats::measurement_error::ExposureOutcomeCounts::exposed_controls: u64
+pub field antecedent_stats::measurement_error::FalsePositiveRate::rate: f64
+pub field antecedent_stats::measurement_error::FalsePositiveRate::variance: f64
+pub field antecedent_stats::measurement_error::LatentClassConstraints::exchangeable: bool
+pub field antecedent_stats::measurement_error::LatentClassConstraints::lowest_level: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_stats::measurement_error::LatentClassData::categories: usize
+pub field antecedent_stats::measurement_error::LatentClassData::coding_count: usize
+pub field antecedent_stats::measurement_error::LatentClassData::codings: &'a [u8]
+pub field antecedent_stats::measurement_error::LatentClassData::latent_levels: usize
+pub field antecedent_stats::measurement_error::LatentClassData::units: usize
+pub field antecedent_stats::measurement_error::LatentClassFit::categories: usize
+pub field antecedent_stats::measurement_error::LatentClassFit::coding_count: usize
+pub field antecedent_stats::measurement_error::LatentClassFit::converged: bool
+pub field antecedent_stats::measurement_error::LatentClassFit::identification: antecedent_stats::measurement_error::LatentClassIdentification
+pub field antecedent_stats::measurement_error::LatentClassFit::iterations: usize
+pub field antecedent_stats::measurement_error::LatentClassFit::latent_levels: usize
+pub field antecedent_stats::measurement_error::LatentClassFit::log_likelihood: f64
+pub field antecedent_stats::measurement_error::LatentClassFit::posterior: alloc::vec::Vec<f64>
+pub field antecedent_stats::measurement_error::LatentClassFit::prevalence: alloc::vec::Vec<f64>
+pub field antecedent_stats::measurement_error::LatentClassFit::response: alloc::vec::Vec<f64>
+pub field antecedent_stats::measurement_error::LatentClassFit::response_slots: usize
+pub field antecedent_stats::measurement_error::LatentClassFit::standard_errors: core::option::Option<antecedent_stats::measurement_error::LatentClassStandardErrors>
+pub field antecedent_stats::measurement_error::LatentClassFit::starts: usize
+pub field antecedent_stats::measurement_error::LatentClassFit::starts_agreeing: usize
+pub field antecedent_stats::measurement_error::LatentClassFit::units: usize
+pub field antecedent_stats::measurement_error::LatentClassIdentification::constrained: bool
+pub field antecedent_stats::measurement_error::LatentClassIdentification::informative_codings: usize
+pub field antecedent_stats::measurement_error::LatentClassIdentification::kruskal: bool
+pub field antecedent_stats::measurement_error::LatentClassSettings::max_iterations: usize
+pub field antecedent_stats::measurement_error::LatentClassSettings::min_separation: f64
+pub field antecedent_stats::measurement_error::LatentClassSettings::seed: u64
+pub field antecedent_stats::measurement_error::LatentClassSettings::starts: usize
+pub field antecedent_stats::measurement_error::LatentClassSettings::tolerance: f64
+pub field antecedent_stats::measurement_error::LatentClassStandardErrors::prevalence: alloc::vec::Vec<f64>
+pub field antecedent_stats::measurement_error::LatentClassStandardErrors::response: alloc::vec::Vec<f64>
 pub field antecedent_stats::measurement_error::LinearErrorData::covariate_count: usize
 pub field antecedent_stats::measurement_error::LinearErrorData::covariates: &'a [f64]
 pub field antecedent_stats::measurement_error::LinearErrorData::replicate_counts: core::option::Option<&'a [u32]>
@@ -4200,6 +4529,37 @@ pub field antecedent_stats::measurement_error::LinearMoments::reliability_floor:
 pub field antecedent_stats::measurement_error::ObservedClassSummary::count: u64
 pub field antecedent_stats::measurement_error::ObservedClassSummary::mean: f64
 pub field antecedent_stats::measurement_error::ObservedClassSummary::variance: f64
+pub field antecedent_stats::measurement_error::ReliabilityBin::gap: f64
+pub field antecedent_stats::measurement_error::ReliabilityBin::lower: f64
+pub field antecedent_stats::measurement_error::ReliabilityBin::mean_expected: f64
+pub field antecedent_stats::measurement_error::ReliabilityBin::mean_observed: f64
+pub field antecedent_stats::measurement_error::ReliabilityBin::mean_stated: f64
+pub field antecedent_stats::measurement_error::ReliabilityBin::standard_error: core::option::Option<f64>
+pub field antecedent_stats::measurement_error::ReliabilityBin::units: usize
+pub field antecedent_stats::measurement_error::ReliabilityBin::upper: f64
+pub field antecedent_stats::measurement_error::SoftExposureData::covariate_count: usize
+pub field antecedent_stats::measurement_error::SoftExposureData::covariates: &'a [f64]
+pub field antecedent_stats::measurement_error::SoftExposureData::outcome: &'a [f64]
+pub field antecedent_stats::measurement_error::SoftExposureData::probability: &'a [f64]
+pub field antecedent_stats::measurement_error::SoftExposureDraws::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_stats::measurement_error::SoftExposureDraws::draw_count: usize
+pub field antecedent_stats::measurement_error::SoftExposureDraws::draws: alloc::vec::Vec<f64>
+pub field antecedent_stats::measurement_error::SoftExposureDraws::iterations: usize
+pub field antecedent_stats::measurement_error::SoftExposureDraws::residual_variance: f64
+pub field antecedent_stats::measurement_error::SoftExposureReliability::bins: alloc::vec::Vec<antecedent_stats::measurement_error::ReliabilityBin>
+pub field antecedent_stats::measurement_error::SoftExposureReliability::chi_square: f64
+pub field antecedent_stats::measurement_error::SoftExposureReliability::chi_square_bins: usize
+pub field antecedent_stats::measurement_error::SoftExposureReliability::max_abs_gap: f64
+pub field antecedent_stats::measurement_error::SoftExposureReliability::mean_abs_gap: f64
+pub field antecedent_stats::measurement_error::SoftExposureReliability::units: usize
+pub field antecedent_stats::measurement_error::SoftExposureSubstitution::coefficients: alloc::vec::Vec<f64>
+pub field antecedent_stats::measurement_error::SoftExposureSubstitution::covariance: alloc::vec::Vec<f64>
+pub field antecedent_stats::measurement_error::SoftExposureSubstitution::dim: usize
+pub field antecedent_stats::measurement_error::SoftExposureSubstitution::mean_posterior_variance: f64
+pub field antecedent_stats::measurement_error::SoftExposureSubstitution::rows: usize
+pub field antecedent_stats::measurement_error::SoftExposureSubstitution::variance: f64
+pub field antecedent_stats::measurement_error::SoftExposureSubstitution::variance_exposure_uncertainty: f64
+pub field antecedent_stats::measurement_error::SoftExposureSubstitution::variance_sampling: f64
 pub field antecedent_stats::measurement_error::TwoByTwoCounts::exposed_events: u64
 pub field antecedent_stats::measurement_error::TwoByTwoCounts::exposed_total: u64
 pub field antecedent_stats::measurement_error::TwoByTwoCounts::unexposed_events: u64
@@ -4579,6 +4939,7 @@ pub fn <antecedent_stats::measurement_error::ErrorVariance>::fn from_external_re
 pub fn <antecedent_stats::measurement_error::ErrorVariance>::fn from_main_sample_replicates(values: &[f64], sizes: &[u32]) -> core::result::Result<(Self, antecedent_stats::measurement_error::VarianceComponents), antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::measurement_error::ErrorVariance>::fn from_validation(w: &[f64], x: &[f64]) -> core::result::Result<(Self, antecedent_stats::measurement_error::ValidationSummary), antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::measurement_error::ErrorVariance>::fn known(variance: f64, standard_error: f64) -> core::result::Result<Self, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn <antecedent_stats::measurement_error::LatentClassFit>::fn response_of(&self, coding: usize, level: usize, category: usize) -> f64
 pub fn <antecedent_stats::measurement_error::LinearMoments>::fn accumulate(data: &antecedent_stats::measurement_error::LinearErrorData<'_>, error: &antecedent_stats::measurement_error::ErrorVariance, reliability_floor: f64) -> core::result::Result<Self, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::measurement_error::LinearMoments>::fn solve(&self) -> core::result::Result<antecedent_stats::measurement_error::CorrectedLinear, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::power::EquicorrelatedComparisons>::fn dunnett_critical(&self, alpha: f64) -> core::option::Option<f64>
@@ -4785,6 +5146,7 @@ pub fn antecedent_stats::kaplan_meier_ipcw(time: &[f64], event: &[f64], entry: c
 pub fn antecedent_stats::layout_rules::form_xtx_measured(x_colmajor: &[f64], nrows: usize, ncols: usize, xtx: &mut [f64], available_workers: u32) -> antecedent_stats::layout_rules::LayoutChoice
 pub fn antecedent_stats::layout_rules::scratch_requirement_bytes(op: antecedent_stats::layout_rules::LayoutOp, rows: usize, cols: usize, workers: u32) -> u64
 pub fn antecedent_stats::layout_rules::select_layout(request: &antecedent_stats::layout_rules::LayoutRequest) -> core::result::Result<antecedent_stats::layout_rules::LayoutChoice, antecedent_stats::layout_rules::LayoutRefusal>
+pub fn antecedent_stats::ln_beta(a: f64, b: f64) -> f64
 pub fn antecedent_stats::ln_gamma(z: f64) -> f64
 pub fn antecedent_stats::longitudinal_regime::evaluate_g_formula_value(predictions: &[f64], actions: &[bool], treatment_probability: &[f64], censoring_probability: &[f64], subjects: usize, periods: usize, minimum_probability: f64) -> core::result::Result<antecedent_stats::longitudinal_regime::RegimeValueSummary, antecedent_stats::longitudinal_regime::RegimeKernelError>
 pub fn antecedent_stats::longitudinal_regime::evaluate_regime_value(outcomes: &[f64], histories: &antecedent_stats::longitudinal_regime::SubjectHistories<'_>, actions: &[bool]) -> core::result::Result<antecedent_stats::longitudinal_regime::RegimeValueSummary, antecedent_stats::longitudinal_regime::RegimeKernelError>
@@ -4797,12 +5159,21 @@ pub fn antecedent_stats::mad_sigma(values: &[f64]) -> core::option::Option<f64>
 pub fn antecedent_stats::matching::nearest_euclidean_scalar(query: &[f64], donors_rowmajor: &[f64], n_donors: usize, dim: usize) -> core::option::Option<(usize, f64)>
 pub fn antecedent_stats::measurement_error::combine_imputations_linear(y: &[f64], draws: &[f64], draw_count: usize, covariates: &[f64], covariate_count: usize) -> core::result::Result<antecedent_stats::measurement_error::CombinedImputations, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn antecedent_stats::measurement_error::corrected_categories(classes: &[antecedent_stats::measurement_error::ObservedClassSummary], confusion: &antecedent_stats::measurement_error::ConfusionMatrix, max_condition: f64) -> core::result::Result<antecedent_stats::measurement_error::CorrectedCategorical, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn antecedent_stats::measurement_error::corrected_exposure_association(counts: &antecedent_stats::measurement_error::ExposureOutcomeCounts, structure: &antecedent_stats::measurement_error::ExposureErrorStructure, min_youden: f64) -> core::result::Result<antecedent_stats::measurement_error::CorrectedExposureAssociation, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn antecedent_stats::measurement_error::corrected_prevalence(events: u64, total: u64, rates: &antecedent_stats::measurement_error::BinaryErrorRates, min_youden: f64) -> core::result::Result<antecedent_stats::measurement_error::CorrectedProportion, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn antecedent_stats::measurement_error::corrected_risk_difference_differential(table: &antecedent_stats::measurement_error::TwoByTwoCounts, rates_exposed: &antecedent_stats::measurement_error::BinaryErrorRates, rates_unexposed: &antecedent_stats::measurement_error::BinaryErrorRates, min_youden: f64) -> core::result::Result<antecedent_stats::measurement_error::CorrectedRiskDifference, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn antecedent_stats::measurement_error::corrected_risk_difference_nondifferential(table: &antecedent_stats::measurement_error::TwoByTwoCounts, rates: &antecedent_stats::measurement_error::BinaryErrorRates, min_youden: f64) -> core::result::Result<antecedent_stats::measurement_error::CorrectedRiskDifference, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn antecedent_stats::measurement_error::detection_adjusted_prevalence(data: &antecedent_stats::measurement_error::DetectionData<'_>, declaration: &antecedent_stats::measurement_error::DetectionDeclaration, false_positive: &antecedent_stats::measurement_error::FalsePositiveRate, min_net_detection: f64) -> core::result::Result<antecedent_stats::measurement_error::DetectionAdjusted, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn antecedent_stats::measurement_error::exposure_rates_from_validation(controls: (u64, u64, u64, u64), cases: (u64, u64, u64, u64)) -> core::result::Result<antecedent_stats::measurement_error::ExposureErrorStructure, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn antecedent_stats::measurement_error::fit_latent_class(data: &antecedent_stats::measurement_error::LatentClassData<'_>, constraints: &antecedent_stats::measurement_error::LatentClassConstraints, settings: &antecedent_stats::measurement_error::LatentClassSettings) -> core::result::Result<antecedent_stats::measurement_error::LatentClassFit, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn antecedent_stats::measurement_error::kruskal_identified(j: usize, c: usize, k: usize) -> bool
 pub fn antecedent_stats::measurement_error::posterior_means(draws: &[f64], n: usize, draw_count: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn antecedent_stats::measurement_error::replicate_variance_components(values: &[f64], sizes: &[u32]) -> core::result::Result<(antecedent_stats::measurement_error::VarianceComponents, alloc::vec::Vec<f64>), antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn antecedent_stats::measurement_error::rubin_combine(coefficients: &[alloc::vec::Vec<f64>], covariances: &[alloc::vec::Vec<f64>]) -> core::result::Result<antecedent_stats::measurement_error::CombinedImputations, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn antecedent_stats::measurement_error::soft_exposure_imputation(outcome: &[f64], draws: &[f64], draw_count: usize, covariates: &[f64], covariate_count: usize) -> core::result::Result<antecedent_stats::measurement_error::CombinedImputations, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn antecedent_stats::measurement_error::soft_exposure_outcome_conditioned_draws(data: &antecedent_stats::measurement_error::SoftExposureData<'_>, draw_count: usize, seed: u64) -> core::result::Result<antecedent_stats::measurement_error::SoftExposureDraws, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn antecedent_stats::measurement_error::soft_exposure_reliability(probability: &[f64], codings: &[u8], sizes: &[u32], bins: usize, reference: core::option::Option<&antecedent_stats::measurement_error::BinaryErrorRates>) -> core::result::Result<antecedent_stats::measurement_error::SoftExposureReliability, antecedent_stats::measurement_error::MeasurementErrorError>
+pub fn antecedent_stats::measurement_error::soft_exposure_substitution(data: &antecedent_stats::measurement_error::SoftExposureData<'_>) -> core::result::Result<antecedent_stats::measurement_error::SoftExposureSubstitution, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn antecedent_stats::moment_matched_normal_table(means: &[f64], covariance: &[f64], rows: usize, seed: u64) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, antecedent_stats::ChainError>
 pub fn antecedent_stats::moment_matched_normal_table_with_work_limit(means: &[f64], covariance: &[f64], rows: usize, seed: u64, work_limit: u64) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, antecedent_stats::ChainError>
 pub fn antecedent_stats::normal_ppf(p: f64) -> f64
@@ -4830,6 +5201,7 @@ pub fn antecedent_stats::random_effects_reml(estimates: &[f64], variances: &[f64
 pub fn antecedent_stats::regularized::ridge_gram_inverse(x_colmajor: &[f64], nrows: usize, ncols: usize, lambda: f64) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_stats::StatsError>
 pub fn antecedent_stats::regularized::ridge_gram_inverse_with(x_colmajor: &[f64], nrows: usize, ncols: usize, lambda: f64, intercept: antecedent_stats::RidgeIntercept) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_stats::StatsError>
 pub fn antecedent_stats::regularized::soft_threshold(z: f64, gamma: f64) -> f64
+pub fn antecedent_stats::regularized_incomplete_beta(x: f64, a: f64, b: f64) -> f64
 pub fn antecedent_stats::response::silverman_bandwidth(x: &[f64]) -> core::result::Result<f64, antecedent_stats::StatsError>
 pub fn antecedent_stats::response::silverman_normal_reference_factor(n: usize, dim: usize) -> core::result::Result<f64, antecedent_stats::StatsError>
 pub fn antecedent_stats::special::student_t_ppf(p: f64, df: f64) -> f64
@@ -5141,13 +5513,31 @@ pub struct antecedent_stats::measurement_error::CombinedImputations
 pub struct antecedent_stats::measurement_error::ConfusionMatrix
 pub struct antecedent_stats::measurement_error::ConfusionMatrix has private fields
 pub struct antecedent_stats::measurement_error::CorrectedCategorical
+pub struct antecedent_stats::measurement_error::CorrectedExposureAssociation
 pub struct antecedent_stats::measurement_error::CorrectedLinear
 pub struct antecedent_stats::measurement_error::CorrectedProportion
 pub struct antecedent_stats::measurement_error::CorrectedRiskDifference
+pub struct antecedent_stats::measurement_error::DetectionAnchor
+pub struct antecedent_stats::measurement_error::DetectionBounds
+pub struct antecedent_stats::measurement_error::DetectionData<'a>
+pub struct antecedent_stats::measurement_error::DetectionPoint
 pub struct antecedent_stats::measurement_error::ErrorVariance
+pub struct antecedent_stats::measurement_error::ExposureOutcomeCounts
+pub struct antecedent_stats::measurement_error::FalsePositiveRate
+pub struct antecedent_stats::measurement_error::LatentClassConstraints
+pub struct antecedent_stats::measurement_error::LatentClassData<'a>
+pub struct antecedent_stats::measurement_error::LatentClassFit
+pub struct antecedent_stats::measurement_error::LatentClassIdentification
+pub struct antecedent_stats::measurement_error::LatentClassSettings
+pub struct antecedent_stats::measurement_error::LatentClassStandardErrors
 pub struct antecedent_stats::measurement_error::LinearErrorData<'a>
 pub struct antecedent_stats::measurement_error::LinearMoments
 pub struct antecedent_stats::measurement_error::ObservedClassSummary
+pub struct antecedent_stats::measurement_error::ReliabilityBin
+pub struct antecedent_stats::measurement_error::SoftExposureData<'a>
+pub struct antecedent_stats::measurement_error::SoftExposureDraws
+pub struct antecedent_stats::measurement_error::SoftExposureReliability
+pub struct antecedent_stats::measurement_error::SoftExposureSubstitution
 pub struct antecedent_stats::measurement_error::TwoByTwoCounts
 pub struct antecedent_stats::measurement_error::ValidationSummary
 pub struct antecedent_stats::measurement_error::VarianceComponents
@@ -5650,8 +6040,10 @@ pub use antecedent_stats::special::chi_square_sf = antecedent_stats::chi_square_
 pub use antecedent_stats::special::gamma_q = antecedent_stats::gamma_q
 pub use antecedent_stats::special::gauss_hermite_standard_normal = antecedent_stats::gauss_hermite_standard_normal
 pub use antecedent_stats::special::gauss_legendre = antecedent_stats::gauss_legendre
+pub use antecedent_stats::special::ln_beta = antecedent_stats::ln_beta
 pub use antecedent_stats::special::ln_gamma = antecedent_stats::ln_gamma
 pub use antecedent_stats::special::normal_ppf = antecedent_stats::normal_ppf
+pub use antecedent_stats::special::regularized_incomplete_beta = antecedent_stats::regularized_incomplete_beta
 pub use antecedent_stats::standardize_columns = antecedent_stats::design::standardize_columns
 pub use antecedent_stats::student_t_ppf = antecedent_stats::special::student_t_ppf
 pub use antecedent_stats::student_t_sf = antecedent_stats::special::student_t_sf
@@ -5962,6 +6354,16 @@ pub variant antecedent_stats::layout_rules::Product::Reference
 pub variant antecedent_stats::layout_rules::StorageLayout::Dense
 pub variant antecedent_stats::layout_rules::StorageLayout::DenseRowMajor
 pub variant antecedent_stats::layout_rules::StorageLayout::Sparse { nonzeros_per_column: u32 }
+pub variant antecedent_stats::measurement_error::DetectionAdjusted::Bounds(antecedent_stats::measurement_error::DetectionBounds)
+pub variant antecedent_stats::measurement_error::DetectionAdjusted::Point(antecedent_stats::measurement_error::DetectionPoint)
+pub variant antecedent_stats::measurement_error::DetectionDeclaration::Full(antecedent_stats::measurement_error::DetectionFunction)
+pub variant antecedent_stats::measurement_error::DetectionDeclaration::Partial { direction: antecedent_stats::measurement_error::DetectionDirection, anchors: alloc::vec::Vec<antecedent_stats::measurement_error::DetectionAnchor> }
+pub variant antecedent_stats::measurement_error::DetectionDirection::Nondecreasing
+pub variant antecedent_stats::measurement_error::DetectionDirection::Nonincreasing
+pub variant antecedent_stats::measurement_error::DetectionFunction::Logistic { intercept: f64, slope: f64, intercept_variance: f64, covariance: f64, slope_variance: f64 }
+pub variant antecedent_stats::measurement_error::DetectionFunction::Table { knots: alloc::vec::Vec<f64>, values: alloc::vec::Vec<f64> }
+pub variant antecedent_stats::measurement_error::ExposureErrorStructure::ByOutcome { controls: antecedent_stats::measurement_error::BinaryErrorRates, cases: antecedent_stats::measurement_error::BinaryErrorRates }
+pub variant antecedent_stats::measurement_error::ExposureErrorStructure::Shared(antecedent_stats::measurement_error::BinaryErrorRates)
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::ConfusionIllConditioned { condition: f64, maximum: f64 }
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::EmptyLatentCategory
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::InsufficientReplicates(&'static str)

@@ -244,6 +244,7 @@ impl antecedent_core::CanonicalEncode for antecedent_core::SimulateQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::SimulationTarget
 impl antecedent_core::CanonicalEncode for antecedent_core::StochasticPolicy
 impl antecedent_core::CanonicalEncode for antecedent_core::StructuralAction
+impl antecedent_core::CanonicalEncode for antecedent_core::StructurePriorSpec
 impl antecedent_core::CanonicalEncode for antecedent_core::SupportedWeights
 impl antecedent_core::CanonicalEncode for antecedent_core::SurvivalFunctional
 impl antecedent_core::CanonicalEncode for antecedent_core::SurvivalQuery
@@ -262,6 +263,7 @@ impl antecedent_core::CanonicalEncode for antecedent_core::TemporalPolicy
 impl antecedent_core::CanonicalEncode for antecedent_core::TemporalResponseSpec
 impl antecedent_core::CanonicalEncode for antecedent_core::TimeFrame
 impl antecedent_core::CanonicalEncode for antecedent_core::TransportQuery
+impl antecedent_core::CanonicalEncode for antecedent_core::TransportWeightedTarget
 impl antecedent_core::CanonicalEncode for antecedent_core::UnitChangeQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::Value
 impl antecedent_core::CanonicalEncode for antecedent_core::ValueExpr
@@ -646,6 +648,7 @@ impl core::clone::Clone for antecedent_core::StochasticPolicyFault
 impl core::clone::Clone for antecedent_core::StreamDomain
 impl core::clone::Clone for antecedent_core::StreamRequest
 impl core::clone::Clone for antecedent_core::StructuralAction
+impl core::clone::Clone for antecedent_core::StructurePriorSpec
 impl core::clone::Clone for antecedent_core::SupportDiagnostic
 impl core::clone::Clone for antecedent_core::SupportRegion
 impl core::clone::Clone for antecedent_core::SupportReport
@@ -690,7 +693,9 @@ impl core::clone::Clone for antecedent_core::TransportOutcome
 impl core::clone::Clone for antecedent_core::TransportOutcomeKind
 impl core::clone::Clone for antecedent_core::TransportQuery
 impl core::clone::Clone for antecedent_core::TransportSupportCoordinate
+impl core::clone::Clone for antecedent_core::TransportTargetKernel
 impl core::clone::Clone for antecedent_core::TransportUncertaintySupport
+impl core::clone::Clone for antecedent_core::TransportWeightedTarget
 impl core::clone::Clone for antecedent_core::UnansweredCapability
 impl core::clone::Clone for antecedent_core::UnitChangeQuery
 impl core::clone::Clone for antecedent_core::UnmetDependency
@@ -1171,7 +1176,9 @@ impl core::cmp::Eq for antecedent_core::TransportLocation
 impl core::cmp::Eq for antecedent_core::TransportOutcome
 impl core::cmp::Eq for antecedent_core::TransportOutcomeKind
 impl core::cmp::Eq for antecedent_core::TransportSupportCoordinate
+impl core::cmp::Eq for antecedent_core::TransportTargetKernel
 impl core::cmp::Eq for antecedent_core::TransportUncertaintySupport
+impl core::cmp::Eq for antecedent_core::TransportWeightedTarget
 impl core::cmp::Eq for antecedent_core::UnansweredCapability
 impl core::cmp::Eq for antecedent_core::UnitChangeQuery
 impl core::cmp::Eq for antecedent_core::UnmetDependency
@@ -1700,6 +1707,7 @@ impl core::cmp::PartialEq for antecedent_core::StochasticPolicyFault
 impl core::cmp::PartialEq for antecedent_core::StreamDomain
 impl core::cmp::PartialEq for antecedent_core::StreamRequest
 impl core::cmp::PartialEq for antecedent_core::StructuralAction
+impl core::cmp::PartialEq for antecedent_core::StructurePriorSpec
 impl core::cmp::PartialEq for antecedent_core::SupportDiagnostic
 impl core::cmp::PartialEq for antecedent_core::SupportRegion
 impl core::cmp::PartialEq for antecedent_core::SupportReport
@@ -1743,7 +1751,9 @@ impl core::cmp::PartialEq for antecedent_core::TransportOutcome
 impl core::cmp::PartialEq for antecedent_core::TransportOutcomeKind
 impl core::cmp::PartialEq for antecedent_core::TransportQuery
 impl core::cmp::PartialEq for antecedent_core::TransportSupportCoordinate
+impl core::cmp::PartialEq for antecedent_core::TransportTargetKernel
 impl core::cmp::PartialEq for antecedent_core::TransportUncertaintySupport
+impl core::cmp::PartialEq for antecedent_core::TransportWeightedTarget
 impl core::cmp::PartialEq for antecedent_core::UnansweredCapability
 impl core::cmp::PartialEq for antecedent_core::UnitChangeQuery
 impl core::cmp::PartialEq for antecedent_core::UnmetDependency
@@ -2449,6 +2459,7 @@ impl core::fmt::Debug for antecedent_core::StochasticPolicyFault
 impl core::fmt::Debug for antecedent_core::StreamDomain
 impl core::fmt::Debug for antecedent_core::StreamRequest
 impl core::fmt::Debug for antecedent_core::StructuralAction
+impl core::fmt::Debug for antecedent_core::StructurePriorSpec
 impl core::fmt::Debug for antecedent_core::SupportDiagnostic
 impl core::fmt::Debug for antecedent_core::SupportRegion
 impl core::fmt::Debug for antecedent_core::SupportReport
@@ -2493,7 +2504,9 @@ impl core::fmt::Debug for antecedent_core::TransportOutcome
 impl core::fmt::Debug for antecedent_core::TransportOutcomeKind
 impl core::fmt::Debug for antecedent_core::TransportQuery
 impl core::fmt::Debug for antecedent_core::TransportSupportCoordinate
+impl core::fmt::Debug for antecedent_core::TransportTargetKernel
 impl core::fmt::Debug for antecedent_core::TransportUncertaintySupport
+impl core::fmt::Debug for antecedent_core::TransportWeightedTarget
 impl core::fmt::Debug for antecedent_core::UnansweredCapability
 impl core::fmt::Debug for antecedent_core::UnitChangeQuery
 impl core::fmt::Debug for antecedent_core::UnmetDependency
@@ -3770,6 +3783,7 @@ impl core::marker::Freeze for antecedent_core::StochasticPolicyFault [auto]
 impl core::marker::Freeze for antecedent_core::StreamDomain [auto]
 impl core::marker::Freeze for antecedent_core::StreamRequest [auto]
 impl core::marker::Freeze for antecedent_core::StructuralAction [auto]
+impl core::marker::Freeze for antecedent_core::StructurePriorSpec [auto]
 impl core::marker::Freeze for antecedent_core::SupportDiagnostic [auto]
 impl core::marker::Freeze for antecedent_core::SupportRegion [auto]
 impl core::marker::Freeze for antecedent_core::SupportReport [auto]
@@ -3814,7 +3828,9 @@ impl core::marker::Freeze for antecedent_core::TransportOutcome [auto]
 impl core::marker::Freeze for antecedent_core::TransportOutcomeKind [auto]
 impl core::marker::Freeze for antecedent_core::TransportQuery [auto]
 impl core::marker::Freeze for antecedent_core::TransportSupportCoordinate [auto]
+impl core::marker::Freeze for antecedent_core::TransportTargetKernel [auto]
 impl core::marker::Freeze for antecedent_core::TransportUncertaintySupport [auto]
+impl core::marker::Freeze for antecedent_core::TransportWeightedTarget [auto]
 impl core::marker::Freeze for antecedent_core::UnansweredCapability [auto]
 impl core::marker::Freeze for antecedent_core::UnitChangeQuery [auto]
 impl core::marker::Freeze for antecedent_core::UnmetDependency [auto]
@@ -4336,6 +4352,7 @@ impl core::marker::Send for antecedent_core::StochasticPolicyFault [auto]
 impl core::marker::Send for antecedent_core::StreamDomain [auto]
 impl core::marker::Send for antecedent_core::StreamRequest [auto]
 impl core::marker::Send for antecedent_core::StructuralAction [auto]
+impl core::marker::Send for antecedent_core::StructurePriorSpec [auto]
 impl core::marker::Send for antecedent_core::SupportDiagnostic [auto]
 impl core::marker::Send for antecedent_core::SupportRegion [auto]
 impl core::marker::Send for antecedent_core::SupportReport [auto]
@@ -4380,7 +4397,9 @@ impl core::marker::Send for antecedent_core::TransportOutcome [auto]
 impl core::marker::Send for antecedent_core::TransportOutcomeKind [auto]
 impl core::marker::Send for antecedent_core::TransportQuery [auto]
 impl core::marker::Send for antecedent_core::TransportSupportCoordinate [auto]
+impl core::marker::Send for antecedent_core::TransportTargetKernel [auto]
 impl core::marker::Send for antecedent_core::TransportUncertaintySupport [auto]
+impl core::marker::Send for antecedent_core::TransportWeightedTarget [auto]
 impl core::marker::Send for antecedent_core::UnansweredCapability [auto]
 impl core::marker::Send for antecedent_core::UnitChangeQuery [auto]
 impl core::marker::Send for antecedent_core::UnmetDependency [auto]
@@ -4890,6 +4909,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::StochasticPolicyFaul
 impl core::marker::StructuralPartialEq for antecedent_core::StreamDomain
 impl core::marker::StructuralPartialEq for antecedent_core::StreamRequest
 impl core::marker::StructuralPartialEq for antecedent_core::StructuralAction
+impl core::marker::StructuralPartialEq for antecedent_core::StructurePriorSpec
 impl core::marker::StructuralPartialEq for antecedent_core::SupportDiagnostic
 impl core::marker::StructuralPartialEq for antecedent_core::SupportRegion
 impl core::marker::StructuralPartialEq for antecedent_core::SupportReport
@@ -4933,7 +4953,9 @@ impl core::marker::StructuralPartialEq for antecedent_core::TransportOutcome
 impl core::marker::StructuralPartialEq for antecedent_core::TransportOutcomeKind
 impl core::marker::StructuralPartialEq for antecedent_core::TransportQuery
 impl core::marker::StructuralPartialEq for antecedent_core::TransportSupportCoordinate
+impl core::marker::StructuralPartialEq for antecedent_core::TransportTargetKernel
 impl core::marker::StructuralPartialEq for antecedent_core::TransportUncertaintySupport
+impl core::marker::StructuralPartialEq for antecedent_core::TransportWeightedTarget
 impl core::marker::StructuralPartialEq for antecedent_core::UnansweredCapability
 impl core::marker::StructuralPartialEq for antecedent_core::UnitChangeQuery
 impl core::marker::StructuralPartialEq for antecedent_core::UnmetDependency
@@ -5443,6 +5465,7 @@ impl core::marker::Sync for antecedent_core::StochasticPolicyFault [auto]
 impl core::marker::Sync for antecedent_core::StreamDomain [auto]
 impl core::marker::Sync for antecedent_core::StreamRequest [auto]
 impl core::marker::Sync for antecedent_core::StructuralAction [auto]
+impl core::marker::Sync for antecedent_core::StructurePriorSpec [auto]
 impl core::marker::Sync for antecedent_core::SupportDiagnostic [auto]
 impl core::marker::Sync for antecedent_core::SupportRegion [auto]
 impl core::marker::Sync for antecedent_core::SupportReport [auto]
@@ -5487,7 +5510,9 @@ impl core::marker::Sync for antecedent_core::TransportOutcome [auto]
 impl core::marker::Sync for antecedent_core::TransportOutcomeKind [auto]
 impl core::marker::Sync for antecedent_core::TransportQuery [auto]
 impl core::marker::Sync for antecedent_core::TransportSupportCoordinate [auto]
+impl core::marker::Sync for antecedent_core::TransportTargetKernel [auto]
 impl core::marker::Sync for antecedent_core::TransportUncertaintySupport [auto]
+impl core::marker::Sync for antecedent_core::TransportWeightedTarget [auto]
 impl core::marker::Sync for antecedent_core::UnansweredCapability [auto]
 impl core::marker::Sync for antecedent_core::UnitChangeQuery [auto]
 impl core::marker::Sync for antecedent_core::UnmetDependency [auto]
@@ -6013,6 +6038,7 @@ impl core::marker::Unpin for antecedent_core::StochasticPolicyFault [auto]
 impl core::marker::Unpin for antecedent_core::StreamDomain [auto]
 impl core::marker::Unpin for antecedent_core::StreamRequest [auto]
 impl core::marker::Unpin for antecedent_core::StructuralAction [auto]
+impl core::marker::Unpin for antecedent_core::StructurePriorSpec [auto]
 impl core::marker::Unpin for antecedent_core::SupportDiagnostic [auto]
 impl core::marker::Unpin for antecedent_core::SupportRegion [auto]
 impl core::marker::Unpin for antecedent_core::SupportReport [auto]
@@ -6057,7 +6083,9 @@ impl core::marker::Unpin for antecedent_core::TransportOutcome [auto]
 impl core::marker::Unpin for antecedent_core::TransportOutcomeKind [auto]
 impl core::marker::Unpin for antecedent_core::TransportQuery [auto]
 impl core::marker::Unpin for antecedent_core::TransportSupportCoordinate [auto]
+impl core::marker::Unpin for antecedent_core::TransportTargetKernel [auto]
 impl core::marker::Unpin for antecedent_core::TransportUncertaintySupport [auto]
+impl core::marker::Unpin for antecedent_core::TransportWeightedTarget [auto]
 impl core::marker::Unpin for antecedent_core::UnansweredCapability [auto]
 impl core::marker::Unpin for antecedent_core::UnitChangeQuery [auto]
 impl core::marker::Unpin for antecedent_core::UnmetDependency [auto]
@@ -6588,6 +6616,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StochasticPoli
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StreamDomain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StreamRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StructuralAction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StructurePriorSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SupportDiagnostic [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SupportRegion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SupportReport [auto]
@@ -6632,7 +6661,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TransportOutco
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TransportOutcomeKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TransportQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TransportSupportCoordinate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TransportTargetKernel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TransportUncertaintySupport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TransportWeightedTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::UnansweredCapability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::UnitChangeQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::UnmetDependency [auto]
@@ -7157,6 +7188,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StochasticPolicyF
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StreamDomain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StreamRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StructuralAction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StructurePriorSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SupportDiagnostic [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SupportRegion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SupportReport [auto]
@@ -7201,7 +7233,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TransportOutcome 
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TransportOutcomeKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TransportQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TransportSupportCoordinate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TransportTargetKernel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TransportUncertaintySupport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TransportWeightedTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::UnansweredCapability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::UnitChangeQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::UnmetDependency [auto]
@@ -10312,6 +10346,7 @@ pub const antecedent_core::reason_details::vector_treatment::TREATMENT_WITHOUT_V
 pub const antecedent_core::reason_details::vector_treatment::UNKNOWN_CONTRAST_COEFFICIENT: &str
 pub const antecedent_core::reason_details::vector_treatment::WEIGHTS_NEED_ROBUST_COVARIANCE: &str
 pub const antecedent_core::reason_details::vector_treatment::WRONG_CONTRACT: &str
+pub const antecedent_core::reason_details::weighted_target::OVERLAP_FAILED: &str
 pub const antecedent_core::recalc::MAX_EXTERNAL_BRANCHES: u8
 pub const antecedent_core::recalc::STANDING_INPUT_VERSION: u64
 pub const antecedent_core::temporal::MAX_UNFOLDED_NODES: u32
@@ -10923,6 +10958,11 @@ pub field antecedent_core::SmoothedDoseTransportQuery::kernel: antecedent_core::
 pub field antecedent_core::SmoothedDoseTransportQuery::outcome: antecedent_core::VariableId
 pub field antecedent_core::SmoothedDoseTransportQuery::source_population: alloc::sync::Arc<str>
 pub field antecedent_core::SmoothedDoseTransportQuery::target_population: alloc::sync::Arc<str>
+pub field antecedent_core::StructurePriorSpec::default_edge: core::option::Option<f64>
+pub field antecedent_core::StructurePriorSpec::edge_inclusion: core::option::Option<f64>
+pub field antecedent_core::StructurePriorSpec::edges: alloc::sync::Arc<[(antecedent_core::VariableId, antecedent_core::VariableId, f64)]>
+pub field antecedent_core::StructurePriorSpec::soft_tier_log_penalty: core::option::Option<f64>
+pub field antecedent_core::StructurePriorSpec::soft_tiers: alloc::sync::Arc<[alloc::sync::Arc<[antecedent_core::VariableId]>]>
 pub field antecedent_core::SupportDiagnostic::detail: alloc::sync::Arc<str>
 pub field antecedent_core::SupportDiagnostic::id: alloc::sync::Arc<str>
 pub field antecedent_core::SupportDiagnostic::scope: antecedent_core::DiagnosticScope
@@ -11016,9 +11056,18 @@ pub field antecedent_core::TransportQuery::response: antecedent_core::ResponseQu
 pub field antecedent_core::TransportQuery::source_experiments: alloc::sync::Arc<[antecedent_core::VariableId]>
 pub field antecedent_core::TransportQuery::source_population: alloc::sync::Arc<str>
 pub field antecedent_core::TransportQuery::target_population: alloc::sync::Arc<str>
+pub field antecedent_core::TransportQuery::weighted_target: core::option::Option<antecedent_core::TransportWeightedTarget>
+pub field antecedent_core::TransportTargetKernel::bandwidth_bits: u64
+pub field antecedent_core::TransportTargetKernel::center_bits: alloc::sync::Arc<[u64]>
+pub field antecedent_core::TransportTargetKernel::family: alloc::sync::Arc<str>
+pub field antecedent_core::TransportTargetKernel::scale_bits: alloc::sync::Arc<[u64]>
 pub field antecedent_core::TransportUncertaintySupport::evaluator: alloc::sync::Arc<str>
 pub field antecedent_core::TransportUncertaintySupport::observation_contract: alloc::sync::Arc<str>
 pub field antecedent_core::TransportUncertaintySupport::uncertainty_method: alloc::sync::Arc<str>
+pub field antecedent_core::TransportWeightedTarget::covariates: alloc::sync::Arc<[antecedent_core::VariableId]>
+pub field antecedent_core::TransportWeightedTarget::identity: [u8; 32]
+pub field antecedent_core::TransportWeightedTarget::kernel: core::option::Option<antecedent_core::TransportTargetKernel>
+pub field antecedent_core::TransportWeightedTarget::min_ess_fraction_bits: u64
 pub field antecedent_core::UnitChangeQuery::allocation: antecedent_core::AllocationMethod
 pub field antecedent_core::UnitChangeQuery::components: antecedent_core::AttributionComponents
 pub field antecedent_core::UnitChangeQuery::max_units: usize
@@ -11221,6 +11270,8 @@ pub fn <antecedent_core::AnomalyAttributionQuery>::fn with_unit_rows(self, rows:
 pub fn <antecedent_core::AnomalyReference>::fn fixed(center: f64, scale: f64) -> Self
 pub fn <antecedent_core::ArithOp>::fn apply(self, a: f64, b: f64) -> f64
 pub fn <antecedent_core::AssociationFunctional>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::AssociationFunctional>::fn exceedance(threshold: f64) -> Self
+pub fn <antecedent_core::AssociationFunctional>::fn exceedance_threshold(self) -> core::option::Option<f64>
 pub fn <antecedent_core::AssociationMeasure>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::AssociationMeasure>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::AssociationOutcome>::const fn as_str(self) -> &'static str
@@ -11514,6 +11565,7 @@ pub fn <antecedent_core::DiscoveryMethod>::const fn is_temporal(&self) -> bool
 pub fn <antecedent_core::DiscoveryMethod>::const fn output(&self) -> antecedent_core::DiscoveredClass
 pub fn <antecedent_core::DiscoveryMethod>::const fn samples_posterior(&self) -> bool
 pub fn <antecedent_core::DiscoveryMethod>::const fn uses_independence_tests(&self) -> bool
+pub fn <antecedent_core::DiscoveryMethod>::fn structure_prior(&self) -> core::option::Option<&antecedent_core::StructurePriorSpec>
 pub fn <antecedent_core::DistributionRef>::const fn as_usize(self) -> usize
 pub fn <antecedent_core::DistributionRef>::const fn from_raw(raw: u32) -> Self
 pub fn <antecedent_core::DistributionRef>::const fn raw(self) -> u32
@@ -12135,6 +12187,8 @@ pub fn <antecedent_core::StructuralAction>::fn initial_state_change(&self) -> co
 pub fn <antecedent_core::StructuralAction>::fn mechanism(&self) -> core::option::Option<(&str, alloc::vec::Vec<f64>)>
 pub fn <antecedent_core::StructuralAction>::fn replace_mechanism(variable: antecedent_core::VariableId, family: impl core::convert::Into<alloc::sync::Arc<str>>, parameters: &[f64]) -> core::result::Result<Self, antecedent_core::ScientificTargetError>
 pub fn <antecedent_core::StructuralAction>::fn shock_delta(&self) -> core::option::Option<f64>
+pub fn <antecedent_core::StructurePriorSpec>::fn is_empty(&self) -> bool
+pub fn <antecedent_core::StructurePriorSpec>::fn statement(&self) -> alloc::string::String
 pub fn <antecedent_core::SupportStatus>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::SupportStatus>::const fn severity(self) -> u8
 pub fn <antecedent_core::SupportStatus>::fn from_name(name: &str) -> core::option::Option<Self>
@@ -12244,7 +12298,10 @@ pub fn <antecedent_core::TransportQuery>::fn new(response: antecedent_core::Resp
 pub fn <antecedent_core::TransportQuery>::fn unmet_factor_dependencies(&self, needed: &[(alloc::sync::Arc<str>, antecedent_core::FactorNeed<'_>)]) -> alloc::sync::Arc<[antecedent_core::UnmetDependency]>
 pub fn <antecedent_core::TransportQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::TransportQuery>::fn with_catalog(self, catalog: antecedent_core::EvidenceCatalog) -> core::result::Result<Self, antecedent_core::QueryError>
+pub fn <antecedent_core::TransportQuery>::fn with_weighted_target(self, target: antecedent_core::TransportWeightedTarget) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::TransportSupportCoordinate>::const fn stage(&self) -> &'static str
+pub fn <antecedent_core::TransportWeightedTarget>::fn min_ess_fraction(&self) -> f64
+pub fn <antecedent_core::TransportWeightedTarget>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::UnansweredCapability>::const fn capability(&self) -> antecedent_core::ProviderCapability
 pub fn <antecedent_core::UnansweredCapability>::const fn provider(&self) -> antecedent_core::ProviderId
 pub fn <antecedent_core::UnansweredCapability>::fn provider_name(&self) -> &str
@@ -13040,6 +13097,7 @@ pub mod antecedent_core::reason_details::typed_mechanism_transport
 pub mod antecedent_core::reason_details::unit_change
 pub mod antecedent_core::reason_details::vector_posterior
 pub mod antecedent_core::reason_details::vector_treatment
+pub mod antecedent_core::reason_details::weighted_target
 pub mod antecedent_core::recalc
 pub mod antecedent_core::refusal
 pub mod antecedent_core::response
@@ -13362,6 +13420,7 @@ pub struct antecedent_core::StreamDomain
 pub struct antecedent_core::StreamDomain has private fields
 pub struct antecedent_core::StructuralAction
 pub struct antecedent_core::StructuralAction has private fields
+pub struct antecedent_core::StructurePriorSpec
 pub struct antecedent_core::SupportDiagnostic
 pub struct antecedent_core::SupportRegion
 pub struct antecedent_core::SupportReport
@@ -13387,7 +13446,9 @@ pub struct antecedent_core::TransportIdentifySupport
 pub struct antecedent_core::TransportLocation
 pub struct antecedent_core::TransportOutcome
 pub struct antecedent_core::TransportQuery
+pub struct antecedent_core::TransportTargetKernel
 pub struct antecedent_core::TransportUncertaintySupport
+pub struct antecedent_core::TransportWeightedTarget
 pub struct antecedent_core::UnansweredCapability
 pub struct antecedent_core::UnansweredCapability has private fields
 pub struct antecedent_core::UnitChangeQuery
@@ -13897,6 +13958,7 @@ pub use antecedent_core::query::SimulateQuery = antecedent_core::SimulateQuery
 pub use antecedent_core::query::SimulationTarget = antecedent_core::SimulationTarget
 pub use antecedent_core::query::SmoothedDoseTransportQuery = antecedent_core::SmoothedDoseTransportQuery
 pub use antecedent_core::query::SmoothingKernel = antecedent_core::SmoothingKernel
+pub use antecedent_core::query::StructurePriorSpec = antecedent_core::StructurePriorSpec
 pub use antecedent_core::query::SupportedWeights = antecedent_core::SupportedWeights
 pub use antecedent_core::query::SurvivalFault = antecedent_core::SurvivalFault
 pub use antecedent_core::query::SurvivalFunctional = antecedent_core::SurvivalFunctional
@@ -13928,7 +13990,9 @@ pub use antecedent_core::query::TransportOutcome = antecedent_core::TransportOut
 pub use antecedent_core::query::TransportOutcomeKind = antecedent_core::TransportOutcomeKind
 pub use antecedent_core::query::TransportQuery = antecedent_core::TransportQuery
 pub use antecedent_core::query::TransportSupportCoordinate = antecedent_core::TransportSupportCoordinate
+pub use antecedent_core::query::TransportTargetKernel = antecedent_core::TransportTargetKernel
 pub use antecedent_core::query::TransportUncertaintySupport = antecedent_core::TransportUncertaintySupport
+pub use antecedent_core::query::TransportWeightedTarget = antecedent_core::TransportWeightedTarget
 pub use antecedent_core::query::UnitChangeQuery = antecedent_core::UnitChangeQuery
 pub use antecedent_core::query::UnmetDependency = antecedent_core::UnmetDependency
 pub use antecedent_core::query::VariableCoordinate = antecedent_core::VariableCoordinate
@@ -14099,6 +14163,7 @@ pub variant antecedent_core::AssociationFault::RefusalReasonLength
 pub variant antecedent_core::AssociationFunctional::Auto
 pub variant antecedent_core::AssociationFunctional::Coefficients
 pub variant antecedent_core::AssociationFunctional::Conditional
+pub variant antecedent_core::AssociationFunctional::Exceedance { threshold: antecedent_core::OrderedFloatBits }
 pub variant antecedent_core::AssociationFunctional::Measure(antecedent_core::AssociationMeasure)
 pub variant antecedent_core::AssociationFunctional::Predictive { folds: u32 }
 pub variant antecedent_core::AssociationMeasure::Distance
@@ -14330,6 +14395,7 @@ pub variant antecedent_core::DiscoverFault::SignificanceLevel
 pub variant antecedent_core::DiscoverFault::StabilityBase
 pub variant antecedent_core::DiscoverFault::StabilityResamples
 pub variant antecedent_core::DiscoverFault::StaticSearchLag
+pub variant antecedent_core::DiscoverFault::StructurePrior
 pub variant antecedent_core::DiscoveredClass::Cpdag
 pub variant antecedent_core::DiscoveredClass::CpdagPosterior
 pub variant antecedent_core::DiscoveredClass::Dag
@@ -14346,26 +14412,27 @@ pub variant antecedent_core::DiscoveredClass::TemporalPag
 pub variant antecedent_core::DiscoveryInference::Bayesian
 pub variant antecedent_core::DiscoveryInference::Frequentist
 pub variant antecedent_core::DiscoveryMethod::BootstrapStability { base: alloc::boxed::Box<antecedent_core::DiscoveryMethod>, replicates: u32 }
-pub variant antecedent_core::DiscoveryMethod::CiScreenedPosterior { weight: antecedent_core::ScreenWeight }
+pub variant antecedent_core::DiscoveryMethod::CiScreenedPosterior { weight: antecedent_core::ScreenWeight, prior: core::option::Option<antecedent_core::StructurePriorSpec> }
 pub variant antecedent_core::DiscoveryMethod::ClassPosterior { base: alloc::boxed::Box<antecedent_core::DiscoveryMethod> }
-pub variant antecedent_core::DiscoveryMethod::DbnPosterior { force_mcmc: bool }
+pub variant antecedent_core::DiscoveryMethod::DbnPosterior { force_mcmc: bool, prior: core::option::Option<antecedent_core::StructurePriorSpec> }
 pub variant antecedent_core::DiscoveryMethod::DirectLingam { prune_threshold: f64 }
-pub variant antecedent_core::DiscoveryMethod::ExactDagMarginals
-pub variant antecedent_core::DiscoveryMethod::ExactDagPosterior
+pub variant antecedent_core::DiscoveryMethod::ExactDagMarginals { prior: core::option::Option<antecedent_core::StructurePriorSpec> }
+pub variant antecedent_core::DiscoveryMethod::ExactDagPosterior { prior: core::option::Option<antecedent_core::StructurePriorSpec> }
 pub variant antecedent_core::DiscoveryMethod::ExactPagPosterior
 pub variant antecedent_core::DiscoveryMethod::Fci
 pub variant antecedent_core::DiscoveryMethod::Ges { screen_pc: bool, max_subset: core::option::Option<u32> }
 pub variant antecedent_core::DiscoveryMethod::JpcmciPlus
 pub variant antecedent_core::DiscoveryMethod::Lpcmci
 pub variant antecedent_core::DiscoveryMethod::Notears { lambda: f64, threshold: f64, standardize: bool }
-pub variant antecedent_core::DiscoveryMethod::OrderMcmc { diagnostics_gate: bool }
+pub variant antecedent_core::DiscoveryMethod::OrderMcmc { diagnostics_gate: bool, prior: core::option::Option<antecedent_core::StructurePriorSpec> }
 pub variant antecedent_core::DiscoveryMethod::PagMcmc
 pub variant antecedent_core::DiscoveryMethod::Pc
 pub variant antecedent_core::DiscoveryMethod::Pcmci
 pub variant antecedent_core::DiscoveryMethod::PcmciPlus
 pub variant antecedent_core::DiscoveryMethod::Rfci
 pub variant antecedent_core::DiscoveryMethod::Rpcmci { min_regime_len: core::option::Option<u32> }
-pub variant antecedent_core::DiscoveryMethod::StructureMcmc
+pub variant antecedent_core::DiscoveryMethod::ScreenedExactMarginals { focus: alloc::sync::Arc<[antecedent_core::VariableId]>, max_variables: u32, in_probability: f64, out_probability: f64, prior: core::option::Option<antecedent_core::StructurePriorSpec> }
+pub variant antecedent_core::DiscoveryMethod::StructureMcmc { prior: core::option::Option<antecedent_core::StructurePriorSpec> }
 pub variant antecedent_core::DistributionAvailability::Joint
 pub variant antecedent_core::DistributionAvailability::SeparateMarginals { variables: alloc::sync::Arc<[antecedent_core::VariableId]> }
 pub variant antecedent_core::DoseGridFault::CellCoverage
@@ -15127,6 +15194,7 @@ pub variant antecedent_core::TransportFault::SourceExperimentsDisagree
 pub variant antecedent_core::TransportFault::SourceExperimentsNotUnique
 pub variant antecedent_core::TransportFault::StudyIdentityEmpty
 pub variant antecedent_core::TransportFault::VariableNotDeclared
+pub variant antecedent_core::TransportFault::WeightedTarget
 pub variant antecedent_core::TransportOutcomeKind::BudgetCancel
 pub variant antecedent_core::TransportOutcomeKind::Identified
 pub variant antecedent_core::TransportOutcomeKind::InvalidInput
