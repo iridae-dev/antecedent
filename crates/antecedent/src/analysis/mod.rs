@@ -177,6 +177,7 @@ pub(crate) mod functional_sensitivity;
 pub(crate) mod functional_validation;
 pub mod graph_imputation;
 pub mod graph_imputation_effect_decision;
+pub mod graph_imputation_transport_decision;
 #[cfg(test)]
 mod graph_imputation_mix;
 #[cfg(test)]

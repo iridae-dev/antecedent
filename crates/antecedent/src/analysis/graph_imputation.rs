@@ -616,8 +616,7 @@ impl CompiledGraphImputation {
     }
 
     /// The canonical original-source bytes the replay consumes.
-    #[cfg(feature = "calibration-internal")]
-    fn source_bytes(&self) -> &[u8] {
+    pub(crate) fn source_bytes(&self) -> &[u8] {
         &self.source_bytes
     }
 }

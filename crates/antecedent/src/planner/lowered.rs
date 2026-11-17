@@ -1110,6 +1110,8 @@ pub(crate) enum ProgramCell {
     GraphImputation,
     /// Graph-imputation effect posterior and downstream utility.
     GraphImputationEffectDecision,
+    /// Graph-imputation target standardization and downstream utility.
+    GraphImputationTransportDecision,
     /// A scientifically closed categorical posterior candidate.
     CategoricalPosteriorCandidate,
     /// A fixed declared MNAR operation.
@@ -1137,6 +1139,7 @@ impl ProgramCell {
             Self::BundleRecomputation => "BundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
+            Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
             Self::MnarFixedShift => "MnarFixedShift",
         }
@@ -1206,6 +1209,7 @@ impl LoweredProgram {
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
         }
@@ -1232,6 +1236,7 @@ impl LoweredProgram {
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
         }
@@ -1258,6 +1263,7 @@ impl LoweredProgram {
             | ProgramCell::BundleRecomputation
             | ProgramCell::GraphImputation
             | ProgramCell::GraphImputationEffectDecision
+            | ProgramCell::GraphImputationTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
             | ProgramCell::MnarFixedShift => None,
         }

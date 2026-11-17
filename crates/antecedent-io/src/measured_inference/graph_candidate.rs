@@ -19,8 +19,8 @@ use antecedent_core::graph_imputation_contract::{
 use antecedent_core::search::{SearchBudget, SearchLimits};
 use antecedent_core::{
     AssumptionSet, AverageEffectQuery, CalibrationBasis, CanonicalEncode, CanonicalWriter,
-    CausalQuery, ExecutionContext, IdentificationStatus, IdentityDomain, SemanticDigest,
-    VariableId,
+    CausalQuery, DistributionRef, ExecutionContext, IdentificationStatus, IdentityDomain,
+    PopulationRegistry, SemanticDigest, TargetPopulation, VariableId,
 };
 use antecedent_data::{
     ImputationDomain, ImputationSpec, TableView, TabularData, complete_float_columns,
@@ -39,6 +39,7 @@ use antecedent_identify::{BackdoorIdentifier, IdentificationWorkspace};
 use antecedent_prob::{
     BayesLikelihood, GraphIdentFlag, InferenceDiagnostics, WeightedGraphSamples,
 };
+use serde::{Deserialize, Serialize};
 
 use super::{
     MeasuredExpectation, MeasuredInference, ScalarExecution, authorize, compare_replay, decode,
@@ -49,6 +50,99 @@ use crate::IoError;
 /// The route reports this coordinate, so only a record measured under it can cover a run.
 const PRIOR_PREDICTIVE_FAMILY: &str = "prior_predictive.v2:effect_uniform_minus1_plus1:linear_gaussian_outcome:logistic_binary_treatment:outcome_missing_at_random_by_treatment:";
 const MEMORY_LIMIT: u64 = 25 * 1024 * 1024;
+
+/// Target covariate sample for the separate graph-imputation transport route.
+/// Every column names a source schema index and contains complete binary cells.
+/// The target is a representative sample; selection targets name pretreatment
+/// covariate mechanisms allowed to differ. A graph whose fitted effect omits a
+/// selected covariate imposes effect homogeneity along it as a model premise.
+/// No target outcome or treatment is accepted.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TransportStandardization {
+    /// Target covariate columns in ascending source-schema index order.
+    pub columns: Vec<(u32, Vec<f64>)>,
+    /// Variables whose population mechanisms may differ, in ascending order.
+    pub selection_targets: Vec<u32>,
+    /// Population represented by the original graph-imputation sample.
+    pub source_population: String,
+    /// Population represented by the target covariate sample.
+    pub target_population: String,
+    /// Independent source sample identity declared by the caller.
+    pub source_sample: String,
+    /// Independent target sample identity declared by the caller.
+    pub target_sample: String,
+}
+
+impl TransportStandardization {
+    /// Validate the target's binary sampling frame and its graph-scope premise.
+    ///
+    /// # Errors
+    /// Missing, duplicate, nonbinary, or unsupported target rows or selections.
+    pub fn validate(&self, parts: &GraphImputationParts) -> Result<(), IoError> {
+        if self.source_population.trim().is_empty() || self.target_population.trim().is_empty()
+            || self.source_population == self.target_population
+            || self.source_sample.trim().is_empty() || self.target_sample.trim().is_empty()
+            || self.source_sample == self.target_sample
+            || self.columns.is_empty() || self.selection_targets.is_empty()
+        {
+            return Err(invalid("transport needs distinct source and target samples and selected covariates"));
+        }
+        if parts.support != GraphSupport::PreTreatmentCovariates {
+            return Err(invalid("target standardization requires the pretreatment graph support"));
+        }
+        let rows = self.columns[0].1.len();
+        if rows < 2 || self.columns.iter().any(|(_, values)| values.len() != rows) {
+            return Err(invalid("target covariate columns need aligned representative rows"));
+        }
+        let mut previous = None;
+        for (id, values) in &self.columns {
+            if previous.is_some_and(|last| last >= *id)
+                || *id as usize >= parts.names.len()
+                || *id == parts.treatment || *id == parts.outcome
+                || parts.domains[*id as usize] != 1
+                || values.iter().any(|value| *value != 0.0 && *value != 1.0)
+            {
+                return Err(invalid("target columns must be unique binary pretreatment covariates"));
+            }
+            previous = Some(*id);
+        }
+        let mut last = None;
+        for &id in &self.selection_targets {
+            if last.is_some_and(|previous| previous >= id)
+                || !self.columns.iter().any(|(column, _)| *column == id)
+            {
+                return Err(invalid("selection targets must be unique target covariates"));
+            }
+            last = Some(id);
+        }
+        if parts.atoms.iter().any(|atom| {
+            atom.adjustment.iter().any(|id| {
+                    !self.columns.iter().any(|(column, _)| column == id)
+                        || parts.domains[*id as usize] != 1
+                })
+        }) {
+            return Err(invalid("every retained graph needs binary target data for its adjustment set"));
+        }
+        Ok(())
+    }
+
+    /// Canonical identity of the target rows, populations, sample identities
+    /// and structural selection premise.
+    ///
+    /// # Errors
+    /// Encoding refusal.
+    pub fn digest(&self) -> Result<[u8; 32], IoError> {
+        Ok(CanonicalWriter::digest_bytes(
+            "antecedent.graph_imputation_transport.target.v1",
+            &crate::to_cbor(self)?,
+        ))
+    }
+
+    /// Number of representative target rows after validation.
+    #[must_use]
+    pub fn rows(&self) -> usize { self.columns.first().map_or(0, |column| column.1.len()) }
+}
 
 fn invalid(message: impl std::fmt::Display) -> IoError {
     IoError::Refused {
@@ -293,11 +387,67 @@ struct Execution {
     lease: AdmissionLease,
 }
 
+fn transported_population(
+    data: &TabularData,
+    query: &AverageEffectQuery,
+    atom: &DerivedAtom,
+    target: &TransportStandardization,
+) -> Result<(AverageEffectQuery, PopulationRegistry), IoError> {
+    let adjustment = &atom.operation.adjustment;
+    let mut source_columns = Vec::with_capacity(adjustment.len());
+    let mut target_columns = Vec::with_capacity(adjustment.len());
+    for &id in adjustment {
+        source_columns.push(data.float64_values(VariableId::from_raw(id)).map_err(invalid)?);
+        target_columns.push(target.columns.iter().find(|(column, _)| *column == id)
+            .ok_or_else(|| invalid("target is missing an identified adjustment covariate"))?.1.as_slice());
+    }
+    let binary_key = |columns: &[&[f64]], row: usize| -> Result<Vec<u8>, IoError> {
+        columns.iter().map(|column| match column[row] {
+            0.0 => Ok(0), 1.0 => Ok(1),
+            _ => Err(execution_refused("completed source or target covariate is not binary")),
+        }).collect()
+    };
+    let source_slices: Vec<&[f64]> = source_columns.iter().map(Vec::as_slice).collect();
+    let source_rows = data.row_count();
+    let mut source_count = BTreeMap::<Vec<u8>, usize>::new();
+    let mut target_count = BTreeMap::<Vec<u8>, usize>::new();
+    let mut source_keys = Vec::with_capacity(source_rows);
+    for row in 0..source_rows {
+        let key = binary_key(&source_slices, row)?;
+        *source_count.entry(key.clone()).or_default() += 1;
+        source_keys.push(key);
+    }
+    for row in 0..target.rows() {
+        *target_count.entry(binary_key(&target_columns, row)?).or_default() += 1;
+    }
+    if target_count.iter().any(|(key, count)| *count > 0 && !source_count.contains_key(key)) {
+        return Err(execution_refused("target adjustment stratum has no completed source support"));
+    }
+    let source_n = source_rows as f64;
+    let target_n = target.rows() as f64;
+    let weights: Vec<f64> = source_keys.iter().map(|key| {
+        let target_count = *target_count.get(key).unwrap_or(&0) as f64;
+        let source_count = source_count[key] as f64;
+        target_count * source_n / (source_count * target_n)
+    }).collect();
+    let handle = DistributionRef::from_raw(1);
+    let mut registry = PopulationRegistry::new();
+    registry.insert_distribution_with_dependence(
+        handle, Arc::<[f64]>::from(weights),
+        Arc::<[VariableId]>::from(adjustment.iter().copied()
+            .map(VariableId::from_raw).collect::<Vec<_>>()),
+    );
+    Ok((query.clone().with_target_population(TargetPopulation::CustomDistribution(handle)), registry))
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "the composite seals each completed table, graph fit and mixture together"
 )]
-fn execute(rec: &Reconstructed, ctx: &ExecutionContext) -> Result<Execution, IoError> {
+fn execute(
+    rec: &Reconstructed, target: Option<&TransportStandardization>,
+    ctx: &ExecutionContext,
+) -> Result<Execution, IoError> {
     let parts = rec.source.parts();
     let (treatment, outcome) =
         (VariableId::from_raw(parts.treatment), VariableId::from_raw(parts.outcome));
@@ -320,8 +470,11 @@ fn execute(rec: &Reconstructed, ctx: &ExecutionContext) -> Result<Execution, IoE
     let mut pooled = Vec::new();
     let mut unidentified_by_table = Vec::new();
     let mut table_leases = Vec::new();
-    let mut receipt = CanonicalWriter::new("antecedent.graph_candidate.execution.v1");
+    let mut receipt = CanonicalWriter::new(if target.is_some() {
+        "antecedent.graph_imputation_transport.execution.v1"
+    } else { "antecedent.graph_candidate.execution.v1" });
     receipt.bytes(program.as_bytes()).bytes(&contract).word(u64::from(parts.imputations));
+    if let Some(target) = target { receipt.bytes(&target.digest()?); }
     for index in 0..parts.imputations {
         let (data, completed_digest) = complete_table(rec, index, &scoped)?;
         let graphs = graph_imputation_exact_dags(
@@ -375,23 +528,29 @@ fn execute(rec: &Reconstructed, ctx: &ExecutionContext) -> Result<Execution, IoE
                 prior_scale: parts.prior_scale,
                 prior: None,
             };
-            let fit = fitter
-                .prepare(&data, &atom.estimand, &rec.query)
-                .and_then(|prepared| {
-                    fitter.fit(
-                        &prepared,
-                        atom.operation.status,
-                        &mut BayesianGCompWorkspace::default(),
-                        &child_ctx,
-                    )
-                })
-                .map_err(|error| {
+            let fit_error = |error| {
                     if child_ctx.cancellation.is_cancelled() {
                         cancelled()
                     } else {
                         execution_refused(format!("graph mask {mask}: {error}"))
                     }
-                })?;
+                };
+            let fit = if let Some(target) = target {
+                let (query, registry) = transported_population(&data, &rec.query, atom, target)?;
+                fitter.prepare_for_population(&data, &atom.estimand, &query, Some(&registry))
+                    .and_then(|prepared| fitter.fit(
+                        &prepared, atom.operation.status,
+                        &mut BayesianGCompWorkspace::default(), &child_ctx,
+                    ))
+                    .map_err(fit_error)?
+            } else {
+                fitter.prepare(&data, &atom.estimand, &rec.query)
+                    .and_then(|prepared| fitter.fit(
+                        &prepared, atom.operation.status,
+                        &mut BayesianGCompWorkspace::default(), &child_ctx,
+                    ))
+                    .map_err(fit_error)?
+            };
             if !matches!(
                 fit.identification,
                 IdentificationStatus::NonparametricallyIdentified
@@ -613,7 +772,7 @@ struct Reading {
 // measured route.
 fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reading, IoError> {
     let rec = reconstruct(bytes, ctx)?;
-    let run = execute(&rec, ctx)?;
+    let run = execute(&rec, None, ctx)?;
     let mut sorted = run.draws.clone();
     sorted.sort_by(f64::total_cmp);
     // Fixed nearest-rank 95% interval; a record must measure exactly this algorithm.
@@ -669,6 +828,39 @@ pub fn replay_point(bytes: &[u8], ctx: &ExecutionContext) -> Result<GraphPointRe
         source: parts.data_digest,
         unidentified_by_table: reading.unidentified_by_table,
         _lease: reading.lease,
+    })
+}
+
+/// Re-derive graph operations, impute the source, reselect graphs for every
+/// completed table, fit each graph-specific outcome law and standardize every
+/// child effect draw to the independent target covariate sample. A selected
+/// covariate omitted by a graph's fit has a declared effect-homogeneity
+/// premise in that graph. This is a new
+/// model-conditional posterior route with no inherited interval calibration.
+///
+/// # Errors
+/// Invalid target evidence, missing target support, graph or fit refusal,
+/// cancellation or admission refusal.
+pub fn replay_transport_point(
+    bytes: &[u8], target: &TransportStandardization,
+    ctx: &ExecutionContext,
+) -> Result<GraphPointReading, IoError> {
+    let rec = reconstruct(bytes, ctx)?;
+    target.validate(rec.source.parts())?;
+    let target_bytes = (target.rows() as u64)
+        .saturating_mul(target.columns.len() as u64)
+        .saturating_mul(16);
+    let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
+    let run = execute(&rec, Some(target), ctx)?;
+    Ok(GraphPointReading {
+        mean: run.mean,
+        diagnostic_sd: run.sd,
+        draws: run.draws,
+        receipt: run.receipt,
+        program: rec.source.program(),
+        source: rec.source.parts().data_digest,
+        unidentified_by_table: run.unidentified_by_table,
+        _lease: run.lease,
     })
 }
 

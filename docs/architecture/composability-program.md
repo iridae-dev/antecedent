@@ -17,11 +17,11 @@ coverage or error control.
 | Priority | Limitation impact | Useful flow and existing support | Remaining compiler obligation | Existing claim change |
 | --- | --- | --- | --- | --- |
 | 1 | Critical | A new joint cyclic posterior route samples fitted mechanisms from one likelihood, draws population disturbances from the specified covariance, solves each hard-clamp world on the same parameter and disturbance pair, then compiles nonlinear multi-action utility | Prespecify and earn final population-predictive reliability or coverage at the exact decision coordinate; the model and covariance remain assumptions | None for an additive route; high if parameter draws are reinterpreted as outcome risk |
-| 2 | Critical | A new graph-imputation effect decision cell binds graph selection, missing-row imputation, child fitting and target effect utility through one compiler and portable replay; fitted transport-effect utility is a separate whole producer route | Join selection, imputation, fitting, transport and decision in one dependent schedule; measure final-coordinate coverage and decision reliability | None for a new route; high if component intervals are relabelled as whole-chain coverage |
+| 2 | Critical | A new bounded graph-imputation transport-decision cell compiles source graph operations, missing-row imputation, a representative binary target sample, graph-specific standardization, child fitting and target effect utility into one portable schedule | Extend target standardization beyond complete binary covariates, prove or measure whole-route coverage and decision reliability, and support broader selection diagrams | None for a new route; high if component intervals are relabelled as whole-chain coverage |
 | 3 | High | A declared transported law can enter multi-action utility; a new joint Bayesian transport-effect decision program binds the raw selection diagram, source and target rows, shared Gaussian fit, overlap rule and effect utility, then independently refits and replays them | Extend producer-fitted decisions to outcome-predictive and other transport families; earn final decision reliability at each exact coordinate | None for the additive route; medium if current point transport claims are promoted to laws |
 | 4 | High | A new compiler cell replays the original and whole-chain bootstrap assumption envelopes at one terminal coordinate and forms a Bonferroni-split basic-bootstrap union; robust decisions remain conditional on the supplied draw table | Prespecify and earn coverage of the whole bootstrap schedule before calling the candidate interval calibrated or feeding it into a confidence decision | None for the additive route; high if an assumption range is treated as a confidence interval |
 | 5 | High | The graph-checked policy route separates a narrower policy information set from the full nuisance adjustment set in a version-3 artifact, while retaining held-out or cross-fit scoring; a source-only held-out candidate and exact conditional-truth coverage harness are staged | Earn the held-out learner's coverage record, then extend evidence to cross-fit learning and other information sets | None for the additive route; high if same-data scores acquire an unbiasedness claim |
-| 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; a new effect decision cell consumes the retained mixture draws and replays the entire source schedule | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
+| 6 | High | Graph uncertainty and missingness compose for the bounded binary average effect, including graph search rerun per imputation; the target-standardized effect decision also retains their dependent schedule | Lower richer treatment targets and the joint graph, missing-data and treatment-world draw schedule | None for a new route; high if separate marginal bounds are multiplied into a posterior |
 | 7 | Medium | A scientific surrogate bridge already composes with transport and nonlinear utility over joint draws; the new predictive bridge-transport-decision cell binds all three declarations in one program and replays both the bridge and utility | Estimate or validate the transport premise itself, rather than only carrying its declared evidence; measure any final decision reliability claim | None for a new route; high if a surrogate score is substituted for an endpoint |
 | 8 | Medium | Scalar and vector feedback compile one cyclic program; a new joint likelihood posterior carries fitted parameter dependence into connected predictive equilibria and paired decisions | Calibrate the connected equilibrium and generalize fitted component evidence beyond one specified model and covariance | None for a new route; medium if the acyclic interface contract is reinterpreted as cyclic |
 | 9 | Medium | A new time-ordered finite path-specific transport cell identifies each edge-intervention world under a selection diagram, evaluates the target contrast on exact laws, and replays both derivations | Develop sampled and continuous longitudinal path estimators, with uncertainty at the transported contrast | None for the additive point route; high if ordinary transport is relabelled path-specific |
@@ -153,6 +153,25 @@ posterior of a causal functional, conditional on the supplied model and
 selection premises. It is not a predictive outcome-risk law. The composed
 decision reports `not_measured`; its source assertion and calibration have not
 been run or earned.
+
+`graph_imputation_transport_decision_v1` is a bounded dependent alternative.
+Its source compiler retains every graph's identified adjustment operation;
+the outer six-layer program binds that source, an independent representative
+target sample of complete binary pretreatment covariates, selected population
+mechanisms, the exact target average-effect coordinate and utility. Native
+execution imputes the original source on every completed table, rescores the
+graphs, and constructs target-to-source stratum weights separately for each
+graph's adjustment set before the child Gaussian outcome fit. A target stratum
+with no source support refuses. A graph omitting a selected covariate imposes
+effect homogeneity along it through its child model; this is a declared
+parametric premise, not a structural theorem. The target sampling frame,
+source-target independence and invariant conditional outcome mechanism are
+declared assumptions. The effect posterior conditions on the empirical target
+covariate frame and omits its sampling uncertainty. The combined portable consumer recompiles the original
+source and outer target program, then reruns the numerical schedule and
+utility. Its posterior effect and decision are `not_measured`; its ignored
+reference assertion is unearned. The old graph-imputation measured route
+continues to execute without target input or changed calibration coordinates.
 
 The cyclic component adapter checks each scientific port and joins scalar
 mechanisms before preparing the complete connected model through the existing
