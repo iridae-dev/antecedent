@@ -23419,6 +23419,13 @@ path = "crates/antecedent/tests/grid_functional_effect_calibration.rs"
 gates = ["inventory"]
 
 [[test]]
+id = "grid-functional-posterior-calibration"
+crate = "antecedent"
+cargo_target = "grid_functional_posterior_calibration"
+path = "crates/antecedent/tests/grid_functional_posterior_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
 id = "grid-temporal-effect-calibration"
 crate = "antecedent"
 cargo_target = "grid_temporal_effect_calibration"

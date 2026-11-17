@@ -23,7 +23,11 @@ What is owed, and why, is the one list the measurement queue runs
 * `no_record`           an interval route has no coverage record of its own: a supported
                         interval route with no measured record, whether the record is
                         allocated to it or the group that will measure it is named in
-                        `parity/calibration_routes.toml`;
+                        `parity/calibration_routes.toml`; and an open ledger row
+                        (`parity/pending_measurement.toml`, `parity/unmeasured_statements.toml`,
+                        or a supported coordinate whose estimator grid is not measured) whose
+                        named gate groups have produced no record yet, so the owed run
+                        executes them (a row that names no group is owed and `unwired`);
 * `inputs_changed`      a coverage record whose manifest no longer matches the tree (or
                         that has none);
 * `probe_mismatch`      a coverage record with a probe attestation that does not cover the
@@ -419,6 +423,69 @@ def owed_counts(items: list[dict]) -> dict[str, int]:
     return counts
 
 
+LEDGER = "ledger"
+
+
+def ledger_rows(root: Path = ROOT) -> list[dict]:
+    """Every open ledger row with the gate groups that measure it, as `{"id", "groups"}`.
+
+    A cell owed to calibration (`parity/pending_measurement.toml`) and a published uncertainty
+    statement no measurement covers (`parity/unmeasured_statements.toml`) each name `groups`:
+    the `<test file>: <test filter>` gate groups whose coverage records close the row, as
+    `parity/calibration_routes.toml` names them for an interval route. A row that names none
+    is unwired."""
+    sources = (
+        ("parity/pending_measurement.toml", "pending", lambda row: f"pending:{row['row']}"),
+        (
+            "parity/unmeasured_statements.toml",
+            "statement",
+            lambda row: f"statement:{row['route']}: {row['statement']}",
+        ),
+    )
+    rows = []
+    for name, table, identify in sources:
+        path = root / name
+        if path.is_file():
+            for row in tomllib.loads(read_text(path)).get(table, []):
+                rows.append({"id": identify(row), "groups": [str(g) for g in row.get("groups", [])]})
+    return rows
+
+
+def backlog_rows() -> list[dict]:
+    """Every supported coordinate with no measured estimator grid, with the gate groups
+    `readiness` lists as candidates for it (by the coordinate's query, graph, structure and
+    inference). A coordinate no group is named for is unwired."""
+    groups = calibration_groups()
+    return [
+        {"id": "cell:" + " / ".join(key), "groups": candidate_groups(key, groups)}
+        for key in not_measured_coordinates()
+    ]
+
+
+def ledger_items(rows: list[dict], records: list[dict]) -> list[dict]:
+    """The rows whose named groups have produced no record yet, each an owed item.
+
+    A row owes the groups that have no record; a group whose records exist but are not current is
+    already owed through those records. A row that names no group is owed and `unwired`: nothing
+    can measure it."""
+    items = []
+    for row in rows:
+        unmeasured = [
+            spec for spec in row["groups"] if not group_records([split_group(spec)], records)
+        ]
+        if unmeasured or not row["groups"]:
+            items.append(
+                {
+                    "kind": LEDGER,
+                    "id": row["id"],
+                    "reason": NO_RECORD,
+                    "groups": unmeasured,
+                    "unwired": not row["groups"],
+                }
+            )
+    return items
+
+
 def current_owed() -> tuple[list[dict], dict[str, Status], dict[str, int]]:
     records = load_records()
     attestations = load_attestations()
@@ -427,6 +494,7 @@ def current_owed() -> tuple[list[dict], dict[str, Status], dict[str, int]]:
     capability = tomllib.loads(read_text(CAPABILITY_RECORDS)).get("record", [])
     route_rows = interval_routes(capability, records, load_route_map())
     items = owed_items(records, attestations, fingerprints, route_rows)
+    items += ledger_items(ledger_rows() + backlog_rows(), records)
     return items, statuses, summary(statuses)
 
 
@@ -517,7 +585,7 @@ def calibration_groups() -> list[tuple[str, str]]:
 
 def candidate_groups(key: tuple[str, ...], groups: list[tuple[str, str]]) -> list[str]:
     """Groups whose name matches the coordinate's query, graph and inference: candidates, never proof of fit."""
-    query, graph, _structure, inference = key
+    query, graph, structure, inference = key
     static = graph in {"Dag", "Cpdag", "Pag", "Admg"}
     out = []
     for head, test_filter in groups:
@@ -526,6 +594,9 @@ def candidate_groups(key: tuple[str, ...], groups: list[tuple[str, str]]) -> lis
             _phrase(label, query)
             and _phrase(label, graph, static_graph=static)
             and _phrase(label, inference)
+            # A graph-posterior coordinate is measured by a group that executes the posterior
+            # route; the group of the same graph class given as a structure does not.
+            and (structure != "graph_posterior" or _phrase(label, structure))
         ):
             out.append(label)
     return out

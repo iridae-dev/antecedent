@@ -80,6 +80,10 @@ name = "grid_functional_effect_calibration"
 required-features = ["calibration-internal"]
 
 [[test]]
+name = "grid_functional_posterior_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
 name = "grid_mechanism_design_calibration"
 required-features = ["calibration-internal"]
 

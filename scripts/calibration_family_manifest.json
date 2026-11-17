@@ -19,7 +19,7 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "be845367c6a778ee1a2244c3f510ebf2f647802d1ad9c1b3e393b06303b303f7",
+  "gate_sha256": "ff9c7a7fd1a383c68428829b9add1371bb7063279522f6aa73caf1163547e3cf",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
   "label_audit_sha256": "f534faa58b620261bebbbd752acd0a1d6681e1b546c0406a387520996f0bbee7",
   "groups": [
@@ -8831,6 +8831,31 @@
     {
       "index": 1762,
       "label": "graph_posterior_weighted_target_calibration: graph_posterior_weighted_target_credible_interval_covers_across_bandwidths",
+      "grid": true
+    },
+    {
+      "index": 1763,
+      "label": "grid_functional_posterior_calibration: mediation_effect_pag_graph_posterior_frequentist_coverage",
+      "grid": true
+    },
+    {
+      "index": 1764,
+      "label": "grid_functional_posterior_calibration: mediation_effect_pag_graph_posterior_bayesian_coverage",
+      "grid": true
+    },
+    {
+      "index": 1765,
+      "label": "grid_functional_posterior_calibration: nested_counterfactual_effect_pag_graph_posterior_bayesian_coverage",
+      "grid": true
+    },
+    {
+      "index": 1766,
+      "label": "grid_functional_posterior_calibration: temporal_mediation_effect_temporal_pag_graph_posterior_frequentist_coverage",
+      "grid": true
+    },
+    {
+      "index": 1767,
+      "label": "grid_functional_posterior_calibration: temporal_mediation_effect_temporal_pag_graph_posterior_bayesian_coverage",
       "grid": true
     }
   ],

@@ -14703,3 +14703,48 @@ target = "graph_posterior_weighted_target_calibration"
 tests = ["graph_posterior_weighted_target_credible_interval_covers_across_bandwidths"]
 ignored = true
 grid = true
+
+[[group]]
+label = "grid_functional_posterior_calibration: mediation_effect_pag_graph_posterior_frequentist_coverage"
+package = "antecedent"
+target = "grid_functional_posterior_calibration"
+features = ["calibration-internal"]
+tests = ["mediation_effect_pag_graph_posterior_frequentist_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_functional_posterior_calibration: mediation_effect_pag_graph_posterior_bayesian_coverage"
+package = "antecedent"
+target = "grid_functional_posterior_calibration"
+features = ["calibration-internal"]
+tests = ["mediation_effect_pag_graph_posterior_bayesian_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_functional_posterior_calibration: nested_counterfactual_effect_pag_graph_posterior_bayesian_coverage"
+package = "antecedent"
+target = "grid_functional_posterior_calibration"
+features = ["calibration-internal"]
+tests = ["nested_counterfactual_effect_pag_graph_posterior_bayesian_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_functional_posterior_calibration: temporal_mediation_effect_temporal_pag_graph_posterior_frequentist_coverage"
+package = "antecedent"
+target = "grid_functional_posterior_calibration"
+features = ["calibration-internal"]
+tests = ["temporal_mediation_effect_temporal_pag_graph_posterior_frequentist_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "grid_functional_posterior_calibration: temporal_mediation_effect_temporal_pag_graph_posterior_bayesian_coverage"
+package = "antecedent"
+target = "grid_functional_posterior_calibration"
+features = ["calibration-internal"]
+tests = ["temporal_mediation_effect_temporal_pag_graph_posterior_bayesian_coverage"]
+ignored = true
+grid = true
