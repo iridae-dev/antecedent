@@ -1263,6 +1263,60 @@ pub fn replay_transport_paired_worlds(bytes: &[u8], target: &TransportStandardiz
         _lease: run.lease, _paired_leases: run.paired_leases })
 }
 
+/// IID-resample aligned target rows and rerun the full paired-world route.
+/// One intact graph/imputation/coefficient world pair is retained per replicate.
+/// This is a model-conditional candidate, with no earned coverage.
+///
+/// # Errors
+/// Invalid resampling policy, target support, replay or admission refusal.
+pub fn replay_transport_paired_worlds_bootstrap(bytes: &[u8], target: &TransportStandardization,
+    replicates: u32, seed: u64, ctx: &ExecutionContext) -> Result<GraphPairedWorldReading, IoError> {
+    if !(40..=256).contains(&replicates) { return Err(invalid("paired target bootstrap needs 40 to 256 replicates")); }
+    let mut reading = replay_transport_paired_worlds(bytes, target, ctx)?;
+    let rows = target.rows();
+    let bootstrap_bytes = (rows as u64).saturating_mul((target.columns.len() as u64).saturating_mul(2) + 1)
+        .saturating_mul(8).saturating_add(u64::from(replicates).saturating_mul(16))
+        .saturating_add(target.source_unit_ids.iter().chain(&target.target_unit_ids)
+            .map(|id| (id.len() as u64).saturating_add(24)).fold(0_u64, u64::saturating_add));
+    let lease = ctx.acquire_admission(0, bootstrap_bytes).map_err(admission)?;
+    let mut state = seed;
+    let mut pairs = Vec::with_capacity(replicates as usize);
+    let mut receipt = CanonicalWriter::new("antecedent.graph_imputation_transport.paired_world_bootstrap.execution.v1");
+    receipt.bytes(&reading.program).bytes(&target.digest()?).word(u64::from(replicates)).word(seed);
+    for replicate in 0..replicates {
+        if ctx.cancellation.is_cancelled() { return Err(cancelled()); }
+        let mut sampled = target.clone();
+        let indices: Vec<usize> = (0..rows).map(|_| {
+            let bound = rows as u64;
+            let threshold = bound.wrapping_neg() % bound;
+            loop {
+                state = state.wrapping_add(0x9e3779b97f4a7c15);
+                let mut z = state;
+                z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+                z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+                let word = z ^ (z >> 31);
+                if word >= threshold { break (word % bound) as usize; }
+            }
+        }).collect();
+        for ((_, values), (_, original)) in sampled.columns.iter_mut().zip(&target.columns) {
+            *values = indices.iter().map(|&index| original[index]).collect();
+        }
+        // Unit identities denote slots; the selected original indices are sealed.
+        let run = replay_transport_paired_worlds(bytes, &sampled, ctx)?;
+        if run.worlds.is_empty() { return Err(invalid("paired bootstrap produced no worlds")); }
+        let index = replicate as usize % run.worlds.len();
+        let pair = run.worlds[index];
+        receipt.word(u64::from(replicate));
+        for index in indices { receipt.word(index as u64); }
+        receipt.bytes(&run.receipt).word(index as u64).word(pair[0].to_bits()).word(pair[1].to_bits());
+        pairs.push(pair);
+    }
+    reading.worlds = pairs;
+    reading.receipt = receipt.finish();
+    reading._paired_leases.push(lease);
+    Ok(reading)
+}
+
 /// Re-derive graph operations, impute the source, reselect graphs for every
 /// completed table, fit each graph-specific outcome law and standardize every
 /// child effect draw to the independent target covariate sample. Every
