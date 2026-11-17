@@ -118,7 +118,8 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis)>
     let plan = compile_joint_transport_predictive_decision(JointTransportPredictiveDecisionRequest {
         diagram, query, model, sources: vec![source], target,
         options: JointTransportOptions { draws: 1024, seed: grid_seed(seed) },
-        target_noise_variance: NOISE_VARIANCE, worlds, decision,
+        target_noise_variance: NOISE_VARIANCE, target_noise_correlation: 1.0,
+        worlds, decision,
     }).ok()?;
     let candidate = plan.calibration_candidate(&ctx).ok()?;
     assert_eq!(candidate.result.calibration, "not_measured");

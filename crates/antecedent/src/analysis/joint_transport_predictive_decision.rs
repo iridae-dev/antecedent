@@ -3,6 +3,8 @@
 //! The source likelihood identifies treatment effects under the checked selection
 //! diagram. Predicting an absolute target outcome additionally assumes that the
 //! source-varying baseline block and known residual variance apply in the target.
+//! Paired-world utility additionally needs a declared Gaussian correlation
+//! between potential-outcome disturbances; marginal outcome laws do not fix it.
 //! This is a new, model-conditional predictive route, not a reinterpretation of
 //! the effect posterior or an earned decision reliability claim.
 
@@ -56,7 +58,7 @@ use crate::planner::statistical::{
 };
 use crate::planner::{PlanStage, PlanView};
 
-const FEATURE: &str = "joint_transport_predictive_decision_v1";
+const FEATURE: &str = "joint_transport_predictive_decision_v2";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 /// Complete source fit, target-frame prediction and paired decision declaration.
@@ -76,6 +78,9 @@ pub struct JointTransportPredictiveDecisionRequest {
     pub options: JointTransportOptions,
     /// Known target residual variance, explicitly assumed transportable.
     pub target_noise_variance: f64,
+    /// Correlation of the two target potential-outcome disturbances, in [-1,1].
+    /// This is a cross-world premise, not identified by the source likelihood.
+    pub target_noise_correlation: f64,
     /// Untreated and treated target outcome coordinates, in that order.
     pub worlds: [ScientificQuantity; 2],
     /// Utility over exactly those two predictive action worlds.
@@ -150,6 +155,7 @@ struct PredictiveDecisionWire {
     query: TransportQueryWire,
     worlds: [ScientificQuantityWire; 2],
     target_noise_variance: f64,
+    target_noise_correlation: f64,
     decision_identity: String,
     decision_artifact: Vec<u8>,
     producer_artifact: Vec<u8>,
@@ -167,6 +173,8 @@ fn check_worlds(
     if request.model.sharing != SourceSharing::SharedVaryingBlock
         || !request.target_noise_variance.is_finite()
         || request.target_noise_variance <= 0.0
+        || !request.target_noise_correlation.is_finite()
+        || !(-1.0..=1.0).contains(&request.target_noise_correlation)
         || request.target.rows == 0
     {
         return Err(JointTransportPredictiveDecisionError::Invalid(
@@ -230,12 +238,13 @@ pub fn compile_joint_transport_predictive_decision(
     let query_bytes = antecedent_io::to_cbor(&query)?;
     let worlds_bytes = antecedent_io::to_cbor(&request.worlds.clone().map(|q| ScientificQuantityWire::from(&q)))?;
     let source_digest = CanonicalWriter::digest_bytes(
-        "antecedent.joint_transport_predictive_decision.inputs.v1", &input_bytes,
+        "antecedent.joint_transport_predictive_decision.inputs.v2", &input_bytes,
     );
-    let mut writer = CanonicalWriter::new("antecedent.joint_transport_predictive_decision.question.v1");
+    let mut writer = CanonicalWriter::new("antecedent.joint_transport_predictive_decision.question.v2");
     writer.bytes(&graph_bytes).words(&selections.iter().map(|v| u64::from(*v)).collect::<Vec<_>>())
         .bytes(&query_bytes).bytes(&input_bytes).bytes(&worlds_bytes)
-        .word(request.target_noise_variance.to_bits()).text(&contract_identity);
+        .word(request.target_noise_variance.to_bits())
+        .word(request.target_noise_correlation.to_bits()).text(&contract_identity);
     let question = writer.finish();
     let rows = request.sources.iter().map(|s| s.outcome.len() as u64).sum::<u64>()
         .saturating_add(request.target.rows as u64);
@@ -245,7 +254,7 @@ pub fn compile_joint_transport_predictive_decision(
         target: ProblemTarget::QueryFunctional {
             kind: FunctionalKind::PolicyValue, outcome: Some(outcome), query: question,
         },
-        plan_id: Arc::from("joint_transport_predictive_decision.v1"),
+        plan_id: Arc::from("joint_transport_predictive_decision.v2"),
         data: DataClassification::Tabular, graph_class: "fixed_selection_dag_shared_baseline_predictive",
         query_variables: Arc::from([]), source_digest: Some(source_digest),
         support_coordinate: None, supported: false, support_status: None,
@@ -286,7 +295,7 @@ pub fn compile_joint_transport_predictive_decision(
             utility_unit: Some(Arc::from(request.decision.utility_units.as_str())),
             contract_identity: Some(Arc::from(contract_identity.as_str())),
             information_value: None,
-            scenario_source: Some(Arc::from("joint_transport_shared_baseline_target_prediction_v1")),
+            scenario_source: Some(Arc::from("joint_transport_shared_baseline_target_prediction_v2")),
         }),
         planning: None, chain: None,
     };
@@ -316,7 +325,7 @@ pub fn compile_joint_transport_predictive_decision(
 
 fn paired_outcomes(
     fit: &JointTransportFit, model: &JointTransportModel, target: &TargetData,
-    noise_variance: f64, ctx: &ExecutionContext,
+    noise_variance: f64, noise_correlation: f64, ctx: &ExecutionContext,
 ) -> Result<[Vec<f64>; 2], JointTransportPredictiveDecisionError> {
     let p = model.features.len();
     let expected_parameters = 2 + 2 * p;
@@ -333,7 +342,7 @@ fn paired_outcomes(
     let mut rng = ctx.rng.stream(0x5452_5052_4544_5631);
     let mut outcomes = [Vec::with_capacity(fit.draws.n_draws), Vec::with_capacity(fit.draws.n_draws)];
     for draw in 0..fit.draws.n_draws {
-        let row = (rng.next_u64() % target.rows as u64) as usize;
+        let row = uniform_target_row(&mut rng, target.rows);
         let values = &fit.draws.values[draw * width..draw * width + expected_parameters];
         let mut untreated = values[expected_parameters - (1 + if model.varying == VaryingBlock::InterceptAndCovariates { p } else { 0 })];
         let mut effect = values[0];
@@ -345,9 +354,14 @@ fn paired_outcomes(
                 VaryingBlock::InterceptAndCovariates => values[2 + p + j] * x,
             };
         }
-        let noise = noise_variance.sqrt() * standard_normal(&mut rng);
-        let y0 = untreated + noise;
-        let y1 = y0 + effect;
+        let z0 = standard_normal(&mut rng);
+        let z1 = standard_normal(&mut rng);
+        let sd = noise_variance.sqrt();
+        let y0 = untreated + sd * z0;
+        let y1 = untreated + effect + sd * (
+            noise_correlation * z0
+                + (1.0 - noise_correlation * noise_correlation).max(0.0).sqrt() * z1
+        );
         if !y0.is_finite() || !y1.is_finite() {
             return Err(JointTransportPredictiveDecisionError::Invalid("predictive outcome is nonfinite"));
         }
@@ -355,6 +369,15 @@ fn paired_outcomes(
         outcomes[1].push(y1);
     }
     Ok(outcomes)
+}
+
+fn uniform_target_row(rng: &mut antecedent_core::CausalRng, rows: usize) -> usize {
+    let bound = rows as u64;
+    let threshold = bound.wrapping_neg() % bound;
+    loop {
+        let draw = rng.next_u64();
+        if draw >= threshold { return (draw % bound) as usize; }
+    }
 }
 
 fn predictive_chain(
@@ -397,8 +420,8 @@ impl CompiledJointTransportPredictiveDecision {
         PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
     }
 
-    /// Refit the producer, draw a target-frame unit and shared Gaussian
-    /// disturbance per posterior row, and score both action worlds jointly.
+    /// Refit the producer, draw a target-frame unit and correlated Gaussian
+    /// disturbances per posterior row, and score both action worlds jointly.
     ///
     /// # Errors
     /// Changed producer inputs, a failed fit, prediction or decision refuses.
@@ -415,7 +438,8 @@ impl CompiledJointTransportPredictiveDecision {
         }
         let outcomes = paired_outcomes(
             &fit, &self.request.model, &self.request.target,
-            self.request.target_noise_variance, &scoped,
+            self.request.target_noise_variance,
+            self.request.target_noise_correlation, &scoped,
         )?;
         let decision = compile_action_world_chain_decision(
             predictive_chain(&outcomes, &self.request.worlds, &self.lowered.identity()),
@@ -454,9 +478,10 @@ impl CompiledJointTransportPredictiveDecision {
             JointTransportPredictiveDecisionError::Invalid("producer calibration scope is unavailable")
         })?;
         let functional = format!(
-            "target_treated_outcome:features={}:varying={:?}:shared_baseline:target_noise_bits={:016x}:empirical_target_frame",
+            "target_treated_outcome:features={}:varying={:?}:shared_baseline:target_noise_bits={:016x}:cross_world_rho_bits={:016x}:empirical_target_frame",
             self.request.model.features.len(), self.request.model.varying,
             self.request.target_noise_variance.to_bits(),
+            self.request.target_noise_correlation.to_bits(),
         );
         let basis = CalibrationBasis::new(
             [
@@ -493,12 +518,13 @@ impl CompiledJointTransportPredictiveDecision {
             replay.decision.chain.record().clone(), self.request.decision.clone(), ctx,
         )?;
         let wire = PredictiveDecisionWire {
-            version: 1, required_feature: FEATURE.into(),
+            version: 2, required_feature: FEATURE.into(),
             graph: self.graph.clone(),
             selections: self.request.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
             query: self.query.clone(),
             worlds: self.request.worlds.clone().map(|q| ScientificQuantityWire::from(&q)),
             target_noise_variance: self.request.target_noise_variance,
+            target_noise_correlation: self.request.target_noise_correlation,
             decision_identity: contract.identity().into(),
             decision_artifact: contract.to_bytes(artifact_id)?,
             producer_artifact: replay.producer.export()?,
@@ -526,7 +552,7 @@ pub fn consume_joint_transport_predictive_decision(
         return Err(JointTransportPredictiveDecisionError::Invalid("predictive artifact exceeds its byte bound"));
     }
     let wire: PredictiveDecisionWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != FEATURE
+    if wire.version != 2 || wire.required_feature != FEATURE
         || wire.calibration != "not_measured"
         || wire.program_identity != *expected_program.as_bytes()
     {
@@ -557,6 +583,7 @@ pub fn consume_joint_transport_predictive_decision(
     let plan = compile_joint_transport_predictive_decision(JointTransportPredictiveDecisionRequest {
         diagram, query, model, sources, target, options,
         target_noise_variance: wire.target_noise_variance,
+        target_noise_correlation: wire.target_noise_correlation,
         worlds, decision: contract.contract().clone(),
     })?;
     if plan.lowered.identity() != expected_program {
@@ -661,11 +688,13 @@ mod tests {
             max_unsupported_mass: 0.0, conflict_z_threshold: 3.0,
         };
         let ctx = ExecutionContext::for_tests(92);
-        let plan = compile_joint_transport_predictive_decision(JointTransportPredictiveDecisionRequest {
+        let request = JointTransportPredictiveDecisionRequest {
             diagram, query, model, sources: vec![source], target,
             options: JointTransportOptions { draws: 1024, seed: 92 },
-            target_noise_variance: 0.1, worlds, decision,
-        }).unwrap();
+            target_noise_variance: 0.1, target_noise_correlation: 1.0,
+            worlds, decision,
+        };
+        let plan = compile_joint_transport_predictive_decision(request.clone()).unwrap();
         assert_eq!(plan.plan_view().route().as_str(), "JointTransportPredictiveDecision");
         let result = plan.execute(&ctx).unwrap();
         let columns = &result.decision.chain.record().sources;
@@ -681,5 +710,11 @@ mod tests {
         ).unwrap();
         assert_eq!(replay.fit, result.fit);
         assert_eq!(replay.decision.decision, result.decision.decision);
+        let mut independent = request;
+        independent.target_noise_correlation = 0.0;
+        let other = compile_joint_transport_predictive_decision(independent).unwrap()
+            .execute(&ctx).unwrap();
+        assert_eq!(other.fit, result.fit);
+        assert_ne!(other.decision.chain.identity(), result.decision.chain.identity());
     }
 }
