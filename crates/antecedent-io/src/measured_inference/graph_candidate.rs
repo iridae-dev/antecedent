@@ -96,28 +96,7 @@ impl TransportStandardization {
     /// Unsupported rows, graph support or an opened backdoor path.
     pub fn validate_confounded(&self, parts: &GraphImputationParts) -> Result<(), IoError> {
         self.validate_for_support(parts, GraphSupport::PreTreatmentCovariates)?;
-        let n = parts.names.len();
-        for atom in &parts.atoms {
-            let dag = dag_from_adjacency_mask(AdjacencyMask::from_word(atom.mask), n)
-                .map_err(invalid)?;
-            let treatment = antecedent_graph::DenseNodeId::from_raw(parts.treatment);
-            let outcome = antecedent_graph::DenseNodeId::from_raw(parts.outcome);
-            let mut adjustment = atom.adjustment.clone();
-            for &id in &self.selection_targets {
-                if !adjustment.contains(&id) { adjustment.push(id); }
-            }
-            let adjustment: Vec<_> = adjustment.into_iter()
-                .map(antecedent_graph::DenseNodeId::from_raw).collect();
-            let overlay = antecedent_graph::overlay::GraphOverlay::remove_outgoing(n, &[treatment]);
-            let separated = dag.view(&overlay).is_d_separated(treatment, outcome, &adjustment,
-                &mut antecedent_graph::DSeparationWorkspace::default()).map_err(invalid)?;
-            if !separated {
-                return Err(invalid("selected covariates open a backdoor path in a retained graph"));
-            }
-            validate_selection_admissibility(&dag, treatment, outcome, &adjustment,
-                &self.selection_targets)?;
-        }
-        Ok(())
+        validate_confounded_adjustment(parts, &self.selection_targets)
     }
 
     fn validate_for_support(&self, parts: &GraphImputationParts, support: GraphSupport) -> Result<(), IoError> {
@@ -194,6 +173,31 @@ impl TransportStandardization {
     /// Number of representative target rows after validation.
     #[must_use]
     pub fn rows(&self) -> usize { self.columns.first().map_or(0, |column| column.1.len()) }
+}
+
+fn validate_confounded_adjustment(parts: &GraphImputationParts, selected: &[u32]) -> Result<(), IoError> {
+        let n = parts.names.len();
+        for atom in &parts.atoms {
+            let dag = dag_from_adjacency_mask(AdjacencyMask::from_word(atom.mask), n)
+                .map_err(invalid)?;
+            let treatment = antecedent_graph::DenseNodeId::from_raw(parts.treatment);
+            let outcome = antecedent_graph::DenseNodeId::from_raw(parts.outcome);
+            let mut adjustment = atom.adjustment.clone();
+            for &id in selected {
+                if !adjustment.contains(&id) { adjustment.push(id); }
+            }
+            let adjustment: Vec<_> = adjustment.into_iter()
+                .map(antecedent_graph::DenseNodeId::from_raw).collect();
+            let overlay = antecedent_graph::overlay::GraphOverlay::remove_outgoing(n, &[treatment]);
+            let separated = dag.view(&overlay).is_d_separated(treatment, outcome, &adjustment,
+                &mut antecedent_graph::DSeparationWorkspace::default()).map_err(invalid)?;
+            if !separated {
+                return Err(invalid("selected covariates open a backdoor path in a retained graph"));
+            }
+            validate_selection_admissibility(&dag, treatment, outcome, &adjustment,
+                selected)?;
+        }
+        Ok(())
 }
 
 fn validate_target_selection_admissibility(
@@ -286,12 +290,29 @@ impl KernelTransportStandardization {
     /// # Errors
     /// Missing columns, unsafe selections, invalid data or kernel policy.
     pub fn validate(&self, parts: &GraphImputationParts) -> Result<(), IoError> {
+        self.validate_for_support(parts, GraphSupport::TreatmentRootPreTreatmentCovariates)
+    }
+
+    /// Validate the mixed target under pretreatment confounding, including the
+    /// complete augmented backdoor and selection-diagram checks for every atom.
+    ///
+    /// # Errors
+    /// Invalid target, confounding adjustment or selection admissibility.
+    pub fn validate_confounded(&self, parts: &GraphImputationParts) -> Result<(), IoError> {
+        self.validate_for_support(parts, GraphSupport::PreTreatmentCovariates)?;
+        if self.min_kernel_overlap <= 0.0 {
+            return Err(invalid("confounded kernel overlap floor must be strictly positive"));
+        }
+        validate_confounded_adjustment(parts, &self.selection_targets)
+    }
+
+    fn validate_for_support(&self, parts: &GraphImputationParts, support: GraphSupport) -> Result<(), IoError> {
         if self.source_population.trim().is_empty() || self.target_population.trim().is_empty()
             || self.source_population == self.target_population
             || self.source_sample.trim().is_empty() || self.target_sample.trim().is_empty()
             || self.source_sample == self.target_sample
             || self.columns.is_empty() || self.selection_targets.is_empty()
-            || parts.support != GraphSupport::TreatmentRootPreTreatmentCovariates
+            || parts.support != support
             || !self.min_kernel_overlap.is_finite()
             || !(0.0..1.0).contains(&self.min_kernel_overlap)
         {
@@ -623,32 +644,34 @@ enum TransportTarget<'a> {
     Binary(&'a TransportStandardization),
     ConfoundedBinary(&'a TransportStandardization),
     Kernel(&'a KernelTransportStandardization),
+    ConfoundedKernel(&'a KernelTransportStandardization),
 }
 
 impl<'a> TransportTarget<'a> {
     fn columns(self) -> &'a [(u32, Vec<f64>)] {
-        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => &value.columns, Self::Kernel(value) => &value.columns }
+        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => &value.columns, Self::Kernel(value) | Self::ConfoundedKernel(value) => &value.columns }
     }
 
     fn selections(self) -> &'a [u32] {
         match self {
             Self::Binary(value) | Self::ConfoundedBinary(value) => &value.selection_targets,
-            Self::Kernel(value) => &value.selection_targets,
+            Self::Kernel(value) | Self::ConfoundedKernel(value) => &value.selection_targets,
         }
     }
 
     fn rows(self) -> usize {
-        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => value.rows(), Self::Kernel(value) => value.rows() }
+        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => value.rows(), Self::Kernel(value) | Self::ConfoundedKernel(value) => value.rows() }
     }
 
     fn digest(self) -> Result<[u8; 32], IoError> {
-        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => value.digest(), Self::Kernel(value) => value.digest() }
+        match self { Self::Binary(value) | Self::ConfoundedBinary(value) => value.digest(), Self::Kernel(value) | Self::ConfoundedKernel(value) => value.digest() }
     }
 }
 
 fn kernel_transport_weights(
     source_columns: &[Vec<f64>], target_columns: &[&[f64]],
     adjustment: &[u32], domains: &[u8], target: &KernelTransportStandardization,
+    treatment: Option<&[f64]>,
 ) -> Result<Vec<f64>, IoError> {
     let source_rows = source_columns.first().map_or(0, Vec::len);
     let target_rows = target.rows();
@@ -674,7 +697,22 @@ fn kernel_transport_weights(
         }
         log_weight.exp()
     };
+    if treatment.is_some_and(|values| values.len() != source_rows
+        || values.iter().any(|value| *value != 0.0 && *value != 1.0)) {
+        return Err(execution_refused("completed treatment must be binary"));
+    }
     for target_row in 0..target_rows {
+        if let Some(treatment) = treatment {
+            for arm in [0.0, 1.0] {
+                let count = treatment.iter().filter(|&&value| value == arm).count();
+                if count == 0 { return Err(execution_refused("source treatment arm is absent")); }
+                let support = (0..source_rows).filter(|&row| treatment[row] == arm)
+                    .map(|row| kernel(row, target_row, true)).sum::<f64>() / count as f64;
+                if !support.is_finite() || support <= 0.0 || support < target.min_kernel_overlap {
+                    return Err(execution_refused("target row lacks kernel overlap in a source treatment arm"));
+                }
+            }
+        }
         let support = (0..source_rows).map(|source_row| {
             kernel(source_row, target_row, true)
         }).sum::<f64>() / source_rows as f64;
@@ -773,9 +811,13 @@ fn transported_population(
                 target_count * source_n / (source_count * target_n)
             }).collect()
         }
-        TransportTarget::Kernel(kernel) => kernel_transport_weights(
-            &source_columns, &target_columns, &adjustment, domains, kernel,
-        )?,
+        TransportTarget::Kernel(kernel) | TransportTarget::ConfoundedKernel(kernel) => {
+            let treatment = if matches!(target, TransportTarget::ConfoundedKernel(_)) {
+                Some(data.float64_values(query.treatment).map_err(invalid)?)
+            } else { None };
+            kernel_transport_weights(&source_columns, &target_columns, &adjustment, domains,
+                kernel, treatment.as_deref())?
+        },
     };
     let retained_weights = retain_weights.then(|| weights.clone());
     let handle = DistributionRef::from_raw(1);
@@ -836,6 +878,7 @@ fn execute(
         Some(TransportTarget::Binary(_)) => "antecedent.graph_imputation_transport.execution.v1",
         Some(TransportTarget::ConfoundedBinary(_)) => "antecedent.graph_imputation_confounded_transport.execution.v1",
         Some(TransportTarget::Kernel(_)) => "antecedent.graph_imputation_kernel_transport.execution.v1",
+        Some(TransportTarget::ConfoundedKernel(_)) => "antecedent.graph_imputation_confounded_kernel_transport.execution.v1",
         None => "antecedent.graph_candidate.execution.v1",
     });
     receipt.bytes(program.as_bytes()).bytes(&contract).word(u64::from(parts.imputations));
@@ -1470,6 +1513,25 @@ pub fn replay_kernel_transport_point(
     })
 }
 
+/// Reidentify and refit a mixed kernel target under pretreatment confounding.
+/// Each target row must meet the declared kernel-overlap floor separately in
+/// both source treatment arms on every completed table.
+///
+/// # Errors
+/// Invalid graph, target, adjustment, selection, overlap, fit or resources.
+pub fn replay_confounded_kernel_transport_point(
+    bytes: &[u8], target: &KernelTransportStandardization, ctx: &ExecutionContext,
+) -> Result<GraphPointReading, IoError> {
+    let rec = reconstruct(bytes, ctx)?;
+    target.validate_confounded(rec.source.parts())?;
+    let target_bytes = (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
+    let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
+    let run = execute(&rec, Some(TransportTarget::ConfoundedKernel(target)), false, ctx)?;
+    Ok(GraphPointReading { mean: run.mean, diagnostic_sd: run.sd, draws: run.draws,
+        receipt: run.receipt, program: rec.source.program(), source: rec.source.parts().data_digest,
+        unidentified_by_table: run.unidentified_by_table, _lease: run.lease })
+}
+
 /// Source-bound, independently replayed measurement. It is calibrated only when a current
 /// attesting record covers the reported construction and the execution's row count.
 ///
@@ -1570,6 +1632,25 @@ mod tests {
         let indices: Vec<_> = (0..40).map(|_| paired_bootstrap_pool_index(&mut state, 200)).collect();
         assert!(indices.iter().any(|&index| index < 100));
         assert!(indices.iter().any(|&index| index >= 100));
+    }
+
+    #[test]
+    #[ignore = "source-only treatment-arm kernel overlap fixture"]
+    fn confounded_kernel_requires_both_arm_supports() {
+        let target = KernelTransportStandardization {
+            columns: vec![(2, vec![0.5, 0.6])], selection_targets: vec![2],
+            source_population: "source".into(), target_population: "target".into(),
+            source_sample: "source-sample".into(), target_sample: "target-sample".into(),
+            source_unit_ids: (0..4).map(|i| format!("s-{i}")).collect(),
+            target_unit_ids: (0..2).map(|i| format!("t-{i}")).collect(),
+            bandwidths: vec![(2, 1.0)], min_kernel_overlap: 0.01,
+        };
+        let source = vec![vec![0.0, 1.0, 0.0, 1.0]];
+        let target_columns = vec![target.columns[0].1.as_slice()];
+        assert!(kernel_transport_weights(&source, &target_columns, &[2], &[1, 0, 0], &target,
+            Some(&[0.0, 1.0, 0.0, 1.0])).is_ok());
+        assert!(kernel_transport_weights(&source, &target_columns, &[2], &[1, 0, 0], &target,
+            Some(&[0.0, 0.0, 0.0, 0.0])).is_err());
     }
 
     #[test]
