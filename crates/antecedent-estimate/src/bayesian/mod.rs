@@ -24,7 +24,7 @@ pub use draw_controls::{
 pub use evaluator::{CompiledGCompAte, GCompAteEvaluator, PosteriorFunctionalEvaluator};
 pub use gcomp::{
     BayesianBackendKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
-    LAPLACE_RANK_INTERVAL_BELOW_DRAWS, PreparedBayesianProblem,
+    LAPLACE_RANK_INTERVAL_BELOW_DRAWS, PreparedBayesianProblem, TargetMoments,
 };
 #[cfg(test)]
 pub(crate) use hydrate::HYDRATED_COEFFICIENT_COVARIANCE_ID;

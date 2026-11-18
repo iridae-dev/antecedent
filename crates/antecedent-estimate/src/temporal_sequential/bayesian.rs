@@ -237,6 +237,7 @@ impl BayesianComposition<'_> {
             };
             let width = design.ncols;
             let prep = PreparedBayesianProblem {
+                target_moments: None,
                 design,
                 method: self.problem.estimand.method.clone(),
                 adjustment_set: Arc::from([]),

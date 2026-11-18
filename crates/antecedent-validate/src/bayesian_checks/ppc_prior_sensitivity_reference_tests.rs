@@ -92,6 +92,7 @@ fn problem(case: &Value) -> PreparedBayesianProblem {
     let z = arr(&case["z"]);
     let y = arr(&case["y"]);
     PreparedBayesianProblem {
+        target_moments: None,
         design: CompiledDesign::linear_adjustment(
             &t,
             &[(antecedent_core::VariableId::from_raw(2), z.as_slice())],

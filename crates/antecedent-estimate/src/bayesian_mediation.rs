@@ -101,6 +101,7 @@ pub fn prepare_temporal_mediation_with_gaps(
                  covs: &[(antecedent_core::VariableId, &[f64])]|
      -> Result<_, EstimationError> {
         Ok(PreparedBayesianProblem {
+            target_moments: None,
             design: CompiledDesign::linear_adjustment(sample.column(0), covs, outcome, &[])?,
             method: estimand.method.clone(),
             adjustment_set: Arc::from([]),
@@ -467,6 +468,7 @@ mod tests {
         let covs: Vec<(VariableId, &[f64])> =
             covariate.into_iter().map(|(values, id)| (id, values)).collect();
         PreparedBayesianProblem {
+            target_moments: None,
             design: CompiledDesign::linear_adjustment(treatment, &covs, outcome, &[]).unwrap(),
             method: Arc::from("temporal.mediation.bayesian"),
             adjustment_set: Arc::from([]),

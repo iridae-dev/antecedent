@@ -535,6 +535,7 @@ fn estimate_static_mediation_bayesian_impl(
         let treatment_col =
             parents.iter().position(|p| p.raw() == query.treatment.raw()).map(|j| j + 1);
         let prep = crate::PreparedBayesianProblem {
+            target_moments: None,
             design,
             method: Arc::from("mediation.linear"),
             adjustment_set: Arc::from([]),

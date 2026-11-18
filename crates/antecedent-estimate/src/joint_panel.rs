@@ -299,17 +299,20 @@ impl Default for PanelPrior {
     }
 }
 
-/// Fixed random-walk policy and explicit convergence thresholds.
+/// Hamiltonian Monte Carlo schedule and explicit convergence thresholds.
+///
+/// The posterior is sampled by Hamiltonian Monte Carlo in coordinates whitened at the
+/// posterior mode, with the step adapted toward an 0.8 acceptance during warmup.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PanelSamplingOptions {
     /// Independent chains.
     pub chains: usize,
-    /// Discarded iterations per chain.
+    /// Discarded iterations per chain, during which the leapfrog step is adapted.
     pub warmup: usize,
     /// Retained draws per chain.
     pub draws: usize,
-    /// Proposal scale after local posterior curvature preconditioning when available.
+    /// Leapfrog step, in whitened posterior units, the warmup adaptation starts from.
     pub proposal_scale: f64,
     /// Maximum rank/folded split R-hat for a successful diagnostic.
     pub max_rhat: f64,
@@ -320,8 +323,8 @@ impl Default for PanelSamplingOptions {
     fn default() -> Self {
         Self {
             chains: 4,
-            warmup: 2000,
-            draws: 2000,
+            warmup: 500,
+            draws: 1000,
             proposal_scale: 0.35,
             max_rhat: 1.05,
             min_ess: 100.0,
@@ -333,7 +336,9 @@ impl Default for PanelSamplingOptions {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PanelInference {
-    /// Local group-cluster sandwich parameter approximation, not a posterior or supported interval.
+    /// Local Gaussian parameter approximation, not a posterior or supported interval: from the
+    /// inverse observed information of the panel likelihood, or the group-cluster sandwich of a
+    /// weighted pseudo-likelihood.
     Frequentist {
         /// Requested approximate draws; invalid transformed slots remain None.
         draws: usize,

@@ -442,6 +442,7 @@ fn problem_from_wire(
         return Err(invalid("retained design is not finite"));
     }
     Ok(PreparedBayesianProblem {
+        target_moments: None,
         design: CompiledDesign {
             nrows: wire.rows,
             ncols: wire.columns,

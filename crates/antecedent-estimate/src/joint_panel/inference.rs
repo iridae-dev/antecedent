@@ -10,14 +10,15 @@ use antecedent_core::{
     execution_attempt::{Operation, PhysicalEvent, record_physical, run_operation},
 };
 use antecedent_kernels::{chol_inverse, cholesky_spd_into, standard_normal};
-use antecedent_prob::{
-    all_chains_moved, mcmc_summary_parallel,
-    metropolis::{MetropolisOptions, sample_metropolis_dispersed_parallel},
-};
+use antecedent_prob::{all_chains_moved, mcmc_summary_parallel};
 use std::sync::Arc;
 
 /// Standard deviation, in whitened posterior units, of the offset each chain starts from.
 pub(super) const CHAIN_START_SPREAD: f64 = 2.0;
+/// Leapfrog steps per Hamiltonian transition of a panel posterior in whitened coordinates.
+pub(super) const PANEL_LEAPFROG_STEPS: u32 = 10;
+/// Acceptance probability the panel posterior's step adaptation targets.
+pub(super) const PANEL_TARGET_ACCEPT: f64 = 0.8;
 
 fn score(
     data: &likelihood::CompiledPanel<'_>,
@@ -208,6 +209,198 @@ pub(super) fn optimize_target_with_score(
         converged: score_norm <= options.gradient_tolerance,
         line_search_exhausted: exhausted,
     })
+}
+
+/// Quasi-Newton iterations a frequentist fit runs before an unmet score tolerance switches it
+/// to Newton steps on the exact curvature.
+///
+/// The tolerance is absolute while the likelihood sums every row, so on a large or weakly
+/// conditioned panel the quasi-Newton iterate can reach the region where the objective no
+/// longer resolves its own gains and then crawl through the whole iteration budget a few
+/// multiples above the tolerance, which withholds the sandwich interval. A fit that meets
+/// the tolerance within this budget never reaches the Newton phase and is unchanged.
+const QUASI_NEWTON_BUDGET: usize = 500;
+/// Most Newton steps the polish takes before handing any remaining budget back; every step
+/// counts against the declared iteration budget.
+const NEWTON_STEPS: usize = 20;
+
+/// The local maximum of a frequentist fit: the quasi-Newton search, then, when it has not met
+/// the declared score tolerance, Newton steps on the exact score's own curvature
+/// ([`newton_polish`]), then the rest of the declared quasi-Newton budget from wherever the
+/// polish stopped. The tolerance keeps its meaning: the fit converges only when the largest
+/// absolute score is within it.
+fn frequentist_local_fit(
+    data: &likelihood::CompiledPanel<'_>,
+    start: Vec<f64>,
+    options: PanelOptimizerOptions,
+    ctx: &ExecutionContext,
+) -> Result<LocalFit, PanelError> {
+    polished_local_fit(
+        start,
+        options,
+        ctx,
+        &|x: &[f64]| likelihood::log_likelihood(data, x),
+        &|x: &[f64]| log_likelihood_score(data, x, ctx),
+    )
+}
+
+/// [`frequentist_local_fit`] for any objective and its score: the quasi-Newton search within
+/// [`QUASI_NEWTON_BUDGET`], Newton steps on the central-difference curvature of the score
+/// when it has not met the tolerance, then the rest of the declared budget. A search that
+/// meets the tolerance within the budget is returned as it is.
+pub(super) fn polished_local_fit(
+    start: Vec<f64>,
+    options: PanelOptimizerOptions,
+    ctx: &ExecutionContext,
+    objective: &impl Fn(&[f64]) -> f64,
+    score: &impl Fn(&[f64]) -> Result<Vec<f64>, PanelError>,
+) -> Result<LocalFit, PanelError> {
+    let first = PanelOptimizerOptions {
+        max_iterations: options.max_iterations.min(QUASI_NEWTON_BUDGET),
+        ..options
+    };
+    let local = optimize_target_exact(start, first, ctx, objective, score)?;
+    if local.converged {
+        return Ok(local);
+    }
+    let steps = options.max_iterations.saturating_sub(local.iterations).min(NEWTON_STEPS);
+    let polished =
+        newton_polish_with(local, options.gradient_tolerance, steps, ctx, objective, score)?;
+    let remaining = options.max_iterations.saturating_sub(polished.iterations);
+    if polished.converged || remaining == 0 {
+        return Ok(polished);
+    }
+    let rest = PanelOptimizerOptions { max_iterations: remaining, ..options };
+    let mut resumed = optimize_target_exact(polished.values.clone(), rest, ctx, objective, score)?;
+    resumed.iterations += polished.iterations;
+    Ok(if resumed.score_norm <= polished.score_norm { resumed } else { polished })
+}
+
+/// Newton steps `x + A⁻¹ g` on the panel log likelihood ([`newton_polish_with`]).
+#[cfg(test)]
+fn newton_polish(
+    data: &likelihood::CompiledPanel<'_>,
+    local: LocalFit,
+    tolerance: f64,
+    steps: usize,
+    ctx: &ExecutionContext,
+) -> Result<LocalFit, PanelError> {
+    newton_polish_with(
+        local,
+        tolerance,
+        steps,
+        ctx,
+        &|x: &[f64]| likelihood::log_likelihood(data, x),
+        &|x: &[f64]| log_likelihood_score(data, x, ctx),
+    )
+}
+
+/// Newton steps `x + A⁻¹ g` from an iterate that has not met the score tolerance, with `A`
+/// the negative Hessian from central differences of the score at the iterate.
+///
+/// Near the maximum the objective changes by less than its own rounding, so a step is
+/// accepted when it lowers the largest absolute score and does not lower the objective by
+/// more than a rounding allowance; the backtracking halves the step otherwise. The polish
+/// stops at the tolerance, at a curvature that is not positive definite, or when no step
+/// improves the score.
+fn newton_polish_with(
+    mut local: LocalFit,
+    tolerance: f64,
+    steps: usize,
+    ctx: &ExecutionContext,
+    objective: &impl Fn(&[f64]) -> f64,
+    score: &impl Fn(&[f64]) -> Result<Vec<f64>, PanelError>,
+) -> Result<LocalFit, PanelError> {
+    let max_abs = |values: &[f64]| values.iter().map(|value| value.abs()).fold(0.0_f64, f64::max);
+    let mut gradient = score(&local.values)?;
+    let mut norm = max_abs(&gradient);
+    for _ in 0..steps {
+        check_cancelled(ctx)?;
+        if norm <= tolerance {
+            break;
+        }
+        let Some(inverse) = score_curvature_inverse(&local.values, ctx, score)? else {
+            break;
+        };
+        let p = local.values.len();
+        let direction: Vec<f64> = inverse
+            .chunks_exact(p)
+            .map(|row| row.iter().zip(&gradient).map(|(a, b)| a * b).sum())
+            .collect();
+        let allowance = 1e-10 * (1.0 + local.likelihood.abs());
+        let mut step = 1.0;
+        let mut accepted = None;
+        for _ in 0..30 {
+            let candidate: Vec<f64> =
+                local.values.iter().zip(&direction).map(|(x, d)| x + step * d).collect();
+            let value = objective(&candidate);
+            if value.is_finite()
+                && value >= local.likelihood - allowance
+                && let Ok(next) = score(&candidate)
+            {
+                let next_norm = max_abs(&next);
+                if next_norm.is_finite() && next_norm < norm {
+                    accepted = Some((candidate, value, next, next_norm));
+                    break;
+                }
+            }
+            step *= 0.5;
+        }
+        let Some((values, value, next, next_norm)) = accepted else {
+            break;
+        };
+        local.values = values;
+        local.likelihood = value;
+        gradient = next;
+        norm = next_norm;
+        local.iterations += 1;
+    }
+    local.score_norm = norm;
+    local.converged = norm <= tolerance;
+    local.line_search_exhausted = false;
+    Ok(local)
+}
+
+/// The inverse negative Hessian of an objective from central differences of its score, or
+/// `None` when it is not positive definite or a nearby score is not finite.
+fn score_curvature_inverse(
+    x: &[f64],
+    ctx: &ExecutionContext,
+    score: &impl Fn(&[f64]) -> Result<Vec<f64>, PanelError>,
+) -> Result<Option<Vec<f64>>, PanelError> {
+    let p = x.len();
+    let mut matrix = vec![0.0; p * p];
+    let mut work = x.to_vec();
+    for (column, &original) in x.iter().enumerate() {
+        check_cancelled(ctx)?;
+        let step = 1e-4 * (1.0 + original.abs());
+        work[column] = original + step;
+        let high = score(&work);
+        work[column] = original - step;
+        let low = score(&work);
+        work[column] = original;
+        let (Ok(high), Ok(low)) = (high, low) else {
+            return Ok(None);
+        };
+        for (row, (&high, &low)) in high.iter().zip(&low).enumerate() {
+            matrix[row * p + column] = -(high - low) / (2.0 * step);
+        }
+    }
+    for row in 0..p {
+        for column in 0..row {
+            let value = 0.5 * (matrix[row * p + column] + matrix[column * p + row]);
+            matrix[row * p + column] = value;
+            matrix[column * p + row] = value;
+        }
+    }
+    let mut lower = vec![0.0; p * p];
+    if matrix.iter().any(|value| !value.is_finite())
+        || cholesky_spd_into(&matrix, p, &mut lower).is_err()
+    {
+        return Ok(None);
+    }
+    let inverse = chol_inverse(&lower, p);
+    Ok(inverse.iter().all(|value| value.is_finite()).then_some(inverse))
 }
 
 fn information_inverse(
@@ -425,6 +618,10 @@ pub(super) fn validate_options(options: &PanelFitOptions) -> Result<usize, Panel
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "admission, the local fit and every inference policy share one bounded sequence"
+)]
 pub(super) fn fit(
     data: &PanelData,
     options: &PanelFitOptions,
@@ -458,13 +655,36 @@ pub(super) fn fit(
     let start = likelihood::encode(data, &initial)?;
     record_physical(PhysicalEvent::Scan, 1);
     run_operation(Operation::AdjustedFit, || {
-        let local = optimize_target_exact(
-            start,
-            options.optimizer,
-            ctx,
-            &|x| likelihood::log_likelihood(data, x),
-            &|x| log_likelihood_score(data, x, ctx),
-        )?;
+        let local = if matches!(options.inference, PanelInference::Frequentist { .. }) {
+            frequentist_local_fit(data, start, options.optimizer, ctx)?
+        } else {
+            let fallback = start.clone();
+            match optimize_target_exact(
+                start,
+                options.optimizer,
+                ctx,
+                &|x| likelihood::log_likelihood(data, x),
+                &|x| log_likelihood_score(data, x, ctx),
+            ) {
+                Ok(fit) => fit,
+                // A posterior only starts and preconditions its sampler from the local fit, and
+                // is gated by its own diagnostics: a local search that met a non-finite score
+                // starts it from the declared initial point instead of refusing the fit.
+                Err(PanelError::Numerical(_))
+                    if matches!(options.inference, PanelInference::Bayesian { .. }) =>
+                {
+                    LocalFit {
+                        likelihood: likelihood::log_likelihood(data, &fallback),
+                        values: fallback,
+                        score_norm: f64::INFINITY,
+                        iterations: 0,
+                        converged: false,
+                        line_search_exhausted: false,
+                    }
+                }
+                Err(error) => return Err(error),
+            }
+        };
         let inverse = information_inverse(data, &local.values, ctx)?;
         let point = point(data, &local.values)?;
         let mut diagnostics = PanelFitDiagnostics {
@@ -589,19 +809,27 @@ fn frequentist_draws(
 ) -> Result<Vec<Option<PanelDraw>>, PanelError> {
     Ok({
         let spatial = data.family.spatial.is_some();
+        // A weighted panel is a pseudo-likelihood, so only the group-cluster sandwich is a
+        // covariance for it. An unweighted panel is the model's own likelihood, and its
+        // inverse observed information is the covariance of the model-conditional claim the
+        // fit makes: unlike the sandwich, it does not estimate a variance from a few dozen
+        // group score outer products, whose noise left the interval short with 30 to 120
+        // groups. Under a spatial residual law the groups are not independent clusters, so
+        // the sandwich is not a covariance there either.
+        let model_based = spatial || !data.is_weighted();
         if spatial {
-            // Groups are not independent clusters under a spatial residual law, so the
-            // group-cluster sandwich is not a valid covariance; the model-based inverse
-            // observed information of the full spatial likelihood is used instead.
             diagnostics.cluster_rank_bound = None;
             diagnostics.uncertainty = "model-based Gaussian global-parameter approximation from the inverse observed information of the spatially dependent likelihood plus joint conditional Gaussian spatial random-effect uncertainty; neither a posterior nor a calibrated interval".into();
+        } else if model_based {
+            diagnostics.cluster_rank_bound = None;
+            diagnostics.uncertainty = "model-based Gaussian global-parameter approximation from the inverse observed information of the panel likelihood plus conditional Gaussian random-effect uncertainty; neither a posterior nor a calibrated interval".into();
         } else {
             diagnostics.cluster_rank_bound =
                 Some((data.groups.len() - 1).min(likelihood::parameter_count(data)));
-            diagnostics.uncertainty = "local group-cluster Gaussian global-parameter approximation plus conditional Gaussian random-effect uncertainty; neither a posterior nor a calibrated interval; the cluster covariance may be rank deficient".into();
+            diagnostics.uncertainty = "local group-cluster Gaussian global-parameter approximation of the weighted pseudo-likelihood plus conditional Gaussian random-effect uncertainty; neither a posterior nor a calibrated interval; the cluster covariance may be rank deficient".into();
         }
         let factor = match inverse.filter(|_| local.converged) {
-            Some(inverse) if spatial => model_factor(inverse, local.values.len()),
+            Some(inverse) if model_based => model_factor(inverse, local.values.len()),
             Some(inverse) => Some(cluster_factor(data, &local.values, inverse, ctx)?),
             None => None,
         };
@@ -646,8 +874,18 @@ fn posterior_draws(
     let posterior = |x: &[f64]| likelihood::log_likelihood(data, x) + log_prior(data, x, prior);
     // Priors can materially alter weak likelihood directions. Whitening at the
     // posterior mode uses the exact sampled density, including transform Jacobians.
-    let mode = optimize_target(local.values.clone(), optimizer, ctx, &posterior)?;
-    let inverse = information_inverse_target(&mode.values, ctx, &posterior)?;
+    // A mode search that meets a non-finite score whitens at the local fit instead, as each
+    // temporal specification does; the draws are still gated by their own diagnostics.
+    let mode = match optimize_target(local.values.clone(), optimizer, ctx, &posterior) {
+        Ok(fit) => fit.values,
+        Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
+        Err(_) => local.values.clone(),
+    };
+    let inverse = match information_inverse_target(&mode, ctx, &posterior) {
+        Ok(inverse) => inverse,
+        Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
+        Err(_) => None,
+    };
     Ok({
         diagnostics.uncertainty = "marginal hierarchical Gaussian-AR1 posterior under explicit priors, with one conditional Gaussian random-intercept draw per group jointly shared across all worlds; no predictive outcome innovations or coverage claim".into();
         let mut lower = vec![0.0; p * p];
@@ -661,8 +899,7 @@ fn posterior_draws(
             }
         }
         let transform = |z: &[f64]| -> Vec<f64> {
-            mode.values
-                .iter()
+            mode.iter()
                 .enumerate()
                 .map(|(row, value)| {
                     value
@@ -674,20 +911,46 @@ fn posterior_draws(
                 })
                 .collect()
         };
-        let samples = sample_metropolis_dispersed_parallel(
+        // Hamiltonian Monte Carlo in the whitened coordinates: the gradient is the exact panel
+        // score plus the central-difference gradient of the prior, carried to `z` through the
+        // whitening factor (`∇_z = Lᵀ ∇_x`). A whitened random walk could not traverse the
+        // curved posteriors of short or lagged panels (R-hat to 1.3, bulk ESS to 11 at 8000
+        // draws per chain), and a posterior that misses its diagnostics publishes nothing.
+        let target = |z: &[f64]| -> Option<(f64, Vec<f64>)> {
+            let x = transform(z);
+            let value = posterior(&x);
+            if !value.is_finite() {
+                return None;
+            }
+            let mut gradient_x = log_likelihood_score(data, &x, ctx).ok()?;
+            let mut work = x.clone();
+            for (j, slot) in gradient_x.iter_mut().enumerate() {
+                let step = 1e-5 * (1.0 + x[j].abs());
+                work[j] = x[j] + step;
+                let high = log_prior(data, &work, prior);
+                work[j] = x[j] - step;
+                let low = log_prior(data, &work, prior);
+                work[j] = x[j];
+                *slot += (high - low) / (2.0 * step);
+            }
+            let gradient_z = (0..p)
+                .map(|column| (0..p).map(|row| lower[row * p + column] * gradient_x[row]).sum())
+                .collect();
+            Some((value, gradient_z))
+        };
+        let samples = antecedent_prob::gradient_hmc::sample_gradient_hmc_dispersed_parallel(
             &vec![0.0; p],
             CHAIN_START_SPREAD,
-            MetropolisOptions {
+            antecedent_prob::gradient_hmc::GradientHmcOptions {
                 chains: sampler.chains,
                 warmup: sampler.warmup,
                 draws: sampler.draws,
-                proposal_scale: sampler.proposal_scale,
+                leapfrog_steps: PANEL_LEAPFROG_STEPS,
+                initial_step: sampler.proposal_scale,
+                target_accept: PANEL_TARGET_ACCEPT,
             },
             ctx,
-            |z| {
-                let x = transform(z);
-                posterior(&x)
-            },
+            &target,
         )
         .map_err(|error| {
             if ctx.cancellation.is_cancelled() {
@@ -816,5 +1079,73 @@ mod bootstrap_tests {
         let fitted = fit(&source, &options, &ctx).unwrap();
         assert!(fitted.draws.iter().all(Option::is_some));
         assert!(fitted.diagnostics.uncertainty.contains("bootstrap"));
+    }
+}
+
+#[cfg(test)]
+mod frequentist_convergence_tests {
+    use super::*;
+
+    fn max_abs(values: &[f64]) -> f64 {
+        values.iter().map(|value| value.abs()).fold(0.0_f64, f64::max)
+    }
+
+    /// From an iterate well short of the maximum, Newton steps on the exact curvature meet a
+    /// tolerance far tighter than the one the quasi-Newton search stopped at.
+    #[test]
+    fn newton_polish_meets_a_tight_tolerance_from_a_stalled_iterate() {
+        let (source, _, _) = super::super::tests::fixture();
+        let data = likelihood::CompiledPanel::new(&source).unwrap();
+        let ctx = ExecutionContext::for_tests(11);
+        let start = likelihood::encode(&data, &likelihood::initial(&data)).unwrap();
+        let loose = PanelOptimizerOptions { max_iterations: 4_000, gradient_tolerance: 1e-2 };
+        let stalled = optimize_target_exact(
+            start,
+            loose,
+            &ctx,
+            &|x| likelihood::log_likelihood(&data, x),
+            &|x| log_likelihood_score(&data, x, &ctx),
+        )
+        .unwrap();
+        assert!(stalled.converged);
+        let tight = 1e-7;
+        assert!(
+            stalled.score_norm > tight,
+            "the loose stop is already tight: {}",
+            stalled.score_norm
+        );
+        let stalled_likelihood = stalled.likelihood;
+        let polished = newton_polish(&data, stalled, tight, NEWTON_STEPS, &ctx).unwrap();
+        assert!(polished.converged, "score norm {}", polished.score_norm);
+        let score = log_likelihood_score(&data, &polished.values, &ctx).unwrap();
+        assert!(max_abs(&score) <= tight);
+        assert!(
+            polished.likelihood >= stalled_likelihood - 1e-10 * (1.0 + stalled_likelihood.abs())
+        );
+    }
+
+    /// A frequentist fit that meets its tolerance within the quasi-Newton budget is the
+    /// quasi-Newton fit itself, bit for bit.
+    #[test]
+    fn a_fit_converging_within_the_budget_is_unchanged() {
+        let (source, _, _) = super::super::tests::fixture();
+        let data = likelihood::CompiledPanel::new(&source).unwrap();
+        let ctx = ExecutionContext::for_tests(12);
+        let start = likelihood::encode(&data, &likelihood::initial(&data)).unwrap();
+        let options = PanelOptimizerOptions::default();
+        let direct = optimize_target_exact(
+            start.clone(),
+            options,
+            &ctx,
+            &|x| likelihood::log_likelihood(&data, x),
+            &|x| log_likelihood_score(&data, x, &ctx),
+        )
+        .unwrap();
+        assert!(direct.converged && direct.iterations < QUASI_NEWTON_BUDGET);
+        let staged = frequentist_local_fit(&data, start, options, &ctx).unwrap();
+        let bits = |values: &[f64]| values.iter().map(|value| value.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(&direct.values), bits(&staged.values));
+        assert_eq!(direct.iterations, staged.iterations);
+        assert_eq!(direct.likelihood.to_bits(), staged.likelihood.to_bits());
     }
 }

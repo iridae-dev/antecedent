@@ -1940,6 +1940,7 @@ mod tests {
             BayesianGCompWorkspace, BayesianGComputationAte, PreparedBayesianProblem,
         };
         let problem = PreparedBayesianProblem {
+            target_moments: None,
             design: d.clone(),
             method: Arc::from("residual-cache-policy-regression"),
             adjustment_set: Arc::from([VariableId::from_raw(2)]),

@@ -24,6 +24,7 @@ pub mod external_prior;
 pub mod finite_belief;
 pub mod fit_counts;
 pub mod gaussian_target;
+pub mod gradient_hmc;
 pub mod graph_samples;
 pub mod hmc;
 pub mod laplace;

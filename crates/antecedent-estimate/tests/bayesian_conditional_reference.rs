@@ -54,6 +54,7 @@ fn problem(case: &Value) -> PreparedBayesianProblem {
             .map(Arc::from)
             .collect();
     PreparedBayesianProblem {
+        target_moments: None,
         design,
         method: Arc::from("backdoor.adjustment"),
         adjustment_set: Arc::from(Vec::new()),

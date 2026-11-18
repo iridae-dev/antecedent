@@ -185,6 +185,7 @@ pub fn prepare_history_outcome_model(
         standardization: StandardizationRecord::default(),
     };
     let prepared = PreparedBayesianProblem {
+        target_moments: None,
         design,
         method: Arc::from("bayesian.period_history_outcome_model"),
         adjustment_set: Arc::from(Vec::<VariableId>::new()),

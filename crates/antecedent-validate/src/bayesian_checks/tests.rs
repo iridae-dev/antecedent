@@ -691,6 +691,7 @@ mod predictive_null_calibration {
 
     fn problem(t: &[f64], x: &[f64], y: &[f64]) -> PreparedBayesianProblem {
         PreparedBayesianProblem {
+            target_moments: None,
             design: CompiledDesign::linear_adjustment(t, &[(VariableId::from_raw(2), x)], y, &[])
                 .unwrap(),
             method: Arc::from("backdoor.adjustment"),
@@ -1332,6 +1333,7 @@ mod predictive_null_calibration {
             antecedent_stats::CompiledDesign::linear_adjustment(&treatment, &[], &outcome, &[])
                 .unwrap();
         let problem = PreparedBayesianProblem {
+            target_moments: None,
             design,
             method: Arc::from("backdoor.adjustment"),
             adjustment_set: Arc::from([]),

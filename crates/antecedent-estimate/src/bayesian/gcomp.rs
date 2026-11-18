@@ -386,7 +386,7 @@ impl BayesianGComputationAte {
         let coef_names = coefficient_names_from_design(&design, treatment_name, |id| {
             schema.get(id).ok().map(|v| Arc::clone(&v.name))
         });
-        let (design, coef_names) = match (reference_arm, weighted) {
+        let (design, coef_names, target_moments) = match (reference_arm, weighted) {
             (None, Some(full)) => {
                 let aligned: Vec<f64> = row_mask
                     .iter()
@@ -394,18 +394,22 @@ impl BayesianGComputationAte {
                     .filter(|(_, keep)| **keep)
                     .map(|(i, _)| full.get(i).copied().unwrap_or(0.0))
                     .collect();
-                center_interactions_on_weights(&design, &coef_names, &aligned)?
+                let ((design, names), moments) =
+                    center_interactions_on_weights(&design, &coef_names, &aligned)?;
+                (design, names, Some(moments))
             }
             (Some(arm), _) => {
                 let level = match arm {
                     ReferenceArm::Active => active,
                     ReferenceArm::Control => control,
                 };
-                center_interactions_on_arm(&design, &coef_names, level)?
+                let (design, names) = center_interactions_on_arm(&design, &coef_names, level)?;
+                (design, names, None)
             }
-            (None, None) => (design, coef_names),
+            (None, None) => (design, coef_names, None),
         };
         Ok(PreparedBayesianProblem {
+            target_moments,
             design,
             method: Arc::clone(&estimand.method),
             adjustment_set: Arc::clone(&estimand.adjustment_set),
@@ -499,6 +503,7 @@ impl BayesianGComputationAte {
     #[must_use]
     pub fn from_prepared_estimation(prep: &PreparedEstimationProblem) -> PreparedBayesianProblem {
         PreparedBayesianProblem {
+            target_moments: None,
             design: prep.design.clone(),
             method: Arc::clone(&prep.method),
             adjustment_set: Arc::clone(&prep.adjustment_set),
@@ -1211,12 +1216,77 @@ fn assemble_posterior_draws(
         effect_idx,
         seed,
     );
+    add_target_mean_uncertainty(problem, &quantities, &mut values, n_draws, effect_idx, seed);
     PosteriorDraws::from_column_major(
         PosteriorSchema { quantities: Arc::from(quantities) },
         n_draws,
         values,
     )
     .map_err(EstimationError::from)
+}
+
+/// Carry the sampling uncertainty of the weighted target population's covariate means into
+/// the effect draws.
+///
+/// The interactions are centred at the weighted means `m_k` of the observed rows, so the
+/// coefficient `b_T` is the effect at `m_k`, not at the target population's own means. With
+/// one Rubin Bayesian-bootstrap vector `omega` per draw, the target means are
+/// `m*_k = sum(omega w x_k) / sum(omega w)` and the effect at them is
+/// `(active - control) (b_T + sum_k d_k (m*_k - m_k))` on the identity link, which is the only
+/// link a weighted target admits. Without this the interval covers the effect at the observed
+/// weighted means and under-covers the target population's effect.
+fn add_target_mean_uncertainty(
+    problem: &PreparedBayesianProblem,
+    quantities: &[PosteriorQuantityKind],
+    values: &mut [f64],
+    n_draws: usize,
+    effect_idx: usize,
+    seed: u64,
+) {
+    let Some(moments) = problem.target_moments.as_ref() else {
+        return;
+    };
+    let nrows = problem.design.nrows;
+    let mass: f64 = moments.weights.iter().sum();
+    if n_draws == 0 || nrows == 0 || moments.weights.len() != nrows || mass.is_nan() || mass <= 0.0
+    {
+        return;
+    }
+    let column_of = |coef_index: usize| {
+        quantities.iter().position(|q| {
+            matches!(q, PosteriorQuantityKind::Coefficient { index, .. } if *index == coef_index)
+        })
+    };
+    let mut slopes = Vec::with_capacity(moments.covariates.len());
+    for &(covariate, interaction) in &moments.covariates {
+        let Some(slope_column) = column_of(interaction) else {
+            return;
+        };
+        let x = &problem.design.matrix[covariate * nrows..(covariate + 1) * nrows];
+        let mean = x.iter().zip(moments.weights.iter()).map(|(v, w)| v * w).sum::<f64>() / mass;
+        slopes.push((x, mean, slope_column));
+    }
+    let contrast = problem.active - problem.control;
+    let mut rng = antecedent_core::CausalRng::from_seed(seed ^ 0x5441_5247_4554_4D45);
+    for d in 0..n_draws {
+        let omega = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, nrows, false);
+        let total: f64 = omega.iter().zip(moments.weights.iter()).map(|(o, w)| o * w).sum();
+        if total.is_nan() || total <= 0.0 {
+            continue;
+        }
+        let mut shift = 0.0;
+        for &(x, mean, slope_column) in &slopes {
+            let drawn = omega
+                .iter()
+                .zip(moments.weights.iter())
+                .zip(x)
+                .map(|((o, w), v)| o * w * v)
+                .sum::<f64>()
+                / total;
+            shift += values[slope_column * n_draws + d] * (drawn - mean);
+        }
+        values[effect_idx * n_draws + d] += contrast * shift;
+    }
 }
 
 /// Bayesian g-computation on a lag-aligned temporal design.
@@ -1535,7 +1605,7 @@ fn center_interactions_on_weights(
     design: &CompiledDesign,
     names: &Arc<[Arc<str>]>,
     weights: &[f64],
-) -> Result<CenteredDesign, EstimationError> {
+) -> Result<(CenteredDesign, TargetMoments), EstimationError> {
     let n = design.nrows;
     let mass: f64 = weights.iter().sum();
     if weights.len() != n || !(mass.is_finite() && mass > 0.0) || weights.iter().any(|w| *w < 0.0) {
@@ -1561,7 +1631,9 @@ fn center_interactions_on_weights(
     let mut roles: Vec<DesignColumnRole> =
         design.columns.iter().map(|column| column.role).collect();
     let mut all_names: Vec<Arc<str>> = names.to_vec();
+    let mut covariates = Vec::with_capacity(covariate_cols.len());
     for &col in &covariate_cols {
+        covariates.push((col, roles.len()));
         let values = &design.matrix[col * n..(col + 1) * n];
         let mean = values.iter().zip(weights).map(|(v, w)| v * w).sum::<f64>() / mass;
         matrix.extend(treatment.iter().zip(values).map(|(t, x)| t * (x - mean)));
@@ -1577,7 +1649,7 @@ fn center_interactions_on_weights(
         columns: antecedent_stats::DesignColumnMap::from_roles(roles),
         ..design.clone()
     };
-    Ok((widened, Arc::from(all_names)))
+    Ok(((widened, Arc::from(all_names)), TargetMoments { weights: Arc::from(weights), covariates }))
 }
 
 /// Prepared Bayesian g-comp problem.
@@ -1606,6 +1678,20 @@ pub struct PreparedBayesianProblem {
     /// How the columns this problem was built from were prepared, when they were admitted
     /// through the preparation path.
     pub preparation: Option<Arc<crate::PreparationSummary>>,
+    /// The declared weighted target population whose covariate means the interactions are
+    /// centred at, so each draw can carry the sampling uncertainty of those means.
+    pub target_moments: Option<TargetMoments>,
+}
+
+/// The weighted target population of a model-based effect: the row weights and, for each
+/// covariate, its design column and the column of its treatment interaction (centred at the
+/// weighted mean of the covariate).
+#[derive(Clone, Debug)]
+pub struct TargetMoments {
+    /// Target weights aligned to the design rows.
+    pub weights: Arc<[f64]>,
+    /// `(covariate column, centred interaction column)` per covariate.
+    pub covariates: Vec<(usize, usize)>,
 }
 
 impl PreparedBayesianProblem {

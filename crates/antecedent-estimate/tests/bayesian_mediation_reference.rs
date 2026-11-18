@@ -42,6 +42,7 @@ fn cases() -> Vec<Json> {
 
 fn problem(design: CompiledDesign) -> PreparedBayesianProblem {
     PreparedBayesianProblem {
+        target_moments: None,
         design,
         method: Arc::from("backdoor.adjustment"),
         adjustment_set: Arc::from(Vec::new()),

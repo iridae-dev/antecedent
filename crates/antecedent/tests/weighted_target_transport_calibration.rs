@@ -8,8 +8,11 @@
 //! `ate ± z·se` the compiled transport query publishes against that closed form.
 //!
 //! One test per overlap regime. The moderate regime keeps the Kish ESS fraction of the target
-//! weights well above the floor; the thin regime sits in the tail of the target, where the
-//! overlap gate refuses some replicates, which are skipped rather than scored.
+//! weights well above the floor; the thin regime sits 1.5 standard deviations into the tail of
+//! the target, as narrow as the overlap gate admits on every replicate (at bandwidth 0.5 the
+//! target falls below the 5% ESS floor and the gate refuses it; at 0.6 it refuses a few percent
+//! of replicates, more than the skip cap allows). A replicate the gate refuses is skipped
+//! rather than scored.
 //!
 //! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
@@ -172,7 +175,7 @@ fn weighted_target_transport_interval_covers_under_thin_overlap() {
     assert_coverage_over(
         "weighted_target_transport_interval_covers_under_thin_overlap",
         2.5,
-        &[0.5, 0.8],
+        &[0.8, 1.0],
     );
 }
 

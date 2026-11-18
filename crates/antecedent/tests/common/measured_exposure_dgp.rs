@@ -34,6 +34,10 @@ pub enum Scenario {
     Shared,
     /// Outcome-specific rates, a 0/1 outcome.
     Differential,
+    /// Outcome-specific rates, a 0/1 outcome, declared the way a validation study reports them:
+    /// each declared rate is the planted rate plus an estimation error of the declared variance,
+    /// so the declared variance is the true uncertainty of the declared rate.
+    DifferentialValidated,
     /// Calibrated per-unit probabilities, a continuous outcome.
     Soft,
     /// Covariate-dependent detection, a continuous outcome.
@@ -163,7 +167,7 @@ pub fn plant(scenario: Scenario, n: usize, seed: u64) -> Planted {
                 edges: recorded_ids().2,
             }
         }
-        Scenario::Differential => {
+        Scenario::Differential | Scenario::DifferentialValidated => {
             let y: Vec<f64> = (0..n)
                 .map(|i| f64::from(u8::from(next() < expit(-0.5 + x[i] + 0.4 * z[i]))))
                 .collect();
@@ -175,13 +179,26 @@ pub fn plant(scenario: Scenario, n: usize, seed: u64) -> Planted {
                 })
                 .collect();
             let w: Vec<f64> = recorded.iter().map(|&b| f64::from(u8::from(b))).collect();
+            // The data above use the planted rates. A validation study reports estimates of
+            // them with an error of the declared variance; declaring the planted rates exactly
+            // while carrying that variance adds uncertainty the data never had, which does not
+            // shrink with `n`.
+            let mut declared = |rate: f64| {
+                if matches!(scenario, Scenario::DifferentialValidated) {
+                    (rate + 1e-4_f64.sqrt() * normal()).clamp(0.05, 0.995)
+                } else {
+                    rate
+                }
+            };
+            let (case_se, case_sp) = (declared(cases.0), declared(cases.1));
+            let (control_se, control_sp) = (declared(controls.0), declared(controls.1));
             Planted {
                 columns: MeasuredColumns::new(names(&[]), vec![z, w, y]).unwrap(),
                 declaration: ExposureMeasurement::Misclassified {
                     recorded,
                     error: ExposureErrorDeclaration::ByOutcome {
-                        cases: RatePair::declared(cases.0, cases.1, 1e-4, 1e-4).unwrap(),
-                        controls: RatePair::declared(controls.0, controls.1, 1e-4, 1e-4).unwrap(),
+                        cases: RatePair::declared(case_se, case_sp, 1e-4, 1e-4).unwrap(),
+                        controls: RatePair::declared(control_se, control_sp, 1e-4, 1e-4).unwrap(),
                     },
                     min_youden: 0.1,
                 },
