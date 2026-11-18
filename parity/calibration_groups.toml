@@ -12437,7 +12437,7 @@ package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_posterior_calibration_static_l95"]
 ignored = true
-grid = false
+grid = true
 
 [[group]]
 label = "joint_panel_calibration: joint_panel_posterior_calibration_lagged_l95"
@@ -12445,7 +12445,7 @@ package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_posterior_calibration_lagged_l95"]
 ignored = true
-grid = false
+grid = true
 
 [[group]]
 label = "joint_panel_calibration: joint_panel_posterior_calibration_broader_static_l95"
@@ -12453,7 +12453,7 @@ package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_posterior_calibration_broader_static_l95"]
 ignored = true
-grid = false
+grid = true
 
 [[group]]
 label = "joint_panel_calibration: joint_panel_posterior_calibration_broader_lagged_l95"
@@ -12461,7 +12461,7 @@ package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_posterior_calibration_broader_lagged_l95"]
 ignored = true
-grid = false
+grid = true
 
 [[group]]
 label = "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_l95"
@@ -12469,7 +12469,7 @@ package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_posterior_calibration_time_varying_l95"]
 ignored = true
-grid = false
+grid = true
 
 [[group]]
 label = "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_broader_l95"
@@ -12477,7 +12477,7 @@ package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_posterior_calibration_time_varying_broader_l95"]
 ignored = true
-grid = false
+grid = true
 
 [[group]]
 label = "joint_panel_calibration: joint_panel_contrast_static_frequentist_l95"
@@ -14835,7 +14835,7 @@ package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_selected_program_value_static_bayesian_l95"]
 ignored = true
-grid = false
+grid = true
 
 [[group]]
 label = "joint_panel_calibration: joint_panel_selected_program_value_temporal_frequentist_l95"
@@ -14851,4 +14851,4 @@ package = "antecedent"
 target = "joint_panel_calibration"
 tests = ["joint_panel_selected_program_value_temporal_bayesian_l95"]
 ignored = true
-grid = false
+grid = true

@@ -143,9 +143,11 @@ const FREQUENTIST_DRAWS: usize = 100;
 /// coverage. The records are measured at this count, which their validation scope states
 /// (`replicates_ok`); a run with fewer draws is outside the measured scope.
 const INVARIANT_FREQUENTIST_DRAWS: usize = 1000;
-/// Groups and periods of the prior-drawn calibration panels: the fewest the model needs (the
-/// programs run for 24 periods, a class needs several groups). Calibration under prior-drawn
-/// truths is exact at any size, so one size is measured.
+/// Groups of the prior-drawn calibration panels at the base grid point: the fewest the model
+/// needs (the programs run for 24 periods, a class needs several groups). Calibration under
+/// prior-drawn truths is exact at any size; the posterior-calibration and selected-program
+/// posterior tests still measure it across the short-series grid (`grid_n`: 9, 12 and 24
+/// groups), so the sampler and its diagnostics are exercised at each size a record claims.
 const CALIBRATION_GROUPS: usize = 12;
 /// Candidate change periods and smoothing grid of the time-varying specification.
 const CHANGE_POINTS: [usize; 3] = [8, 12, 16];
@@ -1168,13 +1170,14 @@ fn prior_law(cell: Cell, varying: bool, seed: u64) -> (Law, Option<TemporalModel
 fn calibration_reading(cell: Cell, varying: bool, seed: u64) -> Reading {
     let path = if varying { Path::Prior } else { Path::Invariant };
     let (law, true_choice) = prior_law(cell, varying, seed);
-    let generated = generate_from(cell, &law, HORIZON, CALIBRATION_GROUPS, seed);
+    let groups = grid_n(CALIBRATION_GROUPS);
+    let generated = generate_from(cell, &law, HORIZON, groups, seed);
     let (_, result, truth, rows, _) = match fit_generated(
         cell,
         path,
         Mode::Bayesian,
         default_sampling(),
-        CALIBRATION_GROUPS,
+        groups,
         generated,
         seed,
     ) {
@@ -2547,7 +2550,8 @@ fn frequentist_search_reading(cell: Cell, seed: u64) -> SearchReading {
 
 fn bayesian_search_reading(cell: Cell, seed: u64) -> SearchReading {
     let (law, _) = prior_law(cell, false, seed);
-    let generated = generate_from(cell, &law, HORIZON, CALIBRATION_GROUPS, seed);
+    let groups = grid_n(CALIBRATION_GROUPS);
+    let generated = generate_from(cell, &law, HORIZON, groups, seed);
     let truth = ProgramTruth::of(law, cell, &generated);
     let best = truth.best_value();
     let fitted = fit_generated(
@@ -2555,7 +2559,7 @@ fn bayesian_search_reading(cell: Cell, seed: u64) -> SearchReading {
         Path::Invariant,
         Mode::Bayesian,
         default_sampling(),
-        CALIBRATION_GROUPS,
+        groups,
         generated,
         seed,
     );
