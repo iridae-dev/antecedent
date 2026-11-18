@@ -617,18 +617,25 @@ struct Selected {
 /// `polish` (frequentist fits) lets a candidate that has not met the score tolerance within the
 /// quasi-Newton budget finish with Newton steps on its score's curvature
 /// ([`inference::polished_local_fit`]); a Bayesian fit only seeds its sampler here and keeps the
-/// plain search.
+/// plain search unless no candidate meets the tolerance without polishing. With `seed` (the
+/// polished pass of a Bayesian fit), a search in which no candidate meets the tolerance still
+/// returns the candidate whose stalled fit reached the highest objective, as the seed of the
+/// sampler, instead of refusing: the posterior is gated by its own diagnostics, as the
+/// time-invariant posterior's local fit is.
 fn fit_candidates(
     data: &likelihood::CompiledPanel<'_>,
     spec: &TemporalPanelSpec,
     options: &PanelFitOptions,
     polish: bool,
+    seed: bool,
     ctx: &ExecutionContext,
 ) -> Result<Selected, PanelError> {
     let p = likelihood::parameter_count(data);
     let initial = options.initial.clone().unwrap_or_else(|| likelihood::initial(data));
     let start = likelihood::encode(data, &initial)?;
     let n = data.groups.iter().map(|group| group.outcome.len()).sum::<usize>() as f64;
+    let stalled = std::cell::RefCell::new(None::<(f64, Vec<f64>, TemporalModelChoice)>);
+    let tried = std::cell::RefCell::new(Vec::new());
     let try_fit = |choice: TemporalModelChoice,
                    attempts: &mut Vec<TemporalPanelAttempt>|
      -> Result<Option<(f64, Vec<f64>, TemporalModelChoice)>, PanelError> {
@@ -660,30 +667,53 @@ fn fit_candidates(
             Ok(fit) => {
                 let ll = objective(data, spec, &choice, &fit.values);
                 let criterion = -2.0 * fit.likelihood + (fit.values.len() as f64) * n.ln();
-                attempts.push(TemporalPanelAttempt {
+                let attempt = TemporalPanelAttempt {
                     choice: choice.clone(),
                     log_likelihood: Some(ll),
                     criterion: Some(criterion),
                     converged: fit.converged,
                     failure: (!fit.converged)
                         .then(|| format!("local score tolerance not met: {}", fit.score_norm)),
-                });
+                };
+                if seed {
+                    tried.borrow_mut().push(attempt.clone());
+                    let mut best = stalled.borrow_mut();
+                    if !fit.converged
+                        && fit.likelihood.is_finite()
+                        && best.as_ref().is_none_or(|(value, _, _)| fit.likelihood > *value)
+                    {
+                        *best = Some((fit.likelihood, fit.values.clone(), choice.clone()));
+                    }
+                }
+                attempts.push(attempt);
                 Ok(fit.converged.then_some((criterion, fit.values, choice)))
             }
             Err(PanelError::Cancelled) => Err(PanelError::Cancelled),
             Err(error) => {
-                attempts.push(TemporalPanelAttempt {
+                let attempt = TemporalPanelAttempt {
                     choice,
                     log_likelihood: None,
                     criterion: None,
                     converged: false,
                     failure: Some(error.to_string()),
-                });
+                };
+                if seed {
+                    tried.borrow_mut().push(attempt.clone());
+                }
+                attempts.push(attempt);
                 Ok(None)
             }
         }
     };
-    select_candidates(spec, try_fit)
+    match select_candidates(spec, try_fit) {
+        Err(PanelError::Numerical(message)) if seed => match stalled.into_inner() {
+            Some((_, values, choice)) => {
+                Ok(Selected { values, choice, attempts: tried.into_inner(), smooth: true })
+            }
+            None => Err(PanelError::Numerical(message)),
+        },
+        selected => selected,
+    }
 }
 
 // Keep the attempt policy and the selection policy distinct: triggering smooth
@@ -868,10 +898,15 @@ fn whiten(
         Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
         Err(_) => None,
     };
+    Ok(whitening(center, covariance.as_deref(), d))
+}
+
+/// The whitening `z -> center + L z` with `L` the Cholesky factor of `covariance`, or the
+/// identity where the covariance is unavailable or not positive definite.
+fn whitening(center: Vec<f64>, covariance: Option<&[f64]>, d: usize) -> Whitening {
     let mut lower = vec![0.0; d * d];
-    let factored = covariance
-        .as_deref()
-        .is_some_and(|covariance| cholesky_spd_into(covariance, d, &mut lower).is_ok());
+    let factored =
+        covariance.is_some_and(|covariance| cholesky_spd_into(covariance, d, &mut lower).is_ok());
     if !factored {
         lower.fill(0.0);
         for j in 0..d {
@@ -879,7 +914,7 @@ fn whiten(
         }
     }
     let log_det = (0..d).map(|j| lower[j * d + j].ln()).sum();
-    Ok(Whitening { center, lower, log_det })
+    Whitening { center, lower, log_det }
 }
 
 /// One specification's log density and gradient at a point, `None` outside its support.
@@ -902,10 +937,16 @@ type SpecificationDensity<'a> = dyn Fn(usize, &[f64]) -> Option<(f64, Vec<f64>)>
 /// Returns the draws in `(chain * draws + draw) * (d + 1) + coordinate` layout, with the last
 /// coordinate a uniform within the bin of the drawn specification (bin `i` of `n` holds
 /// specification `i`), the encoding the retained slots decode.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one chain's warmup, transitions, specification moves and retained draws read as one loop"
+)]
 fn sample_model_mixture(
     whitenings: &[Whitening],
     density: &SpecificationDensity<'_>,
     sampler: &super::PanelSamplingOptions,
+    nuts: bool,
+    spread: f64,
     ctx: &ExecutionContext,
 ) -> Result<Vec<f64>, PanelError> {
     let n = whitenings.len();
@@ -935,7 +976,7 @@ fn sample_model_mixture(
             for attempt in 0..64 {
                 let model = (chain + attempt) % n;
                 let z: Vec<f64> = (0..d)
-                    .map(|_| inference::CHAIN_START_SPREAD * standard_normal(&mut rng))
+                    .map(|_| spread * standard_normal(&mut rng))
                     .collect();
                 if let Some((logp, gradient)) = target_of(model, &z)
                     && logp.is_finite()
@@ -961,15 +1002,27 @@ fn sample_model_mixture(
                 }
                 let current = model;
                 let within = |z: &[f64]| target_of(current, z);
-                let outcome = antecedent_prob::gradient_hmc::transition(
-                    &mut z,
-                    &mut logp,
-                    &mut gradient,
-                    step,
-                    inference::PANEL_LEAPFROG_STEPS,
-                    &within,
-                    &mut rng,
-                )
+                let outcome = if nuts {
+                    antecedent_prob::gradient_hmc::nuts_step(
+                        &mut z,
+                        &mut logp,
+                        &mut gradient,
+                        step,
+                        inference::PANEL_NUTS_DEPTH,
+                        &within,
+                        &mut rng,
+                    )
+                } else {
+                    antecedent_prob::gradient_hmc::transition(
+                        &mut z,
+                        &mut logp,
+                        &mut gradient,
+                        step,
+                        inference::PANEL_LEAPFROG_STEPS,
+                        &within,
+                        &mut rng,
+                    )
+                }
                 .map_err(numerical)?;
                 if iteration < sampler.warmup {
                     adaptation.update(outcome.accept_prob);
@@ -1046,12 +1099,21 @@ fn fit_temporal_inner(
     let TemporalFitAdmission { p, path_parameters, slots, retained, retention, scratch: _scratch } =
         admit_temporal_fit(data, spec, options, ctx)?;
     // A frequentist fit's interval rests on every candidate meeting the score tolerance, at the
-    // point and in each bootstrap refit; a posterior only starts its sampler from the point.
+    // point and in each bootstrap refit, so its candidates are always finished with Newton steps.
+    // A posterior only starts its sampler from the point: its candidates keep the plain search,
+    // and are finished with Newton steps only when none meets the tolerance without them; when
+    // even the polished candidates all stall, the best of them seeds the sampler instead of
+    // refusing the fit.
     let polish = matches!(
         options.inference,
         PanelInference::Frequentist { .. } | PanelInference::FrequentistBootstrap { .. }
     );
-    let selected = fit_candidates(data, spec, options, polish, ctx)?;
+    let selected = match fit_candidates(data, spec, options, polish, false, ctx) {
+        Err(PanelError::Numerical(_)) if !polish => {
+            fit_candidates(data, spec, options, true, true, ctx)?
+        }
+        selected => selected?,
+    };
     let point = realization(data, spec, &selected.choice, &selected.values, None)
         .ok_or_else(|| PanelError::Numerical("invalid selected temporal point".into()))?;
     let mut posterior_diagnostics = None;
@@ -1063,23 +1125,24 @@ fn fit_temporal_inner(
                 check_cancelled(ctx)?;
                 let simulated = bootstrap_data(data, &point, ctx, replicate)?;
                 let compiled_simulated = likelihood::CompiledPanel::new(&simulated)?;
-                let draw = match fit_candidates(&compiled_simulated, spec, options, polish, ctx) {
-                    Ok(fit) => {
-                        let mut rng = ctx.rng.stream(antecedent_core::derive_stream(
-                            0x5830_3352_414e_444f,
-                            replicate as u64,
-                        ));
-                        realization(
-                            &compiled_simulated,
-                            spec,
-                            &fit.choice,
-                            &fit.values,
-                            Some(&mut rng),
-                        )
-                    }
-                    Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
-                    Err(_) => None,
-                };
+                let draw =
+                    match fit_candidates(&compiled_simulated, spec, options, polish, false, ctx) {
+                        Ok(fit) => {
+                            let mut rng = ctx.rng.stream(antecedent_core::derive_stream(
+                                0x5830_3352_414e_444f,
+                                replicate as u64,
+                            ));
+                            realization(
+                                &compiled_simulated,
+                                spec,
+                                &fit.choice,
+                                &fit.values,
+                                Some(&mut rng),
+                            )
+                        }
+                        Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
+                        Err(_) => None,
+                    };
                 output.push(draw);
             }
             (output, "hierarchical model-based parametric bootstrap of the complete candidate/change/smooth-penalty selection procedure; conditional random-effect uncertainty retained; not calibrated coverage or a posterior".to_owned())
@@ -1145,16 +1208,70 @@ fn fit_temporal_inner(
                 }
                 gradient.iter().all(|g| g.is_finite()).then_some((value, gradient))
             };
-            let samples = sample_model_mixture(&whitenings, &density_gradient, sampler, ctx)?;
-            let summary = mcmc_summary(&samples, sampler.chains, sampler.draws, dimensions);
-            posterior_diagnostics =
-                Some([summary.max_rhat, summary.min_bulk_ess, summary.min_tail_ess]);
-            posterior_converged = Some(
-                summary.max_rhat <= sampler.max_rhat
+            let converged = |samples: &[f64]| {
+                let summary = mcmc_summary(samples, sampler.chains, sampler.draws, dimensions);
+                let met = summary.max_rhat <= sampler.max_rhat
                     && summary.min_bulk_ess >= sampler.min_ess
                     && summary.min_tail_ess >= sampler.min_ess
-                    && all_chains_moved(&samples, sampler.chains, sampler.draws, dimensions),
-            );
+                    && all_chains_moved(samples, sampler.chains, sampler.draws, dimensions);
+                (summary, met)
+            };
+            let mut samples = sample_model_mixture(
+                &whitenings,
+                &density_gradient,
+                sampler,
+                false,
+                inference::CHAIN_START_SPREAD,
+                ctx,
+            )?;
+            let (mut summary, mut met) = converged(&samples);
+            // A run that misses its diagnostics is sampled once more, on its own streams, with
+            // twice the warmup and No-U-Turn transitions within each specification, each
+            // specification whitened at its center finished with Newton steps by the inverse
+            // curvature of its exact score there, as the invariant posterior is. Only a second
+            // run that meets the diagnostics replaces the first.
+            if !met {
+                let mut retried = Vec::with_capacity(whitenings.len());
+                for (index, first) in whitenings.iter().enumerate() {
+                    check_cancelled(ctx)?;
+                    let value = |values: &[f64]| density(index, values);
+                    let score = |values: &[f64]| {
+                        density_gradient(index, values).map(|(_, gradient)| gradient).ok_or_else(
+                            || PanelError::Numerical("nonfinite local likelihood score".into()),
+                        )
+                    };
+                    let center = inference::polished_center(
+                        &first.center,
+                        options.optimizer.gradient_tolerance,
+                        ctx,
+                        &value,
+                        &score,
+                    )?;
+                    let covariance = inference::retry_covariance(&center, ctx, &value, &score)?;
+                    retried.push(whitening(center, covariance.as_deref(), coordinates));
+                }
+                let longer = super::PanelSamplingOptions {
+                    warmup: sampler.warmup.saturating_mul(2),
+                    ..*sampler
+                };
+                let second = sample_model_mixture(
+                    &retried,
+                    &density_gradient,
+                    &longer,
+                    true,
+                    inference::RETRY_START_SPREAD,
+                    &inference::retry_context(ctx),
+                )?;
+                let (second_summary, second_met) = converged(&second);
+                if second_met {
+                    samples = second;
+                    summary = second_summary;
+                    met = true;
+                }
+            }
+            posterior_diagnostics =
+                Some([summary.max_rhat, summary.min_bulk_ess, summary.min_tail_ess]);
+            posterior_converged = Some(met);
             let mut output = Vec::with_capacity(slots);
             for (slot, values) in samples.chunks_exact(dimensions).enumerate() {
                 check_cancelled(ctx)?;
@@ -1991,9 +2108,15 @@ mod tests {
             max_rhat: 1.05,
             min_ess: 100.0,
         };
-        let samples =
-            sample_model_mixture(&whitenings, &density, &sampler, &ExecutionContext::for_tests(5))
-                .unwrap();
+        let samples = sample_model_mixture(
+            &whitenings,
+            &density,
+            &sampler,
+            false,
+            inference::CHAIN_START_SPREAD,
+            &ExecutionContext::for_tests(5),
+        )
+        .unwrap();
         assert_eq!(samples.len(), 4 * 6_000 * 3);
         let mut counts = [0.0_f64; 3];
         for row in samples.chunks_exact(3) {

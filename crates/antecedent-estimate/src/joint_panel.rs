@@ -302,7 +302,10 @@ impl Default for PanelPrior {
 /// Hamiltonian Monte Carlo schedule and explicit convergence thresholds.
 ///
 /// The posterior is sampled by Hamiltonian Monte Carlo in coordinates whitened at the
-/// posterior mode, with the step adapted toward an 0.8 acceptance during warmup.
+/// posterior mode, with the step adapted toward an 0.8 acceptance during warmup. A run that
+/// misses these thresholds is sampled once more by the No-U-Turn sampler with twice the
+/// warmup, whitened at the Newton-finished mode; the second run replaces the first only when
+/// it meets them, so the published posterior has always met its own diagnostics.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PanelSamplingOptions {
