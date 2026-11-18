@@ -1401,6 +1401,60 @@ coverage_decisions = []
 executed_files = ["crates/antecedent-contract/src/obligation.rs", "crates/antecedent-contract/src/provenance.rs", "crates/antecedent-contract/src/reasoning.rs", "crates/antecedent-core/src/assumption.rs", "crates/antecedent-core/src/callback.rs", "crates/antecedent-core/src/canonical_encode.rs", "crates/antecedent-core/src/diagnostic.rs", "crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/ids.rs", "crates/antecedent-core/src/inference_realization.rs", "crates/antecedent-core/src/interval.rs", "crates/antecedent-core/src/intervention.rs", "crates/antecedent-core/src/node.rs", "crates/antecedent-core/src/numerical_admission.rs", "crates/antecedent-core/src/operator.rs", "crates/antecedent-core/src/physical_choice.rs", "crates/antecedent-core/src/physical_operator.rs", "crates/antecedent-core/src/provider_capability.rs", "crates/antecedent-core/src/query/average.rs", "crates/antecedent-core/src/query/functional.rs", "crates/antecedent-core/src/query/mod.rs", "crates/antecedent-core/src/query/target.rs", "crates/antecedent-core/src/query/variants.rs", "crates/antecedent-core/src/recalc.rs", "crates/antecedent-core/src/refusal.rs", "crates/antecedent-core/src/route_memory.rs", "crates/antecedent-core/src/row_mask.rs", "crates/antecedent-core/src/schema.rs", "crates/antecedent-core/src/scientific_target/contrast.rs", "crates/antecedent-core/src/scientific_target/identity.rs", "crates/antecedent-core/src/scientific_target/model.rs", "crates/antecedent-core/src/search.rs", "crates/antecedent-core/src/support_gate.rs", "crates/antecedent-core/src/text.rs", "crates/antecedent-core/src/treatment_indicator.rs", "crates/antecedent-core/src/value.rs", "crates/antecedent-data/src/backend_boundary.rs", "crates/antecedent-data/src/buffer.rs", "crates/antecedent-data/src/column.rs", "crates/antecedent-data/src/content_identity.rs", "crates/antecedent-data/src/dataset.rs", "crates/antecedent-data/src/design_layout.rs", "crates/antecedent-data/src/global_index.rs", "crates/antecedent-data/src/lazy_identity.rs", "crates/antecedent-data/src/materialize.rs", "crates/antecedent-data/src/missing.rs", "crates/antecedent-data/src/sample_policy.rs", "crates/antecedent-data/src/source.rs", "crates/antecedent-data/src/storage.rs", "crates/antecedent-data/src/table.rs", "crates/antecedent-estimate/src/adjustment/solve.rs", "crates/antecedent-estimate/src/aipw.rs", "crates/antecedent-estimate/src/aipw/bootstrap.rs", "crates/antecedent-estimate/src/aipw/checked.rs", "crates/antecedent-estimate/src/aipw/nuisance.rs", "crates/antecedent-estimate/src/arm.rs", "crates/antecedent-estimate/src/cluster_dml_aipw.rs", "crates/antecedent-estimate/src/crossfit_aipw.rs", "crates/antecedent-estimate/src/crossfit_cache.rs", "crates/antecedent-estimate/src/crossfit_plan.rs", "crates/antecedent-estimate/src/design_width.rs", "crates/antecedent-estimate/src/effect_estimate.rs", "crates/antecedent-estimate/src/inference.rs", "crates/antecedent-estimate/src/joint_cell_factorized.rs", "crates/antecedent-estimate/src/joint_if.rs", "crates/antecedent-estimate/src/nuisance_cache.rs", "crates/antecedent-estimate/src/nuisance_keys.rs", "crates/antecedent-estimate/src/observation.rs", "crates/antecedent-estimate/src/overlap.rs", "crates/antecedent-estimate/src/prepare.rs", "crates/antecedent-estimate/src/propensity/levels.rs", "crates/antecedent-estimate/src/propensity/penalized.rs", "crates/antecedent-estimate/src/propensity/prepare.rs", "crates/antecedent-estimate/src/retarget.rs", "crates/antecedent-estimate/src/scores.rs", "crates/antecedent-estimate/src/se.rs", "crates/antecedent-estimate/src/util/gather.rs", "crates/antecedent-estimate/src/util/mod.rs", "crates/antecedent-estimate/src/util/refusal.rs", "crates/antecedent-estimate/src/util/scratch.rs", "crates/antecedent-estimate/tests/common/candidate_calibration.rs", "crates/antecedent-expr/src/estimand.rs", "crates/antecedent-expr/src/eval.rs", "crates/antecedent-expr/src/execution_counts.rs", "crates/antecedent-expr/src/lib.rs", "crates/antecedent-expr/src/program.rs", "crates/antecedent-graph/src/algo.rs", "crates/antecedent-graph/src/ancestry.rs", "crates/antecedent-graph/src/dag.rs", "crates/antecedent-graph/src/directed.rs", "crates/antecedent-graph/src/dsep.rs", "crates/antecedent-graph/src/types.rs", "crates/antecedent-graph/src/workspace.rs", "crates/antecedent-identify/src/assumptions.rs", "crates/antecedent-identify/src/backdoor.rs", "crates/antecedent-identify/src/exact_search.rs", "crates/antecedent-identify/src/execution_counts.rs", "crates/antecedent-identify/src/generalized/conditional.rs", "crates/antecedent-identify/src/identification_run.rs", "crates/antecedent-identify/src/intervention_support.rs", "crates/antecedent-identify/src/node_map.rs", "crates/antecedent-identify/src/prepared.rs", "crates/antecedent-identify/src/result.rs", "crates/antecedent-io-core/src/analysis_wire.rs", "crates/antecedent-io-core/src/artifact_codec.rs", "crates/antecedent-io-core/src/container.rs", "crates/antecedent-io-core/src/convert.rs", "crates/antecedent-io-core/src/error.rs", "crates/antecedent-io-core/src/expr_wire.rs", "crates/antecedent-io-core/src/frozen_scores_artifact.rs", "crates/antecedent-io-core/src/identity.rs", "crates/antecedent-io-core/src/identity/graph.rs", "crates/antecedent-io-core/src/identity/inference.rs", "crates/antecedent-io-core/src/identity/reuse.rs", "crates/antecedent-io-core/src/identity/snapshot.rs", "crates/antecedent-io-core/src/query_wire.rs", "crates/antecedent-io-core/src/query_wire/encode.rs", "crates/antecedent-io-core/src/query_wire/expression.rs", "crates/antecedent-io-core/src/reader.rs", "crates/antecedent-io-core/src/recalc_receipt_artifact.rs", "crates/antecedent-io-core/src/score_wire.rs", "crates/antecedent-io-core/src/trace.rs", "crates/antecedent-io-core/src/wire.rs", "crates/antecedent-kernels/src/cholesky.rs", "crates/antecedent-kernels/src/numeric.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-kernels/src/scalar.rs", "crates/antecedent-learn/src/aipw_crossfit.rs", "crates/antecedent-learn/src/crossfit_plan.rs", "crates/antecedent-learn/src/dr_replay.rs", "crates/antecedent-state/src/invalidation.rs", "crates/antecedent-stats/src/faer_backend.rs", "crates/antecedent-stats/src/faer_scope.rs", "crates/antecedent-stats/src/fit_counts.rs", "crates/antecedent-stats/src/glm.rs", "crates/antecedent-stats/src/glm/binomial.rs", "crates/antecedent-stats/src/linalg.rs", "crates/antecedent-stats/src/propensity.rs", "crates/antecedent-validate/src/data_diagnostics.rs", "crates/antecedent-validate/src/staleness/mod.rs", "crates/antecedent/src/accepted.rs", "crates/antecedent/src/analysis/builder.rs", "crates/antecedent/src/analysis/builder/admission.rs", "crates/antecedent/src/analysis/builder/finish.rs", "crates/antecedent/src/analysis/builder/settings.rs", "crates/antecedent/src/analysis/checked_bayesian_class_conditional.rs", "crates/antecedent/src/analysis/checked_graph_posterior.rs", "crates/antecedent/src/analysis/compiled_linear.rs", "crates/antecedent/src/analysis/contract.rs", "crates/antecedent/src/analysis/contract/calibration.rs", "crates/antecedent/src/analysis/contract/compile.rs", "crates/antecedent/src/analysis/contract/evidence_needs.rs", "crates/antecedent/src/analysis/contract/identification_projection.rs", "crates/antecedent/src/analysis/contract/posterior_programs.rs", "crates/antecedent/src/analysis/contract/prepared_inspection.rs", "crates/antecedent/src/analysis/contract/program_wire.rs", "crates/antecedent/src/analysis/contract/reasoning.rs", "crates/antecedent/src/analysis/contract/reuse.rs", "crates/antecedent/src/analysis/contract/wire.rs", "crates/antecedent/src/analysis/contract_identity.rs", "crates/antecedent/src/analysis/data_diagnostics.rs", "crates/antecedent/src/analysis/execute/checked_bayesian_specialist.rs", "crates/antecedent/src/analysis/execute/checked_static.rs", "crates/antecedent/src/analysis/execute/checked_temporal_design.rs", "crates/antecedent/src/analysis/execute/checked_transport_trial.rs", "crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent/src/analysis/execute/compile/static_graph.rs", "crates/antecedent/src/analysis/execute/dispatch/admission.rs", "crates/antecedent/src/analysis/execute/execute_helpers_result.rs", "crates/antecedent/src/analysis/execute/execute_helpers_route.rs", "crates/antecedent/src/analysis/execute/identification_slot.rs", "crates/antecedent/src/analysis/execute/mod.rs", "crates/antecedent/src/analysis/execute/route_call.rs", "crates/antecedent/src/analysis/execute/route_input.rs", "crates/antecedent/src/analysis/functional_validation.rs", "crates/antecedent/src/analysis/graph_posterior_target.rs", "crates/antecedent/src/analysis/helpers.rs", "crates/antecedent/src/analysis/helpers/assembly.rs", "crates/antecedent/src/analysis/identification_seal.rs", "crates/antecedent/src/analysis/latency.rs", "crates/antecedent/src/analysis/lowering/decision.rs", "crates/antecedent/src/analysis/lowering/mod.rs", "crates/antecedent/src/analysis/lowering/query_digest.rs", "crates/antecedent/src/analysis/lowering/registry.rs", "crates/antecedent/src/analysis/lowering/scan.rs", "crates/antecedent/src/analysis/lowering/static_effect.rs", "crates/antecedent/src/analysis/missing_data.rs", "crates/antecedent/src/analysis/preflight.rs", "crates/antecedent/src/analysis/preflight/rank.rs", "crates/antecedent/src/analysis/prepared/cached.rs", "crates/antecedent/src/analysis/prepared/execution.rs", "crates/antecedent/src/analysis/prepared/execution_accessors.rs", "crates/antecedent/src/analysis/prepared/info.rs", "crates/antecedent/src/analysis/prepared/lifecycle.rs", "crates/antecedent/src/analysis/prepared/mod.rs", "crates/antecedent/src/analysis/prepared/prepare.rs", "crates/antecedent/src/analysis/prepared/prepare_identification.rs", "crates/antecedent/src/analysis/prepared/retarget.rs", "crates/antecedent/src/analysis/prepared/seal.rs", "crates/antecedent/src/analysis/prepared/sealed/program.rs", "crates/antecedent/src/analysis/prepared/sealers/adjustment.rs", "crates/antecedent/src/analysis/prepared/sealers/bayesian.rs", "crates/antecedent/src/analysis/prepared/sealers/design.rs", "crates/antecedent/src/analysis/prepared/sealers/estimator.rs", "crates/antecedent/src/analysis/prepared/sealers/mod.rs", "crates/antecedent/src/analysis/prepared/sealers/posterior.rs", "crates/antecedent/src/analysis/prepared/sealers/program.rs", "crates/antecedent/src/analysis/prepared/sealers/response.rs", "crates/antecedent/src/analysis/prepared/sealers/route.rs", "crates/antecedent/src/analysis/prepared/sealers/static_query.rs", "crates/antecedent/src/analysis/prepared/sealers/temporal.rs", "crates/antecedent/src/analysis/prepared/support.rs", "crates/antecedent/src/analysis/query_support.rs", "crates/antecedent/src/analysis/recalc_cell.rs", "crates/antecedent/src/analysis/recalc_common.rs", "crates/antecedent/src/analysis/recalc_receipt.rs", "crates/antecedent/src/analysis/recalc_receipt/receipt_validation.rs", "crates/antecedent/src/analysis/route_guards.rs", "crates/antecedent/src/analysis/structure_route/acceptance.rs", "crates/antecedent/src/estimator_spec.rs", "crates/antecedent/src/execution.rs", "crates/antecedent/src/inference.rs", "crates/antecedent/src/planner/binding.rs", "crates/antecedent/src/planner/logical.rs", "crates/antecedent/src/planner/lowered.rs", "crates/antecedent/src/planner/lowered/decision.rs", "crates/antecedent/src/planner/lowered/linear_gaussian.rs", "crates/antecedent/src/planner/plan.rs", "crates/antecedent/src/planner/statistical.rs", "crates/antecedent/src/result.rs", "crates/antecedent/src/result/bindings.rs", "crates/antecedent/src/result/uncertainty.rs", "crates/antecedent/src/strategy_table/dispatch.rs", "crates/antecedent/src/strategy_table/ids.rs", "crates/antecedent/src/strategy_table/targets.rs", "crates/antecedent/src/support/axis.rs", "crates/antecedent/src/support/bridge.rs", "crates/antecedent/src/support/cell.rs", "crates/antecedent/src/support/matrix.rs", "crates/antecedent/src/support/matrix_data.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/generic_aipw_precision.rs"]
 
 [[gate]]
+group = "joint_panel_calibration__joint_panel_selection_false_change_frequentist.p0"
+passed = 1
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "joint_panel_calibration__joint_panel_selection_false_change_frequentist.p0.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 400, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 1.0, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 0, measured_at = "a60c728db674fadfe79d9c08666dd3907d55cf53", name = "joint_panel_selection_false_change_frequentist", nominal = 0.95, record_id = "", test = "joint_panel_selection_false_change_frequentist" },
+]
+executed_files = ["crates/antecedent-core/src/assumption.rs", "crates/antecedent-core/src/callback.rs", "crates/antecedent-core/src/canonical_encode.rs", "crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/pipeline.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/ids.rs", "crates/antecedent-core/src/intervention.rs", "crates/antecedent-core/src/numerical_admission.rs", "crates/antecedent-core/src/physical_choice.rs", "crates/antecedent-core/src/query/functional.rs", "crates/antecedent-core/src/query/target.rs", "crates/antecedent-core/src/row_mask.rs", "crates/antecedent-core/src/schema.rs", "crates/antecedent-core/src/scientific_target/contrast.rs", "crates/antecedent-core/src/scientific_target/identity.rs", "crates/antecedent-core/src/scientific_target/model.rs", "crates/antecedent-core/src/text.rs", "crates/antecedent-core/src/value.rs", "crates/antecedent-core/src/value_expr.rs", "crates/antecedent-data/src/buffer.rs", "crates/antecedent-data/src/column.rs", "crates/antecedent-data/src/content_identity.rs", "crates/antecedent-data/src/dataset.rs", "crates/antecedent-data/src/panel.rs", "crates/antecedent-data/src/storage.rs", "crates/antecedent-data/src/table.rs", "crates/antecedent-estimate/src/cyclic_optim.rs", "crates/antecedent-estimate/src/joint_panel.rs", "crates/antecedent-estimate/src/joint_panel/decomposition.rs", "crates/antecedent-estimate/src/joint_panel/family.rs", "crates/antecedent-estimate/src/joint_panel/gradient.rs", "crates/antecedent-estimate/src/joint_panel/inference.rs", "crates/antecedent-estimate/src/joint_panel/likelihood.rs", "crates/antecedent-estimate/src/joint_panel/selection_uncertainty.rs", "crates/antecedent-estimate/src/joint_panel/time_varying.rs", "crates/antecedent-expr/src/lib.rs", "crates/antecedent-graph/src/types.rs", "crates/antecedent-identify/src/compiled_product/product.rs", "crates/antecedent-identify/src/compiled_product/types.rs", "crates/antecedent-identify/src/compiled_product/validate.rs", "crates/antecedent-io-core/src/convert.rs", "crates/antecedent-io-core/src/identity.rs", "crates/antecedent-io-core/src/policy_program_artifact.rs", "crates/antecedent-io-core/src/query_wire/expression.rs", "crates/antecedent-kernels/src/cholesky.rs", "crates/antecedent-kernels/src/numeric.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-model/src/program.rs", "crates/antecedent/src/analysis/joint_panel.rs", "crates/antecedent/src/analysis/joint_panel/contracts.rs", "crates/antecedent/src/analysis/joint_panel/data_policy.rs", "crates/antecedent/src/analysis/joint_panel/explanation.rs", "crates/antecedent/src/analysis/joint_panel/explanation/design_adaptive.rs", "crates/antecedent/src/analysis/joint_panel/gaussian_restriction.rs", "crates/antecedent/src/analysis/joint_panel/source.rs", "crates/antecedent/src/analysis/prepared/joint_response.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/joint_panel_calibration.rs"]
+
+[[gate]]
+group = "joint_panel_calibration__joint_panel_selection_false_change_frequentist.p1"
+passed = 1
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "joint_panel_calibration__joint_panel_selection_false_change_frequentist.p1.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 400, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 1.0, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 1, measured_at = "a60c728db674fadfe79d9c08666dd3907d55cf53", name = "joint_panel_selection_false_change_frequentist", nominal = 0.95, record_id = "", test = "joint_panel_selection_false_change_frequentist" },
+]
+executed_files = ["crates/antecedent-core/src/assumption.rs", "crates/antecedent-core/src/callback.rs", "crates/antecedent-core/src/canonical_encode.rs", "crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/pipeline.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/ids.rs", "crates/antecedent-core/src/intervention.rs", "crates/antecedent-core/src/numerical_admission.rs", "crates/antecedent-core/src/physical_choice.rs", "crates/antecedent-core/src/query/functional.rs", "crates/antecedent-core/src/query/target.rs", "crates/antecedent-core/src/row_mask.rs", "crates/antecedent-core/src/schema.rs", "crates/antecedent-core/src/scientific_target/contrast.rs", "crates/antecedent-core/src/scientific_target/identity.rs", "crates/antecedent-core/src/scientific_target/model.rs", "crates/antecedent-core/src/text.rs", "crates/antecedent-core/src/value.rs", "crates/antecedent-core/src/value_expr.rs", "crates/antecedent-data/src/buffer.rs", "crates/antecedent-data/src/column.rs", "crates/antecedent-data/src/content_identity.rs", "crates/antecedent-data/src/dataset.rs", "crates/antecedent-data/src/panel.rs", "crates/antecedent-data/src/storage.rs", "crates/antecedent-data/src/table.rs", "crates/antecedent-estimate/src/cyclic_optim.rs", "crates/antecedent-estimate/src/joint_panel.rs", "crates/antecedent-estimate/src/joint_panel/decomposition.rs", "crates/antecedent-estimate/src/joint_panel/family.rs", "crates/antecedent-estimate/src/joint_panel/gradient.rs", "crates/antecedent-estimate/src/joint_panel/inference.rs", "crates/antecedent-estimate/src/joint_panel/likelihood.rs", "crates/antecedent-estimate/src/joint_panel/selection_uncertainty.rs", "crates/antecedent-estimate/src/joint_panel/time_varying.rs", "crates/antecedent-expr/src/lib.rs", "crates/antecedent-graph/src/types.rs", "crates/antecedent-identify/src/compiled_product/product.rs", "crates/antecedent-identify/src/compiled_product/types.rs", "crates/antecedent-identify/src/compiled_product/validate.rs", "crates/antecedent-io-core/src/convert.rs", "crates/antecedent-io-core/src/identity.rs", "crates/antecedent-io-core/src/policy_program_artifact.rs", "crates/antecedent-io-core/src/query_wire/expression.rs", "crates/antecedent-kernels/src/cholesky.rs", "crates/antecedent-kernels/src/numeric.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-model/src/program.rs", "crates/antecedent/src/analysis/joint_panel.rs", "crates/antecedent/src/analysis/joint_panel/contracts.rs", "crates/antecedent/src/analysis/joint_panel/data_policy.rs", "crates/antecedent/src/analysis/joint_panel/explanation.rs", "crates/antecedent/src/analysis/joint_panel/explanation/design_adaptive.rs", "crates/antecedent/src/analysis/joint_panel/gaussian_restriction.rs", "crates/antecedent/src/analysis/joint_panel/source.rs", "crates/antecedent/src/analysis/prepared/joint_response.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/joint_panel_calibration.rs"]
+
+[[gate]]
+group = "joint_panel_calibration__joint_panel_selection_false_change_frequentist.p2"
+passed = 1
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = [
+  { log = "joint_panel_calibration__joint_panel_selection_false_change_frequentist.p2.log", decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 400, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 1.0, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, grid_point = 2, measured_at = "a60c728db674fadfe79d9c08666dd3907d55cf53", name = "joint_panel_selection_false_change_frequentist", nominal = 0.95, record_id = "", test = "joint_panel_selection_false_change_frequentist" },
+]
+executed_files = ["crates/antecedent-core/src/assumption.rs", "crates/antecedent-core/src/callback.rs", "crates/antecedent-core/src/canonical_encode.rs", "crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/pipeline.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/ids.rs", "crates/antecedent-core/src/intervention.rs", "crates/antecedent-core/src/numerical_admission.rs", "crates/antecedent-core/src/physical_choice.rs", "crates/antecedent-core/src/query/functional.rs", "crates/antecedent-core/src/query/target.rs", "crates/antecedent-core/src/row_mask.rs", "crates/antecedent-core/src/schema.rs", "crates/antecedent-core/src/scientific_target/contrast.rs", "crates/antecedent-core/src/scientific_target/identity.rs", "crates/antecedent-core/src/scientific_target/model.rs", "crates/antecedent-core/src/text.rs", "crates/antecedent-core/src/value.rs", "crates/antecedent-core/src/value_expr.rs", "crates/antecedent-data/src/buffer.rs", "crates/antecedent-data/src/column.rs", "crates/antecedent-data/src/content_identity.rs", "crates/antecedent-data/src/dataset.rs", "crates/antecedent-data/src/panel.rs", "crates/antecedent-data/src/storage.rs", "crates/antecedent-data/src/table.rs", "crates/antecedent-estimate/src/cyclic_optim.rs", "crates/antecedent-estimate/src/joint_panel.rs", "crates/antecedent-estimate/src/joint_panel/decomposition.rs", "crates/antecedent-estimate/src/joint_panel/family.rs", "crates/antecedent-estimate/src/joint_panel/gradient.rs", "crates/antecedent-estimate/src/joint_panel/inference.rs", "crates/antecedent-estimate/src/joint_panel/likelihood.rs", "crates/antecedent-estimate/src/joint_panel/selection_uncertainty.rs", "crates/antecedent-estimate/src/joint_panel/time_varying.rs", "crates/antecedent-expr/src/lib.rs", "crates/antecedent-graph/src/types.rs", "crates/antecedent-identify/src/compiled_product/product.rs", "crates/antecedent-identify/src/compiled_product/types.rs", "crates/antecedent-identify/src/compiled_product/validate.rs", "crates/antecedent-io-core/src/convert.rs", "crates/antecedent-io-core/src/identity.rs", "crates/antecedent-io-core/src/policy_program_artifact.rs", "crates/antecedent-io-core/src/query_wire/expression.rs", "crates/antecedent-kernels/src/cholesky.rs", "crates/antecedent-kernels/src/numeric.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-model/src/program.rs", "crates/antecedent/src/analysis/joint_panel.rs", "crates/antecedent/src/analysis/joint_panel/contracts.rs", "crates/antecedent/src/analysis/joint_panel/data_policy.rs", "crates/antecedent/src/analysis/joint_panel/explanation.rs", "crates/antecedent/src/analysis/joint_panel/explanation/design_adaptive.rs", "crates/antecedent/src/analysis/joint_panel/gaussian_restriction.rs", "crates/antecedent/src/analysis/joint_panel/source.rs", "crates/antecedent/src/analysis/prepared/joint_response.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/joint_panel_calibration.rs"]
+
+[[gate]]
 group = "knn_matching_calibration__knn_matching_interval_ci_coverage.p0"
 passed = 1
 calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
@@ -1961,8 +2015,8 @@ executed_files = ["crates/antecedent-contract/src/quantity.rs", "crates/antecede
 [[gate]]
 group = "refuter_error_rates_calibration__static_bayesian_predictive_check_power_against_a_misreported_target.p0"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -1973,8 +2027,8 @@ executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/anteced
 [[gate]]
 group = "refuter_error_rates_calibration__static_bayesian_predictive_check_power_against_a_misreported_target.p1"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -1985,8 +2039,8 @@ executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/anteced
 [[gate]]
 group = "refuter_error_rates_calibration__static_bayesian_predictive_check_power_against_a_misreported_target.p2"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -1997,8 +2051,8 @@ executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/anteced
 [[gate]]
 group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_misreported_target.p0"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2009,8 +2063,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_misreported_target.p1"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2021,8 +2075,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_misreported_target.p2"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2033,8 +2087,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_spurious_effect.p0"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2045,8 +2099,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_spurious_effect.p1"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2057,8 +2111,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_spurious_effect.p2"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2069,8 +2123,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "refuter_error_rates_calibration__temporal_bayesian_predictive_check_power_against_a_misreported_target.p0"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2081,8 +2135,8 @@ executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/anteced
 [[gate]]
 group = "refuter_error_rates_calibration__temporal_bayesian_predictive_check_power_against_a_misreported_target.p1"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2093,8 +2147,8 @@ executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/anteced
 [[gate]]
 group = "refuter_error_rates_calibration__temporal_bayesian_predictive_check_power_against_a_misreported_target.p2"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2105,8 +2159,8 @@ executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/anteced
 [[gate]]
 group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_misreported_target.p0"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2117,8 +2171,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_misreported_target.p1"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2129,8 +2183,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_misreported_target.p2"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2141,8 +2195,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_spurious_effect.p0"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2153,8 +2207,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_spurious_effect.p1"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
@@ -2165,8 +2219,8 @@ executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/a
 [[gate]]
 group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_spurious_effect.p2"
 passed = 1
-calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
-decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "f94e161d9c79e1d245e320e86cafb4b0d7bc3b316e9eac6d94789a08e3a285d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
   { planned_replicates = 400, weight = 0.5 },
   { planned_replicates = 2000, weight = 0.25 },
   { planned_replicates = 20000, weight = 0.25 },
