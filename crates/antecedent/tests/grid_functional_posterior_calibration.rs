@@ -18,11 +18,20 @@
 //! Markov to every candidate, and the confounding a candidate adds touches only a root's edge),
 //! so the enumeration-weighted mean the atom reports is the truth's estimator.
 //!
-//! The driver scores the reported 0.95 interval and the 0.90 interval of the same execution. A
-//! Frequentist interval is `estimate +/- z * se` from the bootstrap standard error the posterior
-//! publishes (circular blocks of consecutive windows on a temporal template), re-formed at 0.90
-//! from the same SE; a Bayesian interval is the equal-tailed quantile interval of the retained
-//! posterior draws, re-summarized at 0.90 from those draws.
+//! The atom is a PAG, and a PAG's candidate functionals differ as expressions (the ADMGs a MAG
+//! completion stands for add a confounded root edge), so its execution publishes the class
+//! identified set and no standard error or posterior: the point is the enumeration-weighted mean
+//! of the candidates. One contributing atom carries the whole conditional mixture, so the
+//! graph posterior publishes its atom's identified-set interval
+//! (`structural_response.identified_set_interval`, bound as `identified_set`) exactly as the
+//! given-structure coordinates of `grid_functional_effect_calibration` do. A Frequentist
+//! execution publishes the Imbens-Manski interval from every candidate refitted on shared
+//! bootstrap resamples at 0.95 (circular blocks of consecutive windows on a temporal template);
+//! a Bayesian one the product-posterior envelope of the candidates' Bayesian-bootstrap
+//! posteriors at 0.90. Each is published at that one level, so the driver scores the one
+//! published interval at its own level. Every candidate evaluates to the truth on the law, so the
+//! population identified set is the point at the truth and the record is gated one-sided:
+//! coverage at least the level, no upper band.
 //!
 //! Ignored tests run via `scripts/measure_calibration.sh`.
 //!
@@ -48,9 +57,12 @@ use antecedent_discovery::adjacency_mask::{AdjacencyMask, adjacency_masks_from_p
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
 use antecedent_graph::{DenseNodeId, Pag};
 use antecedent_prob::InferenceDiagnostics;
-use common::calibration::{stream_seed, uniform};
-use common::reported::{posterior_pair, scalar_normal_pair, scalar_reported_se};
-use grid_cell::{Cell, IntervalPair, Target, measure};
+use common::calibration::{
+    Construction, CoverageSide, CoverageTally, RecordKey, ScopeFacts, map_replicates, n_sim,
+    stream_seed, uniform,
+};
+use common::calibration_bind::constructions;
+use grid_cell::SIBLING_REPLICATES;
 use serde_json::Value;
 
 /// Posterior draws of a Bayesian execution.
@@ -232,33 +244,25 @@ impl Mode {
         }
     }
 
-    /// `IntervalMethod::as_str()` of the scalar interval the mode reports: the normal
-    /// interval from the bootstrap SE, or the quantiles of the posterior draws.
-    fn interval(self) -> &'static str {
+    /// Level a class identified set is published at: the Imbens-Manski interval of a
+    /// Frequentist execution, the product-posterior envelope of a Bayesian one.
+    fn identified_set_level(self) -> f64 {
         match self {
-            Self::Frequentist => "bootstrap_se",
-            Self::Bayesian => "posterior_quantile",
+            Self::Frequentist => 0.95,
+            Self::Bayesian => 0.9,
         }
     }
 }
 
-/// `[reported, gate]` interval of a scalar effect: the bootstrap-SE normal interval of a
-/// Frequentist execution, the posterior effect column of a Bayesian one.
-fn effect_pair(mode: Mode, result: &StudyResult) -> IntervalPair {
-    match mode {
-        Mode::Frequentist => {
-            assert_eq!(scalar_reported_se(result).1, "bootstrap_se", "bootstrap SE reported");
-            scalar_normal_pair(result)
-        }
-        Mode::Bayesian => {
-            let column = result
-                .posterior
-                .as_ref()
-                .and_then(antecedent::CausalPosterior::effect_column)
-                .expect("a posterior effect column");
-            posterior_pair(result, column)
-        }
-    }
+/// `IntervalMethod::as_str()` of a class identified-set interval.
+const IDENTIFIED_SET: &str = "identified_set";
+
+/// The identified-set interval of `result`, checked to be published at `level`; `None` when the
+/// candidates agreed on this sample and the result published a point.
+fn identified_set(result: &StudyResult, level: f64) -> Option<(f64, f64)> {
+    let set = result.structural_response.as_ref()?.identified_set_interval.as_ref()?;
+    assert!((set.level - level).abs() < 1e-12, "identified set published at {}", set.level);
+    Some((set.lower, set.upper))
 }
 
 // ------------------------------------------------------------------- execution
@@ -271,36 +275,128 @@ struct Coordinate {
     dgp: &'static str,
     /// Seed family of the test's replicates.
     family: u64,
-    /// `IntervalMethod::as_str()` of the scored interval.
-    interval: &'static str,
 }
 
-/// Measure `coordinate` against `truth`: `study(seed, suite)` builds one execution on the
-/// replicate's dataset (which must depend on `seed` only) under validation mode `suite`;
-/// the first of [`SUITES`] is the base and the others are its siblings.
+/// One execution's identified set and the runtime's binding of it.
+type SetRun = (Option<(f64, f64)>, Option<(Construction, ScopeFacts, &'static str)>);
+
+/// Measure the identified set of `coordinate` against `truth`: `study(seed, suite)` builds one
+/// execution on the replicate's dataset (which must depend on `seed` only) under validation mode
+/// `suite`; the first of [`SUITES`] is the base and the others are its siblings.
+///
+/// The base is scored on every replicate; every sibling is executed on the first
+/// [`SIBLING_REPLICATES`] replicates, must publish the base interval bit for bit, and gets its own
+/// record bound from its own executions' match key and validation mode. A replicate whose
+/// candidates agreed publishes no set and is scored as a miss.
 fn measure_coordinate(
     coordinate: &Coordinate,
     mode: Mode,
     truth: f64,
     study: impl Fn(u64, RefuteSuite) -> Study + Sync,
 ) {
-    let cell = Cell {
-        test: coordinate.test,
-        dgp: coordinate.dgp,
-        interval: coordinate.interval,
-        estimator: FUNCTIONAL,
-        variants: SUITES.len(),
-    };
-    let run = |rep: u64, variant: usize| {
+    let level = mode.identified_set_level();
+    let test = coordinate.test;
+    let execute = |rep: u64, variant: usize| -> SetRun {
         let seed = stream_seed(coordinate.family, rep);
         let suite = SUITES[variant];
         let study = study(seed, suite);
         let result = study
             .run(&ExecutionContext::for_tests(seed))
-            .unwrap_or_else(|e| panic!("{} {suite:?}: {e}", coordinate.test));
-        (study, result)
+            .unwrap_or_else(|e| panic!("{test} {suite:?}: {e}"));
+        assert_eq!(
+            result.logical_plan.estimator.as_deref(),
+            Some(FUNCTIONAL),
+            "{test} {suite:?}: estimator target"
+        );
+        let interval = identified_set(&result, level);
+        let bound = constructions(&study.inspect().expect("inspect"), &result)
+            .into_iter()
+            .find(|(construction, _, _)| construction.interval_method == IDENTIFIED_SET);
+        assert_eq!(
+            interval.is_some(),
+            bound.is_some(),
+            "{test} {suite:?}: the runtime binds the identified set exactly when it is published"
+        );
+        (interval, bound)
     };
-    measure(cell, &Target::scalar(truth), run, |result| vec![effect_pair(mode, result)]);
+    let bits = |interval: Option<(f64, f64)>| interval.map(|(lo, hi)| (lo.to_bits(), hi.to_bits()));
+    let runs = map_replicates(n_sim(), |rep| {
+        let base = execute(rep, 0);
+        let siblings: Vec<SetRun> = if rep < u64::from(SIBLING_REPLICATES) {
+            (1..SUITES.len())
+                .map(|variant| {
+                    let sibling = execute(rep, variant);
+                    assert_eq!(
+                        bits(sibling.0),
+                        bits(base.0),
+                        "{test}: variant {variant} does not report the base identified set on \
+                         replicate {rep}"
+                    );
+                    sibling
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        (base, siblings)
+    });
+
+    // Each sibling's match key, from its own executions; stable across them.
+    let keys: Vec<(Construction, &'static str)> = (1..SUITES.len())
+        .map(|variant| {
+            let mut seen: Option<(Construction, &'static str)> = None;
+            for (_, siblings) in &runs {
+                if let Some((_, Some((construction, _, validation)))) = siblings.get(variant - 1) {
+                    let found = (construction.clone(), *validation);
+                    match &seen {
+                        Some(prior) => assert_eq!(prior, &found, "{test}: sibling match key"),
+                        None => seen = Some(found),
+                    }
+                }
+            }
+            seen.unwrap_or_else(|| panic!("{test}: variant {variant} published no identified set"))
+        })
+        .collect();
+
+    let tallies: Vec<CoverageTally> = (0..SUITES.len())
+        .map(|variant| {
+            let key = RecordKey { test, dgp: coordinate.dgp, interval: IDENTIFIED_SET };
+            let mut tally = CoverageTally::for_record(key, level);
+            if variant > 0 {
+                tally = tally.named(format!("{test}#v{variant}"));
+            }
+            for ((interval, bound), _) in &runs {
+                if let Some((construction, scope, validation)) = bound {
+                    match variant {
+                        0 => tally.bind_validation(construction, *scope, validation),
+                        v => tally.bind_validation(&keys[v - 1].0, *scope, keys[v - 1].1),
+                    }
+                }
+                tally.record(*interval, truth);
+            }
+            tally
+        })
+        .collect();
+    let failures: Vec<String> = tallies
+        .iter()
+        .filter_map(|tally| {
+            std::panic::catch_unwind(|| {
+                tally.assert_one_sided(
+                    CoverageSide::Lower,
+                    "the population identified set, the point at the effect every candidate \
+                     functional takes on the law",
+                );
+            })
+            .err()
+            .map(|e| {
+                e.downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| e.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+                    .unwrap_or_else(|| "coverage failure".into())
+            })
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("; "));
 }
 
 // ----------------------------------------------------- natural mediation on a PAG
@@ -362,7 +458,6 @@ fn med_pag_posterior(test: &'static str, family: u64, mode: Mode) {
             test,
             dgp: "conformance/estimate/mediation_mixed_graphs::markov_parents",
             family,
-            interval: mode.interval(),
         },
         mode,
         truth,
@@ -446,12 +541,7 @@ fn nested_counterfactual_effect_pag_graph_posterior_bayesian_coverage() {
         antecedent_core::NestedCounterfactualQuery::new(v(2), v(3), v(4)).unwrap(),
     );
     measure_coordinate(
-        &Coordinate {
-            test,
-            dgp: "cross_world_mediated_two_parents_pag_atom",
-            family: 0xFE70_0002,
-            interval: Mode::Bayesian.interval(),
-        },
+        &Coordinate { test, dgp: "cross_world_mediated_two_parents_pag_atom", family: 0xFE70_0002 },
         Mode::Bayesian,
         truth,
         |seed, suite| {
@@ -546,27 +636,13 @@ fn tw_query() -> antecedent_core::CausalQuery {
     ))
 }
 
-/// `IntervalMethod::as_str()` the window functional reports: the circular-block bootstrap SE
-/// (the estimate records the row-block family) or the posterior quantiles.
-fn tw_interval(mode: Mode) -> &'static str {
-    match mode {
-        Mode::Frequentist => "circular_block_se",
-        Mode::Bayesian => mode.interval(),
-    }
-}
-
 /// Measure the natural indirect effect on the one-atom lagged PAG posterior of the template
 /// (`c = 0`, `x = 1`, `w = 2`, `m = 3`, `y = 4`): `c(t-1) -> x`, `x -> m`, `w -> m`, `m -> y`,
 /// `x -> y`.
 fn tw_pag_posterior(test: &'static str, family: u64, mode: Mode) {
     let query = tw_query();
     measure_coordinate(
-        &Coordinate {
-            test,
-            dgp: "temporal_window_mediation_process",
-            family,
-            interval: tw_interval(mode),
-        },
+        &Coordinate { test, dgp: "temporal_window_mediation_process", family },
         mode,
         tw_truth(),
         |seed, suite| {

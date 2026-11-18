@@ -464,6 +464,13 @@ fn adopt_single_atom_uncertainty(mixed: &mut MixedAtomEvals, only: &StudyResult)
         mixed.estimate.uncertainty = own.uncertainty;
         mixed.estimate.scores.influence.clone_from(&own.scores.influence);
     }
+    // A class atom whose completions identify different functionals publishes no standard error
+    // and no posterior: its interval is the class identified set, which is then the mixture's.
+    if let Some(interval) =
+        only.structural_response.as_ref().and_then(|atom| atom.identified_set_interval)
+    {
+        mixed.mixture.identified_set_interval = Some(interval);
+    }
     if mixed.posterior.is_none() {
         mixed.posterior.clone_from(&only.posterior);
     }
