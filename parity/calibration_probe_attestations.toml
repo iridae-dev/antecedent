@@ -1131,17 +1131,6 @@ dependency_manifest = "fc03a47e9447faf82b369ed8bbc4e8183dafa46adc405be82d8a5a248
 measurement_digest = "f6b59fe968a341fd56ffe69e24a28f0a55115d6af8a79f9360289547dfe7f35f"
 
 [[attestation]]
-record_id = "cov.attribute.dag.bayesian.posterior_quantile.l90.attribute_root_causes_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.total_change"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "fe44477d614690e7989de6bdef21a708ef90a5f4fbcffd2d97fa2bbba3fd0925"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "6fcdf25a6eb847e3aea4c47c551082ef6b9eafed17c96bb5b000f99479250a5e"
-measurement_digest = "250a6f690fef1a013145e2fea722c22b8bd792b7360c86055b2184bc4b225cb7"
-
-[[attestation]]
 record_id = "cov.attribute.dag.bayesian.posterior_quantile.l90.attribute_structure_change_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.structure_y"
 calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -1164,17 +1153,6 @@ dependency_manifest = "538b0eaffdcdc83bee62f8785bb0087dccbc87692c797c8a909da4c46
 measurement_digest = "78edbf436ad37360f000ce32dbeb0a31f0cb4f7e578370bb63ecb432e6bc6797"
 
 [[attestation]]
-record_id = "cov.attribute.dag.bayesian.posterior_quantile.l90.attribute_unit_change_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "00b5e77c0304fab845f31a3da39d99e79732682c3f1fea126865e1790f13aa78"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "b89159a02d68fac7bd0c82cf79a5e4fe778ab85a5879d602cc12924c38566536"
-measurement_digest = "a2f6372103dfb4c86f641b3ccef82d11350e0b74f4e01dae9c7f1acb625f7409"
-
-[[attestation]]
 record_id = "cov.attribute.dag.bayesian.posterior_quantile.l95.attribute_anomaly_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.mean_anomaly_score"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -1184,17 +1162,6 @@ bound = 0.03
 result = "pass"
 dependency_manifest = "3c0898802706f180819c00c6e89d4884ef2ee1dfe46322a0f9ea0285426d4ba5"
 measurement_digest = "4425c00019ec843031a9a1293655fcd8e723a11276e7a74aa2f94f106f3be3d2"
-
-[[attestation]]
-record_id = "cov.attribute.dag.bayesian.posterior_quantile.l95.attribute_distribution_change_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.mechanism_y"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "fe44477d614690e7989de6bdef21a708ef90a5f4fbcffd2d97fa2bbba3fd0925"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "724a087f0a74e4d4017cb52a63bed472be6d8426c3ad47619dc5e42f488d4959"
-measurement_digest = "6c56bd23755db4262f0572670262c33ccdc8618d05a9175f20966e3923efd94e"
 
 [[attestation]]
 record_id = "cov.attribute.dag.bayesian.posterior_quantile.l95.attribute_feature_relevance_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.feature_x"
@@ -1448,242 +1415,6 @@ bound = 0.03
 result = "pass"
 dependency_manifest = "450b65faa2819ded923b280986a86573129c14993a4708502a386338c9a3342b"
 measurement_digest = "6d6385adf66cc4b147f68a53ee19b14a5c2e6176e5ed062d5a438b61b34d1c7d"
-
-[[attestation]]
-record_id = "cov.attribute.temporal_dag.frequentist.circular_block_se.l90.attribute_temporal_dag_frequentist_block_bootstrap_coverage.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "fe44477d614690e7989de6bdef21a708ef90a5f4fbcffd2d97fa2bbba3fd0925"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "3d9e87f084513b302f269c9fffb2e10f14ed53145f51ee31fe2cc70839bd9051"
-measurement_digest = "d6cdfce09b40833f75e4aa94639450bd02930fe03d658947a5d4439e5c78e9f5"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.cluster_dml_t_wald_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "336f3cc79c70eb924d6feac047e12a632dd0933a3e4c0d8a2fdba5d0d3301a7e"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.prepared_adjusted_fixed_target_fisher_interval.v2_validation_none"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "e020f1584658c1ff5bbddbdd06b22baec4c88305308f39c5bc2c01cd97b219b1"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.prepared_adjusted_fixed_target_hc1_interval.v2_validation_none"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "e020f1584658c1ff5bbddbdd06b22baec4c88305308f39c5bc2c01cd97b219b1"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_att_interval.v2_validation_not_applicable"
-calibration_sha = "9fa7331b0f2780def80ec353ae7473b42b2a9ce7"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_lasso_propensity_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_aipw_ridge_propensity_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_distance_matching_interval.v2_validation_not_applicable.population_linear"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_aipw_interval.v2_validation_not_applicable"
-calibration_sha = "2401c0d582b10c7510a63ccae4ddf35c0d6337d8"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dml_partially_linear_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_dr_learner_interval.v2_validation_not_applicable"
-calibration_sha = "2401c0d582b10c7510a63ccae4ddf35c0d6337d8"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_glm_gaussian_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_glm_logit_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_glm_negative_binomial_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_linear_adjustment_hc1_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_matching_interval.v2_validation_not_applicable.population_linear"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.analytic_se.l95.weighted_stratification_interval.v2_validation_not_applicable.regression_linear_hc3"
-calibration_sha = "399bff24b271b5c0b6c761223155953fb946c743"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.balanced_population_linear_score.l95.weighted_ipw_hajek_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.balanced_population_score.l95.weighted_ipw_hajek_cluster_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_aipw_population_linear_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_dml_aipw_population_linear_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.population_linear_aipw_score.l95.weighted_dr_learner_population_linear_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.population_linear_atc_hc3.l95.weighted_aipw_atc_interval.v2_validation_not_applicable"
-calibration_sha = "399bff24b271b5c0b6c761223155953fb946c743"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.student_analytic.l95.weighted_aipw_cluster_dml_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.student_analytic.l95.weighted_dml_cluster_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.average_effect.dag.frequentist.student_analytic.l95.weighted_dr_learner_cluster_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 320
-bound = 0.009375
-result = "mismatch"
 
 [[attestation]]
 record_id = "cov.change_attribution.admg.bayesian.posterior_quantile.l90.change_attribution_admg_graph_posterior_bayesian_coverage.v2_validation_none"
@@ -2049,15 +1780,6 @@ dependency_manifest = "12902e63bfdbecfdc70c8f2c436e5fe26c4998bf1e588ae7b6e5fedc9
 measurement_digest = "a4eaf3d3d737a8c9948bce771990542d624f04e25c02816a9b965cd9731d2430"
 
 [[attestation]]
-record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "1bf317d8bc54503b52dbce96c563ac9b4c1396910c37f0d19d32af0683182f84"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
 record_id = "cov.joint_response.not_applicable.bayesian.equal_tailed_posterior.l95.joint_response_weighted_geo_contrast_l95.v2_validation_not_applicable"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2113,15 +1835,6 @@ dependency_manifest = "a47f20fa4a88c8badd331e26ece74801d0212c3c2284eaa2d9541e136
 measurement_digest = "4d0079083eb6a93700467ff29be67431346df79120b6760ebaa6b31bbf30c130"
 
 [[attestation]]
-record_id = "cov.joint_response.not_applicable.frequentist.conformal_projection.l95.joint_response_synthetic_rollout_contrast_l95.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "1bf317d8bc54503b52dbce96c563ac9b4c1396910c37f0d19d32af0683182f84"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
 record_id = "cov.joint_response.not_applicable.frequentist.heldout_normal_approximation.l95.joint_response_randomized_selection_near_ties_l95.v2_validation_not_applicable"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2164,17 +1877,6 @@ bound = 0.03
 result = "pass"
 dependency_manifest = "c8b52fa2a5dd53c03fa84deb5070d28baebb27ce4803333c8a0453ba7de2fc73"
 measurement_digest = "12ce03f7aa0f5410df709fda806cf57d6a54f468d2bbdfb5ba0683802e39e24e"
-
-[[attestation]]
-record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_finite_longitudinal_contrast_l95.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "1bf317d8bc54503b52dbce96c563ac9b4c1396910c37f0d19d32af0683182f84"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "8a247ad82582c41547bac869bddec22a8f8f4190ec6289b0f26a9c363bc26d1e"
-measurement_digest = "8814f5e18d36ab8107be9d8309dcc79fb33c4861e01c3d93c06528e2c367a3ff"
 
 [[attestation]]
 record_id = "cov.joint_response.not_applicable.frequentist.normal_approximation.l95.joint_response_structural_iv_contrast_l95.v2_validation_not_applicable"
@@ -2287,24 +1989,6 @@ dependency_manifest = "1bcb67d914e4718d1da5513891b73adf18abd45c682de3ff888891434
 measurement_digest = "7cb6c14fd055031b2ee47d36702fd42aea4de3d9c8d2ac15f3d33f2f326489ca"
 
 [[attestation]]
-record_id = "cov.panel_did.randomized_trial.frequentist.analytic_se.l95.weighted_panel_did_interval.v2_validation_not_applicable"
-calibration_sha = "2401c0d582b10c7510a63ccae4ddf35c0d6337d8"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "be2ac726ab7c48ee1ecc550eb0a4be4d41ba3b427f6759d81ea21cf90865de8b"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.randomized_effect.randomized_trial.frequentist.analytic_se.l95.responder_complete_case_mcar_interval.v2_validation_not_applicable"
-calibration_sha = "434787cc9d8b641f42d9970eb052eb69cc8cf772"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "a143ba72bb54f002f20ef445007be43ef1cd2d43719dc7baff67c131cd729c23"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
 record_id = "cov.simulate.dag.bayesian.posterior_quantile.l90.simulate_interventional_sample_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.mean_y"
 calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2382,17 +2066,6 @@ dependency_manifest = "1e9964e6550640c19ada4dff49dc8f0adf2d33a761606b04a6403e1b1
 measurement_digest = "00f2f63729e8b6998c348b3699e2a7394b918b08cc9f0a5fc915828cb7ccf6f0"
 
 [[attestation]]
-record_id = "cov.simulate.dag.bayesian.posterior_quantile.l95.simulate_policy_value_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.mean_difference"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "fe44477d614690e7989de6bdef21a708ef90a5f4fbcffd2d97fa2bbba3fd0925"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "35971161c8d025df6f040de4d3cec79673ac5d5e2031601eaeadc94655361eda"
-measurement_digest = "999bd0ea72549ead5ca1ae4ffd590548a3313bf1a1e04b781c8030c50f4af700"
-
-[[attestation]]
 record_id = "cov.simulate.dag.bayesian.posterior_quantile.l95.simulate_temporal_counterfactual_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.step0_y"
 calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2424,39 +2097,6 @@ bound = 0.009375
 result = "pass"
 dependency_manifest = "fe27424dc2af1d4a672b9abda7ddf919d533ded783259bf2c3515fac81371ad1"
 measurement_digest = "c0fca460f58a0a0c0c27f71fdb91a4b4ce6e85e3ce62875abbe11a47d350a9b8"
-
-[[attestation]]
-record_id = "cov.simulate.dag.frequentist.bootstrap_se.l90.intervention_program_shift_dag_frequentist_bootstrap_coverage.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "fe44477d614690e7989de6bdef21a708ef90a5f4fbcffd2d97fa2bbba3fd0925"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "729804464151c4a4430f77039b5968a5d5bb00adfbcb9c3175dab352609cfa55"
-measurement_digest = "f336aace8b18312b91231f63383bb46e5cccf75dbe2d000a4d441ed31c534f79"
-
-[[attestation]]
-record_id = "cov.simulate.dag.frequentist.bootstrap_se.l90.simulate_policy_value_dag_frequentist_bootstrap_coverage.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "fe44477d614690e7989de6bdef21a708ef90a5f4fbcffd2d97fa2bbba3fd0925"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "d4c28464bfda9632e235f5e3c1951d36d48bd4005fb16907f6b6d0e7b7e384ad"
-measurement_digest = "582edaa4ea11ee93b8fc312828e076232204d4d103e60c8e2144f117d251a722"
-
-[[attestation]]
-record_id = "cov.simulate.dag.frequentist.bootstrap_se.l90.simulate_unit_effects_dag_frequentist_bootstrap_coverage.v2_validation_not_applicable"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "00b5e77c0304fab845f31a3da39d99e79732682c3f1fea126865e1790f13aa78"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "0c2b5b69900ca7e9ca7799353d31b04728c4cd00c8ea4cfc72f9d36752f49442"
-measurement_digest = "f2ed575ead06703b0fdad2e26cd6f4a8502ad5b5b9078d60cc5333b21664f7e1"
 
 [[attestation]]
 record_id = "cov.simulate.temporal_dag.bayesian.posterior_quantile.l90.simulate_temporal_rollout_bayesian_block_weights_coverage.v2_validation_not_applicable.step1_y"
@@ -2525,42 +2165,6 @@ dependency_manifest = "0c9faa4ad038667231cecb5da86a19b7f80f10989acdc6a4013b56559
 measurement_digest = "2e6fe1fce818041597825794849c53956be8a89ee32657b9338430a5e2b7d2e7"
 
 [[attestation]]
-record_id = "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_posterior_interval.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "f194462752e72cda5db7b4b5d624e6027bbb3aa3fb3f3d94ab04d879bb4a4335"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_average_interval.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "f194462752e72cda5db7b4b5d624e6027bbb3aa3fb3f3d94ab04d879bb4a4335"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.synthetic_control.randomized_trial.bayesian.posterior_quantile.l95.bayesian_synthetic_control_predictive_path_first_period_interval.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "f194462752e72cda5db7b4b5d624e6027bbb3aa3fb3f3d94ab04d879bb4a4335"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set.v2_validation_not_applicable"
-calibration_sha = "38eb34a498fbfa79842f1163306b276716e09da5"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "f194462752e72cda5db7b4b5d624e6027bbb3aa3fb3f3d94ab04d879bb4a4335"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
 record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_constant_effect_set_twenty_donors.v2_validation_not_applicable"
 calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2594,15 +2198,6 @@ dependency_manifest = "cdead074d55965a9921d1ab079e899ee15dbc02b97075fda30fb1b26e
 measurement_digest = "910d1920ac42ac77400de4a3a2bb1d445e07b81dc7499ae3f5210a3496694d70"
 
 [[attestation]]
-record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set.v2_validation_not_applicable"
-calibration_sha = "38eb34a498fbfa79842f1163306b276716e09da5"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "f194462752e72cda5db7b4b5d624e6027bbb3aa3fb3f3d94ab04d879bb4a4335"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
 record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_first_period_set_twenty_donors.v2_validation_not_applicable"
 calibration_sha = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2634,15 +2229,6 @@ bound = 0.009375
 result = "pass"
 dependency_manifest = "731657221a9130105974ed3dd7fb695c7713637d27e131da653021fd74665309"
 measurement_digest = "ddecca557c09389dc698c3369c93773e04138ed4cf9067ef350308b85f1f30c1"
-
-[[attestation]]
-record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set.v2_validation_not_applicable"
-calibration_sha = "38eb34a498fbfa79842f1163306b276716e09da5"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "f194462752e72cda5db7b4b5d624e6027bbb3aa3fb3f3d94ab04d879bb4a4335"
-k = 320
-bound = 0.009375
-result = "mismatch"
 
 [[attestation]]
 record_id = "cov.synthetic_control.randomized_trial.frequentist.conformal.l95.conformal_synthetic_control_last_period_set_unaligned_pre_periods.v2_validation_not_applicable"
@@ -2687,15 +2273,6 @@ bound = 0.009375
 result = "pass"
 dependency_manifest = "1e4ddab4c8d4e6bd8696b41eebc5e5f6db36ae74730e5d9e1ba1cb505f6a7ee3"
 measurement_digest = "119729ea92fcdee4c35f705ccc56d74595fe6dc7c38687151e35e3260cb41059"
-
-[[attestation]]
-record_id = "cov.synthetic_control.randomized_trial.frequentist.placebo_variance.l95.multi_unit_synthetic_placebo_variance_interval.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "f194462752e72cda5db7b4b5d624e6027bbb3aa3fb3f3d94ab04d879bb4a4335"
-k = 320
-bound = 0.009375
-result = "mismatch"
 
 [[attestation]]
 record_id = "cov.temporal_design.randomized_trial.bayesian.posterior_quantile.l95.bayesian_temporal_design_categorical_step_interval.v2_validation_not_applicable"
@@ -2896,17 +2473,6 @@ dependency_manifest = "6672dee65f22eff07be8d190f207849fbfc04d7398bfcdf82e023c6bb
 measurement_digest = "1f1516706d3e8513ad65db97c0a9fe879c81faa015b49bb03cdfbbeae4b1de32"
 
 [[attestation]]
-record_id = "cov.temporal_design.randomized_trial.frequentist.analytic_se.l95.temporal_design_two_arm_excursion_interval.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d89b65e4d204e9f6975c3fb7a394d8848e6302cd8255909c784743de5b347801"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "93fa62ee34dde351c327820eab7adefbe94ed9e12c94fa76a57e01735606e004"
-measurement_digest = "c15cfe755af1c606672a08ab1c3d15970b88aa66f7a9eb5373bd44c148f2c79d"
-
-[[attestation]]
 record_id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_quantile_effect_bootstrap_interval.v2_validation_not_applicable"
 calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
 sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
@@ -2916,15 +2482,6 @@ bound = 0.009375
 result = "pass"
 dependency_manifest = "ce5a9c631d02012ae20afd4ae90e00ee7ef5ff487c3364bc050eb71b9eb8b0f9"
 measurement_digest = "2a708a3e84593b19662acf9a194ced7f15d5b4fcabc6b22f5b288c74826664c6"
-
-[[attestation]]
-record_id = "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_regime_survival_bootstrap_interval.v2_validation_not_applicable"
-calibration_sha = "f98f47605ead1cc06df499c3fe1baa3aa2f24851"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d89b65e4d204e9f6975c3fb7a394d8848e6302cd8255909c784743de5b347801"
-k = 320
-bound = 0.009375
-result = "mismatch"
 
 [[attestation]]
 record_id = "cov.temporal_design.randomized_trial.frequentist.temporal_design_cluster_robust_normal.l95.temporal_misclassification_frequentist_contrast_l95.v2_validation_not_applicable"
@@ -3145,17 +2702,6 @@ bound = 0.03
 result = "pass"
 dependency_manifest = "f3bf0d008c6b2da8b69a1903ce7748605c80308c62e31b3c55c1f78f0643be8a"
 measurement_digest = "01e3a3dd38d815da08de4c262db327ddfb1ca94b683792e20dd612f0ecf2169a"
-
-[[attestation]]
-record_id = "cov.transport_query.admg.frequentist.analytic_se.l90.transport_admg_trial_ipw_frequentist_nominal_coverage.v2_validation_none"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "b770ba03bc14a3ad7b86c1e7a9f014553490b1cde3ace8cc18649d2d43a1be7a"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "ad1f287409770b8cbf5edab263f8d38bea7e871a053dc33514d5f722ee9537b7"
-measurement_digest = "d63e0e421bc24a48e345d2f52d2d54f3887c8cae3d817db13963123258257c6a"
 
 [[attestation]]
 record_id = "cov.transport_query.cpdag.bayesian.posterior_quantile.l90.transport_admg_given_bayesian_coverage.v2_validation_cheap"
@@ -3552,264 +3098,3 @@ bound = 0.009375
 result = "pass"
 dependency_manifest = "9a5c44f370c8b94522786f7400ac28077731dc750d147c27d3390593f27a3645"
 measurement_digest = "327f575ce7f9e075d1e457ef483972ad395734cb79aa9d9d1d556058e4918407"
-
-[[attestation]]
-record_id = "cov.transport_query.pag.bayesian.posterior_quantile.l90.transport_pag_given_bayesian_coverage.v2_validation_cheap"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "b91cef9fffdb073af3ffacc719918484515b509129faf3c7be771e5fce8d82c7"
-measurement_digest = "1cc240eff16729f21e6cab1d183a64017264d27dd60ae3a8b9161bf10d8155fa"
-
-[[attestation]]
-record_id = "cov.transport_query.pag.bayesian.posterior_quantile.l90.transport_pag_given_bayesian_coverage.v2_validation_cheap.v2_structure_accepted"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "aadc68070dc3ec6946a47750bf2216fa42e7d9eee87e4e239a1bb6d8d48c5f86"
-measurement_digest = "5e5ab816e1d482b3156a613a48e01b7d9906c9080c87ffd49b9f57799734f0df"
-
-[[attestation]]
-record_id = "cov.transport_query.pag.bayesian.posterior_quantile.l90.transport_pag_given_bayesian_coverage.v2_validation_full"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "3e58b61ff9d63fa6e3e62588ad43b920819cf239ad023f78117f68b502bacb38"
-measurement_digest = "7c59cf03c06a2f55d9c8ba14ef28887500ba73c05066974cbcf0c5cb9f965bf6"
-
-[[attestation]]
-record_id = "cov.transport_query.pag.bayesian.posterior_quantile.l90.transport_pag_given_bayesian_coverage.v2_validation_full.v2_structure_accepted"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "03dc7d0ad53e39a0567b9558f78bfb858d14921054c7ffdf8f4c19c18ea5af72"
-measurement_digest = "895c86cf2afbcc2d1ca51b8182611bce9461e922b43d3bf42d5be096ef0c301e"
-
-[[attestation]]
-record_id = "cov.transport_query.pag.bayesian.posterior_quantile.l90.transport_pag_given_bayesian_coverage.v2_validation_none"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "bf9db1ff71940c6b71bc739eaee26905d3895d285490f198724a19624d14b2db"
-measurement_digest = "63bcfc969e9fd8dc7196663d2339437948a3d2d843db8856e09abd1ee924caf5"
-
-[[attestation]]
-record_id = "cov.transport_query.pag.bayesian.posterior_quantile.l90.transport_pag_given_bayesian_coverage.v2_validation_none.v2_structure_accepted"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "399b06e2e6909bb55353e128bb8009ffa7ef45df9bcca922e43b9e65c53df8d3"
-measurement_digest = "d602bcd8b0b01a2e56be0aa0b05cf06d763120b1531c2a45cd36b4e124863aaa"
-
-[[attestation]]
-record_id = "cov.transport_query.pag.bayesian.posterior_quantile.l90.transport_pag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "e31dd3f085a532dc9a4821b2c3742202db9d7596a9d18a188e680e65ba5544d1"
-measurement_digest = "b00a3fe2961be52b07b965e945e9b9fbebac7b6882de0638a701d185e6f57e69"
-
-[[attestation]]
-record_id = "cov.transport_query.pag.bayesian.posterior_quantile.l90.transport_pag_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_graph_posterior"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "bcfeeb348e1b718782e26d8e2fbe00557a2aec3eb88a30bd68fd9ded80796974"
-measurement_digest = "3aa19fa55c47fe5f23c26e7639561e00f477a63d3a09fc0bc3d136224cfc841a"
-
-[[attestation]]
-record_id = "cov.transport_query.pag.bayesian.posterior_quantile.l90.transport_pag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "pass"
-dependency_manifest = "992aecdd52a078d6070b469849654224f0b5311fa032ee92dc8d0fb1fa97ab66"
-measurement_digest = "07b1f1a9a697c5f4db42200e8134a21fa2503177a9dfadd133de9fb4172dbf0f"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l90.transport_temporal_admg_given_bayesian_coverage.v2_validation_cheap"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l90.transport_temporal_admg_given_bayesian_coverage.v2_validation_cheap.v2_structure_accepted"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l90.transport_temporal_admg_given_bayesian_coverage.v2_validation_full"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l90.transport_temporal_admg_given_bayesian_coverage.v2_validation_full.v2_structure_accepted"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l90.transport_temporal_admg_given_bayesian_coverage.v2_validation_none"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l90.transport_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l90.transport_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l90.transport_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_graph_posterior"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l90.transport_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 100
-bound = 0.03
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l95.transport_temporal_admg_given_bayesian_coverage.v2_validation_cheap"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l95.transport_temporal_admg_given_bayesian_coverage.v2_validation_cheap.v2_structure_accepted"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l95.transport_temporal_admg_given_bayesian_coverage.v2_validation_full"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l95.transport_temporal_admg_given_bayesian_coverage.v2_validation_full.v2_structure_accepted"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l95.transport_temporal_admg_given_bayesian_coverage.v2_validation_none"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l95.transport_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l95.transport_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l95.transport_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_graph_posterior"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"
-
-[[attestation]]
-record_id = "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l95.transport_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior"
-calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
-sha = "3c2a837e894879ada615aaab9bfdec6ab5f8d03a"
-fingerprint = "d1a325f3d16c524b7482eea30f2508bab5bf32021f0d7ae00c6a7da27af707c7"
-k = 320
-bound = 0.009375
-result = "mismatch"

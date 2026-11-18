@@ -1959,6 +1959,222 @@ coverage_decisions = []
 executed_files = ["crates/antecedent-contract/src/quantity.rs", "crates/antecedent-estimate/tests/common/candidate_calibration.rs", "crates/antecedent-io-core/src/artifact_codec.rs", "crates/antecedent-io-core/src/container.rs", "crates/antecedent-io-core/src/convert.rs", "crates/antecedent-io-core/src/distribution_artifact.rs", "crates/antecedent-io-core/src/error.rs", "crates/antecedent-io-core/src/quantity_wire.rs", "crates/antecedent-io-core/src/reader.rs", "crates/antecedent-io-core/src/wire.rs", "crates/antecedent-io/tests/posterior_summary_calibration.rs", "crates/antecedent-kernels/src/posterior_reduce.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs"]
 
 [[gate]]
+group = "refuter_error_rates_calibration__static_bayesian_predictive_check_power_against_a_misreported_target.p0"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-validate/src/target_native/bayesian.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__static_bayesian_predictive_check_power_against_a_misreported_target.p1"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-validate/src/target_native/bayesian.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__static_bayesian_predictive_check_power_against_a_misreported_target.p2"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-validate/src/target_native/bayesian.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_misreported_target.p0"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_misreported_target.p1"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_misreported_target.p2"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_spurious_effect.p0"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_spurious_effect.p1"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__static_frequentist_refuters_power_against_a_spurious_effect.p2"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__temporal_bayesian_predictive_check_power_against_a_misreported_target.p0"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-validate/src/target_native/bayesian.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__temporal_bayesian_predictive_check_power_against_a_misreported_target.p1"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-validate/src/target_native/bayesian.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__temporal_bayesian_predictive_check_power_against_a_misreported_target.p2"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-validate/src/target_native/bayesian.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_misreported_target.p0"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_misreported_target.p1"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_misreported_target.p2"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_spurious_effect.p0"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_spurious_effect.p1"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
+group = "refuter_error_rates_calibration__temporal_frequentist_refuters_power_against_a_spurious_effect.p2"
+passed = 1
+calibration_sha = "31aeae4afd736f0cec95281fda46c8fe37153285"
+decision_protocol = { cell_cap_per_group = 256, family_alpha = 0.05, family_cells = 1367040, family_digest = "e352421e006d7986dee2bba392cb5c0528520ec8ef6d0a27a1594d3029818264", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], validation_domain = "coverage_measurement" }
+coverage_decisions = []
+executed_files = ["crates/antecedent-core/src/execution/admission.rs", "crates/antecedent-core/src/execution/budget.rs", "crates/antecedent-core/src/execution/cancel.rs", "crates/antecedent-core/src/execution/context.rs", "crates/antecedent-core/src/execution/rng.rs", "crates/antecedent-core/src/execution_attempt.rs", "crates/antecedent-core/src/identity.rs", "crates/antecedent-core/src/rng_key.rs", "crates/antecedent-kernels/src/rng.rs", "crates/antecedent-stats/src/adaptive_inference/beta_bernoulli.rs", "crates/antecedent-stats/src/special.rs", "crates/antecedent-validate/src/common/replicates.rs", "crates/antecedent-validate/src/target_native/engine.rs", "crates/antecedent-validate/src/target_native/joint.rs", "crates/antecedent-validate/src/target_native/mod.rs", "crates/antecedent-validate/src/target_native/reference.rs", "crates/antecedent/tests/common/calibration.rs", "crates/antecedent/tests/common/calibration_decision.rs", "crates/antecedent/tests/refuter_error_rates_calibration.rs"]
+
+[[gate]]
 group = "retained_score_precision__retained_cell_weighted_score_precision.p0"
 passed = 1
 calibration_sha = "ca73504c62c164776f369adb36ee700235f94d88"
