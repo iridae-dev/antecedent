@@ -7,10 +7,10 @@
 //! a causal contrast remains the checked compiler's decision, under its own design proof
 //! (for example a known randomized assignment).
 //!
-//! Inference follows the family. Frequentist uncertainty is the group-cluster sandwich over
-//! independent groups, or, when a spatial residual law couples the groups, the inverse
-//! observed information of the full spatially dependent likelihood (a cluster sandwich is
-//! not valid there), plus conditional random-effect draws; the parametric bootstrap repeats
+//! Inference follows the family. Frequentist uncertainty is the inverse observed information
+//! of the panel likelihood (of the full spatially dependent likelihood when a spatial residual
+//! law couples the groups), or the group-cluster sandwich over independent groups of a
+//! weighted pseudo-likelihood, plus conditional random-effect draws; the parametric bootstrap repeats
 //! the complete fit, including temporal change selection. The Bayesian realization is a
 //! posterior under explicit priors on every added coordinate, including the logit and log
 //! Jacobians of the transformed parameters.

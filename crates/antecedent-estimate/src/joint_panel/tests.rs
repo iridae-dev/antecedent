@@ -203,7 +203,8 @@ fn failed_optimizer_slots_are_retained_without_a_fabricated_covariance() {
     assert_eq!(fit.draws.len(), 7);
     assert!(fit.draws.iter().all(Option::is_none));
     assert_eq!(fit.diagnostics.failed_draws, 7);
-    assert_eq!(fit.diagnostics.cluster_rank_bound, Some(3));
+    // An unweighted panel draws from its inverse observed information, not the cluster sandwich.
+    assert_eq!(fit.diagnostics.cluster_rank_bound, None);
     assert_eq!(fit.diagnostics.claim, "model_conditional_mechanism_only");
     assert_eq!(fit.diagnostics.calibration, "not_measured");
     assert!(fit.point.group_intercepts.iter().any(|value| value.abs() > 0.0));

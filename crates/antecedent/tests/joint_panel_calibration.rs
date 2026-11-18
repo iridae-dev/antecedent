@@ -137,6 +137,12 @@ const DOSE: f64 = 4.0;
 /// the count, and the repository's own workflow uses 100, which is used here. The Monte Carlo
 /// noise of a 100-draw interval is part of what is measured.
 const FREQUENTIST_DRAWS: usize = 100;
+/// Draw slots of the invariant frequentist contrast records. Their draws are Gaussian about the
+/// fitted parameters, so the interval is a Monte Carlo percentile of a known law: at 100 draws
+/// its finite-draw noise and the interpolated tail ranks alone cost about two points of
+/// coverage. The records are measured at this count, which their validation scope states
+/// (`replicates_ok`); a run with fewer draws is outside the measured scope.
+const INVARIANT_FREQUENTIST_DRAWS: usize = 1000;
 /// Groups and periods of the prior-drawn calibration panels: the fewest the model needs (the
 /// programs run for 24 periods, a class needs several groups). Calibration under prior-drawn
 /// truths is exact at any size, so one size is measured.
@@ -678,7 +684,12 @@ enum Reading {
 }
 
 fn contrast_reading(cell: Cell, path: Path, mode: Mode, groups: usize, seed: u64) -> Reading {
-    let (_, result, truth, rows, _) = match fit_panel(cell, path, mode, groups, seed) {
+    let fitted = if mode == Mode::Frequentist && !path.varying() {
+        fit_panel_draws(cell, path, groups, seed, INVARIANT_FREQUENTIST_DRAWS)
+    } else {
+        fit_panel(cell, path, mode, groups, seed)
+    };
+    let (_, result, truth, rows, _) = match fitted {
         Ok(fitted) => fitted,
         Err(reason) => return Reading::Refused(reason),
     };

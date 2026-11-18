@@ -219,7 +219,8 @@ pub(super) fn optimize_target_with_score(
 /// multiples above the tolerance, which withholds the sandwich interval. A fit that meets
 /// the tolerance within this budget never reaches the Newton phase and is unchanged.
 const QUASI_NEWTON_BUDGET: usize = 500;
-/// Newton steps the polish takes before handing any remaining budget back.
+/// Most Newton steps the polish takes before handing any remaining budget back; every step
+/// counts against the declared iteration budget.
 const NEWTON_STEPS: usize = 20;
 
 /// The local maximum of a frequentist fit: the quasi-Newton search, then, when it has not met
@@ -243,7 +244,8 @@ fn frequentist_local_fit(
     if local.converged {
         return Ok(local);
     }
-    let polished = newton_polish(data, local, options.gradient_tolerance, ctx)?;
+    let steps = options.max_iterations.saturating_sub(local.iterations).min(NEWTON_STEPS);
+    let polished = newton_polish(data, local, options.gradient_tolerance, steps, ctx)?;
     let remaining = options.max_iterations.saturating_sub(polished.iterations);
     if polished.converged || remaining == 0 {
         return Ok(polished);
@@ -267,12 +269,13 @@ fn newton_polish(
     data: &likelihood::CompiledPanel<'_>,
     mut local: LocalFit,
     tolerance: f64,
+    steps: usize,
     ctx: &ExecutionContext,
 ) -> Result<LocalFit, PanelError> {
     let max_abs = |values: &[f64]| values.iter().map(|value| value.abs()).fold(0.0_f64, f64::max);
     let mut gradient = log_likelihood_score(data, &local.values, ctx)?;
     let mut norm = max_abs(&gradient);
-    for _ in 0..NEWTON_STEPS {
+    for _ in 0..steps {
         check_cancelled(ctx)?;
         if norm <= tolerance {
             break;
@@ -744,19 +747,27 @@ fn frequentist_draws(
 ) -> Result<Vec<Option<PanelDraw>>, PanelError> {
     Ok({
         let spatial = data.family.spatial.is_some();
+        // A weighted panel is a pseudo-likelihood, so only the group-cluster sandwich is a
+        // covariance for it. An unweighted panel is the model's own likelihood, and its
+        // inverse observed information is the covariance of the model-conditional claim the
+        // fit makes: unlike the sandwich, it does not estimate a variance from a few dozen
+        // group score outer products, whose noise left the interval short with 30 to 120
+        // groups. Under a spatial residual law the groups are not independent clusters, so
+        // the sandwich is not a covariance there either.
+        let model_based = spatial || !data.is_weighted();
         if spatial {
-            // Groups are not independent clusters under a spatial residual law, so the
-            // group-cluster sandwich is not a valid covariance; the model-based inverse
-            // observed information of the full spatial likelihood is used instead.
             diagnostics.cluster_rank_bound = None;
             diagnostics.uncertainty = "model-based Gaussian global-parameter approximation from the inverse observed information of the spatially dependent likelihood plus joint conditional Gaussian spatial random-effect uncertainty; neither a posterior nor a calibrated interval".into();
+        } else if model_based {
+            diagnostics.cluster_rank_bound = None;
+            diagnostics.uncertainty = "model-based Gaussian global-parameter approximation from the inverse observed information of the panel likelihood plus conditional Gaussian random-effect uncertainty; neither a posterior nor a calibrated interval".into();
         } else {
             diagnostics.cluster_rank_bound =
                 Some((data.groups.len() - 1).min(likelihood::parameter_count(data)));
-            diagnostics.uncertainty = "local group-cluster Gaussian global-parameter approximation plus conditional Gaussian random-effect uncertainty; neither a posterior nor a calibrated interval; the cluster covariance may be rank deficient".into();
+            diagnostics.uncertainty = "local group-cluster Gaussian global-parameter approximation of the weighted pseudo-likelihood plus conditional Gaussian random-effect uncertainty; neither a posterior nor a calibrated interval; the cluster covariance may be rank deficient".into();
         }
         let factor = match inverse.filter(|_| local.converged) {
-            Some(inverse) if spatial => model_factor(inverse, local.values.len()),
+            Some(inverse) if model_based => model_factor(inverse, local.values.len()),
             Some(inverse) => Some(cluster_factor(data, &local.values, inverse, ctx)?),
             None => None,
         };
@@ -1007,7 +1018,7 @@ mod frequentist_convergence_tests {
             stalled.score_norm
         );
         let stalled_likelihood = stalled.likelihood;
-        let polished = newton_polish(&data, stalled, tight, &ctx).unwrap();
+        let polished = newton_polish(&data, stalled, tight, NEWTON_STEPS, &ctx).unwrap();
         assert!(polished.converged, "score norm {}", polished.score_norm);
         let score = log_likelihood_score(&data, &polished.values, &ctx).unwrap();
         assert!(max_abs(&score) <= tight);

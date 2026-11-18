@@ -653,7 +653,8 @@ impl JointPanelResult {
 /// Meaning of the draws behind a scheduled-program contrast interval.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JointPanelContrastUncertainty {
-    /// Local group-cluster sandwich approximation of the fitted-parameter sampling law.
+    /// Local Gaussian approximation of the fitted-parameter sampling law (inverse observed
+    /// information, or the group-cluster sandwich of a weighted pseudo-likelihood).
     EstimatorSampling,
     /// Posterior of the fitted mean functional under the stated likelihood and priors.
     Posterior,

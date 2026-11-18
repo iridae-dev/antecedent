@@ -333,7 +333,9 @@ impl Default for PanelSamplingOptions {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PanelInference {
-    /// Local group-cluster sandwich parameter approximation, not a posterior or supported interval.
+    /// Local Gaussian parameter approximation, not a posterior or supported interval: from the
+    /// inverse observed information of the panel likelihood, or the group-cluster sandwich of a
+    /// weighted pseudo-likelihood.
     Frequentist {
         /// Requested approximate draws; invalid transformed slots remain None.
         draws: usize,
