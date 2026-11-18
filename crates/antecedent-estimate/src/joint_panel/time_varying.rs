@@ -614,10 +614,15 @@ struct Selected {
     attempts: Vec<TemporalPanelAttempt>,
     smooth: bool,
 }
+/// `polish` (frequentist fits) lets a candidate that has not met the score tolerance within the
+/// quasi-Newton budget finish with Newton steps on its score's curvature
+/// ([`inference::polished_local_fit`]); a Bayesian fit only seeds its sampler here and keeps the
+/// plain search.
 fn fit_candidates(
     data: &likelihood::CompiledPanel<'_>,
     spec: &TemporalPanelSpec,
     options: &PanelFitOptions,
+    polish: bool,
     ctx: &ExecutionContext,
 ) -> Result<Selected, PanelError> {
     let p = likelihood::parameter_count(data);
@@ -646,13 +651,12 @@ fn fit_candidates(
                 }
             }
         };
-        match inference::optimize_target_exact(
-            initial,
-            options.optimizer,
-            ctx,
-            &function,
-            &gradient,
-        ) {
+        let optimized = if polish {
+            inference::polished_local_fit(initial, options.optimizer, ctx, &function, &gradient)
+        } else {
+            inference::optimize_target_exact(initial, options.optimizer, ctx, &function, &gradient)
+        };
+        match optimized {
             Ok(fit) => {
                 let ll = objective(data, spec, &choice, &fit.values);
                 let criterion = -2.0 * fit.likelihood + (fit.values.len() as f64) * n.ln();
@@ -993,7 +997,13 @@ fn fit_temporal_inner(
     let data = &compiled;
     let TemporalFitAdmission { p, path_parameters, slots, retained, retention, scratch: _scratch } =
         admit_temporal_fit(data, spec, options, ctx)?;
-    let selected = fit_candidates(data, spec, options, ctx)?;
+    // A frequentist fit's interval rests on every candidate meeting the score tolerance, at the
+    // point and in each bootstrap refit; a posterior only starts its sampler from the point.
+    let polish = matches!(
+        options.inference,
+        PanelInference::Frequentist { .. } | PanelInference::FrequentistBootstrap { .. }
+    );
+    let selected = fit_candidates(data, spec, options, polish, ctx)?;
     let point = realization(data, spec, &selected.choice, &selected.values, None)
         .ok_or_else(|| PanelError::Numerical("invalid selected temporal point".into()))?;
     let mut posterior_diagnostics = None;
@@ -1005,7 +1015,7 @@ fn fit_temporal_inner(
                 check_cancelled(ctx)?;
                 let simulated = bootstrap_data(data, &point, ctx, replicate)?;
                 let compiled_simulated = likelihood::CompiledPanel::new(&simulated)?;
-                let draw = match fit_candidates(&compiled_simulated, spec, options, ctx) {
+                let draw = match fit_candidates(&compiled_simulated, spec, options, polish, ctx) {
                     Ok(fit) => {
                         let mut rng = ctx.rng.stream(antecedent_core::derive_stream(
                             0x5830_3352_414e_444f,

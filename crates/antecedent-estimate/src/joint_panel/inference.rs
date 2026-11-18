@@ -234,53 +234,91 @@ fn frequentist_local_fit(
     options: PanelOptimizerOptions,
     ctx: &ExecutionContext,
 ) -> Result<LocalFit, PanelError> {
-    let objective = |x: &[f64]| likelihood::log_likelihood(data, x);
-    let score = |x: &[f64]| log_likelihood_score(data, x, ctx);
+    polished_local_fit(
+        start,
+        options,
+        ctx,
+        &|x: &[f64]| likelihood::log_likelihood(data, x),
+        &|x: &[f64]| log_likelihood_score(data, x, ctx),
+    )
+}
+
+/// [`frequentist_local_fit`] for any objective and its score: the quasi-Newton search within
+/// [`QUASI_NEWTON_BUDGET`], Newton steps on the central-difference curvature of the score
+/// when it has not met the tolerance, then the rest of the declared budget. A search that
+/// meets the tolerance within the budget is returned as it is.
+pub(super) fn polished_local_fit(
+    start: Vec<f64>,
+    options: PanelOptimizerOptions,
+    ctx: &ExecutionContext,
+    objective: &impl Fn(&[f64]) -> f64,
+    score: &impl Fn(&[f64]) -> Result<Vec<f64>, PanelError>,
+) -> Result<LocalFit, PanelError> {
     let first = PanelOptimizerOptions {
         max_iterations: options.max_iterations.min(QUASI_NEWTON_BUDGET),
         ..options
     };
-    let local = optimize_target_exact(start, first, ctx, &objective, &score)?;
+    let local = optimize_target_exact(start, first, ctx, objective, score)?;
     if local.converged {
         return Ok(local);
     }
     let steps = options.max_iterations.saturating_sub(local.iterations).min(NEWTON_STEPS);
-    let polished = newton_polish(data, local, options.gradient_tolerance, steps, ctx)?;
+    let polished =
+        newton_polish_with(local, options.gradient_tolerance, steps, ctx, objective, score)?;
     let remaining = options.max_iterations.saturating_sub(polished.iterations);
     if polished.converged || remaining == 0 {
         return Ok(polished);
     }
     let rest = PanelOptimizerOptions { max_iterations: remaining, ..options };
-    let mut resumed =
-        optimize_target_exact(polished.values.clone(), rest, ctx, &objective, &score)?;
+    let mut resumed = optimize_target_exact(polished.values.clone(), rest, ctx, objective, score)?;
     resumed.iterations += polished.iterations;
     Ok(if resumed.score_norm <= polished.score_norm { resumed } else { polished })
 }
 
+/// Newton steps `x + A⁻¹ g` on the panel log likelihood ([`newton_polish_with`]).
+#[cfg(test)]
+fn newton_polish(
+    data: &likelihood::CompiledPanel<'_>,
+    local: LocalFit,
+    tolerance: f64,
+    steps: usize,
+    ctx: &ExecutionContext,
+) -> Result<LocalFit, PanelError> {
+    newton_polish_with(
+        local,
+        tolerance,
+        steps,
+        ctx,
+        &|x: &[f64]| likelihood::log_likelihood(data, x),
+        &|x: &[f64]| log_likelihood_score(data, x, ctx),
+    )
+}
+
 /// Newton steps `x + A⁻¹ g` from an iterate that has not met the score tolerance, with `A`
-/// the negative Hessian from central differences of the exact score at the iterate.
+/// the negative Hessian from central differences of the score at the iterate.
 ///
 /// Near the maximum the objective changes by less than its own rounding, so a step is
 /// accepted when it lowers the largest absolute score and does not lower the objective by
 /// more than a rounding allowance; the backtracking halves the step otherwise. The polish
 /// stops at the tolerance, at a curvature that is not positive definite, or when no step
 /// improves the score.
-fn newton_polish(
-    data: &likelihood::CompiledPanel<'_>,
+fn newton_polish_with(
     mut local: LocalFit,
     tolerance: f64,
     steps: usize,
     ctx: &ExecutionContext,
+    objective: &impl Fn(&[f64]) -> f64,
+    score: &impl Fn(&[f64]) -> Result<Vec<f64>, PanelError>,
 ) -> Result<LocalFit, PanelError> {
     let max_abs = |values: &[f64]| values.iter().map(|value| value.abs()).fold(0.0_f64, f64::max);
-    let mut gradient = log_likelihood_score(data, &local.values, ctx)?;
+    let mut gradient = score(&local.values)?;
     let mut norm = max_abs(&gradient);
     for _ in 0..steps {
         check_cancelled(ctx)?;
         if norm <= tolerance {
             break;
         }
-        let Some(inverse) = score_curvature_inverse(data, &local.values, ctx)? else {
+        let Some(inverse) = score_curvature_inverse(&local.values, ctx, score)? else {
             break;
         };
         let p = local.values.len();
@@ -294,10 +332,10 @@ fn newton_polish(
         for _ in 0..30 {
             let candidate: Vec<f64> =
                 local.values.iter().zip(&direction).map(|(x, d)| x + step * d).collect();
-            let value = likelihood::log_likelihood(data, &candidate);
+            let value = objective(&candidate);
             if value.is_finite()
                 && value >= local.likelihood - allowance
-                && let Ok(next) = log_likelihood_score(data, &candidate, ctx)
+                && let Ok(next) = score(&candidate)
             {
                 let next_norm = max_abs(&next);
                 if next_norm.is_finite() && next_norm < norm {
@@ -322,12 +360,12 @@ fn newton_polish(
     Ok(local)
 }
 
-/// The inverse negative Hessian of the log likelihood from central differences of its exact
-/// score, or `None` when it is not positive definite or a nearby score is not finite.
+/// The inverse negative Hessian of an objective from central differences of its score, or
+/// `None` when it is not positive definite or a nearby score is not finite.
 fn score_curvature_inverse(
-    data: &likelihood::CompiledPanel<'_>,
     x: &[f64],
     ctx: &ExecutionContext,
+    score: &impl Fn(&[f64]) -> Result<Vec<f64>, PanelError>,
 ) -> Result<Option<Vec<f64>>, PanelError> {
     let p = x.len();
     let mut matrix = vec![0.0; p * p];
@@ -336,9 +374,9 @@ fn score_curvature_inverse(
         check_cancelled(ctx)?;
         let step = 1e-4 * (1.0 + original.abs());
         work[column] = original + step;
-        let high = log_likelihood_score(data, &work, ctx);
+        let high = score(&work);
         work[column] = original - step;
-        let low = log_likelihood_score(data, &work, ctx);
+        let low = score(&work);
         work[column] = original;
         let (Ok(high), Ok(low)) = (high, low) else {
             return Ok(None);
