@@ -58,11 +58,11 @@
     },
     {
       "path": "crates/antecedent-estimate/src/bayesian/tests.rs",
-      "sha256": "04b189617be7cc1dd10be91e2114e1b7bc165f7225d57554d8edb5265d9be692",
+      "sha256": "fa2f3885d88614ac936cdb72237e5f35ec0071ffaa410649a17323f5d72642c2",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 1073,
+          "line": 1074,
           "call": "CoverageTally::new(",
           "argument": "name, level"
         }
@@ -114,11 +114,11 @@
     },
     {
       "path": "crates/antecedent-estimate/src/dml.rs",
-      "sha256": "41ff038de7b509881d4315112bf56a313dce718847cdb3ff268bf12fba915c45",
+      "sha256": "ec5e693358b960150991432a03494baf05f48b08bdea67f7d32ce08eb15f3854",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 1749,
+          "line": 1904,
           "call": "CoverageTally::new(",
           "argument": "format!(\"learner_ate_known_truth_coverage {name}\"),\n                level,"
         }
@@ -1319,16 +1319,27 @@
     },
     {
       "path": "crates/antecedent/tests/discovery_statements_calibration.rs",
-      "sha256": "7108166ba905380477bdb111c5cd6f503b89d137d5493399991c02907905b861",
-      "labelled_calls": [],
+      "sha256": "f2e0702762816e769f7b5a3914dc843f41b4fc122d287430ef2081010510246f",
+      "labelled_calls": [
+        {
+          "line": 209,
+          "call": ".labelled(",
+          "argument": "interval"
+        },
+        {
+          "line": 210,
+          "call": ".labelled(",
+          "argument": "interval"
+        }
+      ],
       "constructor_calls": [
         {
-          "line": 205,
+          "line": 209,
           "call": "CoverageTally::for_record(",
           "argument": "key, REPORTED_LEVEL"
         },
         {
-          "line": 205,
+          "line": 210,
           "call": "CoverageTally::for_record(",
           "argument": "key, GATE_LEVEL"
         }
@@ -1562,6 +1573,19 @@
       "review": "One test per group of supported functional-effect coordinates that report one interval, through the shared sibling driver: the coordinates sharing a measured base are a source-fixed list, each checked to report the base interval, truth and scope on the first replicates before it is scored on the base; the scored targets (labels and closed-form truths) are a caller-declared list handed to the driver before any replicate runs, at most three per coordinate, at the two source-fixed levels; the sibling variants are the fixed validation modes and the accepted twin of each coordinate, never chosen from outcomes."
     },
     {
+      "path": "crates/antecedent/tests/grid_functional_posterior_calibration.rs",
+      "sha256": "e0f5a44048b69a28ebc10aa969f70da9b5bf0dc298d27ee59ba800b8b7948144",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 364,
+          "call": "CoverageTally::for_record(",
+          "argument": "key, level"
+        }
+      ],
+      "review": "One test per graph-posterior PAG coordinate scoring the identified set the route publishes, at the coordinate's own source-fixed level (0.95 frequentist, 0.90 Bayesian): one tally per fixed validation variant, named by its variant index, each checked to report the base identified set bit for bit; the coordinate list, truths and variants are source-fixed before any replicate runs, never chosen from outcomes."
+    },
+    {
       "path": "crates/antecedent/tests/joint_law_composed_interval_calibration.rs",
       "sha256": "a42bc2f5556abdbe8dcac1d140778a30360914ada3983835c60071db0204545a",
       "labelled_calls": [],
@@ -1581,46 +1605,46 @@
     },
     {
       "path": "crates/antecedent/tests/joint_panel_calibration.rs",
-      "sha256": "716e2d6b5ac54c47d2b47a30809fbb779256aeed6720814ffe63ddb39b0998f9",
+      "sha256": "50e35e506e7fffbf47101356743b605a70ebb683502e973eec5b677e6e22ec71",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 776,
+          "line": 787,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: interval_label(mode, path) },\n        LEVEL,"
         },
         {
-          "line": 957,
+          "line": 968,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: WARP_DGP, interval: interval_label(mode, path) },\n        LEVEL,"
         },
         {
-          "line": 1220,
+          "line": 1231,
           "call": "CoverageTally::new(",
           "argument": "format!(\"{test} specification set\"), LEVEL"
         },
         {
-          "line": 1498,
+          "line": 1509,
           "call": "CoverageTally::new(",
           "argument": "test, LEVEL"
         },
         {
-          "line": 1846,
+          "line": 1852,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"weighted_posterior_quantile\" },\n        LEVEL,"
         },
         {
-          "line": 2042,
+          "line": 2048,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"monte_carlo_standard_error\" },\n        LEVEL,"
         },
         {
-          "line": 2221,
+          "line": 2227,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"response_data\", interval }, LEVEL"
         },
         {
-          "line": 2563,
+          "line": 2569,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: SELECTED_VALUE_INTERVAL_METHOD },\n        LEVEL,"
         }
@@ -1727,11 +1751,11 @@
     },
     {
       "path": "crates/antecedent/tests/measured_exposure_calibration.rs",
-      "sha256": "c664e6e06424fca10502dce8a93209f995590979eb10fb235f7221ab97ba1757",
+      "sha256": "3a190a3ec3e69601d0b0e7deba1dd4208f27c436aaab68df453ee592f92fba69",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 81,
+          "line": 82,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"rubin_t_interval\" },\n        REPORTED_LEVEL,"
         }
@@ -3073,17 +3097,17 @@
     },
     {
       "path": "crates/antecedent/tests/weighted_target_transport_calibration.rs",
-      "sha256": "8a780b25b6a7d1d4e819edcb614a0c31ae531d67e65aeb8a3be5bef3d87ea7e8",
+      "sha256": "fca213e0c0edaaf3da2111469800ef3ed3cc740e1b9584df0e3c2d86b2c01805",
       "labelled_calls": [
         {
-          "line": 137,
+          "line": 140,
           "call": ".labelled(",
           "argument": "format!(\"centre {centre} bandwidth {bandwidth}\")"
         }
       ],
       "constructor_calls": [
         {
-          "line": 133,
+          "line": 136,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: DGP, interval: INTERVAL },\n            REPORTED_LEVEL,"
         }
