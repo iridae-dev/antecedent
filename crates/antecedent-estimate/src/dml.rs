@@ -662,7 +662,16 @@ impl DmlAte {
             for record in prior.assumptions(&hydrated, &names) {
                 assumptions.push(record);
             }
-            let marginal = aipw_marginal_from_nuisance(problem, &nuisance, assumptions)?;
+            // The propensity is the cross-fitted unpenalized logistic MLE, so its estimation
+            // moves the estimate by a first-order term that survives a wrong outcome model.
+            let estimated_propensity =
+                matches!(self.treatment, LearnerSpec::Logistic(spec) if spec.ridge_lambda <= 0.0);
+            let marginal = aipw_marginal_from_nuisance_estimated(
+                problem,
+                &nuisance,
+                assumptions,
+                estimated_propensity,
+            )?;
             let mut effect = attach_crossfit_aipw_table(
                 marginal.effect,
                 problem,
@@ -939,6 +948,18 @@ pub(crate) fn aipw_marginal_from_nuisance(
     nuisance: &AipwPredictions,
     assumptions: AssumptionSet,
 ) -> Result<AipwMarginal, EstimationError> {
+    aipw_marginal_from_nuisance_estimated(problem, nuisance, assumptions, false)
+}
+
+/// [`aipw_marginal_from_nuisance`], optionally carrying the first-order term for the estimated
+/// logistic propensity in the influence (see [`propensity_estimation_term`]). Pass `true` only
+/// when the propensity nuisance is the unpenalized logistic MLE.
+pub(crate) fn aipw_marginal_from_nuisance_estimated(
+    problem: &PreparedPropensityProblem,
+    nuisance: &AipwPredictions,
+    assumptions: AssumptionSet,
+    estimated_propensity: bool,
+) -> Result<AipwMarginal, EstimationError> {
     let (mu0, mu1, raw_e, treat) = nuisance;
     let ehat = guarded_propensity(raw_e, clip_of(problem.overlap))?;
     let phi = aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, mu0, mu1);
@@ -950,8 +971,14 @@ pub(crate) fn aipw_marginal_from_nuisance(
         .map(|((&ti, &m0), &m1)| if TreatmentArm::is_treated_indicator(ti) { m1 } else { m0 })
         .collect();
     let outcome_diag = diagnose(PredictionTask::Regression, problem.outcome.as_ref(), &yhat);
-    let effect =
-        finish_dml(&phi, problem, assumptions, treat.validation.logloss, outcome_diag.r2, raw_e)?;
+    let effect = finish_dml_with(
+        &phi,
+        problem,
+        assumptions,
+        (treat.validation.logloss, outcome_diag.r2),
+        raw_e,
+        estimated_propensity.then_some(EstimatedPropensity { mu0, mu1, clipped: &ehat }),
+    )?;
     Ok(AipwMarginal { phi, ehat, effect })
 }
 
@@ -1001,6 +1028,7 @@ fn require_binary_treatment(problem: &PreparedPropensityProblem) -> Result<(), E
     Ok(())
 }
 
+#[cfg(test)]
 pub(crate) fn finish_dml(
     phi: &[f64],
     problem: &PreparedPropensityProblem,
@@ -1008,6 +1036,26 @@ pub(crate) fn finish_dml(
     treat_logloss: Option<f64>,
     outcome_r2: Option<f64>,
     raw_e: &[f64],
+) -> Result<EffectEstimate, EstimationError> {
+    finish_dml_with(phi, problem, assumptions, (treat_logloss, outcome_r2), raw_e, None)
+}
+
+/// The out-of-fold outcome means and clipped propensities of a fit whose propensity is the
+/// cross-fitted unpenalized logistic MLE.
+pub(crate) struct EstimatedPropensity<'a> {
+    pub mu0: &'a [f64],
+    pub mu1: &'a [f64],
+    pub clipped: &'a [f64],
+}
+
+/// [`finish_dml`] with the influence optionally extended by the estimated-propensity term.
+fn finish_dml_with(
+    phi: &[f64],
+    problem: &PreparedPropensityProblem,
+    assumptions: AssumptionSet,
+    (treat_logloss, outcome_r2): (Option<f64>, Option<f64>),
+    raw_e: &[f64],
+    estimated: Option<EstimatedPropensity<'_>>,
 ) -> Result<EffectEstimate, EstimationError> {
     let n = phi.len();
     if n < 2 || raw_e.len() != n || phi.iter().any(|p| !p.is_finite()) {
@@ -1030,7 +1078,7 @@ pub(crate) fn finish_dml(
         rows.iter().map(|&i| weight_of(i) * phi[i]).sum::<f64>() / mass
     };
     // Embed the retained-population ratio influence in the original row universe.
-    let influence = if row_weights.is_none() {
+    let mut influence = if row_weights.is_none() {
         antecedent_learn::dr_replay::retained_influence(phi, &rows, ate)
     } else {
         let mut influence = vec![0.0; n];
@@ -1039,6 +1087,26 @@ pub(crate) fn finish_dml(
         }
         influence
     };
+    if let Some(estimated) = estimated {
+        let term = propensity_estimation_term(
+            &PropensityTermInputs {
+                design: &problem.design_matrix,
+                ncols: problem.design_ncols,
+                treatment: &problem.treatment,
+                outcome: &problem.outcome,
+                mu0: estimated.mu0,
+                mu1: estimated.mu1,
+                raw: raw_e,
+                clipped: estimated.clipped,
+                weights: row_weights,
+            },
+            &rows,
+            mass,
+        )?;
+        for (value, extra) in influence.iter_mut().zip(term) {
+            *value += extra;
+        }
+    }
     let se = iid_se(&influence);
     let report = OverlapReport::from_propensities(
         raw_e,
@@ -1058,6 +1126,93 @@ pub(crate) fn finish_dml(
     effect.crossfit.outcome_oof_r2 = outcome_r2;
     effect.crossfit.treatment_oof_logloss = treat_logloss;
     Ok(effect)
+}
+
+/// Columns and nuisance predictions behind [`propensity_estimation_term`].
+struct PropensityTermInputs<'a> {
+    /// Column-major `n × ncols` propensity design.
+    design: &'a [f64],
+    ncols: usize,
+    treatment: &'a [f64],
+    outcome: &'a [f64],
+    mu0: &'a [f64],
+    mu1: &'a [f64],
+    /// Raw fitted propensity (the logistic MLE's own predictions).
+    raw: &'a [f64],
+    /// Propensity after the overlap clip, the one the score uses.
+    clipped: &'a [f64],
+    weights: Option<&'a [f64]>,
+}
+
+/// The first-order influence term for estimating the logistic propensity `e = σ(xᵀγ)`.
+///
+/// The AIPW score is `φ = μ₁ − μ₀ + T(Y − μ₁)/e − (1 − T)(Y − μ₀)/(1 − e)`. The fitted `γ̂` solves
+/// `Σ wᵢ xᵢ(Tᵢ − êᵢ) = 0`, so the estimate carries `Dᵀ I⁻¹ s̄` with
+/// `D = Σ_retained wᵢ ∂φᵢ/∂γ / mass` (`∂φ/∂γ = −[T(Y − μ₁)(1 − e)/e + (1 − T)(Y − μ₀)e/(1 − e)]x`,
+/// zero on a clipped row) and `I = mean(wᵢ êᵢ(1 − êᵢ) xᵢxᵢᵀ)`. The returned per-row term is
+/// `Dᵀ I⁻¹ wᵢ xᵢ(Tᵢ − êᵢ)`: add it to the ratio influence of the mean. `D` is a mean of
+/// outcome-residual-weighted terms, so it is zero to first order when the outcome model is
+/// right and the term then adds only `O(1/n)` variance; with a wrong outcome model the term
+/// removes the part of the score the propensity fit explains, which the score treated as known
+/// otherwise over-states. Under cross-fitting the average of the fold-wise `γ̂₋ₖ − γ₀` equals
+/// the full-sample `I⁻¹ s̄`, so the same linearisation holds with the out-of-fold residuals.
+///
+/// # Errors
+/// Length mismatch or a singular propensity information matrix.
+fn propensity_estimation_term(
+    inputs: &PropensityTermInputs<'_>,
+    rows: &[usize],
+    mass: f64,
+) -> Result<Vec<f64>, EstimationError> {
+    let n = inputs.raw.len();
+    let p = inputs.ncols;
+    if p == 0 {
+        return Ok(vec![0.0; n]);
+    }
+    if inputs.design.len() != n * p
+        || [inputs.treatment, inputs.outcome, inputs.mu0, inputs.mu1, inputs.clipped]
+            .iter()
+            .any(|column| column.len() != n)
+    {
+        return Err(EstimationError::data_msg("propensity correction length mismatch"));
+    }
+    let weight = |i: usize| inputs.weights.map_or(1.0, |w| w[i]);
+    let x = |row: usize, column: usize| inputs.design[column * n + row];
+    let mut derivative = vec![0.0; p];
+    for &i in rows {
+        let (t, y, e, raw) =
+            (inputs.treatment[i], inputs.outcome[i], inputs.clipped[i], inputs.raw[i]);
+        // A clipped row does not depend on γ locally.
+        if (e - raw).abs() > 0.0 {
+            continue;
+        }
+        let slope = -(t * (y - inputs.mu1[i]) * (1.0 - e) / e
+            + (1.0 - t) * (y - inputs.mu0[i]) * e / (1.0 - e));
+        for (c, d) in derivative.iter_mut().enumerate() {
+            *d += weight(i) * slope * x(i, c) / mass;
+        }
+    }
+    let mut information = vec![0.0; p * p];
+    for i in 0..n {
+        let curvature = weight(i) * inputs.raw[i] * (1.0 - inputs.raw[i]) / n as f64;
+        for c in 0..p {
+            for d in 0..p {
+                information[c * p + d] += curvature * x(i, c) * x(i, d);
+            }
+        }
+    }
+    let Some(alpha) = crate::util::solve_spd(&information, &derivative, p) else {
+        return Err(EstimationError::stats_msg(
+            "singular propensity information; refusing an analytic SE that ignores the fitted \
+             propensity",
+        ));
+    };
+    Ok((0..n)
+        .map(|i| {
+            let adjustment: f64 = (0..p).map(|c| x(i, c) * alpha[c]).sum();
+            adjustment * weight(i) * (inputs.treatment[i] - inputs.raw[i])
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -1789,6 +1944,43 @@ mod tests {
                 "method={method}, bias={bias}"
             );
         }
+    }
+
+    /// Intercept-only logistic: `ê = 0.5`, `I = 0.25`, `D` is the mean of
+    /// `−[T r₁ + (1 − T) r₀]`, so `c = D/I · (T − ê)` in closed form.
+    #[test]
+    fn the_estimated_propensity_term_matches_the_intercept_only_closed_form() {
+        let treatment = [1.0, 1.0, 0.0, 0.0];
+        let outcome = [3.0, 1.0, 2.0, 0.0];
+        let (mu1, mu0) = ([1.0; 4], [0.5; 4]);
+        let (design, raw) = ([1.0; 4], [0.5; 4]);
+        let inputs = |weights: Option<&'static [f64]>| PropensityTermInputs {
+            design: &design,
+            ncols: 1,
+            treatment: &treatment,
+            outcome: &outcome,
+            mu0: &mu0,
+            mu1: &mu1,
+            raw: &raw,
+            clipped: &raw,
+            weights,
+        };
+        let rows = [0, 1, 2, 3];
+        // r₁ = [2, 0] on treated, r₀ = [1.5, −0.5] on control: D = −0.75, α = −3.
+        let term = propensity_estimation_term(&inputs(None), &rows, 4.0).unwrap();
+        for (got, want) in term.iter().zip([-1.5, -1.5, 1.5, 1.5]) {
+            assert!((got - want).abs() < 1e-12, "{term:?}");
+        }
+        // Constant weights rescale D/I and the score together: the term is unchanged.
+        let term = propensity_estimation_term(&inputs(Some(&[2.0; 4])), &rows, 8.0).unwrap();
+        for (got, want) in term.iter().zip([-1.5, -1.5, 1.5, 1.5]) {
+            assert!((got - want).abs() < 1e-12, "{term:?}");
+        }
+        // A correct outcome model has zero residuals, so the propensity term vanishes.
+        let exact = [1.0, 1.0, 0.5, 0.5];
+        let correct = PropensityTermInputs { outcome: &exact, ..inputs(None) };
+        let term = propensity_estimation_term(&correct, &rows, 4.0).unwrap();
+        assert!(term.iter().all(|c| c.abs() < 1e-12), "{term:?}");
     }
 }
 
