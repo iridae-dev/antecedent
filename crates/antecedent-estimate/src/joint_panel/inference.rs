@@ -21,6 +21,14 @@ pub(super) const PANEL_LEAPFROG_STEPS: u32 = 10;
 pub(super) const PANEL_TARGET_ACCEPT: f64 = 0.8;
 /// Most trajectory doublings of a No-U-Turn transition when a posterior is sampled again.
 pub(super) const PANEL_NUTS_DEPTH: u32 = 8;
+/// Standard deviation, in whitened units, of the offset each chain of a second run starts from.
+/// The first run's dispersed starts have already exposed the failure; on a posterior whose
+/// Hill shape or carryover decay is flat far from the mass, a start that far out lands on a
+/// plateau whose cliffs shrink the adapted step until the chain no longer moves.
+pub(super) const RETRY_START_SPREAD: f64 = 0.5;
+/// Inverse temperatures of the replica-exchange run, a geometric ladder from the posterior
+/// to a copy flattened twentyfold.
+pub(super) const PANEL_TEMPERING_LADDER: [f64; 7] = [1.0, 0.6, 0.36, 0.216, 0.13, 0.078, 0.05];
 
 fn score(
     data: &likelihood::CompiledPanel<'_>,
@@ -655,6 +663,7 @@ pub(super) fn fit(
     let source_identity = data.identity()?;
     let initial = options.initial.clone().unwrap_or_else(|| likelihood::initial(data));
     let start = likelihood::encode(data, &initial)?;
+    let declared = start.clone();
     record_physical(PhysicalEvent::Scan, 1);
     run_operation(Operation::AdjustedFit, || {
         let local = if matches!(options.inference, PanelInference::Frequentist { .. }) {
@@ -722,6 +731,7 @@ pub(super) fn fit(
             PanelInference::Bayesian { prior, sampler } => posterior_draws(
                 data,
                 &local,
+                &declared,
                 options.optimizer,
                 prior,
                 sampler,
@@ -869,10 +879,13 @@ pub(super) const RETRY_STREAM: u64 = 0x5830_3352_4554_5259;
 
 /// The execution context of a posterior's second run: the same budgets, a derived seed.
 pub(super) fn retry_context(ctx: &ExecutionContext) -> ExecutionContext {
+    retry_context_at(ctx, 0)
+}
+fn retry_context_at(ctx: &ExecutionContext, attempt: u64) -> ExecutionContext {
     let mut retry = ctx.clone();
     retry.rng = antecedent_core::RngFactory::from_seed(antecedent_core::derive_stream(
         ctx.rng.master_seed(),
-        RETRY_STREAM,
+        RETRY_STREAM.wrapping_add(attempt),
     ));
     retry
 }
@@ -962,6 +975,17 @@ fn draw_covariance(draws: &[f64], p: usize) -> Option<Vec<f64>> {
     .then_some(covariance)
 }
 
+/// The transition kernel of one whitened run.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Sampler {
+    /// Fixed-length Hamiltonian trajectories: every posterior's first run.
+    Hamiltonian,
+    /// The No-U-Turn sampler: a run after the first misses its diagnostics.
+    Nuts,
+    /// Replica exchange of No-U-Turn chains: a run after the No-U-Turn run misses too.
+    Tempered,
+}
+
 /// One whitened Hamiltonian run of a panel posterior.
 struct PosteriorRun {
     /// Retained draws in the original coordinates, chain by chain.
@@ -975,7 +999,8 @@ fn whitened_run(
     center: &[f64],
     covariance: Option<&[f64]>,
     warmup: usize,
-    nuts: bool,
+    kind: Sampler,
+    spread: f64,
     sampler: &super::PanelSamplingOptions,
     posterior: &(impl Fn(&[f64]) -> f64 + Sync),
     posterior_score: &(impl Fn(&[f64]) -> Result<Vec<f64>, PanelError> + Sync),
@@ -1017,25 +1042,35 @@ fn whitened_run(
             .collect();
         Some((value, gradient_z))
     };
-    let samples = if nuts {
+    let nuts = antecedent_prob::gradient_hmc::NutsOptions {
+        chains: sampler.chains,
+        warmup,
+        draws: sampler.draws,
+        max_depth: PANEL_NUTS_DEPTH,
+        initial_step: sampler.proposal_scale,
+        target_accept: PANEL_TARGET_ACCEPT,
+    };
+    let samples = if kind == Sampler::Nuts {
         antecedent_prob::gradient_hmc::sample_nuts_dispersed_parallel(
             &vec![0.0; p],
-            CHAIN_START_SPREAD,
-            antecedent_prob::gradient_hmc::NutsOptions {
-                chains: sampler.chains,
-                warmup,
-                draws: sampler.draws,
-                max_depth: PANEL_NUTS_DEPTH,
-                initial_step: sampler.proposal_scale,
-                target_accept: PANEL_TARGET_ACCEPT,
-            },
+            spread,
+            nuts,
+            ctx,
+            &target,
+        )
+    } else if kind == Sampler::Tempered {
+        antecedent_prob::gradient_hmc::sample_tempered_nuts_dispersed_parallel(
+            &vec![0.0; p],
+            spread,
+            nuts,
+            &PANEL_TEMPERING_LADDER,
             ctx,
             &target,
         )
     } else {
         antecedent_prob::gradient_hmc::sample_gradient_hmc_dispersed_parallel(
             &vec![0.0; p],
-            CHAIN_START_SPREAD,
+            spread,
             antecedent_prob::gradient_hmc::GradientHmcOptions {
                 chains: sampler.chains,
                 warmup,
@@ -1065,9 +1100,90 @@ fn whitened_run(
     Ok(PosteriorRun { transformed, summary, converged })
 }
 
+/// A posterior sampled again after its first run missed its diagnostics, or `None` when no
+/// later run meets them either; only a run that meets them replaces the first, so a posterior
+/// that converges the first time is untouched and every published posterior met its own
+/// diagnostics.
+///
+/// A first run misses for three reasons, and each later run answers one. Its whitening came
+/// from a mode search that stalled short of the score tolerance, or from the maximum
+/// likelihood fit run off along a direction the likelihood leaves flat (a Hill shape or
+/// half-saturation far beyond the doses), where the curvature is a poor scale or not positive
+/// definite at all. The second run is therefore whitened at the better, by posterior density,
+/// of the modes searched from that fit and from the declared initial point, each finished with
+/// Newton steps, by the inverse curvature of the exact score there (else the first run's draw
+/// covariance). A fixed-length trajectory crosses a curved ridge (a Hill shape and
+/// half-saturation the doses identify only jointly) too slowly, so the second run uses the
+/// No-U-Turn sampler with twice the warmup, chains started near that mode. Chains that start
+/// beside one another and still disagree sit in separate modes (persistence carried by the
+/// autoregression in one and by the group intercepts in the other), so the third run is
+/// replica exchange, which carries states between them through tempered copies of the
+/// posterior, from dispersed starts.
+#[allow(clippy::too_many_arguments)]
+fn resample(
+    mode: &[f64],
+    declared: &[f64],
+    first: &PosteriorRun,
+    optimizer: PanelOptimizerOptions,
+    sampler: &super::PanelSamplingOptions,
+    posterior: &(impl Fn(&[f64]) -> f64 + Sync),
+    posterior_score: &(impl Fn(&[f64]) -> Result<Vec<f64>, PanelError> + Sync),
+    ctx: &ExecutionContext,
+) -> Result<Option<PosteriorRun>, PanelError> {
+    let p = mode.len();
+    let from_declared = match optimize_target(declared.to_vec(), optimizer, ctx, posterior) {
+        Ok(fit) => Some(fit.values),
+        Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
+        Err(_) => None,
+    };
+    let mut best: Option<(f64, Vec<f64>)> = None;
+    for start in std::iter::once(mode.to_vec()).chain(from_declared) {
+        let center =
+            polished_center(&start, optimizer.gradient_tolerance, ctx, posterior, posterior_score)?;
+        let value = posterior(&center);
+        if value.is_finite() && best.as_ref().is_none_or(|(incumbent, _)| value > *incumbent) {
+            best = Some((value, center));
+        }
+    }
+    let center = best.map_or_else(|| mode.to_vec(), |(_, center)| center);
+    let covariance = match retry_covariance(&center, ctx, posterior, posterior_score)? {
+        Some(covariance) => Some(covariance),
+        None => draw_covariance(&first.transformed, p),
+    };
+    let warmup = sampler.warmup.saturating_mul(2);
+    let second = whitened_run(
+        &center,
+        covariance.as_deref(),
+        warmup,
+        Sampler::Nuts,
+        RETRY_START_SPREAD,
+        sampler,
+        posterior,
+        posterior_score,
+        &retry_context(ctx),
+    )?;
+    if second.converged {
+        return Ok(Some(second));
+    }
+    let third = whitened_run(
+        &center,
+        covariance.as_deref(),
+        warmup,
+        Sampler::Tempered,
+        CHAIN_START_SPREAD,
+        sampler,
+        posterior,
+        posterior_score,
+        &retry_context_at(ctx, 1),
+    )?;
+    Ok(third.converged.then_some(third))
+}
+
+#[allow(clippy::too_many_arguments)]
 fn posterior_draws(
     data: &likelihood::CompiledPanel<'_>,
     local: &LocalFit,
+    declared: &[f64],
     optimizer: PanelOptimizerOptions,
     prior: &PanelPrior,
     sampler: &super::PanelSamplingOptions,
@@ -1110,47 +1226,18 @@ fn posterior_draws(
         &mode,
         inverse.as_deref(),
         sampler.warmup,
-        false,
+        Sampler::Hamiltonian,
+        CHAIN_START_SPREAD,
         sampler,
         &posterior,
         &posterior_score,
         ctx,
     )?;
-    // A run that misses its diagnostics is usually whitened at a mode search that stalled short
-    // of the score tolerance, where the curvature is a poor scale or not positive definite at
-    // all, or traverses a curved ridge (a Hill shape and half-saturation the doses identify
-    // only jointly) that a fixed-length trajectory crosses too slowly. The posterior is then
-    // sampled once more by the No-U-Turn sampler, on its own streams and with twice the
-    // warmup, whitened at the mode finished with Newton steps by the inverse curvature of the
-    // exact score there, else by the covariance of the first run's draws. Only a second run
-    // that meets the diagnostics replaces the first, so a posterior that converges the first
-    // time is untouched and every published posterior met its own diagnostics.
-    if !run.converged {
-        let center = polished_center(
-            &mode,
-            optimizer.gradient_tolerance,
-            ctx,
-            &posterior,
-            &posterior_score,
-        )?;
-        let covariance = match retry_covariance(&center, ctx, &posterior, &posterior_score)? {
-            Some(covariance) => Some(covariance),
-            None => draw_covariance(&run.transformed, p),
-        };
-        let retry_ctx = retry_context(ctx);
-        let second = whitened_run(
-            &center,
-            covariance.as_deref(),
-            sampler.warmup.saturating_mul(2),
-            true,
-            sampler,
-            &posterior,
-            &posterior_score,
-            &retry_ctx,
-        )?;
-        if second.converged {
-            run = second;
-        }
+    if !run.converged
+        && let Some(second) =
+            resample(&mode, declared, &run, optimizer, sampler, &posterior, &posterior_score, ctx)?
+    {
+        run = second;
     }
     diagnostics.max_rhat = Some(run.summary.max_rhat);
     diagnostics.min_bulk_ess = Some(run.summary.min_bulk_ess);

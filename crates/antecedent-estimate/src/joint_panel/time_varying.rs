@@ -946,6 +946,7 @@ fn sample_model_mixture(
     density: &SpecificationDensity<'_>,
     sampler: &super::PanelSamplingOptions,
     nuts: bool,
+    spread: f64,
     ctx: &ExecutionContext,
 ) -> Result<Vec<f64>, PanelError> {
     let n = whitenings.len();
@@ -975,7 +976,7 @@ fn sample_model_mixture(
             for attempt in 0..64 {
                 let model = (chain + attempt) % n;
                 let z: Vec<f64> = (0..d)
-                    .map(|_| inference::CHAIN_START_SPREAD * standard_normal(&mut rng))
+                    .map(|_| spread * standard_normal(&mut rng))
                     .collect();
                 if let Some((logp, gradient)) = target_of(model, &z)
                     && logp.is_finite()
@@ -1215,8 +1216,14 @@ fn fit_temporal_inner(
                     && all_chains_moved(samples, sampler.chains, sampler.draws, dimensions);
                 (summary, met)
             };
-            let mut samples =
-                sample_model_mixture(&whitenings, &density_gradient, sampler, false, ctx)?;
+            let mut samples = sample_model_mixture(
+                &whitenings,
+                &density_gradient,
+                sampler,
+                false,
+                inference::CHAIN_START_SPREAD,
+                ctx,
+            )?;
             let (mut summary, mut met) = converged(&samples);
             // A run that misses its diagnostics is sampled once more, on its own streams, with
             // twice the warmup and No-U-Turn transitions within each specification, each
@@ -1252,6 +1259,7 @@ fn fit_temporal_inner(
                     &density_gradient,
                     &longer,
                     true,
+                    inference::RETRY_START_SPREAD,
                     &inference::retry_context(ctx),
                 )?;
                 let (second_summary, second_met) = converged(&second);
@@ -2105,6 +2113,7 @@ mod tests {
             &density,
             &sampler,
             false,
+            inference::CHAIN_START_SPREAD,
             &ExecutionContext::for_tests(5),
         )
         .unwrap();
