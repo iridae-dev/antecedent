@@ -1248,7 +1248,8 @@ fn add_target_mean_uncertainty(
     };
     let nrows = problem.design.nrows;
     let mass: f64 = moments.weights.iter().sum();
-    if n_draws == 0 || nrows == 0 || moments.weights.len() != nrows || !(mass > 0.0) {
+    if n_draws == 0 || nrows == 0 || moments.weights.len() != nrows || mass.is_nan() || mass <= 0.0
+    {
         return;
     }
     let column_of = |coef_index: usize| {
@@ -1270,7 +1271,7 @@ fn add_target_mean_uncertainty(
     for d in 0..n_draws {
         let omega = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, nrows, false);
         let total: f64 = omega.iter().zip(moments.weights.iter()).map(|(o, w)| o * w).sum();
-        if !(total > 0.0) {
+        if total.is_nan() || total <= 0.0 {
             continue;
         }
         let mut shift = 0.0;
