@@ -1720,19 +1720,14 @@ fn experiment_source(cell: Cell, path: Path, seed: u64) -> Source {
     let groups = path.groups();
     let functional = JointPanelResponseFunctional::TerminalMean;
     // The source posterior must pass its declared diagnostics before an experiment can update
-    // it. One fit serves every replicate, so it gets generous effort, and a posterior that
-    // misses the thresholds is refitted on a fresh panel a bounded number of times, with the
-    // diagnostics printed, before the test fails.
+    // it, under the library's default schedule (the update re-runs the source fit for every
+    // replicate). A posterior that misses the thresholds is refitted on a fresh panel a
+    // bounded number of times, with the diagnostics printed, before the test fails.
     let mut source = None;
     for attempt in 0..SOURCE_ATTEMPTS {
         let attempt_seed = seed + 7_919 * attempt;
         let generated = generate_panel(cell, path, groups, attempt_seed);
-        let sampling = PanelSamplingOptions {
-            chains: 4,
-            warmup: 5_000,
-            draws: 5_000,
-            ..PanelSamplingOptions::default()
-        };
+        let sampling = default_sampling();
         let fitted =
             fit_generated(cell, path, Mode::Bayesian, sampling, groups, generated, attempt_seed);
         let (prepared, result, _, _, _) = match fitted {
