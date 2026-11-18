@@ -201,8 +201,14 @@ fn set_tallies(
     dgp: &'static str,
     interval: &'static str,
 ) -> [CoverageTally; 2] {
+    // One test can score more than one set kind (edge and adjacency), so each pair is
+    // labelled by its kind: the tally sidecar keys a tally by name and level, and two kinds
+    // under one name would overwrite each other's state.
     let key = RecordKey { test, dgp, interval };
-    [CoverageTally::for_record(key, REPORTED_LEVEL), CoverageTally::for_record(key, GATE_LEVEL)]
+    [
+        CoverageTally::for_record(key, REPORTED_LEVEL).labelled(interval),
+        CoverageTally::for_record(key, GATE_LEVEL).labelled(interval),
+    ]
 }
 
 /// Record one replicate's set at both levels: `[0, 1]` when it holds the truth, `[2, 3]` when
