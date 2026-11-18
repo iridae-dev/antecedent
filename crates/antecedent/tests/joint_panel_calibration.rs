@@ -2414,25 +2414,30 @@ enum SearchReading {
     Refused(String),
 }
 
-fn search_domain(lagged: bool) -> (FiniteProgramDomain, usize) {
-    let offsets: Vec<i32> = if lagged {
-        (HORIZON - 3..HORIZON).map(|offset| i32::try_from(offset).unwrap()).collect()
-    } else {
-        vec![i32::try_from(HORIZON - 1).unwrap()]
-    };
+/// The search binds every channel at every scheduled offset, as the runtime requires. Only the
+/// last periods' doses are free; every earlier offset is pinned at the reference world's dose
+/// (zero), which costs no budget and no proposal. Also returns the positions of the free
+/// controls, channel by channel in offset order: the layout [`ProgramTruth::value`] reads.
+fn search_domain(lagged: bool) -> (FiniteProgramDomain, Vec<usize>) {
+    let searched = if lagged { HORIZON - 3 } else { HORIZON - 1 };
     let controls: Vec<ProgramControl> = (0..2_u32)
         .flat_map(|channel| {
-            offsets.iter().map(move |&offset| ProgramControl {
+            (0..HORIZON).map(move |offset| ProgramControl {
                 variable: VariableId::from_raw(channel),
-                offset,
+                offset: i32::try_from(offset).unwrap(),
                 lower: 0.0,
-                upper: SEARCH_DOSE_CAP,
+                upper: if offset >= searched { SEARCH_DOSE_CAP } else { 0.0 },
                 unit_cost: 1.0,
             })
         })
         .collect();
-    let n = controls.len();
-    (FiniteProgramDomain { controls, budget: Some(SEARCH_BUDGET), restrictions: vec![] }, n)
+    let free = controls
+        .iter()
+        .enumerate()
+        .filter(|(_, control)| control.upper > control.lower)
+        .map(|(index, _)| index)
+        .collect();
+    (FiniteProgramDomain { controls, budget: Some(SEARCH_BUDGET), restrictions: vec![] }, free)
 }
 
 fn search_reading(
@@ -2444,7 +2449,8 @@ fn search_reading(
         Ok(fitted) => fitted,
         Err(reason) => return SearchReading::Refused(reason),
     };
-    let (domain, n) = search_domain(truth.lagged);
+    let (domain, free) = search_domain(truth.lagged);
+    let n = domain.controls.len();
     let search = match result.compile_continuous_search(
         JointPanelContinuousSearchRequest {
             base_world: ScientificWorldId::from_raw(0),
@@ -2482,7 +2488,8 @@ fn search_reading(
     let Some(best) = found.search.best.as_ref() else {
         return SearchReading::Refused("no feasible program".into());
     };
-    let selected_value = truth.value(&best.controls);
+    let selected: Vec<f64> = free.iter().map(|&index| best.controls[index]).collect();
+    let selected_value = truth.value(&selected);
     let interval = found.search.reliability.interval();
     let bound = interval
         .and_then(|interval| selected_value_basis(&interval.coordinate, LEVEL))
