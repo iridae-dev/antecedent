@@ -56,6 +56,7 @@ fn problem(case: &Value) -> PreparedBayesianProblem {
     let covariates: Vec<(VariableId, &[f64])> =
         columns.iter().map(|(id, c)| (*id, c.as_slice())).collect();
     PreparedBayesianProblem {
+        target_moments: None,
         design: CompiledDesign::linear_adjustment(&treatment, &covariates, &outcome, &[])
             .expect("design"),
         method: Arc::from("backdoor.adjustment"),

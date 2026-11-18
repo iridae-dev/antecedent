@@ -423,6 +423,7 @@ fn prepare_bayesian_response_design(
         &sample.keep,
     )?;
     let prep = crate::PreparedBayesianProblem {
+        target_moments: None,
         design,
         method: Arc::from("response.backdoor"),
         adjustment_set: Arc::clone(adjustment_set),
@@ -1102,6 +1103,7 @@ impl ContinuousResponseEstimator {
             &sample.keep,
         )?;
         Ok(crate::PreparedBayesianProblem {
+            target_moments: None,
             design,
             method: Arc::from("response.linear"),
             adjustment_set: self.adjustment_set.clone(),

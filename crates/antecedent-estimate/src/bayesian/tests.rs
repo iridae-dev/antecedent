@@ -205,6 +205,7 @@ fn conditional_logit_contrast_uses_both_intervention_rows_on_outcome_scale() {
     )
     .unwrap();
     let problem = PreparedBayesianProblem {
+        target_moments: None,
         design,
         method: Arc::from("backdoor.adjustment"),
         adjustment_set: Arc::from([]),

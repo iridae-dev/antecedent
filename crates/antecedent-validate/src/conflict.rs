@@ -307,6 +307,7 @@ mod invalid_public_policy_tests {
         let treatment = [0.0, 1.0, 0.0, 1.0];
         let outcomes = [0.0, 1.0, 0.2, 1.2];
         let problem = PreparedBayesianProblem {
+            target_moments: None,
             design: antecedent_stats::CompiledDesign::linear_adjustment(
                 &treatment,
                 &[],

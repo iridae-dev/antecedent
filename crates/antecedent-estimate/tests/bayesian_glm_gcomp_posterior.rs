@@ -29,6 +29,7 @@ fn problem(control_outcomes: &[f64], active_outcomes: &[f64]) -> PreparedBayesia
         control_outcomes.iter().chain(active_outcomes.iter()).copied().collect();
     let design = CompiledDesign::linear_adjustment(&treatment, &[], &outcome, &[]).expect("design");
     PreparedBayesianProblem {
+        target_moments: None,
         design,
         method: Arc::from("backdoor.adjustment"),
         adjustment_set: Arc::from(Vec::new()),
