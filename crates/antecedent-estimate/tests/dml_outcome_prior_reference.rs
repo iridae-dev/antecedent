@@ -181,6 +181,7 @@ fn assert_hand_computed(
     // the object under test); the outcome nuisance and the score are recomputed here.
     let clip = table.propensity_clip;
     let mut phi = vec![0.0; n];
+    let (mut mu0s, mut mu1s) = (vec![0.0; n], vec![0.0; n]);
     for i in 0..n {
         let fold = table.fold_ids[i];
         let in_fold = |j: usize| table.fold_ids[j] == fold;
@@ -188,6 +189,7 @@ fn assert_hand_computed(
         let treated: Vec<usize> = (0..n).filter(|&j| !in_fold(j) && d.t[j] > 0.5).collect();
         let (b0, b1) = (arm_map(&control, d, mean, v0), arm_map(&treated, d, mean, v0));
         let (mu0, mu1) = (b0[0] + b0[1] * d.z[i], b1[0] + b1[1] * d.z[i]);
+        (mu0s[i], mu1s[i]) = (mu0, mu1);
         let mut e = table.propensities[n + i];
         if let Some(c) = clip {
             e = e.clamp(c, 1.0 - c);
@@ -202,9 +204,41 @@ fn assert_hand_computed(
     }
     let expected = phi.iter().sum::<f64>() / n as f64;
     assert!((fit.ate - expected).abs() <= 1e-9, "{} vs {expected}", fit.ate);
-    // The interval keeps its form: the standard error is that of the score's influence, equal to
-    // the iid standard error of the hand-computed scores up to the variance denominator.
-    let centred: f64 = phi.iter().map(|v| (v - expected).powi(2)).sum::<f64>();
+    // The standard error is that of the score's influence with the first-order term for the
+    // estimated logistic propensity e = sigma(g0 + g1 z): D' I^-1 x (T - e), D the mean derivative
+    // of the score in (g0, g1) over the unclipped rows and I the logistic information. With an
+    // outcome prior the outcome model can be wrong, and then this term is not zero.
+    let (mut derivative, mut info) = ([0.0_f64; 2], [[0.0_f64; 2]; 2]);
+    for i in 0..n {
+        let raw = table.propensities[n + i];
+        let x = [1.0, d.z[i]];
+        let e = clip.map_or(raw, |c| raw.clamp(c, 1.0 - c));
+        if e == raw {
+            let slope = -(d.t[i] * (d.y[i] - mu1s[i]) * (1.0 - e) / e
+                + (1.0 - d.t[i]) * (d.y[i] - mu0s[i]) * e / (1.0 - e));
+            for c in 0..2 {
+                derivative[c] += slope * x[c] / n as f64;
+            }
+        }
+        for a in 0..2 {
+            for b in 0..2 {
+                info[a][b] += raw * (1.0 - raw) * x[a] * x[b] / n as f64;
+            }
+        }
+    }
+    let det = info[0][0] * info[1][1] - info[0][1] * info[1][0];
+    let alpha = [
+        (info[1][1] * derivative[0] - info[0][1] * derivative[1]) / det,
+        (info[0][0] * derivative[1] - info[1][0] * derivative[0]) / det,
+    ];
+    let influence: Vec<f64> = (0..n)
+        .map(|i| {
+            let raw = table.propensities[n + i];
+            (phi[i] - expected) + (alpha[0] + alpha[1] * d.z[i]) * (d.t[i] - raw)
+        })
+        .collect();
+    let centre = influence.iter().sum::<f64>() / n as f64;
+    let centred: f64 = influence.iter().map(|v| (v - centre).powi(2)).sum::<f64>();
     let se = (centred / (n as f64 * (n as f64 - 1.0))).sqrt();
     let published = fit.uncertainty.analytic.se;
     assert!((published - se).abs() <= se / n as f64, "{published} vs {se}");
