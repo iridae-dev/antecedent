@@ -10,14 +10,15 @@ use antecedent_core::{
     execution_attempt::{Operation, PhysicalEvent, record_physical, run_operation},
 };
 use antecedent_kernels::{chol_inverse, cholesky_spd_into, standard_normal};
-use antecedent_prob::{
-    all_chains_moved, mcmc_summary_parallel,
-    metropolis::{MetropolisOptions, sample_metropolis_dispersed_parallel},
-};
+use antecedent_prob::{all_chains_moved, mcmc_summary_parallel};
 use std::sync::Arc;
 
 /// Standard deviation, in whitened posterior units, of the offset each chain starts from.
 pub(super) const CHAIN_START_SPREAD: f64 = 2.0;
+/// Leapfrog steps per Hamiltonian transition of a panel posterior in whitened coordinates.
+pub(super) const PANEL_LEAPFROG_STEPS: u32 = 10;
+/// Acceptance probability the panel posterior's step adaptation targets.
+pub(super) const PANEL_TARGET_ACCEPT: f64 = 0.8;
 
 fn score(
     data: &likelihood::CompiledPanel<'_>,
@@ -617,6 +618,10 @@ pub(super) fn validate_options(options: &PanelFitOptions) -> Result<usize, Panel
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "admission, the local fit and every inference policy share one bounded sequence"
+)]
 pub(super) fn fit(
     data: &PanelData,
     options: &PanelFitOptions,
@@ -653,13 +658,32 @@ pub(super) fn fit(
         let local = if matches!(options.inference, PanelInference::Frequentist { .. }) {
             frequentist_local_fit(data, start, options.optimizer, ctx)?
         } else {
-            optimize_target_exact(
+            let fallback = start.clone();
+            match optimize_target_exact(
                 start,
                 options.optimizer,
                 ctx,
                 &|x| likelihood::log_likelihood(data, x),
                 &|x| log_likelihood_score(data, x, ctx),
-            )?
+            ) {
+                Ok(fit) => fit,
+                // A posterior only starts and preconditions its sampler from the local fit, and
+                // is gated by its own diagnostics: a local search that met a non-finite score
+                // starts it from the declared initial point instead of refusing the fit.
+                Err(PanelError::Numerical(_))
+                    if matches!(options.inference, PanelInference::Bayesian { .. }) =>
+                {
+                    LocalFit {
+                        likelihood: likelihood::log_likelihood(data, &fallback),
+                        values: fallback,
+                        score_norm: f64::INFINITY,
+                        iterations: 0,
+                        converged: false,
+                        line_search_exhausted: false,
+                    }
+                }
+                Err(error) => return Err(error),
+            }
         };
         let inverse = information_inverse(data, &local.values, ctx)?;
         let point = point(data, &local.values)?;
@@ -850,8 +874,18 @@ fn posterior_draws(
     let posterior = |x: &[f64]| likelihood::log_likelihood(data, x) + log_prior(data, x, prior);
     // Priors can materially alter weak likelihood directions. Whitening at the
     // posterior mode uses the exact sampled density, including transform Jacobians.
-    let mode = optimize_target(local.values.clone(), optimizer, ctx, &posterior)?;
-    let inverse = information_inverse_target(&mode.values, ctx, &posterior)?;
+    // A mode search that meets a non-finite score whitens at the local fit instead, as each
+    // temporal specification does; the draws are still gated by their own diagnostics.
+    let mode = match optimize_target(local.values.clone(), optimizer, ctx, &posterior) {
+        Ok(fit) => fit.values,
+        Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
+        Err(_) => local.values.clone(),
+    };
+    let inverse = match information_inverse_target(&mode, ctx, &posterior) {
+        Ok(inverse) => inverse,
+        Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
+        Err(_) => None,
+    };
     Ok({
         diagnostics.uncertainty = "marginal hierarchical Gaussian-AR1 posterior under explicit priors, with one conditional Gaussian random-intercept draw per group jointly shared across all worlds; no predictive outcome innovations or coverage claim".into();
         let mut lower = vec![0.0; p * p];
@@ -865,8 +899,7 @@ fn posterior_draws(
             }
         }
         let transform = |z: &[f64]| -> Vec<f64> {
-            mode.values
-                .iter()
+            mode.iter()
                 .enumerate()
                 .map(|(row, value)| {
                     value
@@ -878,20 +911,46 @@ fn posterior_draws(
                 })
                 .collect()
         };
-        let samples = sample_metropolis_dispersed_parallel(
+        // Hamiltonian Monte Carlo in the whitened coordinates: the gradient is the exact panel
+        // score plus the central-difference gradient of the prior, carried to `z` through the
+        // whitening factor (`∇_z = Lᵀ ∇_x`). A whitened random walk could not traverse the
+        // curved posteriors of short or lagged panels (R-hat to 1.3, bulk ESS to 11 at 8000
+        // draws per chain), and a posterior that misses its diagnostics publishes nothing.
+        let target = |z: &[f64]| -> Option<(f64, Vec<f64>)> {
+            let x = transform(z);
+            let value = posterior(&x);
+            if !value.is_finite() {
+                return None;
+            }
+            let mut gradient_x = log_likelihood_score(data, &x, ctx).ok()?;
+            let mut work = x.clone();
+            for (j, slot) in gradient_x.iter_mut().enumerate() {
+                let step = 1e-5 * (1.0 + x[j].abs());
+                work[j] = x[j] + step;
+                let high = log_prior(data, &work, prior);
+                work[j] = x[j] - step;
+                let low = log_prior(data, &work, prior);
+                work[j] = x[j];
+                *slot += (high - low) / (2.0 * step);
+            }
+            let gradient_z = (0..p)
+                .map(|column| (0..p).map(|row| lower[row * p + column] * gradient_x[row]).sum())
+                .collect();
+            Some((value, gradient_z))
+        };
+        let samples = antecedent_prob::gradient_hmc::sample_gradient_hmc_dispersed_parallel(
             &vec![0.0; p],
             CHAIN_START_SPREAD,
-            MetropolisOptions {
+            antecedent_prob::gradient_hmc::GradientHmcOptions {
                 chains: sampler.chains,
                 warmup: sampler.warmup,
                 draws: sampler.draws,
-                proposal_scale: sampler.proposal_scale,
+                leapfrog_steps: PANEL_LEAPFROG_STEPS,
+                initial_step: sampler.proposal_scale,
+                target_accept: PANEL_TARGET_ACCEPT,
             },
             ctx,
-            |z| {
-                let x = transform(z);
-                posterior(&x)
-            },
+            &target,
         )
         .map_err(|error| {
             if ctx.cancellation.is_cancelled() {
