@@ -651,6 +651,175 @@ fn run_nuts_chain(
     Ok((samples, moved))
 }
 
+/// Replica exchange of No-U-Turn chains: each of `options.chains` chains runs one replica per
+/// inverse temperature in `ladder` (descending from 1), each targeting the density raised to
+/// its inverse temperature with its own adapted step, and after every iteration proposes to
+/// swap the states of adjacent replicas (even and odd pairs alternately). Only the states of
+/// the untempered replica are retained, so the draws target the density itself; the hotter
+/// replicas carry states between modes the untempered replica alone would not cross.
+///
+/// # Errors
+/// As [`sample_nuts_dispersed_parallel`], or a ladder that is empty, longer than 16, does
+/// not start at 1 or does not decrease strictly within `(0, 1]`.
+pub fn sample_tempered_nuts_dispersed_parallel(
+    center: &[f64],
+    spread: f64,
+    options: NutsOptions,
+    ladder: &[f64],
+    ctx: &ExecutionContext,
+    target: &GradientTarget<'_>,
+) -> Result<MetropolisDraws, MetropolisError> {
+    #[allow(clippy::float_cmp, reason = "the untempered rung is exactly one")]
+    let untempered = ladder.first().is_some_and(|&beta| beta == 1.0);
+    if ladder.is_empty()
+        || ladder.len() > 16
+        || !untempered
+        || ladder.windows(2).any(|pair| !(pair[1] < pair[0] && pair[1] > 0.0))
+    {
+        return Err(MetropolisError::Invalid("inverse temperature ladder"));
+    }
+    let p = center.len();
+    if p == 0
+        || p > 1024
+        || options.chains < 2
+        || options.chains > 16
+        || options.draws < 8
+        || options.draws > 100_000
+        || options.warmup > 100_000
+        || options.max_depth == 0
+        || options.max_depth > 12
+        || !(options.initial_step.is_finite() && options.initial_step > 0.0)
+        || !(options.target_accept > 0.0 && options.target_accept < 1.0)
+        || !(spread.is_finite() && spread > 0.0)
+        || center.iter().any(|v| !v.is_finite())
+    {
+        return Err(MetropolisError::Invalid("shape or limits"));
+    }
+    let bytes = p
+        .checked_mul(options.chains)
+        .and_then(|x| x.checked_mul(options.draws))
+        .and_then(|x| x.checked_add(8 * p * ladder.len()))
+        .and_then(|x| x.checked_mul(8))
+        .and_then(|x| u64::try_from(x).ok())
+        .ok_or(MetropolisError::Invalid("size overflow"))?;
+    let _lease = ctx
+        .acquire_admission(0, bytes)
+        .map_err(|error| MetropolisError::Resource(error.to_string()))?;
+    let chains = ctx.map_indexed(options.chains, |chain, _inner| {
+        run_tempered_chain(chain, center, spread, options, ladder, ctx, target)
+    })?;
+    let mut samples = Vec::with_capacity(p * options.chains * options.draws);
+    let mut accepted = Vec::with_capacity(options.chains);
+    for (chain_samples, count) in chains {
+        samples.extend_from_slice(&chain_samples);
+        accepted.push(count);
+    }
+    Ok(MetropolisDraws { samples, accepted })
+}
+
+/// One replica: position, untempered log density and gradient.
+struct Replica {
+    q: Vec<f64>,
+    logp: f64,
+    gradient: Vec<f64>,
+}
+
+fn run_tempered_chain(
+    chain: usize,
+    center: &[f64],
+    spread: f64,
+    options: NutsOptions,
+    ladder: &[f64],
+    ctx: &ExecutionContext,
+    target: &GradientTarget<'_>,
+) -> Result<(Vec<f64>, usize), MetropolisError> {
+    let p = center.len();
+    let mut rng =
+        ctx.rng.stream(antecedent_core::derive_stream(0x5054_4e55_4348_4e53, chain as u64));
+    let mut start_rng =
+        ctx.rng.stream(antecedent_core::derive_stream(0x5054_4e55_5354_5254, chain as u64));
+    let mut replicas = Vec::with_capacity(ladder.len());
+    for _ in ladder {
+        let mut start = None;
+        for _ in 0..64 {
+            let q: Vec<f64> =
+                center.iter().map(|x| x + spread * standard_normal(&mut start_rng)).collect();
+            if let Some((logp, gradient)) = target(&q)
+                && logp.is_finite()
+                && gradient.len() == p
+                && gradient.iter().all(|g| g.is_finite())
+            {
+                start = Some(Replica { q, logp, gradient });
+                break;
+            }
+        }
+        replicas.push(start.ok_or(MetropolisError::Invalid("dispersed start density"))?);
+    }
+    let mut adaptations: Vec<StepAdaptation> = ladder
+        .iter()
+        .map(|_| StepAdaptation::new(options.initial_step, options.target_accept))
+        .collect();
+    let mut steps = vec![options.initial_step; ladder.len()];
+    let mut samples = Vec::with_capacity(p * options.draws);
+    let mut moved = 0_usize;
+    for iteration in 0..options.warmup + options.draws {
+        if ctx.cancellation.is_cancelled() {
+            return Err(MetropolisError::Cancelled);
+        }
+        let before = replicas[0].q.clone();
+        for (rung, &beta) in ladder.iter().enumerate() {
+            if iteration == options.warmup && options.warmup > 0 {
+                steps[rung] = adaptations[rung].finalize();
+            } else if iteration < options.warmup {
+                steps[rung] = adaptations[rung].step;
+            }
+            let tempered = |q: &[f64]| {
+                target(q).map(|(value, gradient)| {
+                    (beta * value, gradient.into_iter().map(|g| beta * g).collect())
+                })
+            };
+            let replica = &mut replicas[rung];
+            let mut logp = beta * replica.logp;
+            let mut gradient: Vec<f64> = replica.gradient.iter().map(|g| beta * g).collect();
+            let outcome = nuts_step(
+                &mut replica.q,
+                &mut logp,
+                &mut gradient,
+                steps[rung],
+                options.max_depth,
+                &tempered,
+                &mut rng,
+            )?;
+            if outcome.accepted {
+                // The untempered values at the new state, recomputed rather than divided out.
+                let Some((value, raw)) = target(&replica.q) else {
+                    return Err(MetropolisError::Invalid("nonfinite target"));
+                };
+                replica.logp = value;
+                replica.gradient = raw;
+            }
+            if iteration < options.warmup {
+                adaptations[rung].update(outcome.accept_prob);
+            }
+        }
+        // Even pairs on even iterations, odd pairs on odd ones.
+        let mut rung = iteration % 2;
+        while rung + 1 < ladder.len() {
+            let log_ratio =
+                (ladder[rung] - ladder[rung + 1]) * (replicas[rung + 1].logp - replicas[rung].logp);
+            if rng.next_f64().ln() < log_ratio {
+                replicas.swap(rung, rung + 1);
+            }
+            rung += 2;
+        }
+        if iteration >= options.warmup {
+            moved += usize::from(replicas[0].q != before);
+            samples.extend_from_slice(&replicas[0].q);
+        }
+    }
+    Ok((samples, moved))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -740,5 +909,37 @@ mod tests {
             sample_nuts_dispersed_parallel(&[0.0, 0.0], 1.0, options, &ctx, &target).unwrap()
         };
         assert_eq!(single.samples, draws.samples);
+    }
+
+    /// Replica exchange samples both modes of a well-separated two-component mixture in their
+    /// proportions, which untempered chains started in one mode do not.
+    #[test]
+    fn tempered_nuts_crosses_between_separated_modes() {
+        let ctx = ExecutionContext::for_tests(5);
+        // 0.3 N(-4, 0.5^2) + 0.7 N(4, 0.5^2).
+        let target = |x: &[f64]| {
+            let a = (0.3_f64).ln() - 0.5 * ((x[0] + 4.0) / 0.5).powi(2);
+            let b = (0.7_f64).ln() - 0.5 * ((x[0] - 4.0) / 0.5).powi(2);
+            let high = a.max(b);
+            let (wa, wb) = ((a - high).exp(), (b - high).exp());
+            let value = high + (wa + wb).ln();
+            let gradient = (wa * (-(x[0] + 4.0) / 0.25) + wb * (-(x[0] - 4.0) / 0.25)) / (wa + wb);
+            Some((value, vec![gradient]))
+        };
+        let options = NutsOptions {
+            chains: 4,
+            warmup: 500,
+            draws: 2000,
+            max_depth: 6,
+            initial_step: 0.3,
+            target_accept: 0.8,
+        };
+        let ladder = [1.0, 0.5, 0.25, 0.12, 0.06];
+        let draws =
+            sample_tempered_nuts_dispersed_parallel(&[-4.0], 0.1, options, &ladder, &ctx, &target)
+                .unwrap();
+        let right =
+            draws.samples.iter().filter(|&&x| x > 0.0).count() as f64 / draws.samples.len() as f64;
+        assert!((right - 0.7).abs() < 0.08, "share in the right mode {right}");
     }
 }
