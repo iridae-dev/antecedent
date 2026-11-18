@@ -9,8 +9,9 @@
 //!
 //! * shared misclassification: sensitivity 0.85, specificity 0.9, rates declared with variance
 //!   `1e-4`, continuous outcome, planted effect 2;
-//! * outcome-differential misclassification: cases (0.9, 0.8), controls (0.7, 0.95), a 0/1
-//!   outcome, truth the planted risk difference of a logistic outcome integrated over the
+//! * outcome-differential misclassification: cases (0.9, 0.8), controls (0.7, 0.95), each
+//!   declared as a validation study's estimate (planted rate plus an error of the declared
+//!   variance `1e-4`), a 0/1 outcome, truth the planted risk difference of a logistic outcome integrated over the
 //!   covariate;
 //! * per-unit probabilities calibrated given the covariate, planted effect 2;
 //! * covariate-dependent detection `expit(-1 + 0.8 c)` of a count `c ~ Poisson(3)` with its two
@@ -168,7 +169,7 @@ fn measured_exposure_differential_misclassification_rubin_l95() {
         0x4E12_0000,
         |seed| {
             replicate(
-                Scenario::Differential,
+                Scenario::DifferentialValidated,
                 "measurement.measured_exposure_effect.misclassified",
                 "declared_differential_by_outcome",
                 seed,
