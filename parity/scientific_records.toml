@@ -2177,6 +2177,16 @@ recorded_at = "2026-11-18T12:35:11Z"
 dependency_manifest = "ef6b6e4560e43b6db2843416074cf58aeea90ed0c772ad658bff58d962f7b749"
 
 [[record]]
+test = "antecedent-estimate::dml_outcome_prior_reference::the_aipw_estimator_route_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits"
+roles = ["scientific"]
+passed = true
+commit = "abb613114d36a1bfe610161f585b79b449ebb213"
+dirty = false
+fingerprint = "b8c50e126c7901f1320e134a38c826f341143d74992555efe93875b0a6d70077"
+recorded_at = "2026-11-18T17:00:44Z"
+dependency_manifest = "b05dc061bbe9754db0c60af017358b63801d01df8bf78cc0a8eed27c551e49ae"
+
+[[record]]
 test = "antecedent-estimate::dml_outcome_prior_reference::the_aipw_estimator_route_stays_consistent_under_a_misspecified_prior"
 roles = ["scientific"]
 passed = true
@@ -2185,6 +2195,16 @@ dirty = false
 fingerprint = "eb3e19530e7647139c5a6253c7b96888826a9ff32ddaa70c3fac1e887665e149"
 recorded_at = "2026-11-18T12:35:11Z"
 dependency_manifest = "68737594a968b3f87f74931b784505942d182eb3d3877956bce7eee8d814c644"
+
+[[record]]
+test = "antecedent-estimate::dml_outcome_prior_reference::the_aipw_point_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits"
+roles = ["scientific"]
+passed = true
+commit = "abb613114d36a1bfe610161f585b79b449ebb213"
+dirty = false
+fingerprint = "b8c50e126c7901f1320e134a38c826f341143d74992555efe93875b0a6d70077"
+recorded_at = "2026-11-18T17:00:44Z"
+dependency_manifest = "f2b5d3f8599981c7b244232ec7d4c2fa4cb039d5a2ff65d43febd44c821dbbd2"
 
 [[record]]
 test = "antecedent-estimate::dose_grid_functional::exact_quadratic_scope_derives_zero_bias_without_claiming_sampling_calibration"
