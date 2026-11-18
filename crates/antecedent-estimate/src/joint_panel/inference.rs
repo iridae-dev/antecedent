@@ -210,6 +210,157 @@ pub(super) fn optimize_target_with_score(
     })
 }
 
+/// Quasi-Newton iterations a frequentist fit runs before an unmet score tolerance switches it
+/// to Newton steps on the exact curvature.
+///
+/// The tolerance is absolute while the likelihood sums every row, so on a large or weakly
+/// conditioned panel the quasi-Newton iterate can reach the region where the objective no
+/// longer resolves its own gains and then crawl through the whole iteration budget a few
+/// multiples above the tolerance, which withholds the sandwich interval. A fit that meets
+/// the tolerance within this budget never reaches the Newton phase and is unchanged.
+const QUASI_NEWTON_BUDGET: usize = 500;
+/// Newton steps the polish takes before handing any remaining budget back.
+const NEWTON_STEPS: usize = 20;
+
+/// The local maximum of a frequentist fit: the quasi-Newton search, then, when it has not met
+/// the declared score tolerance, Newton steps on the exact score's own curvature
+/// ([`newton_polish`]), then the rest of the declared quasi-Newton budget from wherever the
+/// polish stopped. The tolerance keeps its meaning: the fit converges only when the largest
+/// absolute score is within it.
+fn frequentist_local_fit(
+    data: &likelihood::CompiledPanel<'_>,
+    start: Vec<f64>,
+    options: PanelOptimizerOptions,
+    ctx: &ExecutionContext,
+) -> Result<LocalFit, PanelError> {
+    let objective = |x: &[f64]| likelihood::log_likelihood(data, x);
+    let score = |x: &[f64]| log_likelihood_score(data, x, ctx);
+    let first = PanelOptimizerOptions {
+        max_iterations: options.max_iterations.min(QUASI_NEWTON_BUDGET),
+        ..options
+    };
+    let local = optimize_target_exact(start, first, ctx, &objective, &score)?;
+    if local.converged {
+        return Ok(local);
+    }
+    let polished = newton_polish(data, local, options.gradient_tolerance, ctx)?;
+    let remaining = options.max_iterations.saturating_sub(polished.iterations);
+    if polished.converged || remaining == 0 {
+        return Ok(polished);
+    }
+    let rest = PanelOptimizerOptions { max_iterations: remaining, ..options };
+    let mut resumed =
+        optimize_target_exact(polished.values.clone(), rest, ctx, &objective, &score)?;
+    resumed.iterations += polished.iterations;
+    Ok(if resumed.score_norm <= polished.score_norm { resumed } else { polished })
+}
+
+/// Newton steps `x + A⁻¹ g` from an iterate that has not met the score tolerance, with `A`
+/// the negative Hessian from central differences of the exact score at the iterate.
+///
+/// Near the maximum the objective changes by less than its own rounding, so a step is
+/// accepted when it lowers the largest absolute score and does not lower the objective by
+/// more than a rounding allowance; the backtracking halves the step otherwise. The polish
+/// stops at the tolerance, at a curvature that is not positive definite, or when no step
+/// improves the score.
+fn newton_polish(
+    data: &likelihood::CompiledPanel<'_>,
+    mut local: LocalFit,
+    tolerance: f64,
+    ctx: &ExecutionContext,
+) -> Result<LocalFit, PanelError> {
+    let max_abs = |values: &[f64]| values.iter().map(|value| value.abs()).fold(0.0_f64, f64::max);
+    let mut gradient = log_likelihood_score(data, &local.values, ctx)?;
+    let mut norm = max_abs(&gradient);
+    for _ in 0..NEWTON_STEPS {
+        check_cancelled(ctx)?;
+        if norm <= tolerance {
+            break;
+        }
+        let Some(inverse) = score_curvature_inverse(data, &local.values, ctx)? else {
+            break;
+        };
+        let p = local.values.len();
+        let direction: Vec<f64> = inverse
+            .chunks_exact(p)
+            .map(|row| row.iter().zip(&gradient).map(|(a, b)| a * b).sum())
+            .collect();
+        let allowance = 1e-10 * (1.0 + local.likelihood.abs());
+        let mut step = 1.0;
+        let mut accepted = None;
+        for _ in 0..30 {
+            let candidate: Vec<f64> =
+                local.values.iter().zip(&direction).map(|(x, d)| x + step * d).collect();
+            let value = likelihood::log_likelihood(data, &candidate);
+            if value.is_finite()
+                && value >= local.likelihood - allowance
+                && let Ok(next) = log_likelihood_score(data, &candidate, ctx)
+            {
+                let next_norm = max_abs(&next);
+                if next_norm.is_finite() && next_norm < norm {
+                    accepted = Some((candidate, value, next, next_norm));
+                    break;
+                }
+            }
+            step *= 0.5;
+        }
+        let Some((values, value, next, next_norm)) = accepted else {
+            break;
+        };
+        local.values = values;
+        local.likelihood = value;
+        gradient = next;
+        norm = next_norm;
+        local.iterations += 1;
+    }
+    local.score_norm = norm;
+    local.converged = norm <= tolerance;
+    local.line_search_exhausted = false;
+    Ok(local)
+}
+
+/// The inverse negative Hessian of the log likelihood from central differences of its exact
+/// score, or `None` when it is not positive definite or a nearby score is not finite.
+fn score_curvature_inverse(
+    data: &likelihood::CompiledPanel<'_>,
+    x: &[f64],
+    ctx: &ExecutionContext,
+) -> Result<Option<Vec<f64>>, PanelError> {
+    let p = x.len();
+    let mut matrix = vec![0.0; p * p];
+    let mut work = x.to_vec();
+    for (column, &original) in x.iter().enumerate() {
+        check_cancelled(ctx)?;
+        let step = 1e-4 * (1.0 + original.abs());
+        work[column] = original + step;
+        let high = log_likelihood_score(data, &work, ctx);
+        work[column] = original - step;
+        let low = log_likelihood_score(data, &work, ctx);
+        work[column] = original;
+        let (Ok(high), Ok(low)) = (high, low) else {
+            return Ok(None);
+        };
+        for (row, (&high, &low)) in high.iter().zip(&low).enumerate() {
+            matrix[row * p + column] = -(high - low) / (2.0 * step);
+        }
+    }
+    for row in 0..p {
+        for column in 0..row {
+            let value = 0.5 * (matrix[row * p + column] + matrix[column * p + row]);
+            matrix[row * p + column] = value;
+            matrix[column * p + row] = value;
+        }
+    }
+    let mut lower = vec![0.0; p * p];
+    if matrix.iter().any(|value| !value.is_finite())
+        || cholesky_spd_into(&matrix, p, &mut lower).is_err()
+    {
+        return Ok(None);
+    }
+    let inverse = chol_inverse(&lower, p);
+    Ok(inverse.iter().all(|value| value.is_finite()).then_some(inverse))
+}
+
 fn information_inverse(
     data: &likelihood::CompiledPanel<'_>,
     x: &[f64],
@@ -458,13 +609,17 @@ pub(super) fn fit(
     let start = likelihood::encode(data, &initial)?;
     record_physical(PhysicalEvent::Scan, 1);
     run_operation(Operation::AdjustedFit, || {
-        let local = optimize_target_exact(
-            start,
-            options.optimizer,
-            ctx,
-            &|x| likelihood::log_likelihood(data, x),
-            &|x| log_likelihood_score(data, x, ctx),
-        )?;
+        let local = if matches!(options.inference, PanelInference::Frequentist { .. }) {
+            frequentist_local_fit(data, start, options.optimizer, ctx)?
+        } else {
+            optimize_target_exact(
+                start,
+                options.optimizer,
+                ctx,
+                &|x| likelihood::log_likelihood(data, x),
+                &|x| log_likelihood_score(data, x, ctx),
+            )?
+        };
         let inverse = information_inverse(data, &local.values, ctx)?;
         let point = point(data, &local.values)?;
         let mut diagnostics = PanelFitDiagnostics {
@@ -816,5 +971,73 @@ mod bootstrap_tests {
         let fitted = fit(&source, &options, &ctx).unwrap();
         assert!(fitted.draws.iter().all(Option::is_some));
         assert!(fitted.diagnostics.uncertainty.contains("bootstrap"));
+    }
+}
+
+#[cfg(test)]
+mod frequentist_convergence_tests {
+    use super::*;
+
+    fn max_abs(values: &[f64]) -> f64 {
+        values.iter().map(|value| value.abs()).fold(0.0_f64, f64::max)
+    }
+
+    /// From an iterate well short of the maximum, Newton steps on the exact curvature meet a
+    /// tolerance far tighter than the one the quasi-Newton search stopped at.
+    #[test]
+    fn newton_polish_meets_a_tight_tolerance_from_a_stalled_iterate() {
+        let (source, _, _) = super::super::tests::fixture();
+        let data = likelihood::CompiledPanel::new(&source).unwrap();
+        let ctx = ExecutionContext::for_tests(11);
+        let start = likelihood::encode(&data, &likelihood::initial(&data)).unwrap();
+        let loose = PanelOptimizerOptions { max_iterations: 4_000, gradient_tolerance: 1e-2 };
+        let stalled = optimize_target_exact(
+            start,
+            loose,
+            &ctx,
+            &|x| likelihood::log_likelihood(&data, x),
+            &|x| log_likelihood_score(&data, x, &ctx),
+        )
+        .unwrap();
+        assert!(stalled.converged);
+        let tight = 1e-7;
+        assert!(
+            stalled.score_norm > tight,
+            "the loose stop is already tight: {}",
+            stalled.score_norm
+        );
+        let stalled_likelihood = stalled.likelihood;
+        let polished = newton_polish(&data, stalled, tight, &ctx).unwrap();
+        assert!(polished.converged, "score norm {}", polished.score_norm);
+        let score = log_likelihood_score(&data, &polished.values, &ctx).unwrap();
+        assert!(max_abs(&score) <= tight);
+        assert!(
+            polished.likelihood >= stalled_likelihood - 1e-10 * (1.0 + stalled_likelihood.abs())
+        );
+    }
+
+    /// A frequentist fit that meets its tolerance within the quasi-Newton budget is the
+    /// quasi-Newton fit itself, bit for bit.
+    #[test]
+    fn a_fit_converging_within_the_budget_is_unchanged() {
+        let (source, _, _) = super::super::tests::fixture();
+        let data = likelihood::CompiledPanel::new(&source).unwrap();
+        let ctx = ExecutionContext::for_tests(12);
+        let start = likelihood::encode(&data, &likelihood::initial(&data)).unwrap();
+        let options = PanelOptimizerOptions::default();
+        let direct = optimize_target_exact(
+            start.clone(),
+            options,
+            &ctx,
+            &|x| likelihood::log_likelihood(&data, x),
+            &|x| log_likelihood_score(&data, x, &ctx),
+        )
+        .unwrap();
+        assert!(direct.converged && direct.iterations < QUASI_NEWTON_BUDGET);
+        let staged = frequentist_local_fit(&data, start, options, &ctx).unwrap();
+        let bits = |values: &[f64]| values.iter().map(|value| value.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(&direct.values), bits(&staged.values));
+        assert_eq!(direct.iterations, staged.iterations);
+        assert_eq!(direct.likelihood.to_bits(), staged.likelihood.to_bits());
     }
 }
