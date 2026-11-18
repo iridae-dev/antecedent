@@ -19,6 +19,8 @@ pub(super) const CHAIN_START_SPREAD: f64 = 2.0;
 pub(super) const PANEL_LEAPFROG_STEPS: u32 = 10;
 /// Acceptance probability the panel posterior's step adaptation targets.
 pub(super) const PANEL_TARGET_ACCEPT: f64 = 0.8;
+/// Most trajectory doublings of a No-U-Turn transition when a posterior is sampled again.
+pub(super) const PANEL_NUTS_DEPTH: u32 = 8;
 
 fn score(
     data: &likelihood::CompiledPanel<'_>,
@@ -861,6 +863,208 @@ fn model_factor(covariance: &[f64], p: usize) -> Option<Vec<Vec<f64>>> {
     cholesky_spd_into(covariance, p, &mut lower).ok()?;
     Some((0..p).map(|column| (0..p).map(|row| lower[row * p + column]).collect()).collect())
 }
+/// Stream key of a posterior's second whitened run, so the run after a failed first one does
+/// not replay the first one's momenta and starts.
+pub(super) const RETRY_STREAM: u64 = 0x5830_3352_4554_5259;
+
+/// The execution context of a posterior's second run: the same budgets, a derived seed.
+pub(super) fn retry_context(ctx: &ExecutionContext) -> ExecutionContext {
+    let mut retry = ctx.clone();
+    retry.rng = antecedent_core::RngFactory::from_seed(antecedent_core::derive_stream(
+        ctx.rng.master_seed(),
+        RETRY_STREAM,
+    ));
+    retry
+}
+
+/// The center of a second whitening: `start` finished with up to [`NEWTON_STEPS`] Newton steps
+/// on the curvature of `score` ([`newton_polish_with`]), or `start` itself when no step
+/// improves its score. A center already within `tolerance` is returned as it is.
+pub(super) fn polished_center(
+    start: &[f64],
+    tolerance: f64,
+    ctx: &ExecutionContext,
+    density: &impl Fn(&[f64]) -> f64,
+    score: &impl Fn(&[f64]) -> Result<Vec<f64>, PanelError>,
+) -> Result<Vec<f64>, PanelError> {
+    let likelihood = density(start);
+    if !likelihood.is_finite() {
+        return Ok(start.to_vec());
+    }
+    let local = LocalFit {
+        values: start.to_vec(),
+        likelihood,
+        score_norm: f64::INFINITY,
+        iterations: 0,
+        converged: false,
+        line_search_exhausted: false,
+    };
+    match newton_polish_with(local, tolerance, NEWTON_STEPS, ctx, density, score) {
+        Ok(fit) => Ok(fit.values),
+        Err(PanelError::Cancelled) => Err(PanelError::Cancelled),
+        Err(_) => Ok(start.to_vec()),
+    }
+}
+
+/// The covariance of a second whitening at `center`: the inverse curvature of the exact score,
+/// else that of the central-difference score of the density, else `None`.
+pub(super) fn retry_covariance(
+    center: &[f64],
+    ctx: &ExecutionContext,
+    density: &impl Fn(&[f64]) -> f64,
+    score: &impl Fn(&[f64]) -> Result<Vec<f64>, PanelError>,
+) -> Result<Option<Vec<f64>>, PanelError> {
+    if let Some(inverse) = score_curvature_inverse(center, ctx, score)? {
+        return Ok(Some(inverse));
+    }
+    match information_inverse_target(center, ctx, density) {
+        Ok(inverse) => Ok(inverse),
+        Err(PanelError::Cancelled) => Err(PanelError::Cancelled),
+        Err(_) => Ok(None),
+    }
+}
+
+/// Sample covariance of retained draws (`p` coordinates each), or `None` when it is not
+/// positive definite.
+fn draw_covariance(draws: &[f64], p: usize) -> Option<Vec<f64>> {
+    let n = draws.len() / p;
+    if n < 2 * p {
+        return None;
+    }
+    let mut mean = vec![0.0; p];
+    for draw in draws.chunks_exact(p) {
+        for (m, x) in mean.iter_mut().zip(draw) {
+            *m += x;
+        }
+    }
+    for m in &mut mean {
+        *m /= n as f64;
+    }
+    let mut covariance = vec![0.0; p * p];
+    for draw in draws.chunks_exact(p) {
+        for row in 0..p {
+            for column in 0..=row {
+                covariance[row * p + column] +=
+                    (draw[row] - mean[row]) * (draw[column] - mean[column]);
+            }
+        }
+    }
+    for row in 0..p {
+        for column in 0..=row {
+            let value = covariance[row * p + column] / (n - 1) as f64;
+            covariance[row * p + column] = value;
+            covariance[column * p + row] = value;
+        }
+    }
+    let mut lower = vec![0.0; p * p];
+    (covariance.iter().all(|value| value.is_finite())
+        && cholesky_spd_into(&covariance, p, &mut lower).is_ok())
+    .then_some(covariance)
+}
+
+/// One whitened Hamiltonian run of a panel posterior.
+struct PosteriorRun {
+    /// Retained draws in the original coordinates, chain by chain.
+    transformed: Vec<f64>,
+    summary: antecedent_prob::McmcSummary,
+    converged: bool,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn whitened_run(
+    center: &[f64],
+    covariance: Option<&[f64]>,
+    warmup: usize,
+    nuts: bool,
+    sampler: &super::PanelSamplingOptions,
+    posterior: &(impl Fn(&[f64]) -> f64 + Sync),
+    posterior_score: &(impl Fn(&[f64]) -> Result<Vec<f64>, PanelError> + Sync),
+    ctx: &ExecutionContext,
+) -> Result<PosteriorRun, PanelError> {
+    let p = center.len();
+    let mut lower = vec![0.0; p * p];
+    let preconditioned =
+        covariance.is_some_and(|covariance| cholesky_spd_into(covariance, p, &mut lower).is_ok());
+    if !preconditioned {
+        lower.fill(0.0);
+        for j in 0..p {
+            lower[j * p + j] = 1.0;
+        }
+    }
+    let transform = |z: &[f64]| -> Vec<f64> {
+        center
+            .iter()
+            .enumerate()
+            .map(|(row, value)| {
+                value + lower[row * p..(row + 1) * p].iter().zip(z).map(|(l, z)| l * z).sum::<f64>()
+            })
+            .collect()
+    };
+    // Hamiltonian Monte Carlo in the whitened coordinates: the gradient is the exact panel
+    // score plus the central-difference gradient of the prior, carried to `z` through the
+    // whitening factor (`∇_z = Lᵀ ∇_x`). A whitened random walk could not traverse the
+    // curved posteriors of short or lagged panels (R-hat to 1.3, bulk ESS to 11 at 8000
+    // draws per chain), and a posterior that misses its diagnostics publishes nothing.
+    let target = |z: &[f64]| -> Option<(f64, Vec<f64>)> {
+        let x = transform(z);
+        let value = posterior(&x);
+        if !value.is_finite() {
+            return None;
+        }
+        let gradient_x = posterior_score(&x).ok()?;
+        let gradient_z = (0..p)
+            .map(|column| (0..p).map(|row| lower[row * p + column] * gradient_x[row]).sum())
+            .collect();
+        Some((value, gradient_z))
+    };
+    let samples = if nuts {
+        antecedent_prob::gradient_hmc::sample_nuts_dispersed_parallel(
+            &vec![0.0; p],
+            CHAIN_START_SPREAD,
+            antecedent_prob::gradient_hmc::NutsOptions {
+                chains: sampler.chains,
+                warmup,
+                draws: sampler.draws,
+                max_depth: PANEL_NUTS_DEPTH,
+                initial_step: sampler.proposal_scale,
+                target_accept: PANEL_TARGET_ACCEPT,
+            },
+            ctx,
+            &target,
+        )
+    } else {
+        antecedent_prob::gradient_hmc::sample_gradient_hmc_dispersed_parallel(
+            &vec![0.0; p],
+            CHAIN_START_SPREAD,
+            antecedent_prob::gradient_hmc::GradientHmcOptions {
+                chains: sampler.chains,
+                warmup,
+                draws: sampler.draws,
+                leapfrog_steps: PANEL_LEAPFROG_STEPS,
+                initial_step: sampler.proposal_scale,
+                target_accept: PANEL_TARGET_ACCEPT,
+            },
+            ctx,
+            &target,
+        )
+    }
+    .map_err(|error| {
+        if ctx.cancellation.is_cancelled() {
+            PanelError::Cancelled
+        } else {
+            PanelError::Numerical(error.to_string())
+        }
+    })?;
+    let transformed: Vec<_> = samples.samples.chunks_exact(p).flat_map(transform).collect();
+    let summary = mcmc_summary_parallel(&transformed, sampler.chains, sampler.draws, p, ctx)
+        .map_err(PanelError::from)?;
+    let converged = summary.max_rhat <= sampler.max_rhat
+        && summary.min_bulk_ess >= sampler.min_ess
+        && summary.min_tail_ess >= sampler.min_ess
+        && all_chains_moved(&transformed, sampler.chains, sampler.draws, p);
+    Ok(PosteriorRun { transformed, summary, converged })
+}
+
 fn posterior_draws(
     data: &likelihood::CompiledPanel<'_>,
     local: &LocalFit,
@@ -872,6 +1076,21 @@ fn posterior_draws(
 ) -> Result<Vec<Option<PanelDraw>>, PanelError> {
     let p = likelihood::parameter_count(data);
     let posterior = |x: &[f64]| likelihood::log_likelihood(data, x) + log_prior(data, x, prior);
+    // The exact panel score plus the central-difference gradient of the prior.
+    let posterior_score = |x: &[f64]| -> Result<Vec<f64>, PanelError> {
+        let mut gradient = log_likelihood_score(data, x, ctx)?;
+        let mut work = x.to_vec();
+        for (j, slot) in gradient.iter_mut().enumerate() {
+            let step = 1e-5 * (1.0 + x[j].abs());
+            work[j] = x[j] + step;
+            let high = log_prior(data, &work, prior);
+            work[j] = x[j] - step;
+            let low = log_prior(data, &work, prior);
+            work[j] = x[j];
+            *slot += (high - low) / (2.0 * step);
+        }
+        Ok(gradient)
+    };
     // Priors can materially alter weak likelihood directions. Whitening at the
     // posterior mode uses the exact sampled density, including transform Jacobians.
     // A mode search that meets a non-finite score whitens at the local fit instead, as each
@@ -886,100 +1105,66 @@ fn posterior_draws(
         Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
         Err(_) => None,
     };
-    Ok({
-        diagnostics.uncertainty = "marginal hierarchical Gaussian-AR1 posterior under explicit priors, with one conditional Gaussian random-intercept draw per group jointly shared across all worlds; no predictive outcome innovations or coverage claim".into();
-        let mut lower = vec![0.0; p * p];
-        let preconditioned = inverse
-            .as_deref()
-            .is_some_and(|inverse| cholesky_spd_into(inverse, p, &mut lower).is_ok());
-        if !preconditioned {
-            lower.fill(0.0);
-            for j in 0..p {
-                lower[j * p + j] = 1.0;
-            }
-        }
-        let transform = |z: &[f64]| -> Vec<f64> {
-            mode.iter()
-                .enumerate()
-                .map(|(row, value)| {
-                    value
-                        + lower[row * p..(row + 1) * p]
-                            .iter()
-                            .zip(z)
-                            .map(|(l, z)| l * z)
-                            .sum::<f64>()
-                })
-                .collect()
-        };
-        // Hamiltonian Monte Carlo in the whitened coordinates: the gradient is the exact panel
-        // score plus the central-difference gradient of the prior, carried to `z` through the
-        // whitening factor (`∇_z = Lᵀ ∇_x`). A whitened random walk could not traverse the
-        // curved posteriors of short or lagged panels (R-hat to 1.3, bulk ESS to 11 at 8000
-        // draws per chain), and a posterior that misses its diagnostics publishes nothing.
-        let target = |z: &[f64]| -> Option<(f64, Vec<f64>)> {
-            let x = transform(z);
-            let value = posterior(&x);
-            if !value.is_finite() {
-                return None;
-            }
-            let mut gradient_x = log_likelihood_score(data, &x, ctx).ok()?;
-            let mut work = x.clone();
-            for (j, slot) in gradient_x.iter_mut().enumerate() {
-                let step = 1e-5 * (1.0 + x[j].abs());
-                work[j] = x[j] + step;
-                let high = log_prior(data, &work, prior);
-                work[j] = x[j] - step;
-                let low = log_prior(data, &work, prior);
-                work[j] = x[j];
-                *slot += (high - low) / (2.0 * step);
-            }
-            let gradient_z = (0..p)
-                .map(|column| (0..p).map(|row| lower[row * p + column] * gradient_x[row]).sum())
-                .collect();
-            Some((value, gradient_z))
-        };
-        let samples = antecedent_prob::gradient_hmc::sample_gradient_hmc_dispersed_parallel(
-            &vec![0.0; p],
-            CHAIN_START_SPREAD,
-            antecedent_prob::gradient_hmc::GradientHmcOptions {
-                chains: sampler.chains,
-                warmup: sampler.warmup,
-                draws: sampler.draws,
-                leapfrog_steps: PANEL_LEAPFROG_STEPS,
-                initial_step: sampler.proposal_scale,
-                target_accept: PANEL_TARGET_ACCEPT,
-            },
+    diagnostics.uncertainty = "marginal hierarchical Gaussian-AR1 posterior under explicit priors, with one conditional Gaussian random-intercept draw per group jointly shared across all worlds; no predictive outcome innovations or coverage claim".into();
+    let mut run = whitened_run(
+        &mode,
+        inverse.as_deref(),
+        sampler.warmup,
+        false,
+        sampler,
+        &posterior,
+        &posterior_score,
+        ctx,
+    )?;
+    // A run that misses its diagnostics is usually whitened at a mode search that stalled short
+    // of the score tolerance, where the curvature is a poor scale or not positive definite at
+    // all, or traverses a curved ridge (a Hill shape and half-saturation the doses identify
+    // only jointly) that a fixed-length trajectory crosses too slowly. The posterior is then
+    // sampled once more by the No-U-Turn sampler, on its own streams and with twice the
+    // warmup, whitened at the mode finished with Newton steps by the inverse curvature of the
+    // exact score there, else by the covariance of the first run's draws. Only a second run
+    // that meets the diagnostics replaces the first, so a posterior that converges the first
+    // time is untouched and every published posterior met its own diagnostics.
+    if !run.converged {
+        let center = polished_center(
+            &mode,
+            optimizer.gradient_tolerance,
             ctx,
-            &target,
-        )
-        .map_err(|error| {
-            if ctx.cancellation.is_cancelled() {
-                PanelError::Cancelled
-            } else {
-                PanelError::Numerical(error.to_string())
-            }
-        })?;
-        let transformed: Vec<_> = samples.samples.chunks_exact(p).flat_map(transform).collect();
-        let summary = mcmc_summary_parallel(&transformed, sampler.chains, sampler.draws, p, ctx)
-            .map_err(PanelError::from)?;
-        diagnostics.max_rhat = Some(summary.max_rhat);
-        diagnostics.min_bulk_ess = Some(summary.min_bulk_ess);
-        diagnostics.min_tail_ess = Some(summary.min_tail_ess);
-        diagnostics.posterior_converged = Some(
-            summary.max_rhat <= sampler.max_rhat
-                && summary.min_bulk_ess >= sampler.min_ess
-                && summary.min_tail_ess >= sampler.min_ess
-                && all_chains_moved(&transformed, sampler.chains, sampler.draws, p),
-        );
-        // One conditional group-effect draw per retained posterior draw, each on its own
-        // stream keyed by its slot, so the draws do not depend on the thread count.
-        ctx.map_indexed(transformed.len() / p, |slot, _inner| {
-            check_cancelled(ctx)?;
-            let mut rng =
-                ctx.rng.stream(antecedent_core::derive_stream(0x5830_3247_524f_5550, slot as u64));
-            Ok(conditional_draw(data, &transformed[slot * p..(slot + 1) * p], &mut rng))
-        })?
-    })
+            &posterior,
+            &posterior_score,
+        )?;
+        let covariance = match retry_covariance(&center, ctx, &posterior, &posterior_score)? {
+            Some(covariance) => Some(covariance),
+            None => draw_covariance(&run.transformed, p),
+        };
+        let retry_ctx = retry_context(ctx);
+        let second = whitened_run(
+            &center,
+            covariance.as_deref(),
+            sampler.warmup.saturating_mul(2),
+            true,
+            sampler,
+            &posterior,
+            &posterior_score,
+            &retry_ctx,
+        )?;
+        if second.converged {
+            run = second;
+        }
+    }
+    diagnostics.max_rhat = Some(run.summary.max_rhat);
+    diagnostics.min_bulk_ess = Some(run.summary.min_bulk_ess);
+    diagnostics.min_tail_ess = Some(run.summary.min_tail_ess);
+    diagnostics.posterior_converged = Some(run.converged);
+    let transformed = run.transformed;
+    // One conditional group-effect draw per retained posterior draw, each on its own
+    // stream keyed by its slot, so the draws do not depend on the thread count.
+    Ok(ctx.map_indexed(transformed.len() / p, |slot, _inner| {
+        check_cancelled(ctx)?;
+        let mut rng =
+            ctx.rng.stream(antecedent_core::derive_stream(0x5830_3247_524f_5550, slot as u64));
+        Ok(conditional_draw(data, &transformed[slot * p..(slot + 1) * p], &mut rng))
+    })?)
 }
 
 fn fit_memory(
