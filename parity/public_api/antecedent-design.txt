@@ -8,6 +8,12 @@
 #[doc(hidden)] pub fn antecedent_design::composition_verifiers::register_standard_verifiers(consumer: antecedent_design::composition_bundle::BundleConsumer) -> antecedent_design::composition_bundle::BundleConsumer
 #[doc(hidden)] pub fn antecedent_design::inverse_query_artifact::decode_parts(bytes: &[u8]) -> core::result::Result<(antecedent_design::inverse_query_artifact::InverseQueryMeta, alloc::vec::Vec<u8>, alloc::vec::Vec<u8>), antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn antecedent_design::inverse_query_artifact::encode_parts(meta: &antecedent_design::inverse_query_artifact::InverseQueryMeta, contract: &[u8], data: &[u8], artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+#[doc(hidden)] pub fn antecedent_design::sequential_evaluation_artifact::model_from_wire_body(wire: &antecedent_design::sequential_evaluation_artifact::ModelWire) -> core::result::Result<antecedent_design::sequential_evaluation::FiniteSequentialModel, antecedent_io_core::error::IoError>
+#[doc(hidden)] pub fn antecedent_design::sequential_evaluation_artifact::model_to_wire_body(model: &antecedent_design::sequential_evaluation::FiniteSequentialModel) -> antecedent_design::sequential_evaluation_artifact::ModelWire
+#[doc(hidden)] pub fn antecedent_design::sequential_evaluation_artifact::policy_from_wire(wire: &antecedent_design::sequential_evaluation_artifact::PolicyWire) -> core::result::Result<antecedent_design::sequential_evaluation::ContingentPolicy, antecedent_io_core::error::IoError>
+#[doc(hidden)] pub fn antecedent_design::sequential_evaluation_artifact::policy_to_wire(policy: &antecedent_design::sequential_evaluation::ContingentPolicy) -> antecedent_design::sequential_evaluation_artifact::PolicyWire
+#[doc(hidden)] pub fn antecedent_design::sequential_evaluation_artifact::trajectories_from_wire(wire: &[antecedent_design::sequential_evaluation_artifact::TrajectoryWire]) -> core::result::Result<alloc::vec::Vec<antecedent_design::sequential_evaluation::LoggedTrajectory>, antecedent_io_core::error::IoError>
+#[doc(hidden)] pub fn antecedent_design::sequential_evaluation_artifact::trajectories_to_wire(log: &[antecedent_design::sequential_evaluation::LoggedTrajectory]) -> alloc::vec::Vec<antecedent_design::sequential_evaluation_artifact::TrajectoryWire>
 #[non_exhaustive] pub enum antecedent_design::DesignError
 #[non_exhaustive] pub enum antecedent_design::FailureRoute
 #[non_exhaustive] pub enum antecedent_design::FamilyVerdict
@@ -792,6 +798,7 @@ impl core::clone::Clone for antecedent_design::sequential_evaluation::LoggedTraj
 impl core::clone::Clone for antecedent_design::sequential_evaluation::NodeKind
 impl core::clone::Clone for antecedent_design::sequential_evaluation::ObservationChannel
 impl core::clone::Clone for antecedent_design::sequential_evaluation::ObservationReceipt
+impl core::clone::Clone for antecedent_design::sequential_evaluation::OffPolicyBootstrap
 impl core::clone::Clone for antecedent_design::sequential_evaluation::OffPolicyEstimate
 impl core::clone::Clone for antecedent_design::sequential_evaluation::OffPolicyInterval
 impl core::clone::Clone for antecedent_design::sequential_evaluation::PolicyEvaluation
@@ -1800,6 +1807,7 @@ impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::LoggedTr
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::NodeKind
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::ObservationChannel
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::ObservationReceipt
+impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::OffPolicyBootstrap
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::OffPolicyEstimate
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::OffPolicyInterval
 impl core::cmp::PartialEq for antecedent_design::sequential_evaluation::PolicyEvaluation
@@ -1979,6 +1987,7 @@ impl core::default::Default for antecedent_design::sequential_evaluation_artifac
 impl core::default::Default for antecedent_design::signal::NativeBinomialSignal
 impl core::default::Default for antecedent_design::signal::SignalLimits
 impl core::error::Error for antecedent_design::ConfounderValueError
+impl core::error::Error for antecedent_design::DecisionContractError
 impl core::error::Error for antecedent_design::DesignError
 impl core::error::Error for antecedent_design::EvidencePlanArtifactError
 impl core::error::Error for antecedent_design::EvidencePlanError
@@ -2705,6 +2714,7 @@ impl core::fmt::Debug for antecedent_design::sequential_evaluation::LoggedTrajec
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::NodeKind
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::ObservationChannel
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::ObservationReceipt
+impl core::fmt::Debug for antecedent_design::sequential_evaluation::OffPolicyBootstrap
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::OffPolicyEstimate
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::OffPolicyInterval
 impl core::fmt::Debug for antecedent_design::sequential_evaluation::PolicyEvaluation
@@ -3783,6 +3793,7 @@ impl core::marker::Freeze for antecedent_design::sequential_evaluation::LoggedTr
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::NodeKind [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
+impl core::marker::Freeze for antecedent_design::sequential_evaluation::OffPolicyBootstrap [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::marker::Freeze for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
@@ -4564,6 +4575,7 @@ impl core::marker::Send for antecedent_design::sequential_evaluation::LoggedTraj
 impl core::marker::Send for antecedent_design::sequential_evaluation::NodeKind [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
+impl core::marker::Send for antecedent_design::sequential_evaluation::OffPolicyBootstrap [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::marker::Send for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
@@ -5246,6 +5258,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluat
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::NodeKind
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::ObservationChannel
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::ObservationReceipt
+impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::OffPolicyBootstrap
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::OffPolicyEstimate
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::OffPolicyInterval
 impl core::marker::StructuralPartialEq for antecedent_design::sequential_evaluation::PolicyEvaluation
@@ -6021,6 +6034,7 @@ impl core::marker::Sync for antecedent_design::sequential_evaluation::LoggedTraj
 impl core::marker::Sync for antecedent_design::sequential_evaluation::NodeKind [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
+impl core::marker::Sync for antecedent_design::sequential_evaluation::OffPolicyBootstrap [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::marker::Sync for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
@@ -6803,6 +6817,7 @@ impl core::marker::Unpin for antecedent_design::sequential_evaluation::LoggedTra
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::NodeKind [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
+impl core::marker::Unpin for antecedent_design::sequential_evaluation::OffPolicyBootstrap [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::marker::Unpin for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
@@ -7576,6 +7591,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_e
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::NodeKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::OffPolicyBootstrap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
@@ -8347,6 +8363,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_eval
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::NodeKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::ObservationChannel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::ObservationReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::OffPolicyBootstrap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::OffPolicyEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::OffPolicyInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::sequential_evaluation::PolicyEvaluation [auto]
@@ -9006,9 +9023,9 @@ impl<O> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::DecisionP
 impl<O> core::panic::unwind_safe::UnwindSafe for antecedent_design::DecisionPrior<O> where O: core::panic::unwind_safe::UnwindSafe [auto]
 pub const <antecedent_design::StudyKind>::ALL: [Self; 6]
 pub const <antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises>::DECLARED: Self
-pub const <antecedent_design::composition_bundle::BundleStage>::ALL: [Self; 11]
+pub const <antecedent_design::composition_bundle::BundleStage>::ALL: [Self; 13]
 pub const <antecedent_design::composition_bundle::EvidenceRelationship>::ALL: [Self; 5]
-pub const <antecedent_design::composition_bundle::NodeKind>::ALL: [Self; 21]
+pub const <antecedent_design::composition_bundle::NodeKind>::ALL: [Self; 34]
 pub const <antecedent_design::decision_artifact::DecisionResultArtifact>::CLAIM_LINK_ID: &'static str
 pub const <antecedent_design::decision_evidence::Stage>::ALL: [Self; 5]
 pub const <antecedent_design::decision_reliability::PublishedRoute>::ALL: [Self; 4]
@@ -11639,6 +11656,12 @@ pub field antecedent_design::sequential_evaluation::ObservationReceipt::record_i
 pub field antecedent_design::sequential_evaluation::ObservationReceipt::symbol: usize
 pub field antecedent_design::sequential_evaluation::ObservationReceipt::symbol_label: alloc::string::String
 pub field antecedent_design::sequential_evaluation::ObservationReceipt::time: usize
+pub field antecedent_design::sequential_evaluation::OffPolicyBootstrap::calibration: &'static str
+pub field antecedent_design::sequential_evaluation::OffPolicyBootstrap::estimates: alloc::vec::Vec<antecedent_design::sequential_evaluation::OffPolicyEstimate>
+pub field antecedent_design::sequential_evaluation::OffPolicyBootstrap::log_identity: alloc::string::String
+pub field antecedent_design::sequential_evaluation::OffPolicyBootstrap::replicates: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_design::sequential_evaluation::OffPolicyBootstrap::seed: u64
+pub field antecedent_design::sequential_evaluation::OffPolicyBootstrap::source_paradigm: &'static str
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::behaviour_identity: alloc::string::String
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::behaviour_version: alloc::string::String
 pub field antecedent_design::sequential_evaluation::OffPolicyEstimate::effective_sample_size: f64
@@ -11683,6 +11706,7 @@ pub field antecedent_design::sequential_evaluation::RolloutEstimate::policy_vers
 pub field antecedent_design::sequential_evaluation::RolloutEstimate::rollouts: u64
 pub field antecedent_design::sequential_evaluation::RolloutEstimate::seed: u64
 pub field antecedent_design::sequential_evaluation::RolloutEstimate::stream_scheme: &'static str
+pub field antecedent_design::sequential_evaluation::RolloutEstimate::utilities: alloc::vec::Vec<f64>
 pub field antecedent_design::sequential_evaluation::SequentialAssumptions::consistency: &'static str
 pub field antecedent_design::sequential_evaluation::SequentialAssumptions::exchangeability: &'static str
 pub field antecedent_design::sequential_evaluation::SequentialAssumptions::positivity: &'static str
@@ -12193,6 +12217,7 @@ pub fn <antecedent_design::composition_bundle::BundleStage>::fn code(self) -> &'
 pub fn <antecedent_design::composition_bundle::ClaimLabel>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::composition_bundle::CompositionBundle>::fn chain_digest(&self, id: &str) -> core::option::Option<&str>
 pub fn <antecedent_design::composition_bundle::CompositionBundle>::fn edges(&self) -> &[antecedent_design::composition_bundle::BundleEdge]
+pub fn <antecedent_design::composition_bundle::CompositionBundle>::fn from_bytes(bytes: &[u8], expected_identity: &str, limits: &antecedent_design::composition_bundle::BundleLimits) -> core::result::Result<Self, antecedent_design::composition_bundle::BundleError>
 pub fn <antecedent_design::composition_bundle::CompositionBundle>::fn identity(&self) -> &str
 pub fn <antecedent_design::composition_bundle::CompositionBundle>::fn new(nodes: alloc::vec::Vec<antecedent_design::composition_bundle::BundleNode>, dependencies: &[(alloc::string::String, alloc::string::String)], limits: &antecedent_design::composition_bundle::BundleLimits) -> core::result::Result<Self, antecedent_design::composition_bundle::BundleError>
 pub fn <antecedent_design::composition_bundle::CompositionBundle>::fn nodes(&self) -> &[antecedent_design::composition_bundle::BundleNode]
@@ -12747,6 +12772,7 @@ pub fn antecedent_design::decision_adapters::utility_interval(contract: &anteced
 pub fn antecedent_design::decision_artifact::contract_from_json(json: &str) -> core::result::Result<antecedent_design::DecisionContract, antecedent_io_core::error::IoError>
 pub fn antecedent_design::decision_artifact::contract_from_json_refusal(json: &str) -> core::result::Result<antecedent_design::DecisionContract, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_design::decision_artifact::contract_to_json(contract: &antecedent_design::DecisionContract) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+pub fn antecedent_design::decision_artifact::decision_result_fingerprint(result: &antecedent_design::decision_eval::DecisionResult, source_identity: &str) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn antecedent_design::decision_artifact::mean_result_to_bytes(result: &antecedent_design::decision_eval::DecisionResult, source: &antecedent_design::decision_eval::MeanSource, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn antecedent_design::decision_artifact::mean_result_to_json(result: &antecedent_design::decision_eval::DecisionResult, source: &antecedent_design::decision_eval::MeanSource) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn antecedent_design::decision_artifact::result_to_json(result: &antecedent_design::decision_eval::DecisionResult, source: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
@@ -12859,10 +12885,13 @@ pub fn antecedent_design::rollout_artifact::consume(bytes: &[u8], expected: &ant
 pub fn antecedent_design::rollout_artifact::decision_digest(decision: &antecedent_design::design_ranking_artifact::DecisionWire) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn antecedent_design::sensitivity_decision::contract_from_artifact(artifact: &antecedent_io_core::sensitivity_artifact::SensitivityArtifact, policy: antecedent_design::StructuralPolicy) -> core::result::Result<antecedent_design::DecisionContract, antecedent_design::sensitivity_decision::SensitivityDecisionError>
 pub fn antecedent_design::sensitivity_decision::evaluate_sensitivity_decision(contract: &antecedent_design::DecisionContract, artifact: &antecedent_io_core::sensitivity_artifact::SensitivityArtifact, spec: &antecedent_design::sensitivity_decision::SensitivityDecisionSpec) -> core::result::Result<antecedent_design::sensitivity_decision::SensitivityDecisionResult, antecedent_design::sensitivity_decision::SensitivityDecisionError>
+pub fn antecedent_design::sequential_evaluation::bootstrap_decision_draws(result: &antecedent_design::sequential_evaluation::OffPolicyBootstrap, unit: &str) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::decision_reliability::DecisionDraws>
+pub fn antecedent_design::sequential_evaluation::bootstrap_off_policy(model: &antecedent_design::sequential_evaluation::FiniteSequentialModel, targets: &[antecedent_design::sequential_evaluation::ContingentPolicy], behaviour: &antecedent_design::sequential_evaluation::ContingentPolicy, log: &[antecedent_design::sequential_evaluation::LoggedTrajectory], ledger: &mut antecedent_contract::evidence_ledger::ledger::EvidenceLedger, limits: antecedent_design::sequential_evaluation::EvaluationLimits, seed: u64, replicates: u64, minimum_effective_sample_size: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::OffPolicyBootstrap>
 pub fn antecedent_design::sequential_evaluation::compare_policies(model: &antecedent_design::sequential_evaluation::FiniteSequentialModel, specs: alloc::vec::Vec<antecedent_design::sequential_evaluation::ComparisonSpec>, voi: core::option::Option<&antecedent_design::sequential_evaluation::VoiRequest>, request: &antecedent_design::sequential_evaluation::SequentialRequest, limits: antecedent_design::sequential_evaluation::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::ComparisonReport>
 pub fn antecedent_design::sequential_evaluation::evaluate_off_policy(model: &antecedent_design::sequential_evaluation::FiniteSequentialModel, target: &antecedent_design::sequential_evaluation::ContingentPolicy, behaviour: &antecedent_design::sequential_evaluation::ContingentPolicy, log: &[antecedent_design::sequential_evaluation::LoggedTrajectory], ledger: &mut antecedent_contract::evidence_ledger::ledger::EvidenceLedger, limits: antecedent_design::sequential_evaluation::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::OffPolicyEstimate>
 pub fn antecedent_design::sequential_evaluation::evaluate_policy(model: &antecedent_design::sequential_evaluation::FiniteSequentialModel, policy: &antecedent_design::sequential_evaluation::ContingentPolicy, limits: antecedent_design::sequential_evaluation::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::PolicyEvaluation>
 pub fn antecedent_design::sequential_evaluation::request_interval() -> antecedent_design::sequential_evaluation::SequentialResult<core::convert::Infallible>
+pub fn antecedent_design::sequential_evaluation::rollout_decision_draws(rows: &[antecedent_design::sequential_evaluation::RolloutEstimate], unit: &str) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::decision_reliability::DecisionDraws>
 pub fn antecedent_design::sequential_evaluation::rollout_policy(model: &antecedent_design::sequential_evaluation::FiniteSequentialModel, policy: &antecedent_design::sequential_evaluation::ContingentPolicy, config: antecedent_design::sequential_evaluation::RolloutConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::RolloutEstimate>
 pub fn antecedent_design::sequential_evaluation::stream_uniform(seed: u64, rollout: u64, time: u64, role: antecedent_design::sequential_evaluation::StreamRole) -> f64
 pub fn antecedent_design::sequential_evaluation::value_of_collecting_evidence(model: &antecedent_design::sequential_evaluation::FiniteSequentialModel, request: &antecedent_design::sequential_evaluation::VoiRequest, limits: antecedent_design::sequential_evaluation::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::VoiCheck>
@@ -13528,6 +13557,7 @@ pub struct antecedent_design::sequential_evaluation::LoggedStep
 pub struct antecedent_design::sequential_evaluation::LoggedTrajectory
 pub struct antecedent_design::sequential_evaluation::ObservationChannel
 pub struct antecedent_design::sequential_evaluation::ObservationReceipt
+pub struct antecedent_design::sequential_evaluation::OffPolicyBootstrap
 pub struct antecedent_design::sequential_evaluation::OffPolicyEstimate
 pub struct antecedent_design::sequential_evaluation::OffPolicyInterval
 pub struct antecedent_design::sequential_evaluation::PolicyEvaluation
@@ -14216,11 +14246,13 @@ pub variant antecedent_design::composition_bundle::BundleError::Container(alloc:
 pub variant antecedent_design::composition_bundle::BundleError::Refused { stage: antecedent_design::composition_bundle::BundleStage, reason: alloc::string::String, offending: core::option::Option<alloc::string::String> }
 pub variant antecedent_design::composition_bundle::BundleStage::CallbackUnavailable
 pub variant antecedent_design::composition_bundle::BundleStage::EdgeDigestMismatch
+pub variant antecedent_design::composition_bundle::BundleStage::ExecutionCancelled
 pub variant antecedent_design::composition_bundle::BundleStage::ExpectedIdentityMismatch
 pub variant antecedent_design::composition_bundle::BundleStage::GraphOrSnapshotMismatch
 pub variant antecedent_design::composition_bundle::BundleStage::IncompatibleVersion
 pub variant antecedent_design::composition_bundle::BundleStage::Oversized
 pub variant antecedent_design::composition_bundle::BundleStage::ProviderRequestChanged
+pub variant antecedent_design::composition_bundle::BundleStage::ResourceRefused
 pub variant antecedent_design::composition_bundle::BundleStage::SwappedEvidence
 pub variant antecedent_design::composition_bundle::BundleStage::TamperedQuantity
 pub variant antecedent_design::composition_bundle::BundleStage::UnknownNodeKind
@@ -14232,8 +14264,11 @@ pub variant antecedent_design::composition_bundle::EvidenceRelationship::SharedD
 pub variant antecedent_design::composition_bundle::EvidenceRelationship::SharedFittedModel
 pub variant antecedent_design::composition_bundle::EvidenceRelationship::SharedPrior
 pub variant antecedent_design::composition_bundle::EvidenceRelationship::UnknownDependence
+pub variant antecedent_design::composition_bundle::NodeKind::AssessedBridgePosteriorFit
 pub variant antecedent_design::composition_bundle::NodeKind::Attestation
 pub variant antecedent_design::composition_bundle::NodeKind::CausalContract
+pub variant antecedent_design::composition_bundle::NodeKind::CyclicPosteriorFit
+pub variant antecedent_design::composition_bundle::NodeKind::CyclicTargetFeedbackFit
 pub variant antecedent_design::composition_bundle::NodeKind::DecisionContract
 pub variant antecedent_design::composition_bundle::NodeKind::DecisionResult
 pub variant antecedent_design::composition_bundle::NodeKind::Distribution
@@ -14241,8 +14276,13 @@ pub variant antecedent_design::composition_bundle::NodeKind::EvidenceRelationshi
 pub variant antecedent_design::composition_bundle::NodeKind::ExecutionOrFit
 pub variant antecedent_design::composition_bundle::NodeKind::ExternalClaim
 pub variant antecedent_design::composition_bundle::NodeKind::FrozenScores
+pub variant antecedent_design::composition_bundle::NodeKind::GraphImputationPredictiveFit
+pub variant antecedent_design::composition_bundle::NodeKind::GraphImputationTransportFit
 pub variant antecedent_design::composition_bundle::NodeKind::InverseQuery
+pub variant antecedent_design::composition_bundle::NodeKind::JointTransportEffectFit
+pub variant antecedent_design::composition_bundle::NodeKind::JointTransportPredictiveFit
 pub variant antecedent_design::composition_bundle::NodeKind::ObservationQuery
+pub variant antecedent_design::composition_bundle::NodeKind::PredictiveChainDecision
 pub variant antecedent_design::composition_bundle::NodeKind::PropagationChain
 pub variant antecedent_design::composition_bundle::NodeKind::QuantityCoordinates
 pub variant antecedent_design::composition_bundle::NodeKind::RecalculationReceipt
@@ -14250,9 +14290,14 @@ pub variant antecedent_design::composition_bundle::NodeKind::RepairReport
 pub variant antecedent_design::composition_bundle::NodeKind::Rollout
 pub variant antecedent_design::composition_bundle::NodeKind::ScientificBridge
 pub variant antecedent_design::composition_bundle::NodeKind::Sensitivity
+pub variant antecedent_design::composition_bundle::NodeKind::SequentialDecisionDraws
+pub variant antecedent_design::composition_bundle::NodeKind::SequentialPolicyReliabilityFit
+pub variant antecedent_design::composition_bundle::NodeKind::SequentialReliabilityDiagnostic
 pub variant antecedent_design::composition_bundle::NodeKind::StudyRanking
 pub variant antecedent_design::composition_bundle::NodeKind::SupportTrustCalibration
 pub variant antecedent_design::composition_bundle::NodeKind::Transformation
+pub variant antecedent_design::composition_bundle::NodeKind::TrialIpwPredictiveFit
+pub variant antecedent_design::composition_bundle::NodeKind::TrialIpwTransportFit
 pub variant antecedent_design::composition_bundle::NodeSource::Embedded { bytes: alloc::vec::Vec<u8> }
 pub variant antecedent_design::composition_bundle::NodeSource::Reference { identity: alloc::string::String, requires: antecedent_design::composition_bundle::ProviderOrData }
 pub variant antecedent_design::composition_bundle::NodeStatus::Failed { stage: antecedent_design::composition_bundle::BundleStage, reason: alloc::string::String }

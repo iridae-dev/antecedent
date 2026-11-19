@@ -41,6 +41,7 @@
 #[non_exhaustive] pub enum antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactError
 #[non_exhaustive] pub enum antecedent_io::stream_artifact::StreamArtifactError
 #[non_exhaustive] pub enum antecedent_io::vector_treatment_artifact::VectorTreatmentArtifactError
+impl !core::marker::Freeze for antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading [auto]
 impl !core::marker::Freeze for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
 impl !core::marker::Freeze for antecedent_io::mnar_candidate_source::EncodedMnarSource [auto]
 impl !core::marker::Freeze for antecedent_io::mnar_candidate_source::ReconstructedMnarSource [auto]
@@ -266,6 +267,7 @@ impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::Jo
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation
+impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire
 impl core::clone::Clone for antecedent_io::joint_bayesian_transport_artifact::JointModelWire
@@ -315,6 +317,10 @@ impl core::clone::Clone for antecedent_io::measured_inference::cohort_interval::
 impl core::clone::Clone for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl core::clone::Clone for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
 impl core::clone::Clone for antecedent_io::measured_inference::graph_candidate::CandidateBasis
+impl core::clone::Clone for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization
+impl core::clone::Clone for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization
+impl core::clone::Clone for antecedent_io::measured_inference::graph_candidate::RawTargetFrame
+impl core::clone::Clone for antecedent_io::measured_inference::graph_candidate::TransportStandardization
 impl core::clone::Clone for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::clone::Clone for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::clone::Clone for antecedent_io::measured_inference::split_effect::SplitEffectSource
@@ -879,6 +885,7 @@ impl core::cmp::PartialEq for antecedent_io::joint_bayesian_transport_artifact::
 impl core::cmp::PartialEq for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 impl core::cmp::PartialEq for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
 impl core::cmp::PartialEq for antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation
+impl core::cmp::PartialEq for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire
 impl core::cmp::PartialEq for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire
 impl core::cmp::PartialEq for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire
 impl core::cmp::PartialEq for antecedent_io::joint_bayesian_transport_artifact::JointModelWire
@@ -915,7 +922,11 @@ impl core::cmp::PartialEq for antecedent_io::measured_inference::cohort_interval
 impl core::cmp::PartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl core::cmp::PartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
 impl core::cmp::PartialEq for antecedent_io::measured_inference::graph_candidate::CandidateBasis
+impl core::cmp::PartialEq for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization
+impl core::cmp::PartialEq for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization
+impl core::cmp::PartialEq for antecedent_io::measured_inference::graph_candidate::RawTargetFrame
 impl core::cmp::PartialEq for antecedent_io::measured_inference::graph_candidate::RetainedSupport
+impl core::cmp::PartialEq for antecedent_io::measured_inference::graph_candidate::TransportStandardization
 impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::cmp::PartialEq for antecedent_io::measured_inference::split_effect::SplitEffectSource
@@ -1434,6 +1445,7 @@ impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::Join
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation
+impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire
 impl core::fmt::Debug for antecedent_io::joint_bayesian_transport_artifact::JointModelWire
@@ -1486,7 +1498,11 @@ impl core::fmt::Debug for antecedent_io::measured_inference::cohort_interval::Fi
 impl core::fmt::Debug for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl core::fmt::Debug for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
 impl core::fmt::Debug for antecedent_io::measured_inference::graph_candidate::CandidateBasis
+impl core::fmt::Debug for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization
+impl core::fmt::Debug for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization
+impl core::fmt::Debug for antecedent_io::measured_inference::graph_candidate::RawTargetFrame
 impl core::fmt::Debug for antecedent_io::measured_inference::graph_candidate::RetainedSupport
+impl core::fmt::Debug for antecedent_io::measured_inference::graph_candidate::TransportStandardization
 impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::fmt::Debug for antecedent_io::measured_inference::split_effect::SplitEffectSource
@@ -2043,6 +2059,7 @@ impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits [auto]
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation [auto]
+impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire [auto]
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire [auto]
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire [auto]
 impl core::marker::Freeze for antecedent_io::joint_bayesian_transport_artifact::JointModelWire [auto]
@@ -2098,7 +2115,11 @@ impl core::marker::Freeze for antecedent_io::measured_inference::cohort_interval
 impl core::marker::Freeze for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::graph_candidate::RawTargetFrame [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
+impl core::marker::Freeze for antecedent_io::measured_inference::graph_candidate::TransportStandardization [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Freeze for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -2547,6 +2568,7 @@ impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::Jo
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire [auto]
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits [auto]
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation [auto]
+impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire [auto]
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire [auto]
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire [auto]
 impl core::marker::Send for antecedent_io::joint_bayesian_transport_artifact::JointModelWire [auto]
@@ -2602,8 +2624,13 @@ impl core::marker::Send for antecedent_io::measured_inference::cohort_interval::
 impl core::marker::Send for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::marker::Send for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
 impl core::marker::Send for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::marker::Send for antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading [auto]
 impl core::marker::Send for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
+impl core::marker::Send for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization [auto]
+impl core::marker::Send for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization [auto]
+impl core::marker::Send for antecedent_io::measured_inference::graph_candidate::RawTargetFrame [auto]
 impl core::marker::Send for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
+impl core::marker::Send for antecedent_io::measured_inference::graph_candidate::TransportStandardization [auto]
 impl core::marker::Send for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Send for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Send for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -3030,6 +3057,7 @@ impl core::marker::StructuralPartialEq for antecedent_io::joint_bayesian_transpo
 impl core::marker::StructuralPartialEq for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 impl core::marker::StructuralPartialEq for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactError
 impl core::marker::StructuralPartialEq for antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation
+impl core::marker::StructuralPartialEq for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire
 impl core::marker::StructuralPartialEq for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire
 impl core::marker::StructuralPartialEq for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire
 impl core::marker::StructuralPartialEq for antecedent_io::joint_bayesian_transport_artifact::JointModelWire
@@ -3066,7 +3094,11 @@ impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::co
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::graph_candidate::CandidateBasis
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::graph_candidate::RawTargetFrame
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::graph_candidate::RetainedSupport
+impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::graph_candidate::TransportStandardization
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::AdjustedEffect
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::SplitEffectRun
 impl core::marker::StructuralPartialEq for antecedent_io::measured_inference::split_effect::SplitEffectSource
@@ -3473,6 +3505,7 @@ impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::Jo
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire [auto]
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits [auto]
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation [auto]
+impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire [auto]
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire [auto]
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire [auto]
 impl core::marker::Sync for antecedent_io::joint_bayesian_transport_artifact::JointModelWire [auto]
@@ -3528,8 +3561,13 @@ impl core::marker::Sync for antecedent_io::measured_inference::cohort_interval::
 impl core::marker::Sync for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::graph_candidate::RawTargetFrame [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
+impl core::marker::Sync for antecedent_io::measured_inference::graph_candidate::TransportStandardization [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Sync for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -3980,6 +4018,7 @@ impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::J
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits [auto]
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation [auto]
+impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire [auto]
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire [auto]
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire [auto]
 impl core::marker::Unpin for antecedent_io::joint_bayesian_transport_artifact::JointModelWire [auto]
@@ -4035,8 +4074,13 @@ impl core::marker::Unpin for antecedent_io::measured_inference::cohort_interval:
 impl core::marker::Unpin for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::graph_candidate::RawTargetFrame [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
+impl core::marker::Unpin for antecedent_io::measured_inference::graph_candidate::TransportStandardization [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::marker::Unpin for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -4481,6 +4525,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_t
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointModelWire [auto]
@@ -4536,8 +4581,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inferen
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::graph_candidate::RawTargetFrame [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::graph_candidate::TransportStandardization [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -4982,6 +5032,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_tran
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::joint_bayesian_transport_artifact::JointModelWire [auto]
@@ -5037,8 +5088,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::graph_candidate::CandidateBasis [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::graph_candidate::GraphPointReading [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::graph_candidate::RawTargetFrame [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::graph_candidate::RetainedSupport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::graph_candidate::TransportStandardization [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::AdjustedEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::measured_inference::split_effect::SplitEffectSource [auto]
@@ -5440,6 +5496,7 @@ impl serde_core::ser::Serialize for antecedent_io::external_cyclic_artifact::Rec
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire
+impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire
 impl serde_core::ser::Serialize for antecedent_io::joint_bayesian_transport_artifact::JointModelWire
@@ -5481,6 +5538,10 @@ impl serde_core::ser::Serialize for antecedent_io::measured_inference::cohort_in
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::cohort_interval::FitRowsWire
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::graph_candidate::RawTargetFrame
+impl serde_core::ser::Serialize for antecedent_io::measured_inference::graph_candidate::TransportStandardization
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::split_effect::SplitEffectSource
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::split_parent_set_effect::Knowledge
 impl serde_core::ser::Serialize for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource
@@ -5940,6 +6001,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::external_cyclic_ar
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::DataIdentityWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::joint_bayesian_transport_artifact::JointModelWire
@@ -5981,6 +6043,10 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::cohort_interval::FitRowsWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::graph_candidate::MarTargetStandardization
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::graph_candidate::RawTargetFrame
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::graph_candidate::TransportStandardization
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::split_effect::SplitEffectSource
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::split_parent_set_effect::Knowledge
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::measured_inference::split_parent_set_effect::ParentSetEffectSource
@@ -7376,6 +7442,10 @@ pub field antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsume
 pub field antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits::max_target_rows: usize
 pub field antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation::data_digest: core::option::Option<alloc::string::String>
 pub field antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation::premises_digest: core::option::Option<alloc::string::String>
+pub field antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire::model: antecedent_io::joint_bayesian_transport_artifact::JointModelWire
+pub field antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire::options: antecedent_io::joint_bayesian_transport_artifact::JointOptionsWire
+pub field antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire::sources: alloc::vec::Vec<antecedent_io::joint_bayesian_transport_artifact::JointSourceWire>
+pub field antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire::target: antecedent_io::joint_bayesian_transport_artifact::JointTargetWire
 pub field antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire::calibration: alloc::string::String
 pub field antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire::draw_count: usize
 pub field antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire::effective_sample_size: f64
@@ -7693,14 +7763,56 @@ pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedN
 pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::levels: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::name: alloc::string::String
 pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::parents: alloc::vec::Vec<u32>
+pub field antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading::program: [u8; 32]
+pub field antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading::receipt: [u8; 32]
+pub field antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading::source: [u8; 32]
+pub field antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading::worlds: alloc::vec::Vec<[f64; 2]>
 pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::diagnostic_sd: f64
+pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::draws: alloc::vec::Vec<f64>
 pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::mean: f64
 pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::program: [u8; 32]
 pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::receipt: [u8; 32]
 pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::source: [u8; 32]
 pub field antecedent_io::measured_inference::graph_candidate::GraphPointReading::unidentified_by_table: alloc::vec::Vec<f64>
+pub field antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization::bandwidths: alloc::vec::Vec<(u32, f64)>
+pub field antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization::columns: alloc::vec::Vec<(u32, alloc::vec::Vec<f64>)>
+pub field antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization::min_kernel_overlap: f64
+pub field antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization::selection_targets: alloc::vec::Vec<u32>
+pub field antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization::source_population: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization::source_sample: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization::source_unit_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization::target_population: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization::target_sample: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization::target_unit_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::bandwidths: alloc::vec::Vec<(u32, f64)>
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::confounded: bool
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::frame: antecedent_io::measured_inference::graph_candidate::RawTargetFrame
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::kernel: bool
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::min_kernel_overlap: f64
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::observation_mechanism_id: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::sampling_design_id: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::selection_targets: alloc::vec::Vec<u32>
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::source_population: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::source_sample: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::source_unit_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::target_population: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::MarTargetStandardization::target_sample: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::RawTargetFrame::always_observed: alloc::vec::Vec<u32>
+pub field antecedent_io::measured_inference::graph_candidate::RawTargetFrame::cluster_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::measured_inference::graph_candidate::RawTargetFrame::columns: alloc::vec::Vec<(u32, alloc::vec::Vec<core::option::Option<f64>>)>
+pub field antecedent_io::measured_inference::graph_candidate::RawTargetFrame::observation_probabilities: alloc::vec::Vec<f64>
+pub field antecedent_io::measured_inference::graph_candidate::RawTargetFrame::row_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::measured_inference::graph_candidate::RawTargetFrame::weights: alloc::vec::Vec<f64>
 pub field antecedent_io::measured_inference::graph_candidate::RetainedSupport::excluded: u32
 pub field antecedent_io::measured_inference::graph_candidate::RetainedSupport::operations: alloc::vec::Vec<antecedent_core::graph_imputation_contract::AtomOperation>
+pub field antecedent_io::measured_inference::graph_candidate::TransportStandardization::columns: alloc::vec::Vec<(u32, alloc::vec::Vec<f64>)>
+pub field antecedent_io::measured_inference::graph_candidate::TransportStandardization::selection_targets: alloc::vec::Vec<u32>
+pub field antecedent_io::measured_inference::graph_candidate::TransportStandardization::source_population: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::TransportStandardization::source_sample: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::TransportStandardization::source_unit_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::measured_inference::graph_candidate::TransportStandardization::target_population: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::TransportStandardization::target_sample: alloc::string::String
+pub field antecedent_io::measured_inference::graph_candidate::TransportStandardization::target_unit_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::adjustment_set: alloc::vec::Vec<u32>
 pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::degrees_of_freedom: f64
 pub field antecedent_io::measured_inference::split_effect::AdjustedEffect::level: f64
@@ -9310,6 +9422,9 @@ pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactW
 pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire>::fn expected_data_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire>::fn expected_premises_digest(&self) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire>::fn from_artifact(artifact: &antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire) -> Self
+pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire>::fn from_declaration(model: &antecedent_estimate::joint_bayesian_transport::JointTransportModel, sources: &[antecedent_estimate::joint_bayesian_transport::SourceData], target: &antecedent_estimate::joint_bayesian_transport::TargetData, options: antecedent_estimate::joint_bayesian_transport::JointTransportOptions) -> Self
+pub fn <antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire>::fn to_declaration(&self) -> (antecedent_estimate::joint_bayesian_transport::JointTransportModel, alloc::vec::Vec<antecedent_estimate::joint_bayesian_transport::SourceData>, antecedent_estimate::joint_bayesian_transport::TargetData, antecedent_estimate::joint_bayesian_transport::JointTransportOptions)
 pub fn <antecedent_io::joint_panel_artifact::FrozenPanelFit>::fn invariant(fit: &antecedent_estimate::joint_panel::PanelFit) -> Self
 pub fn <antecedent_io::joint_panel_artifact::FrozenPanelFit>::fn varying(fit: &antecedent_estimate::joint_panel::time_varying::TemporalPanelFit) -> Self
 pub fn <antecedent_io::joint_panel_artifact::HistoricalPanelExecution>::const fn grants_current_authority(&self) -> bool
@@ -9393,6 +9508,19 @@ pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedInt
 pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire>::fn encode(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire>::fn measure(bytes: &[u8]) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire>::fn point(&self) -> core::result::Result<f64, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization>::fn digest(&self) -> core::result::Result<[u8; 32], antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization>::fn rows(&self) -> usize
+pub fn <antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization>::fn validate(&self, parts: &antecedent_core::graph_imputation_contract::GraphImputationParts) -> core::result::Result<(), antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization>::fn validate_confounded(&self, parts: &antecedent_core::graph_imputation_contract::GraphImputationParts) -> core::result::Result<(), antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::graph_candidate::MarTargetStandardization>::fn digest(&self) -> core::result::Result<[u8; 32], antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::graph_candidate::MarTargetStandardization>::fn validate(&self, parts: &antecedent_core::graph_imputation_contract::GraphImputationParts) -> core::result::Result<(), antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::graph_candidate::RawTargetFrame>::fn complete_rows(&self) -> alloc::vec::Vec<(usize, f64)>
+pub fn <antecedent_io::measured_inference::graph_candidate::RawTargetFrame>::fn digest(&self) -> core::result::Result<[u8; 32], antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::graph_candidate::RawTargetFrame>::fn validate(&self, parts: &antecedent_core::graph_imputation_contract::GraphImputationParts, source_ids: &[alloc::string::String]) -> core::result::Result<(), antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::graph_candidate::TransportStandardization>::fn digest(&self) -> core::result::Result<[u8; 32], antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::graph_candidate::TransportStandardization>::fn rows(&self) -> usize
+pub fn <antecedent_io::measured_inference::graph_candidate::TransportStandardization>::fn validate(&self, parts: &antecedent_core::graph_imputation_contract::GraphImputationParts) -> core::result::Result<(), antecedent_io_core::error::IoError>
+pub fn <antecedent_io::measured_inference::graph_candidate::TransportStandardization>::fn validate_confounded(&self, parts: &antecedent_core::graph_imputation_contract::GraphImputationParts) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn <antecedent_io::measured_inference::split_effect::AdjustedEffect>::fn keyed_basis(&self, structure: &str, dependence: &str) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn <antecedent_io::measured_inference::split_effect::SplitEffectRun>::fn keyed_basis(&self) -> antecedent_core::calibration_basis::CalibrationBasis
 pub fn <antecedent_io::measured_inference::split_effect::SplitEffectSource>::fn from_bytes(bytes: &[u8]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
@@ -9564,6 +9692,14 @@ pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounter
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn sealed(self) -> core::result::Result<Self, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire>::fn validate_shape(&self) -> core::result::Result<(), antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledEstimateWire>::fn from_estimate(estimate: &antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate) -> Self
+pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire>::fn from_limits(limits: &antecedent_estimate::counterfactual_transport_sampled::counts::SampledTransportLimits) -> Self
+pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledLimitsWire>::fn to_limits(&self) -> antecedent_estimate::counterfactual_transport_sampled::counts::SampledTransportLimits
+pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire>::fn from_declaration(declaration: &antecedent_estimate::counterfactual_transport_sampled::overlap::OverlapDeclaration) -> Self
+pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledOverlapWire>::fn to_declaration(&self) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::overlap::OverlapDeclaration, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
+pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledTableKeyWire>::fn from_key(key: &antecedent_estimate::counterfactual_transport_sampled::counts::SampledTableKey) -> Self
+pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledTableKeyWire>::fn to_key(&self) -> antecedent_estimate::counterfactual_transport_sampled::counts::SampledTableKey
+pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledUnseenRuleWire>::fn from_rule(rule: antecedent_estimate::counterfactual_transport_sampled::counts::UnseenCellRule) -> Self
+pub fn <antecedent_io::sampled_counterfactual_transport_artifact::SampledUnseenRuleWire>::fn to_rule(&self) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::counts::UnseenCellRule, antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactError>
 pub fn <antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire>::fn check_variable_names(&self, names: &[alloc::string::String]) -> core::result::Result<(), antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactError>
 pub fn <antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire>::fn checked(input: &antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'_>) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire>::fn checked_within(input: &antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactInput<'_>, limits: &antecedent_io::sampled_recovery_artifact::SampledRecoveryConsumeLimits) -> core::result::Result<Self, antecedent_io_core::error::IoError>
@@ -9778,7 +9914,18 @@ pub fn antecedent_io::measured_inference::decode(bytes: &[u8], expected: &antece
 pub fn antecedent_io::measured_inference::encode_report(source: &[u8], report: &antecedent_io::measured_inference::MeasuredInferenceReport) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::graph_candidate::derive_support(parts: &antecedent_core::graph_imputation_contract::GraphImputationParts) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::RetainedSupport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::graph_candidate::measure_source(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_bernoulli_logit_predictive_worlds(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::TransportStandardization, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_confounded_kernel_transport_point(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPointReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_confounded_transport_point(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::TransportStandardization, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPointReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_gaussian_target_predictive_worlds(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::TransportStandardization, residual_variance: f64, cross_world_correlation: f64, seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_kernel_transport_point(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPointReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_mar_transport_point(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::MarTargetStandardization, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPointReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_paired_worlds(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::graph_candidate::replay_point(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPointReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_target_predictive_cluster_bootstrap_worlds(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::TransportStandardization, cluster_ids: &[alloc::string::String], replicates: u32, seed: u64, gaussian: core::option::Option<(f64, f64, u64)>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_transport_paired_worlds(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::TransportStandardization, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_transport_paired_worlds_bootstrap(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::TransportStandardization, replicates: u32, seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replay_transport_point(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::TransportStandardization, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPointReading, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::graph_candidate::retained_support(n: usize, treatment: u32, outcome: u32, support: antecedent_core::graph_imputation_contract::GraphSupport) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::RetainedSupport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::graph_candidate::route_functional(parts: &antecedent_core::graph_imputation_contract::GraphImputationParts) -> alloc::string::String
 pub fn antecedent_io::measured_inference::mnar_candidate::measure_source(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
@@ -10063,6 +10210,7 @@ pub struct antecedent_io::joint_bayesian_transport_artifact::GaussianPriorWire
 pub struct antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire
 pub struct antecedent_io::joint_bayesian_transport_artifact::JointBayesianConsumeLimits
 pub struct antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation
+pub struct antecedent_io::joint_bayesian_transport_artifact::JointBayesianInputWire
 pub struct antecedent_io::joint_bayesian_transport_artifact::JointDiagnosticsWire
 pub struct antecedent_io::joint_bayesian_transport_artifact::JointDrawsWire
 pub struct antecedent_io::joint_bayesian_transport_artifact::JointModelWire
@@ -10124,9 +10272,15 @@ pub struct antecedent_io::measured_inference::cohort_interval::CohortIntervalArt
 pub struct antecedent_io::measured_inference::cohort_interval::FitRowsWire
 pub struct antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire
 pub struct antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire
+pub struct antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading
+pub struct antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading has private fields
 pub struct antecedent_io::measured_inference::graph_candidate::GraphPointReading
 pub struct antecedent_io::measured_inference::graph_candidate::GraphPointReading has private fields
+pub struct antecedent_io::measured_inference::graph_candidate::KernelTransportStandardization
+pub struct antecedent_io::measured_inference::graph_candidate::MarTargetStandardization
+pub struct antecedent_io::measured_inference::graph_candidate::RawTargetFrame
 pub struct antecedent_io::measured_inference::graph_candidate::RetainedSupport
+pub struct antecedent_io::measured_inference::graph_candidate::TransportStandardization
 pub struct antecedent_io::measured_inference::split_effect::AdjustedEffect
 pub struct antecedent_io::measured_inference::split_effect::SplitEffectRun
 pub struct antecedent_io::measured_inference::split_effect::SplitEffectSource

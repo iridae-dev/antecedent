@@ -761,9 +761,11 @@ impl core::clone::Clone for antecedent_io_core::native_execution_wire::NativeExe
 impl core::clone::Clone for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl core::clone::Clone for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl core::clone::Clone for antecedent_io_core::native_execution_wire::NativeOutputRetention
+impl core::clone::Clone for antecedent_io_core::observation_query_artifact::DependentMeasurementWire
 impl core::clone::Clone for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::clone::Clone for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::clone::Clone for antecedent_io_core::plan_wire::KernelSelectionWire
+impl core::clone::Clone for antecedent_io_core::propagation_chain_record::ChainJointOutputWire
 impl core::clone::Clone for antecedent_io_core::propagation_chain_record::PropagationChainLimits
 impl core::clone::Clone for antecedent_io_core::provider_envelope::ExternalProviderTrust
 impl core::clone::Clone for antecedent_io_core::provider_envelope::ProviderEnvelope
@@ -1338,9 +1340,11 @@ impl core::cmp::Eq for antecedent_io_core::native_execution_wire::NativeExecutio
 impl core::cmp::Eq for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl core::cmp::Eq for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl core::cmp::Eq for antecedent_io_core::native_execution_wire::NativeOutputRetention
+impl core::cmp::Eq for antecedent_io_core::observation_query_artifact::DependentMeasurementWire
 impl core::cmp::Eq for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::cmp::Eq for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::cmp::Eq for antecedent_io_core::plan_wire::KernelSelectionWire
+impl core::cmp::Eq for antecedent_io_core::propagation_chain_record::ChainJointOutputWire
 impl core::cmp::Eq for antecedent_io_core::propagation_chain_record::PropagationChainLimits
 impl core::cmp::Eq for antecedent_io_core::provider_envelope::ExternalProviderTrust
 impl core::cmp::Eq for antecedent_io_core::provider_envelope::ProviderEnvelopeLimits
@@ -2040,9 +2044,11 @@ impl core::cmp::PartialEq for antecedent_io_core::native_execution_wire::NativeE
 impl core::cmp::PartialEq for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl core::cmp::PartialEq for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl core::cmp::PartialEq for antecedent_io_core::native_execution_wire::NativeOutputRetention
+impl core::cmp::PartialEq for antecedent_io_core::observation_query_artifact::DependentMeasurementWire
 impl core::cmp::PartialEq for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::cmp::PartialEq for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::cmp::PartialEq for antecedent_io_core::plan_wire::KernelSelectionWire
+impl core::cmp::PartialEq for antecedent_io_core::propagation_chain_record::ChainJointOutputWire
 impl core::cmp::PartialEq for antecedent_io_core::propagation_chain_record::PropagationChainLimits
 impl core::cmp::PartialEq for antecedent_io_core::provider_envelope::ExternalProviderTrust
 impl core::cmp::PartialEq for antecedent_io_core::provider_envelope::ProviderEnvelope
@@ -3061,9 +3067,11 @@ impl core::fmt::Debug for antecedent_io_core::native_execution_wire::NativeExecu
 impl core::fmt::Debug for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl core::fmt::Debug for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl core::fmt::Debug for antecedent_io_core::native_execution_wire::NativeOutputRetention
+impl core::fmt::Debug for antecedent_io_core::observation_query_artifact::DependentMeasurementWire
 impl core::fmt::Debug for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::fmt::Debug for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::fmt::Debug for antecedent_io_core::plan_wire::KernelSelectionWire
+impl core::fmt::Debug for antecedent_io_core::propagation_chain_record::ChainJointOutputWire
 impl core::fmt::Debug for antecedent_io_core::propagation_chain_record::PropagationChainLimits
 impl core::fmt::Debug for antecedent_io_core::provider_envelope::ExternalProviderTrust
 impl core::fmt::Debug for antecedent_io_core::provider_envelope::ProviderEnvelope
@@ -4107,9 +4115,11 @@ impl core::marker::Freeze for antecedent_io_core::native_execution_wire::NativeE
 impl core::marker::Freeze for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::marker::Freeze for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::marker::Freeze for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
+impl core::marker::Freeze for antecedent_io_core::observation_query_artifact::DependentMeasurementWire [auto]
 impl core::marker::Freeze for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
+impl core::marker::Freeze for antecedent_io_core::propagation_chain_record::ChainJointOutputWire [auto]
 impl core::marker::Freeze for antecedent_io_core::propagation_chain_record::PropagationChainLimits [auto]
 impl core::marker::Freeze for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::marker::Freeze for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
@@ -4969,9 +4979,11 @@ impl core::marker::Send for antecedent_io_core::native_execution_wire::NativeExe
 impl core::marker::Send for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::marker::Send for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::marker::Send for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
+impl core::marker::Send for antecedent_io_core::observation_query_artifact::DependentMeasurementWire [auto]
 impl core::marker::Send for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Send for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Send for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
+impl core::marker::Send for antecedent_io_core::propagation_chain_record::ChainJointOutputWire [auto]
 impl core::marker::Send for antecedent_io_core::propagation_chain_record::PropagationChainLimits [auto]
 impl core::marker::Send for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::marker::Send for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
@@ -5783,9 +5795,11 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::native_execution_
 impl core::marker::StructuralPartialEq for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl core::marker::StructuralPartialEq for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::native_execution_wire::NativeOutputRetention
+impl core::marker::StructuralPartialEq for antecedent_io_core::observation_query_artifact::DependentMeasurementWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::plan_wire::DataClassificationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::plan_wire::KernelSelectionWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::propagation_chain_record::ChainJointOutputWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::propagation_chain_record::PropagationChainLimits
 impl core::marker::StructuralPartialEq for antecedent_io_core::provider_envelope::ExternalProviderTrust
 impl core::marker::StructuralPartialEq for antecedent_io_core::provider_envelope::ProviderEnvelope
@@ -6634,9 +6648,11 @@ impl core::marker::Sync for antecedent_io_core::native_execution_wire::NativeExe
 impl core::marker::Sync for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::marker::Sync for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::marker::Sync for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
+impl core::marker::Sync for antecedent_io_core::observation_query_artifact::DependentMeasurementWire [auto]
 impl core::marker::Sync for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Sync for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Sync for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
+impl core::marker::Sync for antecedent_io_core::propagation_chain_record::ChainJointOutputWire [auto]
 impl core::marker::Sync for antecedent_io_core::propagation_chain_record::PropagationChainLimits [auto]
 impl core::marker::Sync for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::marker::Sync for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
@@ -7497,9 +7513,11 @@ impl core::marker::Unpin for antecedent_io_core::native_execution_wire::NativeEx
 impl core::marker::Unpin for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::marker::Unpin for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::marker::Unpin for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
+impl core::marker::Unpin for antecedent_io_core::observation_query_artifact::DependentMeasurementWire [auto]
 impl core::marker::Unpin for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
+impl core::marker::Unpin for antecedent_io_core::propagation_chain_record::ChainJointOutputWire [auto]
 impl core::marker::Unpin for antecedent_io_core::propagation_chain_record::PropagationChainLimits [auto]
 impl core::marker::Unpin for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::marker::Unpin for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
@@ -8360,9 +8378,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::native_exec
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::observation_query_artifact::DependentMeasurementWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::propagation_chain_record::ChainJointOutputWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::propagation_chain_record::PropagationChainLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
@@ -9222,9 +9242,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::native_executi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::native_execution_wire::NativeExecutionWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::native_execution_wire::NativeOutputRetention [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::observation_query_artifact::DependentMeasurementWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::plan_wire::BufferMaterializationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::plan_wire::DataClassificationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::plan_wire::KernelSelectionWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::propagation_chain_record::ChainJointOutputWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::propagation_chain_record::PropagationChainLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::provider_envelope::ExternalProviderTrust [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::provider_envelope::ProviderEnvelope [auto]
@@ -9917,9 +9939,11 @@ impl serde_core::ser::Serialize for antecedent_io_core::native_execution_wire::N
 impl serde_core::ser::Serialize for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl serde_core::ser::Serialize for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl serde_core::ser::Serialize for antecedent_io_core::native_execution_wire::NativeOutputRetention
+impl serde_core::ser::Serialize for antecedent_io_core::observation_query_artifact::DependentMeasurementWire
 impl serde_core::ser::Serialize for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl serde_core::ser::Serialize for antecedent_io_core::plan_wire::DataClassificationWire
 impl serde_core::ser::Serialize for antecedent_io_core::plan_wire::KernelSelectionWire
+impl serde_core::ser::Serialize for antecedent_io_core::propagation_chain_record::ChainJointOutputWire
 impl serde_core::ser::Serialize for antecedent_io_core::provider_envelope::ExternalProviderTrust
 impl serde_core::ser::Serialize for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader
 impl serde_core::ser::Serialize for antecedent_io_core::provider_verification_artifact::ProviderIdentityWire
@@ -10692,9 +10716,11 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::native_execut
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::native_execution_wire::NativeExecutionStatus
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::native_execution_wire::NativeExecutionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::native_execution_wire::NativeOutputRetention
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::observation_query_artifact::DependentMeasurementWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::plan_wire::BufferMaterializationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::plan_wire::DataClassificationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::plan_wire::KernelSelectionWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::propagation_chain_record::ChainJointOutputWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::provider_envelope::ExternalProviderTrust
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::provider_envelope::ProviderEnvelopeHeader
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::provider_verification_artifact::ExecutionRequestWire
@@ -10930,6 +10956,8 @@ pub const antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_VERSION: u32
 pub const antecedent_io_core::OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION: u32
 pub const antecedent_io_core::OBSERVATION_QUERY_GENERAL_FEATURE: &str
+pub const antecedent_io_core::OBSERVATION_QUERY_JOINT_MEASURED_FEATURE: &str
+pub const antecedent_io_core::OBSERVATION_QUERY_JOINT_MEASURED_VERSION: u32
 pub const antecedent_io_core::OVERLAP_LIMITED_DIAGNOSTIC: &str
 pub const antecedent_io_core::PARAMETER_DRAWS_READING: &str
 pub const antecedent_io_core::POSTERIOR_ROW_CALIBRATION: &str
@@ -11079,6 +11107,8 @@ pub const antecedent_io_core::joint_law_propagation_artifact::MAX_JOINT_LAW_PROP
 pub const antecedent_io_core::measurement_model_wire::MAX_MEASUREMENT_IMPUTATIONS: usize
 pub const antecedent_io_core::measurement_model_wire::MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES: usize
 pub const antecedent_io_core::measurement_model_wire::MEASUREMENT_MODEL_ARTIFACT_VERSION: u16
+pub const antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_DEPENDENT_MEASURED_FEATURE: &str
+pub const antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_DEPENDENT_MEASURED_VERSION: u32
 pub const antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_MAX_RETAINED_ROWS: usize
 pub const antecedent_io_core::policy_program_artifact::POLICY_PROGRAM_MAGIC: &[u8]
 pub const antecedent_io_core::policy_program_artifact::POLICY_PROGRAM_MAX_BYTES: usize
@@ -11091,6 +11121,15 @@ pub const antecedent_io_core::propagation_chain_record::MAX_PROPAGATION_CHAIN_CE
 pub const antecedent_io_core::propagation_chain_record::MAX_PROPAGATION_CHAIN_CHANGES: usize
 pub const antecedent_io_core::propagation_chain_record::MAX_PROPAGATION_CHAIN_TEXT_BYTES: usize
 pub const antecedent_io_core::propagation_chain_record::MAX_STAGE_VALUES: usize
+pub const antecedent_io_core::propagation_chain_record::PROPAGATION_CHAIN_ASSUMPTION_FEATURE: &str
+pub const antecedent_io_core::propagation_chain_record::PROPAGATION_CHAIN_ASSUMPTION_TAG: &str
+pub const antecedent_io_core::propagation_chain_record::PROPAGATION_CHAIN_ASSUMPTION_VERSION: u32
+pub const antecedent_io_core::propagation_chain_record::PROPAGATION_CHAIN_JOINT_LAW_FEATURE: &str
+pub const antecedent_io_core::propagation_chain_record::PROPAGATION_CHAIN_JOINT_LAW_TAG: &str
+pub const antecedent_io_core::propagation_chain_record::PROPAGATION_CHAIN_JOINT_LAW_VERSION: u32
+pub const antecedent_io_core::propagation_chain_record::PROPAGATION_CHAIN_LAW_FEATURE: &str
+pub const antecedent_io_core::propagation_chain_record::PROPAGATION_CHAIN_LAW_TAG: &str
+pub const antecedent_io_core::propagation_chain_record::PROPAGATION_CHAIN_LAW_VERSION: u32
 pub const antecedent_io_core::propagation_chain_record::PROPAGATION_CHAIN_TAG: &str
 pub const antecedent_io_core::propagation_chain_record::STATUS_CURRENT: &str
 pub const antecedent_io_core::propagation_chain_record::STATUS_INVALIDATED: &str
@@ -11741,9 +11780,18 @@ pub field antecedent_io_core::ConsumedObservationQuery::identity: alloc::string:
 pub field antecedent_io_core::ConsumedObservationQuery::inference_basis: alloc::string::String
 pub field antecedent_io_core::ConsumedObservationQuery::operation: alloc::string::String
 pub field antecedent_io_core::ConsumedObservationQuery::result: antecedent_io_core::ObservationResultWire
+pub field antecedent_io_core::ConsumedPropagationChain::construction: alloc::string::String
 pub field antecedent_io_core::ConsumedPropagationChain::identity: alloc::string::String
+pub field antecedent_io_core::ConsumedPropagationChain::joint_output_draws: core::option::Option<alloc::vec::Vec<alloc::vec::Vec<u64>>>
+pub field antecedent_io_core::ConsumedPropagationChain::joint_output_weights: core::option::Option<alloc::vec::Vec<u64>>
+pub field antecedent_io_core::ConsumedPropagationChain::joint_outputs: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::ChainJointOutputWire>
 pub field antecedent_io_core::ConsumedPropagationChain::label: alloc::string::String
 pub field antecedent_io_core::ConsumedPropagationChain::output: alloc::string::String
+pub field antecedent_io_core::ConsumedPropagationChain::output_draws: core::option::Option<alloc::vec::Vec<u64>>
+pub field antecedent_io_core::ConsumedPropagationChain::output_lower_bounds: core::option::Option<alloc::vec::Vec<u64>>
+pub field antecedent_io_core::ConsumedPropagationChain::output_quantity: core::option::Option<antecedent_io_core::quantity_wire::ScientificQuantityWire>
+pub field antecedent_io_core::ConsumedPropagationChain::output_upper_bounds: core::option::Option<alloc::vec::Vec<u64>>
+pub field antecedent_io_core::ConsumedPropagationChain::output_weights: core::option::Option<alloc::vec::Vec<u64>>
 pub field antecedent_io_core::ConsumedPropagationChain::plan: antecedent_contract::propagation_chain::ChainPlan
 pub field antecedent_io_core::ConsumedPropagationChain::results: alloc::vec::Vec<antecedent_io_core::ChainStageResultWire>
 pub field antecedent_io_core::ContainerLimits::max_manifest_bytes: usize
@@ -12431,8 +12479,16 @@ pub field antecedent_io_core::ProgramIdentityWire::temporal_attribution_rows: co
 pub field antecedent_io_core::PropagationChainRecordWire::changes: alloc::vec::Vec<antecedent_io_core::ChainChangeWire>
 pub field antecedent_io_core::PropagationChainRecordWire::construction: alloc::string::String
 pub field antecedent_io_core::PropagationChainRecordWire::identity: alloc::string::String
+pub field antecedent_io_core::PropagationChainRecordWire::joint_output_draws: core::option::Option<alloc::vec::Vec<alloc::vec::Vec<u64>>>
+pub field antecedent_io_core::PropagationChainRecordWire::joint_output_weights: core::option::Option<alloc::vec::Vec<u64>>
+pub field antecedent_io_core::PropagationChainRecordWire::joint_outputs: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::ChainJointOutputWire>
 pub field antecedent_io_core::PropagationChainRecordWire::label: alloc::string::String
 pub field antecedent_io_core::PropagationChainRecordWire::output: alloc::string::String
+pub field antecedent_io_core::PropagationChainRecordWire::output_draws: core::option::Option<alloc::vec::Vec<u64>>
+pub field antecedent_io_core::PropagationChainRecordWire::output_lower_bounds: core::option::Option<alloc::vec::Vec<u64>>
+pub field antecedent_io_core::PropagationChainRecordWire::output_quantity: core::option::Option<antecedent_io_core::quantity_wire::ScientificQuantityWire>
+pub field antecedent_io_core::PropagationChainRecordWire::output_upper_bounds: core::option::Option<alloc::vec::Vec<u64>>
+pub field antecedent_io_core::PropagationChainRecordWire::output_weights: core::option::Option<alloc::vec::Vec<u64>>
 pub field antecedent_io_core::PropagationChainRecordWire::reading: alloc::string::String
 pub field antecedent_io_core::PropagationChainRecordWire::required_features: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io_core::PropagationChainRecordWire::results: alloc::vec::Vec<antecedent_io_core::ChainStageResultWire>
@@ -13204,6 +13260,8 @@ pub field antecedent_io_core::bridge_artifact::TrialWire::terminal_bits: u64
 pub field antecedent_io_core::bridge_distribution::AffineColumns::intercepts: alloc::vec::Vec<f64>
 pub field antecedent_io_core::bridge_distribution::AffineColumns::residuals: core::option::Option<alloc::vec::Vec<f64>>
 pub field antecedent_io_core::bridge_distribution::AffineColumns::slopes: alloc::vec::Vec<f64>
+pub field antecedent_io_core::bridge_distribution::BridgeChainStage::output_quantity: antecedent_io_core::quantity_wire::ScientificQuantityWire
+pub field antecedent_io_core::bridge_distribution::BridgeChainStage::reading: antecedent_contract::propagation_chain::ChainReading
 pub field antecedent_io_core::bridge_distribution::BridgeChainStage::sources: alloc::vec::Vec<antecedent_io_core::ChainSourceWire>
 pub field antecedent_io_core::bridge_distribution::BridgeChainStage::stage: antecedent_io_core::ChainStageWire
 pub field antecedent_io_core::bridge_distribution::CorrectionColumns::direction: antecedent_contract::bridge::mapping::MeasurementDirection
@@ -14175,6 +14233,16 @@ pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::kernel
 pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::resources: [u64; 3]
 pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::retention: core::option::Option<antecedent_io_core::native_execution_wire::NativeOutputRetention>
 pub field antecedent_io_core::native_execution_wire::NativeExecutionWire::status: antecedent_io_core::native_execution_wire::NativeExecutionStatus
+pub field antecedent_io_core::observation_query_artifact::DependentMeasurementWire::construct: alloc::string::String
+pub field antecedent_io_core::observation_query_artifact::DependentMeasurementWire::construct_levels: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::observation_query_artifact::DependentMeasurementWire::evidence_id: alloc::string::String
+pub field antecedent_io_core::observation_query_artifact::DependentMeasurementWire::indicator_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::observation_query_artifact::DependentMeasurementWire::indicator_levels: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>
+pub field antecedent_io_core::observation_query_artifact::DependentMeasurementWire::population_id: alloc::string::String
+pub field antecedent_io_core::observation_query_artifact::DependentMeasurementWire::probability_bits: alloc::vec::Vec<u64>
+pub field antecedent_io_core::observation_query_artifact::DependentMeasurementWire::regime_id: alloc::string::String
+pub field antecedent_io_core::propagation_chain_record::ChainJointOutputWire::quantity: antecedent_io_core::quantity_wire::ScientificQuantityWire
+pub field antecedent_io_core::propagation_chain_record::ChainJointOutputWire::stage: alloc::string::String
 pub field antecedent_io_core::propagation_chain_record::PropagationChainLimits::max_bytes: usize
 pub field antecedent_io_core::propagation_chain_record::PropagationChainLimits::max_changes: usize
 pub field antecedent_io_core::propagation_chain_record::PropagationChainLimits::max_stage_values: usize
@@ -15271,7 +15339,9 @@ pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn decode(bytes: &[u8
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn distribution(&self) -> core::result::Result<antecedent_io_core::distribution_artifact::DistributionArtifact, antecedent_io_core::ObservationQueryArtifactError>
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::ObservationQueryArtifactError>
 pub fn <antecedent_io_core::ObservationQueryArtifactWire>::fn seal(spec: core::option::Option<&antecedent_model::compose::descriptor::ComposedModelSpec>, query: antecedent_io_core::ObservationQueryWire, declared_basis: antecedent_contract::observation_query::InferenceBasis, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::ObservationQueryArtifactError>
+pub fn <antecedent_io_core::ObservationQueryWire>::const fn is_dependent_measured(&self) -> bool
 pub fn <antecedent_io_core::ObservationQueryWire>::const fn is_general(&self) -> bool
+pub fn <antecedent_io_core::ObservationQueryWire>::const fn is_joint_measured(&self) -> bool
 pub fn <antecedent_io_core::ObservationQueryWire>::const fn needs_composed_model(&self) -> bool
 pub fn <antecedent_io_core::ObservationQueryWire>::fn canonical(self) -> Self
 pub fn <antecedent_io_core::ObservationQueryWire>::fn operation(&self) -> &'static str
@@ -15319,6 +15389,8 @@ pub fn <antecedent_io_core::PropagationChainRecordWire>::fn seal(draft: Self, ct
 pub fn <antecedent_io_core::PropagationChainRecordWire>::fn seal_within(draft: Self, ctx: &antecedent_core::execution::context::ExecutionContext, limits: &antecedent_io_core::propagation_chain_record::PropagationChainLimits) -> core::result::Result<Self, antecedent_io_core::PropagationChainError>
 pub fn <antecedent_io_core::PropagationChainRecordWire>::fn with_change(&self, change: antecedent_io_core::ChainChangeWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::PropagationChainError>
 pub fn <antecedent_io_core::PropagationChainRecordWire>::fn with_change_within(&self, change: antecedent_io_core::ChainChangeWire, ctx: &antecedent_core::execution::context::ExecutionContext, limits: &antecedent_io_core::propagation_chain_record::PropagationChainLimits) -> core::result::Result<Self, antecedent_io_core::PropagationChainError>
+pub fn <antecedent_io_core::PropagationChainRecordWire>::fn with_joint_outputs(self, outputs: alloc::vec::Vec<antecedent_io_core::propagation_chain_record::ChainJointOutputWire>) -> Self
+pub fn <antecedent_io_core::PropagationChainRecordWire>::fn with_output_quantity(self, quantity: antecedent_io_core::quantity_wire::ScientificQuantityWire) -> Self
 pub fn <antecedent_io_core::PropagationResultWire>::fn float_entries(&self) -> alloc::vec::Vec<(&'static str, u64)>
 pub fn <antecedent_io_core::PropagationResultWire>::fn n_rows(&self) -> core::option::Option<u64>
 pub fn <antecedent_io_core::PropagationResultWire>::fn named_entries(&self) -> alloc::vec::Vec<(alloc::string::String, u64)>
@@ -16254,6 +16326,7 @@ pub fn antecedent_io_core::method_provenance::linked_records(role: antecedent_io
 pub fn antecedent_io_core::method_provenance::route_provenance(components: &[(antecedent_io_core::ProvenanceRole, &str)]) -> antecedent_io_core::MethodProvenanceWire
 pub fn antecedent_io_core::migrate::migrate_artifact(artifact: antecedent_io_core::EncodedArtifact) -> core::result::Result<antecedent_io_core::EncodedArtifact, antecedent_io_core::IoError>
 pub fn antecedent_io_core::migrate::read_and_migrate<R: std::io::Read>(r: R) -> core::result::Result<antecedent_io_core::EncodedArtifact, antecedent_io_core::IoError>
+pub fn antecedent_io_core::observation_query_artifact::check_query_bounds(query: &antecedent_io_core::ObservationQueryWire) -> core::result::Result<(), antecedent_io_core::ObservationQueryArtifactError>
 pub fn antecedent_io_core::observation_query_artifact::observation_query_identity(premises: core::option::Option<&antecedent_io_core::MechanismCompositionPremisesWire>, query: &antecedent_io_core::ObservationQueryWire, inference_basis: &str) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 pub fn antecedent_io_core::observation_query_artifact::query_error_refusals(error: &antecedent_model::observation_query::ObservationQueryError) -> alloc::vec::Vec<antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io_core::path_specific_from_wire(w: &antecedent_io_core::PathSpecificEffectQueryWire) -> core::result::Result<antecedent_core::query::distribution::PathSpecificEffectQuery, antecedent_io_core::IoError>
@@ -16979,6 +17052,8 @@ pub struct antecedent_io_core::mechanism_composition_artifact::TabularRowWire
 pub struct antecedent_io_core::mechanism_composition_artifact::UncertaintyWire
 pub struct antecedent_io_core::mechanism_wire::ParentBasisWire
 pub struct antecedent_io_core::native_execution_wire::NativeExecutionWire
+pub struct antecedent_io_core::observation_query_artifact::DependentMeasurementWire
+pub struct antecedent_io_core::propagation_chain_record::ChainJointOutputWire
 pub struct antecedent_io_core::propagation_chain_record::PropagationChainLimits
 pub struct antecedent_io_core::provider_envelope::ProviderEnvelope
 pub struct antecedent_io_core::provider_envelope::ProviderEnvelopeHeader
@@ -17583,6 +17658,8 @@ pub use antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_ARTIFA
 pub use antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_ARTIFACT_VERSION = antecedent_io_core::OBSERVATION_QUERY_ARTIFACT_VERSION
 pub use antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION = antecedent_io_core::OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION
 pub use antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_GENERAL_FEATURE = antecedent_io_core::OBSERVATION_QUERY_GENERAL_FEATURE
+pub use antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_JOINT_MEASURED_FEATURE = antecedent_io_core::OBSERVATION_QUERY_JOINT_MEASURED_FEATURE
+pub use antecedent_io_core::observation_query_artifact::OBSERVATION_QUERY_JOINT_MEASURED_VERSION = antecedent_io_core::OBSERVATION_QUERY_JOINT_MEASURED_VERSION
 pub use antecedent_io_core::observation_query_artifact::ObservationQueryArtifactError = antecedent_io_core::ObservationQueryArtifactError
 pub use antecedent_io_core::observation_query_artifact::ObservationQueryArtifactWire = antecedent_io_core::ObservationQueryArtifactWire
 pub use antecedent_io_core::observation_query_artifact::ObservationQueryWire = antecedent_io_core::ObservationQueryWire
@@ -18401,9 +18478,11 @@ pub variant antecedent_io_core::ObservationQueryWire::ConditionalInterventionalO
 pub variant antecedent_io_core::ObservationQueryWire::ConditionalOutcome { outcome: alloc::string::String, observed: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, measured: core::option::Option<antecedent_io_core::MeasuredSlotWire> }
 pub variant antecedent_io_core::ObservationQueryWire::ConditioningVersusIntervention { outcome: alloc::string::String, assignment: alloc::vec::Vec<(alloc::string::String, alloc::string::String)> }
 pub variant antecedent_io_core::ObservationQueryWire::ConjugatePosterior { alpha_bits: u64, beta_bits: u64, successes: u64, failures: u64 }
+pub variant antecedent_io_core::ObservationQueryWire::DependentMeasuredOutcome { outcome: alloc::string::String, interventions: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, observed: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, measured: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, error_law: antecedent_io_core::observation_query_artifact::DependentMeasurementWire }
 pub variant antecedent_io_core::ObservationQueryWire::FinitePosterior { hypotheses: alloc::vec::Vec<alloc::string::String>, prior_bits: alloc::vec::Vec<u64>, observation_levels: alloc::vec::Vec<alloc::string::String>, likelihood_bits: alloc::vec::Vec<u64>, observations: alloc::vec::Vec<alloc::string::String> }
 pub variant antecedent_io_core::ObservationQueryWire::GaussianOutcome { outcome: alloc::string::String, interventions: alloc::vec::Vec<(alloc::string::String, u64)>, observed: alloc::vec::Vec<(alloc::string::String, u64)> }
 pub variant antecedent_io_core::ObservationQueryWire::InterventionalOutcome { outcome: alloc::string::String, interventions: alloc::vec::Vec<(alloc::string::String, alloc::string::String)> }
+pub variant antecedent_io_core::ObservationQueryWire::JointMeasuredOutcome { outcome: alloc::string::String, interventions: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, observed: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, measured: alloc::vec::Vec<antecedent_io_core::MeasuredSlotWire>, dependence: alloc::string::String }
 pub variant antecedent_io_core::ObservationQueryWire::ParameterRedraw { target: antecedent_io_core::RedrawTargetWire, retained: alloc::vec::Vec<antecedent_io_core::RetainedMechanismWire>, prior: antecedent_io_core::RedrawPriorWire, draws: u32, seed: u64 }
 pub variant antecedent_io_core::ObservationQueryWire::RequiredBayesFactor { prior_bits: u64, level_bits: u64, direction: alloc::string::String }
 pub variant antecedent_io_core::ObservationQueryWire::RequiredObservationsBinarySignal { prior_bits: u64, level_bits: u64, direction: alloc::string::String, rate_given_hypothesis_bits: u64, rate_given_complement_bits: u64, max_observations: u64 }

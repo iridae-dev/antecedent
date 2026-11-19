@@ -8010,6 +8010,7 @@ pub const antecedent_core::reason_details::composition_boundary::UNSUPPORTED_ACT
 pub const antecedent_core::reason_details::composition_boundary::VERIFICATION_RECEIPT_MISSING: &str
 pub const antecedent_core::reason_details::composition_bundle::CALLBACK_UNAVAILABLE: &str
 pub const antecedent_core::reason_details::composition_bundle::EDGE_DIGEST_MISMATCH: &str
+pub const antecedent_core::reason_details::composition_bundle::EXECUTION_CANCELLED: &str
 pub const antecedent_core::reason_details::composition_bundle::EXPECTED_IDENTITY_MISMATCH: &str
 pub const antecedent_core::reason_details::composition_bundle::GRAPH_OR_SNAPSHOT_MISMATCH: &str
 pub const antecedent_core::reason_details::composition_bundle::INCOMPATIBLE_VERSION: &str
@@ -8017,6 +8018,7 @@ pub const antecedent_core::reason_details::composition_bundle::INVALID_CONTAINER
 pub const antecedent_core::reason_details::composition_bundle::NODE_NOT_FOUND: &str
 pub const antecedent_core::reason_details::composition_bundle::OVERSIZED: &str
 pub const antecedent_core::reason_details::composition_bundle::PROVIDER_REQUEST_CHANGED: &str
+pub const antecedent_core::reason_details::composition_bundle::RESOURCE_REFUSED: &str
 pub const antecedent_core::reason_details::composition_bundle::SWAPPED_EVIDENCE: &str
 pub const antecedent_core::reason_details::composition_bundle::TAMPERED_QUANTITY: &str
 pub const antecedent_core::reason_details::composition_bundle::UNKNOWN_NODE_KIND: &str
@@ -8408,6 +8410,14 @@ pub const antecedent_core::reason_details::effect_constancy_consumer::LIMITS_EXC
 pub const antecedent_core::reason_details::effect_constancy_consumer::PARTITION_MISSING: &str
 pub const antecedent_core::reason_details::effect_constancy_consumer::QUANTITY_MISMATCH: &str
 pub const antecedent_core::reason_details::effect_constancy_consumer::SUPPORT_UNSUPPORTED: &str
+pub const antecedent_core::reason_details::events::BUDGET: &str
+pub const antecedent_core::reason_details::events::FIT_FAILED: &str
+pub const antecedent_core::reason_details::events::INCOMPLETE_LAW: &str
+pub const antecedent_core::reason_details::events::INTERVAL_UNMEASURED: &str
+pub const antecedent_core::reason_details::events::INVALID_REQUEST: &str
+pub const antecedent_core::reason_details::events::NUMERICAL: &str
+pub const antecedent_core::reason_details::events::UNSTABLE: &str
+pub const antecedent_core::reason_details::events::UNVERIFIED_SOURCE: &str
 pub const antecedent_core::reason_details::evidence_ledger::CANCELLED: &str
 pub const antecedent_core::reason_details::evidence_ledger::DIAGONAL_COVARIANCE_SHARED_ROWS: &str
 pub const antecedent_core::reason_details::evidence_ledger::DUPLICATE_RESULT: &str
@@ -8803,6 +8813,8 @@ pub const antecedent_core::reason_details::latent_class_posterior::EMPTY_DESIGN:
 pub const antecedent_core::reason_details::latent_class_posterior::EXTERNAL_POWER_PRIOR: &str
 pub const antecedent_core::reason_details::latent_class_posterior::MAPPED_PRIOR: &str
 pub const antecedent_core::reason_details::latent_class_posterior::NON_POSITIVE_SCALE: &str
+pub const antecedent_core::reason_details::latent_soft_intervention::FORECAST_INADEQUATE: &str
+pub const antecedent_core::reason_details::latent_soft_intervention::INVALID_REQUEST: &str
 pub const antecedent_core::reason_details::learned_continuous_posterior::BAND_NOT_CONSTRUCTED: &str
 pub const antecedent_core::reason_details::learned_continuous_posterior::EMPTY_SCORES: &str
 pub const antecedent_core::reason_details::learned_continuous_posterior::EXTERNAL_POWER_PRIOR: &str
@@ -12967,6 +12979,7 @@ pub mod antecedent_core::reason_details::dose_grid_posterior
 pub mod antecedent_core::reason_details::dose_response
 pub mod antecedent_core::reason_details::effect_constancy
 pub mod antecedent_core::reason_details::effect_constancy_consumer
+pub mod antecedent_core::reason_details::events
 pub mod antecedent_core::reason_details::evidence_ledger
 pub mod antecedent_core::reason_details::evidence_obligations
 pub mod antecedent_core::reason_details::evidence_plan
@@ -12999,6 +13012,7 @@ pub mod antecedent_core::reason_details::joint_response
 pub mod antecedent_core::reason_details::joint_sensitivity
 pub mod antecedent_core::reason_details::latent_class
 pub mod antecedent_core::reason_details::latent_class_posterior
+pub mod antecedent_core::reason_details::latent_soft_intervention
 pub mod antecedent_core::reason_details::learned_continuous_posterior
 pub mod antecedent_core::reason_details::learned_joint_transport
 pub mod antecedent_core::reason_details::learned_transport
@@ -15330,6 +15344,7 @@ pub variant antecedent_core::execution_facts::OutputRetention::Unmeasured
 pub variant antecedent_core::graph_imputation_contract::GraphSupport::PreTreatmentCovariates
 pub variant antecedent_core::graph_imputation_contract::GraphSupport::TreatmentDirectEffect
 pub variant antecedent_core::graph_imputation_contract::GraphSupport::TreatmentRootDirectEffect
+pub variant antecedent_core::graph_imputation_contract::GraphSupport::TreatmentRootPreTreatmentCovariates
 pub variant antecedent_core::identity::DependencyAxis::Design
 pub variant antecedent_core::identity::DependencyAxis::Folds
 pub variant antecedent_core::identity::DependencyAxis::Inference

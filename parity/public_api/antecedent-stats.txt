@@ -3284,6 +3284,7 @@ impl<'a> core::clone::Clone for antecedent_stats::measurement_error::DetectionDa
 impl<'a> core::clone::Clone for antecedent_stats::measurement_error::LatentClassData<'a>
 impl<'a> core::clone::Clone for antecedent_stats::measurement_error::LinearErrorData<'a>
 impl<'a> core::clone::Clone for antecedent_stats::measurement_error::SoftExposureData<'a>
+impl<'a> core::clone::Clone for antecedent_stats::propagation_chain::MixedSource<'a>
 impl<'a> core::cmp::Eq for antecedent_stats::measurement_error::LatentClassData<'a>
 impl<'a> core::cmp::PartialEq for antecedent_stats::adaptive_inference::UnitRecord<'a>
 impl<'a> core::cmp::PartialEq for antecedent_stats::measurement_error::DetectionData<'a>
@@ -3308,6 +3309,7 @@ impl<'a> core::fmt::Debug for antecedent_stats::measurement_error::DetectionData
 impl<'a> core::fmt::Debug for antecedent_stats::measurement_error::LatentClassData<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::measurement_error::LinearErrorData<'a>
 impl<'a> core::fmt::Debug for antecedent_stats::measurement_error::SoftExposureData<'a>
+impl<'a> core::fmt::Debug for antecedent_stats::propagation_chain::MixedSource<'a>
 impl<'a> core::marker::Copy for antecedent_stats::BlockTest<'a>
 impl<'a> core::marker::Copy for antecedent_stats::GlmDesignRef<'a>
 impl<'a> core::marker::Copy for antecedent_stats::IvBlocks<'a>
@@ -3327,6 +3329,7 @@ impl<'a> core::marker::Copy for antecedent_stats::measurement_error::DetectionDa
 impl<'a> core::marker::Copy for antecedent_stats::measurement_error::LatentClassData<'a>
 impl<'a> core::marker::Copy for antecedent_stats::measurement_error::LinearErrorData<'a>
 impl<'a> core::marker::Copy for antecedent_stats::measurement_error::SoftExposureData<'a>
+impl<'a> core::marker::Copy for antecedent_stats::propagation_chain::MixedSource<'a>
 impl<'a> core::marker::Freeze for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -3348,6 +3351,7 @@ impl<'a> core::marker::Freeze for antecedent_stats::measurement_error::Detection
 impl<'a> core::marker::Freeze for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_stats::propagation_chain::MixedSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -3369,6 +3373,7 @@ impl<'a> core::marker::Send for antecedent_stats::measurement_error::DetectionDa
 impl<'a> core::marker::Send for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
+impl<'a> core::marker::Send for antecedent_stats::propagation_chain::MixedSource<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::UnitRecord<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_stats::measurement_error::DetectionData<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_stats::measurement_error::LatentClassData<'a>
@@ -3393,6 +3398,7 @@ impl<'a> core::marker::Sync for antecedent_stats::measurement_error::DetectionDa
 impl<'a> core::marker::Sync for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_stats::propagation_chain::MixedSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -3414,6 +3420,7 @@ impl<'a> core::marker::Unpin for antecedent_stats::measurement_error::DetectionD
 impl<'a> core::marker::Unpin for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_stats::propagation_chain::MixedSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -3435,6 +3442,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measureme
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::propagation_chain::MixedSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::BlockTest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::CiBatchRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::GlmDesignRef<'a> [auto]
@@ -3456,6 +3464,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LatentClassData<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::SoftExposureData<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::propagation_chain::MixedSource<'a> [auto]
 impl<E> core::convert::From<antecedent_core::execution::pipeline::MapExecutionError<E>> for antecedent_stats::StatsError where Self: core::convert::From<E>
 pub const <antecedent_stats::Combine>::ALL: [Self; 4]
 pub const <antecedent_stats::IdentifiedSetIntervalMethod>::ALL: [Self; 3]
@@ -3594,6 +3603,7 @@ pub enum antecedent_stats::measurement_error::DetectionDeclaration
 pub enum antecedent_stats::measurement_error::DetectionDirection
 pub enum antecedent_stats::measurement_error::DetectionFunction
 pub enum antecedent_stats::measurement_error::ExposureErrorStructure
+pub enum antecedent_stats::propagation_chain::MixedSource<'a>
 pub enum antecedent_stats::synthesis_transport::SummaryOrigin
 pub field antecedent_stats::BlockTest::x_cols: &'a [usize]
 pub field antecedent_stats::BlockTest::y_cols: &'a [usize]
@@ -5191,6 +5201,7 @@ pub fn antecedent_stats::predict_lasso(fit: &antecedent_stats::LassoFit, x_colma
 pub fn antecedent_stats::predict_propensity(x_colmajor: &[f64], nrows: usize, ncols: usize, coefficients: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_stats::StatsError>
 pub fn antecedent_stats::preposterior(parameter: &[f64], utility: &[f64], weights: core::option::Option<&[f64]>, study: &antecedent_stats::Preposterior, cancel: &antecedent_core::execution::cancel::CancellationToken) -> core::result::Result<antecedent_stats::PreposteriorOutcome, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::admit_moment_matched_table_work(k: usize, rows: usize, limit: u64) -> core::result::Result<(), antecedent_stats::ChainError>
+pub fn antecedent_stats::propagation_chain::evaluate_mixed_enclosures(sources: &[antecedent_stats::propagation_chain::MixedSource<'_>], stages: &[antecedent_stats::StageSpec], cancel: &antecedent_core::execution::cancel::CancellationToken) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<antecedent_stats::Enclosure>>, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::shared_row_correlation(rows_a: usize, rows_b: usize, shared: usize) -> core::result::Result<f64, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::summarize(column: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_stats::ColumnSummary, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::validate_spec(n_sources: usize, stages: &[antecedent_stats::StageSpec]) -> core::result::Result<(), antecedent_stats::ChainError>
@@ -6376,6 +6387,8 @@ pub variant antecedent_stats::measurement_error::MeasurementErrorError::Shape(&'
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::SingularDesign
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::TooFewRows { rows: usize, minimum: usize }
 pub variant antecedent_stats::measurement_error::MeasurementErrorError::YoudenTooSmall { youden: f64, minimum: f64 }
+pub variant antecedent_stats::propagation_chain::MixedSource::Draws(&'a [f64])
+pub variant antecedent_stats::propagation_chain::MixedSource::Fixed(antecedent_stats::Enclosure)
 pub variant antecedent_stats::synthesis_transport::SummaryOrigin::Native
 pub variant antecedent_stats::synthesis_transport::SummaryOrigin::Transported { transport_key: alloc::string::String, transport_variance: f64 }
 pub variant antecedent_stats::synthesis_transport::TransportedSynthesisError::InconsistentTransportVariance { key: alloc::string::String }

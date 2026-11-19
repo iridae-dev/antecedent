@@ -506,6 +506,7 @@ impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sample
 impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
 impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport
+impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate
 impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval
 impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
 impl core::clone::Clone for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest
@@ -1795,6 +1796,7 @@ impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_samp
 impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
 impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport
+impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate
 impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval
 impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
 impl core::cmp::PartialEq for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope
@@ -3056,6 +3058,7 @@ impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled:
 impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
 impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport
+impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate
 impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval
 impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
 impl core::fmt::Debug for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest
@@ -4606,6 +4609,7 @@ impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_samp
 impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
 impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
 impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
 impl core::marker::Freeze for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
@@ -5730,6 +5734,7 @@ impl core::marker::Send for antecedent_estimate::counterfactual_transport_sample
 impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
 impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
 impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate [auto]
 impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval [auto]
 impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
 impl core::marker::Send for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
@@ -6743,6 +6748,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_t
 impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
 impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport
+impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate
 impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval
 impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
 impl core::marker::StructuralPartialEq for antecedent_estimate::counterfactual_transport_sampled::StructuralEnvelope
@@ -7793,6 +7799,7 @@ impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sample
 impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
 impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
 impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval [auto]
 impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
 impl core::marker::Sync for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
@@ -8920,6 +8927,7 @@ impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampl
 impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
 impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
 impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
 impl core::marker::Unpin for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
@@ -10050,6 +10058,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfac
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
@@ -11176,6 +11185,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactua
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledRepairs [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTableKey [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTableReport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest [auto]
@@ -15503,6 +15513,14 @@ pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableRep
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::structural_zeros: usize
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::total: u64
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTableReport::unseen_cells: usize
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate::active: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate::baseline: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate::calibration: &'static str
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate::contrast: f64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate::evidence_identity: alloc::string::String
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate::sampled_units: u64
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate::standard_error: core::option::Option<antecedent_estimate::counterfactual_transport_sampled::UncalibratedStandardError>
+pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate::standard_error_withheld_reason: core::option::Option<&'static str>
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval::basis: antecedent_core::calibration_basis::CalibrationBasis
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval::level: f64
 pub field antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval::lower: f64
@@ -17236,6 +17254,7 @@ pub field antecedent_estimate::observational_policy::ObservationalPolicyValue::g
 pub field antecedent_estimate::observational_policy::ObservationalPolicyValue::known_propensity: core::option::Option<antecedent_estimate::observational_policy::KnownPropensity>
 pub field antecedent_estimate::observational_policy::ObservationalPolicyValue::min_propensity: f64
 pub field antecedent_estimate::observational_policy::ObservationalPolicyValue::objective: antecedent_estimate::observational_policy::PolicyObjective
+pub field antecedent_estimate::observational_policy::ObservationalPolicyValue::policy_features: core::option::Option<alloc::vec::Vec<usize>>
 pub field antecedent_estimate::observational_policy::ObservationalPolicyValue::reference: core::option::Option<f64>
 pub field antecedent_estimate::observational_policy::ObservationalPolicyValue::support: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::observational_policy::PolicyData::covariates: &'a [&'a [f64]]
@@ -18862,6 +18881,7 @@ pub fn <antecedent_estimate::PreparedAssociation>::const fn rows_dropped(&self) 
 pub fn <antecedent_estimate::PreparedAssociation>::const fn selection(&self) -> &antecedent_estimate::AssociationSelection
 pub fn <antecedent_estimate::PreparedBayesianProblem>::fn with_preparation(self, preparation: core::option::Option<alloc::sync::Arc<antecedent_estimate::PreparationSummary>>) -> Self
 pub fn <antecedent_estimate::PreparedBayesianProblem>::fn with_serial_dependence(self, dependence: antecedent_estimate::SerialDependence) -> Self
+pub fn <antecedent_estimate::PreparedBayesianProblem>::fn with_target_interactions(self, weights: &[f64]) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PreparedFunctionalDistribution>::fn factor_snapshot(&self) -> core::result::Result<antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::PreparedFunctionalDistribution>::fn program(&self) -> &antecedent_expr::program::FunctionalProgram
 pub fn <antecedent_estimate::PreparedFunctionalDistribution>::fn rebind_checked(&self, data: &antecedent_data::dataset::TabularData) -> core::result::Result<Self, antecedent_estimate::EstimationError>
@@ -19867,6 +19887,7 @@ pub fn antecedent_estimate::count_fitted_posterior::endpoint_mcse_width_fraction
 pub fn antecedent_estimate::count_fitted_posterior::quantile_mcse(sorted: &[f64], p: f64) -> f64
 pub fn antecedent_estimate::counterfactual_transport_sampled::cited_identities(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation) -> alloc::vec::Vec<(alloc::sync::Arc<str>, antecedent_core::ids::RegimeId)>
 pub fn antecedent_estimate::counterfactual_transport_sampled::estimate_sampled_counterfactual_transport(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, request: &antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::counterfactual_transport_sampled::estimate_sampled_counterfactual_transport_contrast(active: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, baseline: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, request: &antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::counterfactual_transport_sampled::sampled_transport_interval(derivation: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, estimate: &antecedent_estimate::counterfactual_transport_sampled::SampledCounterfactualTransportEstimate, level: f64) -> core::result::Result<antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval, &'static str>
 pub fn antecedent_estimate::cpdag_scenarios::prepare_cpdag_scenarios(decision: antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::cpdag_scenarios::PreparedCpdagScenarios, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::crossfit_binary_scores(problem: &antecedent_estimate::PreparedPropensityProblem, query: &antecedent_core::query::average::AverageEffectQuery, folds: usize, glm_options: &antecedent_stats::glm::GlmOptions, backend: antecedent_stats::faer_backend::FaerBackend) -> core::result::Result<antecedent_estimate::ScoreTable, antecedent_estimate::EstimationError>
@@ -20956,6 +20977,7 @@ pub struct antecedent_estimate::counterfactual_transport_sampled::SampledRegimeC
 pub struct antecedent_estimate::counterfactual_transport_sampled::SampledRepairs
 pub struct antecedent_estimate::counterfactual_transport_sampled::SampledTableKey
 pub struct antecedent_estimate::counterfactual_transport_sampled::SampledTableReport
+pub struct antecedent_estimate::counterfactual_transport_sampled::SampledTransportContrastEstimate
 pub struct antecedent_estimate::counterfactual_transport_sampled::SampledTransportInterval
 pub struct antecedent_estimate::counterfactual_transport_sampled::SampledTransportLimits
 pub struct antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest

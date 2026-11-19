@@ -5250,7 +5250,7 @@ impl<T> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::SlotAva
 impl<T> core::panic::unwind_safe::UnwindSafe for antecedent_contract::SlotAvailability<T> where T: core::panic::unwind_safe::UnwindSafe [auto]
 pub const <antecedent_contract::AlignedLaw>::ALL: [Self; 2]
 pub const <antecedent_contract::BoundExternalClaim>::CLAIM_LINK_ID: &'static str
-pub const <antecedent_contract::ChainReading>::ALL: [Self; 5]
+pub const <antecedent_contract::ChainReading>::ALL: [Self; 7]
 pub const <antecedent_contract::ClaimKind>::ALL: [Self; 8]
 pub const <antecedent_contract::ColumnClaim>::DTYPE: &'static str
 pub const <antecedent_contract::CompositionStage>::ALL: [Self; 10]
@@ -5298,11 +5298,11 @@ pub const <antecedent_contract::interface_contract::DependenceRequirement>::ALL:
 pub const <antecedent_contract::interface_contract::UncertaintyMeaning>::ALL_MEANINGS: [antecedent_contract::DistributionMeaning; 7]
 pub const <antecedent_contract::interface_contract::UncertaintyParadigm>::ALL: [Self; 4]
 pub const <antecedent_contract::mixed_module::CutFeedback>::ALL: [Self; 2]
-pub const <antecedent_contract::propagation_chain::LawMeaning>::ALL: [Self; 2]
+pub const <antecedent_contract::propagation_chain::LawMeaning>::ALL: [Self; 4]
 pub const <antecedent_contract::propagation_chain::NodeRepresentation>::ALL: [Self; 3]
 pub const <antecedent_contract::propagation_chain::OperatorClass>::ALL: [Self; 6]
 pub const <antecedent_contract::propagation_chain::Representation>::ALL: [Self; 3]
-pub const <antecedent_contract::propagation_chain::StageKind>::ALL: [Self; 6]
+pub const <antecedent_contract::propagation_chain::StageKind>::ALL: [Self; 7]
 pub const <antecedent_contract::propagation_chain::TableConstruction>::ALL: [Self; 2]
 pub const <antecedent_contract::provider_transport::SourceTrustRequirement>::ALL: [Self; 2]
 pub const <antecedent_contract::provider_transport::TransportedHandoff>::STANDING: &'static str
@@ -5388,6 +5388,7 @@ pub const antecedent_contract::joint_law_rule::COMPOSED_DEFAULT_LEVEL: f64
 pub const antecedent_contract::measurement::MEASUREMENT_CONSTRUCT_PORT: &str
 pub const antecedent_contract::measurement::MEASUREMENT_INDICATOR_PORT: &str
 pub const antecedent_contract::mechanism_composition::MECHANISM_PLAN_IDENTITY_VERSION: u64
+pub const antecedent_contract::propagation_chain::ASSUMPTION_ENVELOPE_LABEL: &str
 pub const antecedent_contract::propagation_chain::BUILD_INDEPENDENT_PRODUCT_TABLE: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::propagation_chain::DECLARE_SHARED_FACTORS: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::propagation_chain::DROP_DUPLICATED_SOURCE: antecedent_core::refusal::NextAttempt
@@ -5399,6 +5400,7 @@ pub const antecedent_contract::propagation_chain::MEASURE_COMPOSED_COVERAGE: ant
 pub const antecedent_contract::propagation_chain::NEXT_ATTEMPTS: [antecedent_core::refusal::NextAttempt; 16]
 pub const antecedent_contract::propagation_chain::POOL_WITH_JOINT_COVARIANCE: antecedent_core::refusal::NextAttempt
 pub const antecedent_contract::propagation_chain::POSTERIOR_PROPAGATION_LABEL: &str
+pub const antecedent_contract::propagation_chain::PREDICTIVE_PROPAGATION_LABEL: &str
 pub const antecedent_contract::propagation_chain::PROPAGATION_ENCLOSURE_LABEL: &str
 pub const antecedent_contract::propagation_chain::PROPAGATION_POINT_LABEL: &str
 pub const antecedent_contract::propagation_chain::PROPAGATION_SPREAD_LABEL: &str
@@ -7512,6 +7514,7 @@ pub fn antecedent_contract::check_continuous_assignments(request: &antecedent_co
 pub fn antecedent_contract::check_declared_independence_against_ledger(decl: &antecedent_contract::MechanismCompositionDeclaration, ledger: &antecedent_contract::evidence_ledger::EvidenceLedger) -> core::result::Result<(), alloc::vec::Vec<antecedent_contract::ExternalRefusal>>
 pub fn antecedent_contract::check_external_against_program(binding: &antecedent_contract::ProgramBinding, claim: &antecedent_contract::ExternalProgramClaim) -> core::result::Result<antecedent_contract::ProgramCheck, antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_horizon_composition(operation: antecedent_contract::PropagationOperation, horizons: &[u32], evidence_id: &str, alignment_id: &str, reading: antecedent_contract::RequestedReading) -> core::result::Result<(antecedent_contract::PropagationPlan, antecedent_contract::ComposedCoordinate), antecedent_contract::ExternalRefusal>
+pub fn antecedent_contract::check_joint_measured_slots(request: &antecedent_contract::ObservationSlotsRequest<'_>, dependence: &str) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_mechanism_composition(decl: &antecedent_contract::MechanismCompositionDeclaration) -> core::result::Result<antecedent_contract::MechanismCompositionPlan, alloc::vec::Vec<antecedent_contract::ExternalRefusal>>
 pub fn antecedent_contract::check_observation_slots(request: &antecedent_contract::ObservationSlotsRequest<'_>) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_propagation(request: &antecedent_contract::PropagationRequest) -> core::result::Result<antecedent_contract::PropagationPlan, antecedent_contract::ExternalRefusal>
@@ -8113,6 +8116,7 @@ pub use antecedent_contract::observation_query::SlotProvenance = antecedent_cont
 pub use antecedent_contract::observation_query::SlotValue = antecedent_contract::SlotValue
 pub use antecedent_contract::observation_query::calibration_refusal = antecedent_contract::calibration_refusal
 pub use antecedent_contract::observation_query::check_continuous_assignments = antecedent_contract::check_continuous_assignments
+pub use antecedent_contract::observation_query::check_joint_measured_slots = antecedent_contract::check_joint_measured_slots
 pub use antecedent_contract::observation_query::check_observation_slots = antecedent_contract::check_observation_slots
 pub use antecedent_contract::observation_query::interval_refusal = antecedent_contract::interval_refusal
 pub use antecedent_contract::observation_query::level_unreachable_refusal = antecedent_contract::level_unreachable_refusal
@@ -8194,10 +8198,12 @@ pub variant antecedent_contract::BufferMaterialization::Borrowed
 pub variant antecedent_contract::BufferMaterialization::Chunked
 pub variant antecedent_contract::BufferMaterialization::CopiedContiguous
 pub variant antecedent_contract::BufferMaterialization::Transposed
+pub variant antecedent_contract::ChainReading::AssumptionEnvelope
 pub variant antecedent_contract::ChainReading::Enclosure
 pub variant antecedent_contract::ChainReading::Interval
 pub variant antecedent_contract::ChainReading::Point
 pub variant antecedent_contract::ChainReading::Posterior
+pub variant antecedent_contract::ChainReading::Predictive
 pub variant antecedent_contract::ChainReading::Spread
 pub variant antecedent_contract::CheckedWorldPointError::Admission
 pub variant antecedent_contract::CheckedWorldPointError::Cancelled
@@ -8908,7 +8914,9 @@ pub variant antecedent_contract::mixed_module::MixedModulePolicy::CoherentJoint
 pub variant antecedent_contract::mixed_module::MixedModulePolicy::DeclaredModular { reconciliation: antecedent_contract::mixed_module::ReconciliationRecord, cut_feedback: antecedent_contract::mixed_module::CutFeedback }
 pub variant antecedent_contract::mixed_module::MixedModuleRefusal::BlankReconciliation
 pub variant antecedent_contract::mixed_module::MixedModuleRefusal::InvalidModel(&'static str)
+pub variant antecedent_contract::propagation_chain::LawMeaning::Innovation
 pub variant antecedent_contract::propagation_chain::LawMeaning::Posterior
+pub variant antecedent_contract::propagation_chain::LawMeaning::Predictive
 pub variant antecedent_contract::propagation_chain::LawMeaning::Sampling
 pub variant antecedent_contract::propagation_chain::NodeRepresentation::Draws
 pub variant antecedent_contract::propagation_chain::NodeRepresentation::Enclosure
@@ -8926,6 +8934,7 @@ pub variant antecedent_contract::propagation_chain::StageKind::DecisionUtility
 pub variant antecedent_contract::propagation_chain::StageKind::DerivedQuantity
 pub variant antecedent_contract::propagation_chain::StageKind::MeasurementMapping
 pub variant antecedent_contract::propagation_chain::StageKind::Pooling
+pub variant antecedent_contract::propagation_chain::StageKind::PredictiveMapping
 pub variant antecedent_contract::propagation_chain::StageKind::PreposteriorUpdate
 pub variant antecedent_contract::propagation_chain::StageKind::Transport
 pub variant antecedent_contract::propagation_chain::TableConstruction::IndependentProduct
