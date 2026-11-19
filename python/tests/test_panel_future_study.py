@@ -252,7 +252,7 @@ def test_a_regime_changes_what_the_study_observes_and_carries_its_own_identity()
                 jp.PanelFutureStudy("tripled", 4, 1.0, 0.01, regime=tripled),
             ],
             ledger=ledger,
-            replicates=32,
+            replicates=256,
         )["candidates"]
     }
     assert rows["same"]["regime_identity"] is None
@@ -272,9 +272,10 @@ def test_a_regime_changes_what_the_study_observes_and_carries_its_own_identity()
     # the 4 units, far above the posterior variance of the contrast: the posterior mean of
     # theta moves by a normal of sd S = Cov(theta, y) / sd(y) ~ tau^2 / (slope * sqrt(v)), and
     # EVSI = S / sqrt(2 pi) for a break-even decision centred at the posterior mean. So EVSI
-    # is inversely proportional to the slope. The replicates share their draws, and the
-    # observed ratios are 0.4987 and 0.3322 against 1/2 and 1/3; a regime that is ignored
-    # (ratio 1) or applied squared (1/4, 1/9) is far outside the band.
+    # is inversely proportional to the slope. The replicates share their draws; at 256 the
+    # observed ratios are 0.514 and 0.344 against 1/2 and 1/3 (fewer replicates leave Monte
+    # Carlo error wider than the band), and a regime that is ignored (ratio 1) or applied
+    # squared (1/4, 1/9) is far outside it.
     for name, slope in (("halved", 2.0), ("tripled", 3.0)):
         ratio = rows[name]["gross_evsi"] / rows["same"]["gross_evsi"]
         assert abs(ratio - 1.0 / slope) <= 0.02, f"{name}: EVSI ratio {ratio} vs {1.0 / slope}"
