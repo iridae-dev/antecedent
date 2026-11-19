@@ -89,9 +89,9 @@ step python3 scripts/gate_support.py
 step python3 scripts/gate_not_supported_sites.py
 step bash scripts/gate_docs_support_matrix.sh
 
-echo "== release inventory =="
-step python3 scripts/check_release_inventory.py
-step python3 scripts/check_acceptance_inventory.py
+echo "== method children, method specs and acceptance =="
+step python3 scripts/check_method_children.py
+step python3 scripts/reconcile_method_specs.py --check
 step python3 scripts/check_acceptance_manifest.py --require-bound
 step python3 scripts/check_missing_policy_support.py
 

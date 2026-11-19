@@ -1,70 +1,9 @@
-# Method children (B03)
+# Method children
 
-208 leaves in `children.toml`. Each is one family method × static/temporal × frequentist/Bayesian counterpart, or an explicit boundary on an axis that does not exist. Named methods that must not collapse into a family row are separate children: categorical and multi-arm trials, factorial trials, switchback (P09); continuous dose, smoothed dose, dose grids, quantiles (P07); regression discontinuity, fuzzy/kink local ratios, augmented panel DiD, staggered event studies, synthetic control (P11).
+`children.toml` is a descriptive catalog of methods. Each leaf is one family method crossed with static or temporal and frequentist or Bayesian, or a named method that must not collapse into a family row: categorical and multi-arm trials, factorial trials, switchback (P09); continuous dose, smoothed dose, dose grids, quantiles (P07); regression discontinuity, fuzzy and kink local ratios, augmented panel difference-in-differences, staggered event studies, synthetic control (P11).
 
-This is not the support-matrix product in `parity/support_axes.toml` (queries × graph classes × structures × inferences × validations). Route ids are from `parity/capabilities/route_manifest.toml`; a method that has no route record there is reached through the method record the manifest gives it (`[[method]]` with a `child` link). `module = "none"` means no implementation module. `gap = "none"` means that counterpart already exists. No child is `not_applicable`.
+A child records what the method is: its `target`, implementing `module` (`none` when no module implements it), `inference`, `owner`, `fixtures`, `consumer`, `notes`, and its `route` when an executing route of `parity/capabilities/route_manifest.toml` carries it. A child with no route omits the field. The catalog says nothing about whether a method is supported; support status comes only from the support model (`parity/support_cells.toml`, `parity/capability_records.toml`, `scripts/gate_support.py` and the `crates/antecedent/data/support_matrix.json` it generates).
 
-Every child names its acceptance fixtures and its artifact consumer as `;`-separated tokens. A fixture is `path` or `path::test`: the file exists, a registered Cargo target, python test, gate script or evidence record runs it, a named test is a real test function, and at least one fixture file mentions the method it accepts. A consumer is `path` or `path::symbol`: the file exists and mentions the symbol, and at least one consumer is a non-test source that reads the artifact (the test that exercises it may follow). A family id, a prose description or `unlisted` is a placeholder and fails `python3 scripts/check_method_children.py`. A boundary child (a target or theory gap) names the test that raises its typed refusal as its fixture and the source that reads that refusal as its consumer.
+This is not the support-matrix product in `parity/support_axes.toml` (queries, graph classes, structures, inferences, validations).
 
-X01 and X06 are core. B05 retains the X02 finite-lag fit and the X03/X04/X05 attempts as mandatory work; implementation and acceptance evidence remain separate. The user-approved channel/interaction expansion uses configurable channel counts and existing programmable expressions. The X02.broader research rows now cover the remaining lag, saturation, pooling and spatial extensions; arbitrary channel counts and sparse higher-order expressions are part of the required slice. The original B04 failure of identification from fitting alone remains valid.
-
-## Counts by parent
-
-| Parent | Children |
-| --- | --- |
-| P01 | 8 |
-| P02 | 8 |
-| P03 | 8 |
-| P04 | 4 |
-| P05 | 4 |
-| P06 | 4 |
-| P07 | 24 |
-| P08 | 4 |
-| P09 | 28 |
-| P10 | 4 |
-| P11 | 24 |
-| P12 | 8 |
-| P13 | 8 |
-| P14 | 4 |
-| P15 | 16 |
-| P16 | 4 |
-| P17 | 4 |
-| P18 | 4 |
-| P19 | 4 |
-| P20 | 4 |
-| X01 | 4 |
-| X02 | 4 |
-| X02.broader | 4 |
-| X03 | 4 |
-| X04.1 | 4 |
-| X04.2 | 4 |
-| X05 | 4 |
-| X06 | 4 |
-
-## Counts by gap
-
-| Gap | Children |
-| --- | --- |
-| none | 132 |
-| target | 18 |
-| implementation | 6 |
-| validation | 42 |
-| temporal-identification | 2 |
-| theory | 8 |
-
-## Why this X02 slice
-
-The roadmap's grouped response asks for a finite carryover, a saturation, one selected interaction, a group intercept, seasonality, and a group/time disturbance. X06's reference panel is two channels, finite carryover, saturation, one known interaction, geographic partial pooling, one observable confounder, and serial/group dependence. The slice is the smallest parameterization that can be the thing that panel would fit, if B05 later admits it.
-
-1. Design: one balanced geographic group-time panel, finite seasonal dummies, one additive observable confounder.
-2. Carryover: simplex distributed lag of order 2 (nonnegative weights, sum to 1). Infinite geometric adstock is not in the slice.
-3. Saturation: Michaelis-Menten `a/(a+k)` with `k>0`, shared across groups, with a checked derivative. Free Hill shape is broader.
-4. Interaction: one bilinear product of the two saturated channel exposures.
-5. Pooling: partial pooling of group intercepts only. Lag, saturation, interaction, and confounder coefficients are completely pooled.
-6. Dependence: Gaussian AR(1) within group, independent across groups. No spatial residual.
-7. Inference: frequentist Gaussian estimating equations with a group-cluster sandwich; Bayesian counterpart is that likelihood with a hierarchical intercept prior, a Dirichlet on lag weights, and a prior on `k`. Tempered generalized Bayes is not the proposal.
-8. Target: the joint contrast of two channel schedules. The static child is the lag-0 reduction (no carryover, independent rows).
-
-No module implements this. That absence is implementation. Whether the panel identifies the joint contrast is unreviewed research (`temporal-identification` on the temporal children). B04 has to accept or reject the slice. These four children do not admit it.
-
-X02.broader (geometric adstock, free Hill shape, group-specific saturation, spatial residuals, extra channels and interactions), X03, finite-candidate X04.1, continuous-search X04.2, and comprehensive X05 stay later-release candidates.
+Every child names its acceptance fixtures and its artifact consumer as `;`-separated tokens. A fixture is `path` or `path::test`: the file exists, a registered Cargo target, python test, gate script or evidence record runs it, a named test is a real test function, and at least one fixture file mentions the method it accepts. A consumer is `path` or `path::symbol`: the file exists and mentions the symbol, and at least one consumer is a non-test source that reads the artifact (the test that exercises it may follow). A family id, a prose description or `unlisted` is a placeholder and fails `python3 scripts/check_method_children.py`. A named route must be a route id of the manifest.

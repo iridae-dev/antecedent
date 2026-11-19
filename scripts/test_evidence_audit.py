@@ -44,7 +44,7 @@ class Classification(unittest.TestCase):
     def test_reason_namespaces_keep_prose_and_device_fallbacks_out_of_scientific_codes(self):
         from parity_rows import reason_obligation, runtime_code_literals
 
-        for name in ("counterparts.toml", "support_graphless.toml", "estimator_route_residual.toml", "scenario_matrix.toml", "slow_correctness_tests.toml"):
+        for name in ("support_graphless.toml", "estimator_route_residual.toml", "slow_correctness_tests.toml"):
             self.assertIsNone(reason_obligation(Path(name), "reason"))
             self.assertEqual(reason_obligation(Path(name), "calibration_reason"), "calibration")
             self.assertEqual(reason_obligation(Path(name), "reason_code"), "runtime_refusal")
@@ -1358,31 +1358,6 @@ class CalibrationBoundary(unittest.TestCase):
 
         labels = {g.label for g in calibration_runner.load_groups(root)}
         self.assertIn("learner_ate_known_truth: coverage", labels)
-
-
-class ScenarioMatrix(unittest.TestCase):
-    def test_only_exact_live_tests_count_and_the_live_matrix_is_consistent(self):
-        import scenario_matrix as matrix
-
-        root = Path(__file__).resolve().parents[1]
-        file_only = matrix._check_token(root, "crates/antecedent/tests/missing_policy_support.rs")
-        self.assertFalse(file_only[0])
-        smoke = matrix._check_token(root, "crates/antecedent/tests/x.rs::a_smoke_test")
-        self.assertFalse(smoke[0])
-        self.assertFalse(matrix._check_token(root, "crates/antecedent/tests/x.rs::limit_case")[0])
-        missing = matrix._check_token(root, "crates/antecedent/tests/none.rs::t")
-        self.assertFalse(missing[0])
-        live = matrix._check_token(
-            root,
-            "crates/antecedent/tests/missing_policy_support.rs::"
-            "every_route_cell_matches_the_declared_support",
-        )
-        self.assertTrue(live[0], live[1])
-        built = matrix.build(root)
-        self.assertEqual(built["findings"], [])
-        self.assertTrue(all(c["evidence"] for c in built["cells"] if c["status"] == "delivered"))
-        self.assertTrue(all(c.get("gap_kind") for c in built["cells"] if c["status"] == "gap"))
-        self.assertEqual(sum(built["counts"].values()), len(built["cells"]))
 
 
 if __name__ == "__main__":

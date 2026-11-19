@@ -137,9 +137,6 @@ done
 echo "== release candidate: cited tests listed by cargo =="
 bash scripts/gate_capability_records.sh --resolve
 
-echo "== release candidate: release inventory with no unresolved row =="
-python3 scripts/check_release_inventory.py --require-zero
-
 echo "== release candidate: no implemented capability is left open =="
 python3 scripts/check_open_capabilities.py --require-zero
 

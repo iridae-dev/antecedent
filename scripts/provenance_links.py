@@ -234,7 +234,6 @@ NOT_AN_ALGORITHM = {
     "crates/antecedent/src/analysis/execute/checked_panel_did.rs": "checked execution wrapper over the panel difference-in-differences estimators",
     "crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio.rs": "checked execution wrapper over the local polynomial ratio estimators",
     "crates/antecedent/src/analysis/temporal_admg_contrast.rs": "lowers a temporal contrast to the unrolled window and counts it; the identification is the existing do-calculus routine",
-    "scripts/closure_audit.py": "an audit over method records, not a statistical method",
     "crates/antecedent/src/analysis/execute/compile.rs": "the compiler dispatch that migrates routes onto the common contracts; no estimator of its own",
 }
 

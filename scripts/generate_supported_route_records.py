@@ -1,25 +1,21 @@
 #!/usr/bin/env python3
-"""Generate the `supported.<query>.<graph class>` route records of the route manifest.
+"""Generate the `supported.<query>.<graph class>` route records the route manifest lacks.
 
 Every (query, graph class) pair with a supported cell in parity/support_cells.toml has one
-`[[route]]` record in parity/capabilities/route_manifest.toml. The long-standing records carry
-hand-written uncertainty text and are never touched. A pair without a hand-written record gets
-a generated one: the structures, inferences and validations, the supported coordinates and the
-estimator wire ids all come from the supported table, and the uncertainty text defers to the
-method records, so the record cannot disagree with the table.
+`[[route]]` record in parity/capabilities/route_manifest.toml. An existing record is never
+touched. A pair without a record gets a generated one, appended at the end of the file: the
+structures and inferences, the supported coordinates and the estimator wire ids all come from
+the supported table, so the record cannot disagree with it. A `supported.*` record whose pair has
+no supported cell is stale.
 
     python3 scripts/generate_supported_route_records.py          # write
-    python3 scripts/generate_supported_route_records.py --check  # fail on drift
-
-A generated record is recognised by GENERATED_UNCERTAINTY; edit a record by hand (and drop that
-marker) to take it out of the generator's hands.
+    python3 scripts/generate_supported_route_records.py --check  # fail on a missing or stale record
 """
 
 from __future__ import annotations
 
 import collections
 import json
-import re
 import sys
 import tomllib
 from pathlib import Path
@@ -29,18 +25,13 @@ from _repo import load_toml
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "parity/capabilities/route_manifest.toml"
 SUPPORTED = ROOT / "parity/support_cells.toml"
-METHODS_MARK = "# ---- generated method records"
-GENERATED_UNCERTAINTY = "per-estimator uncertainty procedure is stated by the method records of this route"
 STRUCTURES = ("explicit", "accepted", "graph_posterior")
 INFERENCES = ("Frequentist", "Bayesian")
-VALIDATIONS = ("none", "cheap", "full")
-BLOCK = re.compile(r"^\[\[route\]\]\n(?:[^\n]+\n)+", re.MULTILINE)
 
 
 def record(query: str, graph_class: str, cells: list[dict]) -> str:
     structures = [s for s in STRUCTURES if any(c["structure"] == s for c in cells)]
     inferences = [i for i in INFERENCES if any(c["inference"] == i for c in cells)]
-    validations = [v for v in VALIDATIONS if any(c["validation"] == v for c in cells)]
     coordinates = [f"{c['structure']}:{c['inference']}:{c['validation']}" for c in cells]
     estimators: list[str] = []
     for cell in cells:
@@ -54,10 +45,6 @@ def record(query: str, graph_class: str, cells: list[dict]) -> str:
         "graph_class": graph_class,
         "design_time_model": f"{design}; structure={','.join(structures)}",
         "inference": ",".join(inferences),
-        "uncertainty": (
-            f"validation={','.join(validations)}; {GENERATED_UNCERTAINTY}; "
-            "calibration pending, estimator_grid_not_measured, no boundary record"
-        ),
         "decision_ports": "unlisted",
         "artifact_consumer": "unlisted",
         "status": "supported",
@@ -72,48 +59,50 @@ def record(query: str, graph_class: str, cells: list[dict]) -> str:
     return "[[route]]\n" + "".join(f"{k} = {json.dumps(v)}\n" for k, v in fields.items()) + "\n"
 
 
-def render(text: str) -> str:
-    supported = load_toml(SUPPORTED)["cell"]
+def pairs_of(text: str) -> tuple[dict[tuple[str, str], list[dict]], set[str]]:
+    """The supported cells by (query, graph class), and the `supported.*` ids already recorded."""
     by_pair: dict[tuple[str, str], list[dict]] = collections.defaultdict(list)
-    for cell in supported:
+    for cell in load_toml(SUPPORTED)["cell"]:
         by_pair[(cell["query"], cell["graph_class"])].append(cell)
-    hand_written = set()
-    kept = text
-    for block in list(BLOCK.finditer(text)):
-        body = block.group(0)
-        ident = re.search(r'^id = "([^"]+)"', body, re.MULTILINE)
-        if ident is None or not ident.group(1).startswith("supported."):
-            continue
-        if GENERATED_UNCERTAINTY in body:
-            kept = kept.replace(body + "\n", "", 1) if body + "\n" in kept else kept.replace(body, "", 1)
-        else:
-            hand_written.add(ident.group(1))
+    recorded = {
+        r["id"] for r in tomllib.loads(text)["route"] if r["id"].startswith("supported.")
+    }
+    return by_pair, recorded
+
+
+def render(text: str) -> str:
+    by_pair, recorded = pairs_of(text)
     generated = "".join(
         record(query, graph_class, cells)
         for (query, graph_class), cells in sorted(by_pair.items())
-        if f"supported.{query}.{graph_class}" not in hand_written
+        if f"supported.{query}.{graph_class}" not in recorded
     )
-    at = kept.index(METHODS_MARK)
-    return kept[:at] + generated + kept[at:]
+    return text.rstrip("\n") + "\n\n" + generated.rstrip("\n") + "\n" if generated else text
+
+
+def stale(text: str) -> list[str]:
+    by_pair, recorded = pairs_of(text)
+    return sorted(recorded - {f"supported.{q}.{g}" for q, g in by_pair})
 
 
 def main() -> int:
     text = MANIFEST.read_text(encoding="utf-8")
-    tomllib.loads(text)
     new = render(text)
     tomllib.loads(new)
     if "--check" in sys.argv:
+        problems = []
         if new != text:
-            print("route_manifest.toml supported route records are stale; run "
-                  "python3 scripts/generate_supported_route_records.py")
+            problems.append("a supported (query, graph class) pair has no route record")
+        problems += [f"{ident} has no supported cell" for ident in stale(text)]
+        if problems:
+            print("route_manifest.toml supported route records are out of date: " + "; ".join(problems))
+            print("run python3 scripts/generate_supported_route_records.py")
             return 1
         print("supported route records match the supported table")
         return 0
     MANIFEST.write_text(new, encoding="utf-8")
-    routes = tomllib.loads(new)["route"]
-    supported = [r for r in routes if r["id"].startswith("supported.")]
-    generated = [r for r in supported if GENERATED_UNCERTAINTY in r["uncertainty"]]
-    print(f"{len(supported)} supported route records, {len(generated)} generated")
+    supported = [r for r in tomllib.loads(new)["route"] if r["id"].startswith("supported.")]
+    print(f"{len(supported)} supported route records")
     return 0
 
 

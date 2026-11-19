@@ -202,7 +202,6 @@ nav:
   - Evidence and acceptance:
     - Practitioner acceptance: practitioner-acceptance.md
     - Acceptance manifest: acceptance-manifest.md
-    - Counterpart inventory: counterparts.md
     - Composition reach: reach-composition.md
     - Decision reach: reach-decisions.md
     - Composition release fixture: composition-release-fixture.md

@@ -43,7 +43,6 @@ from evidence_kinds import (
 )
 from provenance_links import method_review_problems, non_algorithm_review_problems
 from route_behaviour import load_stage_routes
-from scenario_matrix import build as build_scenario_matrix
 from test_evidence import (
     calibration_discovery_problems,
     nextest_selection,
@@ -475,12 +474,6 @@ def build_report(root: Path) -> dict:
                 "method_review_findings": method_review_problems(root, data),
             }
         )
-    specs_path = root / "parity/method_specs/specs.toml"
-    specs = (
-        load_toml(specs_path).get("spec", [])
-        if specs_path.is_file()
-        else []
-    )
     routes_path = root / "parity/capabilities/route_manifest.toml"
     route_data = (
         load_toml(routes_path)
@@ -490,14 +483,7 @@ def build_report(root: Path) -> dict:
     routes = {r["id"]: r for r in route_data.get("route", [])}
     for claim in claims:
         route = f"supported.{claim.get('query')}.{claim.get('graph_class')}"
-        linked = (
-            [s for s in specs if s.get("route") == route] if route in routes else []
-        )
         claim["route_registry_links"] = [route] if route in routes else []
-        claim["method_spec_links"] = [s["id"] for s in linked]
-        claim["provenance_registry_links"] = sorted(
-            {p for s in linked for p in s.get("provenance", [])}
-        )
         claim["link_basis"] = (
             "registry_coordinate_join; not independent source verification"
         )
@@ -603,15 +589,8 @@ def build_report(root: Path) -> dict:
         "claims": claims,
         "fixtures": fixtures,
         "provenance": provenance,
-        "method_specs": specs,
         "route_registry": list(routes.values()),
         "doctest_sources": doctests,
-        "scenario_matrix": (
-            build_scenario_matrix(root)
-            if (root / "parity/scenario_matrix.toml").is_file()
-            and (root / "parity/counterparts.toml").is_file()
-            else None
-        ),
         "scientific_test_registry_findings": scientific_test_problems(root),
         "route_evidence_ledger_findings": (
             check_evidence_ledger.problems(
@@ -742,49 +721,6 @@ def render(report: dict) -> str:
     lines += [
         f"- {finding}" for finding in report.get("route_evidence_ledger_findings", [])
     ]
-    matrix = report.get("scenario_matrix")
-    if matrix:
-        lines += [
-            "",
-            "## Method-family scenario matrix (parity/scenario_matrix.toml; source inspection)",
-            "",
-            (
-                f"{len(matrix['families'])} families, {len(matrix['cells'])} cells: "
-                + ", ".join(f"{k} {v}" for k, v in sorted(matrix["counts"].items()))
-                + ". Only an exact compiled, non-ignored test or fixture counts as delivered; "
-                "unavailable cells state a reason; a cell that executes and is tested but owes a "
-                "calibration measurement is pending_measurement and names the facet that closes "
-                "it; every other cell is a gap."
-            ),
-            "",
-            "| Axis | Delivered | Unavailable | Pending measurement | Gap |",
-            "| --- | ---: | ---: | ---: | ---: |",
-        ]
-        for axis, counts in matrix["by_axis"].items():
-            lines.append(
-                f"| {axis} | {counts.get('delivered', 0)} | {counts.get('unavailable', 0)} "
-                f"| {counts.get('pending_measurement', 0)} | {counts.get('gap', 0)} |"
-            )
-        lines += ["", "Gaps by kind:", ""]
-        kinds = Counter(
-            (c["axis"], c["gap_kind"]) for c in matrix["cells"] if c["status"] == "gap"
-        )
-        lines += [f"- {axis} / {kind}: {n}" for (axis, kind), n in sorted(kinds.items())]
-        owed = Counter(
-            (c["facet"], c["owed"]) for c in matrix["cells"] if c["status"] == "pending_measurement"
-        )
-        lines += ["", "Pending measurement by label:", ""]
-        lines += [f"- {facet} ({kind}): {n}" for (facet, kind), n in sorted(owed.items())] or [
-            "- none"
-        ]
-        lines += ["", "Matrix findings (invalid curated cells):", ""]
-        lines += [f"- {finding}" for finding in matrix["findings"]] or ["- none"]
-        lines += ["", "Gap cells (family, axis, value):", ""]
-        lines += [
-            f"- `{c['family']}` {c['axis']} / {c['value']} [{c['gap_kind']}]"
-            for c in matrix["cells"]
-            if c["status"] == "gap"
-        ]
     lines += [
         "",
         "## Required review",
@@ -1078,13 +1014,6 @@ def main() -> int:
             )
             or bool(report["route_evidence_ledger_findings"])
             or bool(report["scientific_test_registry_findings"])
-            or bool(
-                report.get("scenario_matrix")
-                and (
-                    report["scenario_matrix"]["findings"]
-                    or report["scenario_matrix"]["counts"].get("gap")
-                )
-            )
         )
     )
 

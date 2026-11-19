@@ -4,7 +4,7 @@ The Python half of the Rust cross-surface journey. The receipts are real: an in-
 that changes only the utility, and a fresh-process resume that recomputes every derived stage.
 Each digest is computed by the current reader, a stale one is the previous release's four-byte
 encoding, and the route artifact is the frozen previous-release fixture carried onto the
-methods of the committed route manifest.
+current methods of the support model.
 """
 
 from __future__ import annotations
@@ -167,19 +167,85 @@ def test_bytes_that_are_not_a_previous_release_object_are_not_decoded() -> None:
         )
 
 
+def route_inference(text: str) -> str:
+    """The inference realization a route record states."""
+    if text.startswith("Frequentist") and "Bayesian" not in text.split(";")[0]:
+        return "frequentist"
+    if text.startswith("Bayesian"):
+        return "bayesian"
+    if "Bayesian" in text and "Frequentist" in text:
+        return "both"
+    return "unlisted"
+
+
 def manifest_methods() -> list[rm.CurrentMethod]:
+    """The current methods, read from the support model.
+
+    A support-matrix cell is carried by `supported.<query>.<graph class>`, one method per
+    estimator and inference. Every other route is an entry point of one support unit: a
+    supported estimator, a graphless support row or a supported capability record.
+    """
     manifest = load_toml(REPO_ROOT / "parity" / "capabilities" / "route_manifest.toml")
-    return [
-        rm.CurrentMethod(
-            id=m["id"],
-            route=m["route"],
-            estimator=m["estimator"],
-            design=m["design"],
-            inference=m["inference"],
-            status=m["status"],
+    cells = load_toml(REPO_ROOT / "parity" / "support_cells.toml")["cell"]
+    rows = load_toml(REPO_ROOT / "parity" / "support_graphless.toml")["support"]
+    records = load_toml(REPO_ROOT / "parity" / "capability_records.toml")["record"]
+    supported_records = {r["id"] for r in records if r["status"] == "supported"}
+    graphless_tests = {r["retained_route_test"] for r in rows if "retained_route_test" in r}
+    graphless_ids = [f"graphless.{r['family']}.{r['design']}.{r['method']}" for r in rows]
+    estimators = {e for c in cells for e in c["estimators"]}
+
+    def design(graph_class: str, route_id: str = "") -> str:
+        return (
+            "temporal" if graph_class.startswith("Temporal") or "temporal" in route_id else "static"
         )
-        for m in manifest["method"]
+
+    units = sorted(
+        {(c["query"], c["graph_class"], e, c["inference"]) for c in cells for e in c["estimators"]}
+    )
+    methods = [
+        rm.CurrentMethod(
+            id=f"method.{query}.{graph}.{estimator}.{inference.lower()}",
+            route=f"supported.{query}.{graph}",
+            estimator=estimator,
+            design=design(graph),
+            inference=inference.lower(),
+            status="supported",
+        )
+        for query, graph, estimator, inference in units
     ]
+    for route in manifest["route"]:
+        rid, status = route["id"], route["status"]
+        if rid.startswith("supported."):
+            continue
+        estimator = "unlisted"
+        if status == "supported":
+            estimator = next(
+                (e for e in sorted(estimators) if e == rid or f"stimator {e} " in route["notes"]),
+                "",
+            )
+            carried = bool(estimator)
+        elif status == "graphless":
+            carried = route.get("retained_route_test") in graphless_tests or any(
+                rid == g or rid.startswith(g + ".") for g in graphless_ids
+            )
+        elif status == "capability":
+            named = route.get("capability_record") or []
+            named = [named] if isinstance(named, str) else named
+            carried = any(r in supported_records for r in named)
+        else:
+            carried = False
+        if carried:
+            methods.append(
+                rm.CurrentMethod(
+                    id=f"method.{rid}",
+                    route=rid,
+                    estimator=estimator,
+                    design=design(route["graph_class"], rid),
+                    inference=route_inference(route["inference"]),
+                    status=status,
+                )
+            )
+    return methods
 
 
 def test_the_frozen_previous_route_artifact_gets_an_explicit_outcome_for_every_record() -> None:

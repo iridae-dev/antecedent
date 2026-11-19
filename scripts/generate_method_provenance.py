@@ -7,7 +7,7 @@ estimator and any capability. The links already exist and this script only joins
 - ``crates/antecedent/src/strategy_table/ids.rs``: each identifier and estimator row carries a
   ``provenance`` pair (family, step), resolved through ``scripts/provenance_links.py``
   (``ALIAS``, ``FAMILY``);
-- ``parity/method_specs/specs.toml``: an admitted method's ``provenance`` list, keyed by the
+- ``parity/method_specs/specs.toml``: a method's ``provenance`` list, keyed by the
   estimator id its ``estimator`` field names, or by the capability id its ``route`` names;
 - ``parity/capability_records.toml``: a capability id whose provenance record has the same stem;
 - ``provenance/*.toml``: per record, the published sources, the implementation deviations,
@@ -144,8 +144,6 @@ def spec_links(stems: set[str], estimators: set[str]) -> tuple[dict, dict]:
     by_estimator: dict[str, list[str]] = {}
     by_route: dict[str, list[str]] = {}
     for spec in load(SPECS).get("spec") or []:
-        if spec.get("admission") not in ("supported", "not_supported"):
-            continue
         links = [link for link in spec.get("provenance") or [] if link in stems]
         estimator = str(spec.get("estimator", "")).split(":", 1)[0].strip()
         if estimator in estimators:

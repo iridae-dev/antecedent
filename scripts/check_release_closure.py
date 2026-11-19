@@ -150,16 +150,12 @@ def replay_identity_problems(data: dict[str, Any], root: Path = ROOT) -> list[st
 
 
 def attestation_problems(candidate: str, release: str) -> list[str]:
-    """The release candidate runs the inventory, and the inventory requires every manifest case bound."""
+    """The release candidate runs the release gate, and the release gate requires every manifest case bound."""
     problems = []
     if "gate_release.sh" not in candidate:
         problems.append("gate_release_candidate.sh does not run gate_release.sh")
-    if "check_release_inventory.py" not in release:
-        problems.append("gate_release.sh does not run the release inventory")
-    elif "--require-bound" not in Path(__file__).with_name("check_release_inventory.py").read_text(
-        encoding="utf-8"
-    ):
-        problems.append("the release inventory does not require every manifest case to be bound")
+    if "check_acceptance_manifest.py --require-bound" not in release:
+        problems.append("gate_release.sh does not require every manifest case to be bound")
     return problems
 
 

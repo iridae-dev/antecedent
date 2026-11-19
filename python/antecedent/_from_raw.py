@@ -1529,7 +1529,7 @@ def _wrap_ate(
     # result; a result without one carries exactly the assumptions and provenance it always did.
     weighted_target = None
     target_names = getattr(prepared, "_weighted_target_names", None)
-    if target_names is not None:
+    if target_names is not None and prepared is not None:
         from .population import WeightedTargetReport
 
         weighted_target = WeightedTargetReport._from_native(

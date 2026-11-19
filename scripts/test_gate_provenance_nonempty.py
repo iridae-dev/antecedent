@@ -29,7 +29,7 @@ class ProvenanceNonempty(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("pointer scan found no pointers", result.stdout)
         self.assertIn("ci_from_name definition is missing", result.stdout)
-        self.assertIn("no admitted method", result.stdout)
+        self.assertIn("no method provenance", result.stdout)
         result = self.run_gate("pub fn ci_from_name() {}\n")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("ci_from_name contains no names", result.stdout)

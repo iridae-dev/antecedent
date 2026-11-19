@@ -820,13 +820,6 @@ path = "scripts/check_missing_policy_support.py"
 gates = ["inventory"]
 
 [[test]]
-id = "counterpart-inventory-check"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_check_counterparts.py"
-gates = ["inventory"]
-
-[[test]]
 id = "unbalanced-panel-preparation"
 crate = "antecedent-data"
 cargo_target = "lib"
@@ -1318,13 +1311,6 @@ id = "iv-bounds-compiled-python"
 crate = "python"
 cargo_target = "script"
 path = "python/tests/test_iv_bounds_compiled.py"
-gates = ["inventory"]
-
-[[test]]
-id = "release-scope-reconciliation-check"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/reconcile_release_scope.py"
 gates = ["inventory"]
 
 [[test]]
@@ -10673,13 +10659,6 @@ path = "scripts/test_penalty_resource_guards.py"
 gates = ["inventory"]
 
 [[test]]
-id = "acceptance-inventory-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_acceptance_inventory.py"
-gates = ["inventory"]
-
-[[test]]
 id = "calibration-acceptance-counts-script"
 crate = "scripts"
 cargo_target = "script"
@@ -10775,13 +10754,6 @@ id = "cost-report-script"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_cost_report.py"
-gates = ["inventory"]
-
-[[test]]
-id = "closure-audit-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_closure_audit.py"
 gates = ["inventory"]
 
 [[test]]
@@ -20391,20 +20363,6 @@ id = "route-manifest-diff"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_route_manifest_diff.py"
-gates = ["inventory"]
-
-[[test]]
-id = "closure-report-rows"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_closure_report_rows.py"
-gates = ["inventory"]
-
-[[test]]
-id = "scenario-matrix-pending"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_scenario_matrix_pending.py"
 gates = ["inventory"]
 
 [[test]]
