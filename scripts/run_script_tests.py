@@ -36,6 +36,9 @@ PENDING_PROBE_CONSUMERS = {
 }
 
 JOBS_ENV = "ANTECEDENT_SCRIPT_TEST_JOBS"
+# Set in every worker process. A runner started inside a worker (a self-test that drives
+# the runner on its own suite) runs in that process, so it never spawns workers of its own.
+WORKER_ENV = "ANTECEDENT_SCRIPT_TEST_WORKER"
 MAX_DEFAULT_JOBS = 8
 
 # Modules whose runtime dominates the suite; scheduled before all others.
@@ -105,6 +108,7 @@ def run_module(module: str, verbosity: int, workdir: Path) -> tuple[str, dict | 
         command.append("--verbose")
     completed = subprocess.run(
         command,
+        env={**os.environ, WORKER_ENV: "1"},
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -120,6 +124,9 @@ def run_module(module: str, verbosity: int, workdir: Path) -> tuple[str, dict | 
 
 def run_suite(cases: list[unittest.TestCase], jobs: int, verbosity: int) -> dict:
     """Run `cases` module by module in worker processes and aggregate the outcomes."""
+    if jobs == 1 or os.environ.get(WORKER_ENV) == "1":
+        result = unittest.TextTestRunner(verbosity=verbosity).run(unittest.TestSuite(cases))
+        return summarize(result) | {"successful": result.wasSuccessful()}
     by_module: dict[str, list[str]] = {}
     for test in cases:
         by_module.setdefault(module_of(test.id()), []).append(test.id())
