@@ -38,7 +38,7 @@ record_sha256 = "ee2e8a994e38f36950938515e9c49404daaa12fb6fecc2292f3050f3177feac
 role = "implementation"
 path = "crates/antecedent-estimate/src/history_outcome_model.rs"
 items = ["fn period_design_matrix", "fn periods_with_both_arms", "fn prepare_history_outcome_model", "struct HistoryOutcomeProblem"]
-sha256 = "6979ac1fd305b8208895afc53e045dccc0b0f7095fec47631bb16c97013f7bba"
+sha256 = "88e099dcf16c4c117cae3c28cf2bd66da0721a9de01f397c2d21a6d99caa4a2a"
 
 [[method_review.artifacts]]
 role = "implementation"

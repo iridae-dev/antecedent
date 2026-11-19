@@ -135,7 +135,7 @@ fn a_kernel_target_effect_equals_the_closed_form_weighted_effect() {
     let z = compiled::z_of(&fx);
     let ctx = ExecutionContext::for_tests(37);
     let builder = compiled::study(&fx, &z, Some(compiled::declaration(0.8, 1.0))).unwrap();
-    let mut prepared = builder.prepare(&ctx).unwrap();
+    let prepared = builder.prepare(&ctx).unwrap();
     drop(builder);
     assert!(prepared.plan().lowered().is_some(), "a lowered plan");
     let result = prepared.estimate(&compiled::table(&fx, &z), &ctx).unwrap();

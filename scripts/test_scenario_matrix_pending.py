@@ -119,8 +119,8 @@ what = "w"
 def test_every_pending_cell_of_the_live_matrix_is_owed_a_known_kind_and_nothing_is_delivered_unproven():
     built = matrix.build(REPO_ROOT)
     assert built["findings"] == [], built["findings"]
+    # A release owes no measurement: an empty pending set is the closed state, not a defect.
     pending = matrix.pending(built)
-    assert pending, "the live matrix owes calibration measurements"
     for cell in pending:
         assert cell["owed"] in matrix.OWED_KINDS, cell
         assert cell["evidence"] == "", cell

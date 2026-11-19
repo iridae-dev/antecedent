@@ -41,7 +41,6 @@ from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
 import provenance_links  # noqa: E402
-from route_closure import is_estimator_route, owns_method_record, route_estimator  # noqa: E402
 from method_evidence import (  # noqa: E402
     INTERVAL_KIND,
     INTERVAL_REF,
@@ -49,6 +48,7 @@ from method_evidence import (  # noqa: E402
     VARIANT_METHOD,
     Evidence,
 )
+from route_closure import is_estimator_route, owns_method_record, route_estimator  # noqa: E402
 
 MANIFEST = "parity/capabilities/route_manifest.toml"
 SUPPORT_CELLS = "parity/support_cells.toml"

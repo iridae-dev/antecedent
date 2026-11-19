@@ -297,6 +297,24 @@ status = "bound"
 python = "native:python/src/interface_contract_api.rs"
 
 [[entry]]
+rust = "antecedent::analysis::measured_exposure::PreparedMeasuredExposure"
+kind = "type"
+status = "internal"
+reason = "Rust-typed handle of imputed exposure draws that StudyBuilder::measured_exposure returns; Python imputes the draws through the native measured_exposure_impute and holds them as antecedent.exposure_measurement.ExposureDraws, and runs the study per draw through antecedent.exposure_measurement.prepare_measured (PreparedMeasuredAnalysis), so it never holds this type"
+
+[[entry]]
+rust = "antecedent::analysis::measured_exposure::consume_exposure_draws"
+kind = "fn"
+status = "bound"
+python = "antecedent.exposure_measurement.consume_exposure_draws"
+
+[[entry]]
+rust = "antecedent::analysis::measured_exposure::export_exposure_draws"
+kind = "fn"
+status = "bound"
+python = "antecedent.exposure_measurement.ExposureDraws.export"
+
+[[entry]]
 rust = "antecedent::analysis::scope_refusals::joint_bayesian_transport_scope_refusal"
 kind = "fn"
 status = "bound"
@@ -1809,10 +1827,52 @@ python = "antecedent.design.evidence.EvidencePlan.variable_unlocks"
 reason = "Python derives the unlock list from the verified studies of an evidence plan (EvidencePlan.variable_unlocks) and ranks through the native rank_designs, whose structure-prior inputs are the declared or derived graph weights (StructurePrior.from_graphs)"
 
 [[entry]]
+rust = "antecedent::discovery::discover_pooled_ci_screened_posterior"
+kind = "fn"
+status = "internal"
+reason = "The CI-screened search pooled over imputations: Python runs the same pooled search through its own compiled-search loop and pools with GraphPosterior::pooled_over_imputations in the native layer (python/src/bayesian.rs discover_pooled_posterior), without calling this facade function; the Python entries are antecedent.discovery.pool_search_over_imputations and the imputations= argument of the search classes' run (CiScreenedPosterior.run)"
+
+[[entry]]
+rust = "antecedent::discovery::discover_pooled_dbn_posterior"
+kind = "fn"
+status = "internal"
+reason = "The bounded-lag DBN posterior pooled over completed series: Python runs the same pooled search through its own compiled-search loop and pools with GraphPosterior::pooled_over_imputations in the native layer (python/src/bayesian.rs discover_pooled_posterior), without calling this facade function; the Python entries are antecedent.discovery.pool_search_over_imputations and the imputations= argument of the search classes' run (DbnPosterior.run)"
+
+[[entry]]
+rust = "antecedent::discovery::discover_pooled_exact_dag_marginals"
+kind = "fn"
+status = "internal"
+reason = "Exact DAG edge marginals pooled over imputations: the native discover_pooled_exact_dag_marginals (python/src/bayesian.rs) runs the per-table search and pools with ExactDagMarginals::pooled_over_imputations without calling this facade function; Python reaches it through antecedent.discovery.ExactDagPosterior.run(imputations=...) above six variables"
+
+[[entry]]
+rust = "antecedent::discovery::discover_pooled_exact_dag_posterior"
+kind = "fn"
+status = "internal"
+reason = "Exact DAG posterior pooled over imputations: the native discover_pooled_exact_dag_posterior (python/src/bayesian.rs) runs the per-table search and pools with GraphPosterior::pooled_over_imputations without calling this facade function; Python reaches it through antecedent.discovery.ExactDagPosterior.run(imputations=...) and antecedent.discovery.pool_search_over_imputations"
+
+[[entry]]
+rust = "antecedent::discovery::discover_pooled_order_mcmc"
+kind = "fn"
+status = "internal"
+reason = "Order MCMC pooled over imputations: Python runs the same pooled search through its own compiled-search loop and pools with GraphPosterior::pooled_over_imputations in the native layer (python/src/bayesian.rs discover_pooled_posterior), without calling this facade function; the Python entries are antecedent.discovery.pool_search_over_imputations and the imputations= argument of the search classes' run (OrderMcmc.run)"
+
+[[entry]]
+rust = "antecedent::discovery::discover_pooled_structure_mcmc"
+kind = "fn"
+status = "internal"
+reason = "Structure MCMC pooled over imputations: Python runs the same pooled search through its own compiled-search loop and pools with GraphPosterior::pooled_over_imputations in the native layer (python/src/bayesian.rs discover_pooled_posterior), without calling this facade function; the Python entries are antecedent.discovery.pool_search_over_imputations and the imputations= argument of the search classes' run (StructureMcmc.run)"
+
+[[entry]]
 rust = "antecedent::discovery::pag_definite_directed_edge_count"
 kind = "fn"
 status = "bound"
 python = "native:python/src/lib.rs"
+
+[[entry]]
+rust = "antecedent::discovery::pool_posteriors_over_imputations"
+kind = "fn"
+status = "internal"
+reason = "Equal-weight pooling of graph posteriors: Python reaches it through the GraphPosterior.pool classmethod (python/src/bayesian.rs) and the pooled search runs of antecedent.discovery.pool_search_over_imputations, both calling GraphPosterior::pooled_over_imputations directly"
 
 [[entry]]
 rust = "antecedent::discovery_defaults::contemporaneous_constraints"
@@ -1923,6 +1983,12 @@ status = "bound"
 python = "antecedent._native.fit_gcm"
 
 [[entry]]
+rust = "antecedent::inference::declared_design_baseline"
+kind = "fn"
+status = "internal"
+reason = "Called inside resolve_unscaled_prior when a Bayesian fit re-indexes a named composed prior onto the design columns; Python reaches it through antecedent.inference.Bayesian(prior_from=<antecedent.priors.ComposedPrior>) and has no separate call"
+
+[[entry]]
 rust = "antecedent::inference::decode_prior_hydrate_source"
 kind = "fn"
 status = "internal"
@@ -1933,6 +1999,30 @@ rust = "antecedent::inference::hydrate_mapping_from_io"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
+
+[[entry]]
+rust = "antecedent::inference::map_named_composed"
+kind = "fn"
+status = "internal"
+reason = "Called inside resolve_unscaled_prior when a Bayesian fit maps a named composed prior onto the design columns; Python reaches it through antecedent.inference.Bayesian(prior_from=<antecedent.priors.ComposedPrior>) and has no separate call"
+
+[[entry]]
+rust = "antecedent::inference::outcome_prior_source_from_artifact"
+kind = "fn"
+status = "bound"
+python = "native:python/src/estimator_config.rs"
+
+[[entry]]
+rust = "antecedent::inference::outcome_prior_source_from_composed"
+kind = "fn"
+status = "bound"
+python = "native:python/src/prior_bank.rs"
+
+[[entry]]
+rust = "antecedent::inference::project_external_sources"
+kind = "fn"
+status = "internal"
+reason = "Called inside resolve_unscaled_prior when a Bayesian fit re-indexes a composed prior's sources for the conflict re-shrink; Python reaches it through antecedent.inference.Bayesian(prior_from=<antecedent.priors.ComposedPrior>) with a conflict policy and has no separate call"
 
 [[entry]]
 rust = "antecedent::inference::resolve_bayesian_prior_with_conflict"
@@ -3060,6 +3150,12 @@ rust = "antecedent::analysis::api::retained_source_from_artifact"
 kind = "fn"
 status = "bound"
 python = "antecedent.choice_inference.RetainedSource.from_result"
+
+[[entry]]
+rust = "antecedent::analysis::api::transport_trial_to_weighted_target"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport._impl.identify.estimate_trial_effect"
 
 [[entry]]
 rust = "antecedent::analysis::graph_imputation::consume"

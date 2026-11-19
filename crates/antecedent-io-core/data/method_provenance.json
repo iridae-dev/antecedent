@@ -12050,7 +12050,7 @@
    "id": "response.joint_panel_time_varying_posterior",
    "review": "method_review",
    "scope_limits": [
-    "not covered by the method review: the likelihood and marginal it evaluates (reviewed separately for the independent-group Gaussian marginal only), the optimizer and numerical information, the frequentist bootstrap branch, the conditional random-intercept realization, the R-hat and effective-sample-size diagnostics, the prior over global parameters, and the prespecified candidate lists (their choice is the caller's)"
+    "not covered by the method review: the likelihood and marginal it evaluates (reviewed separately for the independent-group Gaussian marginal only), the optimizer, Newton polish and numerical information, the Hamiltonian and No-U-Turn kernels themselves (crates/antecedent-prob/src/gradient_hmc"
    ],
    "sources": [
     {

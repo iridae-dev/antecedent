@@ -62,11 +62,11 @@ def dual(expr, point):
     a, ga = dual(expr["args"][0], point)
     b, gb = dual(expr["args"][1], point)
     if op == "add":
-        return a + b, [x + y for x, y in zip(ga, gb)]
+        return a + b, [x + y for x, y in zip(ga, gb, strict=True)]
     if op == "sub":
-        return a - b, [x - y for x, y in zip(ga, gb)]
+        return a - b, [x - y for x, y in zip(ga, gb, strict=True)]
     if op == "mul":
-        return a * b, [x * b + a * y for x, y in zip(ga, gb)]
+        return a * b, [x * b + a * y for x, y in zip(ga, gb, strict=True)]
     raise ValueError(op)
 
 
@@ -82,7 +82,7 @@ def arm_point(case, means):
 
 def component_gradient(case, grad):
     h = [Fraction(0)] * len(case["components"])
-    for binding, g in zip(case["inputs"], grad):
+    for binding, g in zip(case["inputs"], grad, strict=True):
         if "measured" in binding:
             h[case["components"].index(binding["measured"])] += g
     return h

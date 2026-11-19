@@ -53,10 +53,10 @@ class GateUnsupportedCapabilities(unittest.TestCase):
 
     def test_require_zero_fails_on_a_gate_unsupported_unit(self):
         out = io.StringIO()
-        with patch.object(check, "open_items", return_value=[("capability", "u", "no provenance")]):
-            with redirect_stdout(out):
-                self.assertEqual(check.main(["--require-zero"]), 1)
-                self.assertEqual(check.main([]), 0)
+        unsupported = [("capability", "u", "no provenance")]
+        with patch.object(check, "open_items", return_value=unsupported), redirect_stdout(out):
+            self.assertEqual(check.main(["--require-zero"]), 1)
+            self.assertEqual(check.main([]), 0)
         self.assertIn("capability   u: no provenance", out.getvalue())
 
     def test_require_zero_passes_when_nothing_is_open(self):

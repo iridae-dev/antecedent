@@ -26,12 +26,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "bounded draw counts and an order-statistic rank"
-)]
+#![allow(clippy::cast_precision_loss, reason = "bounded draw counts")]
 
 use antecedent_io_core::contract_section::CalibrationSlotWire;
 
@@ -98,6 +93,11 @@ fn critical_quantile(scores: &[f64], weights: Option<&[f64]>, level: f64) -> f64
         None => {
             // The order statistic that holds the level with the finite-sample margin of one
             // draw: rank ceil((n + 1) level), capped at the maximum.
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "an order-statistic rank: a positive multiple of a bounded draw count"
+            )]
             let rank = (((n as f64 + 1.0) * level).ceil() as usize).clamp(1, n);
             scores[order[rank - 1]]
         }

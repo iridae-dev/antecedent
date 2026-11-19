@@ -213,7 +213,12 @@ fn assert_hand_computed(
         let raw = table.propensities[n + i];
         let x = [1.0, d.z[i]];
         let e = clip.map_or(raw, |c| raw.clamp(c, 1.0 - c));
-        if e == raw {
+        #[allow(
+            clippy::float_cmp,
+            reason = "a clamped propensity equals its raw value exactly unless clipped"
+        )]
+        let unclipped = e == raw;
+        if unclipped {
             let slope = -(d.t[i] * (d.y[i] - mu1s[i]) * (1.0 - e) / e
                 + (1.0 - d.t[i]) * (d.y[i] - mu0s[i]) * e / (1.0 - e));
             for c in 0..2 {

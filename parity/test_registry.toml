@@ -24165,3 +24165,24 @@ cargo_target = "script"
 path = "python/tests/test_composition_chain.py"
 gates = ["inventory"]
 why = "One planted dataset through measured exposure, pooled structure posterior with a structure prior, composed-prior estimation and a kernel-weighted target, against the closed-form population effect."
+
+[[test]]
+id = "engineering-crates-antecedent-estimate-src-joint-panel-likelihood-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_panel/likelihood.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "engineering-crates-antecedent-prob-src-gradient-hmc-rs"
+crate = "antecedent-prob"
+cargo_target = "lib"
+path = "crates/antecedent-prob/src/gradient_hmc.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "open-ledger-groups"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_open_ledger_groups.py"
+gates = ["inventory"]

@@ -2406,6 +2406,10 @@ impl ProgramTruth {
 
 /// One replicate: the interval the search published for its selected program, the truth value of
 /// that program and the construction the runtime keyed the interval under.
+#[allow(
+    clippy::large_enum_variant,
+    reason = "one reading per replicate, held only while the replicates are scored"
+)]
 enum SearchReading {
     Scored {
         interval: Option<(f64, f64)>,

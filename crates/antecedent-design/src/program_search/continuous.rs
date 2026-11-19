@@ -265,6 +265,10 @@ impl PreparedContinuousProgramSearch {
             })?;
         rows.pop().ok_or_else(|| invalid("continuous search worker returned no result"))
     }
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one coordinate poll, its acceptance and its reliability read as one loop"
+    )]
     fn execute_inner(
         &self,
         evaluator: &impl CompiledProgramEvaluator,

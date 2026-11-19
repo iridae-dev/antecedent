@@ -9,7 +9,7 @@
     {
       "role": "generator",
       "path": "conformance/composition/transported_composition/reference.py",
-      "sha256": "acb2028ac29d06fd6df216b3977795934d11c303e46651896229014737f53c04"
+      "sha256": "033f5993066fd6cfba79d786b9373464e73be45aa8ec9179f0cc7c39b21730ec"
     },
     {
       "role": "environment_lock",

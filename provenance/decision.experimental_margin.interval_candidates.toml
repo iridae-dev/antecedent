@@ -62,7 +62,7 @@ sha256 = "f6f25ec346ba86fbf349c4f63216102d6f35c4d0c9a3992d359b5bebd135a5b3"
 [[method_review.artifacts]]
 role = "reference"
 path = "conformance/design/decision_margin_interval/reference.py"
-sha256 = "2060e3ecfd59f9c4b87ff93b20c3df503be68c84f002a87c0ddd78fe660ee7f8"
+sha256 = "641ea806d34b5ea7fcf6c310a6b7a22879f123c2c3a84de85ecef17f0559dd9f"
 
 [[method_review.artifacts]]
 role = "fixture"
