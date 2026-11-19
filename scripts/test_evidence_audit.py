@@ -909,7 +909,8 @@ class Classification(unittest.TestCase):
            'kind="known_truth"\nfixtures=["conformance/fx"]\nwhy="checks b"\n')
 
     def test_registry_row_is_a_scientific_row_excluded_from_the_engineering_filter(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        # The fixture repository has no support registries, so the support rule cites nothing.
+        with tempfile.TemporaryDirectory() as tmp, patch("gate_support.cited_checks", return_value=[]):
             root = self._registry_root(tmp, self.ROW.format(name="slow_truth"))
             rows = audit.scientific_rows(audit.claim_rows(root), audit.registered_scientific_tests(root))
             self.assertEqual([(r["evidence_assertion"], r["roles"], r["fixtures"]) for r in rows],
