@@ -18,6 +18,10 @@ ignore = [
     # It ships in standard Python wheels and remains optional for Rust consumers.
     # An unmaintained-crate notice, not a vulnerability. Revisit when the burn upgrade lands.
     { id = "RUSTSEC-2025-0141", reason = "burn-core 0.16 record serialization in the optional neural learner; unmaintained notice, no vulnerability" },
+    # Transitive via arrow-array 60 (the Arrow table backend of antecedent-data); no workspace
+    # crate depends on chrono directly and no arrow release drops it. An unmaintained-crate
+    # notice, not a vulnerability. Revisit when arrow moves to jiff or time.
+    { id = "RUSTSEC-2026-0543", reason = "arrow-array 60 depends on chrono; unmaintained notice, no vulnerability, no chrono-free arrow release" },
 ]
 [licenses]
 version = 2
