@@ -2055,6 +2055,12 @@ routes = [
   { route = "antecedent.composition.compile_graph_imputation_predictive_node_decision_bundle", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.composition.compile_assessed_bridge_posterior_node_decision_bundle", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.composition.consume_portable_predictive_fit_decision_bundle", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_sequential_reliability_node_bundle", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_sequential_reliability_node_bundle", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_decision_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_decision_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_posterior_decision_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_posterior_decision_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
 ]
 
 [[record]]

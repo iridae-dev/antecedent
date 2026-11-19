@@ -38,10 +38,25 @@ use crate::planner::lowered::{
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
+use crate::support::{require_capability_route, require_capability_route_unscoped};
 
 const FEATURE: &str = "decision_bundle_recomputation_portable_v1";
 const POSTERIOR_FEATURE: &str = "posterior_decision_bundle_recomputation_portable_v1";
 const MAX_BYTES: usize = 32 * 1024 * 1024;
+
+// The capability unit whose support the decision-terminal routes run under. A route has no
+// support status of its own: while the unit is not supported, a release build refuses each entry
+// point by its route id (`parity/capability_records.toml`) and a development build runs it and
+// records the refusal.
+const BUNDLE_CAPABILITY: &str = "composition.bundle";
+const PREDICTIVE_COMPILE_ROUTE: &str =
+    "antecedent.composition.compile_decision_bundle_recomputation";
+const PREDICTIVE_CONSUME_ROUTE: &str =
+    "antecedent.composition.consume_portable_decision_bundle_recomputation";
+const POSTERIOR_COMPILE_ROUTE: &str =
+    "antecedent.composition.compile_posterior_decision_bundle_recomputation";
+const POSTERIOR_CONSUME_ROUTE: &str =
+    "antecedent.composition.consume_portable_posterior_decision_bundle_recomputation";
 
 /// A bundle whose decision terminal is recomputed from its compiler-bound
 /// contract and aligned predictive or parameter-posterior distribution.
@@ -93,6 +108,9 @@ pub enum DecisionBundleRecomputeError {
     /// An embedded binding or live result differs.
     #[error("decision bundle: {0}")]
     Invalid(&'static str),
+    /// A release build refuses the route while its capability unit is not supported.
+    #[error("decision bundle: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -122,6 +140,7 @@ pub fn compile_decision_bundle_recomputation(
     contract: DecisionContract,
     source: DistributionArtifact,
 ) -> Result<CompiledDecisionBundleRecomputation, DecisionBundleRecomputeError> {
+    require_capability_route_unscoped(BUNDLE_CAPABILITY, PREDICTIVE_COMPILE_ROUTE)?;
     compile_decision_bundle(bundle, terminal_node, contract, source, false)
 }
 
@@ -136,6 +155,7 @@ pub fn compile_posterior_decision_bundle_recomputation(
     contract: DecisionContract,
     source: DistributionArtifact,
 ) -> Result<CompiledDecisionBundleRecomputation, DecisionBundleRecomputeError> {
+    require_capability_route_unscoped(BUNDLE_CAPABILITY, POSTERIOR_COMPILE_ROUTE)?;
     compile_decision_bundle(bundle, terminal_node, contract, source, true)
 }
 
@@ -356,6 +376,8 @@ impl CompiledDecisionBundleRecomputation {
         ctx: &ExecutionContext,
     ) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        let route = if self.posterior { POSTERIOR_COMPILE_ROUTE } else { PREDICTIVE_COMPILE_ROUTE };
+        require_capability_route(&scoped, BUNDLE_CAPABILITY, route)?;
         if scoped.cancellation.is_cancelled() {
             return Err(DecisionBundleRecomputeError::Invalid("decision bundle was cancelled"));
         }
@@ -453,6 +475,7 @@ pub fn consume_portable_decision_bundle_recomputation(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
+    require_capability_route(ctx, BUNDLE_CAPABILITY, PREDICTIVE_CONSUME_ROUTE)?;
     consume_portable_decision_bundle(bytes, expected_bundle, expected_program, ctx, false)
 }
 
@@ -466,6 +489,7 @@ pub fn consume_portable_posterior_decision_bundle_recomputation(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
+    require_capability_route(ctx, BUNDLE_CAPABILITY, POSTERIOR_CONSUME_ROUTE)?;
     consume_portable_decision_bundle(bytes, expected_bundle, expected_program, ctx, true)
 }
 
