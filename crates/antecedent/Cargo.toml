@@ -1757,6 +1757,7 @@ required-features = ["calibration-internal"]
 [[test]]
 name = "latent_soft_intervention"
 path = "tests/latent_soft_intervention.rs"
+required-features = ["development"]
 
 [[test]]
 name = "events"

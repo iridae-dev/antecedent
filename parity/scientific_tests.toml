@@ -13,14 +13,14 @@ evidence_test = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
 evidence_assertion = "whole_chain_bootstrap_union_replays_at_the_final_coordinate"
 kind = "reference"
 fixtures = []
-why = "The original and one hundred source-declared whole-chain bootstrap reruns share fixed assumption bounds and the same terminal coordinate; a Bonferroni-split basic-bootstrap candidate is independently replayed. The ignored source assertion is unearned and the interval remains not_measured."
+why = "The original and one hundred source-declared whole-chain bootstrap reruns share fixed assumption bounds and the same terminal coordinate; a Bonferroni-split basic-bootstrap candidate is independently replayed. The source assertion is unearned and the interval remains not_measured."
 
 [[test]]
 evidence_test = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs"
 evidence_assertion = "joint_cyclic_parameter_and_disturbance_worlds_replay"
 kind = "reference"
 fixtures = []
-why = "A joint likelihood posterior over a cyclic feedback coefficient is paired with Gaussian disturbance draws, solved across two hard-clamp action worlds, evaluated by the multi-action decision compiler, and independently replayed. The ignored source assertion is unearned."
+why = "A joint likelihood posterior over a cyclic feedback coefficient is paired with Gaussian disturbance draws, solved across two hard-clamp action worlds, evaluated by the multi-action decision compiler, and independently replayed. The source assertion is unearned."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/observational_survival_policy_routes.rs"
@@ -2565,3 +2565,24 @@ evidence_assertion = "count_interval_matches_hand_ranked_discrete_tails"
 kind = "reference"
 fixtures = []
 why = "Independent order-statistic calculation checks both integer endpoints, including ties."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "conditional_likelihood_matches_poisson_and_direct_asymmetric_reference"
+kind = "reference"
+fixtures = []
+why = "Keep the independent conditional likelihood oracle in the scientific lane."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "fixture_worlds_match_off_grid_path_oracle_and_hawkes_composes"
+kind = "reference"
+fixtures = []
+why = "Keep the independent joint path reference and replay check in the scientific lane."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "rejects_leakage_unstable_parameters_and_unverified_external_source"
+kind = "reference"
+fixtures = []
+why = "Keep the event capability boundary checks with the compiled scientific fixtures."

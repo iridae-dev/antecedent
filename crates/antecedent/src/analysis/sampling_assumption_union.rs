@@ -2532,7 +2532,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only full-chain bootstrap design; coverage has not been earned"]
     fn whole_chain_bootstrap_union_replays_at_the_final_coordinate() {
         let ctx = ExecutionContext::for_tests(11);
         let request = SamplingAssumptionUnionRequest {

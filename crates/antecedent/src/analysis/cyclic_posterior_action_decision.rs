@@ -785,7 +785,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only posterior method; scientific record has not been earned"]
     fn joint_cyclic_parameter_and_disturbance_worlds_replay() {
         let ctx = ExecutionContext::for_tests(47);
         let plan = compile_cyclic_posterior_action_decision(
