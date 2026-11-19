@@ -1947,6 +1947,10 @@ def select_alpha_prior_linear(
     selection-valid interval the report states enter the prior's identity.
     """
     srcs = list(sources)
+    native_options: dict[str, Any] = {
+        key: ([float(g) for g in value] if key == "grid" and value is not None else value)
+        for key, value in options.items()
+    }
     raw = _select_alpha_linear(
         [{**src.to_dict(), "alpha": 1.0} for src in srcs],
         [float(m) for m in baseline_mean],
@@ -1954,10 +1958,7 @@ def select_alpha_prior_linear(
         [[float(v) for v in row] for row in x],
         [float(v) for v in y],
         [float(c) for c in functional],
-        **{
-            key: ([float(g) for g in value] if key == "grid" and value is not None else value)
-            for key, value in options.items()
-        },
+        **native_options,
     )
     selection = _selected_from_native(raw)
     # The prior is the native `select_linear_prior` result, not a recomposition: Python only

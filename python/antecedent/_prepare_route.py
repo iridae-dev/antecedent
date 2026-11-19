@@ -2368,7 +2368,10 @@ class _PrepareRoute:
             )
         response = _response_args(query.query)
         if query.target is not None:
-            self.options["weighted_target"] = query.target._declaration(self.names)
+            from .population import WeightedPopulation
+
+            target = cast(WeightedPopulation, query.target)
+            self.options["weighted_target"] = target._declaration(self.names)
         native = _NativePreparedAnalysis.prepare_transport(
             self.names,
             self.columns,
