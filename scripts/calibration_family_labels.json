@@ -1605,7 +1605,7 @@
     },
     {
       "path": "crates/antecedent/tests/joint_panel_calibration.rs",
-      "sha256": "523cb447cbc147d7105021a4a1ea1ef5181305b173f4b34ff82078b667fc6554",
+      "sha256": "91e157a946349217a42368edf72566b8dedb43480a10f9cc5aa48363dd375f3e",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1644,7 +1644,7 @@
           "argument": "RecordKey { test, dgp: \"response_data\", interval }, LEVEL"
         },
         {
-          "line": 2580,
+          "line": 2587,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: SELECTED_VALUE_INTERVAL_METHOD },\n        LEVEL,"
         }
