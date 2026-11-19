@@ -66,6 +66,10 @@ impl core::clone::Clone for antecedent_prob::TransportPolicy
 impl core::clone::Clone for antecedent_prob::WeightedGraphSamples
 impl core::clone::Clone for antecedent_prob::WeightedTarget
 impl core::clone::Clone for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::clone::Clone for antecedent_prob::gradient_hmc::GradientHmcOptions
+impl core::clone::Clone for antecedent_prob::gradient_hmc::NutsOptions
+impl core::clone::Clone for antecedent_prob::gradient_hmc::StepAdaptation
+impl core::clone::Clone for antecedent_prob::gradient_hmc::Transition
 impl core::clone::Clone for antecedent_prob::metropolis::MetropolisDraws
 impl core::clone::Clone for antecedent_prob::metropolis::MetropolisError
 impl core::clone::Clone for antecedent_prob::metropolis::MetropolisOptions
@@ -147,6 +151,7 @@ impl core::default::Default for antecedent_prob::PriorSensitivityFamily
 impl core::default::Default for antecedent_prob::PriorSensitivitySummary
 impl core::default::Default for antecedent_prob::PriorSet
 impl core::default::Default for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::default::Default for antecedent_prob::gradient_hmc::GradientHmcOptions
 impl core::error::Error for antecedent_prob::ProbError
 impl core::error::Error for antecedent_prob::TransportError
 impl core::error::Error for antecedent_prob::metropolis::MetropolisError
@@ -208,6 +213,10 @@ impl core::fmt::Debug for antecedent_prob::TransportPolicy
 impl core::fmt::Debug for antecedent_prob::WeightedGraphSamples
 impl core::fmt::Debug for antecedent_prob::WeightedTarget
 impl core::fmt::Debug for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::fmt::Debug for antecedent_prob::gradient_hmc::GradientHmcOptions
+impl core::fmt::Debug for antecedent_prob::gradient_hmc::NutsOptions
+impl core::fmt::Debug for antecedent_prob::gradient_hmc::StepAdaptation
+impl core::fmt::Debug for antecedent_prob::gradient_hmc::Transition
 impl core::fmt::Debug for antecedent_prob::metropolis::MetropolisDraws
 impl core::fmt::Debug for antecedent_prob::metropolis::MetropolisError
 impl core::fmt::Debug for antecedent_prob::metropolis::MetropolisOptions
@@ -251,6 +260,9 @@ impl core::marker::Copy for antecedent_prob::TargetOverlap
 impl core::marker::Copy for antecedent_prob::TransportKernel
 impl core::marker::Copy for antecedent_prob::TransportPolicy
 impl core::marker::Copy for antecedent_prob::fit_counts::BayesianWorkCounts
+impl core::marker::Copy for antecedent_prob::gradient_hmc::GradientHmcOptions
+impl core::marker::Copy for antecedent_prob::gradient_hmc::NutsOptions
+impl core::marker::Copy for antecedent_prob::gradient_hmc::StepAdaptation
 impl core::marker::Copy for antecedent_prob::metropolis::MetropolisOptions
 impl core::marker::Freeze for antecedent_prob::AlphaCriterion [auto]
 impl core::marker::Freeze for antecedent_prob::AlphaSelectionOptions [auto]
@@ -310,6 +322,10 @@ impl core::marker::Freeze for antecedent_prob::TransportPolicy [auto]
 impl core::marker::Freeze for antecedent_prob::WeightedGraphSamples [auto]
 impl core::marker::Freeze for antecedent_prob::WeightedTarget [auto]
 impl core::marker::Freeze for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::marker::Freeze for antecedent_prob::gradient_hmc::GradientHmcOptions [auto]
+impl core::marker::Freeze for antecedent_prob::gradient_hmc::NutsOptions [auto]
+impl core::marker::Freeze for antecedent_prob::gradient_hmc::StepAdaptation [auto]
+impl core::marker::Freeze for antecedent_prob::gradient_hmc::Transition [auto]
 impl core::marker::Freeze for antecedent_prob::metropolis::MetropolisDraws [auto]
 impl core::marker::Freeze for antecedent_prob::metropolis::MetropolisError [auto]
 impl core::marker::Freeze for antecedent_prob::metropolis::MetropolisOptions [auto]
@@ -371,6 +387,10 @@ impl core::marker::Send for antecedent_prob::TransportPolicy [auto]
 impl core::marker::Send for antecedent_prob::WeightedGraphSamples [auto]
 impl core::marker::Send for antecedent_prob::WeightedTarget [auto]
 impl core::marker::Send for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::marker::Send for antecedent_prob::gradient_hmc::GradientHmcOptions [auto]
+impl core::marker::Send for antecedent_prob::gradient_hmc::NutsOptions [auto]
+impl core::marker::Send for antecedent_prob::gradient_hmc::StepAdaptation [auto]
+impl core::marker::Send for antecedent_prob::gradient_hmc::Transition [auto]
 impl core::marker::Send for antecedent_prob::metropolis::MetropolisDraws [auto]
 impl core::marker::Send for antecedent_prob::metropolis::MetropolisError [auto]
 impl core::marker::Send for antecedent_prob::metropolis::MetropolisOptions [auto]
@@ -481,6 +501,10 @@ impl core::marker::Sync for antecedent_prob::TransportPolicy [auto]
 impl core::marker::Sync for antecedent_prob::WeightedGraphSamples [auto]
 impl core::marker::Sync for antecedent_prob::WeightedTarget [auto]
 impl core::marker::Sync for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::marker::Sync for antecedent_prob::gradient_hmc::GradientHmcOptions [auto]
+impl core::marker::Sync for antecedent_prob::gradient_hmc::NutsOptions [auto]
+impl core::marker::Sync for antecedent_prob::gradient_hmc::StepAdaptation [auto]
+impl core::marker::Sync for antecedent_prob::gradient_hmc::Transition [auto]
 impl core::marker::Sync for antecedent_prob::metropolis::MetropolisDraws [auto]
 impl core::marker::Sync for antecedent_prob::metropolis::MetropolisError [auto]
 impl core::marker::Sync for antecedent_prob::metropolis::MetropolisOptions [auto]
@@ -542,6 +566,10 @@ impl core::marker::Unpin for antecedent_prob::TransportPolicy [auto]
 impl core::marker::Unpin for antecedent_prob::WeightedGraphSamples [auto]
 impl core::marker::Unpin for antecedent_prob::WeightedTarget [auto]
 impl core::marker::Unpin for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::marker::Unpin for antecedent_prob::gradient_hmc::GradientHmcOptions [auto]
+impl core::marker::Unpin for antecedent_prob::gradient_hmc::NutsOptions [auto]
+impl core::marker::Unpin for antecedent_prob::gradient_hmc::StepAdaptation [auto]
+impl core::marker::Unpin for antecedent_prob::gradient_hmc::Transition [auto]
 impl core::marker::Unpin for antecedent_prob::metropolis::MetropolisDraws [auto]
 impl core::marker::Unpin for antecedent_prob::metropolis::MetropolisError [auto]
 impl core::marker::Unpin for antecedent_prob::metropolis::MetropolisOptions [auto]
@@ -603,6 +631,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::TransportPolic
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::WeightedGraphSamples [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::WeightedTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::gradient_hmc::GradientHmcOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::gradient_hmc::NutsOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::gradient_hmc::StepAdaptation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::gradient_hmc::Transition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::metropolis::MetropolisDraws [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::metropolis::MetropolisError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::metropolis::MetropolisOptions [auto]
@@ -664,6 +696,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::TransportPolicy [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::WeightedGraphSamples [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::WeightedTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::fit_counts::BayesianWorkCounts [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::gradient_hmc::GradientHmcOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::gradient_hmc::NutsOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::gradient_hmc::StepAdaptation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::gradient_hmc::Transition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::metropolis::MetropolisDraws [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::metropolis::MetropolisError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_prob::metropolis::MetropolisOptions [auto]
@@ -736,6 +772,7 @@ impl<E> core::convert::From<antecedent_core::execution::pipeline::MapExecutionEr
 pub const antecedent_prob::POPULATION_TAG_KEY: &str
 pub const antecedent_prob::TARGET_MIN_ESS_FRACTION: f64
 pub const antecedent_prob::TRANSPORT_MIN_KISH_ESS: f64
+pub const antecedent_prob::gradient_hmc::DIVERGENCE: f64
 pub const antecedent_prob::power_prior_alpha::MAX_ALPHA_GRID: usize
 pub enum antecedent_prob::AlphaCriterion
 pub enum antecedent_prob::BayesLikelihood
@@ -947,6 +984,21 @@ pub field antecedent_prob::finite_belief::JointAffineGaussianExperiment::slopes:
 pub field antecedent_prob::finite_belief::JointAffineGaussianExperiment::target_values: &'a [alloc::vec::Vec<f64>]
 pub field antecedent_prob::fit_counts::BayesianWorkCounts::model_fits: u64
 pub field antecedent_prob::fit_counts::BayesianWorkCounts::posterior_draws: u64
+pub field antecedent_prob::gradient_hmc::GradientHmcOptions::chains: usize
+pub field antecedent_prob::gradient_hmc::GradientHmcOptions::draws: usize
+pub field antecedent_prob::gradient_hmc::GradientHmcOptions::initial_step: f64
+pub field antecedent_prob::gradient_hmc::GradientHmcOptions::leapfrog_steps: u32
+pub field antecedent_prob::gradient_hmc::GradientHmcOptions::target_accept: f64
+pub field antecedent_prob::gradient_hmc::GradientHmcOptions::warmup: usize
+pub field antecedent_prob::gradient_hmc::NutsOptions::chains: usize
+pub field antecedent_prob::gradient_hmc::NutsOptions::draws: usize
+pub field antecedent_prob::gradient_hmc::NutsOptions::initial_step: f64
+pub field antecedent_prob::gradient_hmc::NutsOptions::max_depth: u32
+pub field antecedent_prob::gradient_hmc::NutsOptions::target_accept: f64
+pub field antecedent_prob::gradient_hmc::NutsOptions::warmup: usize
+pub field antecedent_prob::gradient_hmc::StepAdaptation::step: f64
+pub field antecedent_prob::gradient_hmc::Transition::accept_prob: f64
+pub field antecedent_prob::gradient_hmc::Transition::accepted: bool
 pub field antecedent_prob::metropolis::MetropolisDraws::accepted: alloc::vec::Vec<usize>
 pub field antecedent_prob::metropolis::MetropolisDraws::samples: alloc::vec::Vec<f64>
 pub field antecedent_prob::metropolis::MetropolisOptions::chains: usize
@@ -1128,6 +1180,9 @@ pub fn <antecedent_prob::WeightedTarget>::fn weights(&self) -> &[f64]
 pub fn <antecedent_prob::WeightedTarget>::fn with_min_ess_fraction(self, fraction: f64) -> core::result::Result<Self, antecedent_prob::TransportError>
 pub fn <antecedent_prob::finite_belief::AffineGaussianExperiment<'_>>::fn condition(&self, prior: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
 pub fn <antecedent_prob::finite_belief::JointAffineGaussianExperiment<'_>>::fn condition(&self, prior: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
+pub fn <antecedent_prob::gradient_hmc::StepAdaptation>::fn finalize(&self) -> f64
+pub fn <antecedent_prob::gradient_hmc::StepAdaptation>::fn new(initial_step: f64, target_accept: f64) -> Self
+pub fn <antecedent_prob::gradient_hmc::StepAdaptation>::fn update(&mut self, accept_prob: f64)
 pub fn antecedent_prob::all_chains_moved(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> bool
 pub fn antecedent_prob::apply_transport(sources: &[antecedent_prob::ExternalPriorSource], ctx: &antecedent_prob::TransportContext<'_>) -> core::result::Result<(alloc::vec::Vec<antecedent_prob::ExternalPriorSource>, alloc::vec::Vec<antecedent_prob::TransportOutcome>), antecedent_prob::TransportError>
 pub fn antecedent_prob::apply_weighted_target_transport(sources: &[antecedent_prob::ExternalPriorSource], policy: antecedent_prob::TransportPolicy, target: &antecedent_prob::WeightedTarget, coef_index: core::option::Option<usize>) -> core::result::Result<(alloc::vec::Vec<antecedent_prob::ExternalPriorSource>, antecedent_prob::TargetOverlap), antecedent_prob::ProbError>
@@ -1150,6 +1205,11 @@ pub fn antecedent_prob::fit_counts::note_posterior_fit()
 pub fn antecedent_prob::fit_hmc_glm(likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, fit_opts: &antecedent_prob::BayesFitOptions, hmc: antecedent_prob::HmcOptions, workspace: &mut antecedent_prob::LaplaceWorkspace) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
 pub fn antecedent_prob::fit_hmc_glm_with_context(likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, fit_opts: &antecedent_prob::BayesFitOptions, hmc: antecedent_prob::HmcOptions, workspace: &mut antecedent_prob::LaplaceWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
 pub fn antecedent_prob::fit_laplace_glm(likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, options: &antecedent_prob::BayesFitOptions, workspace: &mut antecedent_prob::LaplaceWorkspace) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
+pub fn antecedent_prob::gradient_hmc::nuts_step(position: &mut alloc::vec::Vec<f64>, logp: &mut f64, gradient: &mut alloc::vec::Vec<f64>, step: f64, max_depth: u32, target: &antecedent_prob::gradient_hmc::GradientTarget<'_>, rng: &mut antecedent_core::execution::rng::CausalRng) -> core::result::Result<antecedent_prob::gradient_hmc::Transition, antecedent_prob::metropolis::MetropolisError>
+pub fn antecedent_prob::gradient_hmc::sample_gradient_hmc_dispersed_parallel(center: &[f64], spread: f64, options: antecedent_prob::gradient_hmc::GradientHmcOptions, ctx: &antecedent_core::execution::context::ExecutionContext, target: &antecedent_prob::gradient_hmc::GradientTarget<'_>) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError>
+pub fn antecedent_prob::gradient_hmc::sample_nuts_dispersed_parallel(center: &[f64], spread: f64, options: antecedent_prob::gradient_hmc::NutsOptions, ctx: &antecedent_core::execution::context::ExecutionContext, target: &antecedent_prob::gradient_hmc::GradientTarget<'_>) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError>
+pub fn antecedent_prob::gradient_hmc::sample_tempered_nuts_dispersed_parallel(center: &[f64], spread: f64, options: antecedent_prob::gradient_hmc::NutsOptions, ladder: &[f64], ctx: &antecedent_core::execution::context::ExecutionContext, target: &antecedent_prob::gradient_hmc::GradientTarget<'_>) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError>
+pub fn antecedent_prob::gradient_hmc::transition(position: &mut alloc::vec::Vec<f64>, logp: &mut f64, gradient: &mut alloc::vec::Vec<f64>, step: f64, leapfrog_steps: u32, target: &antecedent_prob::gradient_hmc::GradientTarget<'_>, rng: &mut antecedent_core::execution::rng::CausalRng) -> core::result::Result<antecedent_prob::gradient_hmc::Transition, antecedent_prob::metropolis::MetropolisError>
 pub fn antecedent_prob::kernel_bandwidth_sensitivity(family: antecedent_prob::KernelFamily, bandwidths: &[f64], distances: &[f64], unit_effects: &[f64], min_ess_fraction: f64) -> core::result::Result<alloc::vec::Vec<antecedent_prob::BandwidthSensitivityRow>, antecedent_prob::TransportError>
 pub fn antecedent_prob::laplace::sample_gaussian_mvn(mean: &[f64], cov: &[f64], n_draws: usize, seed: u64, workspace: &mut antecedent_prob::LaplaceWorkspace) -> core::result::Result<alloc::sync::Arc<[f64]>, antecedent_prob::ProbError>
 pub fn antecedent_prob::mcmc_stats::mcmc_summary(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> antecedent_prob::McmcSummary
@@ -1176,6 +1236,7 @@ pub mod antecedent_prob::external_prior
 pub mod antecedent_prob::finite_belief
 pub mod antecedent_prob::fit_counts
 pub mod antecedent_prob::gaussian_target
+pub mod antecedent_prob::gradient_hmc
 pub mod antecedent_prob::graph_samples
 pub mod antecedent_prob::hmc
 pub mod antecedent_prob::laplace
@@ -1242,10 +1303,16 @@ pub struct antecedent_prob::WeightedTarget has private fields
 pub struct antecedent_prob::finite_belief::AffineGaussianExperiment<'a>
 pub struct antecedent_prob::finite_belief::JointAffineGaussianExperiment<'a>
 pub struct antecedent_prob::fit_counts::BayesianWorkCounts
+pub struct antecedent_prob::gradient_hmc::GradientHmcOptions
+pub struct antecedent_prob::gradient_hmc::NutsOptions
+pub struct antecedent_prob::gradient_hmc::StepAdaptation
+pub struct antecedent_prob::gradient_hmc::StepAdaptation has private fields
+pub struct antecedent_prob::gradient_hmc::Transition
 pub struct antecedent_prob::metropolis::MetropolisDraws
 pub struct antecedent_prob::metropolis::MetropolisOptions
 pub trait antecedent_prob::InferenceBackend: core::marker::Send + core::marker::Sync
 pub trait fn fn antecedent_prob::InferenceBackend::fit(&self, likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, options: &antecedent_prob::BayesFitOptions, workspace: &mut antecedent_prob::LaplaceWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
+pub type antecedent_prob::gradient_hmc::GradientTarget<'a> = dyn core::ops::function::Fn(&[f64]) -> core::option::Option<(f64, alloc::vec::Vec<f64>)> + core::marker::Sync + 'a
 pub use antecedent_prob::backend::BayesDesignRef = antecedent_prob::BayesDesignRef
 pub use antecedent_prob::backend::BayesFitOptions = antecedent_prob::BayesFitOptions
 pub use antecedent_prob::backend::BayesFitResult = antecedent_prob::BayesFitResult
