@@ -379,7 +379,19 @@ def test_a_predictive_line_is_a_stage_whose_residual_variance_is_added_once():
     # The residual declares a disturbance of its own and no other input does.
     assert any(kind == "disturbance" for kind, _ in parts.sources[3].factors)
     assert all(kind != "disturbance" for source in parts.sources[:3] for kind, _ in source.factors)
-    chain = require_success(pc.propagate(list(parts.sources), [parts.stage], output="line"))
+    # Predictive source draws and an innovation residual are published only as a predictive law
+    # of the bridge's target coordinate.
+    assert parts.reading == "predictive"
+    assert parts.output_quantity == bridged.quantity
+    chain = require_success(
+        pc.propagate(
+            list(parts.sources),
+            [parts.stage],
+            output="line",
+            reading=parts.reading,
+            output_quantity=parts.output_quantity,
+        )
+    )
     mapped = np.asarray(bridged.distribution())[:, 0]
     assert chain.stage("line").value("mean") == pytest.approx(mapped.mean(), abs=1e-12)
     assert chain.stage("line").value("variance") == pytest.approx(mapped.var(ddof=1), rel=1e-12)
@@ -397,6 +409,8 @@ def test_a_predictive_line_is_a_stage_whose_residual_variance_is_added_once():
                 )
             ],
             output="mean_line",
+            reading=parts.reading,
+            output_quantity=parts.output_quantity,
         )
     )
     residual = np.asarray(parts.sources[3].values)

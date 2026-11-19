@@ -1111,13 +1111,19 @@ impl BridgedDistributionHandle {
         }
     }
 
-    /// The bridge as a propagation-chain measurement-mapping stage: the sources it
-    /// reads and the stage, as JSON in the chain record's wire shape.
+    /// The bridge as a propagation-chain stage: the sources it reads, the stage,
+    /// the reading its output takes and the target's scientific coordinate, as
+    /// JSON in the chain record's wire shape.
     fn chain_stage_json(&self, stage_id: &str) -> (Option<String>, Option<String>) {
         match self.inner.chain_stage(stage_id) {
             Ok(parts) => (
-                serde_json::to_string(&json!({"sources": parts.sources, "stage": parts.stage}))
-                    .ok(),
+                serde_json::to_string(&json!({
+                    "sources": parts.sources,
+                    "stage": parts.stage,
+                    "reading": parts.reading.as_str(),
+                    "output_quantity": parts.output_quantity,
+                }))
+                .ok(),
                 None,
             ),
             Err(refusal) => (None, Some(refusal_json(&refusal))),

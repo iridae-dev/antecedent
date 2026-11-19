@@ -6,9 +6,11 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from . import _native, _reason_details
+from .execution import Execution, native_controls
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
     from .extensibility import ProviderVerificationReceipt
 
 
@@ -20,9 +22,9 @@ class EventRefusal(ValueError):
         super().__init__(message)
 
 
-def _call(operation: Any, *args: Any) -> Any:
+def _call(operation: Any, *args: Any, **kwargs: Any) -> Any:
     try:
-        return operation(*args)
+        return operation(*args, **kwargs)
     except ValueError as error:
         message = str(error)
         detail = message.split(":", 1)[0]
@@ -44,6 +46,10 @@ def _wire(value: Mapping[str, Any]) -> str:
     return json.dumps(dict(value), allow_nan=False, separators=(",", ":"))
 
 
+def _controls(execution: Execution | None) -> dict[str, Any]:
+    return native_controls(execution, memory="memory_bytes", cancel="cancel")
+
+
 def provider_request_id(request: Mapping[str, Any]) -> str:
     """Return the request identity an external execution receipt must cover."""
     return _call(_native.events_provider_request_id, _wire(request))
@@ -58,15 +64,13 @@ class PreparedEventProgram:
     def inspect(self) -> dict[str, Any]:
         return json.loads(self._native.inspect())
 
-    def execute(
-        self, *, memory_bytes: int | None = None, cancel: Any = None
-    ) -> EventResult:
-        return EventResult(_call(self._native.execute, memory_bytes, cancel))
+    def execute(self, *, execution: Execution | None = None) -> EventResult:
+        """Run the plan under ``execution``'s memory limit and cancellation."""
+        return EventResult(_call(self._native.execute, **_controls(execution)))
 
-    def count_interval(
-        self, kind: int, *, memory_bytes: int | None = None, cancel: Any = None
-    ) -> dict[str, Any]:
-        return json.loads(_call(self._native.count_interval, kind, memory_bytes, cancel))
+    def count_interval(self, kind: int, *, execution: Execution | None = None) -> dict[str, Any]:
+        """Publish a count interval of a compiled forecast under ``execution``."""
+        return json.loads(_call(self._native.count_interval, kind, **_controls(execution)))
 
 
 class EventResult:
@@ -92,13 +96,14 @@ def prepare(
     *,
     source: EventResult | None = None,
     receipt: ProviderVerificationReceipt | None = None,
-    memory_bytes: int | None = None,
-    cancel: Any = None,
+    execution: Execution | None = None,
 ) -> PreparedEventProgram:
     """Compile a forecast, likelihood, worlds, assessment, update or future study.
 
     For world composition, pass a retained event result as `source`. Decision
     contracts accept an existing decision.Contract or its native JSON declaration.
+    ``execution`` supplies the memory limit and cancellation of the compile; the
+    random streams are the seeds the request declares.
     """
     declaration = dict(request)
     if declaration.get("contract") is not None:
@@ -111,17 +116,23 @@ def prepare(
         _wire(declaration),
         None if source is None else source._native,
         None if receipt is None else receipt._native_value,
-        memory_bytes,
-        cancel,
+        **_controls(execution),
     )
     return PreparedEventProgram(native)
 
 
 def replay(
-    request: Mapping[str, Any], expected_program: str, **options: Any
+    request: Mapping[str, Any],
+    expected_program: str,
+    *,
+    source: EventResult | None = None,
+    receipt: ProviderVerificationReceipt | None = None,
+    execution: Execution | None = None,
 ) -> EventResult:
     """Recompile and execute a forecast or world request under an expected identity."""
-    plan = prepare(request, **options)
+    plan = prepare(request, source=source, receipt=receipt, execution=execution)
     if plan._native.replay_identity() != expected_program:
-        raise EventRefusal("events.invalid_request", "events.invalid_request: replay program identity changed")
-    return plan.execute(memory_bytes=options.get("memory_bytes"), cancel=options.get("cancel"))
+        raise EventRefusal(
+            "events.invalid_request", "events.invalid_request: replay program identity changed"
+        )
+    return plan.execute(execution=execution)

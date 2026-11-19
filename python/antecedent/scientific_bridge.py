@@ -1504,13 +1504,22 @@ class ChainStageParts:
     ``sources`` are the source draws and the draws of the mapping (the drawn slope and intercept,
     plus the new trial's residual for a predictive law; or the drawn sensitivity and specificity
     of a measurement correction), columns of one aligned draw table; ``stage`` is the
-    measurement-mapping stage that reads them. Pass both to
+    mapping stage that reads them. Pass both to
     :func:`antecedent.propagation_chain.propagate` together with the stages that read
     ``stage.id``.
+
+    ``reading`` is the bridge output's reading, to pass as ``propagate(reading=...)``:
+    ``"predictive"`` for a predictive or joint outcome law (its source and residual columns are
+    predictive and innovation draws, which a chain publishes only as a predictive law),
+    ``"posterior"`` for a posterior, and ``"spread"`` otherwise. ``output_quantity`` is the
+    bridge target's :class:`~antecedent.joint_distribution.ScientificQuantity`, the
+    ``output_quantity`` of a chain whose output is ``stage.id``.
     """
 
     sources: tuple[Any, ...]
     stage: Any
+    reading: str
+    output_quantity: Any
 
 
 @dataclass(repr=False, frozen=True, slots=True, eq=False)
@@ -1658,6 +1667,7 @@ class BridgedDistribution(ScientificResult):
             ScientificBridgeRefusal: the mapping has no draws propagation to express.
         """
         from . import propagation_chain as chain
+        from .joint_distribution import ScientificQuantity
 
         payload = json.loads(_unwrap(self._handle.chain_stage_json(_name(stage_id, "stage_id"))))
         sources = tuple(
@@ -1680,7 +1690,12 @@ class BridgedDistribution(ScientificResult):
             op=wire["op"],
             own_factors=tuple((f["kind"], f["id"]) for f in wire["own_factors"]),
         )
-        return ChainStageParts(sources, stage)
+        return ChainStageParts(
+            sources,
+            stage,
+            reading=payload["reading"],
+            output_quantity=ScientificQuantity._from_wire(payload["output_quantity"]),
+        )
 
     @outcome_operation
     def freshness(

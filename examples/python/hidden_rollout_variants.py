@@ -30,8 +30,10 @@ def main() -> None:
         program = lsi.prepare(
             variables=("context", "setup", "follow_up", "completion"),
             edges=(
-                ("context", "setup"), ("context", "follow_up"),
-                ("setup", "completion"), ("follow_up", "completion"),
+                ("context", "setup"),
+                ("context", "follow_up"),
+                ("setup", "completion"),
+                ("follow_up", "completion"),
             ),
             context=("context",),
             candidates=("setup", "follow_up"),
@@ -40,7 +42,7 @@ def main() -> None:
             population="synthetic rollout",
             randomized=True,
             version_exogenous_given_context=True,
-            seed=73,
+            execution=ant.Execution(seed=73),
         )
         plan = program.inspect()
         assert plan["route"] == "LatentSoftIntervention"

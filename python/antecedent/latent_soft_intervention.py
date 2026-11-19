@@ -11,7 +11,7 @@ from . import _native
 from ._artifact_protocol import ArtifactAcceptance, ArtifactExpectation, ExportedArtifact
 from ._scientific import ScientificResult
 from .errors import CausalValueError
-from .execution import Execution, native_controls
+from .execution import Execution, native_controls, resolve_execution
 
 __all__ = [
     "FittedLatentSoftIntervention",
@@ -173,7 +173,9 @@ def _forecast(wire: dict[str, Any]) -> LatentForecast:
         _component(wire["baseline"]),
         tuple(_component(item) for item in wire["action"]),
         tuple(wire["mean_difference"]),
-        None if refits is None else LatentRefits(
+        None
+        if refits is None
+        else LatentRefits(
             refits["attempted"],
             refits["unavailable"],
             tuple(
@@ -256,7 +258,6 @@ def prepare(
     population: str,
     randomized: bool,
     version_exogenous_given_context: bool,
-    seed: int = 0,
     refits: int = 0,
     search_operations: int = 41_000,
     execution: Execution | None = None,
@@ -268,7 +269,10 @@ def prepare(
     exogeneity declarations are premises of the model. Preparation does no fitting.
     Set `refits` to a positive integer up to 32 for optional split-preserving joint
     resampling diagnostics. The native plan retains these fits across forecasts.
+    ``execution.seed`` seeds the outcome-independent split, the numerical restarts and
+    the refits, and enters the program identity.
     """
+    execution = resolve_execution(execution)
     names = tuple(variables)
     context_names = tuple(context)
     index = {name: i for i, name in enumerate(names)}
@@ -289,7 +293,7 @@ def prepare(
             "population": population,
             "randomized": randomized,
             "version_exogenous_given_context": version_exogenous_given_context,
-            "seed": seed,
+            "seed": execution.seed,
             "refits": refits,
             "search_operations": search_operations,
         },
@@ -307,7 +311,9 @@ def replay_forecast(
 ) -> ReplayedLatentForecast:
     """Recompile and execute the source and verify the reproduced forecast."""
     result = _native.latent_soft_intervention_replay(
-        data, expected_identity, **native_controls(execution, memory="memory_bytes", cancel="cancel")
+        data,
+        expected_identity,
+        **native_controls(execution, memory="memory_bytes", cancel="cancel"),
     )
     wire = json.loads(result)
     return ReplayedLatentForecast(
