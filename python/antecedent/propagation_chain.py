@@ -13,6 +13,8 @@ the uncertainty has to survive the sequence:
   index (``joint_law_required``), and :func:`independent_product_table` builds the table for
   independent sources;
 * intervals run by interval arithmetic into an **enclosure** that holds under every coupling;
+  ``assumption_envelope`` combines an interval assumption with aligned draws and retains
+  one lower and upper enclosure per row, with no measured coverage;
 * a changed assumption re-weights (:meth:`PropagationChain.reweight`) or invalidates
   (:meth:`PropagationChain.withdraw`) exactly the stages that depend on the source; every other
   stage keeps its stored numbers bit for bit;
@@ -27,13 +29,18 @@ A chain is compiled before it runs: :func:`plan_view` shows the six-layer lowere
 program and stamps its ``program_identity`` on the result, and every change (:meth:`withdraw`,
 :meth:`reweight`) is compiled and executed as a new program.
 
-The record is retained (``propagation_chain_v1``) and :func:`consume_propagation_chain` checks the
-rule again and replays every stage to identical bits. Every rule, number, identity and refusal is
-computed in Rust; this module declares chains and decodes results.
+The record is retained (``propagation_chain_v1`` for point/spread/enclosure readings,
+``propagation_chain_law_v2`` for posterior/predictive readings, and
+``propagation_chain_assumption_v3`` for draw-indexed assumption enclosures, and
+``propagation_chain_joint_law_v4`` for several aligned output quantities) and
+:func:`consume_propagation_chain` checks the rule again and replays every stage and output law to
+identical bits. Every rule, number, identity and refusal is computed in Rust; this module declares
+chains and decodes results.
 
 A value under a supported chain is labelled ``point_only``, its spread ``uncalibrated_spread``,
-posterior draws ``posterior_propagation`` and an enclosure ``propagation_enclosure``. No label is
-a coverage statement: :meth:`PropagationChain.interval` raises ``uncertainty_representation_insufficient``.
+posterior draws ``posterior_propagation``, predictive draws ``predictive_propagation``, and an
+enclosure ``propagation_enclosure``. No label is a coverage statement:
+:meth:`PropagationChain.interval` raises ``uncertainty_representation_insufficient``.
 """
 
 from __future__ import annotations
@@ -58,11 +65,15 @@ from ._refusal import StructuredRefusal, raise_refusal
 from ._validate import finite_float_protocol as _real
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
+from .joint_distribution import ScientificQuantity
 from .outcomes import outcome_operation
 
 __all__ = [
     "ChainSource",
     "ChainStage",
+    "ChainLaw",
+    "ChainJointLaw",
+    "ChainAssumptionEnvelope",
     "ConsumedPropagationChain",
     "FamilyEstimate",
     "FamilyTable",
@@ -96,7 +107,7 @@ __all__ = [
     "unary",
 ]
 
-_COUNTS = frozenset({"n_rows", "verdict_code"})
+_COUNTS = frozenset({"n_rows", "verdict_code", "robust_verdict_code"})
 _VERDICTS = {0: "act", 1: "withhold", 2: "unresolved"}
 
 
@@ -186,13 +197,15 @@ def draws(
 ) -> ChainSource:
     """One column of an aligned draw table.
 
-    ``meaning`` is ``"posterior"`` (a posterior under a declared prior) or ``"sampling"`` (a
-    sampling or bootstrap law). ``alignment`` is the identity of the table: columns that share it
-    are rows of one joint law. ``factors`` are ``(kind, id)`` pairs, kind one of ``row``,
+    ``meaning`` is ``"posterior"`` (a posterior under a declared prior), ``"predictive"``
+    (a future quantity law), ``"innovation"`` (a model's outcome disturbance), or
+    ``"sampling"`` (a sampling or bootstrap law). ``alignment`` is the identity of the table:
+    columns that share it are rows of one joint law. ``factors`` are ``(kind, id)`` pairs,
+    kind one of ``row``,
     ``cluster``, ``model``, ``parameter``, ``prior``, ``disturbance``, ``period``.
     """
-    if meaning not in ("posterior", "sampling"):
-        raise CausalValueError("meaning must be 'posterior' or 'sampling'")
+    if meaning not in ("posterior", "predictive", "innovation", "sampling"):
+        raise CausalValueError("meaning must be posterior, predictive, innovation or sampling")
     return ChainSource(
         id=_text(id, "id"),
         representation="draws",
@@ -281,6 +294,7 @@ _KINDS = (
     "derived_quantity",
     "decision_utility",
     "preposterior_update",
+    "predictive_mapping",
 )
 
 
@@ -552,6 +566,65 @@ def preposterior(
 
 
 @dataclass(frozen=True)
+class ChainLaw:
+    """The compiler's replayable output draws; calibration is not measured.
+
+    ``meaning`` distinguishes a parameter posterior from a predictive quantity law.
+    ``weights`` is ``None`` for equally weighted rows. A change to a source is
+    reflected in the law only after the chain has been recompiled and resealed.
+    ``quantity`` is the compiler-checked declared output coordinate, when supplied;
+    it does not itself establish a causal intervention law.
+    """
+
+    meaning: str
+    draws: np.ndarray
+    weights: np.ndarray | None
+    alignment: str
+    chain_identity: str
+    program_identity: str | None
+    quantity: ScientificQuantity | None
+    calibration: str = "not_measured"
+
+
+@dataclass(frozen=True)
+class ChainJointLaw:
+    """Aligned output coordinates, one row per declared joint state.
+
+    ``draws`` has shape ``(rows, quantities)``. The order of ``quantities`` is
+    the order declared at compile time, including the primary output.
+    """
+
+    meaning: str
+    quantities: tuple[ScientificQuantity, ...]
+    draws: np.ndarray
+    weights: np.ndarray | None
+    alignment: str
+    chain_identity: str
+    program_identity: str | None
+    calibration: str = "not_measured"
+
+
+@dataclass(frozen=True)
+class ChainAssumptionEnvelope:
+    """Rowwise bounds under interval assumptions and an aligned draw law.
+
+    The endpoints have no measured coverage. The interval assumptions carry no
+    probability law; each draw row is evaluated over every admissible value.
+    ``draw_meaning`` says whether the row axis is sampling or posterior.
+    """
+
+    lower: np.ndarray
+    upper: np.ndarray
+    weights: np.ndarray | None
+    alignment: str
+    chain_identity: str
+    program_identity: str | None
+    quantity: ScientificQuantity
+    draw_meaning: str
+    calibration: str = "not_measured"
+
+
+@dataclass(frozen=True)
 class StageResult:
     """The stored result of one stage."""
 
@@ -564,6 +637,12 @@ class StageResult:
     def verdict(self) -> str | None:
         """``act``, ``withhold`` or ``unresolved``, for a stage with a decision reference."""
         code = self.values.get("verdict_code")
+        return None if code is None else _VERDICTS[int(code)]
+
+    @property
+    def robust_verdict(self) -> str | None:
+        """Fixed-reference verdict over the assumption range, conditional on supplied draws."""
+        code = self.values.get("robust_verdict_code")
         return None if code is None else _VERDICTS[int(code)]
 
     def value(self, name: str) -> float:
@@ -603,6 +682,17 @@ class PropagationChain:
     results: tuple[StageResult, ...]
     #: Identity of the lowered program that produced the chain.
     program_identity: str
+    _output_draws: tuple[float, ...] | None = field(repr=False, compare=False)
+    _output_weights: tuple[float, ...] | None = field(repr=False, compare=False)
+    _output_lower_bounds: tuple[float, ...] | None = field(repr=False, compare=False)
+    _output_upper_bounds: tuple[float, ...] | None = field(repr=False, compare=False)
+    _alignment: str | None = field(repr=False, compare=False)
+    _reading: str = field(repr=False, compare=False)
+    _output_quantity: ScientificQuantity | None = field(repr=False, compare=False)
+    _draw_meaning: str | None = field(repr=False, compare=False)
+    _joint_outputs: tuple[tuple[str, ScientificQuantity], ...] = field(repr=False, compare=False)
+    _joint_output_draws: tuple[tuple[float, ...], ...] | None = field(repr=False, compare=False)
+    _joint_output_weights: tuple[float, ...] | None = field(repr=False, compare=False)
     _record: str = field(repr=False, compare=False)
     _bytes: bytes = field(repr=False, compare=False)
 
@@ -613,8 +703,8 @@ class PropagationChain:
         )
 
     @classmethod
-    def _from(cls, parts: tuple[bytes, str, str]) -> PropagationChain:
-        data, record, program = parts
+    def _from(cls, parts: tuple[bytes, str, str, str | None, str | None]) -> PropagationChain:
+        data, record, program, draw_meaning, alignment = parts
         body = json.loads(record)
         return cls(
             identity=body["identity"],
@@ -622,6 +712,42 @@ class PropagationChain:
             output=body["output"],
             results=_results(body["results"]),
             program_identity=program,
+            _output_draws=(
+                None if body.get("output_draws") is None
+                else tuple(_float(bits) for bits in body["output_draws"])
+            ),
+            _output_weights=(
+                None if body.get("output_weights") is None
+                else tuple(_float(bits) for bits in body["output_weights"])
+            ),
+            _output_lower_bounds=(
+                None if body.get("output_lower_bounds") is None
+                else tuple(_float(bits) for bits in body["output_lower_bounds"])
+            ),
+            _output_upper_bounds=(
+                None if body.get("output_upper_bounds") is None
+                else tuple(_float(bits) for bits in body["output_upper_bounds"])
+            ),
+            _alignment=alignment,
+            _reading=body["reading"],
+            _output_quantity=(
+                None if body.get("output_quantity") is None
+                else ScientificQuantity._from_wire(body["output_quantity"])
+            ),
+            _draw_meaning=draw_meaning,
+            _joint_outputs=tuple(
+                (output["stage"], ScientificQuantity._from_wire(output["quantity"]))
+                for output in body.get("joint_outputs", ())
+            ),
+            _joint_output_draws=(
+                None if body.get("joint_output_draws") is None
+                else tuple(tuple(_float(bits) for bits in column)
+                           for column in body["joint_output_draws"])
+            ),
+            _joint_output_weights=(
+                None if body.get("joint_output_weights") is None
+                else tuple(_float(bits) for bits in body["joint_output_weights"])
+            ),
             _record=record,
             _bytes=bytes(data),
         )
@@ -637,6 +763,68 @@ class PropagationChain:
     def answer(self) -> StageResult:
         """The result of the stage whose output is the answer."""
         return self.stage(self.output)
+
+    @property
+    def output_law(self) -> ChainLaw:
+        """The posterior or predictive output column retained by the compiled chain.
+
+        A point or spread reading has no law carrier. A withdrawn output also
+        has none. The returned arrays are copies of the verified record values.
+        """
+        if self._output_draws is None or self._reading not in ("posterior", "predictive"):
+            raise CausalValueError("this chain does not publish an output law")
+        assert self._alignment is not None
+        return ChainLaw(
+            meaning=self._reading,
+            draws=np.asarray(self._output_draws, dtype=np.float64),
+            weights=(
+                None if self._output_weights is None
+                else np.asarray(self._output_weights, dtype=np.float64)
+            ),
+            alignment=self._alignment,
+            chain_identity=self.identity,
+            program_identity=self.program_identity,
+            quantity=self._output_quantity,
+        )
+
+    @property
+    def output_envelope(self) -> ChainAssumptionEnvelope:
+        """The draw-indexed assumption envelope retained by the compiled chain."""
+        if self._reading != "assumption_envelope" or self._output_lower_bounds is None:
+            raise CausalValueError("this chain does not publish an assumption envelope")
+        assert self._alignment is not None and self._output_quantity is not None
+        assert self._draw_meaning in ("sampling", "posterior")
+        assert self._output_upper_bounds is not None
+        return ChainAssumptionEnvelope(
+            lower=np.asarray(self._output_lower_bounds, dtype=np.float64),
+            upper=np.asarray(self._output_upper_bounds, dtype=np.float64),
+            weights=(
+                None if self._output_weights is None
+                else np.asarray(self._output_weights, dtype=np.float64)
+            ),
+            alignment=self._alignment,
+            chain_identity=self.identity,
+            program_identity=self.program_identity,
+            quantity=self._output_quantity,
+            draw_meaning=self._draw_meaning,
+        )
+
+    @property
+    def joint_output_law(self) -> ChainJointLaw:
+        """The compiler-retained joint law after checking every declared stage."""
+        if self._joint_output_draws is None or self._reading not in ("posterior", "predictive"):
+            raise CausalValueError("this chain does not publish a joint output law")
+        assert self._alignment is not None
+        return ChainJointLaw(
+            meaning=self._reading,
+            quantities=tuple(quantity for _, quantity in self._joint_outputs),
+            draws=np.asarray(self._joint_output_draws, dtype=np.float64).T.copy(),
+            weights=(None if self._joint_output_weights is None
+                     else np.asarray(self._joint_output_weights, dtype=np.float64)),
+            alignment=self._alignment,
+            chain_identity=self.identity,
+            program_identity=self.program_identity,
+        )
 
     def dependents_of(self, source: str) -> list[str]:
         """The stages that depend on ``source``: the ones a change to it reaches."""
@@ -698,7 +886,7 @@ class PropagationChain:
 
     @artifact_export
     def export(self) -> ExportedArtifact:
-        """The sealed ``propagation_chain_v1`` record."""
+        """The sealed, versioned propagation-chain record."""
         return artifact_from_receipt(self, self._bytes)
 
 
@@ -710,6 +898,17 @@ class ConsumedPropagationChain:
     label: str
     output: str
     results: tuple[StageResult, ...]
+    reading: str
+    alignment: str | None
+    output_quantity: ScientificQuantity | None
+    output_draw_meaning: str | None
+    output_draws: tuple[float, ...] | None = None
+    output_weights: tuple[float, ...] | None = None
+    output_lower_bounds: tuple[float, ...] | None = None
+    output_upper_bounds: tuple[float, ...] | None = None
+    joint_outputs: tuple[tuple[str, ScientificQuantity], ...] = ()
+    joint_output_draws: tuple[tuple[float, ...], ...] | None = None
+    joint_output_weights: tuple[float, ...] | None = None
 
     def stage(self, id: str) -> StageResult:  # noqa: A002
         """The replayed result of a stage."""
@@ -723,8 +922,66 @@ class ConsumedPropagationChain:
         """The replayed result of the stage whose output is the answer."""
         return self.stage(self.output)
 
+    @property
+    def output_law(self) -> ChainLaw:
+        """The outcome or parameter law after independent replay of the record."""
+        if self.output_draws is None or self.reading not in ("posterior", "predictive"):
+            raise CausalValueError("this chain does not publish an output law")
+        assert self.alignment is not None
+        return ChainLaw(
+            meaning=self.reading,
+            draws=np.asarray(self.output_draws, dtype=np.float64),
+            weights=(
+                None if self.output_weights is None
+                else np.asarray(self.output_weights, dtype=np.float64)
+            ),
+            alignment=self.alignment,
+            chain_identity=self.identity,
+            program_identity=None,
+            quantity=self.output_quantity,
+        )
 
-def _chain(result: tuple[tuple[bytes, str, str] | None, str | None]) -> PropagationChain:
+    @property
+    def output_envelope(self) -> ChainAssumptionEnvelope:
+        """The assumption envelope after independent record replay."""
+        if self.reading != "assumption_envelope" or self.output_lower_bounds is None:
+            raise CausalValueError("this chain does not publish an assumption envelope")
+        assert self.alignment is not None and self.output_quantity is not None
+        assert self.output_draw_meaning in ("sampling", "posterior")
+        assert self.output_upper_bounds is not None
+        return ChainAssumptionEnvelope(
+            lower=np.asarray(self.output_lower_bounds, dtype=np.float64),
+            upper=np.asarray(self.output_upper_bounds, dtype=np.float64),
+            weights=(
+                None if self.output_weights is None
+                else np.asarray(self.output_weights, dtype=np.float64)
+            ),
+            alignment=self.alignment,
+            chain_identity=self.identity,
+            program_identity=None,
+            quantity=self.output_quantity,
+            draw_meaning=self.output_draw_meaning,
+        )
+
+    @property
+    def joint_output_law(self) -> ChainJointLaw:
+        """The joint law after independent replay of all output columns."""
+        if self.joint_output_draws is None or self.reading not in ("posterior", "predictive"):
+            raise CausalValueError("this chain does not publish a joint output law")
+        assert self.alignment is not None
+        return ChainJointLaw(
+            meaning=self.reading,
+            quantities=tuple(quantity for _, quantity in self.joint_outputs),
+            draws=np.asarray(self.joint_output_draws, dtype=np.float64).T.copy(),
+            weights=(None if self.joint_output_weights is None
+                     else np.asarray(self.joint_output_weights, dtype=np.float64)),
+            alignment=self.alignment,
+            chain_identity=self.identity,
+            program_identity=None,
+        )
+
+
+def _chain(result: tuple[tuple[bytes, str, str, str | None, str | None] | None, str | None]) -> PropagationChain:
     parts, refusal = result
     _refuse(refusal)
     assert parts is not None
@@ -737,22 +994,60 @@ def _declaration(
     output: str,
     reading: str,
     construction: str,
+    output_quantity: ScientificQuantity | None,
+    joint_outputs: Sequence[tuple[str, ScientificQuantity]],
 ) -> dict[str, Any]:
-    if reading not in ("point", "spread", "posterior", "enclosure", "interval"):
-        raise CausalValueError("reading must be point, spread, posterior, enclosure or interval")
+    if reading not in (
+        "point", "spread", "posterior", "predictive", "enclosure", "interval",
+        "assumption_envelope",
+    ):
+        raise CausalValueError(
+            "reading must be point, spread, posterior, predictive, enclosure, interval or assumption_envelope"
+        )
     if construction not in ("joint_draws", "independent_product"):
         raise CausalValueError("construction must be joint_draws or independent_product")
+    if output_quantity is not None and not isinstance(output_quantity, ScientificQuantity):
+        raise CausalTypeError("output_quantity must be a ScientificQuantity")
+    if joint_outputs and reading not in ("posterior", "predictive"):
+        raise CausalValueError("joint outputs require a posterior or predictive reading")
+    declared_joint = []
+    for stage, quantity in joint_outputs:
+        if not isinstance(quantity, ScientificQuantity):
+            raise CausalTypeError("each joint output quantity must be a ScientificQuantity")
+        declared_joint.append({"stage": _text(stage, "joint output stage"),
+                               "quantity": quantity._wire()})
     return {
-        "version": 1,
-        "required_features": ["propagation_chain_v1"],
+        "version": (
+            4 if joint_outputs else 3 if reading == "assumption_envelope"
+            else 2 if reading in ("posterior", "predictive")
+            else 1
+        ),
+        "required_features": [
+            (
+                "propagation_chain_joint_law_v4"
+                if joint_outputs else "propagation_chain_assumption_v3"
+                if reading == "assumption_envelope"
+                else "propagation_chain_law_v2"
+                if reading in ("posterior", "predictive")
+                else "propagation_chain_v1"
+            )
+        ],
         "construction": construction,
         "reading": reading,
         "output": _text(output, "output"),
+        "output_quantity": None if output_quantity is None else output_quantity._wire(),
+        "joint_outputs": declared_joint,
         "sources": [s._wire() for s in sources],
         "stages": [s._wire() for s in stages],
         "changes": [],
         "label": "",
         "results": [],
+        "output_draws": None,
+        "output_weights": None,
+        "output_lower_bounds": None,
+        "output_upper_bounds": None,
+        "joint_output_draws": None,
+        "joint_output_weights": None,
         "identity": "",
     }
 
@@ -765,17 +1060,31 @@ def propagate(
     output: str,
     reading: str = "spread",
     construction: str = "joint_draws",
+    output_quantity: ScientificQuantity | None = None,
+    joint_outputs: Sequence[tuple[str, ScientificQuantity]] = (),
     execution: Execution | None = None,
 ) -> PropagationChain:
-    """Check a declared chain, compute every stage and seal the record.
+    """Compile a declared chain, compute every stage and seal the record.
 
-    ``reading`` is ``point``, ``spread``, ``posterior`` or ``enclosure`` (``interval`` is refused: a composed
-    interval comes from the composed-interval check). ``construction`` is ``joint_draws`` (the aligned table
-    carries whatever dependence the sources have) or ``independent_product`` (the table is the
+    ``reading`` is ``point``, ``spread``, ``posterior``, ``predictive``,
+    ``enclosure`` or ``assumption_envelope``.
+    ``interval`` is refused until a composed coverage record exists. ``construction`` is
+    ``joint_draws`` (the aligned table carries whatever dependence the sources have) or
+    ``independent_product`` (the table is the
     product of independent sources, supported only for sources that share no factor).
+    A predictive reading requires ``output_quantity`` with the outcome or utility role. Its
+    population and regime are declarations; this route does not establish causal
+    identification or calibration for them.
+    An ``assumption_envelope`` reading requires ``output_quantity``, aligned sampling or
+    posterior draws, and an interval source. It yields uncalibrated bounds on the
+    declared mean and a rowwise enclosure, not a confidence interval.
+    ``joint_outputs`` names two or more stage coordinates from one aligned
+    posterior or predictive table; it must include ``(output, output_quantity)``.
+    Every column and the common row weights are retained for independent replay.
     """
     execution = resolve_execution(execution)
-    record = _declaration(sources, stages, output, reading, construction)
+    record = _declaration(sources, stages, output, reading, construction,
+                          output_quantity, joint_outputs)
     return _chain(_native.propagation_chain_seal(json.dumps(record), execution.cancel))
 
 
@@ -786,6 +1095,8 @@ def plan_view(
     output: str,
     reading: str = "spread",
     construction: str = "joint_draws",
+    output_quantity: ScientificQuantity | None = None,
+    joint_outputs: Sequence[tuple[str, ScientificQuantity]] = (),
     execution: Execution | None = None,
 ) -> dict[str, Any]:
     """Compile a declared chain and view every layer of its lowered program.
@@ -794,9 +1105,12 @@ def plan_view(
     ``propagation_chain``; the view carries the six layers, the dependence contract as the
     identification of overlap, and the program identity :meth:`PropagationChain.program_identity`
     will carry once the chain executes.
+    The output quantity, when declared, is bound into that identity.
+    Joint output declarations are also bound into the compiled identity.
     """
     execution = resolve_execution(execution)
-    record = _declaration(sources, stages, output, reading, construction)
+    record = _declaration(sources, stages, output, reading, construction,
+                          output_quantity, joint_outputs)
     view, refusal = _native.propagation_chain_plan_view(json.dumps(record), execution.cancel)
     _refuse(refusal)
     assert view is not None
@@ -822,6 +1136,42 @@ def consume_propagation_chain(
         label=body["label"],
         output=body["output"],
         results=_results(body["results"]),
+        reading=body["reading"],
+        alignment=body["alignment"],
+        output_quantity=(
+            None if body.get("output_quantity") is None
+            else ScientificQuantity._from_wire(body["output_quantity"])
+        ),
+        output_draw_meaning=body.get("output_draw_meaning"),
+        output_draws=(
+            None if body.get("output_draws") is None
+            else tuple(_float(bits) for bits in body["output_draws"])
+        ),
+        output_weights=(
+            None if body.get("output_weights") is None
+            else tuple(_float(bits) for bits in body["output_weights"])
+        ),
+        output_lower_bounds=(
+            None if body.get("output_lower_bounds") is None
+            else tuple(_float(bits) for bits in body["output_lower_bounds"])
+        ),
+        output_upper_bounds=(
+            None if body.get("output_upper_bounds") is None
+            else tuple(_float(bits) for bits in body["output_upper_bounds"])
+        ),
+        joint_outputs=tuple(
+            (output["stage"], ScientificQuantity._from_wire(output["quantity"]))
+            for output in body.get("joint_outputs", ())
+        ),
+        joint_output_draws=(
+            None if body.get("joint_output_draws") is None
+            else tuple(tuple(_float(bits) for bits in column)
+                       for column in body["joint_output_draws"])
+        ),
+        joint_output_weights=(
+            None if body.get("joint_output_weights") is None
+            else tuple(_float(bits) for bits in body["joint_output_weights"])
+        ),
     )
 
 

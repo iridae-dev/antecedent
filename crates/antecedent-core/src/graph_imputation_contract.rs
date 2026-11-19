@@ -87,6 +87,11 @@ pub enum GraphSupport {
     /// a collider, which adjust for nothing; the declaration excludes them, so the mixture
     /// carries uncertainty only about which covariates confound.
     PreTreatmentCovariates,
+    /// Treatment has no parents, directly affects the outcome, and every
+    /// other variable is pretreatment. This separate transport support can
+    /// safely include selected effect modifiers in a child outcome fit even
+    /// when the minimal backdoor set is empty.
+    TreatmentRootPreTreatmentCovariates,
 }
 
 impl GraphSupport {
@@ -97,6 +102,7 @@ impl GraphSupport {
             Self::TreatmentRootDirectEffect => 1,
             Self::TreatmentDirectEffect => 2,
             Self::PreTreatmentCovariates => 3,
+            Self::TreatmentRootPreTreatmentCovariates => 4,
         }
     }
     /// Inverse of [`Self::tag`].
@@ -106,6 +112,7 @@ impl GraphSupport {
             1 => Some(Self::TreatmentRootDirectEffect),
             2 => Some(Self::TreatmentDirectEffect),
             3 => Some(Self::PreTreatmentCovariates),
+            4 => Some(Self::TreatmentRootPreTreatmentCovariates),
             _ => None,
         }
     }
@@ -116,14 +123,20 @@ impl GraphSupport {
             Self::TreatmentRootDirectEffect => "treatment_root_direct_effect",
             Self::TreatmentDirectEffect => "treatment_direct_effect",
             Self::PreTreatmentCovariates => "pre_treatment_covariates",
+            Self::TreatmentRootPreTreatmentCovariates => "treatment_root_pre_treatment_covariates",
         }
     }
     /// Inverse of [`Self::as_str`].
     #[must_use]
     pub fn from_label(label: &str) -> Option<Self> {
-        [Self::TreatmentRootDirectEffect, Self::TreatmentDirectEffect, Self::PreTreatmentCovariates]
-            .into_iter()
-            .find(|support| support.as_str() == label)
+        [
+            Self::TreatmentRootDirectEffect,
+            Self::TreatmentDirectEffect,
+            Self::PreTreatmentCovariates,
+            Self::TreatmentRootPreTreatmentCovariates,
+        ]
+        .into_iter()
+        .find(|support| support.as_str() == label)
     }
 }
 

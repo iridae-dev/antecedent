@@ -76,6 +76,8 @@ pub struct RolloutConfig {
 /// A Monte Carlo estimate of a policy's value, as a diagnostic.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RolloutEstimate {
+    /// Total utility for each rollout, in semantic stream index order.
+    pub utilities: Vec<f64>,
     /// Mean total utility over the rollouts.
     pub mean: f64,
     /// Standard error of the mean over rollouts (zero for one rollout).
@@ -284,6 +286,7 @@ impl Rollout<'_> {
 /// A malformed model or policy; a reachable history without a decision; an
 /// unsupported action; a resource budget exceeded; a rollout count outside
 /// `1..=MAX_ROLLOUTS`; or cancellation.
+#[allow(clippy::cast_possible_truncation, reason = "the rollout count is at most MAX_ROLLOUTS")]
 pub fn rollout_policy(
     model: &FiniteSequentialModel,
     policy: &ContingentPolicy,
@@ -303,6 +306,7 @@ pub fn rollout_policy(
     if config.rollouts > MAX_ROLLOUTS {
         return Err(limit_exceeded("the number of rollouts", MAX_ROLLOUTS));
     }
+    let mut utilities = Vec::with_capacity(config.rollouts as usize);
     let mut mean = 0.0;
     let mut sum_squares = 0.0;
     for index in 0..config.rollouts {
@@ -310,6 +314,7 @@ pub fn rollout_policy(
             return Err(cancelled());
         }
         let total = Rollout { compiled: &compiled, policy, seed: config.seed, index }.simulate()?;
+        utilities.push(total);
         let delta = total - mean;
         mean += delta / (index + 1) as f64;
         sum_squares += delta * (total - mean);
@@ -321,6 +326,7 @@ pub fn rollout_policy(
         0.0
     };
     Ok(RolloutEstimate {
+        utilities,
         mean,
         monte_carlo_standard_error: standard_error,
         rollouts: config.rollouts,

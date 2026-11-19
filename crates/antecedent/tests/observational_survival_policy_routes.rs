@@ -6,7 +6,8 @@
 use antecedent::analysis::multi_level_treatment::AdjustmentColumn;
 use antecedent::analysis::observational_policy::{
     ObservationalPolicyReportWire, ObservationalPolicyRequest, ObservationalPolicySpecWire,
-    ObservationalPolicyValue,
+    ObservationalPolicyValue, PolicyGraphDeclaration, compile_observational_policy,
+    consume_compiled_observational_policy,
 };
 use antecedent::analysis::observational_survival::{
     ObservationalSurvivalEffect, ObservationalSurvivalReportWire, ObservationalSurvivalRequest,
@@ -196,6 +197,100 @@ fn policy_spec(evaluation: &str) -> ObservationalPolicySpecWire {
         seed: 2,
         ..ObservationalPolicySpecWire::default()
     }
+}
+
+#[test]
+fn learned_policy_compiles_the_split_and_independently_replays_it() {
+    let request = policy_request(policy_spec("held_out"));
+    let ctx = antecedent::prelude::ExecutionContext::production_default(request.spec.seed);
+    let plan = compile_observational_policy(request, &ctx).expect("policy compiler");
+    assert_eq!(plan.plan_view().route().as_str(), "ObservationalPolicy");
+    let report = plan.execute(&ctx).expect("held-out estimate");
+    assert_eq!(report.calibration, "not_measured");
+    let bytes = plan.export(&report, &ctx).expect("replay artifact");
+    let replay =
+        consume_compiled_observational_policy(&bytes, Some(plan.lowered().identity()), &ctx)
+            .expect("independent policy replay");
+    assert_eq!(replay, report);
+    let changed_seed = antecedent::prelude::ExecutionContext::production_default(3);
+    assert!(consume_compiled_observational_policy(&bytes, None, &changed_seed).is_err());
+}
+
+#[test]
+fn graph_checked_policy_binds_backdoor_proof_and_information_to_the_compiler() {
+    let mut request = policy_request(policy_spec("held_out"));
+    let graph = PolicyGraphDeclaration {
+        nodes: vec!["z".into(), "a".into(), "y".into()],
+        edges: vec![("z".into(), "a".into()), ("z".into(), "y".into()), ("a".into(), "y".into())],
+        treatment: "a".into(),
+        outcome: "y".into(),
+        information_set: vec!["z".into()],
+    };
+    request.spec.causal_graph = Some(graph.clone());
+    let ctx = antecedent::prelude::ExecutionContext::production_default(request.spec.seed);
+    let plan = compile_observational_policy(request.clone(), &ctx).expect("backdoor compiler");
+    let report = plan.execute(&ctx).expect("graph checked estimate");
+    assert_eq!(
+        ObservationalPolicyValue::evaluate(&request, &ctx).expect("public entry compiles first"),
+        report
+    );
+    assert!(
+        report.assumptions.iter().any(|text| text.contains("declared causally sufficient DAG"))
+    );
+    let bytes = plan.export(&report, &ctx).expect("versioned artifact");
+    assert_eq!(
+        consume_compiled_observational_policy(&bytes, Some(plan.lowered().identity()), &ctx,)
+            .expect("independent graph check"),
+        report
+    );
+    let mut confounded = request;
+    confounded.adjustment.clear();
+    confounded.spec.causal_graph.as_mut().expect("graph").information_set.clear();
+    assert!(compile_observational_policy(confounded, &ctx).is_err());
+    let mut late = policy_request(policy_spec("held_out"));
+    late.spec.causal_graph = Some(graph);
+    late.spec.causal_graph.as_mut().expect("graph").edges.push(("a".into(), "z".into()));
+    assert!(compile_observational_policy(late, &ctx).is_err());
+}
+
+#[test]
+fn graph_policy_can_learn_on_less_information_than_nuisance_adjustment() {
+    let mut request = policy_request(policy_spec("held_out"));
+    let rows = request.outcome.len();
+    request.adjustment.push(AdjustmentColumn {
+        name: "w".into(),
+        values: (0..rows).map(|i| ((i as f64) * 0.31).sin()).collect(),
+    });
+    request.spec.causal_graph = Some(PolicyGraphDeclaration {
+        nodes: vec!["z".into(), "w".into(), "a".into(), "y".into()],
+        edges: vec![
+            ("z".into(), "a".into()),
+            ("z".into(), "y".into()),
+            ("w".into(), "y".into()),
+            ("a".into(), "y".into()),
+        ],
+        treatment: "a".into(),
+        outcome: "y".into(),
+        information_set: vec!["z".into()],
+    });
+    let ctx = antecedent::prelude::ExecutionContext::production_default(request.spec.seed);
+    let plan = compile_observational_policy(request.clone(), &ctx)
+        .expect("the policy can use a subset of the nuisance adjustment columns");
+    let report = plan.execute(&ctx).expect("separate policy and nuisance fits");
+    assert_eq!(report.calibration, "not_measured");
+    let bytes = plan.export(&report, &ctx).expect("version-three policy artifact");
+    assert_eq!(
+        consume_compiled_observational_policy(&bytes, Some(plan.lowered().identity()), &ctx,)
+            .expect("independent narrow-information replay"),
+        report
+    );
+    let mut other = request;
+    other.adjustment[1].values = (0..rows).map(|i| ((i as f64) * 0.47).cos()).collect();
+    let other_report = compile_observational_policy(other, &ctx)
+        .expect("second adjustment design")
+        .execute(&ctx)
+        .expect("second estimate");
+    assert_eq!(other_report.policy_actions, report.policy_actions);
 }
 
 #[test]

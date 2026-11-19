@@ -23484,3 +23484,125 @@ fixtures = [
   { id = "association.conjugate_count_posterior.selected_prior_provenance.artifact", role = "artifact", intent = "A Beta prior at the data-selected power-prior discount carries the criterion, selected alpha, level and interval semantics as restriction ids of its identity.", evidence_test = "python/tests/test_composed_prior_currency.py", evidence_assertion = "test_a_selected_count_prior_records_its_interval_semantics" },
   { id = "association.conjugate_count_posterior.interval.construction", role = "construction", intent = "The scored interval is the equal-tailed 95% credible interval of the cell the route reports, finite and ordered.", evidence_test = "crates/antecedent/tests/count_conjugate_calibration.rs", evidence_assertion = "the_route_reports_the_closed_form_interval_for_a_known_cell" },
 ]
+
+[[record]]
+id = "estimate.latent_soft_intervention"
+capability = "estimate.latent_soft_intervention"
+status = "supported"
+consumer_question = "Which declared structural equations may shift under unlabelled executions of a recorded action, and what joint response does the fitted action law predict from pre-intervention context?"
+theorem = "A baseline-anchored linear Gaussian DAG and conditionally exogenous version assignment define a bounded mixture of sparse intercept shifts. The honest split comparison addresses the specified single-Gaussian null. Target scores are descriptive, and indistinguishable pathways are retained as competing hypotheses. Scope and claims remain conditional on the declared model."
+reference = "provenance/estimate.latent_soft_intervention.toml"
+guarantee = "compiled_model_conditional_gaussian_mixture_response"
+graph_class = "Fully observed static continuous DAG with supplied pre-intervention roots and two to six candidate equations."
+population_semantics = "One declared population, independent randomized recorded-action and baseline arms, conditional execution-version exogeneity."
+evidence_family = "Two arm tables, multiplicity restricted to two versions, and pre-intervention forecast coordinates within both arms' training support."
+provider = "Native retained compiler route and existing Gaussian composition engine."
+estimand = "Context-conditional joint law of the recorded action as delivered and its baseline comparator."
+inference_claim = "point_only"
+inference_notes = "Gaussian mixture at fitted parameters. Optional whole-fit resampling is diagnostic and supplies no confidence interval. Release support awaits independent evidence."
+owners = ["antecedent", "antecedent-py", "python/antecedent"]
+identity_inputs = ["arm rows", "scope and assumptions", "graph, roles and targets", "search controls and seed", "lowered program", "fit", "query context"]
+wire_changes = ["Additive source-bound latent_soft_intervention_forecast_v1 replay artifact."]
+compatibility = "Existing intervention, latent-class, Gaussian composition, artifact versions and identities retain their contracts."
+search = true
+search_impl = ["crates/antecedent/src/analysis/latent_soft_intervention/fit.rs"]
+bounds = { cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = 41000, depth_limit = 2, memory_limit = "declared execution admission; bounded source and workspace" }
+refusals = [
+  { detail = "latent_soft_intervention.invalid_request", when = "The request, data, context, or replay expectation violates the route's contract." },
+  { detail = "latent_soft_intervention.forecast_inadequate", when = "The fitted response fails the held-out forecasting guard." },
+]
+routes = [
+  { name = "antecedent.Study.prepare_latent_soft_intervention", stage = "prepare", status = "supported" },
+  { name = "antecedent.PreparedLatentSoftIntervention.execute", stage = "evaluate", status = "supported" },
+  { name = "antecedent.FittedLatentSoftIntervention.forecast", stage = "evaluate", status = "supported" },
+  { name = "antecedent.latent_soft_intervention.prepare", stage = "prepare", status = "supported" },
+  { name = "antecedent.latent_soft_intervention.replay_forecast", stage = "consume", status = "supported" },
+]
+fixtures = [
+  { id = "estimate.latent_soft_intervention.distinct_pathways.truth", role = "truth", shared_evidence = true, intent = "Independent structural truth for two paths with equal headline effects and different conditional mixture weights.", evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs", evidence_assertion = "equal_downstream_means_preserve_distinct_pathways_and_replay" },
+  { id = "estimate.latent_soft_intervention.retained_program.positive", role = "positive", shared_evidence = true, intent = "Fit and forecasts come from the original inspected compiler plan.", evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs", evidence_assertion = "equal_downstream_means_preserve_distinct_pathways_and_replay" },
+  { id = "estimate.latent_soft_intervention.replay.artifact", role = "artifact", shared_evidence = true, intent = "Replay recomputes the fit and law and refuses a changed context.", evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs", evidence_assertion = "equal_downstream_means_preserve_distinct_pathways_and_replay" },
+  { id = "estimate.latent_soft_intervention.premises.negative", role = "negative", intent = "The compiler refuses undeclared version exogeneity and post-action context.", evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs", evidence_assertion = "compiler_rejects_missing_premises_and_post_action_context" },
+  { id = "estimate.latent_soft_intervention.search_meter.budget", role = "budget", intent = "Execution under an exhausted SearchBudget refuses with the operations stop.", evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs", evidence_assertion = "compiler_meter_refuses_an_exhausted_search" },
+]
+
+[[record]]
+id = "forecast.event_process"
+capability = "forecast.event_process"
+status = "supported"
+consumer_question = "How do uncertain arrivals affect paired intervention histories, and what would observing more of the same stream be worth?"
+theorem = "Nonnegative fixed-decay linear Hawkes intensity admits a direct compensator, conditional thinning and a stationary regime under a strict subcritical branching matrix. Under declared exogenous input semantics, an aligned finite path law carries a model-conditional response and action comparison."
+reference = "provenance/forecast.event_process.toml"
+guarantee = "conditional_event_predictive_path_and_decision"
+graph_class = "Named timestamped point process composed with an explicit cyclic SDE."
+population_semantics = "Complete observation windows in a single clock and named stream, with shared exogenous inputs across intervention worlds."
+evidence_family = "Known, fitted, recursive-refit, deterministic fixture or independently verified external event paths; finite declared hypotheses for prospectively modeled updates."
+provider = "Antecedent event compiler routes; existing SDE planner, joint-distribution artifacts, expected utility and finite preposterior engine."
+estimand = "Horizon event path law, paired grid summaries, decision and finite modeled value of a binary count observation."
+inference_claim = "point_only"
+inference_notes = "Model-conditional predictive paths and Monte Carlo functionals. The count interval owns separate coverage evidence. Forecast scores describe a particular held-out timeline."
+owners = ["antecedent", "antecedent-model", "antecedent-py"]
+identity_inputs = ["event history and clocks", "provider object and receipt", "Hawkes parameters and fit scope", "event and Brownian stream seeds", "binding, grid and interventions", "decision contract", "future observation or declared signal"]
+wire_changes = ["Additive compiler route and retained event source; existing joint distribution artifact format."]
+compatibility = "Existing dynamic schedules, solver results, and distribution readers retain their contracts."
+search = false
+bounds = { cancellation = true, operation_limit = "250 million likelihood and event proposal operations; bounded paired-grid work", memory_limit = "execution admission limits" }
+routes = [
+  { name = "antecedent.Study.prepare_event_forecast", stage = "prepare", status = "supported" },
+  { name = "antecedent.Study.prepare_event_likelihood", stage = "prepare", status = "supported" },
+  { name = "antecedent.Study.prepare_event_worlds", stage = "prepare", status = "supported" },
+  { name = "antecedent.Study.prepare_event_assessment", stage = "prepare", status = "supported" },
+  { name = "antecedent.Study.prepare_event_study", stage = "prepare", status = "supported" },
+  { name = "antecedent.Study.prepare_event_update", stage = "prepare", status = "supported" },
+  { name = "antecedent.events.prepare", stage = "prepare", status = "supported" },
+  { name = "antecedent.events.replay", stage = "consume", status = "supported" },
+]
+refusals = [
+  { detail = "events.invalid_request" },
+  { detail = "events.unstable" },
+  { detail = "events.fit_failed" },
+  { detail = "events.budget" },
+  { detail = "events.numerical" },
+  { detail = "events.unverified_source" },
+  { detail = "events.incomplete_law" },
+  { detail = "events.interval_unmeasured" },
+]
+fixtures = [
+  { id = "forecast.event_process.conditional_likelihood.truth", role = "truth", intent = "A Poisson boundary and a directional two-type likelihood match direct summation.", evidence_test = "crates/antecedent/tests/events.rs", evidence_assertion = "conditional_likelihood_matches_poisson_and_direct_asymmetric_reference" },
+  { id = "forecast.event_process.worlds.positive", role = "positive", shared_evidence = true, intent = "Full-grid outputs match the independent impulse oracle with shared path pairing and alternate sources.", evidence_test = "crates/antecedent/tests/events.rs", evidence_assertion = "fixture_worlds_match_off_grid_path_oracle_and_hawkes_composes" },
+  { id = "forecast.event_process.retained_replay.artifact", role = "artifact", shared_evidence = true, intent = "The retained program reproduces its event law and different sources cannot pair by index.", evidence_test = "crates/antecedent/tests/events.rs", evidence_assertion = "fixture_worlds_match_off_grid_path_oracle_and_hawkes_composes" },
+  { id = "forecast.event_process.validation.negative", role = "negative", intent = "Unstable matrices, stale provider claims and observations at or beyond the cutoff refuse.", evidence_test = "crates/antecedent/tests/events.rs", evidence_assertion = "rejects_leakage_unstable_parameters_and_unverified_external_source" },
+]
+
+[[record]]
+id = "forecast.event_count_interval"
+capability = "forecast.event_count_interval"
+status = "not_supported"
+consumer_question = "What inclusive count interval has measured model-conditional predictive coverage for the declared scope?"
+closed_question = "The coverage experiment is registered and awaits independent measurement."
+theorem = "Nearest-rank 5% and 95% endpoints on the recursive refit predictive count law form the declared candidate interval, with coverage established separately."
+reference = "provenance/forecast.event_count_interval.toml"
+guarantee = "nearest_rank_count_predictive_measured_scope"
+graph_class = "Fixed-decay linear Hawkes process."
+population_semantics = "A future segment of the complete observed point process."
+evidence_family = "Independent full-route training and horizon samples from a declared cluster-process population."
+provider = "Native recursive-refit forecast and the existing evidence-calibration matcher."
+estimand = "Central 90% equal-tail predictive interval for one horizon count."
+inference_claim = "interval"
+owners = ["antecedent"]
+identity_inputs = ["exact forecast construction", "catalog, clock, target type and horizon", "fit and refit scopes", "coverage record"]
+wire_changes = ["A count interval carries a new construction identity and the existing calibration slot."]
+compatibility = "Separate construction and measurement from every existing interval."
+prerequisite_records = ["forecast.event_process"]
+search = false
+bounds = { cancellation = true, operation_limit = "event forecast execution limits", memory_limit = "execution admission limits" }
+refusals = [{ code = "not_supported", detail = "events.interval_unmeasured", when = "The request falls outside a current matching count-coverage record." }]
+fixtures = [
+  { id = "forecast.event_count_interval.nearest_rank.construction", role = "construction", intent = "The exact interval endpoints match independent order-statistic arithmetic.", evidence_test = "crates/antecedent/src/analysis/events/assessment.rs", evidence_assertion = "count_interval_matches_hand_ranked_discrete_tails" },
+  { id = "forecast.event_count_interval.coverage_candidate.positive", role = "positive", intent = "A recursive-refit forecast supplies the exact count interval construction for independent coverage." },
+  { id = "forecast.event_count_interval.unmeasured.negative", role = "negative", intent = "Unmeasured intervals are withheld by the runtime." },
+  { id = "forecast.event_count_interval.calibration_slot.artifact", role = "artifact", intent = "The interval carries the forecast and matching calibration identities." },
+]
+routes = [
+  { name = "antecedent.PreparedEventForecast.count_interval", stage = "uncertainty", status = "closed", reason_code = "not_supported", claim = "interval", refusal_test = "crates/antecedent/tests/events.rs", refusal_assertion = "unmeasured_count_interval_is_withheld" },
+]

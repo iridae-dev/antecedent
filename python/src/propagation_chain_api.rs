@@ -20,8 +20,8 @@ use crate::PyCancellationToken;
 use crate::transport_common::execution_context;
 
 type Refused<T> = (Option<T>, Option<String>);
-/// Exported record bytes, the record as JSON and the lowered program identity.
-type ChainParts = (Py<PyBytes>, String, String);
+/// Exported record, lowered program identity, law meaning and table alignment.
+type ChainParts = (Py<PyBytes>, String, String, Option<String>, Option<String>);
 
 const STAGE: &str = "propagate_chain";
 
@@ -56,12 +56,27 @@ fn chain_parts(py: Python<'_>, chain: &PropagationChain) -> Refused<ChainParts> 
         Ok(bytes) => bytes,
         Err(refusal) => return (None, Some(refusal_json(&refusal))),
     };
+    let (draw_meaning, alignment) = match chain.plan() {
+        Ok(plan) => (
+            plan.stage(&plan.output)
+                .and_then(|stage| stage.meaning)
+                .map(|meaning| meaning.as_str().to_owned()),
+            if chain.record().construction == "independent_product" {
+                Some(format!("independent_product:{}", chain.identity()))
+            } else {
+                plan.alignment
+            },
+        ),
+        Err(refusal) => return (None, Some(refusal_json(&refusal))),
+    };
     match serde_json::to_string(chain.record()) {
         Ok(record) => (
             Some((
                 PyBytes::new(py, &bytes).unbind(),
                 record,
                 chain.lowered_program_identity().to_hex(),
+                draw_meaning,
+                alignment,
             )),
             None,
         ),
@@ -130,18 +145,41 @@ fn propagation_chain_consume(
 ) -> Refused<String> {
     let ctx = execution_context(0, None, cancel);
     match consume_propagation_chain(artifact, expected_identity, &ctx) {
-        Ok(consumed) => (
-            Some(
-                json!({
-                    "identity": consumed.identity,
-                    "label": consumed.label,
-                    "output": consumed.output,
-                    "results": consumed.results,
-                })
-                .to_string(),
-            ),
-            None,
-        ),
+        Ok(consumed) => {
+            let output_draw_meaning = consumed
+                .plan
+                .stage(&consumed.output)
+                .and_then(|stage| stage.meaning)
+                .map(LawMeaning::as_str);
+            let alignment = if consumed.construction == "independent_product" {
+                Some(format!("independent_product:{}", consumed.identity))
+            } else {
+                consumed.plan.alignment.clone()
+            };
+            (
+                Some(
+                    json!({
+                        "identity": consumed.identity,
+                        "label": consumed.label,
+                        "output": consumed.output,
+                        "output_quantity": consumed.output_quantity,
+                        "results": consumed.results,
+                        "reading": consumed.plan.reading.as_str(),
+                        "alignment": alignment,
+                        "output_draw_meaning": output_draw_meaning,
+                        "output_draws": consumed.output_draws,
+                        "output_weights": consumed.output_weights,
+                        "output_lower_bounds": consumed.output_lower_bounds,
+                        "output_upper_bounds": consumed.output_upper_bounds,
+                        "joint_outputs": consumed.joint_outputs,
+                        "joint_output_draws": consumed.joint_output_draws,
+                        "joint_output_weights": consumed.joint_output_weights,
+                    })
+                    .to_string(),
+                ),
+                None,
+            )
+        }
         Err(refusal) => (None, Some(refusal_json(&refusal))),
     }
 }

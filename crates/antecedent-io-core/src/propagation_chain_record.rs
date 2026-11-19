@@ -1,7 +1,10 @@
 //! The retained propagation record of a chain of transformations, and the
 //! independent consumer that re-derives it.
 //!
-//! Format version 1, feature `propagation_chain_v1`, carried as the optional
+//! Format version 1, feature `propagation_chain_v1`; law-bearing version 2,
+//! feature `propagation_chain_law_v2`; or draw-indexed assumption version 3,
+//! feature `propagation_chain_assumption_v3`; or joint-output version 4,
+//! feature `propagation_chain_joint_law_v4`, carried as the optional
 //! `analysis_result.propagation` section of a composite artifact or as a
 //! standalone CBOR payload. The record binds, in one sealed identity:
 //!
@@ -14,7 +17,12 @@
 //! * the future-study draws of any preposterior update;
 //! * the **changes**, appended in order: a source withdrawn, or the rows of a
 //!   source re-weighted because an assumption about it changed;
-//! * the stored **results** of every stage and the label of the answer.
+//! * the stored **results** of every stage and the label of the answer;
+//! * in version 2, the output column and its row weights, replayed bit for bit;
+//! * in version 3, draw-indexed lower and upper assumption bounds, replayed
+//!   bit for bit without a coverage claim.
+//! * in version 4, several aligned law output columns and one common row-weight
+//!   vector, replayed bit for bit.
 //!
 //! The identity covers everything except the results, through a
 //! [`antecedent_core::CanonicalWriter`] stream under a versioned tag. Numeric tags of the kinds,
@@ -48,9 +56,9 @@ mod wire;
 use bounds::check_bounds;
 pub use identity::propagation_chain_identity;
 pub use wire::{
-    ChainChangeWire, ChainCoefficientWire, ChainExprTermWire, ChainFactorWire, ChainOpWire,
-    ChainSourceWire, ChainStageResultWire, ChainStageWire, ChainUnaryWire,
-    ConsumedPropagationChain, PropagationChainRecordWire,
+    ChainChangeWire, ChainCoefficientWire, ChainExprTermWire, ChainFactorWire,
+    ChainJointOutputWire, ChainOpWire, ChainSourceWire, ChainStageResultWire, ChainStageWire,
+    ChainUnaryWire, ConsumedPropagationChain, PropagationChainRecordWire,
 };
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -58,31 +66,51 @@ use std::collections::{BTreeMap, BTreeSet};
 use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_contract::propagation_chain::{
     ChainDecl, ChainPlan, ChainReading, ChainRefusal, ChainSourceDecl, ChainStageDecl,
-    DROP_DUPLICATED_SOURCE, FIX_CHAIN_DECLARATION, FactorDecl, LawMeaning, OperatorClass,
-    RAISE_BUDGET_OR_THIN_DRAWS, RAISE_DRAWS_OR_WIDEN_STUDY, Representation,
+    DROP_DUPLICATED_SOURCE, FIX_CHAIN_DECLARATION, FactorDecl, LawMeaning, NodeRepresentation,
+    OperatorClass, RAISE_BUDGET_OR_THIN_DRAWS, RAISE_DRAWS_OR_WIDEN_STUDY, Representation,
     SUPPLY_DRAWS_FOR_INTERVAL, StageKind, TableConstruction, check_propagation_chain,
 };
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 #[cfg(test)]
 use antecedent_core::CanonicalWriter;
 use antecedent_core::ExecutionContext;
 use antecedent_stats::propagation_chain::{
-    ChainError, Coefficient, Combine, Enclosure, Evaluated, ExprTerm, Preposterior, StageOp,
-    StageSpec, UnaryFn, decide, evaluate_columns, evaluate_enclosures, preposterior, summarize,
-    weights_from_log,
+    ChainError, Coefficient, Combine, Enclosure, Evaluated, ExprTerm, MixedSource, Preposterior,
+    StageOp, StageSpec, UnaryFn, decide, evaluate_columns, evaluate_enclosures,
+    evaluate_mixed_enclosures, preposterior, summarize, weights_from_log,
 };
 
 use crate::IoError;
 use crate::container::{CompressPolicy, EncodedArtifact, pack_section_shared};
 use crate::joint_law_propagation_artifact::verdict_code;
+use crate::quantity_wire::ScientificQuantityWire;
 
 /// The section id of the retained record on a composite artifact.
 pub const PROPAGATION_CHAIN_SECTION: &str = "analysis_result.propagation";
 /// The record format this reader writes and accepts.
 pub const PROPAGATION_CHAIN_VERSION: u32 = 1;
+/// Version that retains and independently replays an output law.
+pub const PROPAGATION_CHAIN_LAW_VERSION: u32 = 2;
+/// Version that keeps draw and interval-assumption axes distinct.
+pub const PROPAGATION_CHAIN_ASSUMPTION_VERSION: u32 = 3;
+/// Version that retains several aligned law coordinates under one row axis.
+pub const PROPAGATION_CHAIN_JOINT_LAW_VERSION: u32 = 4;
 /// The feature marker of the accepted format.
 pub const PROPAGATION_CHAIN_FEATURE: &str = "propagation_chain_v1";
+/// Required feature marker of a law-bearing record.
+pub const PROPAGATION_CHAIN_LAW_FEATURE: &str = "propagation_chain_law_v2";
+/// Required feature marker of a draw-indexed assumption envelope.
+pub const PROPAGATION_CHAIN_ASSUMPTION_FEATURE: &str = "propagation_chain_assumption_v3";
+/// Required feature marker of a joint output law.
+pub const PROPAGATION_CHAIN_JOINT_LAW_FEATURE: &str = "propagation_chain_joint_law_v4";
 /// Domain tag of the record identity.
 pub const PROPAGATION_CHAIN_TAG: &str = "antecedent.propagation_chain.v1";
+/// Domain tag of a law-bearing record identity.
+pub const PROPAGATION_CHAIN_LAW_TAG: &str = "antecedent.propagation_chain_law.v2";
+/// Domain tag of a draw-indexed assumption envelope.
+pub const PROPAGATION_CHAIN_ASSUMPTION_TAG: &str = "antecedent.propagation_chain_assumption.v3";
+/// Domain tag of a joint output law.
+pub const PROPAGATION_CHAIN_JOINT_LAW_TAG: &str = "antecedent.propagation_chain_joint_law.v4";
 /// Most bytes an encoded record may occupy; larger input is refused before any
 /// CBOR is parsed.
 pub const MAX_PROPAGATION_CHAIN_BYTES: usize = 64 * 1024 * 1024;
@@ -427,6 +455,38 @@ fn word_of(len: usize) -> u64 {
 struct Executed {
     plan: ChainPlan,
     results: Vec<ChainStageResultWire>,
+    output_draws: Option<Vec<u64>>,
+    output_weights: Option<Vec<u64>>,
+    output_lower_bounds: Option<Vec<u64>>,
+    output_upper_bounds: Option<Vec<u64>>,
+    joint_output_draws: Option<Vec<Vec<u64>>>,
+    joint_output_weights: Option<Vec<u64>>,
+}
+
+fn law_record(reading: &str) -> bool {
+    matches!(reading, "posterior" | "predictive")
+}
+
+fn format_for(reading: &str, joint: bool) -> (u32, &'static str) {
+    if joint {
+        (PROPAGATION_CHAIN_JOINT_LAW_VERSION, PROPAGATION_CHAIN_JOINT_LAW_FEATURE)
+    } else if reading == ChainReading::AssumptionEnvelope.as_str() {
+        (PROPAGATION_CHAIN_ASSUMPTION_VERSION, PROPAGATION_CHAIN_ASSUMPTION_FEATURE)
+    } else if law_record(reading) {
+        (PROPAGATION_CHAIN_LAW_VERSION, PROPAGATION_CHAIN_LAW_FEATURE)
+    } else {
+        (PROPAGATION_CHAIN_VERSION, PROPAGATION_CHAIN_FEATURE)
+    }
+}
+
+fn expected_feature(version: u32) -> Result<&'static str, Error> {
+    match version {
+        PROPAGATION_CHAIN_VERSION => Ok(PROPAGATION_CHAIN_FEATURE),
+        PROPAGATION_CHAIN_LAW_VERSION => Ok(PROPAGATION_CHAIN_LAW_FEATURE),
+        PROPAGATION_CHAIN_ASSUMPTION_VERSION => Ok(PROPAGATION_CHAIN_ASSUMPTION_FEATURE),
+        PROPAGATION_CHAIN_JOINT_LAW_VERSION => Ok(PROPAGATION_CHAIN_JOINT_LAW_FEATURE),
+        _ => Err(Error::UnsupportedVersion { version }),
+    }
 }
 
 struct ChangeState {
@@ -453,19 +513,199 @@ impl PropagationChainRecordWire {
         sources: Vec<ChainSourceWire>,
         stages: Vec<ChainStageWire>,
     ) -> Self {
+        let (version, feature) = format_for(reading.as_str(), false);
         Self {
-            version: PROPAGATION_CHAIN_VERSION,
-            required_features: vec![PROPAGATION_CHAIN_FEATURE.to_owned()],
+            version,
+            required_features: vec![feature.to_owned()],
             construction: construction.as_str().to_owned(),
             reading: reading.as_str().to_owned(),
             output: output.to_owned(),
+            output_quantity: None,
+            joint_outputs: Vec::new(),
             sources,
             stages,
             changes: Vec::new(),
             label: String::new(),
             results: Vec::new(),
+            output_draws: None,
+            output_weights: None,
+            output_lower_bounds: None,
+            output_upper_bounds: None,
+            joint_output_draws: None,
+            joint_output_weights: None,
             identity: String::new(),
         }
+    }
+
+    /// Declare the scientific coordinate of the chain's output. Predictive
+    /// readings require this before compilation; it does not certify a causal
+    /// regime or calibrate the draws.
+    #[must_use]
+    pub fn with_output_quantity(mut self, quantity: ScientificQuantityWire) -> Self {
+        self.output_quantity = Some(quantity);
+        self
+    }
+
+    /// Publish several aligned stage laws as one joint output carrier. The
+    /// primary output stage and its `output_quantity` must be included.
+    #[must_use]
+    pub fn with_joint_outputs(mut self, outputs: Vec<ChainJointOutputWire>) -> Self {
+        self.joint_outputs = outputs;
+        self
+    }
+
+    fn check_joint_outputs(&self, plan: &ChainPlan) -> Result<(), Error> {
+        if self.joint_outputs.is_empty() {
+            return Ok(());
+        }
+        if self.joint_outputs.len() < 2
+            || !matches!(plan.reading, ChainReading::Posterior | ChainReading::Predictive)
+        {
+            return Err(malformed(
+                "a joint output law needs at least two posterior or predictive stage coordinates",
+            ));
+        }
+        let primary = self
+            .output_quantity
+            .as_ref()
+            .ok_or_else(|| malformed("a joint output law declares the primary output quantity"))?;
+        let expected = if plan.reading == ChainReading::Predictive {
+            LawMeaning::Predictive
+        } else {
+            LawMeaning::Posterior
+        };
+        let mut stages = BTreeSet::new();
+        let mut coordinates = BTreeSet::new();
+        let mut primary_seen = false;
+        for output in &self.joint_outputs {
+            if !stages.insert(output.stage.as_str()) {
+                return Err(malformed("a joint output stage is declared twice"));
+            }
+            let quantity: ScientificQuantity = output
+                .quantity
+                .clone()
+                .try_into()
+                .map_err(|message| malformed(format!("joint output quantity: {message}")))?;
+            if plan.reading == ChainReading::Predictive
+                && !matches!(quantity.role, QuantityRole::Outcome | QuantityRole::Utility)
+            {
+                return Err(malformed(
+                    "every predictive joint output quantity has the outcome or utility role",
+                ));
+            }
+            if !coordinates.insert(quantity.canonical_identity()) {
+                return Err(malformed("joint output quantities must be distinct"));
+            }
+            let stage = plan.stage(&output.stage).ok_or_else(|| {
+                malformed(format!("joint output stage `{}` does not exist", output.stage))
+            })?;
+            if stage.representation != NodeRepresentation::Draws || stage.meaning != Some(expected)
+            {
+                return Err(malformed(format!(
+                    "joint output stage `{}` does not carry the declared law meaning",
+                    output.stage
+                )));
+            }
+            if stage.kind == StageKind::PreposteriorUpdate {
+                return Err(malformed(
+                    "a preposterior update is a value of information, not a law column",
+                ));
+            }
+            if output.stage == self.output {
+                primary_seen = output.quantity == *primary;
+            }
+        }
+        if !primary_seen {
+            return Err(malformed(
+                "joint outputs must include the primary stage with its output quantity",
+            ));
+        }
+        Ok(())
+    }
+
+    fn check_output_quantity(&self) -> Result<(), Error> {
+        if !law_record(&self.reading)
+            && self.reading != ChainReading::AssumptionEnvelope.as_str()
+            && self.output_quantity.is_some()
+        {
+            return Err(malformed(
+                "an output quantity is retained only by a law or assumption-envelope reading",
+            ));
+        }
+        if matches!(self.reading.as_str(), "predictive" | "assumption_envelope")
+            && self.output_quantity.is_none()
+        {
+            return Err(malformed(
+                "a predictive law or assumption envelope declares its scientific quantity",
+            ));
+        }
+        if matches!(
+            self.version,
+            PROPAGATION_CHAIN_LAW_VERSION | PROPAGATION_CHAIN_JOINT_LAW_VERSION
+        ) && self
+            .stages
+            .iter()
+            .any(|stage| stage.id == self.output && stage.decision_reference.is_some())
+            && self.output_quantity.is_none()
+        {
+            return Err(malformed("a retained output-law decision declares its utility quantity"));
+        }
+        if let Some(wire) = &self.output_quantity {
+            let quantity: ScientificQuantity = wire
+                .clone()
+                .try_into()
+                .map_err(|message| malformed(format!("output quantity: {message}")))?;
+            if self.reading == ChainReading::Predictive.as_str()
+                && !matches!(quantity.role, QuantityRole::Outcome | QuantityRole::Utility)
+            {
+                return Err(malformed(
+                    "a predictive output quantity has the outcome or utility role",
+                ));
+            }
+            if self.stages.iter().any(|stage| {
+                stage.id == self.output && stage.kind == StageKind::DecisionUtility.as_str()
+            }) && quantity.role != QuantityRole::Utility
+            {
+                return Err(malformed(
+                    "an output decision utility stage declares a utility quantity",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn check_decision_references(&self) -> Result<(), Error> {
+        if !matches!(
+            self.version,
+            PROPAGATION_CHAIN_LAW_VERSION
+                | PROPAGATION_CHAIN_ASSUMPTION_VERSION
+                | PROPAGATION_CHAIN_JOINT_LAW_VERSION
+        ) {
+            return Ok(());
+        }
+        for stage in &self.stages {
+            if let Some(bits) = stage.decision_reference {
+                if stage.kind != StageKind::DecisionUtility.as_str() {
+                    return Err(malformed(format!(
+                        "decision reference on `{}` requires a decision utility stage",
+                        stage.id
+                    )));
+                }
+                if stage.id != self.output {
+                    return Err(malformed(format!(
+                        "retained-chain decision reference on `{}` must be the output stage",
+                        stage.id
+                    )));
+                }
+                if !f64::from_bits(bits).is_finite() {
+                    return Err(malformed(format!(
+                        "decision reference on `{}` must be finite",
+                        stage.id
+                    )));
+                }
+            }
+        }
+        Ok(())
     }
 
     fn declaration(&self) -> Result<ChainDecl, Error> {
@@ -524,7 +764,13 @@ impl PropagationChainRecordWire {
     /// As [`Self::plan`]; a bound of `limits` exceeded is `LimitsExceeded`.
     pub fn plan_within(&self, limits: &PropagationChainLimits) -> Result<ChainPlan, Error> {
         check_bounds(self, limits)?;
-        Ok(check_propagation_chain(&self.declaration()?)?)
+        // A decision reference is checked as a finite utility comparison before
+        // the record-level rule that an output-law decision declares its quantity.
+        self.check_decision_references()?;
+        self.check_output_quantity()?;
+        let plan = check_propagation_chain(&self.declaration()?)?;
+        self.check_joint_outputs(&plan)?;
+        Ok(plan)
     }
 
     fn change_state(&self, rows: Option<usize>) -> Result<ChangeState, Error> {
@@ -650,6 +896,97 @@ impl PropagationChainRecordWire {
             (STATUS_CURRENT, Vec::new())
         };
         let mut results = Vec::with_capacity(self.stages.len());
+        if enclosure_mode && rows.is_some() {
+            let draw_columns: Vec<Option<Vec<f64>>> = self
+                .sources
+                .iter()
+                .map(|source| {
+                    (source.representation == Representation::Draws.as_str())
+                        .then(|| floats(&source.values))
+                })
+                .collect();
+            let mixed = self
+                .sources
+                .iter()
+                .zip(&draw_columns)
+                .map(|(source, draws)| {
+                    if let Some(draws) = draws {
+                        Ok(MixedSource::Draws(draws.as_slice()))
+                    } else {
+                        let values = floats(&source.values);
+                        let upper = *values.last().ok_or_else(|| malformed("empty source"))?;
+                        Ok(MixedSource::Fixed(
+                            Enclosure::new(values[0], upper).map_err(map_chain_error)?,
+                        ))
+                    }
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            let evaluated = evaluate_mixed_enclosures(&mixed, &specs, &ctx.cancellation)
+                .map_err(map_chain_error)?;
+            let mut output_lower_bounds = None;
+            let mut output_upper_bounds = None;
+            let mut output_weights = None;
+            for (position, stage) in self.stages.iter().enumerate() {
+                let (status, invalidated_by) = stage_status(&stage.id);
+                let mut values = Vec::new();
+                if status != STATUS_INVALIDATED {
+                    let sources =
+                        plan.stage(&stage.id).map(|p| p.sources.clone()).unwrap_or_default();
+                    let weights = stage_weights(&state, &sources)?;
+                    let lower: Vec<f64> = evaluated[position].iter().map(|e| e.lower).collect();
+                    let upper: Vec<f64> = evaluated[position].iter().map(|e| e.upper).collect();
+                    let lower_summary =
+                        summarize(&lower, weights.as_deref()).map_err(map_chain_error)?;
+                    let upper_summary =
+                        summarize(&upper, weights.as_deref()).map_err(map_chain_error)?;
+                    push_float(&mut values, "lower", lower_summary.mean);
+                    push_float(&mut values, "upper", upper_summary.mean);
+                    push_float(&mut values, "effective_size", lower_summary.effective_size);
+                    push_count(
+                        &mut values,
+                        "n_rows",
+                        u64::try_from(lower_summary.n).unwrap_or(u64::MAX),
+                    );
+                    if let Some(reference_bits) = stage.decision_reference {
+                        let reference = f64::from_bits(reference_bits);
+                        let lower_gap = lower_summary.mean - reference;
+                        let upper_gap = upper_summary.mean - reference;
+                        let verdict = if lower_gap > 0.0 {
+                            0
+                        } else if upper_gap < 0.0 {
+                            1
+                        } else {
+                            2
+                        };
+                        push_float(&mut values, "reference_utility", reference);
+                        push_float(&mut values, "robust_gap_lower", lower_gap);
+                        push_float(&mut values, "robust_gap_upper", upper_gap);
+                        push_count(&mut values, "robust_verdict_code", verdict);
+                    }
+                    if stage.id == self.output {
+                        output_lower_bounds = Some(lower.into_iter().map(f64::to_bits).collect());
+                        output_upper_bounds = Some(upper.into_iter().map(f64::to_bits).collect());
+                        output_weights = weights.map(|w| w.into_iter().map(f64::to_bits).collect());
+                    }
+                }
+                results.push(ChainStageResultWire {
+                    stage: stage.id.clone(),
+                    status: status.to_owned(),
+                    invalidated_by,
+                    values,
+                });
+            }
+            return Ok(Executed {
+                plan,
+                results,
+                output_draws: None,
+                output_weights,
+                output_lower_bounds,
+                output_upper_bounds,
+                joint_output_draws: None,
+                joint_output_weights: None,
+            });
+        }
         if enclosure_mode {
             let boxes = self
                 .sources
@@ -679,7 +1016,16 @@ impl PropagationChainRecordWire {
                     values,
                 });
             }
-            return Ok(Executed { plan, results });
+            return Ok(Executed {
+                plan,
+                results,
+                output_draws: None,
+                output_weights: None,
+                output_lower_bounds: None,
+                output_upper_bounds: None,
+                joint_output_draws: None,
+                joint_output_weights: None,
+            });
         }
         let table_rows = rows.unwrap_or(1);
         if table_rows
@@ -724,7 +1070,74 @@ impl PropagationChainRecordWire {
                 values,
             });
         }
-        Ok(Executed { plan, results })
+        let (output_draws, output_weights) = if matches!(
+            self.version,
+            PROPAGATION_CHAIN_LAW_VERSION | PROPAGATION_CHAIN_JOINT_LAW_VERSION
+        ) && law_record(&self.reading)
+            && stage_status(&self.output).0 != STATUS_INVALIDATED
+        {
+            let position = self
+                .stages
+                .iter()
+                .position(|stage| stage.id == self.output)
+                .ok_or_else(|| malformed("the output stage does not exist"))?;
+            let draws = evaluated.columns[position]
+                .as_ref()
+                .ok_or_else(|| malformed("the output stage has no draw column"))?
+                .iter()
+                .map(|value| value.to_bits())
+                .collect();
+            let sources = plan.stage(&self.output).map(|p| p.sources.clone()).unwrap_or_default();
+            let weights = stage_weights(&state, &sources)?
+                .map(|values| values.into_iter().map(f64::to_bits).collect());
+            (Some(draws), weights)
+        } else {
+            (None, None)
+        };
+        let (joint_output_draws, joint_output_weights) = if self.version
+            == PROPAGATION_CHAIN_JOINT_LAW_VERSION
+            && self
+                .joint_outputs
+                .iter()
+                .all(|output| stage_status(&output.stage).0 != STATUS_INVALIDATED)
+        {
+            let mut shared_sources = BTreeSet::new();
+            let mut columns = Vec::with_capacity(self.joint_outputs.len());
+            for output in &self.joint_outputs {
+                let position = self
+                    .stages
+                    .iter()
+                    .position(|stage| stage.id == output.stage)
+                    .ok_or_else(|| malformed("a joint output stage does not exist"))?;
+                let column = evaluated.columns[position]
+                    .as_ref()
+                    .ok_or_else(|| malformed("a joint output stage has no draw column"))?;
+                columns.push(column.iter().map(|value| value.to_bits()).collect());
+                for source in &plan
+                    .stage(&output.stage)
+                    .ok_or_else(|| malformed("a joint output stage has no plan"))?
+                    .sources
+                {
+                    shared_sources.insert(source.clone());
+                }
+            }
+            let sources: Vec<String> = shared_sources.into_iter().collect();
+            let weights = stage_weights(&state, &sources)?
+                .map(|values| values.into_iter().map(f64::to_bits).collect());
+            (Some(columns), weights)
+        } else {
+            (None, None)
+        };
+        Ok(Executed {
+            plan,
+            results,
+            output_draws,
+            output_weights,
+            output_lower_bounds: None,
+            output_upper_bounds: None,
+            joint_output_draws,
+            joint_output_weights,
+        })
     }
 
     #[allow(
@@ -814,11 +1227,18 @@ impl PropagationChainRecordWire {
         ctx: &ExecutionContext,
         limits: &PropagationChainLimits,
     ) -> Result<Self, Error> {
-        draft.version = PROPAGATION_CHAIN_VERSION;
-        draft.required_features = vec![PROPAGATION_CHAIN_FEATURE.to_owned()];
+        let (version, feature) = format_for(&draft.reading, !draft.joint_outputs.is_empty());
+        draft.version = version;
+        draft.required_features = vec![feature.to_owned()];
         let executed = draft.execute(ctx, limits)?;
         executed.plan.label.clone_into(&mut draft.label);
         draft.results = executed.results;
+        draft.output_draws = executed.output_draws;
+        draft.output_weights = executed.output_weights;
+        draft.output_lower_bounds = executed.output_lower_bounds;
+        draft.output_upper_bounds = executed.output_upper_bounds;
+        draft.joint_output_draws = executed.joint_output_draws;
+        draft.joint_output_weights = executed.joint_output_weights;
         draft.identity = propagation_chain_identity(&draft)?;
         check_bounds(&draft, limits)?;
         Ok(draft)
@@ -899,13 +1319,9 @@ impl PropagationChainRecordWire {
             return Err(Error::LimitsExceeded("record bytes"));
         }
         let wire: Self = crate::decode_with_version(bytes, |version: u32| {
-            if version == PROPAGATION_CHAIN_VERSION {
-                Ok(())
-            } else {
-                Err(Error::UnsupportedVersion { version })
-            }
+            expected_feature(version).map(|_| ())
         })?;
-        if wire.required_features != [PROPAGATION_CHAIN_FEATURE] {
+        if wire.required_features != [expected_feature(wire.version)?] {
             return Err(Error::UnsupportedSemantics("required features"));
         }
         check_bounds(&wire, limits)?;
@@ -937,11 +1353,59 @@ impl PropagationChainRecordWire {
         ctx: &ExecutionContext,
         limits: &PropagationChainLimits,
     ) -> Result<ConsumedPropagationChain, Error> {
-        if self.version != PROPAGATION_CHAIN_VERSION {
-            return Err(Error::UnsupportedVersion { version: self.version });
-        }
-        if self.required_features != [PROPAGATION_CHAIN_FEATURE] {
+        if self.required_features != [expected_feature(self.version)?] {
             return Err(Error::UnsupportedSemantics("required features"));
+        }
+        if self.version == PROPAGATION_CHAIN_VERSION
+            && (self.reading == ChainReading::Predictive.as_str()
+                || self.reading == ChainReading::AssumptionEnvelope.as_str()
+                || self.output_quantity.is_some()
+                || self.output_draws.is_some()
+                || self.output_weights.is_some()
+                || self.output_lower_bounds.is_some()
+                || self.output_upper_bounds.is_some()
+                || !self.joint_outputs.is_empty()
+                || self.joint_output_draws.is_some()
+                || self.joint_output_weights.is_some())
+        {
+            return Err(Error::UnsupportedSemantics(
+                "version 1 does not publish a law or assumption envelope",
+            ));
+        }
+        if self.version == PROPAGATION_CHAIN_LAW_VERSION && !law_record(&self.reading) {
+            return Err(Error::UnsupportedSemantics("version 2 requires a law reading"));
+        }
+        if self.version == PROPAGATION_CHAIN_LAW_VERSION
+            && (self.output_lower_bounds.is_some()
+                || self.output_upper_bounds.is_some()
+                || !self.joint_outputs.is_empty()
+                || self.joint_output_draws.is_some()
+                || self.joint_output_weights.is_some())
+        {
+            return Err(Error::UnsupportedSemantics(
+                "version 2 does not publish an assumption envelope",
+            ));
+        }
+        if self.version == PROPAGATION_CHAIN_ASSUMPTION_VERSION
+            && (self.reading != ChainReading::AssumptionEnvelope.as_str()
+                || self.output_draws.is_some()
+                || !self.joint_outputs.is_empty()
+                || self.joint_output_draws.is_some()
+                || self.joint_output_weights.is_some())
+        {
+            return Err(Error::UnsupportedSemantics(
+                "version 3 requires an assumption-envelope reading",
+            ));
+        }
+        if self.version == PROPAGATION_CHAIN_JOINT_LAW_VERSION
+            && (!law_record(&self.reading)
+                || self.joint_outputs.len() < 2
+                || self.output_lower_bounds.is_some()
+                || self.output_upper_bounds.is_some())
+        {
+            return Err(Error::UnsupportedSemantics(
+                "version 4 requires a joint posterior or predictive law",
+            ));
         }
         check_bounds(self, limits)?;
         let recomputed = propagation_chain_identity(self)?;
@@ -963,11 +1427,29 @@ impl PropagationChainRecordWire {
         if executed.results != self.results {
             return Err(Error::ResultMismatch);
         }
+        if executed.output_draws != self.output_draws
+            || executed.output_weights != self.output_weights
+            || executed.output_lower_bounds != self.output_lower_bounds
+            || executed.output_upper_bounds != self.output_upper_bounds
+            || executed.joint_output_draws != self.joint_output_draws
+            || executed.joint_output_weights != self.joint_output_weights
+        {
+            return Err(Error::ResultMismatch);
+        }
         Ok(ConsumedPropagationChain {
             identity: recomputed,
             label: self.label.clone(),
             output: self.output.clone(),
+            construction: self.construction.clone(),
+            output_quantity: self.output_quantity.clone(),
             results: executed.results,
+            output_draws: executed.output_draws,
+            output_weights: executed.output_weights,
+            output_lower_bounds: executed.output_lower_bounds,
+            output_upper_bounds: executed.output_upper_bounds,
+            joint_outputs: self.joint_outputs.clone(),
+            joint_output_draws: executed.joint_output_draws,
+            joint_output_weights: executed.joint_output_weights,
             plan: executed.plan,
         })
     }

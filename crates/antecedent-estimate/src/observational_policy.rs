@@ -221,6 +221,10 @@ pub struct ObservationalPolicyValue {
     /// Known assignment probabilities that replace the fitted propensity model; `None`
     /// estimates them by a multinomial logit on the declared covariates.
     pub known_propensity: Option<KnownPropensity>,
+    /// Adjustment-column indices the learned policy may read. `None` preserves
+    /// the original learner, which reads every adjustment column. Propensity
+    /// and outcome nuisance fits always read every adjustment column.
+    pub policy_features: Option<Vec<usize>>,
     /// GLM options of the propensity model.
     pub glm_options: GlmOptions,
 }
@@ -241,6 +245,7 @@ impl ObservationalPolicyValue {
             folds: DEFAULT_POLICY_FOLDS,
             min_propensity: DEFAULT_MIN_PROPENSITY,
             known_propensity: None,
+            policy_features: None,
             glm_options: GlmOptions::default(),
         }
     }
@@ -262,6 +267,20 @@ impl ObservationalPolicyValue {
     ) -> Result<PolicyValueEstimate, EstimationError> {
         self.validate()?;
         let prepared = Prepared::new(self, data)?;
+        if let Some(features) = &self.policy_features {
+            let mut distinct = features.clone();
+            distinct.sort_unstable();
+            distinct.dedup();
+            if distinct.len() != features.len()
+                || distinct.iter().any(|&index| index >= data.covariates.len())
+            {
+                return Err(refuse(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    antecedent_core::reason_details::policy_value::INVALID_DATA,
+                    "policy feature indices must be distinct adjustment columns",
+                ));
+            }
+        }
         let k = self.support.len();
         let n = prepared.n;
         let plan = match &self.evaluation {
@@ -338,6 +357,7 @@ impl ObservationalPolicyValue {
         let options = NuisanceOptions::new("policy_nuisance")
             .text("glm", &format!("{:?}", self.glm_options))
             .text("evaluation", self.evaluation.as_str())
+            .text("policy_features", &format!("{:?}", self.policy_features))
             .digest(
                 "support",
                 Some(SemanticDigest::of_reals("antecedent.policy.support", &self.support)),
@@ -441,6 +461,10 @@ impl ObservationalPolicyValue {
     }
 
     /// Fit the propensity and per-action outcome models on `train` and predict `valid`.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
     fn fit_split(
         &self,
         prepared: &Prepared,
@@ -467,6 +491,18 @@ impl ObservationalPolicyValue {
         }
         let design_train = rows_colmajor(&prepared.design, n, ncols, train);
         let design_valid = rows_colmajor(&prepared.design, n, ncols, valid);
+        let policy_design = self.policy_features.as_ref().map(|features| {
+            let mut selected = Vec::with_capacity(n * (features.len() + 1));
+            selected.extend_from_slice(&prepared.design[..n]);
+            for &index in features {
+                selected.extend_from_slice(&prepared.design[(index + 1) * n..(index + 2) * n]);
+            }
+            selected
+        });
+        let policy_ncols =
+            self.policy_features.as_ref().map_or(ncols, |features| features.len() + 1);
+        let policy_valid =
+            policy_design.as_ref().map(|design| rows_colmajor(design, n, policy_ncols, valid));
         let nv = valid.len();
         let propensity = if let Some(known) = &prepared.known_propensity {
             let mut out = vec![0.0; k * nv];
@@ -491,6 +527,7 @@ impl ObservationalPolicyValue {
             )?
         };
         let mut mean = vec![0.0; k * nv];
+        let mut policy_mean = policy_design.as_ref().map(|_| vec![0.0; k * nv]);
         let mut prediction = Vec::new();
         for c in 0..k {
             let level_train: Vec<usize> =
@@ -520,8 +557,30 @@ impl ObservationalPolicyValue {
                 .map_err(crate::error::EstimationError::from)?;
             predict_colmajor(&design_valid, nv, ncols, &fit.coefficients, &mut prediction);
             mean[c * nv..(c + 1) * nv].copy_from_slice(&prediction);
+            if let (Some(policy_design), Some(policy_valid), Some(policy_mean)) =
+                (&policy_design, &policy_valid, &mut policy_mean)
+            {
+                let policy_level = rows_colmajor(policy_design, n, policy_ncols, &level_train);
+                let policy_fit = FaerBackend
+                    .least_squares(
+                        &policy_level,
+                        level_train.len(),
+                        policy_ncols,
+                        &y_level,
+                        &mut workspace.ols,
+                    )
+                    .map_err(crate::error::EstimationError::from)?;
+                predict_colmajor(
+                    policy_valid,
+                    nv,
+                    policy_ncols,
+                    &policy_fit.coefficients,
+                    &mut prediction,
+                );
+                policy_mean[c * nv..(c + 1) * nv].copy_from_slice(&prediction);
+            }
         }
-        Ok(SplitNuisance { propensity, mean, rows: nv })
+        Ok(SplitNuisance { propensity, mean, policy_mean, rows: nv })
     }
 
     fn finish(
@@ -624,6 +683,7 @@ fn policy_cancelled() -> EstimationError {
 struct SplitNuisance {
     propensity: Vec<f64>,
     mean: Vec<f64>,
+    policy_mean: Option<Vec<f64>>,
     rows: usize,
 }
 
@@ -680,7 +740,8 @@ impl Scored {
             let choice = match &request.evaluation {
                 PolicyEvaluation::Prespecified { .. } => prepared.declared_action[i] as usize,
                 PolicyEvaluation::HeldOut { .. } | PolicyEvaluation::CrossFitted => {
-                    best_action(request.objective, (0..k).map(|c| nuisance.mean[c * nv + r]))
+                    let predicted = nuisance.policy_mean.as_ref().unwrap_or(&nuisance.mean);
+                    best_action(request.objective, (0..k).map(|c| predicted[c * nv + r]))
                 }
             };
             self.rows.push(i);

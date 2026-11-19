@@ -1141,3 +1141,102 @@ level = "intermediate"
 dependencies = []
 runtime = "under 10 seconds"
 claim = "The effect is near the simulated 2 (within 0.2) and observers change nothing; a zero memory limit raises a typed resource error; cancelling before or during a run stops it as reported. Memory limits bound the admitted pool, not process memory."
+
+[[example]]
+id = "event_driven_launch"
+title = "Compare launch decisions under clustered arrivals"
+summary = "Fit an event forecast, compare both actions on shared paths, and value an extra observation window."
+python = "examples/python/event_driven_launch.py"
+topic = "Tutorials"
+level = "intermediate"
+dependencies = []
+runtime = "small synthetic example"
+claim = "The development example checks signal probability mass and the modeled value of information. Release builds can inspect the plan while the routes await support."
+
+[[example]]
+id = "hidden_rollout_variants"
+title = "Look for hidden variants of a rollout"
+summary = "Compare a randomized rollout with two delivery variants against one with a single delivery."
+python = "examples/python/hidden_rollout_variants.py"
+topic = "Estimate effects"
+level = "intermediate"
+dependencies = []
+runtime = "small synthetic example"
+claim = "Execution reports the fitted evidence and replays any admissible forecast. The planted variants are synthetic, and execution awaits support in release builds."
+
+[[example]]
+id = "fitted_feedback_decision"
+title = "Compare actions in a fitted feedback loop"
+summary = "Fit one feedback coefficient from synthetic trial rows, compare actions on paired draws, and replay."
+rust = "examples/rust/fitted_feedback_decision.rs"
+topic = "Structural models and feedback"
+level = "intermediate"
+dependencies = []
+runtime = "small synthetic example"
+claim = "The example checks replay of the fitted comparison and refuses an identity after changing the promoted action."
+
+[[example]]
+id = "trial_to_target_decision"
+title = "Carry a trial effect into a target decision"
+summary = "Use stated selection and treatment probabilities, then fit the transported effect and evaluate the decision."
+rust = "examples/rust/trial_to_target_decision.rs"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "small synthetic example"
+claim = "The fitted effect draws and decision agree on replay. The example does not carry measured interval coverage."
+
+[[example]]
+id = "check_trial_proxy"
+title = "Check an early measure in a new population"
+summary = "Compare the early-to-later outcome relationship across independent sets of trials, then increase the target shift."
+rust = "examples/rust/check_trial_proxy.rs"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "small synthetic example"
+claim = "The screen passes and then fails at a fixed declared margin on synthetic trial effect pairs. It reports unmeasured calibration."
+
+[[example]]
+id = "whole_cluster_uncertainty"
+title = "Keep whole groups together when resampling"
+summary = "Resample paired rows within their strata and replay the final uncertainty endpoints."
+rust = "examples/rust/whole_cluster_uncertainty.rs"
+topic = "Evidence and composition"
+level = "intermediate"
+dependencies = []
+runtime = "small synthetic example"
+claim = "The original and replayed candidate endpoints agree, with calibration reported as not_measured."
+
+[[example]]
+id = "evaluate_fixed_policies"
+title = "Evaluate fixed rules on a held-out action log"
+summary = "Use recorded assignment probabilities and resample complete histories to compare two fixed rules."
+rust = "examples/rust/evaluate_fixed_policies.rs"
+topic = "Decisions and study planning"
+level = "intermediate"
+dependencies = []
+runtime = "small synthetic example"
+claim = "Aligned policy-evaluation draws reproduce on replay. The diagnostic does not measure coverage or validate a rule-learning procedure."
+
+[[example]]
+id = "transport_selected_path"
+title = "Trace an effect through chosen treatment links"
+summary = "Fit time-ordered equations on source rows, then compare two link selections at the target."
+rust = "examples/rust/transport_selected_path.rs"
+topic = "Transport"
+level = "intermediate"
+dependencies = []
+runtime = "small synthetic example"
+claim = "The planted link contrasts are two and seven. Replay reproduces the first result and refuses it under the second identity."
+
+[[example]]
+id = "shared_measurement_errors"
+title = "Use two measurements that can be wrong together"
+summary = "Fit joint error tables from labelled test pairs and propagate their uncertainty into an outcome query."
+rust = "examples/rust/shared_measurement_errors.rs"
+topic = "Evidence and composition"
+level = "intermediate"
+dependencies = []
+runtime = "small synthetic example"
+claim = "The conditional point value matches the hand calculation and the fitted result replays. The posterior interval is unmeasured."

@@ -302,14 +302,29 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
     };
     let claim = ClaimDemand {
         uncertainty: match statistical.realization() {
-            Realization::Frequentist(_) => UncertaintyReading::Sampling,
-            Realization::Bayesian(_) | Realization::GeneralizedBayes(_) => {
-                UncertaintyReading::Posterior
+            Realization::Frequentist(_) | Realization::SequentialTrajectoryBootstrap => {
+                UncertaintyReading::Sampling
             }
+            Realization::Bayesian(_)
+            | Realization::GeneralizedBayes(_)
+            | Realization::DeclaredPosterior { .. } => UncertaintyReading::Posterior,
             Realization::Envelope(_) => UncertaintyReading::Envelope,
+            Realization::DeclaredPredictive { .. } => UncertaintyReading::Predictive,
+            Realization::NestedFit { law, .. } => match law {
+                crate::planner::statistical::NestedFitLaw::Posterior => {
+                    UncertaintyReading::Posterior
+                }
+                crate::planner::statistical::NestedFitLaw::Predictive => {
+                    UncertaintyReading::Predictive
+                }
+            },
+            Realization::DeclaredAssumptionEnvelope { .. } => {
+                UncertaintyReading::AssumptionEnvelope
+            }
             Realization::GraphImputationV1
             | Realization::CategoricalPosteriorCandidateV1
             | Realization::ExactPoint { .. } => UncertaintyReading::None,
+            Realization::SequentialKnownLawMonteCarlo => UncertaintyReading::MonteCarlo,
         },
         kind: status.map(claim_kind),
     };

@@ -68,25 +68,40 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::planner::lowered::{
+    ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
+    EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
+    ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
+};
+use crate::planner::statistical::{ModelRole, ModelSlot, Realization, StatisticalProgram};
+use crate::planner::{PlanStage, PlanView};
+use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_contract::{
     ComposedCoordinate, ContinuousSlotsRequest, CoverageRecord, ExternalRefusal, InferenceBasis,
     InputAlignment, InputRole, MeasuredIndicator, ObservationOperation, ObservationSlotsRequest,
     ObservedSlot, PropagationDependence, PropagationInput, PropagationOperation,
-    PropagationRequest, RequestedReading, SlotValue, calibration_refusal, check_composed_interval,
-    check_continuous_assignments, check_observation_slots, check_propagation, interval_refusal,
+    PropagationRequest, RequestedReading, SlotProvenance, SlotValue, calibration_refusal,
+    check_composed_interval, check_continuous_assignments, check_joint_measured_slots,
+    check_observation_slots, check_propagation, interval_refusal,
 };
-use antecedent_core::ExecutionContext;
+use antecedent_core::{
+    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect, PhysicalOperator,
+    SemanticDigest,
+};
 use antecedent_io::IoError;
 use antecedent_io::measurement_model_wire::model_to_wire;
+use antecedent_io::mechanism_composition_artifact::MechanismCompositionPremisesWire;
 use antecedent_io::observation_query_artifact::{
     ObservationQueryArtifactError, ObservationQueryArtifactWire,
 };
+use std::sync::Arc;
 
 pub use super::mechanism_exports::model_crate::observation_query::Direction;
 pub use super::mechanism_exports::model_crate::observation_uncertainty::RedrawPrior;
 pub use antecedent_io::observation_query_artifact::{
-    MeasuredSlotWire, ObservationQueryWire, ObservationResultWire, RedrawPriorWire,
-    RedrawTargetWire, RetainedMechanismWire,
+    DependentMeasurementWire, MeasuredSlotWire, ObservationQueryWire, ObservationResultWire,
+    RedrawPriorWire, RedrawTargetWire, RetainedMechanismWire,
 };
 
 use super::PreparedMechanismComposition;
@@ -821,6 +836,449 @@ fn split_slots(slots: &[ObservedSlot]) -> Result<ConditioningSlots, ObservationQ
         }
     }
     Ok(ConditioningSlots { observed, measured })
+}
+
+/// A finite-model query with several recorded noisy indicators of one
+/// construct. Their measurement errors are explicitly declared independent
+/// conditional on that construct; the resulting law remains model conditional.
+#[derive(Clone, Debug, PartialEq)]
+pub struct JointMeasuredObservationRequest {
+    /// Outcome whose conditional level law is requested.
+    pub outcome: String,
+    /// Direct recorded values and measured indicator slots.
+    pub conditioning: Vec<ObservedSlot>,
+    /// Optional hard interventions applied before conditioning.
+    pub interventions: Vec<(String, String)>,
+    /// Must be `conditionally_independent_given_construct`.
+    pub dependence: String,
+}
+
+/// A complete joint indicator-error law for one finite construct. The law
+/// gives every indicator combination under each construct level, so dependent
+/// errors do not need an artificial conditional-independence premise.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DependentMeasuredObservationRequest {
+    /// Outcome whose conditional level law is requested.
+    pub outcome: String,
+    /// Exact direct observations.
+    pub observed: Vec<(String, String)>,
+    /// Recorded indicator identity and level.
+    pub measured: Vec<(String, String)>,
+    /// Optional hard interventions applied before conditioning.
+    pub interventions: Vec<(String, String)>,
+    /// Complete scoped joint error law, including its evidence identity.
+    pub error_law: DependentMeasurementWire,
+}
+
+/// The same retained six-layer observation plan under the version-4
+/// dependent-error measurement rule.
+pub type DependentMeasuredObservationPlan = JointMeasuredObservationPlan;
+
+/// A retained six-layer program for a joint measured-signal observation.
+#[derive(Clone, Debug)]
+pub struct JointMeasuredObservationPlan {
+    composition: PreparedMechanismComposition,
+    query: ObservationQueryWire,
+    lowered: Arc<LoweredProgram>,
+}
+
+impl JointMeasuredObservationPlan {
+    /// Every layer of the compiled measurement and observation program.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
+
+    /// Inspect the program without evaluating the requested law.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
+
+    /// Condition the intervened or observational finite law on the joint
+    /// measurement likelihood inside the retained compiler dispatch.
+    ///
+    /// # Errors
+    /// An invalid model, impossible evidence or cancellation.
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<ObservationClaim, ObservationQueryRefusal> {
+        let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        seal(
+            Some(self.composition.spec()),
+            self.query.clone(),
+            InferenceBasis::DeclaredModel,
+            &scoped,
+        )
+    }
+
+    /// Recompile and reexecute the same model and query, then independently
+    /// consume an exported v3 observation artifact and compare every result bit.
+    ///
+    /// # Errors
+    /// A different program identity, query, premise or numerical result.
+    pub fn consume(
+        &self,
+        bytes: &[u8],
+        expected_program: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<ObservationClaim, ObservationQueryRefusal> {
+        if expected_program != self.lowered.identity() {
+            return Err(ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                "joint measurement program identity mismatch",
+            ));
+        }
+        let replayed = ObservationClaim::from_artifact(bytes, None, ctx)?;
+        let produced = self.execute(ctx)?;
+        if replayed.query() != &self.query
+            || replayed.identity() != produced.identity()
+            || replayed.result() != produced.result()
+        {
+            return Err(ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                "joint measurement artifact differs from its compiler program",
+            ));
+        }
+        Ok(replayed)
+    }
+}
+
+impl PreparedMechanismComposition {
+    /// Compile a joint noisy-indicator observation on the complete finite
+    /// model. Existing one-indicator queries retain their original semantics.
+    ///
+    /// # Errors
+    /// A non-finite model, invalid slots, missing measurement model or
+    /// undeclared error dependence is refused before evaluation.
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+    pub fn compile_joint_measured_observation(
+        &self,
+        request: &JointMeasuredObservationRequest,
+    ) -> Result<JointMeasuredObservationPlan, ObservationQueryRefusal> {
+        if self.family() != MechanismFamily::Tabular {
+            return Err(ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("route_not_supported"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                "joint measured indicators require a finite composed model",
+            ));
+        }
+        let slots = ObservationSlotsRequest {
+            operation: if request.interventions.is_empty() {
+                ObservationOperation::Conditioning
+            } else {
+                ObservationOperation::Intervention
+            },
+            outcome_id: &request.outcome,
+            conditioning: &request.conditioning,
+            interventions: &request.interventions,
+        };
+        check_joint_measured_slots(&slots, &request.dependence)
+            .map_err(ObservationQueryRefusal::one)?;
+        let mut observed = Vec::new();
+        let mut measured = Vec::new();
+        for slot in &request.conditioning {
+            match &slot.value {
+                SlotValue::Direct => observed.push((slot.variable_id.clone(), slot.level.clone())),
+                SlotValue::Measured(indicator) => measured.push(measured_wire(slot, indicator)?),
+            }
+        }
+        let query = ObservationQueryWire::JointMeasuredOutcome {
+            outcome: request.outcome.clone(),
+            interventions: request.interventions.clone(),
+            observed,
+            measured,
+            dependence: request.dependence.clone(),
+        }
+        .canonical();
+        let premises = MechanismCompositionPremisesWire::from_spec(self.spec());
+        let premises_bytes = antecedent_io::to_cbor(&premises).map_err(|error| {
+            ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                error.to_string(),
+            )
+        })?;
+        let query_bytes = antecedent_io::to_cbor(&query).map_err(|error| {
+            ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                error.to_string(),
+            )
+        })?;
+        let mut writer = CanonicalWriter::new("antecedent.joint_measured_observation_program.v1");
+        writer.bytes(&premises_bytes).bytes(&query_bytes);
+        let digest = writer.finish();
+        let model_digest = CanonicalWriter::digest_bytes(
+            "antecedent.joint_measured_observation_model.v1",
+            &premises_bytes,
+        );
+        let scientific = ScientificProblem {
+            runtime_query: None,
+            identity_scope: ProgramIdentityScope::Semantic,
+            target: ProblemTarget::QueryFunctional {
+                kind: FunctionalKind::ConditionalObservation,
+                outcome: None,
+                query: digest,
+            },
+            plan_id: Arc::from("joint_measured_observation.v1"),
+            data: DataClassification::Tabular,
+            graph_class: "composed_finite_model",
+            query_variables: Arc::from(Vec::new()),
+            source_digest: Some(model_digest),
+            support_coordinate: None,
+            supported: false,
+            support_status: None,
+        };
+        let identification = IdentificationLayer::NonGraphical(Arc::new(
+            NonGraphicalIdentification::SpecifiedModelConditional { model: model_digest },
+        ));
+        let models = query.clone();
+        let ObservationQueryWire::JointMeasuredOutcome { measured, .. } = models else {
+            unreachable!("the compiler created a joint measured query")
+        };
+        let slots: Vec<ModelSlot> = measured
+            .iter()
+            .map(|indicator| ModelSlot {
+                role: ModelRole::Mechanism,
+                family: Arc::from(format!("joint_measurement.{}", indicator.indicator_id)),
+                inputs: Arc::from(Vec::new()),
+                output: None,
+            })
+            .collect();
+        let design = DesignShape::not_design_based(
+            "exact finite model enumeration with declared measurement likelihood",
+        );
+        let statistical = StatisticalProgram {
+            identifier: None,
+            estimator: None,
+            realization: Realization::ExactPoint {
+                evaluator: Arc::from("joint_measured_observation.conditional_law"),
+            },
+            models: Arc::from(slots),
+            folds: None,
+            resampling: None,
+            posterior: None,
+            design,
+            operators: Arc::from(Vec::new()),
+        };
+        let evidence = EvidenceDecisionProgram {
+            sources: Arc::from(vec![
+                EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(model_digest) },
+                EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(digest) },
+            ]),
+            composition: Composition::Chained { stages: measured.len() + 1 },
+            decision: None,
+            planning: None,
+            chain: None,
+        };
+        let quote = (measured.len() as u64 + 1).saturating_mul(1024);
+        let mut operators = Vec::with_capacity(measured.len() + 2);
+        for effect in std::iter::once(PhysicalEffect::Read)
+            .chain(std::iter::repeat_n(PhysicalEffect::Condition, measured.len() + 1))
+        {
+            operators.push(
+                PhysicalOperator::declare(effect)
+                    .estimates(ByteEstimates::absent().with_output(quote))
+                    .build()
+                    .map_err(|error| {
+                        ObservationQueryRefusal::of(
+                            antecedent_core::reason_code!("invalid_argument"),
+                            "observe",
+                            antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                            error.to_string(),
+                        )
+                    })?,
+            );
+        }
+        let physical = PhysicalLayer { operators: Arc::from(operators), design };
+        let claim =
+            ClaimDemand { uncertainty: UncertaintyReading::None, kind: Some(ClaimKind::Point) };
+        let lowered = Arc::new(
+            StandaloneCompositionLoweredParts {
+                cell: ProgramCell::JointMeasuredObservation,
+                scientific,
+                identification,
+                statistical,
+                evidence,
+                physical,
+                claim,
+            }
+            .finish(),
+        );
+        Ok(JointMeasuredObservationPlan { composition: self.clone(), query, lowered })
+    }
+
+    /// Compile conditioning on a complete dependent-error indicator table.
+    /// The table and its evidence identity are bound to a separate scientific
+    /// program and version-4 artifact. All numeric conditioning occurs only
+    /// after compilation and is replayed by the artifact consumer.
+    ///
+    /// # Errors
+    /// Non-finite composition, invalid direct observations or intervention,
+    /// missing scope, or physical program refusal.
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+    pub fn compile_dependent_measured_observation(
+        &self,
+        request: &DependentMeasuredObservationRequest,
+    ) -> Result<DependentMeasuredObservationPlan, ObservationQueryRefusal> {
+        let invalid = |detail: String| {
+            ObservationQueryRefusal::of(
+                antecedent_core::reason_code!("invalid_argument"),
+                "observe",
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                detail,
+            )
+        };
+        if self.family() != MechanismFamily::Tabular {
+            return Err(invalid("dependent indicators require a finite composed model".into()));
+        }
+        if request.error_law.construct.trim().is_empty()
+            || request.error_law.population_id != self.spec().target.population
+            || request.error_law.evidence_id.trim().is_empty()
+            || request.observed.iter().any(|(variable, _)| variable == &request.error_law.construct)
+        {
+            return Err(invalid(
+                "dependent measurement needs one scoped, evidenced latent construct".into(),
+            ));
+        }
+        let direct: Vec<ObservedSlot> = request
+            .observed
+            .iter()
+            .map(|(variable, level)| ObservedSlot {
+                variable_id: variable.clone(),
+                level: level.clone(),
+                provenance: SlotProvenance::Recorded,
+                value: SlotValue::Direct,
+            })
+            .collect();
+        check_observation_slots(&ObservationSlotsRequest {
+            operation: if request.interventions.is_empty() {
+                ObservationOperation::Conditioning
+            } else {
+                ObservationOperation::Intervention
+            },
+            outcome_id: &request.outcome,
+            conditioning: &direct,
+            interventions: &request.interventions,
+        })
+        .map_err(ObservationQueryRefusal::one)?;
+        let query = ObservationQueryWire::DependentMeasuredOutcome {
+            outcome: request.outcome.clone(),
+            interventions: request.interventions.clone(),
+            observed: request.observed.clone(),
+            measured: request.measured.clone(),
+            error_law: request.error_law.clone(),
+        }
+        .canonical();
+        antecedent_io::observation_query_artifact::check_query_bounds(&query)
+            .map_err(artifact_refusal)?;
+        let premises = MechanismCompositionPremisesWire::from_spec(self.spec());
+        let premises_bytes =
+            antecedent_io::to_cbor(&premises).map_err(|error| invalid(error.to_string()))?;
+        let query_bytes =
+            antecedent_io::to_cbor(&query).map_err(|error| invalid(error.to_string()))?;
+        let mut writer =
+            CanonicalWriter::new("antecedent.dependent_measured_observation_program.v1");
+        writer.bytes(&premises_bytes).bytes(&query_bytes);
+        let digest = writer.finish();
+        let model_digest = CanonicalWriter::digest_bytes(
+            "antecedent.dependent_measured_observation_model.v1",
+            &premises_bytes,
+        );
+        let scientific = ScientificProblem {
+            runtime_query: None,
+            identity_scope: ProgramIdentityScope::Semantic,
+            target: ProblemTarget::QueryFunctional {
+                kind: FunctionalKind::ConditionalObservation,
+                outcome: None,
+                query: digest,
+            },
+            plan_id: Arc::from("dependent_measured_observation.v1"),
+            data: DataClassification::Tabular,
+            graph_class: "composed_finite_model_dependent_measurement",
+            query_variables: Arc::from(Vec::new()),
+            source_digest: Some(model_digest),
+            support_coordinate: None,
+            supported: false,
+            support_status: None,
+        };
+        let identification = IdentificationLayer::NonGraphical(Arc::new(
+            NonGraphicalIdentification::SpecifiedModelConditional { model: model_digest },
+        ));
+        let statistical = StatisticalProgram {
+            identifier: None,
+            estimator: None,
+            realization: Realization::ExactPoint {
+                evaluator: Arc::from("dependent_measured_observation.joint_likelihood"),
+            },
+            models: Arc::from(vec![ModelSlot {
+                role: ModelRole::Mechanism,
+                family: Arc::from("joint_dependent_measurement"),
+                inputs: Arc::from(Vec::new()),
+                output: None,
+            }]),
+            folds: None,
+            resampling: None,
+            posterior: None,
+            design: DesignShape::not_design_based(
+                "exact finite model enumeration with declared joint error law",
+            ),
+            operators: Arc::from(Vec::new()),
+        };
+        let evidence = EvidenceDecisionProgram {
+            sources: Arc::from(vec![
+                EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(model_digest) },
+                EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(digest) },
+            ]),
+            composition: Composition::Chained { stages: 2 },
+            decision: None,
+            planning: None,
+            chain: None,
+        };
+        let design = DesignShape::not_design_based(
+            "exact finite model enumeration with declared joint error law",
+        );
+        let quote = (request.error_law.probability_bits.len() as u64)
+            .saturating_mul(8)
+            .saturating_add(1024);
+        let physical = PhysicalLayer {
+            operators: Arc::from([
+                PhysicalOperator::declare(PhysicalEffect::Read)
+                    .estimates(ByteEstimates::absent().with_output(quote))
+                    .build()
+                    .map_err(|error| invalid(error.to_string()))?,
+                PhysicalOperator::declare(PhysicalEffect::Condition)
+                    .estimates(ByteEstimates::absent().with_output(quote))
+                    .build()
+                    .map_err(|error| invalid(error.to_string()))?,
+            ]),
+            design,
+        };
+        let claim =
+            ClaimDemand { uncertainty: UncertaintyReading::None, kind: Some(ClaimKind::Point) };
+        let lowered = Arc::new(
+            StandaloneCompositionLoweredParts {
+                cell: ProgramCell::DependentMeasuredObservation,
+                scientific,
+                identification,
+                statistical,
+                evidence,
+                physical,
+                claim,
+            }
+            .finish(),
+        );
+        Ok(JointMeasuredObservationPlan { composition: self.clone(), query, lowered })
+    }
 }
 
 fn real_bits(pairs: &[(String, f64)]) -> Vec<(String, u64)> {

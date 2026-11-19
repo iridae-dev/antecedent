@@ -33,9 +33,11 @@ use antecedent_core::execution::AdmissionLease;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+mod event_inputs;
 mod interval;
 mod simulation;
 mod world;
+pub use event_inputs::solve_event_input_path;
 use interval::{Iv, enclose, imax_abs};
 #[cfg(test)]
 use simulation::{admit, mean_and_se, numerical_error, run_path, sum_polled};

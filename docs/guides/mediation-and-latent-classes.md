@@ -115,6 +115,10 @@ Each is a `LatentClassRefusal` (a [structured refusal](../reference/refusal-code
 | `effect_not_identified` | `latent_class.treatment_constant` | The treatment does not vary. |
 | `mechanism_fit_not_converged` | `latent_class.not_converged`, `.likelihood_not_monotone` | No start converges within `max_iterations` (default 500), or the EM log-likelihood decreases. |
 
+## Look for different ways an intervention was delivered
+
+If the recorded action was randomized and the way it was delivered is missing, start with [the two rollout examples](latent-soft-interventions.md#two-rollouts-with-the-same-headline-effect). They show how to compare eligible steps that could have changed after the action.
+
 ## Related
 
 - [Estimate an effect when treatment has several levels](treatment-levels.md) for categorical and joint treatments.

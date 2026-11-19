@@ -15,7 +15,8 @@
 //!    posterior, or an exact enclosure or point) and one model slot per stage;
 //! 4. the evidence: one source per chain source, the stages in sequence, and the
 //!    declared chain itself (the record identity the execution seals);
-//! 5. one physical operator per stage, with the output bytes the table admits;
+//! 5. one physical operator per stage and, for a combined decision, one scoring
+//!    operator, with their output bytes admitted;
 //! 6. the claim demand.
 //!
 //! Lowering computes no number and grants no support: a chain value is a labelled
@@ -35,14 +36,15 @@ use antecedent_core::{
     PhysicalOperator, Prior, ScoreFrequentist, ScoreModel,
 };
 use antecedent_io::propagation_chain_record::{
-    PropagationChainRecordWire, propagation_chain_identity,
+    PROPAGATION_CHAIN_ASSUMPTION_VERSION, PROPAGATION_CHAIN_JOINT_LAW_VERSION,
+    PROPAGATION_CHAIN_LAW_VERSION, PropagationChainRecordWire, propagation_chain_identity,
 };
 
 use crate::planner::lowered::{
-    ChainLoweredParts, ChainProgram, ClaimDemand, Composition, DesignShape,
-    EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer,
-    LoweredProgram, NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ScientificProblem,
-    UncertaintyReading,
+    CarrierDemand, ChainLoweredParts, ChainProgram, ClaimDemand, Composition, DecisionProgram,
+    DesignShape, EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef, FunctionalKind,
+    IdentificationLayer, LoweredProgram, NonGraphicalIdentification, PhysicalLayer, ProblemTarget,
+    ScientificProblem, UncertaintyReading,
 };
 use crate::planner::statistical::{ModelRole, ModelSlot, Realization, StatisticalProgram};
 
@@ -81,9 +83,15 @@ pub(crate) fn declaration_identity(
 fn uncertainty(plan: &ChainPlan) -> UncertaintyReading {
     match plan.stage(&plan.output) {
         Some(output) => match (output.representation, output.meaning) {
+            (NodeRepresentation::Enclosure, Some(LawMeaning::Sampling | LawMeaning::Posterior)) => {
+                UncertaintyReading::AssumptionEnvelope
+            }
             (NodeRepresentation::Enclosure, _) => UncertaintyReading::Envelope,
             (NodeRepresentation::Draws, Some(LawMeaning::Posterior)) => {
                 UncertaintyReading::Posterior
+            }
+            (NodeRepresentation::Draws, Some(LawMeaning::Predictive)) => {
+                UncertaintyReading::Predictive
             }
             (NodeRepresentation::Draws, _) => UncertaintyReading::Sampling,
             _ => UncertaintyReading::None,
@@ -116,6 +124,19 @@ fn statistical_program(
             Prior::new("propagation_chain.declared_posterior_sources".to_owned())
                 .map_err(refuse)?,
         )),
+        UncertaintyReading::Predictive => {
+            Realization::DeclaredPredictive { evaluator: Arc::from(name) }
+        }
+        UncertaintyReading::MonteCarlo => {
+            return Err(refuse("Monte Carlo decision draws require their own compiler route"));
+        }
+        UncertaintyReading::AssumptionEnvelope => {
+            let draw_meaning = plan
+                .stage(&plan.output)
+                .and_then(|stage| stage.meaning)
+                .ok_or_else(|| refuse("an assumption envelope needs a draw-law meaning"))?;
+            Realization::DeclaredAssumptionEnvelope { evaluator: Arc::from(name), draw_meaning }
+        }
         UncertaintyReading::Envelope | UncertaintyReading::None => {
             Realization::ExactPoint { evaluator: Arc::from(name) }
         }
@@ -124,7 +145,7 @@ fn statistical_program(
         .stages
         .iter()
         .map(|stage| ModelSlot {
-            role: if stage.kind == StageKind::PreposteriorUpdate.as_str() {
+            role: if matches!(stage.kind.as_str(), "preposterior_update" | "predictive_mapping") {
                 ModelRole::Outcome
             } else {
                 ModelRole::Mechanism
@@ -158,12 +179,18 @@ fn operator(effect: PhysicalEffect, output: Option<u64>) -> Result<PhysicalOpera
     builder.build().map_err(refuse)
 }
 
-/// One read of the sources, then one operator per stage; the last carries the bytes
-/// of the table a stage column occupies.
-fn physical_layer(draft: &PropagationChainRecordWire) -> Result<PhysicalLayer, ChainRefusal> {
+/// One read of the sources, then one operator per stage; the last chain stage
+/// carries the table bytes. A combined decision adds its scoring operator.
+fn physical_layer(
+    draft: &PropagationChainRecordWire,
+    decision: Option<&DecisionProgram>,
+) -> Result<PhysicalLayer, ChainRefusal> {
     let rows = draft.sources.iter().map(|s| s.values.len() as u64).max().unwrap_or(1);
     let nodes = (draft.sources.len() + draft.stages.len()) as u64;
-    let table_bytes = rows.saturating_mul(nodes).saturating_mul(8);
+    let retained_joint_columns = draft.joint_outputs.len() as u64;
+    let table_bytes = rows
+        .saturating_mul(nodes.saturating_add(retained_joint_columns).saturating_add(1))
+        .saturating_mul(8);
     let mut effects = vec![PhysicalEffect::Read];
     for stage in &draft.stages {
         effects.push(match StageKind::from_name(&stage.kind) {
@@ -173,11 +200,18 @@ fn physical_layer(draft: &PropagationChainRecordWire) -> Result<PhysicalLayer, C
         });
     }
     let last = effects.len() - 1;
-    let operators = effects
+    let mut operators = effects
         .into_iter()
         .enumerate()
         .map(|(index, effect)| operator(effect, (index == last).then_some(table_bytes)))
         .collect::<Result<Vec<_>, _>>()?;
+    if let Some(decision) = decision {
+        // Utility and chance-constraint scoring is a physical step of this
+        // combined program. The law route may retain one utility column per
+        // action and a weight column; the envelope route retains less.
+        let decision_bytes = rows.saturating_mul(decision.actions() as u64 + 1).saturating_mul(8);
+        operators.push(operator(PhysicalEffect::Condition, Some(decision_bytes))?);
+    }
     Ok(PhysicalLayer {
         operators: Arc::from(operators),
         design: DesignShape::not_design_based(CHAIN_DESIGN_SHAPE),
@@ -197,9 +231,33 @@ pub(crate) fn lower_chain(
     draft: PropagationChainRecordWire,
     plan: ChainPlan,
 ) -> Result<LoweredProgram, ChainRefusal> {
+    lower_chain_with_decision(draft, plan, None)
+}
+
+/// Lower a chain and an optional decision contract as one six-layer program.
+/// The caller checks the decision's quantities and carrier before supplying it.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+pub(crate) fn lower_chain_with_decision(
+    draft: PropagationChainRecordWire,
+    plan: ChainPlan,
+    declared_decision: Option<DecisionProgram>,
+) -> Result<LoweredProgram, ChainRefusal> {
     let identity = declaration_identity(&draft, &plan)?;
     let query = CanonicalWriter::digest_bytes(QUERY_TAG, identity.as_bytes());
     let uncertainty = uncertainty(&plan);
+    if let Some(decision) = &declared_decision {
+        let supported = matches!(
+            (decision.carrier(), uncertainty),
+            (CarrierDemand::ParameterPosterior, UncertaintyReading::Posterior)
+                | (CarrierDemand::PredictiveLaw, UncertaintyReading::Predictive)
+                | (CarrierDemand::IdentifiedSet, UncertaintyReading::AssumptionEnvelope)
+        );
+        if !supported {
+            return Err(refuse(
+                "the decision's law or identified-set carrier does not match the chain output reading",
+            ));
+        }
+    }
     let reading = plan.reading.as_str();
     let scientific = ScientificProblem {
         runtime_query: None,
@@ -222,7 +280,7 @@ pub(crate) fn lower_chain(
         NonGraphicalIdentification::SharedEvidenceContract { contract: query },
     ));
     let statistical = statistical_program(&draft, &plan, uncertainty)?;
-    let physical = physical_layer(&draft)?;
+    let physical = physical_layer(&draft, declared_decision.as_ref())?;
     let sources: Vec<EvidenceSourceRef> = draft
         .sources
         .iter()
@@ -232,17 +290,62 @@ pub(crate) fn lower_chain(
         })
         .collect();
     let stages = draft.stages.len();
+    // Only the answer's own utility stage is a terminal decision: the generic
+    // decision program reads the answer, not an unrelated intermediate stage.
+    // Version 1 keeps its original lowered identity and stage-only verdict.
+    let decision_reference = draft
+        .stages
+        .iter()
+        .find(|stage| stage.id == draft.output)
+        .and_then(|stage| stage.decision_reference);
+    let decision = if let Some(declared) = declared_decision {
+        Some(declared)
+    } else if let Some(reference_bits) = decision_reference
+        && matches!(
+            draft.version,
+            PROPAGATION_CHAIN_LAW_VERSION
+                | PROPAGATION_CHAIN_ASSUMPTION_VERSION
+                | PROPAGATION_CHAIN_JOINT_LAW_VERSION
+        )
+    {
+        let reference = f64::from_bits(reference_bits);
+        let assumption_envelope = draft.version == PROPAGATION_CHAIN_ASSUMPTION_VERSION;
+        Some(DecisionProgram {
+            // The utility stage already transforms every aligned row. Its
+            // expected value is enough to compare with a fixed reference.
+            carrier: if assumption_envelope {
+                CarrierDemand::IdentifiedSet
+            } else {
+                CarrierDemand::Mean
+            },
+            utility: DecisionProgram::utility_form(Some(vec![(reference, 0.0), (0.0, 1.0)])),
+            actions: 2,
+            constraints: 0,
+            chance_threshold: 0.0,
+            utility_unit: draft.output_quantity.as_ref().and_then(|quantity| {
+                (quantity.role == "utility").then(|| Arc::from(quantity.units.as_str()))
+            }),
+            contract_identity: Some(Arc::from(identity.as_str())),
+            information_value: None,
+            scenario_source: assumption_envelope.then(|| Arc::from(identity.as_str())),
+        })
+    } else {
+        None
+    };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from(sources),
         composition: Composition::Chained { stages },
-        decision: None,
+        decision,
         planning: None,
         chain: Some(ChainProgram::new(draft, plan, identity)),
     };
     let claim = ClaimDemand {
         uncertainty,
         kind: Some(match uncertainty {
-            UncertaintyReading::Envelope => ClaimKind::Bounds,
+            UncertaintyReading::Envelope | UncertaintyReading::AssumptionEnvelope => {
+                ClaimKind::Bounds
+            }
+            UncertaintyReading::Predictive => ClaimKind::Associational,
             _ => ClaimKind::Point,
         }),
     };

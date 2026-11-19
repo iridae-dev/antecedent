@@ -198,9 +198,13 @@ fn chain_failure(error: &PropagationChainError) -> NodeFailure {
     failure(stage, error.to_string())
 }
 
-/// A propagation chain is replayed stage by stage from its stored draws. The
-/// record keeps the summary of every stage and not the output column, so the node
-/// carries the answer's value and spread and is not a source of draws.
+/// A propagation chain is replayed stage by stage from its stored draws. A
+/// law-bearing version-2 record also replays its output column and row weights;
+/// version 3 replays draw-indexed assumption bounds and their row weights;
+/// version 4 replays every declared joint output column and their common weights.
+/// The node publishes law meaning or assumption bounds as diagnostics, but not
+/// `FACT_LAW`: a declared output coordinate does not certify a causal
+/// distribution source for a decision consumer.
 pub(super) fn inspect_propagation_chain(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     if bytes.len() > MAX_SNIFF_BYTES {
         return Err(failure(BundleStage::Oversized, "the propagation chain exceeds its bound"));
@@ -212,6 +216,23 @@ pub(super) fn inspect_propagation_chain(bytes: &[u8]) -> Result<Inspected, NodeF
     publish(&mut facts, FACT_TRUST, TRUST_UNVERIFIED);
     publish(&mut facts, "chain_label", consumed.label.clone());
     let mut values = Vec::new();
+    if let Some(draws) = consumed.output_draws.as_ref() {
+        publish(&mut facts, "chain_law_meaning", consumed.plan.reading.as_str());
+        push_value(&mut values, "answer.n_draws".to_owned(), draws.len() as f64);
+    }
+    if let Some(columns) = consumed.joint_output_draws.as_ref() {
+        publish(&mut facts, "chain_joint_law_meaning", consumed.plan.reading.as_str());
+        push_value(&mut values, "answer.n_joint_coordinates".to_owned(), columns.len() as f64);
+        push_value(
+            &mut values,
+            "answer.n_joint_rows".to_owned(),
+            columns.first().map_or(0, Vec::len) as f64,
+        );
+    }
+    if let Some(lower) = consumed.output_lower_bounds.as_ref() {
+        publish(&mut facts, "chain_assumption_envelope", "draw_indexed_uncalibrated");
+        push_value(&mut values, "answer.n_enclosures".to_owned(), lower.len() as f64);
+    }
     if let Some(answer) = consumed.answer() {
         for name in ["mean", "variance"] {
             if let Some(value) = answer.value(name) {

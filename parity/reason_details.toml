@@ -2364,6 +2364,12 @@ codes = ["external_binding_mismatch"]
 meaning = "A node or edge digest differs from its recomputation, or the graph is malformed (blank or repeated node, dangling or repeated edge, self-dependency, cycle)."
 
 [[detail]]
+id = "composition_bundle.execution_cancelled"
+family = "composition_bundle"
+codes = ["cancelled_no_claim"]
+meaning = "A native bundle node execution stopped because its shared cancellation token was set."
+
+[[detail]]
 id = "composition_bundle.expected_identity_mismatch"
 family = "composition_bundle"
 codes = ["external_binding_mismatch"]
@@ -2404,6 +2410,12 @@ id = "composition_bundle.provider_request_changed"
 family = "composition_bundle"
 codes = ["external_binding_mismatch"]
 meaning = "A supplied provider answered a request other than the exact request the node declares."
+
+[[detail]]
+id = "composition_bundle.resource_refused"
+family = "composition_bundle"
+codes = ["execution_resource_limit"]
+meaning = "A native bundle node execution or artifact operation was refused by a resource or admission budget."
 
 [[detail]]
 id = "composition_bundle.swapped_evidence"
@@ -7060,6 +7072,18 @@ id = "latent_class.weak_class"
 family = "latent_class"
 codes = ["population_not_estimable"]
 meaning = "A class falls below the minimum weight or its effect is not separated from another's by the declared gap."
+
+[[detail]]
+id = "latent_soft_intervention.forecast_inadequate"
+family = "latent_soft_intervention"
+codes = ["not_supported"]
+meaning = "The held-out evaluation leaves the fitted recorded-action response inadequate for forecasting."
+
+[[detail]]
+id = "latent_soft_intervention.invalid_request"
+family = "latent_soft_intervention"
+codes = ["invalid_argument"]
+meaning = "The declaration, source, fitted coordinate, or replay request is invalid for the latent soft-intervention route."
 
 [[detail]]
 id = "latent_class.wrong_contract"
@@ -16391,3 +16415,51 @@ id = "synthetic_control_panel.observed_window_option"
 family = "synthetic_control_panel"
 codes = ["option_not_applicable"]
 meaning = "An observed-window synthetic control is combined with an option that reads a balanced panel (synthetic difference in differences, unit randomization, a rollout, or the Bayesian posterior)."
+
+[[detail]]
+id = "events.invalid_request"
+family = "events"
+codes = ["invalid_argument"]
+meaning = "History, scope, binding or consumer declaration is incompatible."
+
+[[detail]]
+id = "events.unstable"
+family = "events"
+codes = ["invalid_argument"]
+meaning = "A strict stationary branching witness cannot be verified."
+
+[[detail]]
+id = "events.fit_failed"
+family = "events"
+codes = ["not_supported"]
+meaning = "The requested fit or recursive refit does not meet its stated domain or numerical cutoff."
+
+[[detail]]
+id = "events.budget"
+family = "events"
+codes = ["execution_resource_limit"]
+meaning = "A bounded event computation exhausted its event, memory or work limit."
+
+[[detail]]
+id = "events.numerical"
+family = "events"
+codes = ["invalid_argument"]
+meaning = "Numerical conditions prevent retention of the requested event law."
+
+[[detail]]
+id = "events.unverified_source"
+family = "events"
+codes = ["not_supported"]
+meaning = "The external path payload is not covered by the exact execution receipt."
+
+[[detail]]
+id = "events.incomplete_law"
+family = "events"
+codes = ["not_supported"]
+meaning = "One or more paired trajectories failed and a joint law cannot be published."
+
+[[detail]]
+id = "events.interval_unmeasured"
+family = "events"
+codes = ["not_supported"]
+meaning = "The count interval has no current matching coverage record."

@@ -290,6 +290,7 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
     for magic, kind in (
         (b"ANTE-JOINT-SCENARIOS-1", "joint_scenarios_v1"),
         (b"ANTE-COMPILED-ROBUST-1", "compiled_robust_decision_v1"),
+        (b"ANTECEDENT-LATENT-SOFT-INTERVENTION-1", "latent_soft_intervention_forecast_v1"),
     ):
         if data.startswith(magic):
             return ArtifactInspection(
@@ -565,6 +566,7 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
     "composition_bundle": ("composition_bundle", "consume_bundle"),
     "compact_runtime_export_v1": ("compact_export", "CompactExport.consume"),
     "joint_distribution_v1": ("joint_distribution", "JointDistributionArtifact.load"),
+    "latent_soft_intervention_forecast_v1": ("latent_soft_intervention", "replay_forecast"),
     "transported_decision_v1": ("transported_response", "consume_transported_decision"),
 }
 

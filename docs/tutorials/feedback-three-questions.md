@@ -200,6 +200,16 @@ A replay recomputes the same numbers. It does not turn a model into evidence: th
 
 To learn a feedback law from data instead of declaring it, see [`examples/python/recovered_feedback_law.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/recovered_feedback_law.py): it recovers the same two-variable law from a passive sample and two randomized clamp experiments, and attaches fit uncertainty to the answers. The [cyclic systems guide](../guides/cyclic-systems.md) covers nonlinear loops, shared disturbances and experiment-based fitting.
 
+## Compare actions after fitting the feedback
+
+Now suppose you have trial rows instead of a fully specified loop. In the Rust example, advertising was fixed at several known levels and the trial recorded wishlists and traffic. The model fits one feedback coefficient from those rows. Compare ordinary and promoted placements using the same fitted coefficients and background disturbances in both worlds. This lets the decision ask how those two choices differ under the same conditions.
+
+Read the fitting diagnostics and the number of paired outcome draws before interpreting the verdict. The declared noise covariance and the feedback equations are premises of this example. The consumer rebuilds the fit and checks the decision against the identity saved at export. To see how replay differs from current permission to use a result, continue with [Replay old numbers, refuse current use](replay-and-current-decisions.md#replay-a-fitted-decision).
+
+Run `cargo run -p antecedent --example fitted_feedback_decision`.
+
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/fitted_feedback_decision.rs).
+
 ## What this established
 
 In the stated feedback model, the passive slope is about 0.776, clamping A from 0 to 1 changes the mean of B by 0.5, and a unit mean shock to `U_A` changes it by 0.625. The three differ because the interventions differ, not because of any estimation error: nothing was estimated. A clamp that leaves a loop with no equilibrium is retained as failed mass with a named next attempt.

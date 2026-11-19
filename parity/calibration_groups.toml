@@ -14852,3 +14852,13 @@ target = "joint_panel_calibration"
 tests = ["joint_panel_selected_program_value_temporal_bayesian_l95"]
 ignored = true
 grid = true
+
+[[group]]
+label = "event_count_calibration: hawkes_recursive_refit_count_l90"
+package = "antecedent"
+target = "event_count_calibration"
+features = ["calibration-internal"]
+tests = ["hawkes_recursive_refit_count_l90"]
+ignored = true
+grid = false
+whole = true

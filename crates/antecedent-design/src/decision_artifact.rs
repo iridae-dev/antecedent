@@ -428,6 +428,20 @@ pub fn source_digest(source: &DistributionArtifact) -> String {
     hasher.finish_hex()
 }
 
+/// Stable digest of every published decision value and its declared source
+/// identity. A composite artifact can retain this fingerprint when its source
+/// is a replayable compiler program instead of a distribution artifact.
+///
+/// # Errors
+/// A failure encoding the checked decision body.
+pub fn decision_result_fingerprint(
+    result: &DecisionResult,
+    source_identity: &str,
+) -> Result<String, IoError> {
+    let body = to_cbor(&result_to_body(result, source_identity))?;
+    Ok(CanonicalWriter::new("antecedent.decision_result_fingerprint.v1").bytes(&body).finish_hex())
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ExclusionWire {

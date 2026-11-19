@@ -6,8 +6,8 @@
 
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeEndpoint, BridgeMapping, BridgeScope,
-    MappingUncertainty, QuantityClass, SourceMappingDependence, TrialEffectPair,
-    TrialLevelValidation,
+    MappingUncertainty, QuantityClass, SourceMappingDependence, TransportabilityPremise,
+    TrialEffectPair, TrialLevelValidation,
 };
 use antecedent_contract::propagation_chain::{ChainReading, StageKind, TableConstruction};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
@@ -23,7 +23,22 @@ use antecedent_io::quantity_wire::DistributionMeaningWire;
 use antecedent_stats::normal_ppf;
 
 use super::*;
+use crate::analysis::bridge_transport_decision::{
+    compile_assessed_bridge_robust_decision, compile_assessed_bridge_transport_decision,
+    compile_bridge_transport_decision, consume_assessed_bridge_robust_decision,
+    consume_assessed_bridge_transport_decision, consume_bridge_transport_decision,
+};
+use crate::analysis::bridge_transport_premise_assessment::{
+    BridgeTransportPremiseAssessmentRequest, compile_bridge_transport_premise_assessment,
+};
+use crate::analysis::composition::{
+    BundleBuilder, NodeKind, compile_bridge_bundle_recomputation,
+    consume_portable_bridge_bundle_recomputation,
+};
 use crate::analysis::propagation_chain::PropagationChain;
+use antecedent_design::decision_contract::{
+    ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
+};
 
 fn quantity(variable: &str, units: &str) -> ScientificQuantity {
     ScientificQuantity {
@@ -115,6 +130,217 @@ fn contract(
         source_dependence: dependence,
         estimand_bridge: None,
     }
+}
+
+#[test]
+fn predictive_transport_bridge_and_nonlinear_utility_compile_together() {
+    let mut declaration =
+        contract(BridgeMapping::Affine { intercept: 0.5, slope: 2.0 }, None, None);
+    declaration.source_value = ValueKind::PredictiveLaw;
+    declaration.target_value = ValueKind::PredictiveLaw;
+    let established =
+        BridgeScope { population_id: "validation-adults".into(), regime_id: "do(t=1)".into() };
+    let target = BridgeScope { population_id: "adults".into(), regime_id: "do(t=1)".into() };
+    declaration.evidence_scope = established.clone();
+    declaration.transport = Some(TransportabilityPremise {
+        id: "validation-to-target".into(),
+        statement: "the trial-level surrogate relation holds in the target population".into(),
+        established_in: established,
+        applies_to: target,
+        evidence: Some("selection-diagram-review".into()),
+    });
+    let outcome = declaration.target.quantity.clone();
+    let decision = DecisionContract {
+        actions: vec![
+            DecisionAction {
+                id: "risk-sensitive".into(),
+                kind: ActionKind::External,
+                inputs: vec![outcome.clone()],
+                utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(0)),
+            },
+            DecisionAction {
+                id: "linear".into(),
+                kind: ActionKind::External,
+                inputs: vec![outcome],
+                utility: UtilityExpr::Input(0),
+            },
+        ],
+        utility_units: "score".into(),
+        criterion: DecisionCriterion::PosteriorExpectedUtility,
+        constraints: Vec::new(),
+        target_population: "adults".into(),
+        horizon: 0,
+        structural_policy: StructuralPolicy::RequireInvariantBestAction,
+    };
+    let ctx = ExecutionContext::for_tests(31);
+    let plan = compile_bridge_transport_decision(
+        declaration,
+        draws_table(64, 1.0, 0.3, DistributionMeaningWire::PosteriorPredictive),
+        9,
+        decision,
+    )
+    .expect("bridge, transport and utility compiler");
+    assert_eq!(plan.plan_view().route().as_str(), "BridgeTransportDecision");
+    let result = plan.execute(&ctx).expect("transported bridge utility");
+    assert!(result.bridge.inspect().transported);
+    assert_eq!(result.decision.decision.n_draws, 64);
+    let bytes = plan
+        .export(&result, "bridge-transport-utility", &ctx)
+        .expect("complete composite artifact");
+    let replay = consume_bridge_transport_decision(&bytes, plan.lowered().identity(), &ctx)
+        .expect("independent bridge and decision replay");
+    assert_eq!(replay.decision.decision, result.decision.decision);
+}
+
+#[test]
+#[ignore = "source-only matched validation and decision replay; scientific records are unearned"]
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+fn matched_trial_validation_and_bridge_decision_replay_together() {
+    let trials = |offset: f64| TrialLevelValidation {
+        trials: (0..20)
+            .map(|index| {
+                let x = -1.0 + 2.0 * f64::from(index) / 19.0;
+                TrialEffectPair {
+                    surrogate_effect: x,
+                    terminal_effect: 0.5
+                        + 2.0 * x
+                        + offset
+                        + (if index % 2 == 0 { 0.01 } else { -0.01 }),
+                }
+            })
+            .collect(),
+        min_trials: 3,
+        min_r_squared: 0.0,
+    };
+    let source = trials(0.0);
+    let premise = TransportabilityPremise {
+        id: "validation-to-target".into(),
+        statement: "trial surrogate relation transfers".into(),
+        established_in: BridgeScope {
+            population_id: "validation-adults".into(),
+            regime_id: "do(t=1)".into(),
+        },
+        applies_to: BridgeScope { population_id: "adults".into(), regime_id: "do(t=1)".into() },
+        evidence: Some("independent-target-validation".into()),
+    };
+    let mut declaration = contract(BridgeMapping::TrialLevelLinear(source.clone()), None, None);
+    declaration.source_value = ValueKind::PredictiveLaw;
+    declaration.target_value = ValueKind::PredictiveLaw;
+    declaration.evidence_scope = premise.established_in.clone();
+    declaration.transport = Some(premise.clone());
+    let outcome = declaration.target.quantity.clone();
+    let decision = DecisionContract {
+        actions: vec![
+            DecisionAction {
+                id: "use-bridge".into(),
+                kind: ActionKind::External,
+                inputs: vec![outcome.clone()],
+                utility: UtilityExpr::Input(0),
+            },
+            DecisionAction {
+                id: "risk-sensitive".into(),
+                kind: ActionKind::External,
+                inputs: vec![outcome],
+                utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(0)),
+            },
+        ],
+        utility_units: "score".into(),
+        criterion: DecisionCriterion::PosteriorExpectedUtility,
+        constraints: Vec::new(),
+        target_population: "adults".into(),
+        horizon: 0,
+        structural_policy: StructuralPolicy::RequireInvariantBestAction,
+    };
+    let ctx = ExecutionContext::for_tests(43);
+    let assessment =
+        compile_bridge_transport_premise_assessment(BridgeTransportPremiseAssessmentRequest {
+            premise,
+            source,
+            target: trials(0.05),
+            source_trial_ids: (0..20).map(|i| format!("source-trial-{i}")).collect(),
+            target_trial_ids: (0..20).map(|i| format!("target-trial-{i}")).collect(),
+            surrogate_grid: vec![-0.8, 0.0, 0.8],
+            equivalence_margin: 0.2,
+        })
+        .unwrap();
+    let robust_bridge = compile_bridge_transport_decision(
+        declaration.clone(),
+        draws_table(64, 0.0, 0.1, DistributionMeaningWire::PosteriorPredictive),
+        11,
+        decision.clone(),
+    )
+    .unwrap();
+    let robust_assessed =
+        compile_assessed_bridge_transport_decision(assessment.clone(), robust_bridge).unwrap();
+    let robust_contract = DecisionContract {
+        criterion: DecisionCriterion::MaximinOverStructures,
+        ..decision.clone()
+    };
+    let bridge = compile_bridge_transport_decision(
+        declaration,
+        draws_table(64, 1.0, 0.3, DistributionMeaningWire::PosteriorPredictive),
+        11,
+        decision,
+    )
+    .unwrap();
+    let plan = compile_assessed_bridge_transport_decision(assessment, bridge).unwrap();
+    assert_eq!(plan.plan_view().route().as_str(), "AssessedBridgeTransportDecision");
+    let result = plan.execute(&ctx).unwrap();
+    assert!(result.assessment.equivalence_screen_passed);
+    assert_eq!(result.assessment.calibration, "not_measured");
+    let bytes = plan.export(&result, "assessed-bridge-decision", &ctx).unwrap();
+    let replay =
+        consume_assessed_bridge_transport_decision(&bytes, result.lowered_program_identity, &ctx)
+            .unwrap();
+    assert_eq!(replay.assessment, result.assessment);
+    assert_eq!(replay.bridge.decision.decision, result.bridge.decision.decision);
+    let robust = compile_assessed_bridge_robust_decision(robust_assessed, robust_contract).unwrap();
+    let bounds = robust.execute(&ctx).unwrap();
+    assert_eq!(bounds.calibration, "not_measured");
+    assert_eq!(bounds.robust.actions.len(), 2);
+    let portable = robust.export(&bounds, "assessed-bridge-robust", &ctx).unwrap();
+    let replayed =
+        consume_assessed_bridge_robust_decision(&portable, robust.lowered().identity(), &ctx)
+            .unwrap();
+    assert_eq!(replayed.assessed.assessment, bounds.assessed.assessment);
+    assert_eq!(replayed.robust, bounds.robust);
+}
+
+#[test]
+#[ignore = "source-only live bridge bundle terminal; no calibration earned"]
+fn predictive_bridge_bundle_recomputes_a_live_terminal() {
+    let mut declaration =
+        contract(BridgeMapping::Affine { intercept: 0.5, slope: 2.0 }, None, None);
+    declaration.source_value = ValueKind::PredictiveLaw;
+    declaration.target_value = ValueKind::PredictiveLaw;
+    let source = draws_table(64, 1.0, 0.3, DistributionMeaningWire::PosteriorPredictive);
+    let prepared = PreparedScientificBridgeDistribution::prepare(declaration.clone()).unwrap();
+    let result = prepared.derive(&source, None, 41).unwrap();
+    let bridge_artifact = result.export("bridge-bundle-terminal").unwrap();
+    let mut builder = BundleBuilder::new();
+    let source_bytes = source.to_bytes("bridge-bundle-source-node").unwrap();
+    builder.add_artifact(Some("source"), NodeKind::Distribution, &source_bytes).unwrap();
+    builder
+        .add_artifact(Some("terminal"), NodeKind::ScientificBridge, &bridge_artifact.bytes)
+        .unwrap();
+    builder.connect("source", "terminal").unwrap();
+    let bundle = builder.build().unwrap();
+    let expected_bundle = bundle.identity().to_owned();
+    let ctx = ExecutionContext::for_tests(41);
+    let plan =
+        compile_bridge_bundle_recomputation(bundle, "terminal", declaration, source, 41).unwrap();
+    assert_eq!(plan.plan_view().route().as_str(), "BridgeBundleRecomputation");
+    let receipt = plan.execute(&ctx).unwrap();
+    assert_eq!(receipt.terminal_identity, bridge_artifact.identity);
+    let bytes = plan.export_portable(&receipt, &ctx).unwrap();
+    let replay = consume_portable_bridge_bundle_recomputation(
+        &bytes,
+        &expected_bundle,
+        plan.lowered().identity(),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(replay, receipt);
 }
 
 fn uncertain() -> BridgeContract {
@@ -383,4 +609,211 @@ fn a_chain_of_bridge_transport_and_utility_propagates_the_mapping_and_the_source
     )
     .expect("consume");
     assert_eq!(consumed.output, "utility");
+}
+
+#[test]
+fn a_predictive_bridge_handoff_compiles_as_a_predictive_law() {
+    let mut declaration = uncertain();
+    declaration.source_value = ValueKind::PredictiveLaw;
+    declaration.target_value = ValueKind::PredictiveLaw;
+    let table = draws_table(1_001, 1.0, 0.3, DistributionMeaningWire::PosteriorPredictive);
+    let result = PreparedScientificBridgeDistribution::prepare(declaration)
+        .expect("predictive bridge")
+        .derive(&table, None, 9)
+        .expect("predictive mapped draws");
+    let parts = result.chain_stage("terminal").expect("aligned bridge stage");
+    assert_eq!(parts.reading, ChainReading::Predictive);
+    assert_eq!(parts.sources[0].meaning.as_deref(), Some("predictive"));
+    let ctx = ExecutionContext::for_tests(31);
+    let plan = result
+        .compile_chain_stage("terminal", &ctx)
+        .expect("compiler accepts checked predictive handoff");
+    let chain = plan.execute(&ctx).expect("retained bridge program executes");
+    assert_eq!(chain.label(), "predictive_propagation");
+    let output = chain.stage("terminal").expect("mapped output");
+    assert!((output.value("mean").unwrap() - result.mean()).abs() < 1e-9);
+}
+
+#[test]
+#[ignore = "source-only target posterior predictive bridge decision; reliability not earned"]
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+fn independent_target_posterior_and_source_innovation_replay_together() {
+    use crate::analysis::bridge_transport_decision::{
+        BridgeTargetPosteriorPremises, compile_assessed_bridge_posterior_decision,
+        consume_assessed_bridge_posterior_decision,
+    };
+    use crate::analysis::composition::{
+        BundleBuilder, NodeKind, compile_assessed_bridge_posterior_node_decision_bundle,
+        consume_portable_predictive_fit_decision_bundle,
+    };
+    let trials = |offset: f64| TrialLevelValidation {
+        trials: (0..20)
+            .map(|index| {
+                let x = -1.0 + 2.0 * f64::from(index) / 19.0;
+                TrialEffectPair {
+                    surrogate_effect: x,
+                    terminal_effect: 0.5
+                        + 2.0 * x
+                        + offset
+                        + (if index % 2 == 0 { 0.01 } else { -0.01 }),
+                }
+            })
+            .collect(),
+        min_trials: 3,
+        min_r_squared: 0.0,
+    };
+    let source = trials(0.0);
+    let premise = TransportabilityPremise {
+        id: "validation-to-target".into(),
+        statement: "trial surrogate relation transfers".into(),
+        established_in: BridgeScope {
+            population_id: "validation-adults".into(),
+            regime_id: "do(t=1)".into(),
+        },
+        applies_to: BridgeScope { population_id: "adults".into(), regime_id: "do(t=1)".into() },
+        evidence: Some("independent-target-validation".into()),
+    };
+    let mut declaration = contract(BridgeMapping::TrialLevelLinear(source.clone()), None, None);
+    declaration.source_value = ValueKind::PredictiveLaw;
+    declaration.target_value = ValueKind::PredictiveLaw;
+    declaration.evidence_scope = premise.established_in.clone();
+    declaration.transport = Some(premise.clone());
+    let outcome = declaration.target.quantity.clone();
+    let decision = DecisionContract {
+        actions: vec![
+            DecisionAction {
+                id: "use-bridge".into(),
+                kind: ActionKind::External,
+                inputs: vec![outcome.clone()],
+                utility: UtilityExpr::Input(0),
+            },
+            DecisionAction {
+                id: "risk-sensitive".into(),
+                kind: ActionKind::External,
+                inputs: vec![outcome],
+                utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(0)),
+            },
+        ],
+        utility_units: "score".into(),
+        criterion: DecisionCriterion::ExpectedRegret,
+        constraints: Vec::new(),
+        target_population: "adults".into(),
+        horizon: 0,
+        structural_policy: StructuralPolicy::RequireInvariantBestAction,
+    };
+    let ctx = ExecutionContext::for_tests(43);
+    let assessment =
+        compile_bridge_transport_premise_assessment(BridgeTransportPremiseAssessmentRequest {
+            premise,
+            source,
+            target: trials(0.05),
+            source_trial_ids: (0..20).map(|i| format!("source-trial-{i}")).collect(),
+            target_trial_ids: (0..20).map(|i| format!("target-trial-{i}")).collect(),
+            surrogate_grid: vec![-0.8, 0.0, 0.8],
+            equivalence_margin: 0.2,
+        })
+        .unwrap();
+    let source_draws = draws_table(64, 0.0, 0.1, DistributionMeaningWire::PosteriorPredictive);
+    let mut metadata = source_draws.metadata().clone();
+    metadata.weights = Some((0..64).map(f64::from).collect());
+    let weighted_source =
+        DistributionArtifact::new(metadata, source_draws.draws().to_vec()).unwrap();
+    let bridge =
+        compile_bridge_transport_decision(declaration, weighted_source, 11, decision.clone())
+            .unwrap();
+    let assessed = compile_assessed_bridge_transport_decision(assessment, bridge).unwrap();
+    let plan = compile_assessed_bridge_posterior_decision(
+        assessed,
+        BridgeTargetPosteriorPremises {
+            validation_design: "independent-target-trials".into(),
+            target_validation_independent: true,
+            source_innovation_transfers: true,
+        },
+        &ctx,
+    )
+    .unwrap();
+    let result = plan.execute(&ctx).unwrap();
+    assert_eq!(result.calibration, "not_measured");
+    let weights = result.decision.chain.output_law().unwrap().1.unwrap();
+    assert_eq!(weights.len(), 63);
+    assert!(f64::from_bits(weights[0]) < f64::from_bits(weights[62]));
+    let artifact = plan.export(&result, "target-posterior-bridge", &ctx).unwrap();
+    let replay =
+        consume_assessed_bridge_posterior_decision(&artifact, plan.lowered().identity(), &ctx)
+            .unwrap();
+    assert_eq!(result.decision.chain.identity(), replay.decision.chain.identity());
+    assert_eq!(result.decision.decision, replay.decision.decision);
+    let terminal = crate::analysis::propagation_chain_decision::compile_chain_decision(
+        result.decision.chain.record().clone(),
+        decision,
+        &ctx,
+    )
+    .unwrap();
+    let terminal_bytes = terminal.export(&result.decision, "bridge-terminal").unwrap();
+    let mut builder = BundleBuilder::new();
+    builder
+        .add_assessed_bridge_posterior_fit("producer", &artifact, plan.lowered().identity(), &ctx)
+        .unwrap();
+    builder
+        .add_artifact(
+            Some("law"),
+            NodeKind::PropagationChain,
+            &result.decision.chain.export().unwrap(),
+        )
+        .unwrap();
+    builder.add_predictive_chain_decision("decision", &terminal_bytes, &ctx).unwrap();
+    assert!(
+        compile_assessed_bridge_posterior_node_decision_bundle(
+            builder.build().unwrap(),
+            "producer",
+            "law",
+            "decision",
+            &ctx
+        )
+        .is_err()
+    );
+    builder.connect("producer", "law").unwrap();
+    builder.connect("law", "decision").unwrap();
+    let bundle = builder.build().unwrap();
+    let outer = compile_assessed_bridge_posterior_node_decision_bundle(
+        bundle.clone(),
+        "producer",
+        "law",
+        "decision",
+        &ctx,
+    )
+    .unwrap();
+    let receipt = outer.execute(&ctx).unwrap();
+    let portable = outer.export_portable(&receipt, &ctx).unwrap();
+    assert_eq!(
+        consume_portable_predictive_fit_decision_bundle(
+            &portable,
+            bundle.identity(),
+            outer.lowered().identity(),
+            &ctx
+        )
+        .unwrap(),
+        receipt
+    );
+    assert!(
+        consume_portable_predictive_fit_decision_bundle(
+            &portable,
+            "wrong",
+            outer.lowered().identity(),
+            &ctx
+        )
+        .is_err()
+    );
+    let mut corrupt = artifact.clone();
+    corrupt[0] ^= 1;
+    assert!(
+        BundleBuilder::new()
+            .add_assessed_bridge_posterior_fit(
+                "producer",
+                &corrupt,
+                plan.lowered().identity(),
+                &ctx
+            )
+            .is_err()
+    );
 }

@@ -26,7 +26,7 @@
 use antecedent_contract::evidence_ledger::{
     EvidenceLedger, MAX_OBSERVATIONS_PER_SOURCE, ObservationId, SourceDeclaration, SourceKind,
 };
-use antecedent_core::{CanonicalWriter, ExecutionContext};
+use antecedent_core::{CanonicalWriter, ExecutionContext, RngFactory, StreamDomain};
 use antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED;
 use antecedent_io_core::contract_section::CalibrationSlotWire;
 use antecedent_stats::special::normal_ppf;
@@ -515,4 +515,150 @@ fn stage_logged_records(
 
 fn self_normalized_is_finite(sum_wg: f64, sum_w: f64) -> bool {
     (sum_wg / sum_w).is_finite()
+}
+
+/// Paired bootstrap estimates of ordinary importance-weighted policy values.
+/// Each column uses the same whole-trajectory resample for every policy.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OffPolicyBootstrap {
+    /// Original estimates in policy order.
+    pub estimates: Vec<OffPolicyEstimate>,
+    /// Replicate values in policy order, then replicate order.
+    pub replicates: Vec<Vec<f64>>,
+    /// Identity of the canonically ordered raw logged trajectories.
+    pub log_identity: String,
+    /// Bootstrap master seed.
+    pub seed: u64,
+    /// This is a sampling distribution, not a posterior distribution.
+    pub source_paradigm: &'static str,
+    /// No coverage calibration is claimed.
+    pub calibration: &'static str,
+}
+
+/// Evaluate fixed policies and bootstrap whole logged trajectories using common resamples.
+/// The ledger is changed only after all candidates and replicates succeed.
+///
+/// # Errors
+/// Any underlying evaluation refusal, insufficient effective support, invalid
+/// bootstrap size, nonfinite replicate, or cancellation.
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one bootstrap evaluation")]
+#[allow(clippy::too_many_lines, reason = "one pass from validation through resampling")]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "replicates is bounded by MAX_ROLLOUTS; resampled indices are clamped below the log"
+)]
+pub fn bootstrap_off_policy(
+    model: &FiniteSequentialModel,
+    targets: &[ContingentPolicy],
+    behaviour: &ContingentPolicy,
+    log: &[LoggedTrajectory],
+    ledger: &mut EvidenceLedger,
+    limits: EvaluationLimits,
+    seed: u64,
+    replicates: u64,
+    minimum_effective_sample_size: f64,
+    ctx: &ExecutionContext,
+) -> SequentialResult<OffPolicyBootstrap> {
+    if targets.len() < 2
+        || !(2..=super::MAX_ROLLOUTS).contains(&replicates)
+        || !minimum_effective_sample_size.is_finite()
+        || minimum_effective_sample_size < 2.0
+    {
+        return Err(refusal!(
+            "invalid_argument",
+            "sequential_evaluation.bootstrap_config",
+            "bootstrap requires at least two policies and replicates and a finite minimum effective sample size of at least two",
+            "supply a bounded bootstrap configuration and minimum support"
+        ));
+    }
+    if (targets.len() as u128) * ((log.len() as u128) + u128::from(replicates)) > 10_000_000
+        || (log.len() as u128) * u128::from(replicates) > 10_000_000
+    {
+        return Err(limit_exceeded("bootstrap retained values", 10_000_000));
+    }
+    let mut staged = ledger.clone();
+    let mut estimates = Vec::with_capacity(targets.len());
+    for target in targets {
+        let estimate =
+            evaluate_off_policy(model, target, behaviour, log, &mut staged, limits, ctx)?;
+        if estimate.effective_sample_size < minimum_effective_sample_size {
+            return Err(refusal!(
+                "history_support_violated",
+                "sequential_evaluation.low_effective_support",
+                "a policy has insufficient effective sample size in the log",
+                "supply more overlapping trajectories or restrict the policy set"
+            ));
+        }
+        estimates.push(estimate);
+    }
+    let compiled = model.compile()?;
+    let mut ordered: Vec<&LoggedTrajectory> = log.iter().collect();
+    ordered.sort_by(|a, b| a.id.cmp(&b.id));
+    let mut log_writer = CanonicalWriter::new("antecedent.sequential_evaluation.bootstrap_log.v1");
+    log_writer.word(ordered.len() as u64);
+    for trajectory in &ordered {
+        log_writer
+            .text(&trajectory.id)
+            .word(trajectory.outcome_utility.to_bits())
+            .word(trajectory.steps.len() as u64);
+        for step in &trajectory.steps {
+            log_writer
+                .word(step.action as u64)
+                .word(step.observation.map_or(u64::MAX, |value| value as u64))
+                .word(step.assignment_probability.to_bits());
+        }
+    }
+    let log_identity = log_writer.finish_hex();
+    let mut values = Vec::with_capacity(targets.len());
+    for target in targets {
+        let mut row = Vec::with_capacity(ordered.len());
+        for trajectory in &ordered {
+            let weighted = weigh(&compiled, target, behaviour, trajectory)?;
+            row.push(weighted.weight * weighted.ret);
+        }
+        values.push(row);
+    }
+    let mut output = vec![Vec::with_capacity(replicates as usize); targets.len()];
+    for replicate in 0..replicates {
+        if replicate % 256 == 0 && ctx.cancellation.is_cancelled() {
+            return Err(cancelled());
+        }
+        let mut totals = vec![0.0; targets.len()];
+        for draw in 0..ordered.len() {
+            let mut writer = CanonicalWriter::new("antecedent.sequential_evaluation.bootstrap.v1");
+            writer.word(replicate).word(draw as u64);
+            let digest = writer.finish();
+            let mut word = [0_u8; 8];
+            word.copy_from_slice(&digest[..8]);
+            let u = RngFactory::from_seed(seed)
+                .stream_for(StreamDomain::Design, u64::from_le_bytes(word))
+                .next_f64();
+            let index = ((u * ordered.len() as f64) as usize).min(ordered.len() - 1);
+            for (total, row) in totals.iter_mut().zip(&values) {
+                *total += row[index];
+            }
+        }
+        for (row, total) in output.iter_mut().zip(totals) {
+            let value = total / ordered.len() as f64;
+            if !value.is_finite() {
+                return Err(refusal!(
+                    "invalid_argument",
+                    "sequential_evaluation.bootstrap_overflow",
+                    "a bootstrap estimate is not finite",
+                    "rescale the outcome utilities"
+                ));
+            }
+            row.push(value);
+        }
+    }
+    *ledger = staged;
+    Ok(OffPolicyBootstrap {
+        estimates,
+        replicates: output,
+        log_identity,
+        seed,
+        source_paradigm: "sampling_distribution",
+        calibration: "not_measured",
+    })
 }

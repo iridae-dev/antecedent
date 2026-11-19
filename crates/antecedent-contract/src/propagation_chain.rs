@@ -31,6 +31,8 @@
 //!   quantity needs a measured coverage record. Each is a typed refusal with a
 //!   registered code and a [`NextAttempt`] that names the representation that
 //!   would carry the uncertainty.
+//!   The `assumption_envelope` reading keeps aligned sampling or posterior
+//!   draws and interval assumptions as separate axes through rowwise stages.
 //! * **Updates.** A preposterior update re-evaluates a decision after a future
 //!   study. It needs posterior draws of the parameter, and nothing may consume
 //!   it.
@@ -53,6 +55,10 @@ use crate::dependence::{
 
 /// Label of a quantity propagated as posterior draws.
 pub const POSTERIOR_PROPAGATION_LABEL: &str = "posterior_propagation";
+/// Label of a chain read as predictive quantity draws, without calibration.
+pub const PREDICTIVE_PROPAGATION_LABEL: &str = "predictive_propagation";
+/// Label of a draw-indexed enclosure over an interval-valued assumption.
+pub const ASSUMPTION_ENVELOPE_LABEL: &str = "assumption_envelope";
 /// Label of a chain read as an enclosure of declared intervals.
 pub const PROPAGATION_ENCLOSURE_LABEL: &str = "propagation_enclosure";
 /// Label of a chain value computed under the declared dependence.
@@ -144,7 +150,7 @@ pub const FIX_CHAIN_DECLARATION: NextAttempt = NextAttempt::new(
 /// The attempt a refused law-meaning mix names.
 pub const MATCH_LAW_MEANING: NextAttempt = NextAttempt::new(
     "match_law_meaning",
-    "give every input the same meaning, sampling or posterior; a sampling law does not become a posterior by being combined with one",
+    "give inputs a compatible law meaning; use a predictive mapping to combine posterior parameters with an aligned outcome innovation, never estimator sampling draws as outcome variability",
 );
 
 /// The attempt a stage invalidated by a withdrawn source names.
@@ -209,6 +215,8 @@ pub enum StageKind {
     DecisionUtility,
     /// Update the posterior by a future study and re-evaluate the decision.
     PreposteriorUpdate,
+    /// Map parameter and disturbance draws to draws of a future quantity.
+    PredictiveMapping,
 }
 
 named_variants! {
@@ -219,6 +227,7 @@ named_variants! {
         DerivedQuantity => "derived_quantity",
         DecisionUtility => "decision_utility",
         PreposteriorUpdate => "preposterior_update",
+        PredictiveMapping => "predictive_mapping",
     }
 }
 
@@ -234,6 +243,7 @@ impl StageKind {
             Self::DerivedQuantity => 4,
             Self::DecisionUtility => 5,
             Self::PreposteriorUpdate => 6,
+            Self::PredictiveMapping => 7,
         }
     }
 }
@@ -326,12 +336,18 @@ pub enum LawMeaning {
     Sampling,
     /// A posterior under a declared prior.
     Posterior,
+    /// A predictive law of a future quantity under the declared model.
+    Predictive,
+    /// An outcome disturbance or innovation under a declared predictive model.
+    Innovation,
 }
 
 named_variants! {
     LawMeaning {
         Sampling => "sampling",
         Posterior => "posterior",
+        Predictive => "predictive",
+        Innovation => "innovation",
     }
 }
 
@@ -342,6 +358,8 @@ impl LawMeaning {
         match self {
             Self::Sampling => 1,
             Self::Posterior => 2,
+            Self::Predictive => 3,
+            Self::Innovation => 4,
         }
     }
 }
@@ -386,11 +404,16 @@ pub enum ChainReading {
     Spread,
     /// Posterior draws of the output quantity.
     Posterior,
+    /// Predictive draws of the output quantity.
+    Predictive,
     /// The enclosure of the declared intervals.
     Enclosure,
     /// An interval of the composed quantity. Not constructed without a measured
     /// coverage record at the composed coordinate.
     Interval,
+    /// An envelope over interval assumptions, indexed by sampling or posterior
+    /// draws. It is not a confidence interval or posterior law of the answer.
+    AssumptionEnvelope,
 }
 
 named_variants! {
@@ -398,8 +421,10 @@ named_variants! {
         Point => "point",
         Spread => "spread",
         Posterior => "posterior",
+        Predictive => "predictive",
         Enclosure => "enclosure",
         Interval => "interval",
+        AssumptionEnvelope => "assumption_envelope",
     }
 }
 
@@ -413,6 +438,8 @@ impl ChainReading {
             Self::Posterior => 3,
             Self::Enclosure => 4,
             Self::Interval => 5,
+            Self::Predictive => 6,
+            Self::AssumptionEnvelope => 7,
         }
     }
 
@@ -423,7 +450,9 @@ impl ChainReading {
             Self::Point => PROPAGATION_POINT_LABEL,
             Self::Spread | Self::Interval => PROPAGATION_SPREAD_LABEL,
             Self::Posterior => POSTERIOR_PROPAGATION_LABEL,
+            Self::Predictive => PREDICTIVE_PROPAGATION_LABEL,
             Self::Enclosure => PROPAGATION_ENCLOSURE_LABEL,
+            Self::AssumptionEnvelope => ASSUMPTION_ENVELOPE_LABEL,
         }
     }
 }
@@ -720,7 +749,9 @@ fn class_fits(kind: StageKind, class: OperatorClass) -> bool {
     match kind {
         StageKind::Pooling => class.is_pool(),
         StageKind::PreposteriorUpdate => class == OperatorClass::Update,
-        StageKind::MeasurementMapping | StageKind::DecisionUtility => {
+        StageKind::MeasurementMapping
+        | StageKind::DecisionUtility
+        | StageKind::PredictiveMapping => {
             matches!(class, OperatorClass::Affine | OperatorClass::Nonlinear)
         }
         StageKind::Transport | StageKind::DerivedQuantity => {
@@ -777,12 +808,31 @@ struct ChainState<'a> {
 /// representation cannot give.
 pub fn check_propagation_chain(decl: &ChainDecl) -> Result<ChainPlan, ChainRefusal> {
     check_structure_and_budget(decl)?;
+    if decl.reading == ChainReading::AssumptionEnvelope
+        && let Some(stage) = decl
+            .stages
+            .iter()
+            .find(|stage| stage.class.is_pool() || stage.class == OperatorClass::Update)
+    {
+        return Err(refuse(
+            NOT_SUPPORTED_CODE,
+            "propagation_chain.assumption_envelope_operator",
+            "a draw-indexed assumption envelope needs rowwise operators; pooling and posterior updates require a separate law calculation",
+            Some(&stage.id),
+            FIX_CHAIN_DECLARATION,
+        ));
+    }
     let mut state = ChainState::default();
     declare_sources(decl, &mut state)?;
     let alignments = check_draw_alignment(decl, &state)?;
     let mut plans: Vec<StagePlan> = Vec::with_capacity(decl.stages.len());
     for stage in &decl.stages {
-        let plan = check_stage(stage, &mut state, &plans)?;
+        let plan = check_stage(
+            stage,
+            &mut state,
+            &plans,
+            decl.reading == ChainReading::AssumptionEnvelope,
+        )?;
         plans.push(plan);
     }
     finish_plan(decl, plans, &state, alignments)
@@ -890,7 +940,7 @@ fn check_draw_alignment<'a>(
         ));
     }
     let intervals = decl.sources.iter().any(|s| s.representation == Representation::Interval);
-    if intervals && !draw_sources.is_empty() {
+    if intervals && !draw_sources.is_empty() && decl.reading != ChainReading::AssumptionEnvelope {
         return Err(refuse(
             REPRESENTATION_CODE,
             "propagation_chain.mixed_draws_and_interval",
@@ -936,6 +986,7 @@ fn check_stage<'a>(
     stage: &'a ChainStageDecl,
     state: &mut ChainState<'a>,
     plans: &[StagePlan],
+    allow_mixed: bool,
 ) -> Result<StagePlan, ChainRefusal> {
     check_stage_shape(stage, state)?;
     let mut input_facts: Vec<NodeFacts> = Vec::with_capacity(stage.inputs.len());
@@ -962,7 +1013,7 @@ fn check_stage<'a>(
         }
     }
     charge_stage_tables(stage, state, &stage_sources, &union_factors)?;
-    let representation = check_stage_representation(stage, &input_facts)?;
+    let representation = check_stage_representation(stage, &input_facts, allow_mixed)?;
     let meaning = check_stage_meaning(stage, &input_facts)?;
     let dependence = check_stage_dependence(stage, state)?;
     state.facts.insert(stage.id.as_str(), NodeFacts { representation, meaning });
@@ -1049,6 +1100,7 @@ fn check_stage_shape(stage: &ChainStageDecl, state: &ChainState<'_>) -> Result<(
 fn check_stage_representation(
     stage: &ChainStageDecl,
     input_facts: &[NodeFacts],
+    allow_mixed: bool,
 ) -> Result<NodeRepresentation, ChainRefusal> {
     let has_draws = input_facts.iter().any(|f| f.representation == NodeRepresentation::Draws);
     let has_enclosure =
@@ -1101,7 +1153,7 @@ fn check_stage_representation(
                 SUPPLY_DRAWS_FOR_FIXED_INPUT,
             ));
         }
-    } else if has_draws && has_enclosure {
+    } else if has_draws && has_enclosure && !allow_mixed {
         return Err(refuse(
             REPRESENTATION_CODE,
             "propagation_chain.mixed_draws_and_interval",
@@ -1110,10 +1162,10 @@ fn check_stage_representation(
             SUPPLY_DRAWS_FOR_INTERVAL,
         ));
     }
-    Ok(if has_draws {
-        NodeRepresentation::Draws
-    } else if has_enclosure {
+    Ok(if has_enclosure {
         NodeRepresentation::Enclosure
+    } else if has_draws {
+        NodeRepresentation::Draws
     } else {
         NodeRepresentation::Point
     })
@@ -1125,11 +1177,56 @@ fn check_stage_meaning(
     input_facts: &[NodeFacts],
 ) -> Result<Option<LawMeaning>, ChainRefusal> {
     let meanings: BTreeSet<LawMeaning> = input_facts.iter().filter_map(|f| f.meaning).collect();
+    if stage.class.is_pool()
+        && (meanings.contains(&LawMeaning::Predictive)
+            || meanings.contains(&LawMeaning::Innovation))
+    {
+        return Err(refuse(
+            MEANING_CODE,
+            "propagation_chain.outcome_law_is_not_an_estimate_pool",
+            "inverse-variance or covariance pooling combines estimates of one quantity, not predictive outcomes or innovations",
+            Some(&stage.id),
+            FIX_CHAIN_DECLARATION,
+        ));
+    }
+    if stage.kind == StageKind::PredictiveMapping {
+        if !meanings.contains(&LawMeaning::Innovation) {
+            return Err(refuse(
+                REPRESENTATION_CODE,
+                "propagation_chain.predictive_disturbance_required",
+                "a predictive mapping needs an aligned outcome disturbance or innovation source",
+                Some(&stage.id),
+                FIX_CHAIN_DECLARATION,
+            ));
+        }
+        if meanings.contains(&LawMeaning::Sampling) {
+            return Err(refuse(
+                MEANING_CODE,
+                "propagation_chain.sampling_is_not_predictive",
+                "an estimator sampling law cannot stand in for an outcome or innovation law",
+                Some(&stage.id),
+                MATCH_LAW_MEANING,
+            ));
+        }
+        // A predictive input can be a predictor of a *new* outcome. The
+        // separately declared innovation is still required for that outcome;
+        // the existing predictive input is never used as its innovation.
+        return Ok(Some(LawMeaning::Predictive));
+    }
+    if meanings.len() == 2
+        && meanings.contains(&LawMeaning::Predictive)
+        && meanings.contains(&LawMeaning::Posterior)
+    {
+        // An uncertain mapping parameter applied to an already predictive
+        // input keeps the result predictive. This is not a posterior for the
+        // outcome and does not manufacture another outcome disturbance.
+        return Ok(Some(LawMeaning::Predictive));
+    }
     if meanings.len() > 1 {
         return Err(refuse(
             MEANING_CODE,
             "propagation_chain.law_meaning_mismatch",
-            "a stage reads a sampling law together with a posterior",
+            "a stage reads laws with different meanings; declare a predictive mapping when posterior parameters and predictive disturbances jointly generate an outcome",
             Some(&stage.id),
             MATCH_LAW_MEANING,
         ));
@@ -1199,7 +1296,31 @@ fn finish_plan(
     let Some(output) = plans.iter().find(|plan| plan.id == decl.output) else {
         return Err(malformed("the output names a stage of the chain", Some(&decl.output)));
     };
+    if decl.sources.iter().any(|source| {
+        matches!(source.meaning, Some(LawMeaning::Predictive | LawMeaning::Innovation))
+    }) && decl.reading != ChainReading::Predictive
+    {
+        return Err(refuse(
+            MEANING_CODE,
+            "propagation_chain.predictive_reading_required",
+            "a chain with predictive or innovation sources must publish its output as a predictive law",
+            Some(&decl.output),
+            FIX_CHAIN_DECLARATION,
+        ));
+    }
     check_reading(decl.reading, output)?;
+    if decl.reading == ChainReading::AssumptionEnvelope
+        && (!decl.sources.iter().any(|source| source.representation == Representation::Interval)
+            || !decl.sources.iter().any(|source| source.representation == Representation::Draws))
+    {
+        return Err(refuse(
+            REPRESENTATION_CODE,
+            "propagation_chain.assumption_envelope_needs_both_axes",
+            "an assumption envelope needs at least one interval assumption and one aligned draw source",
+            Some(&decl.output),
+            FIX_CHAIN_DECLARATION,
+        ));
+    }
     let fixed_sources = if output.representation == NodeRepresentation::Draws {
         output
             .sources
@@ -1223,6 +1344,10 @@ fn finish_plan(
     })
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Each reading checks its output representation in one exhaustive place."
+)]
 fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainRefusal> {
     let stage = Some(output.id.as_str());
     if reading == ChainReading::Interval {
@@ -1236,7 +1361,13 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
     }
     match output.representation {
         NodeRepresentation::Point => {
-            if matches!(reading, ChainReading::Spread | ChainReading::Posterior) {
+            if matches!(
+                reading,
+                ChainReading::Spread
+                    | ChainReading::Posterior
+                    | ChainReading::Predictive
+                    | ChainReading::AssumptionEnvelope
+            ) {
                 return Err(refuse(
                     REPRESENTATION_CODE,
                     "propagation_chain.point_has_no_spread",
@@ -1248,7 +1379,18 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
         }
         NodeRepresentation::Enclosure => match reading {
             ChainReading::Enclosure => {}
-            ChainReading::Posterior => {
+            ChainReading::AssumptionEnvelope => {
+                if !matches!(output.meaning, Some(LawMeaning::Sampling | LawMeaning::Posterior)) {
+                    return Err(refuse(
+                        REPRESENTATION_CODE,
+                        "propagation_chain.assumption_envelope_needs_draws",
+                        "an assumption envelope needs sampling or posterior draws alongside the interval assumption",
+                        stage,
+                        FIX_CHAIN_DECLARATION,
+                    ));
+                }
+            }
+            ChainReading::Posterior | ChainReading::Predictive => {
                 return Err(refuse(
                     REPRESENTATION_CODE,
                     "propagation_chain.interval_is_not_a_posterior",
@@ -1286,7 +1428,18 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
                     ));
                 }
             }
-            ChainReading::Enclosure | ChainReading::Interval => {
+            ChainReading::Predictive => {
+                if output.meaning != Some(LawMeaning::Predictive) {
+                    return Err(refuse(
+                        REPRESENTATION_CODE,
+                        "propagation_chain.parameter_law_is_not_predictive",
+                        "the output needs predictive outcome draws, including outcome variability under the declared model",
+                        stage,
+                        FIX_CHAIN_DECLARATION,
+                    ));
+                }
+            }
+            ChainReading::Enclosure | ChainReading::Interval | ChainReading::AssumptionEnvelope => {
                 return Err(refuse(
                     REPRESENTATION_CODE,
                     "propagation_chain.draws_are_not_an_enclosure",

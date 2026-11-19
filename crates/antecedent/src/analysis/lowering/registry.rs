@@ -193,12 +193,119 @@ macro_rules! route_lowerings {
             Planning(&'static str),
             /// A chain of transformations, by the reading it answers.
             PropagationChain(&'static str),
+            /// Complete observational policy learning and scoring.
+            ObservationalPolicy,
+            /// Joint measured-signal observation of a composed finite model.
+            JointMeasuredObservation,
+            /// Dependent-error measurement of one finite construct.
+            DependentMeasuredObservation,
+            /// Fitted dependent-error measurement with posterior draws.
+            FittedDependentMeasuredObservation,
+            /// Model-derived paired intervention worlds and a decision.
+            CyclicActionWorldDecision,
+            /// Joint fitted-mechanism posterior predictive action worlds.
+            CyclicPosteriorActionDecision,
+            /// Target-population feedback standardization over a cyclic fit and a decision.
+            CyclicTargetFeedbackDecision,
+            /// Checked bridge transport and predictive utility.
+            BridgeTransportDecision,
+            /// Premise assessment of a checked bridge transport.
+            BridgeTransportPremiseAssessment,
+            /// Matched bridge validation and conditional predictive utility.
+            AssessedBridgeTransportDecision,
+            /// Fitted source-target effect posterior and utility.
+            JointTransportEffectDecision,
+            /// Trial inverse-probability-weighted transport and a decision.
+            TrialIpwTransportDecision,
+            /// Trial inverse-probability-weighted predictive transport and a decision.
+            TrialIpwPredictiveDecision,
+            /// Joint source-target predictive transport and a decision.
+            JointTransportPredictiveDecision,
+            /// Target-population time-ordered path-specific transport.
+            TemporalPathTransport,
+            /// Whole-chain resampling union around an assumption envelope.
+            SamplingAssumptionUnion,
+            /// Whole-chain resampling union with independent and identically distributed units.
+            IidSamplingAssumptionUnion,
+            /// Compiler-generated whole-cluster bootstrap assumption union.
+            ClusterSamplingAssumptionUnion,
+            /// Whole-chain resampling union with moving-block resampling.
+            MovingBlockSamplingAssumptionUnion,
+            /// An observational policy value under m-out-of-n full-refit subsampling.
+            PolicySubsampling,
+            /// Sequential policy evaluation with a reliability diagnostic.
+            SequentialPolicyReliability,
+            /// Replay a bundle with a compiler-executed terminal.
+            BundleRecomputation,
+            /// Bundle replay with a live scientific bridge terminal.
+            BridgeBundleRecomputation,
+            /// Bundle replay with a refitted cyclic posterior producer.
+            CyclicPosteriorBundleRecomputation,
+            /// Bundle replay with an embedded cyclic posterior fit node.
+            CyclicPosteriorNodeBundleRecomputation,
+            /// Bundle replay with an embedded trial-IPW fit node.
+            TrialIpwNodeBundleRecomputation,
+            /// Bundle replay with a graph-imputation transport fit.
+            GraphImputationTransportNodeBundleRecomputation,
+            /// Bundle replay with a joint source-target effect fit.
+            JointTransportEffectNodeBundleRecomputation,
+            /// Bundle replay with an embedded joint predictive transport fit and decision.
+            JointTransportPredictiveNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded trial-IPW predictive fit and decision.
+            TrialIpwPredictiveNodeDecisionBundleRecomputation,
+            /// Fit the cyclic posterior, standardize over the target frame and score the decision.
+            ///
+            /// # Errors
+            /// A changed execution seed, a source or model refusal, or an invalid target frame.
+            CyclicTargetFeedbackNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded graph-imputation predictive fit and decision.
+            GraphImputationPredictiveNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded assessed-bridge posterior fit and decision.
+            AssessedBridgePosteriorNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded sequential policy reliability fit.
+            SequentialPolicyReliabilityNodeBundleRecomputation,
+            /// Checked connected components and a joint posterior decision.
+            JointComponentPosteriorDecision,
+            /// Checked connected components with a bounded-component posterior decision.
+            BoundedComponentPosteriorDecision,
+            /// Bundle replay with a parameter-posterior decision terminal.
+            PosteriorDecisionBundleRecomputation,
             /// A graph-selection imputation composite.
             GraphImputation,
+            /// Graph-imputation effect posterior and downstream utility.
+            GraphImputationEffectDecision,
+            /// Graph-imputation Bernoulli predictive-world draws and a decision.
+            GraphImputationBernoulliPredictiveWorldDecision,
+            /// Graph-imputation Gaussian target predictive-world draws and a decision.
+            GraphImputationGaussianTargetPredictiveWorldDecision,
+            /// Graph-imputation Bernoulli predictive decision with a whole-cluster bootstrap.
+            GraphImputationBernoulliPredictiveClusterBootstrapDecision,
+            /// Graph-imputation Gaussian predictive decision with a whole-cluster bootstrap.
+            GraphImputationGaussianPredictiveClusterBootstrapDecision,
+            /// Graph-imputation target standardization and downstream utility.
+            GraphImputationTransportDecision,
+            /// Graph-imputation transport with a whole-cluster bootstrap.
+            GraphImputationTransportClusterBootstrapDecision,
+            /// Graph-imputation transport with a confounded target.
+            GraphImputationConfoundedTransportDecision,
+            /// Graph-imputation confounded transport with a whole-cluster bootstrap.
+            GraphImputationConfoundedTransportClusterBootstrapDecision,
+            /// Graph-imputation transport over mixed target covariates.
+            GraphImputationKernelTransportDecision,
+            /// Graph-imputation mixed-covariate kernel transport with a whole-cluster bootstrap.
+            GraphImputationKernelTransportClusterBootstrapDecision,
+            /// Graph-imputation confounded kernel transport with a whole-cluster bootstrap.
+            GraphImputationConfoundedKernelTransportClusterBootstrapDecision,
+            /// Graph-imputation transport under a missing-at-random target.
+            GraphImputationMarTransportDecision,
             /// A scientifically closed categorical posterior candidate.
             CategoricalPosteriorCandidate,
             /// A bounded fixed-shift MNAR operation.
             MnarFixedShift,
+            /// Latent additive soft-intervention discovery and prediction.
+            LatentSoftIntervention,
+            /// Forecasts of timestamped events and their composed world responses.
+            EventProcess,
         }
 
         impl PlanRoute {
@@ -212,9 +319,61 @@ macro_rules! route_lowerings {
                     Self::CyclicFamily(_) => "CyclicFamily",
                     Self::Planning(_) => "ExperimentPlanning",
                     Self::PropagationChain(_) => "PropagationChain",
+                    Self::ObservationalPolicy => "ObservationalPolicy",
+                    Self::JointMeasuredObservation => "JointMeasuredObservation",
+                    Self::DependentMeasuredObservation => "DependentMeasuredObservation",
+                    Self::FittedDependentMeasuredObservation => "FittedDependentMeasuredObservation",
+                    Self::CyclicActionWorldDecision => "CyclicActionWorldDecision",
+                    Self::CyclicPosteriorActionDecision => "CyclicPosteriorActionDecision",
+                    Self::CyclicTargetFeedbackDecision => "CyclicTargetFeedbackDecision",
+                    Self::BridgeTransportDecision => "BridgeTransportDecision",
+                    Self::BridgeTransportPremiseAssessment => "BridgeTransportPremiseAssessment",
+                    Self::AssessedBridgeTransportDecision => "AssessedBridgeTransportDecision",
+                    Self::JointTransportEffectDecision => "JointTransportEffectDecision",
+                    Self::TrialIpwTransportDecision => "TrialIpwTransportDecision",
+                    Self::TrialIpwPredictiveDecision => "TrialIpwPredictiveDecision",
+                    Self::JointTransportPredictiveDecision => "JointTransportPredictiveDecision",
+                    Self::TemporalPathTransport => "TemporalPathTransport",
+                    Self::SamplingAssumptionUnion => "SamplingAssumptionUnion",
+                    Self::IidSamplingAssumptionUnion => "IidSamplingAssumptionUnion",
+                    Self::ClusterSamplingAssumptionUnion => "ClusterSamplingAssumptionUnion",
+                    Self::MovingBlockSamplingAssumptionUnion => "MovingBlockSamplingAssumptionUnion",
+                    Self::PolicySubsampling => "PolicySubsampling",
+                    Self::SequentialPolicyReliability => "SequentialPolicyReliability",
+                    Self::BundleRecomputation => "BundleRecomputation",
+                    Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
+                    Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
+                    Self::CyclicPosteriorNodeBundleRecomputation => "CyclicPosteriorNodeBundleRecomputation",
+                    Self::TrialIpwNodeBundleRecomputation => "TrialIpwNodeBundleRecomputation",
+                    Self::GraphImputationTransportNodeBundleRecomputation => "GraphImputationTransportNodeBundleRecomputation",
+                    Self::JointTransportEffectNodeBundleRecomputation => "JointTransportEffectNodeBundleRecomputation",
+                    Self::JointTransportPredictiveNodeDecisionBundleRecomputation => "JointTransportPredictiveNodeDecisionBundleRecomputation",
+                    Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => "TrialIpwPredictiveNodeDecisionBundleRecomputation",
+                    Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => "CyclicTargetFeedbackNodeDecisionBundleRecomputation",
+                    Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => "GraphImputationPredictiveNodeDecisionBundleRecomputation",
+                    Self::AssessedBridgePosteriorNodeDecisionBundleRecomputation => "AssessedBridgePosteriorNodeDecisionBundleRecomputation",
+                    Self::SequentialPolicyReliabilityNodeBundleRecomputation => "SequentialPolicyReliabilityNodeBundleRecomputation",
+                    Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
+                    Self::BoundedComponentPosteriorDecision => "BoundedComponentPosteriorDecision",
+                    Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
                     Self::GraphImputation => "GraphImputation",
+                    Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
+                    Self::GraphImputationBernoulliPredictiveWorldDecision => "GraphImputationBernoulliPredictiveWorldDecision",
+                    Self::GraphImputationGaussianTargetPredictiveWorldDecision => "GraphImputationGaussianTargetPredictiveWorldDecision",
+                    Self::GraphImputationBernoulliPredictiveClusterBootstrapDecision => "GraphImputationBernoulliPredictiveClusterBootstrapDecision",
+                    Self::GraphImputationGaussianPredictiveClusterBootstrapDecision => "GraphImputationGaussianPredictiveClusterBootstrapDecision",
+                    Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
+                    Self::GraphImputationTransportClusterBootstrapDecision => "GraphImputationTransportClusterBootstrapDecision",
+                    Self::GraphImputationConfoundedTransportDecision => "GraphImputationConfoundedTransportDecision",
+                    Self::GraphImputationConfoundedTransportClusterBootstrapDecision => "GraphImputationConfoundedTransportClusterBootstrapDecision",
+                    Self::GraphImputationKernelTransportDecision => "GraphImputationKernelTransportDecision",
+                    Self::GraphImputationKernelTransportClusterBootstrapDecision => "GraphImputationKernelTransportClusterBootstrapDecision",
+                    Self::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => "GraphImputationConfoundedKernelTransportClusterBootstrapDecision",
+                    Self::GraphImputationMarTransportDecision => "GraphImputationMarTransportDecision",
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
                     Self::MnarFixedShift => "MnarFixedShift",
+                    Self::LatentSoftIntervention => "LatentSoftIntervention",
+                    Self::EventProcess => "EventProcess",
                 }
             }
 
@@ -231,9 +390,61 @@ macro_rules! route_lowerings {
                     Self::CyclicFamily(_) => RouteFamily::Cyclic,
                     Self::Planning(_) => RouteFamily::Planning,
                     Self::PropagationChain(_) => RouteFamily::PropagationChain,
+                    Self::ObservationalPolicy => RouteFamily::DesignBased,
+                    Self::JointMeasuredObservation => RouteFamily::Structural,
+                    Self::DependentMeasuredObservation => RouteFamily::Structural,
+                    Self::FittedDependentMeasuredObservation => RouteFamily::Structural,
+                    Self::CyclicActionWorldDecision => RouteFamily::Cyclic,
+                    Self::CyclicPosteriorActionDecision => RouteFamily::Cyclic,
+                    Self::CyclicTargetFeedbackDecision => RouteFamily::Cyclic,
+                    Self::BridgeTransportDecision => RouteFamily::Structural,
+                    Self::BridgeTransportPremiseAssessment => RouteFamily::Structural,
+                    Self::AssessedBridgeTransportDecision => RouteFamily::Structural,
+                    Self::JointTransportEffectDecision => RouteFamily::Structural,
+                    Self::TrialIpwTransportDecision => RouteFamily::Structural,
+                    Self::TrialIpwPredictiveDecision => RouteFamily::Structural,
+                    Self::JointTransportPredictiveDecision => RouteFamily::Structural,
+                    Self::TemporalPathTransport => RouteFamily::Temporal,
+                    Self::SamplingAssumptionUnion => RouteFamily::PropagationChain,
+                    Self::IidSamplingAssumptionUnion => RouteFamily::PropagationChain,
+                    Self::ClusterSamplingAssumptionUnion => RouteFamily::PropagationChain,
+                    Self::MovingBlockSamplingAssumptionUnion => RouteFamily::PropagationChain,
+                    Self::PolicySubsampling => RouteFamily::DesignBased,
+                    Self::SequentialPolicyReliability => RouteFamily::DesignBased,
+                    Self::BundleRecomputation => RouteFamily::PropagationChain,
+                    Self::BridgeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::CyclicPosteriorBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::CyclicPosteriorNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::TrialIpwNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::GraphImputationTransportNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::JointTransportEffectNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::JointTransportPredictiveNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::AssessedBridgePosteriorNodeDecisionBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::SequentialPolicyReliabilityNodeBundleRecomputation => RouteFamily::PropagationChain,
+                    Self::JointComponentPosteriorDecision => RouteFamily::PropagationChain,
+                    Self::BoundedComponentPosteriorDecision => RouteFamily::PropagationChain,
+                    Self::PosteriorDecisionBundleRecomputation => RouteFamily::PropagationChain,
                     Self::GraphImputation => RouteFamily::GraphImputation,
+                    Self::GraphImputationEffectDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationBernoulliPredictiveWorldDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationGaussianTargetPredictiveWorldDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationBernoulliPredictiveClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationGaussianPredictiveClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationTransportDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationTransportClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationConfoundedTransportDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationConfoundedTransportClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationKernelTransportDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationKernelTransportClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => RouteFamily::GraphImputation,
+                    Self::GraphImputationMarTransportDecision => RouteFamily::GraphImputation,
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,
                     Self::MnarFixedShift => RouteFamily::DesignBased,
+                    Self::LatentSoftIntervention => RouteFamily::Structural,
+                    Self::EventProcess => RouteFamily::Structural,
                 }
             }
         }

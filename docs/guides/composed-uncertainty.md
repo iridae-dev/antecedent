@@ -92,6 +92,16 @@ cross-world executions have no whole-path derivation and are refused.
 The `joint_law_propagation.*` and `cross_world_uncertainty.*` details and their remedies are
 also listed in [refusal codes and remedies](../reference/refusal-codes.md#composed-spread-whole-path-evidence-overlap-and-interface-contracts).
 
+## Resample whole groups through the analysis
+
+If a store supplies two rows, the rows can share a store-level shock. Drawing panel rows independently would let a resample include one member of a pair without the other. The example gives each row a unit, cluster, and stratum identity. Antecedent draws the two rows together and keeps the draw within the original stratum.
+
+Each draw reruns the full calculation with the same allowed range for bias. Read the original range alongside the two final endpoints after resampling. The latter are a candidate uncertainty construction for this sampling design. The example shows its `not_measured` status and checks that replay gives the same endpoints. For time series, a block-based design instead preserves consecutive observations inside each series.
+
+Run `cargo run -p antecedent --example whole_cluster_uncertainty`.
+
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/whole_cluster_uncertainty.rs).
+
 ## Uncertainty of an adaptive procedure
 
 Enumerate the declared two-unit procedure, preserving its undefined contrast mass. The report is conditional on the supplied truths and design.

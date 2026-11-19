@@ -222,6 +222,16 @@ uncertain.uncertainty.names, uncertain.uncertainty.sd
 
 `posterior_draws` (block-weight posterior) or `bootstrap_replicates` (circular-block bootstrap) adds `rolled.uncertainty`: the spread over refits of the dynamics for the step means, and, in the `path.step[..]` quantities, one simulated path per refit. A path's summaries are the predictive law of a path, which adds the fitted innovation noise to the refit uncertainty, so they are much wider than the step-mean summaries. The rollout is the fitted model's projection under the interventions you schedule, not an identified effect of those interventions.
 
+## Follow only the treatment links you chose
+
+A treatment can change the first step, the second step, and the outcome directly. Give Antecedent the time-ordered graph and name the treatment links you want to switch on. The other links keep their reference settings. The program fits the declared equations on source rows and evaluates the selected contrast on target baseline rows.
+
+In the synthetic example, treatment adds one unit to the first step, and the second step doubles that unit. Activating only the first link therefore changes the outcome by two. Activating the remaining treatment links changes it by seven. The example checks both answers and tests that an artifact for one link selection cannot be replayed as the other.
+
+Run `cargo run -p antecedent --example transport_selected_path`.
+
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/transport_selected_path.rs).
+
 ## What is refused, and the remedy
 
 Each code is described with its remedies in [refusal codes](../reference/refusal-codes.md).

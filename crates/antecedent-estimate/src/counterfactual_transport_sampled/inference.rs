@@ -63,6 +63,53 @@ pub(crate) fn delta_standard_error(
     ctx: &ExecutionContext,
     work: &mut SampledWork<'_>,
 ) -> Result<DeltaOutcome, EstimationError> {
+    delta_standard_error_of(derivation, None, tables, probabilities, groups, limits, ctx, work)
+}
+
+/// Differentiate the *paired contrast* on one table stack. Subtracting two
+/// separately reported variances would discard the covariance of the two
+/// worlds, even when they cite the same sampled units.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "both derivations share one evidence and work schedule"
+)]
+pub(crate) fn delta_contrast_standard_error(
+    active: &CounterfactualTransportDerivation,
+    baseline: &CounterfactualTransportDerivation,
+    tables: &[SampledRegimeCounts],
+    probabilities: &[Vec<f64>],
+    groups: &DatasetGroups,
+    limits: &SampledTransportLimits,
+    ctx: &ExecutionContext,
+    work: &mut SampledWork<'_>,
+) -> Result<DeltaOutcome, EstimationError> {
+    delta_standard_error_of(
+        active,
+        Some(baseline),
+        tables,
+        probabilities,
+        groups,
+        limits,
+        ctx,
+        work,
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "the paired gradient shares one checked table schedule"
+)]
+fn delta_standard_error_of(
+    derivation: &CounterfactualTransportDerivation,
+    baseline: Option<&CounterfactualTransportDerivation>,
+    tables: &[SampledRegimeCounts],
+    probabilities: &[Vec<f64>],
+    groups: &DatasetGroups,
+    limits: &SampledTransportLimits,
+    ctx: &ExecutionContext,
+    work: &mut SampledWork<'_>,
+) -> Result<DeltaOutcome, EstimationError> {
     // A perturbed table is no longer the count shares, so its law is model-based.
     let mut flavors = Vec::with_capacity(tables.len());
     while flavors.len() < tables.len() {
@@ -136,9 +183,11 @@ pub(crate) fn delta_standard_error(
                         trial[member].extend_from_slice(chunk);
                     }
                 }
-                evaluations += 1;
-                match evaluate_detailed(derivation, tables, &trial, &flavors, limits, ctx, work) {
-                    Ok((v, _)) => value[slot] = v.probability,
+                evaluations += 1 + u64::from(baseline.is_some());
+                let active = match evaluate_detailed(
+                    derivation, tables, &trial, &flavors, limits, ctx, work,
+                ) {
+                    Ok((v, _)) => v.probability,
                     Err(EstimationError::Refused { code, .. })
                         if code != antecedent_core::reason_code!("transport_budget_cancel") =>
                     {
@@ -147,7 +196,23 @@ pub(crate) fn delta_standard_error(
                         });
                     }
                     Err(other) => return Err(other),
-                }
+                };
+                let baseline_value = if let Some(baseline) = baseline {
+                    match evaluate_detailed(baseline, tables, &trial, &flavors, limits, ctx, work) {
+                        Ok((v, _)) => v.probability,
+                        Err(EstimationError::Refused { code, .. })
+                            if code != antecedent_core::reason_code!("transport_budget_cancel") =>
+                        {
+                            return Ok(DeltaOutcome::Withheld {
+                                reason: SE_PERTURBED_EVALUATION_UNDEFINED,
+                            });
+                        }
+                        Err(other) => return Err(other),
+                    }
+                } else {
+                    0.0
+                };
+                value[slot] = active - baseline_value;
             }
             for &member in group {
                 trial[member].clear();

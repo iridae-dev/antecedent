@@ -228,9 +228,19 @@ executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
   An `observation_query` or `scientific_bridge` artifact is replayed by its own consumer, and a
   parameter-redraw query or a bridge of draws publishes its aligned table, so a decision result
   rests on the node as on a distribution; a bridged mean publishes `mean_only` and cannot feed a
-  law. A propagation chain (`propagation_chain` node) is replayed stage by stage and publishes
-  its answer's value and spread; it retains summaries and not the output column, so it is no
-  source of draws.
+  law. A propagation chain (`propagation_chain` node) is replayed stage by stage. A version-2
+  chain read as `posterior` or `predictive` retains its aligned output column and any row weights,
+  and independent consumption replays them bit for bit. The bundle node still publishes only its
+  summary. `chain_decision_v1` compiles that retained scalar law with a multi-action
+  `DecisionContract`, retaining the contract and chain record and replaying the decision
+  independently. Version 4 retains several aligned output columns with one common row-weight
+  vector for a joint multi-coordinate decision. It is not yet a bundle decision node.
+  A version-3 `assumption_envelope` chain retains per-draw lower and upper bounds under its
+  declared interval assumptions, with optional row weights. Replay verifies those columns;
+  `chain_robust_decision_v1` compiles their rowwise enclosures with a multi-action maximin
+  contract, conservatively bounds nonlinear utilities and chance constraints, and replays
+  the result. The bundle reports chain bounds as uncalibrated diagnostics and publishes no
+  causal law or coverage.
 - **No bundle node, prior or sensitivity input for the other producers.** Their artifacts are not
   composition-bundle node kinds (`detect_kind` is `None`), a point is not a `design.StatePrior`
   or a signal, and none is a `SensitivityArtifact`, a scenario stage or a failed contract; the

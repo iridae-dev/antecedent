@@ -278,10 +278,12 @@ pub use migrate::{
 pub use observation_query_artifact::{
     ConsumedObservationQuery, MeasuredSlotWire, OBSERVATION_QUERY_ARTIFACT_FEATURE,
     OBSERVATION_QUERY_ARTIFACT_VERSION, OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION,
-    OBSERVATION_QUERY_GENERAL_FEATURE, ObservationQueryArtifactError, ObservationQueryArtifactWire,
-    ObservationQueryWire, ObservationResultWire, PARAMETER_DRAWS_READING, RedrawPriorWire,
-    RedrawTargetWire, RetainedMechanismWire, evaluate_observation_query, inference_basis_of,
-    observation_query_identity, query_error_refusals,
+    OBSERVATION_QUERY_GENERAL_FEATURE, OBSERVATION_QUERY_JOINT_MEASURED_FEATURE,
+    OBSERVATION_QUERY_JOINT_MEASURED_VERSION, ObservationQueryArtifactError,
+    ObservationQueryArtifactWire, ObservationQueryWire, ObservationResultWire,
+    PARAMETER_DRAWS_READING, RedrawPriorWire, RedrawTargetWire, RetainedMechanismWire,
+    evaluate_observation_query, inference_basis_of, observation_query_identity,
+    query_error_refusals,
 };
 pub use plan_wire::{
     ExecutionPerformanceWire, LogicalAnalysisPlanWire, PhysicalExecutionPlanWire,

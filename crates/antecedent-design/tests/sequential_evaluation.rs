@@ -1155,11 +1155,28 @@ fn stream_identities_are_semantic_and_policies_share_them() {
     let config = RolloutConfig { seed: 5, rollouts: 2_000 };
     let a = rollout_policy(&model, &base, config, &ctx()).unwrap();
     let b = rollout_policy(&model, &extended, config, &ctx()).unwrap();
+    assert_eq!(a.utilities, b.utilities);
+    assert_eq!(a.utilities.len(), config.rollouts as usize);
     assert_eq!(a.mean.to_bits(), b.mean.to_bits());
     assert_eq!(a.monte_carlo_standard_error.to_bits(), b.monte_carlo_standard_error.to_bits());
     // a different policy on the same streams gives a different estimate
     let c = rollout_policy(&model, &policy_of("c", &act_now_repair()), config, &ctx()).unwrap();
     assert_ne!(a.mean.to_bits(), c.mean.to_bits());
+    let draws = antecedent_design::sequential_evaluation::rollout_decision_draws(
+        &[a.clone(), c.clone()],
+        "utility",
+    )
+    .unwrap();
+    assert_eq!(draws.n_draws(), config.rollouts as usize);
+    let mut wrong_stream = c;
+    wrong_stream.seed += 1;
+    assert!(
+        antecedent_design::sequential_evaluation::rollout_decision_draws(
+            &[a, wrong_stream],
+            "utility"
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -1830,4 +1847,60 @@ fn history_receipts_are_admitted_against_the_memory_limit() {
     assert_eq!(err.detail, antecedent_core::reason_details::sequential_evaluation::LIMIT_EXCEEDED);
     let roomy = ctx().with_memory_limit(Some(1 << 30));
     assert!(evaluate_policy(&model, &policy, EvaluationLimits::default(), &roomy).is_ok());
+}
+
+#[test]
+fn paired_bootstrap_replays_and_rejects_low_support() {
+    use antecedent_design::sequential_evaluation::bootstrap_off_policy;
+    let spec = base_spec(true);
+    let model = build(&spec);
+    let log = log_under(&spec);
+    let target = policy_of("fixed", &inspect_then_act());
+    let targets = vec![target.clone(), target];
+    let mut ledger = EvidenceLedger::new();
+    let result = bootstrap_off_policy(
+        &model,
+        &targets,
+        &behaviour_policy(),
+        &log,
+        &mut ledger,
+        EvaluationLimits::default(),
+        17,
+        8,
+        2.0,
+        &ctx(),
+    )
+    .unwrap();
+    assert_eq!(result.replicates[0], result.replicates[1]);
+    assert_eq!(result.source_paradigm, "sampling_distribution");
+    assert_eq!(result.calibration, "not_measured");
+    let again = bootstrap_off_policy(
+        &model,
+        &targets,
+        &behaviour_policy(),
+        &log,
+        &mut ledger,
+        EvaluationLimits::default(),
+        17,
+        8,
+        2.0,
+        &ctx(),
+    )
+    .unwrap();
+    assert_eq!(result.replicates, again.replicates);
+    assert!(
+        bootstrap_off_policy(
+            &model,
+            &targets,
+            &behaviour_policy(),
+            &log,
+            &mut EvidenceLedger::new(),
+            EvaluationLimits::default(),
+            17,
+            8,
+            log.len() as f64 + 1.0,
+            &ctx()
+        )
+        .is_err()
+    );
 }

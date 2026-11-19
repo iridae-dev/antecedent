@@ -464,7 +464,9 @@ fn actions_to_wire(actions: &[(usize, f64)]) -> Vec<ActionProbabilityWire> {
         .collect()
 }
 
-fn policy_to_wire(policy: &ContingentPolicy) -> PolicyWire {
+#[doc(hidden)]
+#[must_use]
+pub fn policy_to_wire(policy: &ContingentPolicy) -> PolicyWire {
     PolicyWire {
         version: policy.version().to_owned(),
         decisions: policy
@@ -477,7 +479,8 @@ fn policy_to_wire(policy: &ContingentPolicy) -> PolicyWire {
     }
 }
 
-fn policy_from_wire(wire: &PolicyWire) -> Result<ContingentPolicy, IoError> {
+#[doc(hidden)]
+pub fn policy_from_wire(wire: &PolicyWire) -> Result<ContingentPolicy, IoError> {
     let mut policy = ContingentPolicy::new(wire.version.clone());
     for entry in &wire.decisions {
         let history = steps_from_wire(&entry.history)?;
@@ -495,7 +498,8 @@ fn policy_from_wire(wire: &PolicyWire) -> Result<ContingentPolicy, IoError> {
     Ok(policy)
 }
 
-fn model_to_wire_body(model: &FiniteSequentialModel) -> ModelWire {
+#[doc(hidden)]
+pub fn model_to_wire_body(model: &FiniteSequentialModel) -> ModelWire {
     ModelWire {
         label: model.label.clone(),
         population: model.population.clone(),
@@ -548,7 +552,8 @@ fn model_to_wire_body(model: &FiniteSequentialModel) -> ModelWire {
     }
 }
 
-fn model_from_wire_body(wire: &ModelWire) -> Result<FiniteSequentialModel, IoError> {
+#[doc(hidden)]
+pub fn model_from_wire_body(wire: &ModelWire) -> Result<FiniteSequentialModel, IoError> {
     let mut actions = Vec::with_capacity(wire.actions.len());
     for action in &wire.actions {
         let role = ActionRole::from_name(&action.role).ok_or_else(|| {
@@ -622,7 +627,9 @@ fn model_from_wire_body(wire: &ModelWire) -> Result<FiniteSequentialModel, IoErr
     })
 }
 
-fn trajectories_to_wire(log: &[LoggedTrajectory]) -> Vec<TrajectoryWire> {
+#[doc(hidden)]
+#[must_use]
+pub fn trajectories_to_wire(log: &[LoggedTrajectory]) -> Vec<TrajectoryWire> {
     log.iter()
         .map(|trajectory| TrajectoryWire {
             id: trajectory.id.clone(),
@@ -640,7 +647,8 @@ fn trajectories_to_wire(log: &[LoggedTrajectory]) -> Vec<TrajectoryWire> {
         .collect()
 }
 
-fn trajectories_from_wire(wire: &[TrajectoryWire]) -> Result<Vec<LoggedTrajectory>, IoError> {
+#[doc(hidden)]
+pub fn trajectories_from_wire(wire: &[TrajectoryWire]) -> Result<Vec<LoggedTrajectory>, IoError> {
     let mut out = Vec::with_capacity(wire.len());
     for trajectory in wire {
         let mut steps = Vec::with_capacity(trajectory.steps.len());

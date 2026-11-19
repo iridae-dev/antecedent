@@ -419,6 +419,9 @@ fn a_trial_line_draws_from_the_student_t_law_of_its_fit_and_a_predictive_law_add
     // The residual is a column of its own, so a predictive law is a stage of a chain too.
     let stage = predictive.chain_stage("line").expect("a predictive line is a stage");
     assert_eq!(stage.sources.len(), 4);
+    assert_eq!(stage.sources[0].meaning.as_deref(), Some("predictive"));
+    assert_eq!(stage.sources[3].meaning.as_deref(), Some("innovation"));
+    assert_eq!(stage.reading, ChainReading::Predictive);
     assert!(matches!(stage.stage.op, ChainOpWire::Expression { .. }));
     assert_eq!(mean_line.chain_stage("line").expect("stage").sources.len(), 3);
 }
@@ -708,6 +711,23 @@ fn seal_stage(
     PropagationChainRecordWire::seal(draft, &ExecutionContext::for_tests(17))
 }
 
+fn seal_predictive_stage(
+    sources: Vec<ChainSourceWire>,
+    stage: ChainStageWire,
+    quantity: ScientificQuantityWire,
+) -> Result<PropagationChainRecordWire, PropagationChainError> {
+    let output = stage.id.clone();
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Predictive,
+        &output,
+        sources,
+        vec![stage],
+    )
+    .with_output_quantity(quantity);
+    PropagationChainRecordWire::seal(draft, &ExecutionContext::for_tests(17))
+}
+
 /// The detail of a typed chain refusal.
 fn refusal_detail(error: PropagationChainError) -> &'static str {
     match error {
@@ -880,7 +900,12 @@ fn a_predictive_line_stage_adds_an_independent_residual_to_the_mean_line() {
     assert!(has(&parts.sources[3], "disturbance"));
     assert!(parts.sources[..3].iter().all(|s| !has(s, "disturbance")));
 
-    let record = seal_stage(parts.sources.clone(), parts.stage.clone()).expect("supported");
+    let record = seal_predictive_stage(
+        parts.sources.clone(),
+        parts.stage.clone(),
+        parts.output_quantity.clone(),
+    )
+    .expect("supported");
     let stage = record.results.iter().find(|r| r.stage == "line").expect("stage");
     let (mean, variance) = sample_moments(&bridged.mapped_column());
     // The same inputs give exactly the bridged draws.
@@ -894,8 +919,12 @@ fn a_predictive_line_stage_adds_an_independent_residual_to_the_mean_line() {
         &["line.source", "line.slope", "line.intercept"],
         ChainOpWire::affine(ChainCoefficientWire::input(1), ChainCoefficientWire::input(2)),
     );
-    let mean_record =
-        seal_stage(parts.sources[..3].to_vec(), mean_stage).expect("the mean line is supported");
+    let mean_record = seal_predictive_stage(
+        parts.sources[..3].to_vec(),
+        mean_stage,
+        parts.output_quantity.clone(),
+    )
+    .expect("the mean line is supported");
     let line = mean_record.results.iter().find(|r| r.stage == "mean_line").expect("mean line");
     let line_variance = line.value("variance").unwrap();
     let residuals = bridged.affine_columns().and_then(|a| a.residuals.clone()).expect("residuals");

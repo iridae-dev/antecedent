@@ -35,11 +35,14 @@
 //!    aligned draws; a preposterior update simulates the future study per row,
 //!    updates the posterior draws by its likelihood and re-evaluates the
 //!    decision under them.
-//! 3. **Retain** (`propagation_chain_v1`, the `analysis_result.propagation`
+//! 3. **Retain** (`propagation_chain_v1` or law-bearing
+//!    `propagation_chain_law_v2`, draw-indexed assumption version 3 or joint
+//!    output law version 4, the `analysis_result.propagation`
 //!    section). The record seals the declaration, the draws, the future-study
 //!    draws and the appended changes under one identity, with the stored
-//!    results. [`consume_propagation_chain`] checks the rule again and replays
-//!    every stage to identical bits.
+//!    results. Version 2 also retains aligned output draws and any row weights.
+//!    [`consume_propagation_chain`] checks the rule again and replays every
+//!    stage and retained output draw to identical bits.
 //!
 //! # Changed assumptions
 //!
@@ -54,7 +57,8 @@
 //! A value under a supported chain is labelled `point_only`; its spread is
 //! `uncalibrated_spread`; posterior draws are `posterior_propagation` only
 //! when every source is posterior draws; an enclosure is
-//! `propagation_enclosure`. No label is a coverage statement.
+//! `propagation_enclosure`; a predictive output is
+//! `predictive_propagation`. No label is a coverage statement.
 //! [`PropagationChain::interval`] refuses without a measured coverage record
 //! at the composed coordinate.
 //!
@@ -84,6 +88,13 @@ use antecedent_contract::evidence_ledger::{EvidenceLedger, LedgerError, SourceId
 use super::lowering::chain::{declaration_identity, lower_chain};
 use crate::planner::lowered::{ChainProgram, LoweredProgram};
 use crate::planner::{PlanStage, PlanView};
+
+/// Aligned output-law draws and their optional normalized row weights.
+type OutputLaw<'a> = (&'a [u64], Option<&'a [u64]>);
+/// Rowwise lower and upper bounds and their optional normalized row weights.
+type OutputEnvelope<'a> = (&'a [u64], &'a [u64], Option<&'a [u64]>);
+/// Several aligned output-law columns and their optional normalized row weights.
+type JointOutputLaw<'a> = (&'a [Vec<u64>], Option<&'a [u64]>);
 
 fn refusal(error: &PropagationChainError) -> ChainRefusal {
     error.to_refusal()
@@ -130,10 +141,36 @@ pub fn compile_propagation_chain(
             antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
         ));
     }
-    draft.version = antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_VERSION;
-    draft.required_features =
-        vec![antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_FEATURE.to_owned()];
+    let (version, feature) = if !draft.joint_outputs.is_empty() {
+        (
+            antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_JOINT_LAW_VERSION,
+            antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_JOINT_LAW_FEATURE,
+        )
+    } else if draft.reading == "assumption_envelope" {
+        (
+            antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_ASSUMPTION_VERSION,
+            antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_ASSUMPTION_FEATURE,
+        )
+    } else if matches!(draft.reading.as_str(), "posterior" | "predictive") {
+        (
+            antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_LAW_VERSION,
+            antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_LAW_FEATURE,
+        )
+    } else {
+        (
+            antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_VERSION,
+            antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_FEATURE,
+        )
+    };
+    draft.version = version;
+    draft.required_features = vec![feature.to_owned()];
     draft.results.clear();
+    draft.output_draws = None;
+    draft.output_weights = None;
+    draft.output_lower_bounds = None;
+    draft.output_upper_bounds = None;
+    draft.joint_output_draws = None;
+    draft.joint_output_weights = None;
     draft.identity.clear();
     draft.label.clear();
     let plan = draft.plan().map_err(|error| refusal(&error))?;
@@ -151,6 +188,33 @@ pub fn compile_propagation_chain(
 }
 
 impl PropagationChainPlan {
+    /// Bind a chain declaration to a larger compiler program, such as a
+    /// chain plus a decision. The retained chain must be the same declaration.
+    pub(crate) fn within_lowered(
+        &self,
+        lowered: Arc<LoweredProgram>,
+    ) -> Result<Self, ChainRefusal> {
+        let program = lowered.propagation_chain().cloned().ok_or_else(|| {
+            ChainRefusal::new(
+                antecedent_core::reason_code!("route_not_lowered"),
+                "propagation_chain.not_lowered",
+                "the combined compiler program has no retained chain",
+                None,
+                antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
+            )
+        })?;
+        if program.declaration_identity() != self.program.declaration_identity() {
+            return Err(ChainRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                "propagation_chain.program_mismatch",
+                "the combined compiler program changed the retained chain declaration",
+                None,
+                antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
+            ));
+        }
+        Ok(Self { lowered, program })
+    }
+
     /// The lowered program.
     #[must_use]
     pub fn lowered(&self) -> &LoweredProgram {
@@ -395,6 +459,41 @@ impl PropagationChain {
                 antecedent_contract::propagation_chain::SUPPLY_POSTERIOR_DRAWS,
             ))
         }
+    }
+
+    /// The compiler-published output law and any normalized row weights.
+    ///
+    /// `None` means this chain was not read as a posterior or predictive law,
+    /// or a source on which the output depends was withdrawn. The bit patterns
+    /// are the ones the independent record consumer replays.
+    #[must_use]
+    pub fn output_law(&self) -> Option<OutputLaw<'_>> {
+        self.record
+            .output_draws
+            .as_deref()
+            .map(|draws| (draws, self.record.output_weights.as_deref()))
+    }
+
+    /// Rowwise lower and upper bounds under interval-valued assumptions,
+    /// with optional normalized weights on the aligned draw rows. These
+    /// bounds have no measured sampling coverage.
+    #[must_use]
+    pub fn output_envelope(&self) -> Option<OutputEnvelope<'_>> {
+        self.record
+            .output_lower_bounds
+            .as_deref()
+            .zip(self.record.output_upper_bounds.as_deref())
+            .map(|(lower, upper)| (lower, upper, self.record.output_weights.as_deref()))
+    }
+
+    /// Several aligned output-law columns and their common normalized row
+    /// weights, retained and replayed under version 4.
+    #[must_use]
+    pub fn joint_output_law(&self) -> Option<JointOutputLaw<'_>> {
+        self.record
+            .joint_output_draws
+            .as_deref()
+            .map(|draws| (draws, self.record.joint_output_weights.as_deref()))
     }
 
     /// Encode the retained record.
@@ -747,6 +846,13 @@ pub fn family_table(
     })?;
     let mut seen = BTreeSet::new();
     for estimate in estimates {
+        if matches!(estimate.meaning, LawMeaning::Predictive | LawMeaning::Innovation) {
+            return Err(family_refusal(
+                "propagation_chain.family_meaning",
+                "an estimate and its standard error do not specify a predictive outcome law",
+                Some(&estimate.id),
+            ));
+        }
         if !seen.insert(estimate.id.as_str()) || estimate.id.trim().is_empty() {
             return Err(family_refusal(
                 "propagation_chain.family_shape",

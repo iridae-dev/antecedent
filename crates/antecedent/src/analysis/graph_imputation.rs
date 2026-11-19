@@ -18,18 +18,26 @@
 //! No external callback, likelihood or posterior is accepted.
 use std::sync::Arc;
 
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::graph_imputation_contract::{
     AtomOperation, GraphImputationParts, GraphImputationSource, MAX_VARIABLES, MIN_IMPUTATIONS,
     MIN_ITERATIONS, MIN_POSTERIOR_DRAWS, MIN_ROWS, admission_bytes, labeled_dag_count,
 };
-use antecedent_core::{AverageEffectQuery, CanonicalWriter, ExecutionContext, VariableId};
+use antecedent_core::{
+    AverageEffectQuery, CanonicalWriter, ExecutionContext, SemanticDigest, VariableId,
+};
 use antecedent_data::{ImputationSpec, TableView, TabularData};
 use antecedent_discovery::adjacency_mask::{AdjacencyMask, dag_from_adjacency_mask};
 use antecedent_io::IoError;
+use antecedent_io::distribution_artifact::{
+    DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
+    DistributionProvenance, DistributionTrust, DrawAlignment,
+};
 use antecedent_io::measured_inference::MeasuredInference;
 use antecedent_io::measured_inference::graph_candidate::{
     GraphPointReading, replay_point, retained_support,
 };
+use antecedent_io::quantity_wire::DistributionMeaningWire;
 
 use super::RetainedOperation;
 use super::lowering::graph_imputation::{LoweringInput, RetainedAtomBinding, lower};
@@ -197,7 +205,7 @@ pub struct GraphImputationPoint {
     pub unidentified_by_table: Vec<f64>,
     bytes: Arc<[u8]>,
     ctx: ExecutionContext,
-    _reading: GraphPointReading,
+    reading: GraphPointReading,
 }
 
 impl GraphImputationPoint {
@@ -212,8 +220,80 @@ impl GraphImputationPoint {
             unidentified_by_table: reading.unidentified_by_table.clone(),
             bytes: Arc::from(bytes),
             ctx: ctx.clone(),
-            _reading: reading,
+            reading,
         })
+    }
+
+    /// Retained model-conditional posterior draws of the graph and
+    /// imputation mixture. The rows include graph selection rerun on each
+    /// completed table and child effect fitting; they are not a measured
+    /// sampling law or a predictive law of the outcome.
+    #[must_use]
+    pub fn effect_draws(&self) -> &[f64] {
+        &self.reading.draws
+    }
+
+    /// Export the mixture as a typed posterior law at an exact average-effect
+    /// coordinate. The target population is a declaration because this source
+    /// contains no verified population sampling frame. No coverage is granted.
+    ///
+    /// # Errors
+    /// A coordinate naming another outcome or treatment contrast, an invalid
+    /// source, or distribution-artifact refusal.
+    pub fn effect_law(
+        &self,
+        quantity: ScientificQuantity,
+    ) -> Result<DistributionArtifact, GraphImputationError> {
+        let source = GraphImputationSource::decode(&self.bytes).map_err(|error| {
+            GraphImputationError::Engine(CausalError::Compile { message: error.to_string() })
+        })?;
+        let parts = source.parts();
+        let treatment = &parts.names[parts.treatment as usize];
+        let outcome = &parts.names[parts.outcome as usize];
+        let regime = format!("do({treatment}=1)-do({treatment}=0)");
+        if quantity.role != QuantityRole::Outcome
+            || quantity.variable_id != outcome.as_str()
+            || quantity.functional_id != "average_effect"
+            || quantity.regime_id != regime
+            || quantity.horizon != 0
+        {
+            return Err(invalid(
+                "graph mixture law requires the exact binary average-effect coordinate",
+            )
+            .into());
+        }
+        let identity = DistributionIdentity::new(
+            DistributionMeaningWire::CausalFunctionalPosterior,
+            &[quantity],
+            DrawAlignment::Joint,
+            DistributionProvenance {
+                source_id: SemanticDigest::from_bytes(self.receipt).to_hex(),
+                provider_id: "antecedent.graph_imputation".into(),
+                rng_id: format!(
+                    "imputation:{}:child:{}",
+                    parts.imputation_seed, parts.execution_seed,
+                ),
+                snapshot_id: SemanticDigest::from_bytes(self.source).to_hex(),
+                causal_contract_id: SemanticDigest::from_bytes(parts.contract_digest()).to_hex(),
+            },
+        )
+        .map_err(|error| GraphImputationError::Engine(CausalError::from(error)))?;
+        DistributionArtifact::new(
+            DistributionMetadata {
+                version: 1,
+                identity,
+                axes: ["draw".into(), "quantity".into()],
+                shape: [self.effect_draws().len(), 1],
+                weights: None,
+                supported: None,
+                calibration: DistributionCalibration::PointOnly,
+                trust: DistributionTrust::Unverified,
+                legacy_posterior: None,
+                legacy_bindings: None,
+            },
+            self.effect_draws().to_vec(),
+        )
+        .map_err(|error| GraphImputationError::Engine(CausalError::from(error)))
     }
 
     /// The measured report of this execution's original source, issued by the same native
@@ -256,6 +336,35 @@ impl GraphImputationPoint {
 }
 
 impl CompiledGraphImputation {
+    /// The retained six-layer graph, imputation and child-fit program.
+    #[must_use]
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
+
+    /// Identity of the original observed table sealed by this compiler.
+    #[must_use]
+    pub fn source_identity(&self) -> SemanticDigest {
+        SemanticDigest::from_bytes(self.source_digest)
+    }
+
+    /// Check a proposed decision input against the outcome and treatment of
+    /// this compiled mixture before any graph search or imputation executes.
+    pub(crate) fn matches_effect_quantity(
+        &self,
+        quantity: &ScientificQuantity,
+    ) -> Result<bool, GraphImputationError> {
+        let source = GraphImputationSource::decode(&self.source_bytes).map_err(invalid)?;
+        let parts = source.parts();
+        let treatment = &parts.names[parts.treatment as usize];
+        let outcome = &parts.names[parts.outcome as usize];
+        Ok(quantity.role == QuantityRole::Outcome
+            && quantity.variable_id == outcome.as_str()
+            && quantity.functional_id == "average_effect"
+            && quantity.regime_id == format!("do({treatment}=1)-do({treatment}=0)")
+            && quantity.horizon == 0)
+    }
+
     fn validate_compile_input(
         source: &TabularData,
         spec: &GraphImputationSpec,
@@ -516,8 +625,7 @@ impl CompiledGraphImputation {
     }
 
     /// The canonical original-source bytes the replay consumes.
-    #[cfg(feature = "calibration-internal")]
-    fn source_bytes(&self) -> &[u8] {
+    pub(crate) fn source_bytes(&self) -> &[u8] {
         &self.source_bytes
     }
 }
@@ -676,6 +784,33 @@ mod compiled_tests {
         let result = plan.execute(&ctx).unwrap();
         assert!(result.mean.is_finite() && result.diagnostic_sd > 0.0);
         assert!(result.unidentified_by_table.iter().all(|mass| mass.abs() < f64::EPSILON));
+    }
+
+    #[test]
+    fn graph_mixture_exports_only_its_exact_uncalibrated_effect_law() {
+        let ctx = ExecutionContext::for_tests(19);
+        let plan = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 12, false);
+        let point = plan.execute(&ctx).unwrap();
+        let quantity = ScientificQuantity {
+            variable_id: "y".into(),
+            variable_name: "outcome".into(),
+            role: QuantityRole::Outcome,
+            units: "outcome_units".into(),
+            population_id: "declared_graph_population".into(),
+            regime_id: "do(t=1)-do(t=0)".into(),
+            horizon: 0,
+            functional_id: "average_effect".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+        let law = point.effect_law(quantity.clone()).unwrap();
+        assert_eq!(law.semantic(), DistributionMeaningWire::CausalFunctionalPosterior);
+        assert_eq!(law.draws(), point.effect_draws());
+        assert_eq!(law.metadata().calibration, DistributionCalibration::PointOnly);
+        assert_eq!(law.metadata().trust, DistributionTrust::Unverified);
+        let mut wrong = quantity;
+        wrong.regime_id = "do(t=1)".into();
+        assert!(point.effect_law(wrong).is_err());
     }
 
     #[test]
@@ -846,5 +981,67 @@ mod compiled_tests {
         let slot = point.calibration().expect("the calibration slot");
         assert_eq!(slot.status.as_str(), "not_measured");
         assert_eq!(slot.reason.as_deref(), Some("estimator_grid_not_measured"));
+    }
+
+    #[test]
+    #[ignore = "source-only whole-schedule reference assertion; decision reliability not earned"]
+    fn graph_imputation_effect_decision_replays_known_positive_effect() {
+        use super::super::graph_imputation_effect_decision::{
+            compile_graph_imputation_effect_decision, consume_graph_imputation_effect_decision,
+        };
+        use antecedent_design::decision_contract::{
+            ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy,
+            UtilityExpr,
+        };
+
+        let ctx = ExecutionContext::for_tests(19);
+        let producer = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 40, false);
+        let quantity = ScientificQuantity {
+            variable_id: "y".into(),
+            variable_name: "outcome effect".into(),
+            role: QuantityRole::Outcome,
+            units: "outcome_units".into(),
+            population_id: "declared_population".into(),
+            regime_id: "do(t=1)-do(t=0)".into(),
+            horizon: 0,
+            functional_id: "average_effect".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+        let contract = DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: "treat".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::difference(
+                        UtilityExpr::Input(0),
+                        UtilityExpr::Const(0.1),
+                    ),
+                },
+                DecisionAction {
+                    id: "hold".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::Const(0.0),
+                },
+            ],
+            utility_units: "outcome_units".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(),
+            target_population: "declared_population".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        let plan = compile_graph_imputation_effect_decision(producer, quantity, contract).unwrap();
+        let result = plan.execute(&ctx).unwrap();
+        assert!(result.producer.mean > 0.1);
+        assert_eq!(result.calibration, "not_measured");
+        let bytes = plan.export(&result, "graph-effect-decision-known-truth", &ctx).unwrap();
+        let replay =
+            consume_graph_imputation_effect_decision(&bytes, result.lowered_program_identity, &ctx)
+                .unwrap();
+        assert_eq!(replay.producer.receipt, result.producer.receipt);
+        assert_eq!(replay.decision.decision, result.decision.decision);
     }
 }

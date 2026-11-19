@@ -721,3 +721,8 @@ groups = [
   "conjugate_routes_calibration: select_alpha_prior_linear_uniform_interval_l95",
   "conjugate_routes_calibration: select_alpha_prior_linear_bias_aware_interval_l95",
 ]
+
+[[route]]
+record = "forecast.event_count_interval"
+routes = ["antecedent.PreparedEventForecast.count_interval"]
+groups = ["event_count_calibration: hawkes_recursive_refit_count_l90"]
