@@ -139,6 +139,7 @@ pub fn compile_posterior_decision_bundle_recomputation(
     compile_decision_bundle(bundle, terminal_node, contract, source, true)
 }
 
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 fn compile_decision_bundle(
     bundle: CompositionBundle,
     terminal_node: &str,
@@ -520,12 +521,11 @@ fn consume_portable_decision_bundle(
         if let NodeSource::Embedded { bytes } = &node.source
             && let Ok(source) = DistributionArtifact::from_bytes(bytes, &wire.source_identity)
             && source_digest(&source) == wire.source_digest
+            && matched_source.replace(source).is_some()
         {
-            if matched_source.replace(source).is_some() {
-                return Err(DecisionBundleRecomputeError::Invalid(
-                    "portable decision source is ambiguous",
-                ));
-            }
+            return Err(DecisionBundleRecomputeError::Invalid(
+                "portable decision source is ambiguous",
+            ));
         }
     }
     let source = matched_source.ok_or(DecisionBundleRecomputeError::Invalid(

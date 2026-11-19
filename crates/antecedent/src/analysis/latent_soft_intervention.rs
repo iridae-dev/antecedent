@@ -80,7 +80,15 @@ pub(super) fn cancelled(ctx: &ExecutionContext, stage: &'static str) -> Result<(
 }
 
 impl LatentSoftInterventionRequest {
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the variable count is validated to at most MAX_NODES, far below u32::MAX"
+    )]
     fn validate(&mut self, ctx: &ExecutionContext) -> Result<(), CausalError> {
+        fn indices(values: &[usize], n: usize) -> bool {
+            values.iter().all(|&value| value < n)
+                && values.iter().collect::<BTreeSet<_>>().len() == values.len()
+        }
         let n = self.variables.len();
         if !(3..=MAX_NODES).contains(&n)
             || self.population.trim().is_empty()
@@ -105,10 +113,6 @@ impl LatentSoftInterventionRequest {
             || self.action.len() < 6 * n + 16
         {
             return Err(invalid("declaration exceeds the supported shape or has too few rows"));
-        }
-        fn indices(values: &[usize], n: usize) -> bool {
-            values.iter().all(|&value| value < n)
-                && values.iter().collect::<BTreeSet<_>>().len() == values.len()
         }
         if !indices(&self.context, n)
             || !indices(&self.candidates, n)
@@ -400,6 +404,7 @@ impl PreparedLatentSoftIntervention {
     ///
     /// # Errors
     /// Fitting or composition refusal, cancellation or resource limits.
+    #[allow(clippy::too_many_lines, reason = "one pass from the base fit through the refit loop")]
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
@@ -440,7 +445,7 @@ impl PreparedLatentSoftIntervention {
             for replicate in 0..self.request.refits {
                 cancelled(&scoped, "latent soft intervention refits")?;
                 let seed = antecedent_core::mix64(
-                    self.request.seed ^ 0x52454649545f4c53 ^ u64::from(replicate),
+                    self.request.seed ^ 0x5245_4649_545f_4c53 ^ u64::from(replicate),
                 );
                 match self.fit_law(Some(seed), &scoped) {
                     Ok(refit) if refit.fit.forecast_admissible => refits.push(refit),
@@ -614,6 +619,10 @@ impl FittedLatentSoftIntervention {
     ///
     /// # Errors
     /// Malformed or unsupported context, nonfinite law, or cancellation.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the draw count never exceeds the refit count, which validation bounds by 32"
+    )]
     pub fn forecast(
         &self,
         values: &[f64],

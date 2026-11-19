@@ -166,6 +166,10 @@ pub fn prepare_vector_component_feedback(
 /// Compile multi-output feedback with a ledger check over the original
 /// component's inputs, including inputs read by different output equations.
 /// The ledger state is bound into the central cyclic program identity.
+///
+/// # Errors
+/// A ledger refusal on the component inputs, or any refusal of
+/// [`prepare_vector_component_feedback`].
 pub fn prepare_vector_component_feedback_with_ledger(
     request: VectorFeedbackRequest,
     ledger: &EvidenceLedger,
@@ -174,6 +178,10 @@ pub fn prepare_vector_component_feedback_with_ledger(
     prepare_vector_component_feedback_inner(request, Some(ledger), ctx)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one expansion from output declarations to the connected cyclic program"
+)]
 fn prepare_vector_component_feedback_inner(
     request: VectorFeedbackRequest,
     ledger: Option<&EvidenceLedger>,
@@ -418,6 +426,10 @@ pub fn prepare_component_feedback(
 /// Compile scalar feedback with a checked aggregate evidence ledger. The
 /// ledger's state digest enters the six-layer cyclic program through the
 /// structural equation identities.
+///
+/// # Errors
+/// A ledger refusal on the component inputs, or any refusal of
+/// [`prepare_component_feedback`].
 pub fn prepare_component_feedback_with_ledger(
     request: ComponentFeedbackRequest,
     ledger: &EvidenceLedger,
@@ -426,6 +438,10 @@ pub fn prepare_component_feedback_with_ledger(
     prepare_component_feedback_inner(request, Some(ledger), ctx)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one construction from port checks to the connected cyclic program"
+)]
 fn prepare_component_feedback_inner(
     mut request: ComponentFeedbackRequest,
     ledger: Option<&EvidenceLedger>,
@@ -814,6 +830,10 @@ const MAX_JOINT_COMPONENT_BYTES: usize = 80 * 1024 * 1024;
 ///
 /// # Errors
 /// Invalid component ports, coordinate bindings, evidence or posterior schedule.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one compilation from component fits through the joint posterior program"
+)]
 pub fn compile_joint_component_posterior_decision(
     request: ComponentFeedbackRequest,
     schedule: ComponentJointPosteriorSchedule,
@@ -864,7 +884,7 @@ pub fn compile_joint_component_posterior_decision(
         let mut declared = port.quantity.clone();
         // Each action world changes regime; all other scientific coordinate
         // fields, including variable identity, come from the checked port.
-        declared.regime_id = quantity.regime_id.clone();
+        declared.regime_id.clone_from(&quantity.regime_id);
         declared.require_same_coordinate(&quantity).map_err(|_| {
             JointComponentPosteriorError::Invalid("output coordinate differs from component port")
         })?;
@@ -1255,6 +1275,10 @@ const JOINT_VECTOR_COMPONENT_POSTERIOR_FEATURE: &str =
 ///
 /// # Errors
 /// Invalid component ports, coordinate bindings, evidence or posterior schedule.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one compilation from component fits through the joint posterior program"
+)]
 pub fn compile_joint_vector_component_posterior_decision(
     request: VectorFeedbackRequest,
     schedule: ComponentJointPosteriorSchedule,
@@ -1304,7 +1328,7 @@ pub fn compile_joint_vector_component_posterior_decision(
                 JointComponentPosteriorError::Invalid("output coordinate is invalid")
             })?;
         let mut declared = port.quantity.clone();
-        declared.regime_id = quantity.regime_id.clone();
+        declared.regime_id.clone_from(&quantity.regime_id);
         declared.require_same_coordinate(&quantity).map_err(|_| {
             JointComponentPosteriorError::Invalid("output coordinate differs from component port")
         })?;
@@ -2060,6 +2084,7 @@ mod tests {
 
     #[test]
     #[ignore = "source-only joint component posterior; no connected calibration is earned"]
+    #[allow(clippy::too_many_lines, reason = "one scenario walked from fit through replay")]
     fn common_training_rows_refit_and_replay_the_connected_action_decision() {
         use super::super::cyclic_action_world_decision::CyclicDecisionOutput;
         use antecedent_design::decision_contract::{
@@ -2077,8 +2102,8 @@ mod tests {
         ];
         let training = (0..260)
             .map(|i| {
-                let traffic = (i % 5) as f64 * 0.4;
-                let disturbance = (i as f64 * 0.19).sin() * 0.2;
+                let traffic = f64::from(i % 5) * 0.4;
+                let disturbance = (f64::from(i) * 0.19).sin() * 0.2;
                 RegimeRow {
                     values: vec![traffic, (1.0 + 0.3 * traffic + disturbance) / 0.8],
                     clamps: vec![Clamp { variable: 0, value: traffic }],
@@ -2328,6 +2353,7 @@ mod tests {
     }
     #[test]
     #[ignore = "source-only joint vector component posterior; connected calibration is not earned"]
+    #[allow(clippy::too_many_lines, reason = "one scenario walked from fit through replay")]
     fn vector_components_fit_joint_worlds_and_replay() {
         use super::super::cyclic_action_world_decision::CyclicDecisionOutput;
         use antecedent_design::decision_contract::{
@@ -2400,8 +2426,8 @@ mod tests {
         ];
         let training = (0..260)
             .map(|i| {
-                let traffic = (i % 5) as f64 * 0.4;
-                let disturbance = (i as f64 * 0.19).sin() * 0.2;
+                let traffic = f64::from(i % 5) * 0.4;
+                let disturbance = (f64::from(i) * 0.19).sin() * 0.2;
                 RegimeRow {
                     values: vec![traffic, (1.0 + 0.3 * traffic + disturbance) / 0.8],
                     clamps: vec![Clamp { variable: 0, value: traffic }],
@@ -2506,6 +2532,7 @@ mod tests {
 
     #[test]
     #[ignore = "source-only bounded fitted component output; reliability not earned"]
+    #[allow(clippy::too_many_lines, reason = "one scenario walked from fit through replay")]
     fn bounded_component_worlds_replay_after_joint_fit() {
         use super::super::cyclic_action_world_decision::CyclicDecisionOutput;
         use antecedent_design::decision_contract::{
@@ -2578,8 +2605,8 @@ mod tests {
         ];
         let training = (0..260)
             .map(|i| {
-                let traffic = (i % 5) as f64 * 0.4;
-                let disturbance = (i as f64 * 0.19).sin() * 0.2;
+                let traffic = f64::from(i % 5) * 0.4;
+                let disturbance = (f64::from(i) * 0.19).sin() * 0.2;
                 RegimeRow {
                     values: vec![traffic, (1.0 + 0.3 * traffic + disturbance) / 0.8],
                     clamps: vec![Clamp { variable: 0, value: traffic }],

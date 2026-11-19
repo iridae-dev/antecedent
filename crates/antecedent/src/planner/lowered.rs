@@ -440,10 +440,8 @@ impl NonGraphicalIdentification {
             Self::SharedEvidenceContract { contract } => {
                 writer.bytes(contract);
             }
-            Self::DeclaredPolicyEvaluation { request } => {
-                writer.bytes(request);
-            }
-            Self::GraphCheckedPolicyEvaluation { request } => {
+            Self::DeclaredPolicyEvaluation { request }
+            | Self::GraphCheckedPolicyEvaluation { request } => {
                 writer.bytes(request);
             }
         }

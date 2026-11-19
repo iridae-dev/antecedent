@@ -123,6 +123,7 @@ struct CyclicActionDecisionWire {
 /// # Errors
 /// An unpaired world, repeated regime, mismatched coordinate, unsupported
 /// action or cyclic compiler refusal.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_cyclic_action_world_decision(
     request: CyclicExecutionRequest,
     outputs: Vec<CyclicDecisionOutput>,

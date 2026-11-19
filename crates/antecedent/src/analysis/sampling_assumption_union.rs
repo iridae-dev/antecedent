@@ -147,6 +147,7 @@ fn compatible(
 /// # Errors
 /// Missing sampling or assumption source, incompatible rerun, malformed
 /// level, oversized replicate schedule or chain compiler refusal.
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_sampling_assumption_union(
     request: SamplingAssumptionUnionRequest,
     ctx: &ExecutionContext,
@@ -520,10 +521,8 @@ fn validate_raw_unit_source(
     let mut alignment = None;
     let mut sampling = 0usize;
     let mut assumptions = 0usize;
-    if n < 20
-        || n > 1_000_000
-        || bootstrap_replicates < 100
-        || bootstrap_replicates > 4096
+    if !(20..=1_000_000).contains(&n)
+        || !(100..=4096).contains(&bootstrap_replicates)
         || n.checked_mul(bootstrap_replicates).is_none_or(|work| work > 50_000_000)
         || !level.is_finite()
         || !(0.0..1.0).contains(&level)
@@ -695,6 +694,10 @@ pub fn compile_iid_sampling_assumption_union(
     Ok(CompiledIidSamplingAssumptionUnion { request, original, seed, lowered })
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the remainder is below the usize bound it was reduced by"
+)]
 fn uniform_row(rng: &mut antecedent_core::CausalRng, n: usize) -> usize {
     let bound = n as u64;
     let threshold = bound.wrapping_neg() % bound;
@@ -794,6 +797,10 @@ impl CompiledIidSamplingAssumptionUnion {
     ///
     /// # Errors
     /// A route refusal or a malformed fixed-stage template.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the replicate count is validated to at most 4096 before it is recorded"
+    )]
     pub fn calibration_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -967,6 +974,7 @@ struct ClusterSamplingAssumptionUnionWire {
 /// # Errors
 /// Malformed unit or cluster identities, invalid fixed assumptions, unsupported
 /// chain, level or resource bound.
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_cluster_sampling_assumption_union(
     request: ClusterSamplingAssumptionUnionRequest,
     ctx: &ExecutionContext,
@@ -1189,6 +1197,10 @@ impl CompiledClusterSamplingAssumptionUnion {
     ///
     /// # Errors
     /// Complete-chain execution or template encoding refused.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the replicate count is validated to at most 4096 before it is recorded"
+    )]
     pub fn calibration_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -1375,6 +1387,7 @@ struct StratifiedClusterSamplingAssumptionUnionWire {
 /// # Errors
 /// Malformed unit or cluster identities, invalid fixed assumptions, unsupported
 /// chain, level or resource bound.
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_stratified_cluster_sampling_assumption_union(
     request: StratifiedClusterSamplingAssumptionUnionRequest,
     ctx: &ExecutionContext,
@@ -1624,6 +1637,10 @@ impl CompiledStratifiedClusterSamplingAssumptionUnion {
     ///
     /// # Errors
     /// Complete-chain execution or template encoding refused.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the replicate count is validated to at most 4096 before it is recorded"
+    )]
     pub fn calibration_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -1809,6 +1826,7 @@ struct MovingBlockSamplingAssumptionUnionWire {
 /// # Errors
 /// Malformed unit or moving-block identities, invalid fixed assumptions, unsupported
 /// chain, level or resource bound.
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_moving_block_sampling_assumption_union(
     request: MovingBlockSamplingAssumptionUnionRequest,
     ctx: &ExecutionContext,
@@ -2013,6 +2031,10 @@ impl CompiledMovingBlockSamplingAssumptionUnion {
     ///
     /// # Errors
     /// Complete-chain execution or template encoding refused.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the replicate count is validated to at most 4096 before it is recorded"
+    )]
     pub fn calibration_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -2197,6 +2219,7 @@ struct StratifiedMovingBlockSamplingAssumptionUnionWire {
 /// # Errors
 /// Malformed unit or moving-block identities, invalid fixed assumptions, unsupported
 /// chain, level or resource bound.
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_stratified_moving_block_sampling_assumption_union(
     request: StratifiedMovingBlockSamplingAssumptionUnionRequest,
     ctx: &ExecutionContext,
@@ -2441,6 +2464,10 @@ impl CompiledStratifiedMovingBlockSamplingAssumptionUnion {
     ///
     /// # Errors
     /// Complete-chain execution or template encoding refused.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the replicate count is validated to at most 4096 before it is recorded"
+    )]
     pub fn calibration_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -2637,6 +2664,7 @@ struct PanelBlockSamplingAssumptionUnionWire {
 /// # Errors
 /// Malformed unit or moving-block identities, invalid fixed assumptions, unsupported
 /// chain, level or resource bound.
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_panel_block_sampling_assumption_union(
     request: PanelBlockSamplingAssumptionUnionRequest,
     ctx: &ExecutionContext,
@@ -2875,6 +2903,10 @@ impl CompiledPanelBlockSamplingAssumptionUnion {
     ///
     /// # Errors
     /// Complete-chain execution or template encoding refused.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the replicate count is validated to at most 4096 before it is recorded"
+    )]
     pub fn calibration_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -3057,7 +3089,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(31);
         let mut original = draft(0.0);
         original.sources[0].values =
-            (0..40).map(|row| (1.0 + row as f64 / 40.0).to_bits()).collect();
+            (0..40).map(|row| (1.0 + f64::from(row) / 40.0).to_bits()).collect();
         let request = IidSamplingAssumptionUnionRequest {
             original,
             unit_ids: (0..40).map(|row| format!("unit-{row}")).collect(),
@@ -3084,7 +3116,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(37);
         let mut original = draft(0.0);
         original.sources[0].values =
-            (0..40).map(|row| (1.0 + (row / 2) as f64 / 20.0).to_bits()).collect();
+            (0..40).map(|row| (1.0 + f64::from(row / 2) / 20.0).to_bits()).collect();
         let request = ClusterSamplingAssumptionUnionRequest {
             original,
             unit_ids: (0..40).map(|row| format!("unit-{row}")).collect(),
@@ -3113,7 +3145,7 @@ mod tests {
     fn stratified_clusters_are_kept_complete_and_replayed() {
         let ctx = ExecutionContext::for_tests(43);
         let mut original = draft(0.0);
-        original.sources[0].values = (0..40).map(|row| (row as f64 / 40.0).to_bits()).collect();
+        original.sources[0].values = (0..40).map(|row| (f64::from(row) / 40.0).to_bits()).collect();
         let request = StratifiedClusterSamplingAssumptionUnionRequest {
             original,
             unit_ids: (0..40).map(|i| format!("unit-{i}")).collect(),
@@ -3167,7 +3199,7 @@ mod tests {
     fn resampled_panels_keep_one_source_panel_and_consecutive_blocks() {
         let ctx = ExecutionContext::for_tests(53);
         let mut original = draft(0.0);
-        original.sources[0].values = (0..200).map(|i| (i as f64 / 200.0).to_bits()).collect();
+        original.sources[0].values = (0..200).map(|i| (f64::from(i) / 200.0).to_bits()).collect();
         let request = PanelBlockSamplingAssumptionUnionRequest {
             original,
             unit_ids: (0..200).map(|i| format!("row-{i}")).collect(),
@@ -3225,7 +3257,7 @@ mod tests {
     fn stratified_moving_blocks_stay_within_interleaved_series_and_replay() {
         let ctx = ExecutionContext::for_tests(47);
         let mut original = draft(0.0);
-        original.sources[0].values = (0..40).map(|i| (i as f64 / 40.0).to_bits()).collect();
+        original.sources[0].values = (0..40).map(|i| (f64::from(i) / 40.0).to_bits()).collect();
         let request = StratifiedMovingBlockSamplingAssumptionUnionRequest {
             original,
             unit_ids: (0..40).map(|i| format!("row-{i}")).collect(),
@@ -3284,7 +3316,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(41);
         let mut original = draft(0.0);
         original.sources[0].values =
-            (0..40).map(|row| (1.0 + row as f64 / 40.0).to_bits()).collect();
+            (0..40).map(|row| (1.0 + f64::from(row) / 40.0).to_bits()).collect();
         let request = MovingBlockSamplingAssumptionUnionRequest {
             original,
             unit_ids: (0..40).map(|row| format!("time-{row}")).collect(),
@@ -3331,7 +3363,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(11);
         let request = SamplingAssumptionUnionRequest {
             original: draft(0.0),
-            bootstrap: (0..100).map(|i| draft((i as f64 - 49.5) * 0.002)).collect(),
+            bootstrap: (0..100).map(|i| draft((f64::from(i) - 49.5) * 0.002)).collect(),
             replicate_ids: (0..100).map(|i| format!("resample-{i:03}")).collect(),
             resampling_design_identity: "fixed-row-bootstrap-seed-11-v1".into(),
             level: 0.95,

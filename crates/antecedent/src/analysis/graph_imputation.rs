@@ -205,7 +205,7 @@ pub struct GraphImputationPoint {
     pub unidentified_by_table: Vec<f64>,
     bytes: Arc<[u8]>,
     ctx: ExecutionContext,
-    _reading: GraphPointReading,
+    reading: GraphPointReading,
 }
 
 impl GraphImputationPoint {
@@ -220,7 +220,7 @@ impl GraphImputationPoint {
             unidentified_by_table: reading.unidentified_by_table.clone(),
             bytes: Arc::from(bytes),
             ctx: ctx.clone(),
-            _reading: reading,
+            reading,
         })
     }
 
@@ -230,7 +230,7 @@ impl GraphImputationPoint {
     /// sampling law or a predictive law of the outcome.
     #[must_use]
     pub fn effect_draws(&self) -> &[f64] {
-        &self._reading.draws
+        &self.reading.draws
     }
 
     /// Export the mixture as a typed posterior law at an exact average-effect

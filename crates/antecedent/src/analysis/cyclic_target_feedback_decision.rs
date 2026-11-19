@@ -127,6 +127,7 @@ struct Wire {
     chain_artifact: Vec<u8>,
 }
 
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 fn validate_frame(
     request: &CyclicTargetFeedbackRequest,
     contract: &DecisionContract,
@@ -237,6 +238,10 @@ fn validate_frame(
 
 /// Compile one target-baseline-shifted joint feedback fit and paired decision.
 /// The target rows and selection restriction are bound before fitting.
+///
+/// # Errors
+/// A source or frame that is invalid, a contract that is refused, or a request that
+/// fails to encode.
 pub fn compile_cyclic_target_feedback_decision(
     request: CyclicTargetFeedbackRequest,
     contract: DecisionContract,
@@ -341,6 +346,11 @@ impl CompiledCyclicTargetFeedbackDecision {
     ///
     /// # Errors
     /// A changed execution seed, a source or model refusal, or an invalid target frame.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the draw is in [0, 1) and the row index is clamped to the last target row"
+    )]
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
@@ -426,6 +436,9 @@ impl CompiledCyclicTargetFeedbackDecision {
 
     /// Fixed design identity for an unearned action-choice study. It omits
     /// observed source values, target values, and the execution seed.
+    ///
+    /// # Errors
+    /// A model, parameter or contract that fails to encode.
     pub fn decision_reliability_scope(&self) -> Result<SemanticDigest, CyclicTargetFeedbackError> {
         let source = &self.request.source;
         let mut writer =
@@ -520,6 +533,10 @@ impl CompiledCyclicTargetFeedbackDecision {
 
 /// Recompile, refit, solve and reevaluate a target feedback decision from raw
 /// embedded evidence under an independently retained compiler identity.
+///
+/// # Errors
+/// An oversized or undecodable artifact, a feature, program or seed that differs, or a
+/// posterior or decision that differs on replay.
 pub fn consume_cyclic_target_feedback_decision(
     bytes: &[u8],
     expected_program: SemanticDigest,
@@ -596,13 +613,14 @@ pub(crate) mod tests {
         }
     }
 
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     pub(crate) fn fixture() -> (CyclicTargetFeedbackRequest, DecisionContract) {
         let training = (0..260)
             .map(|i| {
-                let ad = (i % 5) as f64 * 0.4;
-                let baseline = (i % 9) as f64 * 0.2;
-                let ew = (i as f64 * 0.19).sin() * 0.2;
-                let et = (i as f64 * 0.23).cos() * 0.2;
+                let ad = f64::from(i % 5) * 0.4;
+                let baseline = f64::from(i % 9) * 0.2;
+                let ew = (f64::from(i) * 0.19).sin() * 0.2;
+                let et = (f64::from(i) * 0.23).cos() * 0.2;
                 let wishlists = (0.2 * ad + 0.4 * baseline + ew + 0.3 * et) / (1.0 - 0.06);
                 RegimeRow {
                     values: vec![wishlists, 0.2 * wishlists + et, ad, baseline],

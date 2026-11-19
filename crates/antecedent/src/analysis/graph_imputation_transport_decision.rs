@@ -123,6 +123,10 @@ pub struct TargetClusterBootstrap {
 }
 
 impl TargetClusterBootstrap {
+    #[allow(
+        clippy::result_large_err,
+        reason = "the refusal carries the full transport decision error"
+    )]
     pub(crate) fn groups(
         &self,
         rows: usize,
@@ -198,10 +202,15 @@ struct GraphImputationTransportDecisionWire {
     cluster_bootstrap: Option<TargetClusterBootstrap>,
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde skip_serializing_if passes a reference"
+)]
 fn is_false(value: &bool) -> bool {
     !*value
 }
 
+#[allow(clippy::result_large_err, reason = "the refusal carries the full transport decision error")]
 fn check_quantity(
     source: &GraphImputationSource,
     target: &TransportStandardization,
@@ -234,6 +243,11 @@ fn check_quantity(
     Ok(())
 }
 
+#[allow(clippy::result_large_err, reason = "the refusal carries the full transport decision error")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one lowering from source checks through the six-layer program"
+)]
 fn lower_outer(
     source: &GraphImputationSource,
     target: &TransportStandardization,
@@ -436,6 +450,7 @@ fn lower_outer(
 ///
 /// # Errors
 /// Invalid target support, quantity, contract or six-layer lowering.
+#[allow(clippy::result_large_err, reason = "the refusal carries the full transport decision error")]
 pub fn compile_graph_imputation_transport_decision(
     producer: CompiledGraphImputation,
     target: TransportStandardization,
@@ -475,6 +490,7 @@ pub fn compile_graph_imputation_transport_decision(
 ///
 /// # Errors
 /// Invalid source, target, bootstrap policy or compiler binding.
+#[allow(clippy::result_large_err, reason = "the refusal carries the full transport decision error")]
 pub fn compile_graph_imputation_transport_target_bootstrap_decision(
     producer: CompiledGraphImputation,
     target: TransportStandardization,
@@ -515,6 +531,7 @@ pub fn compile_graph_imputation_transport_target_bootstrap_decision(
 ///
 /// # Errors
 /// Invalid source identity, unsafe graph, target or decision.
+#[allow(clippy::result_large_err, reason = "the refusal carries the full transport decision error")]
 pub fn compile_graph_imputation_confounded_transport_decision(
     producer: CompiledGraphImputation,
     target: TransportStandardization,
@@ -555,6 +572,7 @@ pub fn compile_graph_imputation_confounded_transport_decision(
 ///
 /// # Errors
 /// Invalid source binding, unsafe graph, target, bootstrap policy or utility.
+#[allow(clippy::result_large_err, reason = "the refusal carries the full transport decision error")]
 pub fn compile_graph_imputation_confounded_transport_target_bootstrap_decision(
     producer: CompiledGraphImputation,
     target: TransportStandardization,
@@ -595,6 +613,7 @@ pub fn compile_graph_imputation_confounded_transport_target_bootstrap_decision(
 ///
 /// # Errors
 /// Invalid producer, frame, cluster policy or decision.
+#[allow(clippy::result_large_err, reason = "the refusal carries the full transport decision error")]
 pub fn compile_graph_imputation_transport_cluster_bootstrap_decision(
     producer: CompiledGraphImputation,
     target: TransportStandardization,
@@ -633,13 +652,17 @@ pub fn compile_graph_imputation_transport_cluster_bootstrap_decision(
 
 // SplitMix64 provides a stable, locally specified stream for portable replay.
 fn bootstrap_word(state: &mut u64) -> u64 {
-    *state = state.wrapping_add(0x9e3779b97f4a7c15);
+    *state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
     let mut z = *state;
-    z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
     z ^ (z >> 31)
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the remainder is below a bound that came from a usize"
+)]
 pub(crate) fn bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
     let bound = len as u64;
     let threshold = bound.wrapping_neg() % bound;
@@ -704,6 +727,18 @@ impl CompiledGraphImputationTransportDecision {
     ///
     /// # Errors
     /// Source, target, fit or decision refusal.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the refusal carries the full transport decision error"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one pass from reimputation through the decision utility"
+    )]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the remainder is below a bound that came from a usize"
+    )]
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
@@ -817,11 +852,11 @@ impl CompiledGraphImputationTransportDecision {
                         if !source_ids.iter().any(|id| id.starts_with(&candidate)) {
                             break candidate;
                         }
-                        nonce = nonce.checked_add(1).ok_or_else(|| {
+                        nonce = nonce.checked_add(1).ok_or(
                             GraphImputationTransportDecisionError::Invalid(
                                 "bootstrap slot identity overflow",
-                            )
-                        })?;
+                            ),
+                        )?;
                     };
                     sampled.target_unit_ids =
                         (0..indices.len()).map(|row| format!("{prefix}{row}")).collect();
@@ -891,11 +926,20 @@ impl CompiledGraphImputationTransportDecision {
     ///
     /// # Errors
     /// Any execution refusal or an invalid final draw table.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the refusal carries the full transport decision error"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one pass from execution through the interval candidate and its calibration basis"
+    )]
     pub fn calibration_candidate(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<GraphImputationTransportCalibrationCandidate, GraphImputationTransportDecisionError>
     {
+        use std::fmt::Write as _;
         let result = self.execute(ctx)?;
         let mut ordered = result.producer.draws.clone();
         if ordered.len() < 40 || ordered.iter().any(|value| !value.is_finite()) {
@@ -926,23 +970,28 @@ impl CompiledGraphImputationTransportDecision {
             let mut sizes: Vec<_> =
                 bootstrap.groups(self.target.rows())?.iter().map(Vec::len).collect();
             sizes.sort_unstable();
-            functional.push_str(&format!(
+            let _ = write!(
+                functional,
                 ":source_n={}:target_n={}:target_bootstrap=independent_clusters:replicates={}",
                 parts.rows(),
                 self.target.rows(),
                 bootstrap.replicates
-            ));
-            functional.push_str(&format!(":cluster_sizes={sizes:?}"));
+            );
+            let _ = write!(functional, ":cluster_sizes={sizes:?}");
             (
                 if self.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE },
                 "mar_graph_mixture_binary_target_cluster_bootstrap_v1",
                 bootstrap.replicates,
             )
         } else if let Some(bootstrap) = self.target_bootstrap {
-            functional.push_str(&format!(
+            let _ = write!(
+                functional,
                 ":source_n={}:target_n={}:target_bootstrap=iid_rows_unbiased_pool_v2:replicates={}:seed={}",
-                parts.rows(), self.target.rows(), bootstrap.replicates, bootstrap.seed,
-            ));
+                parts.rows(),
+                self.target.rows(),
+                bootstrap.replicates,
+                bootstrap.seed,
+            );
             (
                 if self.confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE },
                 if self.confounded {
@@ -953,22 +1002,24 @@ impl CompiledGraphImputationTransportDecision {
                 bootstrap.replicates,
             )
         } else if self.confounded {
-            functional.push_str(&format!(
+            let _ = write!(
+                functional,
                 ":source_n={}:target_n={}:s_admissibility=v2",
                 parts.rows(),
                 self.target.rows()
-            ));
+            );
             (
                 CONFOUNDED_FEATURE,
                 "mar_graph_mixture_confounded_target_standardization_v2",
                 parts.posterior_draws.saturating_mul(parts.imputations),
             )
         } else {
-            functional.push_str(&format!(
+            let _ = write!(
+                functional,
                 ":source_n={}:target_n={}:s_admissibility=v2",
                 parts.rows(),
                 self.target.rows()
-            ));
+            );
             (
                 FEATURE,
                 "mar_graph_mixture_target_standardization_v2",
@@ -1010,6 +1061,10 @@ impl CompiledGraphImputationTransportDecision {
     ///
     /// # Errors
     /// A changed receipt, utility or artifact encoding.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the refusal carries the full transport decision error"
+    )]
     pub fn export(
         &self,
         result: &GraphImputationTransportDecisionResult,
@@ -1077,6 +1132,11 @@ impl CompiledGraphImputationTransportDecision {
 ///
 /// # Errors
 /// Foreign feature or changed source, target, receipt or final decision.
+#[allow(clippy::result_large_err, reason = "the refusal carries the full transport decision error")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one replay from artifact checks through the final decision comparison"
+)]
 pub fn consume_graph_imputation_transport_decision(
     bytes: &[u8],
     expected_program: SemanticDigest,
@@ -1263,6 +1323,7 @@ mod tests {
 
     #[test]
     #[ignore = "source-only full transport schedule assertion; reliability not earned"]
+    #[allow(clippy::too_many_lines, reason = "one scenario walked from compile through replay")]
     fn missing_source_graph_mixture_transports_to_target_and_replays() {
         let mut treatment = Vec::new();
         let mut outcome = Vec::new();
@@ -1274,7 +1335,7 @@ mod tests {
             outcome.push(if row % 13 == 0 {
                 f64::NAN
             } else {
-                0.2 * x + a * (0.5 + 0.5 * x) + 0.1 * (row % 5) as f64
+                0.2 * x + a * (0.5 + 0.5 * x) + 0.1 * f64::from(row % 5)
             });
             covariate.push(x);
         }

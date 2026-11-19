@@ -176,6 +176,7 @@ fn check_coordinate(
 /// # Errors
 /// A mismatched effect coordinate, unsupported structural query, malformed
 /// contract or encoding refusal.
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_joint_transport_effect_decision(
     request: JointTransportEffectDecisionRequest,
 ) -> Result<CompiledJointTransportEffectDecision, JointTransportEffectDecisionError> {
@@ -573,6 +574,10 @@ mod tests {
     // assertions are permitted. The effect is exactly 2 at every target unit.
     #[test]
     #[ignore = "source-only composability assertion; scientific record not earned"]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
     fn fitted_target_effect_and_utility_replay_against_known_truth() {
         let treatment = VariableId::from_raw(0);
         let outcome = VariableId::from_raw(2);

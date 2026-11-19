@@ -236,6 +236,7 @@ pub(crate) fn lower_chain(
 
 /// Lower a chain and an optional decision contract as one six-layer program.
 /// The caller checks the decision's quantities and carrier before supplying it.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub(crate) fn lower_chain_with_decision(
     draft: PropagationChainRecordWire,
     plan: ChainPlan,

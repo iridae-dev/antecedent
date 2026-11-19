@@ -225,6 +225,7 @@ pub fn observation_query_identity(
 /// # Errors
 /// A malformed or oversized declaration.
 #[allow(clippy::match_same_arms, reason = "the cases retain distinct wire or replay semantics")]
+#[allow(clippy::too_many_lines, reason = "one arm per query declaration form")]
 pub fn check_query_bounds(
     query: &ObservationQueryWire,
 ) -> Result<(), ObservationQueryArtifactError> {
@@ -295,9 +296,9 @@ pub fn check_query_bounds(
                         "indicator identities, levels or recorded values differ from the dependent-error table".into(),
                     ));
                 }
-                cells = cells.checked_mul(levels.len()).ok_or_else(|| {
-                    ObservationQueryArtifactError::LimitsExceeded("dependent measurement cells")
-                })?;
+                cells = cells.checked_mul(levels.len()).ok_or(
+                    ObservationQueryArtifactError::LimitsExceeded("dependent measurement cells"),
+                )?;
                 if cells > 65_536 {
                     return Err(ObservationQueryArtifactError::LimitsExceeded(
                         "dependent measurement cells",

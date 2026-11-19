@@ -54,10 +54,11 @@ fn draft(shift: f64) -> PropagationChainRecordWire {
     })
 }
 
+#[allow(clippy::float_cmp, reason = "replay must reproduce the union endpoints bit for bit")]
 fn main() {
     let ctx = ExecutionContext::for_tests(43);
     let mut original = draft(0.0);
-    original.sources[0].values = (0..40).map(|row| (row as f64 / 40.0).to_bits()).collect();
+    original.sources[0].values = (0..40).map(|row| (f64::from(row) / 40.0).to_bits()).collect();
     let request = StratifiedClusterSamplingAssumptionUnionRequest {
         original,
         unit_ids: (0..40).map(|i| format!("unit-{i}")).collect(),

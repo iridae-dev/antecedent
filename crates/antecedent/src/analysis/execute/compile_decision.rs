@@ -301,8 +301,9 @@ const fn offered_port(realization: &Realization) -> EvidencePort {
         Realization::Bayesian(_) | Realization::GeneralizedBayes(_) => {
             EvidencePort::ParameterPosterior
         }
-        Realization::Envelope(_) => EvidencePort::IdentifiedSet,
-        Realization::DeclaredAssumptionEnvelope { .. } => EvidencePort::IdentifiedSet,
+        Realization::Envelope(_) | Realization::DeclaredAssumptionEnvelope { .. } => {
+            EvidencePort::IdentifiedSet
+        }
         Realization::DeclaredPredictive { .. } => EvidencePort::PredictiveLaw,
         Realization::DeclaredPosterior { .. } => EvidencePort::ParameterPosterior,
         Realization::NestedFit { law, .. } => match law {

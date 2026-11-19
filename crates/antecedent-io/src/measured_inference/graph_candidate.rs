@@ -79,6 +79,7 @@ impl RawTargetFrame {
     ///
     /// # Errors
     /// Invalid identity, alignment, missingness declaration or covariate value.
+    #[allow(clippy::float_cmp, reason = "coded binary levels are compared exactly")]
     pub fn validate(
         &self,
         parts: &GraphImputationParts,
@@ -196,12 +197,8 @@ impl RawTargetFrame {
     #[must_use]
     pub fn complete_rows(&self) -> Vec<(usize, f64)> {
         (0..self.row_ids.len())
-            .filter_map(|row| {
-                self.columns
-                    .iter()
-                    .all(|(_, values)| values[row].is_some())
-                    .then(|| (row, self.weights[row] / self.observation_probabilities[row]))
-            })
+            .filter(|&row| self.columns.iter().all(|(_, values)| values[row].is_some()))
+            .map(|row| (row, self.weights[row] / self.observation_probabilities[row]))
             .collect()
     }
 }
@@ -254,6 +251,7 @@ impl TransportStandardization {
         validate_confounded_adjustment(parts, &self.selection_targets)
     }
 
+    #[allow(clippy::float_cmp, reason = "coded binary levels are compared exactly")]
     fn validate_for_support(
         &self,
         parts: &GraphImputationParts,
@@ -522,6 +520,7 @@ impl KernelTransportStandardization {
         validate_confounded_adjustment(parts, &self.selection_targets)
     }
 
+    #[allow(clippy::float_cmp, reason = "coded binary levels are compared exactly")]
     fn validate_for_support(
         &self,
         parts: &GraphImputationParts,
@@ -919,6 +918,7 @@ impl<'a> TransportTarget<'a> {
     }
 }
 
+#[allow(clippy::float_cmp, reason = "coded binary levels and treatment arms are compared exactly")]
 fn kernel_transport_weights(
     source_columns: &[Vec<f64>],
     target_columns: &[&[f64]],
@@ -948,8 +948,7 @@ fn kernel_transport_weights(
                     .bandwidths
                     .iter()
                     .find(|(column, _)| *column == id)
-                    .map(|(_, bandwidth)| *bandwidth)
-                    .unwrap_or(f64::NAN);
+                    .map_or(f64::NAN, |(_, bandwidth)| *bandwidth);
                 let distance = (left - right) / bandwidth;
                 log_weight -= 0.5 * distance * distance;
             }
@@ -1052,6 +1051,11 @@ fn binary_target_weights(
     Ok(weights)
 }
 
+/// The query, population registry, identified estimand and optional target weights of a transport.
+type TransportedPopulation =
+    (AverageEffectQuery, PopulationRegistry, IdentifiedEstimand, Option<Vec<f64>>);
+
+#[allow(clippy::too_many_lines, reason = "one construction per transport target form")]
 fn transported_population(
     data: &TabularData,
     query: &AverageEffectQuery,
@@ -1059,8 +1063,7 @@ fn transported_population(
     target: TransportTarget<'_>,
     domains: &[u8],
     retain_weights: bool,
-) -> Result<(AverageEffectQuery, PopulationRegistry, IdentifiedEstimand, Option<Vec<f64>>), IoError>
-{
+) -> Result<TransportedPopulation, IoError> {
     let mut adjustment = atom.operation.adjustment.clone();
     for &selected in target.selections() {
         if !adjustment.contains(&selected) {
@@ -1208,6 +1211,11 @@ fn logistic_probability(value: f64) -> f64 {
     clippy::too_many_lines,
     reason = "the composite seals each completed table, graph fit and mixture together"
 )]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "sampled row indices are a unit-interval draw scaled by a row count, clamped below it"
+)]
 fn execute(
     rec: &Reconstructed,
     target: Option<TransportTarget<'_>>,
@@ -1227,18 +1235,17 @@ fn execute(
             "Bernoulli predictive worlds require a binary outcome and binary target frame",
         ));
     }
-    if let Some((variance, correlation, _)) = gaussian_predictive {
-        if !paired
+    if let Some((variance, correlation, _)) = gaussian_predictive
+        && (!paired
             || logit_predictive
             || !matches!(target, Some(TransportTarget::Binary(_)))
             || parts.domains[parts.outcome as usize] != 0
             || !variance.is_finite()
             || variance <= 0.0
             || !correlation.is_finite()
-            || !(-1.0..=1.0).contains(&correlation)
-        {
-            return Err(invalid("invalid Gaussian target predictive declaration"));
-        }
+            || !(-1.0..=1.0).contains(&correlation))
+    {
+        return Err(invalid("invalid Gaussian target predictive declaration"));
     }
     let (treatment, outcome) =
         (VariableId::from_raw(parts.treatment), VariableId::from_raw(parts.outcome));
@@ -1457,13 +1464,8 @@ fn execute(
                                 "predictive target weights differ from design rows",
                             ));
                         }
-                        let frame = match target {
-                            Some(TransportTarget::Binary(frame)) => frame,
-                            _ => {
-                                return Err(invalid(
-                                    "predictive worlds need a complete target frame",
-                                ));
-                            }
+                        let Some(TransportTarget::Binary(frame)) = target else {
+                            return Err(invalid("predictive worlds need a complete target frame"));
                         };
                         let row = ((predictive_rng.next_f64() * frame.rows() as f64) as usize)
                             .min(frame.rows() - 1);
@@ -2016,6 +2018,14 @@ pub fn replay_gaussian_target_predictive_worlds(
 ///
 /// # Errors
 /// Invalid target or clusters, changed support, fit, resource or replay failure.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one replay per resampled cluster set with its full refit"
+)]
+#[allow(
+    clippy::used_underscore_binding,
+    reason = "the paired leases are held in the underscore field until the reading is dropped"
+)]
 pub fn replay_target_predictive_cluster_bootstrap_worlds(
     bytes: &[u8],
     target: &TransportStandardization,
@@ -2182,14 +2192,18 @@ pub fn replay_transport_paired_worlds(
     })
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the remainder is below a bound that came from a usize"
+)]
 fn paired_bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
     let bound = len as u64;
     let threshold = bound.wrapping_neg() % bound;
     loop {
-        *state = state.wrapping_add(0x9e3779b97f4a7c15);
+        *state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
         let mut z = *state;
-        z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
         let word = z ^ (z >> 31);
         if word >= threshold {
             return (word % bound) as usize;
@@ -2203,6 +2217,14 @@ fn paired_bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
 ///
 /// # Errors
 /// Invalid resampling policy, target support, replay or admission refusal.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the remainder is below a bound that came from a usize"
+)]
+#[allow(
+    clippy::used_underscore_binding,
+    reason = "the paired leases are held in the underscore field until the reading is dropped"
+)]
 pub fn replay_transport_paired_worlds_bootstrap(
     bytes: &[u8],
     target: &TransportStandardization,
@@ -2245,10 +2267,10 @@ pub fn replay_transport_paired_worlds_bootstrap(
                 let bound = rows as u64;
                 let threshold = bound.wrapping_neg() % bound;
                 loop {
-                    state = state.wrapping_add(0x9e3779b97f4a7c15);
+                    state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
                     let mut z = state;
-                    z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-                    z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+                    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+                    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
                     let word = z ^ (z >> 31);
                     if word >= threshold {
                         break (word % bound) as usize;
@@ -2681,6 +2703,7 @@ mod tests {
 
     #[test]
     #[ignore = "source-only paired graph and imputation worlds; calibration not earned"]
+    #[allow(clippy::float_cmp, reason = "replayed worlds must match bit for bit")]
     fn paired_worlds_share_each_graph_and_coefficient_draw() {
         let bytes = encoded(parts(GraphSupport::TreatmentRootPreTreatmentCovariates, 3, 100));
         let ctx = ExecutionContext::for_tests(19);

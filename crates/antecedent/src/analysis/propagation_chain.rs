@@ -89,6 +89,13 @@ use super::lowering::chain::{declaration_identity, lower_chain};
 use crate::planner::lowered::{ChainProgram, LoweredProgram};
 use crate::planner::{PlanStage, PlanView};
 
+/// Aligned output-law draws and their optional normalized row weights.
+type OutputLaw<'a> = (&'a [u64], Option<&'a [u64]>);
+/// Rowwise lower and upper bounds and their optional normalized row weights.
+type OutputEnvelope<'a> = (&'a [u64], &'a [u64], Option<&'a [u64]>);
+/// Several aligned output-law columns and their optional normalized row weights.
+type JointOutputLaw<'a> = (&'a [Vec<u64>], Option<&'a [u64]>);
+
 fn refusal(error: &PropagationChainError) -> ChainRefusal {
     error.to_refusal()
 }
@@ -460,7 +467,7 @@ impl PropagationChain {
     /// or a source on which the output depends was withdrawn. The bit patterns
     /// are the ones the independent record consumer replays.
     #[must_use]
-    pub fn output_law(&self) -> Option<(&[u64], Option<&[u64]>)> {
+    pub fn output_law(&self) -> Option<OutputLaw<'_>> {
         self.record
             .output_draws
             .as_deref()
@@ -471,7 +478,7 @@ impl PropagationChain {
     /// with optional normalized weights on the aligned draw rows. These
     /// bounds have no measured sampling coverage.
     #[must_use]
-    pub fn output_envelope(&self) -> Option<(&[u64], &[u64], Option<&[u64]>)> {
+    pub fn output_envelope(&self) -> Option<OutputEnvelope<'_>> {
         self.record
             .output_lower_bounds
             .as_deref()
@@ -482,7 +489,7 @@ impl PropagationChain {
     /// Several aligned output-law columns and their common normalized row
     /// weights, retained and replayed under version 4.
     #[must_use]
-    pub fn joint_output_law(&self) -> Option<(&[Vec<u64>], Option<&[u64]>)> {
+    pub fn joint_output_law(&self) -> Option<JointOutputLaw<'_>> {
         self.record
             .joint_output_draws
             .as_deref()

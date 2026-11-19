@@ -554,9 +554,9 @@ impl CompiledBridgeTransportPremiseAssessment {
             .text(&request.premise.applies_to.population_id)
             .text(&request.premise.applies_to.regime_id)
             .text(request.premise.evidence.as_deref().unwrap_or(""))
-            .word(request.source.min_trials as u64)
+            .word(u64::from(request.source.min_trials))
             .word(request.source.min_r_squared.to_bits())
-            .word(request.target.min_trials as u64)
+            .word(u64::from(request.target.min_trials))
             .word(request.target.min_r_squared.to_bits())
             .word(request.equivalence_margin.to_bits());
         for (ids, validation) in [
@@ -679,7 +679,7 @@ mod tests {
         let trials = |target: bool| TrialLevelValidation {
             trials: (0..20)
                 .map(|i| {
-                    let x = -1.0 + 2.0 * i as f64 / 19.0;
+                    let x = -1.0 + 2.0 * f64::from(i) / 19.0;
                     let shift = if target { 0.05 } else { 0.0 };
                     TrialEffectPair {
                         surrogate_effect: x,

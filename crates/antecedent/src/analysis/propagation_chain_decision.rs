@@ -293,6 +293,7 @@ pub fn compile_action_world_chain_decision(
 /// # Errors
 /// A point response, marginal or malformed weighted law, unsupported law meaning,
 /// missing coordinates, or any chain/decision compiler refusal.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_transported_law_chain_decision(
     response: &TransportedResponse,
     contract: DecisionContract,

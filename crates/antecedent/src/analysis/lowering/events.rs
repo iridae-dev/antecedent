@@ -26,6 +26,7 @@ fn invalid(error: impl std::fmt::Display) -> CausalError {
     crate::compile_reason!("invalid_argument", "events.invalid_request: {error}")
 }
 
+#[allow(clippy::too_many_lines, reason = "one lowering that assembles every program section")]
 pub(crate) fn lower(
     source: SemanticDigest,
     source_bytes: u64,

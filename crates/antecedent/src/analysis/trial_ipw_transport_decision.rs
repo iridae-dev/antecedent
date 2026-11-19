@@ -167,6 +167,7 @@ struct Wire {
 ///
 /// # Errors
 /// Invalid row ownership, effect coordinate, structural query or contract.
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_trial_ipw_transport_decision(
     request: TrialIpwTransportDecisionRequest,
 ) -> Result<CompiledTrialIpwTransportDecision, Error> {
@@ -176,7 +177,7 @@ pub fn compile_trial_ipw_transport_decision(
         return Err(Error::Invalid("binary mean response query required"));
     };
     if treatment.grid.values().map_err(|_| Error::Invalid("invalid treatment grid"))?.as_slice()
-        != &[0.0, 1.0]
+        != [0.0, 1.0]
         || request.query.response != ResponseQuery::new(request.query.response.functional.clone())
         || request.query.weighted_target.is_some()
         || request.query.source_population.is_empty()
@@ -211,8 +212,7 @@ pub fn compile_trial_ipw_transport_decision(
     let rows = &request.rows;
     let n = rows.unit_ids.len();
     let mut ids = BTreeSet::new();
-    if n < 3
-        || n > 1_000_000
+    if !(3..=1_000_000).contains(&n)
         || !(40..=100_000).contains(&rows.draws)
         || n.checked_mul(rows.draws).is_none_or(|work| work > 50_000_000)
         || [
@@ -463,6 +463,10 @@ impl CompiledTrialIpwTransportDecision {
     ///
     /// # Errors
     /// A producer, decision or finite-draw refusal.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the draw count is validated to at most 100000 before it is recorded"
+    )]
     pub fn calibration_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -494,10 +498,7 @@ impl CompiledTrialIpwTransportDecision {
         for ((&trial, &selection), &treatment) in
             rows.trial.iter().zip(&rows.selection_probability).zip(&rows.treatment_probability)
         {
-            design
-                .word(if trial { 1 } else { 0 })
-                .word(selection.to_bits())
-                .word(treatment.to_bits());
+            design.word(u64::from(trial)).word(selection.to_bits()).word(treatment.to_bits());
         }
         let design = SemanticDigest::from_bytes(design.finish()).to_hex();
         let functional = format!(
@@ -656,6 +657,10 @@ mod tests {
 
     #[test]
     #[ignore = "source-only complete trial transport decision; reliability unearned"]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
     fn trial_effect_is_refit_and_replayed_from_raw_rows() {
         let treatment = VariableId::from_raw(0);
         let outcome = VariableId::from_raw(2);
@@ -755,10 +760,10 @@ mod tests {
             let mut replicate = request.clone();
             let mut state = seed;
             for i in 0..40 {
-                state = state.wrapping_add(0x9e3779b97f4a7c15);
+                state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
                 let mut z = state;
-                z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-                z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+                z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+                z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
                 let treated = ((z ^ (z >> 31)) & 1) != 0;
                 replicate.rows.treatment[i] = treated;
                 replicate.rows.outcomes[i] = if treated { 1.0 } else { 0.0 };

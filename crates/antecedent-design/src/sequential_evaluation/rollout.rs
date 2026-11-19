@@ -286,6 +286,7 @@ impl Rollout<'_> {
 /// A malformed model or policy; a reachable history without a decision; an
 /// unsupported action; a resource budget exceeded; a rollout count outside
 /// `1..=MAX_ROLLOUTS`; or cancellation.
+#[allow(clippy::cast_possible_truncation, reason = "the rollout count is at most MAX_ROLLOUTS")]
 pub fn rollout_policy(
     model: &FiniteSequentialModel,
     policy: &ContingentPolicy,

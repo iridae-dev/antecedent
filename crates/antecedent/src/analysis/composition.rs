@@ -588,7 +588,7 @@ struct PortableChainBundleRecomputationWire {
 pub fn compile_chain_bundle_recomputation(
     bundle: CompositionBundle,
     terminal_node: &str,
-    chain: PropagationChainPlan,
+    chain: &PropagationChainPlan,
 ) -> Result<CompiledChainBundleRecomputation, ChainBundleRecomputeError> {
     let node = bundle
         .nodes()
@@ -880,7 +880,7 @@ pub fn consume_portable_chain_bundle_recomputation(
     let recorded = PropagationChainRecordWire::decode(terminal_bytes)
         .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
     let chain = compile_propagation_chain(recorded, ctx)?;
-    let plan = compile_chain_bundle_recomputation(bundle, &wire.terminal_node, chain)?;
+    let plan = compile_chain_bundle_recomputation(bundle, &wire.terminal_node, &chain)?;
     if plan.lowered().identity() != expected_program {
         return Err(ChainBundleRecomputeError::Invalid("portable bundle compiler program differs"));
     }
@@ -957,6 +957,7 @@ struct PortableBridgeBundleRecomputationWire {
 /// # Errors
 /// Missing or non-embedded terminal, unsupported predictive carrier, bridge
 /// contract, source artifact or physical lowering refusal.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_bridge_bundle_recomputation(
     bundle: CompositionBundle,
     terminal_node: &str,
@@ -1324,16 +1325,15 @@ fn fit_node_failure(
                 BundleStage::ResourceRefused
             };
         }
-        if matches!(
+        if (matches!(
             current.downcast_ref::<antecedent_model::nonlinear_equilibrium::EquilibriumError>(),
             Some(antecedent_model::nonlinear_equilibrium::EquilibriumError::Resource(_))
         ) || matches!(
             current.downcast_ref::<crate::error::CausalError>(),
             Some(crate::error::CausalError::Resource { .. })
-        ) {
-            if stage != BundleStage::ExecutionCancelled {
-                stage = BundleStage::ResourceRefused;
-            }
+        )) && stage != BundleStage::ExecutionCancelled
+        {
+            stage = BundleStage::ResourceRefused;
         }
         cause = current.source();
     }
@@ -1537,7 +1537,7 @@ pub fn compile_cyclic_posterior_bundle_recomputation(
         .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
     let chain =
         compile_propagation_chain(recorded, ctx).map_err(ChainBundleRecomputeError::Chain)?;
-    let chain = compile_chain_bundle_recomputation(bundle, terminal_node, chain)?;
+    let chain = compile_chain_bundle_recomputation(bundle, terminal_node, &chain)?;
     let artifact_digest = CanonicalWriter::digest_bytes(
         "antecedent.cyclic_posterior_bundle.producer.v1",
         &producer_artifact,
@@ -2151,7 +2151,7 @@ pub fn compile_trial_ipw_node_bundle_recomputation(
     let record = PropagationChainRecordWire::decode(bytes)
         .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
     let child = compile_propagation_chain(record, ctx).map_err(ChainBundleRecomputeError::Chain)?;
-    let chain = compile_chain_bundle_recomputation(bundle, terminal_node, child)?;
+    let chain = compile_chain_bundle_recomputation(bundle, terminal_node, &child)?;
     let mut writer = CanonicalWriter::new("antecedent.trial_ipw_bundle.question.v1");
     writer
         .bytes(chain.lowered().identity().as_bytes())
@@ -2502,6 +2502,7 @@ struct PortableGraphImputationTransportNodeBundleWire {
 ///
 /// # Errors
 /// Missing node or edge, malformed fit declaration or chain compiler refusal.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_graph_imputation_transport_node_bundle_recomputation(
     bundle: CompositionBundle,
     producer_node: &str,
@@ -2558,7 +2559,7 @@ pub fn compile_graph_imputation_transport_node_bundle_recomputation(
     let record = PropagationChainRecordWire::decode(bytes)
         .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
     let child = compile_propagation_chain(record, ctx).map_err(ChainBundleRecomputeError::Chain)?;
-    let chain = compile_chain_bundle_recomputation(bundle, terminal_node, child)?;
+    let chain = compile_chain_bundle_recomputation(bundle, terminal_node, &child)?;
     let mut writer =
         CanonicalWriter::new("antecedent.graph_imputation_transport_bundle.question.v1");
     writer
@@ -2931,6 +2932,7 @@ struct PortableJointTransportEffectNodeBundleWire {
 ///
 /// # Errors
 /// Missing node or edge, malformed fit declaration or chain compiler refusal.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_joint_transport_effect_node_bundle_recomputation(
     bundle: CompositionBundle,
     producer_node: &str,
@@ -2987,7 +2989,7 @@ pub fn compile_joint_transport_effect_node_bundle_recomputation(
     let record = PropagationChainRecordWire::decode(bytes)
         .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
     let child = compile_propagation_chain(record, ctx).map_err(ChainBundleRecomputeError::Chain)?;
-    let chain = compile_chain_bundle_recomputation(bundle, terminal_node, child)?;
+    let chain = compile_chain_bundle_recomputation(bundle, terminal_node, &child)?;
     let mut writer = CanonicalWriter::new("antecedent.joint_transport_effect_bundle.question.v1");
     writer
         .bytes(chain.lowered().identity().as_bytes())
@@ -3447,6 +3449,9 @@ impl BundleBuilder {
         Ok(())
     }
     /// Embed a joint transport predictive producer, refitting its raw evidence.
+    ///
+    /// # Errors
+    /// A duplicate id, an artifact beyond the embedded bound, or one its verifier refuses.
     pub fn add_joint_transport_predictive_fit(
         &mut self,
         id: &str,
@@ -3457,6 +3462,9 @@ impl BundleBuilder {
         self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Joint)
     }
     /// Embed a trial IPW predictive producer, refitting its raw evidence.
+    ///
+    /// # Errors
+    /// A duplicate id, an artifact beyond the embedded bound, or one its verifier refuses.
     pub fn add_trial_ipw_predictive_fit(
         &mut self,
         id: &str,
@@ -3467,6 +3475,9 @@ impl BundleBuilder {
         self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Trial)
     }
     /// Embed a cyclic target-feedback fit and predictive decision.
+    ///
+    /// # Errors
+    /// A duplicate id, an artifact beyond the embedded bound, or one its verifier refuses.
     pub fn add_cyclic_target_feedback_fit(
         &mut self,
         id: &str,
@@ -3477,6 +3488,9 @@ impl BundleBuilder {
         self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Cyclic)
     }
     /// Embed a predictive graph-imputation fit and action-world decision.
+    ///
+    /// # Errors
+    /// A duplicate id, an artifact beyond the embedded bound, or one its verifier refuses.
     pub fn add_graph_imputation_predictive_fit(
         &mut self,
         id: &str,
@@ -3487,6 +3501,9 @@ impl BundleBuilder {
         self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Graph)
     }
     /// Embed an assessed bridge posterior producer and replay its raw validation evidence.
+    ///
+    /// # Errors
+    /// A duplicate id, an artifact beyond the embedded bound, or one its verifier refuses.
     pub fn add_assessed_bridge_posterior_fit(
         &mut self,
         id: &str,
@@ -3497,6 +3514,9 @@ impl BundleBuilder {
         self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Bridge)
     }
     /// Embed a chain decision artifact that will be recompiled and scored live.
+    ///
+    /// # Errors
+    /// A duplicate id, an artifact beyond the embedded bound, or one its verifier refuses.
     pub fn add_predictive_chain_decision(
         &mut self,
         id: &str,
@@ -3582,9 +3602,12 @@ fn embedded_node<'a>(
     }
     match &node.source {
         NodeSource::Embedded { bytes } => Ok(bytes),
-        _ => Err(PredictiveFitDecisionBundleError::Invalid("node must be embedded")),
+        NodeSource::Reference { .. } => {
+            Err(PredictiveFitDecisionBundleError::Invalid("node must be embedded"))
+        }
     }
 }
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 fn compile_predictive_fit_decision_bundle(
     bundle: CompositionBundle,
     producer: &str,
@@ -3743,6 +3766,10 @@ fn compile_predictive_fit_decision_bundle(
     })
 }
 /// Compile a live joint transport predictive fit and decision bundle.
+///
+/// # Errors
+/// A producer, chain or terminal node that is absent, of the wrong kind or not embedded,
+/// a missing edge between them, or a node that fails to compile.
 pub fn compile_joint_transport_predictive_node_decision_bundle(
     bundle: CompositionBundle,
     producer: &str,
@@ -3760,6 +3787,10 @@ pub fn compile_joint_transport_predictive_node_decision_bundle(
     )
 }
 /// Compile a live trial IPW predictive fit and decision bundle.
+///
+/// # Errors
+/// A producer, chain or terminal node that is absent, of the wrong kind or not embedded,
+/// a missing edge between them, or a node that fails to compile.
 pub fn compile_trial_ipw_predictive_node_decision_bundle(
     bundle: CompositionBundle,
     producer: &str,
@@ -3777,6 +3808,10 @@ pub fn compile_trial_ipw_predictive_node_decision_bundle(
     )
 }
 /// Compile a live cyclic target-feedback predictive fit and decision bundle.
+///
+/// # Errors
+/// A producer, chain or terminal node that is absent, of the wrong kind or not embedded,
+/// a missing edge between them, or a node that fails to compile.
 pub fn compile_cyclic_target_feedback_node_decision_bundle(
     bundle: CompositionBundle,
     producer: &str,
@@ -3794,6 +3829,10 @@ pub fn compile_cyclic_target_feedback_node_decision_bundle(
     )
 }
 /// Compile a live predictive graph-imputation fit and decision bundle.
+///
+/// # Errors
+/// A producer, chain or terminal node that is absent, of the wrong kind or not embedded,
+/// a missing edge between them, or a node that fails to compile.
 pub fn compile_graph_imputation_predictive_node_decision_bundle(
     bundle: CompositionBundle,
     producer: &str,
@@ -3811,6 +3850,10 @@ pub fn compile_graph_imputation_predictive_node_decision_bundle(
     )
 }
 /// Compile an assessed bridge posterior predictive fit and decision bundle.
+///
+/// # Errors
+/// A producer, chain or terminal node that is absent, of the wrong kind or not embedded,
+/// a missing edge between them, or a node that fails to compile.
 pub fn compile_assessed_bridge_posterior_node_decision_bundle(
     bundle: CompositionBundle,
     producer: &str,
@@ -3829,14 +3872,20 @@ pub fn compile_assessed_bridge_posterior_node_decision_bundle(
 }
 impl CompiledPredictiveFitDecisionBundle {
     /// The lowered program this bundle executes.
+    #[must_use]
     pub fn lowered(&self) -> &LoweredProgram {
         &self.lowered
     }
     /// Plan view of the lowered program at the compiled stage.
+    #[must_use]
     pub fn plan_view(&self) -> PlanView {
         PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
     }
     /// Refit raw evidence, execute the predictive chain and rescore its decision.
+    ///
+    /// # Errors
+    /// A bundle that fails to export or replay, a dependency that does not replay, or a
+    /// refitted fit, live chain and decision that differ.
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
@@ -3932,6 +3981,10 @@ impl CompiledPredictiveFitDecisionBundle {
     }
 }
 /// Independently reconstruct, refit and rescore the portable predictive bundle.
+///
+/// # Errors
+/// An oversized artifact, a bundle that fails to decode or reconstruct, or a receipt that
+/// differs from a refit and live execution.
 pub fn consume_portable_predictive_fit_decision_bundle(
     bytes: &[u8],
     expected_bundle: &str,
@@ -4015,8 +4068,8 @@ mod compiler_recomputation_tests {
             )
             .expect("embedded chain");
         let bundle = builder.build().expect("bundle");
-        let plan =
-            compile_chain_bundle_recomputation(bundle, "terminal", chain).expect("bundle compiler");
+        let plan = compile_chain_bundle_recomputation(bundle, "terminal", &chain)
+            .expect("bundle compiler");
         assert_eq!(plan.plan_view().route().as_str(), "BundleRecomputation");
         let receipt = plan.execute(&ctx).expect("live bundle replay");
         assert_eq!(receipt.dependencies.len(), 1);

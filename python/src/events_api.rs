@@ -187,6 +187,10 @@ impl NativeEventResult {
 }
 
 #[derive(Deserialize)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "the request is decoded once and consumed immediately, never stored"
+)]
 #[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
     Forecast {
@@ -226,7 +230,8 @@ struct Cost {
     amount: f64,
     unit: String,
     utility_unit: String,
-    utility_per_cost: f64,
+    #[serde(rename = "utility_per_cost")]
+    utility_rate: f64,
 }
 
 #[pyfunction]
@@ -300,7 +305,7 @@ fn events_prepare(
                         CostToUtilityMap {
                             cost_unit: c.unit,
                             utility_unit: c.utility_unit,
-                            utility_per_cost: c.utility_per_cost,
+                            utility_per_cost: c.utility_rate,
                         },
                     )
                 });

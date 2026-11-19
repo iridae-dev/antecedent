@@ -110,6 +110,10 @@ impl PreparedEventForecast {
     ///
     /// # Errors
     /// Unidentified bootstrap scope, resource refusal or forecast failure.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the path count is validated to at most 4096"
+    )]
     pub fn count_coverage_candidate(
         &self,
         kind: usize,
@@ -301,6 +305,11 @@ impl PreparedForecastAssessment {
     ///
     /// # Errors
     /// Fit or operational failure, including a nonfinite held-out point-process score.
+    #[allow(clippy::too_many_lines, reason = "one pass from origin fitting through scoring")]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "threshold probabilities lie in [0, 1], so the reliability bin index is at most 5"
+    )]
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<ForecastAssessment, EventError> {
         let scoped = super::scoped_execution(ctx, self.plan.identity(), CAPABILITY)?;
         let ctx = &scoped;
@@ -313,7 +322,7 @@ impl PreparedForecastAssessment {
         )?;
         let mut work = hawkes::Work::new(ctx);
         let rng = RngFactory::from_seed(r.seed);
-        let baseline_rng = StreamDomain::external(0x45564e54504f4953);
+        let baseline_rng = StreamDomain::external(0x4556_4e54_504f_4953);
         let mut scores = Vec::with_capacity(r.origins.len());
         for (origin_index, &origin) in r.origins.iter().enumerate() {
             let mut training = r.history.clone();

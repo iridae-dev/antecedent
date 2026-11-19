@@ -1,5 +1,17 @@
 //! Live raw sequential evaluation, aligned draws and diagnostic bundle.
-use super::*;
+use super::{
+    Arc, BundleBuilder, BundleLimits, BundleNode, BundleStage, CanonicalWriter,
+    ChainBundleRecomputeError, ClaimDemand, Composition, CompositionBundle, DataClassification,
+    Deserialize, DesignShape, EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef,
+    ExecutionContext, FunctionalKind, IdentificationLayer, IoError, LoweredProgram,
+    MAX_BUNDLE_RECOMPUTE_BYTES, NodeFailure, NodeKind, NodeSource, NodeVerifier,
+    NonGraphicalIdentification, PhysicalEffect, PhysicalLayer, PhysicalOperator, PlanStage,
+    PlanView, ProblemTarget, ProgramCell, ProgramIdentityScope, Realization,
+    ReplayedBundleDependency, ScientificProblem, SemanticDigest, Serialize,
+    StandaloneCompositionLoweredParts, StatisticalProgram, SuppliedSources, UncertaintyReading,
+    UpstreamNode, VerifiedNode, export_bundle, fit_node_context, fit_node_failure,
+    native_fit_bundle_consumer, node_refused,
+};
 use antecedent_design::decision_reliability::{
     DecisionDraws, ReliabilityReport, ReliabilityRequest, assess,
 };
@@ -168,6 +180,9 @@ pub enum SequentialReliabilityBundleError {
 }
 impl BundleBuilder {
     /// Embed an independently replayed raw sequential policy evaluation.
+    ///
+    /// # Errors
+    /// A duplicate id, an artifact that fails to encode, or one its verifier refuses.
     pub fn add_sequential_policy_reliability_fit(
         &mut self,
         id: &str,
@@ -191,6 +206,9 @@ impl BundleBuilder {
         )
     }
     /// Embed a fully disclosed aligned decision-draw carrier.
+    ///
+    /// # Errors
+    /// A duplicate id, draws that fail to encode, or draws their verifier refuses.
     pub fn add_sequential_decision_draws(
         &mut self,
         id: &str,
@@ -208,6 +226,9 @@ impl BundleBuilder {
         )
     }
     /// Embed a diagnostic which is recomputed from its declared draws on replay.
+    ///
+    /// # Errors
+    /// A duplicate id, a diagnostic that fails to encode, or one its verifier refuses.
     pub fn add_sequential_reliability_diagnostic(
         &mut self,
         id: &str,
@@ -297,10 +318,17 @@ fn embedded<'a>(
     }
     match &n.source {
         NodeSource::Embedded { bytes } => Ok(bytes),
-        _ => Err(SequentialReliabilityBundleError::Invalid("node must be embedded")),
+        NodeSource::Reference { .. } => {
+            Err(SequentialReliabilityBundleError::Invalid("node must be embedded"))
+        }
     }
 }
 /// Compile a direct producer -> aligned draws -> live diagnostic graph.
+///
+/// # Errors
+/// A producer, draws or terminal node that is absent, of the wrong kind or not embedded,
+/// a missing edge between them, or a node that fails to compile.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_sequential_reliability_node_bundle(
     bundle: CompositionBundle,
     producer: &str,
@@ -422,14 +450,20 @@ pub fn compile_sequential_reliability_node_bundle(
 }
 impl CompiledSequentialReliabilityBundle {
     /// The lowered program this bundle executes.
+    #[must_use]
     pub fn lowered(&self) -> &LoweredProgram {
         &self.lowered
     }
     /// Plan view of the lowered program at the compiled stage.
+    #[must_use]
     pub fn plan_view(&self) -> PlanView {
         PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
     }
     /// Replay the raw producer and independently reassess the exact retained draws.
+    ///
+    /// # Errors
+    /// A bundle that fails to export or replay, a dependency that does not replay, or a
+    /// producer, draw carrier and live diagnostic that differ.
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
@@ -526,6 +560,10 @@ impl CompiledSequentialReliabilityBundle {
     }
 }
 /// Independently reconstruct the graph and recompute its sequential diagnostic.
+///
+/// # Errors
+/// An oversized artifact, a bundle that fails to decode or reconstruct, or a receipt that
+/// differs from a recomputation.
 pub fn consume_portable_sequential_reliability_node_bundle(
     bytes: &[u8],
     expected_bundle: &str,
@@ -605,6 +643,7 @@ mod tests {
     }
     #[test]
     #[ignore = "source-only sequential diagnostic bundle; no calibration earned"]
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     fn producer_carrier_and_diagnostic_recompute_portably() {
         let (model, policies) = fixture();
         let producer = compile_sequential_policy_reliability(

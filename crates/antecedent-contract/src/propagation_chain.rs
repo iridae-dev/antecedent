@@ -1344,6 +1344,10 @@ fn finish_plan(
     })
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "Each reading checks its output representation in one exhaustive place."
+)]
 fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainRefusal> {
     let stage = Some(output.id.as_str());
     if reading == ChainReading::Interval {

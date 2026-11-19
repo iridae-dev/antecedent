@@ -112,6 +112,7 @@ fn predictive_quantity() -> ScientificQuantityWire {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the check requires exact equality of the retained values")]
 fn assumption_envelope_retains_two_axes_and_replays_changes() {
     let draft = PropagationChainRecordWire::draft(
         TableConstruction::JointDraws,

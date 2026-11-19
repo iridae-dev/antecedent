@@ -70,6 +70,7 @@ pub struct PathOutput {
 
 impl PathOutput {
     /// Quantity coordinate accepted by the existing decision contract.
+    #[must_use]
     pub fn quantity(&self, population: &str, horizon: u32) -> ScientificQuantity {
         let functional_id = match self.functional {
             PathFunctional::Maximum => "grid_maximum".into(),
@@ -228,6 +229,11 @@ impl PreparedEventWorlds {
 }
 
 impl CompiledWorlds {
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the policy grid must reproduce the retained window endpoints exactly"
+    )]
     pub(super) fn new(
         request: EventWorldRequest,
         history: &super::EventHistory,
@@ -370,6 +376,7 @@ impl CompiledWorlds {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     pub(super) fn execute(
         &self,
         law: &EventLaw,

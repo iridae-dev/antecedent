@@ -974,6 +974,7 @@ pub fn estimate_sampled_counterfactual_transport(
 /// # Errors
 /// Invalid or uncited count evidence, undeclared unit overlap, unsupported
 /// unseen-cell rules, missing providers, evaluation failure or budget refusal.
+#[allow(clippy::too_many_lines, reason = "one pass from validation through both worlds")]
 pub fn estimate_sampled_counterfactual_transport_contrast(
     active: &CounterfactualTransportDerivation,
     baseline: &CounterfactualTransportDerivation,

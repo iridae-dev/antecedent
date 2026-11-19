@@ -22,7 +22,7 @@ use antecedent_core::{
 };
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::counterfactual_transport_sampled::{
-    SampledTransportContrastEstimate, SampledTransportRequest,
+    SampledRegimeCounts, SampledTransportContrastEstimate, SampledTransportRequest,
     estimate_sampled_counterfactual_transport_contrast,
 };
 use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
@@ -206,8 +206,8 @@ fn variables_and_edges(problem: &CounterfactualTransportProblem) -> Vec<(Variabl
 
 fn queries(
     problem: &CounterfactualTransportProblem,
-    target: Arc<str>,
-    sources: Arc<[CounterfactualTransportSource]>,
+    target: &Arc<str>,
+    sources: &Arc<[CounterfactualTransportSource]>,
     spec: &TemporalPathSpec,
 ) -> Result<(CounterfactualTransportQuery, CounterfactualTransportQuery), TemporalPathTransportError>
 {
@@ -291,14 +291,15 @@ fn queries(
     let make = |event| {
         CounterfactualTransportQuery {
             event,
-            target: Arc::clone(&target),
-            sources: Arc::clone(&sources),
+            target: Arc::clone(target),
+            sources: Arc::clone(sources),
         }
         .canonical()
     };
     Ok((make(active_event), make(baseline_event)))
 }
 
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 fn lower(
     problem: &CounterfactualTransportProblem,
     active: &CounterfactualTransportQuery,
@@ -428,6 +429,10 @@ fn lower(
     clippy::too_many_arguments,
     reason = "one declared time/path/selection problem with its exact evidence"
 )]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the entry point takes ownership of the declared problem, evidence and options"
+)]
 pub fn compile_temporal_path_transport(
     problem: CounterfactualTransportProblem,
     target: Arc<str>,
@@ -439,7 +444,7 @@ pub fn compile_temporal_path_transport(
     ctx: &ExecutionContext,
 ) -> Result<CompiledTemporalPathTransport, TemporalPathTransportError> {
     let catalog = catalog.canonicalized()?;
-    let (active_query, baseline_query) = queries(&problem, target, sources, &spec)?;
+    let (active_query, baseline_query) = queries(&problem, &target, &sources, &spec)?;
     let options_wire = TemporalPathOptionsWire::from(&options);
     let lowered =
         lower(&problem, &active_query, &baseline_query, &catalog, &data, &spec, &options_wire)?;
@@ -584,12 +589,8 @@ pub fn consume_temporal_path_transport(
     let problem = &derivation.problem;
     let catalog = &derivation.catalog;
     let data = active.data();
-    let (active_query, baseline_query) = queries(
-        problem,
-        Arc::clone(&derivation.query.target),
-        Arc::clone(&derivation.query.sources),
-        &wire.spec,
-    )?;
+    let (active_query, baseline_query) =
+        queries(problem, &derivation.query.target, &derivation.query.sources, &wire.spec)?;
     if derivation.query.canonical_text() != active_query.canonical_text()
         || baseline.derivation().query.canonical_text() != baseline_query.canonical_text()
         || active.identity()?.data_digest != baseline.identity()?.data_digest
@@ -625,7 +626,7 @@ struct SampledPathRequestWire {
 impl SampledPathRequestWire {
     fn from_request(request: &SampledTransportRequest) -> Self {
         let mut tables = request.tables.clone();
-        tables.sort_by_key(|table| table.key());
+        tables.sort_by_key(SampledRegimeCounts::key);
         Self {
             tables: tables.iter().map(SampledCountTableWire::from_table).collect(),
             overlap: SampledOverlapWire::from_declaration(&request.overlap),
@@ -844,6 +845,10 @@ fn lower_sampled(
     clippy::too_many_arguments,
     reason = "one path, selection and sampled-evidence declaration"
 )]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the entry point takes ownership of the declared problem, evidence and options"
+)]
 pub fn compile_sampled_temporal_path_transport(
     problem: CounterfactualTransportProblem,
     target: Arc<str>,
@@ -855,7 +860,7 @@ pub fn compile_sampled_temporal_path_transport(
     ctx: &ExecutionContext,
 ) -> Result<CompiledSampledTemporalPathTransport, TemporalPathTransportError> {
     let catalog = catalog.canonicalized()?;
-    let (active_query, baseline_query) = queries(&problem, target, sources, &spec)?;
+    let (active_query, baseline_query) = queries(&problem, &target, &sources, &spec)?;
     let options_wire = TemporalPathOptionsWire::from(&options);
     let request_wire = SampledPathRequestWire::from_request(&request);
     let lowered = lower_sampled(
@@ -1298,6 +1303,7 @@ fn continuous_chain_fingerprint(result: &ContinuousChainTransportResult) -> [u8;
 /// # Errors
 /// Unsupported dimensions, nonfinite rows, no empirical arm overlap, singular
 /// original fits, or resource bound.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_continuous_chain_transport(
     request: ContinuousChainTransportRequest,
     ctx: &ExecutionContext,
@@ -1307,8 +1313,7 @@ pub fn compile_continuous_chain_transport(
     let k = request.source.first().map_or(0, |row| row.mediators.len());
     if n < 40
         || m < 20
-        || k < 2
-        || k > 8
+        || !(2..=8).contains(&k)
         || request.bootstrap_replicates < 100
         || request.bootstrap_replicates > 4096
         || n.checked_add(m)
@@ -1443,6 +1448,10 @@ pub fn compile_continuous_chain_transport(
     Ok(CompiledContinuousChainTransport { request, seed, lowered })
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the remainder is below a bound that came from a usize"
+)]
 fn continuous_chain_draw(rng: &mut antecedent_core::CausalRng, n: usize) -> usize {
     let bound = n as u64;
     let threshold = bound.wrapping_neg() % bound;
@@ -1614,6 +1623,7 @@ impl CompiledContinuousChainTransport {
     ///
     /// # Errors
     /// Any complete-schedule execution or fitting failure.
+    #[allow(clippy::cast_possible_truncation, reason = "the replicate count is at most 4096")]
     pub fn calibration_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -1669,7 +1679,7 @@ mod continuous_chain_tests {
         let ctx = ExecutionContext::for_tests(991);
         let source = (0..200)
             .map(|i| {
-                let x = (i % 25) as f64 / 25.0;
+                let x = f64::from(i % 25) / 25.0;
                 let treated = i >= 100;
                 let a = if treated { 1.0 } else { 0.0 };
                 let noise1 = if (i / 25) % 2 == 0 { -1.0 } else { 1.0 };
@@ -1686,7 +1696,7 @@ mod continuous_chain_tests {
             .collect();
         let request = ContinuousChainTransportRequest {
             source,
-            target_baseline: (0..25).map(|i| i as f64 / 25.0).collect(),
+            target_baseline: (0..25).map(|i| f64::from(i) / 25.0).collect(),
             mediator_parents: vec![vec![], vec![0], vec![0, 1]],
             treatment_edges: vec![true, true, true],
             active_treatment_edges: vec![true, false, false],

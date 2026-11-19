@@ -465,6 +465,7 @@ fn actions_to_wire(actions: &[(usize, f64)]) -> Vec<ActionProbabilityWire> {
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn policy_to_wire(policy: &ContingentPolicy) -> PolicyWire {
     PolicyWire {
         version: policy.version().to_owned(),
@@ -627,6 +628,7 @@ pub fn model_from_wire_body(wire: &ModelWire) -> Result<FiniteSequentialModel, I
 }
 
 #[doc(hidden)]
+#[must_use]
 pub fn trajectories_to_wire(log: &[LoggedTrajectory]) -> Vec<TrajectoryWire> {
     log.iter()
         .map(|trajectory| TrajectoryWire {

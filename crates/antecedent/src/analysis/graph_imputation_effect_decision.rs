@@ -114,6 +114,7 @@ struct GraphImputationEffectDecisionWire {
     calibration: String,
 }
 
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 fn check_decision(
     quantity: &ScientificQuantity,
     decision: &DecisionContract,
@@ -133,6 +134,7 @@ fn check_decision(
     Ok(())
 }
 
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 fn lower_outer(
     producer: SemanticDigest,
     source: SemanticDigest,
@@ -246,6 +248,7 @@ fn lower_outer(
 /// # Errors
 /// An effect coordinate that differs from the producer, a decision mismatch,
 /// or lowering refusal.
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 pub fn compile_graph_imputation_effect_decision(
     producer: CompiledGraphImputation,
     quantity: ScientificQuantity,
@@ -312,6 +315,7 @@ impl CompiledGraphImputationEffectDecision {
     ///
     /// # Errors
     /// An upstream child failure, mismatched effect or decision refusal.
+    #[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
@@ -336,6 +340,7 @@ impl CompiledGraphImputationEffectDecision {
     ///
     /// # Errors
     /// Changed graph mixture, utility, identity or artifact encoding.
+    #[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
     pub fn export(
         &self,
         result: &GraphImputationEffectDecisionResult,
@@ -397,6 +402,7 @@ impl CompiledGraphImputationEffectDecision {
 /// # Errors
 /// A changed upstream schedule, model-conditional effect law, utility or
 /// compiler identity refuses.
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 pub fn consume_graph_imputation_effect_decision(
     bytes: &[u8],
     expected_program: SemanticDigest,
@@ -458,6 +464,9 @@ pub fn consume_graph_imputation_effect_decision(
     })
 }
 
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one calculation")]
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 fn lower_paired_outer(
     producer: SemanticDigest,
     source: SemanticDigest,
@@ -743,6 +752,7 @@ pub struct GaussianPredictivePolicy {
     pub seed: u64,
 }
 
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 fn validate_gaussian_policy(
     policy: GaussianPredictivePolicy,
 ) -> Result<(), GraphImputationEffectDecisionError> {
@@ -796,10 +806,12 @@ struct GraphImputationWorldDecisionWire {
     cluster_bootstrap: Option<TargetClusterBootstrap>,
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde passes the skipped field by reference")]
 fn is_false(value: &bool) -> bool {
     !*value
 }
 
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 fn validate_world_coordinates(
     source: &[u8],
     quantities: &[ScientificQuantity; 2],
@@ -908,6 +920,7 @@ fn paired_world_chain(
 ///
 /// # Errors
 /// Mismatched outcome, treatment, regimes, actions or decision contract.
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 pub fn compile_graph_imputation_world_decision(
     producer: CompiledGraphImputation,
     quantities: [ScientificQuantity; 2],
@@ -945,6 +958,7 @@ pub fn compile_graph_imputation_world_decision(
 ///
 /// # Errors
 /// Invalid target, nonbinary outcome or mismatched regimes and decision.
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 pub fn compile_graph_imputation_bernoulli_predictive_world_decision(
     producer: CompiledGraphImputation,
     target: TransportStandardization,
@@ -993,6 +1007,7 @@ pub fn compile_graph_imputation_bernoulli_predictive_world_decision(
 ///
 /// # Errors
 /// Invalid source, target, residual law, outcome, coordinates or contract.
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 pub fn compile_graph_imputation_gaussian_target_predictive_world_decision(
     producer: CompiledGraphImputation,
     target: TransportStandardization,
@@ -1043,6 +1058,7 @@ pub fn compile_graph_imputation_gaussian_target_predictive_world_decision(
 ///
 /// # Errors
 /// The route is not predictive or the declared cluster policy is invalid.
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 pub fn compile_graph_imputation_predictive_cluster_bootstrap_decision(
     fixed: CompiledGraphImputationWorldDecision,
     policy: TargetClusterBootstrap,
@@ -1072,6 +1088,7 @@ pub fn compile_graph_imputation_predictive_cluster_bootstrap_decision(
 ///
 /// # Errors
 /// Invalid target, source binding, world coordinate or decision contract.
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 pub fn compile_graph_imputation_transport_world_decision(
     producer: CompiledGraphImputation,
     target: TransportStandardization,
@@ -1120,6 +1137,7 @@ pub fn compile_graph_imputation_transport_world_decision(
 ///
 /// # Errors
 /// Invalid target, source, decision or bootstrap policy.
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
 pub fn compile_graph_imputation_transport_world_bootstrap_decision(
     producer: CompiledGraphImputation,
     target: TransportStandardization,
@@ -1183,6 +1201,7 @@ impl CompiledGraphImputationWorldDecision {
     ///
     /// # Errors
     /// Any graph, child, pairing or utility refusal.
+    #[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
@@ -1249,6 +1268,7 @@ impl CompiledGraphImputationWorldDecision {
     ///
     /// # Errors
     /// Called on a different route or with an invalid retained source.
+    #[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
     pub fn predictive_calibration_basis(
         &self,
     ) -> Result<CalibrationBasis, GraphImputationEffectDecisionError> {
@@ -1272,9 +1292,9 @@ impl CompiledGraphImputationWorldDecision {
             .words(&parts.domains.iter().map(|domain| u64::from(*domain)).collect::<Vec<_>>())
             .word(parts.rows() as u64)
             .word(target.rows() as u64)
-            .word(parts.imputations as u64)
-            .word(parts.iterations as u64)
-            .word(parts.posterior_draws as u64)
+            .word(u64::from(parts.imputations))
+            .word(u64::from(parts.iterations))
+            .word(u64::from(parts.posterior_draws))
             .word(parts.prior_scale.to_bits())
             .words(&target.selection_targets.iter().map(|id| u64::from(*id)).collect::<Vec<_>>())
             .words(&target.columns.iter().map(|(id, _)| u64::from(*id)).collect::<Vec<_>>())
@@ -1324,6 +1344,7 @@ impl CompiledGraphImputationWorldDecision {
     ///
     /// # Errors
     /// The route is not predictive, lacks forty finite draws, or execution refuses.
+    #[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
     pub fn predictive_calibration_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -1368,6 +1389,8 @@ impl CompiledGraphImputationWorldDecision {
     ///
     /// # Errors
     /// Source, target, decision or encoding refusal.
+    #[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     pub fn reliability_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -1386,14 +1409,14 @@ impl CompiledGraphImputationWorldDecision {
         writer
             .text(parts.support.as_str())
             .word(parts.atoms.len() as u64)
-            .word(parts.treatment as u64)
-            .word(parts.outcome as u64)
+            .word(u64::from(parts.treatment))
+            .word(u64::from(parts.outcome))
             .words(&parts.domains.iter().map(|domain| u64::from(*domain)).collect::<Vec<_>>())
-            .word(parts.imputations as u64)
-            .word(parts.iterations as u64)
+            .word(u64::from(parts.imputations))
+            .word(u64::from(parts.iterations))
             .word(parts.imputation_seed)
             .word(parts.execution_seed)
-            .word(parts.posterior_draws as u64)
+            .word(u64::from(parts.posterior_draws))
             .word(parts.prior_scale.to_bits())
             .word(parts.rows() as u64)
             .text(&self.decision.identity()?)
@@ -1491,6 +1514,7 @@ impl CompiledGraphImputationWorldDecision {
     ///
     /// # Errors
     /// Changed result, nested refusal or oversized artifact.
+    #[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
     pub fn export(
         &self,
         result: &GraphImputationWorldDecisionResult,
@@ -1562,6 +1586,8 @@ impl CompiledGraphImputationWorldDecision {
 ///
 /// # Errors
 /// Changed program, source, receipt, quantity, decision or paired replay.
+#[allow(clippy::result_large_err, reason = "the error carries the full refusal record")]
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn consume_graph_imputation_world_decision(
     bytes: &[u8],
     expected: SemanticDigest,
@@ -1684,15 +1710,14 @@ pub fn consume_graph_imputation_world_decision(
         wire.predictive,
         wire.gaussian.is_some(),
     )?;
-    if let Some(target) = &wire.target {
-        if target.source_sample != SemanticDigest::from_bytes(reading.source).to_hex()
+    if let Some(target) = &wire.target
+        && (target.source_sample != SemanticDigest::from_bytes(reading.source).to_hex()
             || quantities.iter().any(|quantity| quantity.population_id != target.target_population)
-            || contract.contract().target_population != target.target_population
-        {
-            return Err(GraphImputationEffectDecisionError::Invalid(
-                "stored paired target population differs",
-            ));
-        }
+            || contract.contract().target_population != target.target_population)
+    {
+        return Err(GraphImputationEffectDecisionError::Invalid(
+            "stored paired target population differs",
+        ));
     }
     let lowered = lower_paired_outer(
         SemanticDigest::from_bytes(reading.program),
@@ -1744,6 +1769,8 @@ mod paired_world_tests {
 
     #[test]
     #[ignore = "source-only Bernoulli graph predictive decision; reliability not earned"]
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+    #[allow(clippy::float_cmp, reason = "the predictive worlds are exactly zero or one")]
     fn bernoulli_predictive_worlds_replay_and_bind_model() {
         let t: Vec<_> = (0..96).map(|i| f64::from(u8::from(i % 2 == 0))).collect();
         let x: Vec<_> = (0..96).map(|i| f64::from(u8::from(i % 4 < 2))).collect();
@@ -1752,7 +1779,7 @@ mod paired_world_tests {
                 if i % 13 == 0 {
                     f64::NAN
                 } else {
-                    f64::from(u8::from((i * 7 + i / 3) % 11 < 4 + (t[i] as usize)))
+                    f64::from(u8::from((i * 7 + i / 3) % 11 < 4 + usize::from(t[i] > 0.5)))
                 }
             })
             .collect();
@@ -1889,6 +1916,8 @@ mod paired_world_tests {
 
     #[test]
     #[ignore = "source-only paired graph-imputation world decision; reliability not earned"]
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+    #[allow(clippy::float_cmp, reason = "the paired worlds are compared for any exact difference")]
     fn paired_world_decision_replays() {
         let treatment: Vec<_> =
             (0..80).map(|i| f64::from(u8::from(i % 4 == 0 || i % 4 == 3))).collect();

@@ -526,6 +526,10 @@ fn policy_compiler_refusal(message: &str) -> CausalError {
     ))
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the node count is checked against the policy graph size bound above"
+)]
 fn check_policy_graph(
     request: &ObservationalPolicyRequest,
     declaration: &PolicyGraphDeclaration,
@@ -697,6 +701,8 @@ impl CompiledObservationalPolicy {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<HeldOutPolicyValueCandidate, CausalError> {
+        const LEVEL: f64 = 0.95;
+        const Z: f64 = 1.959_963_984_540_054;
         let graph = self.request.spec.causal_graph.as_ref().ok_or_else(|| {
             policy_compiler_refusal("a calibration candidate requires the graph-checked route")
         })?;
@@ -713,7 +719,7 @@ impl CompiledObservationalPolicy {
         let report = self.execute(ctx)?;
         if report.evaluation != "held_out"
             || report.evaluation_rows == 0
-            || report.evaluation_rows as usize != report.row_index.len()
+            || usize::try_from(report.evaluation_rows) != Ok(report.row_index.len())
             || report.row_index.len() != report.policy_actions.len()
             || report.row_index.len() != report.scores.len()
             || !report.value.is_finite()
@@ -724,8 +730,6 @@ impl CompiledObservationalPolicy {
                 "held-out policy score cannot form a candidate interval",
             ));
         }
-        const LEVEL: f64 = 0.95;
-        const Z: f64 = 1.959_963_984_540_054;
         let mut writer =
             CanonicalWriter::new("antecedent.held_out_policy_value.calibration_coordinate.v1");
         writer
@@ -807,6 +811,8 @@ impl CompiledObservationalPolicy {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
+        const LEVEL: f64 = 0.95;
+        const Z: f64 = 1.959_963_984_540_054;
         let graph = self.request.spec.causal_graph.as_ref().ok_or_else(|| {
             policy_compiler_refusal("a cross-fit candidate requires the graph-checked route")
         })?;
@@ -823,7 +829,7 @@ impl CompiledObservationalPolicy {
         let report = self.execute(ctx)?;
         if report.evaluation != "cross_fitted_learning"
             || report.evaluation_rows == 0
-            || report.evaluation_rows as usize != report.row_index.len()
+            || usize::try_from(report.evaluation_rows) != Ok(report.row_index.len())
             || report.row_index.len() != report.policy_actions.len()
             || report.row_index.len() != report.scores.len()
             || !report.value.is_finite()
@@ -834,8 +840,6 @@ impl CompiledObservationalPolicy {
                 "cross-fitted policy score cannot form a candidate interval",
             ));
         }
-        const LEVEL: f64 = 0.95;
-        const Z: f64 = 1.959_963_984_540_054;
         let mut writer =
             CanonicalWriter::new("antecedent.cross_fitted_policy_value.calibration_coordinate.v1");
         writer
@@ -918,6 +922,10 @@ impl CompiledObservationalPolicy {
     /// # Errors
     /// Invalid schedule, missing cells, changed seed, cancellation, or any
     /// replicate compiler or estimator refusal. Failed replicates are not dropped.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the replicate count is validated to at most 4096 and the drawn index is below the row count"
+    )]
     fn cross_fitted_subsampling_candidate(
         &self,
         subsample_rows: usize,
@@ -928,8 +936,7 @@ impl CompiledObservationalPolicy {
         let n = self.request.outcome.len();
         if subsample_rows < 20
             || subsample_rows >= n
-            || replicates < 100
-            || replicates > 4096
+            || !(100..=4096).contains(&replicates)
             || n.checked_mul(replicates).is_none_or(|work| work > 50_000_000)
             || self.request.outcome.iter().chain(&self.request.treatment).any(|x| !x.is_finite())
             || self.request.adjustment.iter().flat_map(|c| &c.values).any(|x| !x.is_finite())
@@ -1001,11 +1008,10 @@ impl CompiledObservationalPolicy {
         candidate.basis.key.interval_method = "cross_fitted_policy_subsampling_basic_v1".into();
         candidate.basis.key.se_kind = "full_refit_subsample_distribution".into();
         candidate.basis.key.dependence = "iid_rows_subsampling_limit_assumed".into();
-        candidate
-            .basis
-            .key
-            .functional
-            .push_str(&format!(".subsample_{subsample_rows}_of_{n}.replicates_{replicates}"));
+        candidate.basis.key.functional = format!(
+            "{}.subsample_{subsample_rows}_of_{n}.replicates_{replicates}",
+            candidate.basis.key.functional
+        );
         candidate.basis.scope.replicates_ok = Some(replicates as u32);
         candidate.slot = calibration_slot(&candidate.basis);
         candidate.interval = CrossFittedPolicyValueInterval {
@@ -1073,6 +1079,7 @@ impl CompiledObservationalPolicy {
 /// # Errors
 /// An incomplete or same-row learning declaration, malformed input shape or
 /// physical operator refusal.
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_observational_policy(
     request: ObservationalPolicyRequest,
     ctx: &ExecutionContext,
@@ -1151,7 +1158,7 @@ pub fn compile_observational_policy(
     };
     let mut models = vec![model(
         ModelRole::Outcome,
-        format!("cross_fitted_per_action_outcome.{}", support.len(),),
+        format!("cross_fitted_per_action_outcome.{}", support.len()),
     )];
     models.push(model(
         ModelRole::Propensity,
@@ -1166,7 +1173,7 @@ pub fn compile_observational_policy(
     if !matches!(evaluation, PolicyEvaluation::Prespecified { .. }) {
         models.push(model(
             ModelRole::Nuisance,
-            format!("policy_learning.{evaluation_name}.{}", objective.as_str(),),
+            format!("policy_learning.{evaluation_name}.{}", objective.as_str()),
         ));
     }
     let score_name = ScoreModel::new("observational_policy.cross_fitted_dr")
@@ -1305,6 +1312,7 @@ struct PolicySubsamplingArtifactWire {
 ///
 /// # Errors
 /// Invalid policy, graph, schedule, input rows, or resource bound.
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_policy_subsampling(
     request: ObservationalPolicyRequest,
     subsample_rows: usize,
@@ -1314,8 +1322,7 @@ pub fn compile_policy_subsampling(
     let n = request.outcome.len();
     if subsample_rows < 20
         || subsample_rows >= n
-        || replicates < 100
-        || replicates > 4096
+        || !(100..=4096).contains(&replicates)
         || n.checked_mul(replicates).is_none_or(|work| work > 50_000_000)
         || request.spec.evaluation.as_deref() != Some("cross_fitted_learning")
         || request.spec.causal_graph.is_none()

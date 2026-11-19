@@ -122,6 +122,7 @@ pub struct SequentialPolicyReliabilityResult {
 ///
 /// # Errors
 /// A learned or static-score policy, duplicate candidate, invalid declaration or lowering failure.
+#[allow(clippy::too_many_lines, reason = "one validation per declared mode and policy field")]
 pub fn compile_sequential_policy_reliability(
     model: FiniteSequentialModel,
     policies: Vec<PolicySpec>,
@@ -166,7 +167,7 @@ pub fn compile_sequential_policy_reliability(
                 return Err(SequentialReliabilityError::Invalid("invalid bootstrap declaration"));
             }
         }
-        _ => {}
+        SequentialReliabilityMode::Rollout(_) => {}
     }
     let mut ids: Vec<_> = policies.iter().map(ContingentPolicy::identity_hex).collect();
     ids.sort();

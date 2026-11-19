@@ -231,6 +231,7 @@ fn check_worlds(
 ///
 /// # Errors
 /// An invalid premise, graph query, coordinate or decision is refused.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_joint_transport_predictive_decision(
     request: JointTransportPredictiveDecisionRequest,
 ) -> Result<CompiledJointTransportPredictiveDecision, JointTransportPredictiveDecisionError> {
@@ -461,6 +462,10 @@ fn paired_outcomes(
     Ok(outcomes)
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the remainder is below a bound that came from a usize"
+)]
 fn uniform_target_row(rng: &mut antecedent_core::CausalRng, rows: usize) -> usize {
     let bound = rows as u64;
     let threshold = bound.wrapping_neg() % bound;
@@ -823,6 +828,7 @@ mod tests {
 
     #[test]
     #[ignore = "source-only predictive-route assertion; no build or scientific record earned"]
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     fn paired_target_outcomes_replay_with_a_shared_baseline() {
         let treatment = VariableId::from_raw(0);
         let outcome = VariableId::from_raw(2);

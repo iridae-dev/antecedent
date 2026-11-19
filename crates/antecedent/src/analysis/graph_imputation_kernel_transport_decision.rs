@@ -114,10 +114,18 @@ struct KernelTransportDecisionWire {
     cluster_bootstrap: Option<TargetClusterBootstrap>,
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "serde's `skip_serializing_if` calls the predicate with a reference"
+)]
 fn is_false(value: &bool) -> bool {
     !*value
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "the structured refusal is returned by value on a cold path"
+)]
 fn check_quantity(
     source: &GraphImputationSource,
     target: &KernelTransportStandardization,
@@ -149,6 +157,11 @@ fn check_quantity(
     Ok(())
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "the structured refusal is returned by value on a cold path"
+)]
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 fn lower_outer(
     source: &GraphImputationSource,
     target: &KernelTransportStandardization,
@@ -345,6 +358,10 @@ fn lower_outer(
 ///
 /// # Errors
 /// Invalid source binding, target support, contract or six-layer lowering.
+#[allow(
+    clippy::result_large_err,
+    reason = "the structured refusal is returned by value on a cold path"
+)]
 pub fn compile_graph_imputation_kernel_transport_decision(
     producer: CompiledGraphImputation,
     target: KernelTransportStandardization,
@@ -383,6 +400,10 @@ pub fn compile_graph_imputation_kernel_transport_decision(
 ///
 /// # Errors
 /// Invalid source, target, bootstrap policy or compiler binding.
+#[allow(
+    clippy::result_large_err,
+    reason = "the structured refusal is returned by value on a cold path"
+)]
 pub fn compile_graph_imputation_kernel_transport_target_bootstrap_decision(
     producer: CompiledGraphImputation,
     target: KernelTransportStandardization,
@@ -423,6 +444,10 @@ pub fn compile_graph_imputation_kernel_transport_target_bootstrap_decision(
 /// # Errors
 /// Invalid source binding, augmented backdoor or selection proof, target,
 /// overlap policy, bootstrap policy or decision.
+#[allow(
+    clippy::result_large_err,
+    reason = "the structured refusal is returned by value on a cold path"
+)]
 pub fn compile_graph_imputation_confounded_kernel_transport_decision(
     producer: CompiledGraphImputation,
     target: KernelTransportStandardization,
@@ -459,6 +484,10 @@ pub fn compile_graph_imputation_confounded_kernel_transport_decision(
 ///
 /// # Errors
 /// Invalid source, target, cluster policy, graph premise or decision.
+#[allow(
+    clippy::result_large_err,
+    reason = "the structured refusal is returned by value on a cold path"
+)]
 pub fn compile_graph_imputation_kernel_transport_cluster_bootstrap_decision(
     producer: CompiledGraphImputation,
     target: KernelTransportStandardization,
@@ -494,13 +523,17 @@ pub fn compile_graph_imputation_kernel_transport_cluster_bootstrap_decision(
 
 // SplitMix64 provides a stable, locally specified stream for portable replay.
 fn bootstrap_word(state: &mut u64) -> u64 {
-    *state = state.wrapping_add(0x9e3779b97f4a7c15);
+    *state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
     let mut z = *state;
-    z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
     z ^ (z >> 31)
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the remainder is below the usize bound it was reduced by"
+)]
 fn bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
     let bound = len as u64;
     let threshold = bound.wrapping_neg() % bound;
@@ -530,6 +563,18 @@ impl CompiledGraphImputationKernelTransportDecision {
     ///
     /// # Errors
     /// Source, overlap, fit or decision refusal.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the structured refusal is returned by value on a cold path"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the replicate count is bounded by the bootstrap policy and the drawn index is below the row count"
+    )]
     pub fn execute(
         &self,
         ctx: &ExecutionContext,
@@ -550,12 +595,10 @@ impl CompiledGraphImputationKernelTransportDecision {
             .as_ref()
             .map(|policy| policy.groups(self.target.rows()))
             .transpose()?;
-        let effective_bootstrap = self.target_bootstrap.or_else(|| {
-            self.cluster_bootstrap.as_ref().map(|policy| TargetFrameBootstrap {
-                replicates: policy.replicates,
-                seed: policy.seed,
-            })
-        });
+        let effective_bootstrap =
+            self.target_bootstrap.or(self.cluster_bootstrap.as_ref().map(|policy| {
+                TargetFrameBootstrap { replicates: policy.replicates, seed: policy.seed }
+            }));
         if let Some(policy) = effective_bootstrap {
             // Account for the sampled column copy, row indices and pooled draws;
             // each nested replay separately admits its own fitting workspace.
@@ -638,7 +681,7 @@ impl CompiledGraphImputationKernelTransportDecision {
                         }
                         nonce = nonce
                             .checked_add(1)
-                            .ok_or_else(|| Error::Invalid("bootstrap slot identity overflow"))?;
+                            .ok_or(Error::Invalid("bootstrap slot identity overflow"))?;
                     };
                     sampled.target_unit_ids =
                         (0..indices.len()).map(|row| format!("{prefix}{row}")).collect();
@@ -703,6 +746,14 @@ impl CompiledGraphImputationKernelTransportDecision {
     ///
     /// # Errors
     /// A source, overlap or posterior-draw refusal.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the structured refusal is returned by value on a cold path"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
     pub fn calibration_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -724,7 +775,7 @@ impl CompiledGraphImputationKernelTransportDecision {
         );
         policy.word(self.target.bandwidths.len() as u64);
         for &(id, bandwidth) in &self.target.bandwidths {
-            policy.word(id as u64).word(bandwidth.to_bits());
+            policy.word(u64::from(id)).word(bandwidth.to_bits());
         }
         policy.word(self.target.min_kernel_overlap.to_bits());
         let policy = SemanticDigest::from_bytes(policy.finish()).to_hex();
@@ -743,23 +794,25 @@ impl CompiledGraphImputationKernelTransportDecision {
             let mut sizes: Vec<_> =
                 bootstrap.groups(self.target.rows())?.iter().map(Vec::len).collect();
             sizes.sort_unstable();
-            functional.push_str(&format!(
-                ":source_n={}:target_n={}:target_bootstrap=independent_clusters:replicates={}",
+            functional = format!(
+                "{functional}:source_n={}:target_n={}:target_bootstrap=independent_clusters:replicates={}:cluster_sizes={sizes:?}",
                 parts.rows(),
                 self.target.rows(),
                 bootstrap.replicates
-            ));
-            functional.push_str(&format!(":cluster_sizes={sizes:?}"));
+            );
             (
                 if self.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE },
                 "mar_graph_mixture_kernel_target_cluster_bootstrap_v1",
                 bootstrap.replicates,
             )
         } else if let Some(bootstrap) = self.target_bootstrap {
-            functional.push_str(&format!(
-                ":source_n={}:target_n={}:target_bootstrap=iid_rows_unbiased_pool_v2:replicates={}:seed={}",
-                parts.rows(), self.target.rows(), bootstrap.replicates, bootstrap.seed,
-            ));
+            functional = format!(
+                "{functional}:source_n={}:target_n={}:target_bootstrap=iid_rows_unbiased_pool_v2:replicates={}:seed={}",
+                parts.rows(),
+                self.target.rows(),
+                bootstrap.replicates,
+                bootstrap.seed,
+            );
             (
                 if self.confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE },
                 if self.confounded {
@@ -770,22 +823,22 @@ impl CompiledGraphImputationKernelTransportDecision {
                 bootstrap.replicates,
             )
         } else if self.confounded {
-            functional.push_str(&format!(
-                ":source_n={}:target_n={}:arm_overlap=v1",
+            functional = format!(
+                "{functional}:source_n={}:target_n={}:arm_overlap=v1",
                 parts.rows(),
                 self.target.rows()
-            ));
+            );
             (
                 CONFOUNDED_FEATURE,
                 "mar_confounded_graph_mixture_kernel_target_v1",
                 parts.posterior_draws.saturating_mul(parts.imputations),
             )
         } else {
-            functional.push_str(&format!(
-                ":source_n={}:target_n={}:s_admissibility=v2",
+            functional = format!(
+                "{functional}:source_n={}:target_n={}:s_admissibility=v2",
                 parts.rows(),
                 self.target.rows()
-            ));
+            );
             (
                 FEATURE,
                 "mar_graph_mixture_kernel_target_v2",
@@ -827,6 +880,10 @@ impl CompiledGraphImputationKernelTransportDecision {
     ///
     /// # Errors
     /// Changed result or artifact encoding refusal.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the structured refusal is returned by value on a cold path"
+    )]
     pub fn export(
         &self,
         result: &GraphImputationTransportDecisionResult,
@@ -889,6 +946,11 @@ impl CompiledGraphImputationKernelTransportDecision {
 ///
 /// # Errors
 /// Foreign feature or changed source, target, receipt or decision.
+#[allow(
+    clippy::result_large_err,
+    reason = "the structured refusal is returned by value on a cold path"
+)]
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn consume_graph_imputation_kernel_transport_decision(
     bytes: &[u8],
     expected_program: SemanticDigest,
@@ -1024,18 +1086,22 @@ mod tests {
 
     #[test]
     #[ignore = "source-only mixed target route; whole-route reliability is unearned"]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
     fn continuous_target_modifier_replays_graph_imputation_and_utility() {
         let mut treatment = Vec::new();
         let mut outcome = Vec::new();
         let mut covariate = Vec::new();
         for row in 0..80 {
-            let x = (row % 20) as f64 / 19.0;
+            let x = f64::from(row % 20) / 19.0;
             let a = f64::from(u8::from(row % 4 == 0 || row % 4 == 3));
             treatment.push(a);
             outcome.push(if row % 13 == 0 {
                 f64::NAN
             } else {
-                0.2 * x + a * (0.5 + 0.5 * x) + 0.1 * (row % 5) as f64
+                0.2 * x + a * (0.5 + 0.5 * x) + 0.1 * f64::from(row % 5)
             });
             covariate.push(x);
         }
@@ -1065,7 +1131,7 @@ mod tests {
         )
         .unwrap();
         let target = KernelTransportStandardization {
-            columns: vec![(2, (0..80).map(|row| 0.2 + 0.8 * (row % 20) as f64 / 19.0).collect())],
+            columns: vec![(2, (0..80).map(|row| 0.2 + 0.8 * f64::from(row % 20) / 19.0).collect())],
             selection_targets: vec![2],
             source_population: "source".into(),
             target_population: "target".into(),
@@ -1250,9 +1316,13 @@ mod tests {
     }
     #[test]
     #[ignore = "source-only confounded mixed target route; reliability unearned"]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
     fn confounded_binary_continuous_target_replays_both_policies() {
         let binary: Vec<f64> = (0..80).map(|i| f64::from(u8::from(i % 2 == 1))).collect();
-        let continuous: Vec<f64> = (0..80).map(|i| (i % 20) as f64 / 19.0).collect();
+        let continuous: Vec<f64> = (0..80).map(|i| f64::from(i % 20) / 19.0).collect();
         let treatment: Vec<f64> = (0..80)
             .map(|i| f64::from(u8::from(if binary[i] == 0.0 { i % 10 < 2 } else { i % 10 < 8 })))
             .collect();
@@ -1304,7 +1374,7 @@ mod tests {
         );
         let target = KernelTransportStandardization {
             columns: vec![
-                (2, (0..80).map(|i| 0.1 + 0.8 * (i % 20) as f64 / 19.0).collect()),
+                (2, (0..80).map(|i| 0.1 + 0.8 * f64::from(i % 20) / 19.0).collect()),
                 (3, (0..80).map(|i| f64::from(u8::from(i % 3 != 0))).collect()),
             ],
             selection_targets: vec![2, 3],

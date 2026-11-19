@@ -31,9 +31,9 @@ fn quantity(regime: &str) -> ScientificQuantity {
 fn request() -> CyclicPosteriorDecisionRequest {
     let training = (0..260)
         .map(|i| {
-            let ad = (i % 5) as f64 * 0.4;
-            let ew = (i as f64 * 0.19).sin() * 0.2;
-            let et = (i as f64 * 0.23).cos() * 0.2;
+            let ad = f64::from(i % 5) * 0.4;
+            let ew = (f64::from(i) * 0.19).sin() * 0.2;
+            let et = (f64::from(i) * 0.23).cos() * 0.2;
             let wishlists = (0.2 * ad + ew + 0.3 * et) / (1.0 - 0.06);
             let traffic = 0.2 * wishlists + et;
             RegimeRow {
@@ -260,6 +260,7 @@ fn embedded_fit_node_is_refitted_by_the_bundle_consumer() {
 
 #[test]
 #[ignore = "source-only trial IPW bundle; no sampling or decision reliability is earned"]
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 fn embedded_trial_fit_is_refitted_and_matches_the_live_chain() {
     use crate::analysis::trial_ipw_transport_decision::{
         TrialIpwRows, TrialIpwTransportDecisionRequest, compile_trial_ipw_transport_decision,
@@ -402,6 +403,7 @@ fn embedded_trial_fit_is_refitted_and_matches_the_live_chain() {
 
 #[test]
 #[ignore = "source-only graph transport fit bundle; no whole-route calibration is earned"]
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 fn embedded_graph_transport_fit_replays_raw_evidence_and_chain() {
     use crate::analysis::graph_imputation::{CompiledGraphImputation, GraphImputationSpec};
     use crate::analysis::graph_imputation_transport_decision::compile_graph_imputation_transport_decision;
@@ -418,7 +420,7 @@ fn embedded_graph_transport_fit_replays_raw_evidence_and_chain() {
         outcome.push(if row % 13 == 0 {
             f64::NAN
         } else {
-            0.2 * x + a * (0.5 + 0.5 * x) + 0.1 * (row % 5) as f64
+            0.2 * x + a * (0.5 + 0.5 * x) + 0.1 * f64::from(row % 5)
         });
         covariate.push(x);
     }
@@ -634,7 +636,7 @@ fn native_fit_consumer_replays_each_bound_seed_and_preserves_cancellation() {
     let cancelled = ExecutionContext::for_tests(99);
     cancelled.cancellation.cancel();
     let consumed = native_fit_bundle_consumer(&cancelled)
-        .consume(&bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default())
+        .consume(bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default())
         .unwrap();
     assert!(matches!(
         &consumed.node("fit-47").unwrap().status,

@@ -1980,6 +1980,7 @@ impl crate::Study {
 }
 
 /// The plan route of a program cell.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 const fn plan_route(cell: ProgramCell) -> PlanRoute {
     match cell {
         ProgramCell::Route(cell) => cell.plan_route(),

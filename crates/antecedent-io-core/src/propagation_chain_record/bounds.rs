@@ -15,6 +15,7 @@ fn text_ok(text: &str, limits: &PropagationChainLimits) -> Result<(), Error> {
     }
 }
 
+#[allow(clippy::too_many_lines, reason = "one check per declared record section")]
 pub(super) fn check_bounds(
     record: &PropagationChainRecordWire,
     limits: &PropagationChainLimits,

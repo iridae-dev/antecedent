@@ -178,6 +178,14 @@ struct Wire {
 ///
 /// # Errors
 /// Invalid row ownership, outcome coordinates, structural query or contract.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one compilation from row validation through the lowered program"
+)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the draw count is validated to at most 100_000 before the narrowing"
+)]
 pub fn compile_trial_ipw_predictive_decision(
     request: TrialIpwPredictiveDecisionRequest,
 ) -> Result<CompiledTrialIpwPredictiveDecision, Error> {
@@ -187,7 +195,7 @@ pub fn compile_trial_ipw_predictive_decision(
         return Err(Error::Invalid("binary mean response query required"));
     };
     if treatment.grid.values().map_err(|_| Error::Invalid("invalid treatment grid"))?.as_slice()
-        != &[0.0, 1.0]
+        != [0.0, 1.0]
         || request.query.response != ResponseQuery::new(request.query.response.functional.clone())
         || request.query.weighted_target.is_some()
         || request.query.source_population.is_empty()
@@ -235,8 +243,7 @@ pub fn compile_trial_ipw_predictive_decision(
     let rows = &request.rows;
     let n = rows.unit_ids.len();
     let mut ids = BTreeSet::new();
-    if n < 3
-        || n > 1_000_000
+    if !(3..=1_000_000).contains(&n)
         || !(40..=100_000).contains(&rows.draws)
         || n.checked_mul(rows.draws).is_none_or(|work| work > 50_000_000)
         || [
@@ -589,7 +596,7 @@ impl CompiledTrialIpwPredictiveDecision {
             rows.trial.iter().zip(&rows.selection_probability).zip(&rows.treatment_probability)
         {
             design
-                .word(if trial { 1 } else { 0 })
+                .word(u64::from(trial))
                 .word(selection.to_bits())
                 .word(assignment_probability.to_bits());
         }
@@ -618,7 +625,7 @@ impl CompiledTrialIpwPredictiveDecision {
             Arc::from("model_conditional"),
             rows.trial.len() as u64,
             None,
-            Some(rows.draws as u32),
+            Some(u32::try_from(rows.draws).unwrap_or(u32::MAX)),
             0.0,
         )
         .with_validation("none");
@@ -756,6 +763,8 @@ mod tests {
 
     #[test]
     #[ignore = "source-only predictive route; no build or calibration earned"]
+    #[allow(clippy::too_many_lines, reason = "one scenario walked from compile through replay")]
+    #[allow(clippy::float_cmp, reason = "the planted predictive draws take exact coded values")]
     fn predictive_worlds_refit_and_replay_raw_evidence() {
         let treatment = VariableId::from_raw(0);
         let outcome = VariableId::from_raw(2);
@@ -813,7 +822,7 @@ mod tests {
         };
         let rows = TrialIpwRows {
             unit_ids: (0..80).map(|i| format!("unit-{i}")).collect(),
-            outcomes: (0..80).map(|i| if i < 40 { (i % 4) as f64 } else { 0.0 }).collect(),
+            outcomes: (0..80).map(|i| if i < 40 { f64::from(i % 4) } else { 0.0 }).collect(),
             treatment: (0..80).map(|i| i % 2 == 0).collect(),
             trial: (0..80).map(|i| i < 40).collect(),
             selection_probability: vec![0.5; 80],

@@ -95,7 +95,11 @@ impl HawkesParameters {
                 .zip(&witness)
                 .map(|(weight, value)| weight * value)
                 .sum();
-            if !x.is_finite() || x <= 0.0 || !(ax < x * (1.0 - 64.0 * f64::EPSILON)) {
+            let bound = x * (1.0 - 64.0 * f64::EPSILON);
+            if !x.is_finite()
+                || x <= 0.0
+                || ax.partial_cmp(&bound) != Some(std::cmp::Ordering::Less)
+            {
                 return Err(EventError::Unstable);
             }
         }
@@ -383,10 +387,10 @@ pub(super) fn fit(
     Err(EventError::Fit("optimizer iteration limit"))
 }
 
-pub(super) const FORECAST: StreamDomain = StreamDomain::external(0x45564e54464f5245);
-pub(super) const REFIT: StreamDomain = StreamDomain::external(0x45564e5452464954);
-pub(super) const UPDATE: StreamDomain = StreamDomain::external(0x45564e5455504454);
-pub(super) const STUDY: StreamDomain = StreamDomain::external(0x45564e5453545544);
+pub(super) const FORECAST: StreamDomain = StreamDomain::external(0x4556_4e54_464f_5245);
+pub(super) const REFIT: StreamDomain = StreamDomain::external(0x4556_4e54_5246_4954);
+pub(super) const UPDATE: StreamDomain = StreamDomain::external(0x4556_4e54_5550_4454);
+pub(super) const STUDY: StreamDomain = StreamDomain::external(0x4556_4e54_5354_5544);
 
 pub(super) fn sample(
     history: &EventHistory,

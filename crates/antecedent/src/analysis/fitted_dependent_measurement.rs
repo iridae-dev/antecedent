@@ -176,6 +176,10 @@ impl PreparedMechanismComposition {
     ///
     /// # Errors
     /// A malformed table, unsupported prior or observation-query refusal.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one compilation from table validation through the physical program"
+    )]
     pub fn compile_fitted_dependent_measurement(
         &self,
         request: FittedDependentMeasurementRequest,
@@ -221,7 +225,7 @@ impl PreparedMechanismComposition {
         writer
             .bytes(plug_in.lowered().identity().as_bytes())
             .word(request.prior_alpha.to_bits())
-            .word(request.draws as u64)
+            .word(u64::from(request.draws))
             .word(request.seed)
             .word(request.counts.len() as u64);
         for count in &request.counts {
@@ -270,7 +274,7 @@ impl PreparedMechanismComposition {
             1,
             PhysicalOperator::declare(PhysicalEffect::Fit)
                 .estimates(ByteEstimates::absent().with_output(
-                    (expected as u64).saturating_mul(request.draws as u64).saturating_mul(8),
+                    (expected as u64).saturating_mul(u64::from(request.draws)).saturating_mul(8),
                 ))
                 .build()
                 .map_err(|_| {

@@ -78,6 +78,7 @@ pub enum EventError {
 
 impl EventError {
     /// Stable route-specific reason, when the error originated in this compiler route.
+    #[must_use]
     pub fn detail(&self) -> Option<&'static str> {
         use antecedent_core::reason_details::events;
         match self {
@@ -94,6 +95,7 @@ impl EventError {
     }
 
     /// Stable top-level refusal code for the route failure.
+    #[must_use]
     pub fn reason_code(&self) -> Option<&'static str> {
         use antecedent_core::reason_code;
         Some(match self {
@@ -270,6 +272,7 @@ impl EventHistory {
     }
 }
 
+#[allow(clippy::float_cmp, reason = "tied native arrivals are detected by exact time equality")]
 fn validate_arrivals(
     arrivals: &[Arrival],
     start: f64,
@@ -289,6 +292,10 @@ fn validate_arrivals(
 
 #[derive(Deserialize, Serialize)]
 #[serde(remote = "ProviderObjectIdentity", deny_unknown_fields)]
+#[allow(
+    clippy::struct_field_names,
+    reason = "the fields mirror the provider object identity wire names"
+)]
 struct EventProviderIdentityWire {
     provider_id: String,
     object_id: String,
@@ -348,6 +355,10 @@ pub struct EventForecastRequest {
 }
 
 impl EventForecastRequest {
+    #[allow(
+        clippy::float_cmp,
+        reason = "the forecast must start exactly at the observation cutoff"
+    )]
     pub(super) fn validate(&self) -> Result<(), EventError> {
         self.forecast.validate()?;
         validate_budget(self.paths, self.max_events)?;
@@ -380,7 +391,9 @@ impl EventForecastRequest {
             }
             EventSource::Declared { parameters } => parameters.validate(self.history.catalog.len()),
             EventSource::Fitted { fit, refits } => {
-                if *refits != 0 && (*refits < 8 || *refits > 128 || self.paths % *refits != 0) {
+                if *refits != 0
+                    && (*refits < 8 || *refits > 128 || !self.paths.is_multiple_of(*refits))
+                {
                     return Err(EventError::invalid("use 8–128 equal-size refit blocks or zero"));
                 }
                 fit.validate(self.history.catalog.len())
@@ -554,6 +567,10 @@ impl PreparedEventForecast {
         self.sample_retained(ctx)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one pass from source sampling through retained paths"
+    )]
     fn sample_retained(&self, ctx: &ExecutionContext) -> Result<EventLaw, EventError> {
         let request = &self.request;
         let history = &request.history;
@@ -673,31 +690,37 @@ impl PreparedEventForecast {
 
 impl EventLaw {
     /// Source-bound compiler program digest.
+    #[must_use]
     pub fn identity(&self) -> SemanticDigest {
         self.identity
     }
 
     /// Meaning of the forecast law.
+    #[must_use]
     pub fn meaning(&self) -> EventLawMeaning {
         self.meaning
     }
 
     /// Complete retained paths in pairing order.
+    #[must_use]
     pub fn paths(&self) -> &[Vec<Arrival>] {
         &self.paths
     }
 
     /// Forecast clock interval.
+    #[must_use]
     pub fn window(&self) -> EventWindow {
         self.window
     }
 
     /// Observation and clock declaration bound to the forecast.
+    #[must_use]
     pub fn history(&self) -> &EventHistory {
         &self.history
     }
 
     /// Fit diagnostics, if the forecast estimated a model.
+    #[must_use]
     pub fn fit(&self) -> Option<&HawkesFit> {
         self.model_fit.as_deref()
     }
@@ -708,11 +731,13 @@ impl EventLaw {
     }
 
     /// Exact provider verification receipt digest when present.
+    #[must_use]
     pub fn provider_receipt(&self) -> Option<&str> {
         self.provider_receipt.as_deref()
     }
 
     /// Whether the base event computation has earned release support.
+    #[must_use]
     pub fn release_supported(&self) -> bool {
         self.release_supported
     }
@@ -728,6 +753,7 @@ pub(super) fn path_bytes(paths: usize, max_events: usize) -> u64 {
 }
 
 /// The provider execution contract a consumer must verify for these joint paths.
+#[must_use]
 pub fn external_execution_contract(identity: ProviderObjectIdentity) -> ExecutionContract {
     ExecutionContract {
         identity,

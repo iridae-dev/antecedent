@@ -202,6 +202,7 @@ pub(super) fn compile_cyclic_component_posterior_decision(
     compile_cyclic_posterior_action_decision_checked(request, outputs, contract, ctx, true)
 }
 
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 fn compile_cyclic_posterior_action_decision_checked(
     request: CyclicPosteriorDecisionRequest,
     outputs: Vec<CyclicDecisionOutput>,
@@ -611,6 +612,10 @@ impl CompiledCyclicPosteriorDecision {
     ///
     /// # Errors
     /// A fit, diagnostic, world solve or malformed predictive table refuses.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the ordered draw count is bounded by the sampler's draw budget, far below u32::MAX"
+    )]
     pub fn calibration_candidate(
         &self,
         output_index: usize,
@@ -836,9 +841,9 @@ mod tests {
     fn request() -> CyclicPosteriorDecisionRequest {
         let training = (0..260)
             .map(|i| {
-                let ad = (i % 5) as f64 * 0.4;
-                let ew = (i as f64 * 0.19).sin() * 0.2;
-                let et = (i as f64 * 0.23).cos() * 0.2;
+                let ad = f64::from(i % 5) * 0.4;
+                let ew = (f64::from(i) * 0.19).sin() * 0.2;
+                let et = (f64::from(i) * 0.23).cos() * 0.2;
                 let wishlists = (0.2 * ad + ew + 0.3 * et) / (1.0 - 0.06);
                 let traffic = 0.2 * wishlists + et;
                 RegimeRow {

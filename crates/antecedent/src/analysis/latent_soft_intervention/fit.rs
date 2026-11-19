@@ -538,6 +538,11 @@ fn masks(candidates: &[usize]) -> Vec<Vec<usize>> {
     masks
 }
 
+#[allow(clippy::too_many_lines, reason = "one fit from the arm split through the mixture ordering")]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "a remainder below a slice length and a folded seed index both fit usize"
+)]
 pub(super) fn run(
     request: &LatentSoftInterventionRequest,
     program: SemanticDigest,
@@ -553,9 +558,9 @@ pub(super) fn run(
         ctx,
     )
     .map_err(|receipt| search_refusal(receipt.stop))?;
-    let (mut control_train, _) = arm_split(&request.baseline, request.seed ^ 0x434f4e54524f4c);
+    let (mut control_train, _) = arm_split(&request.baseline, request.seed ^ 0x0043_4f4e_5452_4f4c);
     let (mut action_train, mut action_eval) =
-        arm_split(&request.action, request.seed ^ 0x414354494f4e);
+        arm_split(&request.action, request.seed ^ 0x4143_5449_4f4e);
     if let Some(seed) = refit_seed {
         let mut rng = CausalRng::from_seed(seed);
         // A source row cannot cross the honest split in any refit.
@@ -716,7 +721,7 @@ pub(super) fn run(
             .zip(&mixture.shifts[1])
             .map(|(a, b)| a.total_cmp(b))
             .find(|order| !order.is_eq())
-            .is_some_and(|order| order.is_gt())
+            .is_some_and(std::cmp::Ordering::is_gt)
     {
         mixture.shifts.swap(0, 1);
         for coefficient in &mut mixture.gate {

@@ -461,6 +461,10 @@ impl ObservationalPolicyValue {
     }
 
     /// Fit the propensity and per-action outcome models on `train` and predict `valid`.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
     fn fit_split(
         &self,
         prepared: &Prepared,

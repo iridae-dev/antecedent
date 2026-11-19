@@ -13,7 +13,7 @@ fn main() {
     let ctx = ExecutionContext::for_tests(991);
     let source = (0..200)
         .map(|i| {
-            let x = (i % 25) as f64 / 25.0;
+            let x = f64::from(i % 25) / 25.0;
             let treated = i >= 100;
             let a = if treated { 1.0 } else { 0.0 };
             let noise1 = if (i / 25) % 2 == 0 { -1.0 } else { 1.0 };
@@ -30,7 +30,7 @@ fn main() {
         .collect();
     let request = ContinuousChainTransportRequest {
         source,
-        target_baseline: (0..25).map(|i| i as f64 / 25.0).collect(),
+        target_baseline: (0..25).map(|i| f64::from(i) / 25.0).collect(),
         mediator_parents: vec![vec![], vec![0], vec![0, 1]],
         treatment_edges: vec![true, true, true],
         active_treatment_edges: vec![true, false, false],

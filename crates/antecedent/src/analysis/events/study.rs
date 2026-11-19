@@ -44,7 +44,7 @@ impl EventBelief {
     fn validate(&self, paths: usize) -> Result<(), EventError> {
         self.history.validate(true)?;
         let n = self.hypotheses.len();
-        if !(1..=32).contains(&n) || paths % n != 0 || paths / n < 8 {
+        if !(1..=32).contains(&n) || !paths.is_multiple_of(n) || paths / n < 8 {
             return Err(EventError::invalid(
                 "use at most 32 hypotheses and at least eight equally allocated paths per hypothesis",
             ));
@@ -152,6 +152,10 @@ impl crate::Study {
     ///
     /// # Errors
     /// Incomplete or overlapping windows, invalid prior, or resource refusal.
+    #[allow(
+        clippy::float_cmp,
+        reason = "window boundaries are copied values and must meet exactly"
+    )]
     pub fn prepare_event_update(
         prior: EventBelief,
         observation: EventObservation,
@@ -210,6 +214,10 @@ impl crate::Study {
     ///
     /// # Errors
     /// Invalid belief, world declaration, constraints, score criterion or cost.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the optional cost is part of the public signature and is passed as an owned value"
+    )]
     pub fn prepare_event_study(
         prior: EventBelief,
         request: EventStudyRequest,
@@ -320,7 +328,7 @@ impl PreparedEventUpdate {
         let _scratch = admit(ctx, scratch, 0)?;
         let mut history = original.clone();
         history.left = original.prefix();
-        history.events = self.observation.events.clone();
+        history.events.clone_from(&self.observation.events);
         history.window = self.observation.window;
         let likelihood = self
             .prior
@@ -343,11 +351,10 @@ impl PreparedEventUpdate {
             .hypotheses
             .iter()
             .zip(weights)
-            .filter_map(|(h, weight)| {
-                (weight > 0.0).then(|| EventHypothesis {
-                    weight: weight / total,
-                    parameters: h.parameters.clone(),
-                })
+            .filter(|&(_, weight)| weight > 0.0)
+            .map(|(h, weight)| EventHypothesis {
+                weight: weight / total,
+                parameters: h.parameters.clone(),
             })
             .collect();
         let lease = Arc::new(admit(
@@ -407,6 +414,10 @@ impl PreparedEventStudy {
     ///
     /// # Errors
     /// Numerical, resource, decision-contract or cancellation refusal.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<EventStudyValue, EventError> {
         let scoped = super::scoped_execution(ctx, self.plan.identity(), CAPABILITY)?;
         let ctx = &scoped;
@@ -517,7 +528,7 @@ impl PreparedEventStudy {
                 .map(|values| (masses, values))
         };
         let (masses, (gross, base, branches)) = summarize(None)?;
-        let se = if masses.iter().all(|&mass| mass > 0.0) && group % 8 == 0 {
+        let se = if masses.iter().all(|&mass| mass > 0.0) && group.is_multiple_of(8) {
             let mut deletes = Vec::with_capacity(8);
             for block in 0..8 {
                 super::poll(ctx)?;
@@ -576,12 +587,16 @@ impl Utility<usize, usize> for BranchUtility {
 struct ObservedBranch;
 
 impl DecisionSignal<usize> for ObservedBranch {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "same_stream_count_threshold"
     }
     fn finite_support(&self, _n: u64) -> Option<Vec<f64>> {
         Some(vec![0.0, 1.0])
     }
+    #[allow(
+        clippy::float_cmp,
+        reason = "the statistic and the state are both integer counts held in f64, so equality is exact"
+    )]
     fn log_likelihood(
         &self,
         statistic: f64,
@@ -642,6 +657,7 @@ fn preposterior(
 #[cfg(test)]
 mod tests {
     #[test]
+    #[allow(clippy::float_cmp, reason = "the expected values are exact sums of dyadic rationals")]
     fn finite_same_stream_observation_changes_choice() {
         let scores = [vec![10.0, 0.0], vec![0.0, 18.0]];
         let (value, base, actions) = super::preposterior(&scores, [0.75, 0.25], 2).unwrap();

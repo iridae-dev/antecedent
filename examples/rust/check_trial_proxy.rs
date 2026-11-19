@@ -16,7 +16,7 @@ fn main() {
     let trials = |target: bool| TrialLevelValidation {
         trials: (0..20)
             .map(|i| {
-                let x = -1.0 + 2.0 * i as f64 / 19.0;
+                let x = -1.0 + 2.0 * f64::from(i) / 19.0;
                 let shift = if target { 0.05 } else { 0.0 };
                 TrialEffectPair {
                     surrogate_effect: x,
@@ -60,7 +60,7 @@ fn main() {
             .unwrap();
     assert_eq!(replay, result);
     println!("Screen passed: {}", result.equivalence_screen_passed);
-    println!("Grid discrepancy and support: {:?}", result);
+    println!("Grid discrepancy and support: {result:?}");
     let mut larger_shift = request;
     for trial in &mut larger_shift.target.trials {
         trial.terminal_effect += 0.4;

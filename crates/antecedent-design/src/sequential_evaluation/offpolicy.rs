@@ -541,6 +541,13 @@ pub struct OffPolicyBootstrap {
 /// # Errors
 /// Any underlying evaluation refusal, insufficient effective support, invalid
 /// bootstrap size, nonfinite replicate, or cancellation.
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one bootstrap evaluation")]
+#[allow(clippy::too_many_lines, reason = "one pass from validation through resampling")]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "replicates is bounded by MAX_ROLLOUTS; resampled indices are clamped below the log"
+)]
 pub fn bootstrap_off_policy(
     model: &FiniteSequentialModel,
     targets: &[ContingentPolicy],
@@ -554,8 +561,7 @@ pub fn bootstrap_off_policy(
     ctx: &ExecutionContext,
 ) -> SequentialResult<OffPolicyBootstrap> {
     if targets.len() < 2
-        || replicates < 2
-        || replicates > super::MAX_ROLLOUTS
+        || !(2..=super::MAX_ROLLOUTS).contains(&replicates)
         || !minimum_effective_sample_size.is_finite()
         || minimum_effective_sample_size < 2.0
     {

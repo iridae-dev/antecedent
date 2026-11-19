@@ -182,7 +182,7 @@ fn trial_predictive_fit_chain_and_decision_replay() {
     let (diagram, query, worlds, decision) = fixture();
     let rows = TrialIpwRows {
         unit_ids: (0..80).map(|i| format!("unit-{i}")).collect(),
-        outcomes: (0..80).map(|i| if i < 40 { (i % 4) as f64 } else { 0.0 }).collect(),
+        outcomes: (0..80).map(|i| if i < 40 { f64::from(i % 4) } else { 0.0 }).collect(),
         treatment: (0..80).map(|i| i % 2 == 0).collect(),
         trial: (0..80).map(|i| i < 40).collect(),
         selection_probability: vec![0.5; 80],
@@ -328,7 +328,7 @@ fn graph_predictive_fit_chain_and_decision_replay() {
             if i % 13 == 0 {
                 f64::NAN
             } else {
-                f64::from(u8::from((i * 7 + i / 3) % 11 < 4 + t[i] as usize))
+                f64::from(u8::from((i * 7 + i / 3) % 11 < 4 + usize::from(i % 2 == 0)))
             }
         })
         .collect();

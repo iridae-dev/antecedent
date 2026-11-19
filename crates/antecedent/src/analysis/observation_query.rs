@@ -956,6 +956,7 @@ impl PreparedMechanismComposition {
     /// # Errors
     /// A non-finite model, invalid slots, missing measurement model or
     /// undeclared error dependence is refused before evaluation.
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     pub fn compile_joint_measured_observation(
         &self,
         request: &JointMeasuredObservationRequest,
@@ -1124,6 +1125,7 @@ impl PreparedMechanismComposition {
     /// # Errors
     /// Non-finite composition, invalid direct observations or intervention,
     /// missing scope, or physical program refusal.
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     pub fn compile_dependent_measured_observation(
         &self,
         request: &DependentMeasuredObservationRequest,

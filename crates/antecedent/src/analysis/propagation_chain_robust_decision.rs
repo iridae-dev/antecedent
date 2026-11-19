@@ -234,6 +234,8 @@ impl ChainRobustDecisionPlan {
     ///
     /// # Errors
     /// An invalidated output, a nonfinite utility enclosure, or cancellation.
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+    #[allow(clippy::float_cmp, reason = "a required probability of exactly one demands certainty")]
     pub fn execute(
         &self,
         ctx: &ExecutionContext,

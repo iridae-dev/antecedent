@@ -107,6 +107,10 @@ struct Wire {
 ///
 /// # Errors
 /// Invalid source, target support, estimand, utility or lowering.
+#[allow(
+    clippy::result_large_err,
+    reason = "the structured refusal is returned by value on a cold path"
+)]
 pub fn compile_graph_imputation_mar_transport_decision(
     producer: CompiledGraphImputation,
     target: MarTargetStandardization,
@@ -120,6 +124,11 @@ pub fn compile_graph_imputation_mar_transport_decision(
 ///
 /// # Errors
 /// Invalid source, target, cluster design, estimand or utility.
+#[allow(
+    clippy::result_large_err,
+    reason = "the structured refusal is returned by value on a cold path"
+)]
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_graph_imputation_mar_transport_with_cluster(
     producer: CompiledGraphImputation,
     target: MarTargetStandardization,
@@ -258,7 +267,7 @@ pub fn compile_graph_imputation_mar_transport_with_cluster(
             .build()
             .map_err(|_| MarTransportError::Invalid("invalid read operator"))?,
     ];
-    for _ in 0..(1 + bootstrap.map_or(0, |policy| policy.replicates)) {
+    for _ in 0..=bootstrap.map_or(0, |policy| policy.replicates) {
         operators.push(
             PhysicalOperator::declare(PhysicalEffect::Fit)
                 .build()
@@ -315,6 +324,10 @@ impl CompiledMarTransportDecision {
     ///
     /// # Errors
     /// Any source, support, overlap, fitting or decision refusal.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the structured refusal is returned by value on a cold path"
+    )]
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<MarTransportResult, MarTransportError> {
         let mut reading = replay_mar_transport_point(&self.native_source, &self.target, ctx)?;
         if let Some(policy) = self.bootstrap {
@@ -342,6 +355,10 @@ impl CompiledMarTransportDecision {
     ///
     /// # Errors
     /// Changed result, evaluation refusal or encoding failure.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the structured refusal is returned by value on a cold path"
+    )]
     pub fn export(
         &self,
         result: &MarTransportResult,
@@ -389,6 +406,10 @@ impl CompiledMarTransportDecision {
 ///
 /// # Errors
 /// Changed source, target, program, effect, utility or unsupported feature.
+#[allow(
+    clippy::result_large_err,
+    reason = "the structured refusal is returned by value on a cold path"
+)]
 pub fn consume_graph_imputation_mar_transport_decision(
     bytes: &[u8],
     expected: SemanticDigest,
@@ -533,6 +554,10 @@ mod tests {
     }
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "the structured refusal is returned by value on a cold path"
+)]
 fn cluster_groups(target: &MarTargetStandardization) -> Result<Vec<Vec<usize>>, MarTransportError> {
     let mut groups = std::collections::BTreeMap::<&str, Vec<usize>>::new();
     for (row, id) in target.frame.cluster_ids.iter().enumerate() {
@@ -551,6 +576,14 @@ fn cluster_groups(target: &MarTargetStandardization) -> Result<Vec<Vec<usize>>, 
 }
 
 impl CompiledMarTransportDecision {
+    #[allow(
+        clippy::result_large_err,
+        reason = "the structured refusal is returned by value on a cold path"
+    )]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the replicate count is bounded by the bootstrap policy"
+    )]
     fn run_cluster_bootstrap(
         &self,
         reading: &mut GraphPointReading,
@@ -677,6 +710,10 @@ impl CompiledMarTransportDecision {
     ///
     /// # Errors
     /// Execution refusal or fewer than forty finite draws.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the structured refusal is returned by value on a cold path"
+    )]
     pub fn calibration_candidate(
         &self,
         ctx: &ExecutionContext,
@@ -777,13 +814,17 @@ mod mar_schedule_tests {
 
     #[test]
     #[ignore = "source-only full MAR transport and replay schedule; calibration not earned"]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
     fn binary_kernel_and_confounding_replay_weighted_raw_frame() {
         for kernel in [false, true] {
             for confounded in [false, true] {
                 let x: Vec<f64> = (0..80)
-                    .map(|i| if kernel { (i % 8) as f64 / 8.0 } else { (i % 2) as f64 })
+                    .map(|i| if kernel { f64::from(i % 8) / 8.0 } else { f64::from(i % 2) })
                     .collect();
-                let t: Vec<f64> = (0..80).map(|i| ((i / 2) % 2) as f64).collect();
+                let t: Vec<f64> = (0..80).map(|i| f64::from((i / 2) % 2)).collect();
                 let y: Vec<f64> = (0..80)
                     .map(|i| {
                         if i % 13 == 0 {
@@ -814,7 +855,7 @@ mod mar_schedule_tests {
                             .with_imputations(2)
                             .with_iterations(2)
                             .with_seed(17),
-                        domains: Arc::from(vec![1, 0, if kernel { 0 } else { 1 }]),
+                        domains: Arc::from(vec![1, 0, u8::from(!kernel)]),
                         posterior_draws: 100,
                         prior_scale: 1.0,
                         execution_seed: 19,

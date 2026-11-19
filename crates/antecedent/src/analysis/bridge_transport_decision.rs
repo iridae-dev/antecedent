@@ -126,6 +126,7 @@ struct BridgeTransportDecisionWire {
 /// # Errors
 /// An unsupported law kind, absent transport premise, mismatched coordinate,
 /// invalid contract or physical lowering refusal.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_bridge_transport_decision(
     contract: BridgeContract,
     source: DistributionArtifact,
@@ -280,7 +281,6 @@ impl CompiledBridgeTransportDecision {
     }
 
     fn chain_draft(
-        &self,
         result: &ScientificBridgeDistributionResult,
     ) -> Result<PropagationChainRecordWire, BridgeTransportDecisionError> {
         result.require_value_kind(ValueKind::PredictiveLaw)?;
@@ -307,7 +307,7 @@ impl CompiledBridgeTransportDecision {
         ctx: &ExecutionContext,
     ) -> Result<BridgeTransportDecisionResult, BridgeTransportDecisionError> {
         let bridge = self.bridge.derive(&self.source, None, self.seed)?;
-        let draft = self.chain_draft(&bridge)?;
+        let draft = Self::chain_draft(&bridge)?;
         let decision = compile_chain_decision(draft, self.decision.clone(), ctx)?.execute(ctx)?;
         Ok(BridgeTransportDecisionResult {
             bridge,
@@ -338,7 +338,7 @@ impl CompiledBridgeTransportDecision {
         let bridge = result.bridge.export(artifact_id)?;
         let contract = DecisionContractArtifact::new(self.decision.clone())?;
         let chain =
-            compile_chain_decision(self.chain_draft(&replay.bridge)?, self.decision.clone(), ctx)?;
+            compile_chain_decision(Self::chain_draft(&replay.bridge)?, self.decision.clone(), ctx)?;
         let wire = BridgeTransportDecisionWire {
             version: 1,
             required_feature: FEATURE.into(),
@@ -480,6 +480,7 @@ struct AssessedBridgeDecisionWire {
 ///
 /// # Errors
 /// The assessment does not match the bridge or physical lowering refuses.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_assessed_bridge_transport_decision(
     assessment: CompiledBridgeTransportPremiseAssessment,
     bridge: CompiledBridgeTransportDecision,
@@ -790,6 +791,7 @@ struct AssessedBridgeRobustWire {
 ///
 /// # Errors
 /// A nonmatching coordinate, nonrobust criterion or lowering refusal.
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_assessed_bridge_robust_decision(
     assessed: CompiledAssessedBridgeTransportDecision,
     contract: DecisionContract,
@@ -1314,6 +1316,7 @@ impl CompiledAssessedBridgePosteriorDecision {
         PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
     }
 
+    #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     fn posterior_plan(
         &self,
         result: &AssessedBridgeTransportDecisionResult,
@@ -1604,7 +1607,7 @@ impl CompiledAssessedBridgePosteriorDecision {
     {
         let result = self.execute(ctx)?;
         let active_draws =
-            self.lowered.statistical().posterior.as_ref().map(PosteriorPlan::draws).unwrap_or(0);
+            self.lowered.statistical().posterior.as_ref().map_or(0, PosteriorPlan::draws);
         let functional = format!(
             "predictive_expected_regret:assessed={}:design={}:source_draws={}:active_draws={}:target_trials={}",
             self.assessed.lowered.identity().to_hex(),

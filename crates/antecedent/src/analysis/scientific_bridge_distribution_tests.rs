@@ -194,11 +194,12 @@ fn predictive_transport_bridge_and_nonlinear_utility_compile_together() {
 
 #[test]
 #[ignore = "source-only matched validation and decision replay; scientific records are unearned"]
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 fn matched_trial_validation_and_bridge_decision_replay_together() {
     let trials = |offset: f64| TrialLevelValidation {
         trials: (0..20)
             .map(|index| {
-                let x = -1.0 + 2.0 * index as f64 / 19.0;
+                let x = -1.0 + 2.0 * f64::from(index) / 19.0;
                 TrialEffectPair {
                     surrogate_effect: x,
                     terminal_effect: 0.5
@@ -635,15 +636,20 @@ fn a_predictive_bridge_handoff_compiles_as_a_predictive_law() {
 
 #[test]
 #[ignore = "source-only target posterior predictive bridge decision; reliability not earned"]
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 fn independent_target_posterior_and_source_innovation_replay_together() {
     use crate::analysis::bridge_transport_decision::{
         BridgeTargetPosteriorPremises, compile_assessed_bridge_posterior_decision,
         consume_assessed_bridge_posterior_decision,
     };
+    use crate::analysis::composition::{
+        BundleBuilder, NodeKind, compile_assessed_bridge_posterior_node_decision_bundle,
+        consume_portable_predictive_fit_decision_bundle,
+    };
     let trials = |offset: f64| TrialLevelValidation {
         trials: (0..20)
             .map(|index| {
-                let x = -1.0 + 2.0 * index as f64 / 19.0;
+                let x = -1.0 + 2.0 * f64::from(index) / 19.0;
                 TrialEffectPair {
                     surrogate_effect: x,
                     terminal_effect: 0.5
@@ -737,10 +743,6 @@ fn independent_target_posterior_and_source_innovation_replay_together() {
             .unwrap();
     assert_eq!(result.decision.chain.identity(), replay.decision.chain.identity());
     assert_eq!(result.decision.decision, replay.decision.decision);
-    use crate::analysis::composition::{
-        BundleBuilder, NodeKind, compile_assessed_bridge_posterior_node_decision_bundle,
-        consume_portable_predictive_fit_decision_bundle,
-    };
     let terminal = crate::analysis::propagation_chain_decision::compile_chain_decision(
         result.decision.chain.record().clone(),
         decision,

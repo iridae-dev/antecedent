@@ -44,6 +44,11 @@ pub(crate) fn release_supported() -> bool {
     })
 }
 
+#[allow(clippy::too_many_lines, reason = "one lowering that assembles every program section")]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "variable counts are bounded by the request limits, far below u32::MAX"
+)]
 pub(crate) fn lower(
     request: &LatentSoftInterventionRequest,
     source: SemanticDigest,
