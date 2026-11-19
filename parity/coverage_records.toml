@@ -238129,6 +238129,342 @@ fingerprint = "616efd8d502db804169667b33fbb5e2a85cd2edbdd808a4cd631db00a1b658ac"
 dependency_manifest = "eb2311adf4844063a9cf88952a9d93755259d446cf0d9a603da8afe51ff538c1"
 
 [[record]]
+id = "cov.joint_panel.not_applicable.bayesian.posterior_quantile.l95.joint_panel_posterior_calibration_broader_lagged_l95.v2_validation_not_applicable"
+query = "JointPanel"
+graph_class = "NotApplicable"
+structure = "panel"
+modality = "scheduled_contrast_posterior_calibration"
+inference = "Bayesian"
+estimator = "joint_panel.finite_lag.hill_classes.invariant"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_groups_ar1_random_intercept"
+posterior = "proper_prior_metropolis"
+functional = "terminal_interaction_contrast"
+identification = "model_conditional"
+nominal = 0.95
+n_min = 216
+n_max = 576
+replicates_min = 0
+posterior_draws_min = 4000
+unidentified_mass_max = 0.0
+observed = 0.94
+mcse = 0.011874342087037922
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 376, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.41461049048963466, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "7e4cea0aa81b1dcc8a5b274f3dcf1d62", 32 = "f291e3d25a62eacfcf1515bc9c84632f", 100 = "4ddb4dbf4519dd02ce61a686ea5e3cb9", 320 = "49542b865f8713b0cc87f019295af263" }, p1 = { 10 = "66022e84c850fbb47c680cc9e5f4b5f3", 32 = "97d3fdc22dbd23741eb71c34f9997e1b", 100 = "bbfa1da80f10c839ec6a87d0c1d9b585", 320 = "03f0659df2b604a9f2fcd53379845ba8" }, p2 = { 10 = "2fd23e2faf528f8e027ebcb460264524", 32 = "9ca9b1a7eb892cb4e303f5821fec6102", 100 = "d530758bf62271f3a010b5d49430e6a9", 320 = "b7196565e528c271d1e27488f18ac617" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 376, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.41461049048963466, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 216, n_max = 216, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 382, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.7541341085223611, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 288, n_max = 288, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 377, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.5507653296118379, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 576, n_max = 576, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_from"
+test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_posterior_calibration_broader_lagged_l95"
+calibration_sha = "b0d16fa3ddcf51018e720127c8617559338da243"
+fingerprint = "e2c6e44144f564358a34bee36bf2ebd58744bbe5c7e9fea4c1b9f29147ea803b"
+dependency_manifest = "1547d4b84fc69e511bed4e559c0dda88553acdba29a3743081fffe8204ec808a"
+
+[[record]]
+id = "cov.joint_panel.not_applicable.bayesian.posterior_quantile.l95.joint_panel_posterior_calibration_broader_static_l95.v2_validation_not_applicable"
+query = "JointPanel"
+graph_class = "NotApplicable"
+structure = "panel"
+modality = "scheduled_contrast_posterior_calibration"
+inference = "Bayesian"
+estimator = "joint_panel.static.hill_classes.invariant"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_groups_random_intercept"
+posterior = "proper_prior_metropolis"
+functional = "terminal_interaction_contrast"
+identification = "model_conditional"
+nominal = 0.95
+n_min = 216
+n_max = 576
+replicates_min = 0
+posterior_draws_min = 4000
+unidentified_mass_max = 0.0
+observed = 0.9375
+mcse = 0.012103072956898178
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "e3524f47cc784361b9f0e9292825d7e6", 32 = "28bcb8ee9b018a69686de70b71669cf6", 100 = "ea0b8be3281afcd1fa5de1da3034d855", 320 = "61ec5791d6134b8590adce8308c15fdd" }, p1 = { 10 = "d4fe21f168ed9838669c3040abfdf04e", 32 = "2c095e5c477abfe3b4a9851559ca2f00", 100 = "6702e1350e0b2a4f5eba4c5854a08944", 320 = "ffceef2413a336bd47484dd8c32c7191" }, p2 = { 10 = "00d3cb841031419460e0293cde1d7280", 32 = "ab8d3f2490d722ad949fb7835e17d3e9", 100 = "53be57a7c5ded96d2785665e94e7b0c0", 320 = "c0a8d4f6c2e7c9eb1c688f4cfcc18fbb" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 216, n_max = 216, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 384, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.4289039716624938, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 288, n_max = 288, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 378, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.708171849973396, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 576, n_max = 576, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_from"
+test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_posterior_calibration_broader_static_l95"
+calibration_sha = "b0d16fa3ddcf51018e720127c8617559338da243"
+fingerprint = "e2c6e44144f564358a34bee36bf2ebd58744bbe5c7e9fea4c1b9f29147ea803b"
+dependency_manifest = "61d2aa95c96884fbc61115c9c1eb4e6697f9bc534b83aa05b2b9e224f988d27a"
+
+[[record]]
+id = "cov.joint_panel.not_applicable.bayesian.posterior_quantile.l95.joint_panel_posterior_calibration_lagged_l95.v2_validation_not_applicable"
+query = "JointPanel"
+graph_class = "NotApplicable"
+structure = "panel"
+modality = "scheduled_contrast_posterior_calibration"
+inference = "Bayesian"
+estimator = "joint_panel.finite_lag.michaelis_menten.invariant"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_groups_ar1_random_intercept"
+posterior = "proper_prior_metropolis"
+functional = "terminal_interaction_contrast"
+identification = "model_conditional"
+nominal = 0.95
+n_min = 216
+n_max = 576
+replicates_min = 0
+posterior_draws_min = 4000
+unidentified_mass_max = 0.0
+observed = 0.9375
+mcse = 0.012103072956898178
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "2ba6ca482252fb2d5f8ad7d60c46d283", 32 = "2c0c34a9402c56491551d996176d3e98", 100 = "5f28d8c22dcec76e2e967cdac75eae8e", 320 = "05a8eca85fb562f1eb2970308c2b003c" }, p1 = { 10 = "b61a01610ca3cda0e692cddfdc3027b3", 32 = "9ff2c9b1834bd171d6a9b2579bdc8a23", 100 = "bc60a0001b4ce956e372ab6eba826894", 320 = "c4563e2e48c31fde7c67dfeee91f23b5" }, p2 = { 10 = "a43d60ba5eed8c0fa4bab840f437e061", 32 = "fafe62c521e914931c3089dff499059b", 100 = "1bbcfc7beedf96b6801c5a224301c1b6", 320 = "fa24535a88ef5c3915f98bfe7022774b" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 381, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.9359398985824383, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 216, n_max = 216, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 384, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.4289039716624938, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 288, n_max = 288, observed = 0.96, mcse = 0.009797958971132717, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 375, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.3020438800748085, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 576, n_max = 576, observed = 0.9375, mcse = 0.012103072956898178, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_from"
+test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_posterior_calibration_lagged_l95"
+calibration_sha = "b0d16fa3ddcf51018e720127c8617559338da243"
+fingerprint = "e2c6e44144f564358a34bee36bf2ebd58744bbe5c7e9fea4c1b9f29147ea803b"
+dependency_manifest = "72d49c09255a06053311e618d6928921a836951fa168712f133adffedd5ebb7b"
+
+[[record]]
+id = "cov.joint_panel.not_applicable.bayesian.posterior_quantile.l95.joint_panel_posterior_calibration_static_l95.v2_validation_not_applicable"
+query = "JointPanel"
+graph_class = "NotApplicable"
+structure = "panel"
+modality = "scheduled_contrast_posterior_calibration"
+inference = "Bayesian"
+estimator = "joint_panel.static.michaelis_menten.invariant"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_groups_random_intercept"
+posterior = "proper_prior_metropolis"
+functional = "terminal_interaction_contrast"
+identification = "model_conditional"
+nominal = 0.95
+n_min = 216
+n_max = 576
+replicates_min = 0
+posterior_draws_min = 4000
+unidentified_mass_max = 0.0
+observed = 0.9325
+mcse = 0.0125442965127583
+replicates = 400
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 373, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.1452978133652831, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "4fb282ed38400622da8f7576b80e6d6c", 32 = "0d29aeb2fff3de4a86ec3d337f930a81", 100 = "9d4237699afa885b833c48b0bfffc4a8", 320 = "5d030fbe613505e44f5173a9efd7aab9" }, p1 = { 10 = "5803c68c3388857d691bb85e5f69310c", 32 = "d57bff97bf5325211e15d4b296ab2465", 100 = "0708246ee737ffbcb92ca255faab42c3", 320 = "3d6714b72ac48b0a52ad407ae096456b" }, p2 = { 10 = "6d51cf48e5d837e73af3191c434131bc", 32 = "d62aa6bbadd70a1d5b033770f290a9ad", 100 = "18d0c714545a3564e4a8987a54a29fdb", 320 = "d0cb94a60e3c4635139c41b5f7dbcce7" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 382, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.7541341085223611, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 216, n_max = 216, observed = 0.955, mcse = 0.010365206220813944, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 378, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.708171849973396, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 288, n_max = 288, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 373, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.1452978133652831, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 576, n_max = 576, observed = 0.9325, mcse = 0.0125442965127583, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_from"
+test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_posterior_calibration_static_l95"
+calibration_sha = "b0d16fa3ddcf51018e720127c8617559338da243"
+fingerprint = "e2c6e44144f564358a34bee36bf2ebd58744bbe5c7e9fea4c1b9f29147ea803b"
+dependency_manifest = "f1e468bb86dffb741674631ab62479f30b36ad542ceaffa57caadbbd98d2cb28"
+
+[[record]]
+id = "cov.joint_panel.not_applicable.bayesian.posterior_quantile.l95.joint_panel_posterior_calibration_time_varying_broader_l95.v2_validation_not_applicable"
+query = "JointPanel"
+graph_class = "NotApplicable"
+structure = "panel"
+modality = "scheduled_contrast_posterior_calibration"
+inference = "Bayesian"
+estimator = "joint_panel.finite_lag.hill_classes.time_varying_selection"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_groups_ar1_random_intercept"
+posterior = "proper_prior_metropolis"
+functional = "terminal_interaction_contrast"
+identification = "model_conditional"
+nominal = 0.95
+n_min = 216
+n_max = 576
+replicates_min = 0
+posterior_draws_min = 4000
+unidentified_mass_max = 0.0
+observed = 0.9265
+mcse = 0.005835141386461857
+replicates = 2000
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1853, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 7.126174571959158e-06, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "acb7ff9553d6319f322e75c45fb64713", 32 = "2e9883eb8d742b0c384271199d21c9a9", 100 = "bf580ffac57d4c7661ac297d39493670", 320 = "ac2b8cdf717fc9a4ea585359b6ac9e34" }, p1 = { 10 = "df2bd07475186ec8356f85414018d91a", 32 = "22d25e05d50f70027bdf085f4e88904c", 100 = "ba5c5848e9ef0e5555c1919b80877676", 320 = "9a1d0a48a39006083e1e3a0ca38648fe", 1000 = "8b3d2cb63f10fac649f389f8cbd283cf" }, p2 = { 10 = "10e3fe5b1080ae301a280e05f80a322e", 32 = "ec082e2d7dfe81b24a153505d8f18140", 100 = "c575fea10efdb5744383b4edae5cde03", 320 = "06948edbacb2883dd57a2c9355b73d3a" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 372, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.0959847048069277, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 216, n_max = 216, observed = 0.93, mcse = 0.01275735082217307, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1853, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 7.126174571959158e-06, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }, point = 1, n_min = 288, n_max = 288, observed = 0.9265, mcse = 0.005835141386461857, replicates = 2000, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 374, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.2129385210937826, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 576, n_max = 576, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_from"
+test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_posterior_calibration_time_varying_broader_l95"
+calibration_sha = "b0d16fa3ddcf51018e720127c8617559338da243"
+fingerprint = "e2c6e44144f564358a34bee36bf2ebd58744bbe5c7e9fea4c1b9f29147ea803b"
+dependency_manifest = "86d60674b4b19cf0266da969d6831cf3ad5f5ce62b15cf6f55d98aacd2156d7f"
+
+[[record]]
+id = "cov.joint_panel.not_applicable.bayesian.posterior_quantile.l95.joint_panel_posterior_calibration_time_varying_l95.v2_validation_not_applicable"
+query = "JointPanel"
+graph_class = "NotApplicable"
+structure = "panel"
+modality = "scheduled_contrast_posterior_calibration"
+inference = "Bayesian"
+estimator = "joint_panel.finite_lag.michaelis_menten.time_varying_selection"
+interval_method = "posterior_quantile"
+se_kind = ""
+dependence = "independent_groups_ar1_random_intercept"
+posterior = "proper_prior_metropolis"
+functional = "terminal_interaction_contrast"
+identification = "model_conditional"
+nominal = 0.95
+n_min = 216
+n_max = 576
+replicates_min = 0
+posterior_draws_min = 4000
+unidentified_mass_max = 0.0
+observed = 0.933
+mcse = 0.0055906618570612885
+replicates = 2000
+boundary = false
+role = "gated"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1866, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.0009962828137400933, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }
+probe = { p0 = { 10 = "514d5b866badf9091376a42cd3056ad0", 32 = "c5d523127d48821398c3fb8ca7e6aa0d", 100 = "dbf6abd80bff4d15faf0343e534f5671", 320 = "ddef97114276be0496b576bff55c27ec", 1000 = "dae752ca3369493358753a05858929ba" }, p1 = { 10 = "25cdde5ff7821e54cc6d11598998351d", 32 = "d464847aa1cec5ac09bf233d1850de2d", 100 = "3807f4f0e2dc735fcaef7369e02e3d15", 320 = "5a6236877bfa38a18b23cec1cf5a6db3" }, p2 = { 10 = "1b0f6f8a158d5f9c56694e4e5222ee4c", 32 = "1f4c01202b2f0eaac2913f065bdc09c9", 100 = "853f0fd6c2d58e32207c292be3ade7af", 320 = "3564a580320eb43a67f670193a288d7a" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 1866, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.25, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.0009962828137400933, planned_replicates = 2000, scored = 2000, validation_domain = "coverage_measurement" }, point = 0, n_min = 216, n_max = 216, observed = 0.933, mcse = 0.0055906618570612885, replicates = 2000, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 380, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 1.0, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 288, n_max = 288, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 377, family_alpha = 0.05, family_cells = 1367040, family_digest = "3b589693799863190a037df17e30cf0aeea5d1b63e381f5f40177b570259b9d1", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = false, p_value = 0.5507653296118379, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 576, n_max = 576, observed = 0.9425, mcse = 0.01163977555625537, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_from"
+test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_posterior_calibration_time_varying_l95"
+calibration_sha = "b0d16fa3ddcf51018e720127c8617559338da243"
+fingerprint = "e2c6e44144f564358a34bee36bf2ebd58744bbe5c7e9fea4c1b9f29147ea803b"
+dependency_manifest = "74639beeb1feee371d68527b024eb5722147ef47f1e4f1a6fcb13201ee127d63"
+
+[[record]]
 id = "cov.joint_panel.not_applicable.frequentist.percentile_bootstrap.l95.joint_panel_time_varying_contrast_broader_frequentist_l95.v2_validation_not_applicable"
 query = "JointPanel"
 graph_class = "NotApplicable"
