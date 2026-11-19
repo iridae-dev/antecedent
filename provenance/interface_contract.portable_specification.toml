@@ -79,7 +79,7 @@ sha256 = "7fb9a28827a9a26239e7c2bb7460b199ee9cb33bebd8a1f9fd9d9ec45a5484da"
 [[method_review.artifacts]]
 role = "reference"
 path = "spec/consumer/validate.py"
-sha256 = "db739b1747484f1b846251a1e50ab38ff676337eeca918bfa44c124e25598e1d"
+sha256 = "47f31c8161390e181503329c02503c1d0a77f0ec7cdd21851490cebbf950848c"
 
 [[method_review.artifacts]]
 role = "fixture"
