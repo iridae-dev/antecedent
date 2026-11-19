@@ -1,824 +1,296 @@
-# Antecedent 3.x Roadmap
+# Antecedent 3.x roadmap
 
-## Purpose
+Antecedent 3.0 compiles a causal question into an analysis, runs it, and returns the answer with its identification, assumptions, uncertainty, calibration status and citations. A route is supported when it has provenance and an independent check that currently passes. Anything else refuses with a typed reason.
 
-Extend Antecedent's existing high-assurance engineering approach into **machine-checked scientific and implementation guarantees**, **systematic adversarial verification of scientific boundaries**, and reusable foundations for **bounded, proof-carrying method synthesis**.
+That independent check compares each route with a reference result. It shows that a route gives the right answer on the cases it was checked on. It says much less about what happens when correct pieces are combined: an identified expression feeding an estimator, a prepared study being retargeted, evidence being withdrawn after a decision used it, a result being exported and loaded somewhere else. Those boundaries are where a correct calculation can turn into a wrong conclusion, and they are what the 3.x releases work on.
 
-The program has three complementary measures of success:
+The plan has three parts, each building on the one before:
 
-1. **Immediate assurance:** Prove selected correctness properties of existing scientific workflows and production Rust implementations.
-2. **Adversarial assurance:** Independently specify and systematically challenge scientific invariants, contracts, evidence transitions, and execution boundaries, demonstrating that consequential defects are detected.
-3. **Cumulative capability:** Make verified scientific operations composable so that a future compiler can derive previously unimplemented combinations of causal and statistical methods.
+1. Prove selected properties of Antecedent's scientific operations and of the Rust code that implements them.
+2. Generate adversarial cases against the boundaries between operations, and show that the checks catch deliberately introduced defects.
+3. Use the verified operations as parts the compiler can assemble, so that a new combination of methods can be supported without being written by hand. This is 3.6, and it is a research goal.
 
-These objectives reinforce one another but remain independently valuable. None depends on delivering general-purpose autonomous scientific discovery.
+The first two parts are useful on their own. If the third never ships, the earlier releases still stand.
 
-**The central engineering principle is that individually correct scientific operations must not become scientifically invalid through composition, reuse, persistence, or transitions between representations.**
+## What changes for users
 
-Antecedent already addresses these risks through scientific contracts, support, provenance, parity references, calibration, identity-bound artifacts, typed refusals, and adversarial gates. This roadmap strengthens those existing mechanisms rather than replacing them.
+Very little directly. Proofs, model checks and adversarial campaigns run during development and at release. They add no runtime cost and no required steps, and nobody using the library has to run a formal tool. Users see their effect in three ways:
 
-## Architectural commitments
+- Defects they find are fixed, or the affected route refuses until it is fixed.
+- From 3.5, results from selected workflows carry assurance evidence that can be read through the existing result inspection.
+- From 3.6, if the research succeeds, some method combinations become supported without a dedicated implementation.
 
-### Extend the existing compiler
+Support, refusal codes and calibration status keep their 3.0 meaning. Verification evidence never raises a result's standing by itself.
 
-Retain Antecedent's scientific contracts, prepared studies, identified-expression representations, support decisions, evidence identities, execution paths, and retained artifacts.
+## At a glance
 
-Do not introduce a competing compiler, parallel claim vocabulary, or second assurance framework.
+| Release | Focus | What to expect |
+| --- | --- | --- |
+| 3.1 | Formal foundations | Proof and verification toolchains in CI. The first machine-checked properties, one of them against production Rust. A first adversarial campaign that fails when a known defect is introduced. |
+| 3.2 | Scientific state and contracts | Proved rules for evidence withdrawal, supersession, reuse and artifact acceptance. Model-checked operation sequences replayed against the Rust implementation. Composition that keeps unresolved assumptions. |
+| 3.3 | Causal derivations | Proved identification rules tied to their Rust counterparts. Generated valid and invalid causal compositions checked against those rules. |
+| 3.4 | Statistical computation | Verified estimation building blocks and numerical kernels. Generated tests for invalid variance, dependence and positivity constructions. |
+| 3.5 | Proof-carrying results | Two end-to-end workflows whose results carry independently checkable assurance evidence. A dedicated adversarial release gate. |
+| 3.6 | Method synthesis (research) | A method combination with no hand-written implementation, derived, compiled, executed and checked against an independent reference. |
 
-Formal specifications and adversarial tests must correspond to existing scientific operations and observable implementation behavior.
+3.1 to 3.5 are engineering milestones. Work can move between them, and a release can be split or deferred. 3.6 ships only if its entry criteria are met; otherwise that release carries more of the 3.1 to 3.5 work instead and makes no synthesis claim.
 
-### Proofs have precise scope
+## 3.1: Formal foundations
 
-Distinguish:
+3.1 sets up the tools and shows that the approach works on real code. It is deliberately small. A few properties proved end to end matter more here than broad coverage.
 
-- Mathematical proof of a scientific transformation.
-- Verification of a production implementation.
-- Model checking of a specified state-transition system.
-- Generated testing against a formal specification.
-- Independent numerical certification.
-- Executing support evidence.
-- Statistical calibration.
-- Empirical or external scientific review.
+What it delivers:
 
-These establish different propositions. None substitutes for the others.
+- A pinned Lean 4 / Lake toolchain, with reproducible proof builds locally and in CI.
+- A comparison of Rust verification tools (Aeneas/Charon, Verus, Creusot, Kani) on representative production code, recording what each can translate, what it has to trust, and what its proofs cost. One becomes the primary route; others are used where they fit better.
+- Lean definitions of the basic scientific objects: quantities, assumptions, identities, and what a contract means.
+- One description for every verified operation (see [operation records](#operation-records)).
+- An assurance record format: the property, the specification and code it covers, the tool and version, the inputs, what is trusted, the result, and what invalidates it. CI checks these records the way it checks the existing evidence records.
+- A first adversarial campaign: property-based generation (proptest, Hypothesis, and Plausible for Lean specifications) over identity and contract operations, with deliberately invalid compositions and negative controls. It runs through the existing gates and test runners.
 
-In particular, passing generated tests does not constitute a universal correctness proof, and mathematical proof does not establish the truth of real-world causal assumptions.
+The first proof targets:
 
-### Separate proposer from checker
+- A scientific identity does not change when declarations are reordered in a way defined as irrelevant.
+- A contract transformation cannot raise a claim's standing.
+- Artifact acceptance requires an expected identity established separately from the artifact.
 
-Generated derivations, adversarial cases, execution plans, and certificates must be checked against independently established specifications or reference procedures.
+The first adversarial properties:
 
-The generator need not belong to the trusted computing base.
-
-The checker must not accept a proposition merely because the implementation under test generated the expected answer.
-
-### Verify scientific boundaries
-
-Prioritize invariants where individually valid operations can produce invalid scientific conclusions through:
-
-- Incompatible estimands or populations.
-- Changed interventions, regimes, or horizons.
-- Unresolved assumptions disappearing during composition.
-- Evidence dependence or duplication.
-- Invalid reuse after changes to scientific premises.
-- Artifact identity or acceptance mismatches.
-- Improper restoration of withdrawn scientific authority.
-- Claiming uncertainty or scientific standing without support.
-
-A scientifically consequential boundary must preserve its applicable obligations, discharge them through a justified rule, or explicitly refuse the unsupported transition.
-
-### Fail closed
-
-Unsupported, unproved, unidentifiable, incompatible, and budget-exhausted cases remain distinguishable.
-
-Verification evidence must not silently strengthen a result's scientific standing.
-
-A failed or incomplete assurance check cannot be represented as a successful verification.
-
-### Track dependencies
-
-Assurance evidence identifies its exact scientific specification, implementation, toolchain, test inputs, generator configuration, premises, and verification boundary.
-
-Relevant changes trigger re-verification or invalidate the applicable record.
-
-### Use OSS-only assurance tooling
-
-All mandatory verification, model-checking, adversarial testing, mutation testing, and certificate-checking workflows must be reproducible using free and open-source software.
-
-Do not require proprietary solvers, hosted verification services, commercial licenses, or external credentials.
-
-Candidate tools include:
-
-| Purpose                                       | OSS candidates                                          |
-| --------------------------------------------- | ------------------------------------------------------- |
-| Formal scientific semantics                   | Lean 4 / Lake                                           |
-| Property-based testing of Lean specifications | Plausible                                               |
-| Rust proof and verification                   | Aeneas/Charon, Verus, Creusot, Kani                     |
-| State-machine specification                   | Quint, TLA+                                             |
-| Symbolic model checking                       | Apalache                                                |
-| Specification-guided Rust testing             | Quint Connect or an equivalent OSS trace-replay adapter |
-| Rust property-based testing                   | proptest                                                |
-| Python property-based and stateful testing    | Hypothesis                                              |
-| Rust mutation testing                         | cargo-mutants                                           |
-| Constraint generation and solving             | Z3 and compatible OSS SMT tooling                       |
-| Numerical certification                       | Gappa, PRECiSA, or suitable OSS alternatives            |
-| Fuzzing                                       | cargo-fuzz and existing Rust fuzzing infrastructure     |
-
-These are candidates, not mandatory dependencies in their entirety.
-
-Pin selected versions, verify their actual licenses and transitive distribution requirements before adoption, and record tool limitations and maintenance costs.
-
-Prefer a small, sustainable toolchain over broad adoption without corresponding assurance value.
-
-### Keep assurance internal to the library
-
-Verification and adversarial gates are development and release mechanisms.
-
-Do not require ordinary users or downstream applications to operate formal tools, submit assurance cases, follow prescribed research workflows, or obtain approval before using otherwise supported functionality.
-
-Do not add mandatory proof overhead to ordinary runtime execution.
-
-Expose existing result inspection, scientific standing, provenance, and typed refusals through the current API.
-
-### Calibrate at stability gates
-
-Run statistical calibration when the relevant methods and implementations are stable.
-
-Code changes invalidate applicable coverage evidence under the existing rules.
-
-Formal proofs, generated tests, numerical certificates, and successful mutation tests never imply statistical calibration.
-
-### Apply selective verification
-
-Use each verification technique where it contributes a defensible guarantee.
-
-A small verified kernel, a bounded model check, and an independently reproduced numerical reference may be preferable to an expensive attempt at whole-system verification.
-
-## Roadmap at a glance
-
-| Release | Theme                            | Immediate assurance outcome                                  | Adversarial assurance outcome                                | Foundation for synthesis                             |
-| ------- | -------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------------------- |
-| **3.1** | Formal foundations               | Working verification toolchains and proof-aware CI           | Minimal reproducible adversarial gate and generated boundary tests | Machine-readable scientific specifications           |
-| **3.2** | Verified scientific contracts    | Proven state, identity, evidence, and reuse invariants       | Model-based execution testing of scientific lifecycle transitions | Composable operations with explicit obligations      |
-| **3.3** | Verified causal derivations      | Selected causal rules and Rust counterparts checked          | Generated adversarial tests for causal transformations and composition | Verified reusable derivation rules                   |
-| **3.4** | Verified statistical computation | Selected estimation operations and numerical kernels checked | Adversarial statistical composition and numerical boundary testing | Composable estimation building blocks                |
-| **3.5** | Proof-carrying execution         | Derivation-to-execution assurance for selected workflows     | Independent assurance gate with demonstrated defect detection | Verified links from question to executable procedure |
-| **3.6** | Bounded method synthesis         | New supported combinations compiled without bespoke end-to-end implementations | Synthesized procedures challenged by independent references and adversarial cases | Demonstrable constrained method synthesis            |
-
-**Release policy:** 3.1–3.5 are candidate engineering milestones, subject to feasibility and prioritization. **3.6 is research-gated**, not a guaranteed release feature.
-
-Versions may be split, merged, or deferred.
-
-The adversarial assurance workstream is cumulative. Early releases establish reusable infrastructure; later releases apply it to increasingly sophisticated scientific operations.
-
-## 3.1 — Formal foundations
-
-**Objective:** Establish a sustainable, production-connected formal assurance workflow and the foundations of automated adversarial scientific testing.
-
-### Deliverables
-
-#### Formal verification
-
-- Pin Lean 4 / Lake versions and establish reproducible local and CI proof builds.
-- Run translation and verification spikes on representative production Rust with Aeneas/Charon, Verus, Creusot, and Kani.
-- Record translation coverage, trusted dependencies, proof costs, and implementation limitations.
-- Select a primary approach for verified Rust components, permitting alternatives where justified.
-- Define an assurance-record schema containing:
-  - Scientific property and specification identity.
-  - Implementation and source identity.
-  - Verification method and exact proposition.
-  - Toolchain and dependency identities.
-  - Inputs, seeds, and configuration where applicable.
-  - Trusted assumptions and verification scope.
-  - Result, limitations, and invalidation policy.
-- Formalize minimal scientific quantities, assumptions, identities, and contract semantics in Lean.
-- Establish a common description of scientific operations: inputs, outputs, preconditions, transformation, justification, dependencies, limitations, and unresolved obligations.
-- Integrate proof execution and assurance-record validation with existing CI.
-
-#### Adversarial assurance foundations
-
-- Inventory existing capability-record, parity, provenance, calibration, artifact, support, and mutation gates.
-- Reuse existing test runners, evidence identities, and invalidation mechanisms wherever possible.
-- Establish a minimal `gate_scientific_adversarial` entry point or equivalent integration with existing gates.
-- Add deterministic property-based generation for a bounded family of scientific identity and contract operations.
-- Evaluate Plausible for counterexample discovery against Lean specifications.
-- Evaluate proptest and Hypothesis for scientific-semantic boundary testing.
-- Define a machine-readable adversarial case record identifying:
-  - Scientific property under test.
-  - Valid baseline operation.
-  - Applied mutation or transformation.
-  - Expected preservation, transformation, refusal, or unresolved obligation.
-  - Independent source of the expectation.
-  - Reproduction inputs and exact dependency identities.
-- Add an initial set of deliberately invalid scientific compositions.
-- Add negative controls that verify the gate actually detects the corresponding violations.
-- Ensure that a missing, ignored, deselected, or zero-case test campaign cannot satisfy a required gate.
-
-Do not introduce a second scientific-contract representation solely to support test generation.
-
-### Candidate proof targets
-
-- Scientific identity is stable under declaration reorderings explicitly defined as semantically irrelevant.
-- Claim standing cannot be silently strengthened by a contract transformation.
-- Artifact acceptance requires a separately established expected identity.
-
-### Candidate adversarial properties
-
-- Changing a scientifically relevant target component invalidates reuse of the original target-bound identity.
-- A semantically irrelevant declaration permutation preserves the intended identity.
-- Removing a mandatory premise causes refusal or leaves an unresolved obligation.
+- Changing a scientifically relevant part of a target invalidates reuse of the old identity. An irrelevant permutation keeps it.
+- Removing a required premise causes a refusal or leaves an unresolved obligation.
 - A mismatched artifact expectation is rejected.
-- Weakening a selected validation condition causes an adversarial regression test to fail.
-
-### Exit criteria
-
-- At least three nontrivial machine-checked properties.
-- At least one property checked against production Rust, not only a Lean-only model.
-- Deliberate violation of a verified property fails CI.
-- An assurance record is invalidated or rechecked after a relevant dependency change.
-- A deterministic adversarial campaign exercises real production behavior.
-- The campaign includes positive and negative cases and fails when required cases are absent.
-- At least one deliberately introduced scientific-semantic defect is detected.
-- The complete verification workflow runs with pinned OSS dependencies and no proprietary service requirement.
-
-**Risk / decision gate:** If Aeneas cannot handle the selected Rust implementation economically, use a direct Rust verifier or verify a smaller kernel. Do not expand proof scope merely to justify an unsuitable tool.
-
-**Adversarial scope:** Establish infrastructure and demonstrate usefulness. Do not require broad scientific-state-machine coverage in 3.1.
 
-## 3.2 — Verified scientific contracts
+Done when:
 
-**Objective:** Verify scientific-state integrity, make operation contracts composable, and systematically challenge lifecycle boundaries.
+1. At least three nontrivial properties are machine-checked, at least one of them against production Rust and not only a Lean model.
+2. Breaking a verified property makes CI fail.
+3. Changing a dependency of an assurance record invalidates or reruns it.
+4. The adversarial campaign runs against production code, has positive and negative cases, fails if required cases are missing, and catches at least one deliberately introduced defect.
+5. All of it runs on pinned open-source tools.
 
-### Deliverables
+If Aeneas cannot translate the chosen Rust code at a reasonable cost, use a direct Rust verifier or verify a smaller kernel. Proof scope is not widened to justify a tool that does not fit.
 
-#### Formal contracts
+## 3.2: Scientific state and contracts
 
-- Specify evidence states, withdrawals, supersession, and current authority as explicit transition rules.
-- Verify selected ledger transition invariants against Rust implementations.
-- Formalize dependency-sensitive reuse for prepared analyses, branching, retargeting, and changes to scientific assumptions.
-- Specify accepted artifact identities, replay boundaries, and current-versus-historical authority.
-- Extend existing scientific contracts with machine-readable obligations and compositional checking.
-- Formalize selected rules for preserving, discharging, and propagating unresolved premises.
-- Keep the existing result-standing vocabulary and support decisions.
-
-#### Model-based adversarial verification
-
-- Evaluate Quint and TLA+/Apalache as OSS state-machine specification and model-checking tools.
-- Select a primary model-based testing approach based on executable correspondence with production Rust.
-- Integrate Quint Connect or an equivalent OSS trace-replay adapter where it supports the selected Rust API.
-- Generate operation sequences involving:
-  - Evidence creation, withdrawal, and supersession.
-  - Preparation, branching, and retargeting.
-  - Artifact export and acceptance.
-  - Scientific identity changes.
-  - Reuse after relevant dependency changes.
-  - Composition of compatible and incompatible scientific quantities.
-- Replay generated traces against production Rust.
-- Compare observed behavior against independently specified state-machine expectations.
-- Preserve minimized counterexamples as permanent regression cases.
-- Challenge the gate using deliberate defects in identity checking, dependency tracking, and authority transitions.
-- Verify that failed or incomplete model-checking campaigns cannot produce successful assurance records.
-
-### Exit criteria
-
-- Withdrawal cannot restore authority through supported transition, reuse, or artifact pathways without valid new justification.
-- Invalid scientific-dependency reuse is rejected within the defined verification scope.
-- A composition of at least two scientific operations retains unresolved premises and rejects incompatible meanings.
-- Selected state-machine invariants are model-checked.
-- Generated traces exercise corresponding production Rust operations.
-- At least one model-checker counterexample or deliberately introduced violation is demonstrated to be detectable by the implementation-testing harness.
-- Relevant fuzzing and model-checking findings are retained as reproducible regressions.
-- The assurance record distinguishes proven model properties from finite implementation-trace coverage.
-
-**Synthesis contribution:** A reusable system for checking whether scientific operations can compose and which obligations survive composition.
-
-**Adversarial contribution:** Automated exploration of the transitions most likely to invalidate otherwise correct scientific computations.
-
-## 3.3 — Verified causal derivations
-
-**Objective:** Establish formally justified causal transformations that can be assembled into new derivations, and test their semantic boundaries systematically.
-
-### Deliverables
-
-#### Verified causal rules
-
-- Define a bounded initial causal model family and its semantics in Lean.
-- Formalize selected adjustment, intervention, identification, and/or transport transformations with explicit premises.
-- Prove local transformation soundness without assuming whole-algorithm completeness.
-- Tie at least one formal transformation to its production Rust implementation through a supported verification route.
-- Represent selected derivation steps as independently checkable proof artifacts or reconstruction instructions.
-- Integrate checked derivations with the existing identification-product and scientific-contract identity model.
-
-#### Adversarial causal transformations
-
-- Define metamorphic properties for selected causal operations:
-  - Permitted semantic equivalences preserve the intended causal quantity.
-  - Changes in population, intervention, conditioning, or horizon are not silently treated as equivalent.
-  - Missing identification premises prevent unjustified derivations.
-  - Unsupported transport does not become identification by composition.
-  - Model-conditional predictions do not silently acquire identified standing.
-- Generate valid and invalid derivation compositions from the bounded formal rule family.
-- Use formal premises to construct cases satisfying or violating individual transformation requirements.
-- Use proptest, Hypothesis, or an OSS constraint solver to generate concrete scientific inputs.
-- Check generated cases against the existing identification compiler.
-- Require the expected result to come from the formal rule, an independent reference, or an explicitly reviewed scientific proposition—not from the implementation being tested.
-- Introduce selected mutations that omit a causal premise or relax an identification guard.
-- Confirm that the adversarial suite detects the corresponding defect.
-
-### Exit criteria
-
-- Selected identification transformations have machine-checked mathematical proofs.
-- At least one production Rust transformation is connected to a checked specification.
-- A previously unrecorded sequence of existing rules is assembled and independently verified.
-- Failed, incomplete, and nonidentified cases remain distinct.
-- Generated adversarial cases exercise both valid and invalid causal compositions.
-- At least one deliberate scientific-premise omission is detected.
-- Proof success does not imply that the causal assumptions hold in the real world.
-
-**Synthesis contribution:** A reusable causal rule library supporting verified composition rather than only individually hardcoded derivations.
-
-**Adversarial contribution:** Automatically generated tests that detect changes in scientific meaning across causal transformations.
-
-## 3.4 — Verified statistical computation
-
-**Objective:** Extend verifiable composition into statistical estimation and numerical operations, with systematic adversarial testing of inferential obligations.
-
-### Deliverables
-
-#### Verified statistical operations
-
-- Define typed statistical primitives and their obligations:
-  - Expectations and conditioning.
-  - Weighting and covariance.
-  - Marginalization and differentiation.
-  - Selected estimation operations.
-- Implement and verify a bounded set of estimator-building blocks.
-- Make sampling, positivity, dependence, and nuisance-fitting assumptions explicit where applicable.
-- Investigate influence-function and debiasing primitives for a restricted, mathematically justified target family.
-- Verify selected implementation properties through Aeneas, Verus, Creusot, or Kani.
-- Strengthen independent checking of interval-based optimization and equilibrium/root certificates.
-- Evaluate Gappa, PRECiSA, or suitable OSS floating-point verification tools on critical numerical kernels.
-- Preserve distinctions between approximation error, sampling uncertainty, numerical error, and statistical coverage.
-
-#### Adversarial statistical verification
-
-- Define metamorphic properties for selected estimators and statistical operations.
-- Generate scientifically valid input transformations, such as:
-  - Permutations where the method is specified to be order-invariant.
-  - Consistent measurement-unit conversions.
-  - Equivalent representations of supported inputs.
-  - Valid decompositions and recompositions under declared dependence assumptions.
-- Specify numerical tolerances and stochastic equivalence requirements explicitly.
-- Generate invalid compositions involving:
-  - Violated positivity requirements.
-  - Incompatible sampling assumptions.
-  - Unsupported covariance or dependence constructions.
-  - Invalid variance propagation.
-  - Numerically inadmissible or unstable inputs.
-- Compare selected operations with independently implemented numerical references.
-- Challenge estimator and certificate boundaries with targeted implementation mutations.
-- Record whether generated defects produce a refusal, unresolved obligation, numerical failure, or demonstrably incorrect calculation.
-- Preserve deterministic reproduction for failures involving randomness or numerical instability.
-
-### Exit criteria
-
-- Two or more statistical operations compose into a new executable computation with explicit propagated premises.
-- At least two selected kernels or numerical certificates have independently checked bounds or properties.
-- Invalid dependence assumptions or unsupported variance constructions cause a typed refusal or unresolved obligation.
-- Selected statistical metamorphic properties are exercised against production code.
-- At least one scientifically consequential numerical or variance-construction mutation is detected.
-- Generated numerical tests are independently reproducible.
-- No estimator acquires a blanket calibration claim from composition, formal proof, or adversarial testing alone.
-
-**Synthesis contribution:** A library of estimable operations with specified mathematical and computational guarantees.
-
-**Adversarial contribution:** Systematic detection of statistically invalid compositions whose component calculations may individually be correct.
-
-## 3.5 — Proof-carrying execution
-
-**Objective:** Connect formal derivations to executable Rust procedures and portable assurance evidence, with independent verification that the assurance machinery detects invalid scientific claims.
-
-### Deliverables
-
-#### Proof-carrying execution
-
-- Define versioned bindings between scientific target, formal derivation, statistical operation, compiled plan, and executed result.
-- Implement a small independent certificate checker or verification pipeline for supported derivations and numerical artifacts.
-- Bind assurance evidence to exact dependencies and integrate it with existing artifact and result inspection.
-- Preserve existing scientific support labels.
-- Demonstrate two end-to-end workflows:
-  - **A.** Causal identification through estimation.
-  - **B.** Feedback-system intervention analysis or program optimization.
-- Distinguish abstract mathematical proofs from verified correspondence to production code.
-- Identify unverified solver, library, and execution boundaries.
-- Make proof and certificate checking reproducible without trusting the original derivation generator.
-
-#### Independent adversarial assurance gate
-
-- Consolidate the accumulated adversarial cases into a dedicated, reproducible release-gate capability, reusing existing gate infrastructure.
-- Include:
-  - Formal specification checks.
-  - Model checking and generated execution-trace replay.
-  - Stateful scientific property testing.
-  - Scientific-semantic mutation testing.
-  - Independent numerical and certificate checks.
-  - Assurance-record dependency validation.
-- Exercise both successful and refused scientific workflows.
-- Require positive and negative controls for critical assurance mechanisms.
-- Define a reviewed set of scientifically consequential mutations, including:
-  - Dropping a required premise.
-  - Changing a target identity.
-  - Accepting mismatched evidence.
-  - Weakening an artifact acceptance check.
-  - Restoring withdrawn authority.
-  - Silently strengthening scientific standing.
-  - Omitting a required statistical dependence obligation.
-- Confirm that the gate detects the mutations applicable to its declared coverage.
-- Reject missing, ignored, stale, or improperly deselected verification cases.
-- Retain minimized counterexamples, reviewed defects, and their regression tests.
-- Bind assurance records to exact code, specification, toolchain, and evidence dependencies.
-- Define a bounded normal-CI campaign and a more extensive release-verification campaign.
-- Allow expensive campaigns to run separately from ordinary CI only when their records remain independently reproducible and subject to dependency invalidation.
-
-#### Independent scientific review
-
-- Require independent review of selected formal theorem statements and their mapping to intended scientific propositions.
-- Require selected numerical and implementation references to be generated independently of the code under test.
-- Record reference provenance, known implementation exposure, assumptions, and limitations using existing Antecedent conventions.
-- Convert review findings into executable regressions whenever the proposition admits a meaningful machine-checkable test.
-- Preserve non-executable scientific limitations explicitly rather than manufacturing artificial test coverage.
-
-### Exit criteria
-
-- Two end-to-end workflows carry inspectable assurance evidence with exact scopes and assumptions.
-- Independently constructed or replayed valid certificates are accepted.
-- Tampered, mismatched, or scientifically incompatible certificates are rejected.
-- Relevant code or contract changes invalidate or rerun associated assurance checks.
-- The dedicated adversarial assurance gate detects the reviewed set of required scientific-semantic mutations.
-- Deliberately weakening selected safeguards causes the gate to fail.
-- No mandatory gate can succeed through missing tests, stale evidence, or an unexecuted verification obligation.
-- At least one end-to-end review finding is retained as a permanent, independently reproducible regression.
-- Performance, artifact-size, verification-runtime, and maintenance overhead are measured and documented.
-- Mandatory verification and assurance checks remain reproducible with OSS-only tools.
-
-**Synthesis contribution:** A trusted checking path for procedures proposed by a future synthesis engine.
-
-**Adversarial contribution:** Demonstrated detection of scientifically meaningful faults across the derivation-to-execution lifecycle.
-
-## 3.6 — Bounded method synthesis *(research-gated)*
-
-**Objective:** Demonstrate that Antecedent can construct a valid estimation procedure for a new combination of supported scientific operations without an end-to-end bespoke implementation.
-
-### Research entry criteria
-
-- A composable formal derivation library exists (3.3).
-- Estimation-building blocks expose explicit contracts (3.4).
-- Generated procedures can be tied to executable computation and independently checked (3.5).
-- A constrained synthesis domain and explicit stopping/refusal semantics are agreed.
-- The adversarial assurance infrastructure can challenge synthesized compositions using specifications independent of the synthesizer.
-
-### Deliverables
-
-- Select a restricted family of causal targets, evidence sources, observation models, and estimators.
-- Build a search/composition engine over existing typed mathematical operations.
-- Keep the generator outside the trusted computing base.
-- Automatically derive causal and estimation expressions and accumulate obligations.
-- Generate executable plans through Antecedent's existing compiler.
-- Independently check mathematical derivations and applicable implementation or numerical evidence.
-- Generate adversarial variations of synthesized procedures, including:
-  - Missing or altered scientific premises.
-  - Incompatible evidence dependencies.
-  - Invalid statistical dependence assumptions.
-  - Changed targets or populations.
-  - Unsupported transformations.
-  - Numerical boundary conditions.
-- Compare supported outputs with independently implemented references.
-- Verify that the checker rejects invalid compositions even when proposed by the synthesis engine.
-- Provide explanations for unsupported, unidentifiable, invalid, or budget-exhausted cases.
-
-### Exit criteria
-
-- A held-out supported combination with no bespoke end-to-end estimator implementation is synthesized and executed.
-- The result agrees with an independently implemented reference within declared tolerances.
-- The derivation and applicable assurance evidence are independently checked.
-- Invalid combinations are rejected, including at least one missing-assumption and one incompatible-dependence case.
-- Adversarial tests detect selected intentionally invalid synthesized procedures.
-- The generator cannot turn an unchecked proposal into a supported scientific result.
-- The final result distinguishes checked guarantees from statistical assumptions, numerical limitations, and calibration status.
-
-**Fallback:** If the research gate is not met, ship further verified composition and adversarial assurance improvements instead. Do not claim method synthesis.
-
-## Cross-release workstreams
-
-| Workstream                           | Starts                  | Continues through | Purpose                                                      |
-| ------------------------------------ | ----------------------- | ----------------- | ------------------------------------------------------------ |
-| Formal scientific semantics          | 3.1                     | 3.6               | Define machine-checkable meaning for scientific operations   |
-| Rust verification                    | 3.1                     | 3.5+              | Verify selected critical production implementations          |
-| Scientific contract composition      | 3.1–3.2                 | 3.6               | Preserve assumptions, obligations, and scientific meaning    |
-| State and protocol verification      | 3.1–3.2                 | 3.5+              | Verify lifecycle and evidence-authority invariants           |
-| Model-based adversarial testing      | 3.2                     | 3.6               | Generate and replay scientific operation sequences           |
-| Scientific-semantic property testing | 3.1                     | 3.6               | Challenge valid and invalid transformations                  |
-| Targeted mutation testing            | 3.1                     | 3.6               | Demonstrate that safeguards detect consequential defects     |
-| Causal derivation assurance          | 3.3                     | 3.6               | Verify causal transformations and their composition          |
-| Statistical operation assurance      | 3.4                     | 3.6               | Verify estimation operations and propagated obligations      |
-| Numerical certification              | 3.4                     | 3.5+              | Independently check selected numerical properties            |
-| Proof-carrying records and CI        | 3.1                     | All releases      | Preserve assurance evidence and dependency-sensitive validity |
-| Independent scientific review        | 3.1                     | All releases      | Challenge specifications and verification claims             |
-| Statistical calibration              | Per stable release gate | Ongoing           | Measure statistical properties separately from proofs        |
-| Method synthesis                     | 3.2 foundations         | 3.6               | Progress from checked composition to bounded synthesis       |
-
-## Core engineering interface: verified scientific operation
-
-**Design intent:** Enrich existing Antecedent scientific operations with machine-readable assurance facts. Do not create an independent user-facing compiler.
-
-| Field            | Meaning                                                      |
-| ---------------- | ------------------------------------------------------------ |
-| `inputs`         | Named scientific quantities and accepted evidence kinds      |
-| `output`         | Resulting quantity and its semantic identity                 |
-| `premises`       | Required assumptions, design conditions, support, and dependencies |
-| `transformation` | Identified formula, estimation step, or computation          |
-| `justification`  | Formal theorem, verification receipt, or scoped assurance evidence |
-| `implementation` | Rust route, version or identity, and execution binding       |
-| `obligations`    | Unresolved requirements carried downstream                   |
-| `limitations`    | Properties not justified, unsupported modes, and numerical scope |
-
-Composition must preserve provenance and semantics.
-
-It may discharge obligations only through an applicable checked rule or valid evidence.
-
-It must never infer scientific authority, numerical accuracy, or statistical calibration merely because a proof artifact exists.
-
-## Adversarial assurance architecture
-
-The adversarial workstream introduces **verification specifications and test evidence**, not a new public scientific object model.
-
-The expected relationship is:
-
-```
-Existing Antecedent scientific contracts
-                  |
-                  v
-      Formal scientific specification
-                  |
-          +-------+--------+
-          |                |
-          v                v
-    Machine proof     Model checking /
-                       test generation
-          |                |
-          |                v
-          |       Production Rust execution
-          |                |
-          +-------+--------+
-                  |
-                  v
-       Independent comparison
-                  |
-                  v
-       Targeted fault injection
-                  |
-                  v
-     Scoped assurance evidence
-                  |
-                  v
-      Existing release machinery
-```
-
-### Three kinds of generated cases
-
-**1. Semantics-preserving transformations**
-
-Change an input representation without changing its declared scientific meaning.
-
-Examples include supported declaration reorderings, valid unit conversions, and equivalent intervention representations.
-
-The required property is preservation of scientific meaning within explicitly stated numerical and stochastic tolerances.
-
-**2. Obligation-changing transformations**
+3.2 applies the tools to the parts of Antecedent that track what a result is allowed to claim over time: the evidence ledger, reuse of prepared studies, and exported artifacts. These behave as state machines, so the main techniques are transition specifications and model checking, with generated traces replayed against the Rust code.
 
-Change a scientifically relevant component.
-
-Examples include changing the target population, conditioning set, intervention horizon, evidence dependency, or statistical dependence model.
-
-The required property is correct propagation, revalidation, or refusal of the changed obligations.
-
-**3. Invalid transformations**
-
-Construct combinations that violate mandatory scientific requirements.
-
-Examples include incompatible estimands, missing identification premises, mismatched evidence identities, unsupported variance constructions, or attempts to recover withdrawn authority.
-
-The required property is a correctly classified refusal or unresolved obligation, rather than silent acceptance.
-
-### Independent expectations
+What it delivers:
 
-Generated cases must not determine their expected outcomes by executing the same implementation they test.
+- Transition rules for creating, withdrawing and superseding evidence and for which evidence is current, with selected invariants verified against the Rust ledger.
+- Rules for when a prepared analysis may be reused after branching, retargeting, rebinding data or changing an assumption.
+- Rules for artifact identity, replay, and current versus historical authority.
+- Machine-readable obligations on scientific contracts, and rules for keeping, discharging or passing on unresolved premises when operations compose.
+- A state-machine specification in Quint or TLA+/Apalache, whichever maps better onto the Rust API. Generated operation sequences are replayed against production code through Quint Connect or a small adapter. They cover evidence changes, preparation and retargeting, artifact export and acceptance, identity changes, reuse after a dependency changed, and composition of compatible and incompatible quantities.
+- Minimized counterexamples kept as permanent regression tests.
 
-Acceptable expectation sources include:
+Done when:
 
-- Machine-checked scientific rules.
-- Independently specified transition systems.
-- Analytic mathematical results.
-- Separately implemented numerical references.
-- Reviewed scientific invariants.
-
-An implementation's own previously recorded output may support regression testing but does not, by itself, establish independent scientific correctness.
+1. Withdrawn evidence cannot regain authority through any supported transition, reuse or artifact path without new justification.
+2. Reuse after a relevant dependency change is rejected within the verified scope.
+3. A composition of at least two operations keeps its unresolved premises and rejects incompatible meanings.
+4. Selected invariants are model-checked, and generated traces exercise the matching Rust operations.
+5. A deliberately introduced fault in identity checking, dependency tracking or authority transitions is caught by trace replay.
+6. Assurance records keep properties proved on the model apart from the finite set of traces run against the implementation.
 
-### Targeted fault injection
+## 3.3: Causal derivations
 
-Scientific-semantic mutation testing should introduce defects corresponding to real assurance failures.
+3.3 moves from bookkeeping to the causal mathematics: the rules that turn a question and a graph into an identified expression.
 
-Examples include removing a necessary premise, ignoring a population identity, treating dependent evidence as independent, or bypassing an artifact acceptance condition.
+What it delivers:
 
-Each mutation campaign must distinguish:
+- A bounded family of causal models and its semantics in Lean.
+- Proofs that selected adjustment, intervention, identification or transport steps are sound under explicit premises. These are proofs about individual steps; no claim is made that a whole algorithm is complete.
+- At least one of those steps connected to its Rust implementation through the verification route chosen in 3.1.
+- Derivation steps written out as artifacts that a separate checker can verify, tied to the existing identification product and contract identities.
+- Generated test cases built from the formal rules: inputs that satisfy every premise of a step, and inputs that violate exactly one, run through the identification compiler. The expected outcome comes from the formal rule, an independent reference or a reviewed proposition, never from the code under test.
+- Metamorphic tests. Equivalent representations must give the same causal quantity. A change of population, intervention, conditioning set or horizon must never be treated as equivalent. Unsupported transport must not become identification through composition, and a model-conditional prediction must not acquire identified standing.
 
-- Detected defects.
-- Undetected defects.
-- Invalid or nonapplicable mutations.
-- Tests that could not execute.
-- Unresolved verification limitations.
+Done when:
 
-A failed or unexecuted mutation campaign is not evidence of effective defect detection.
+1. Selected identification steps have machine-checked proofs, and at least one Rust implementation is connected to its specification.
+2. A sequence of existing rules that has not been combined before is assembled and independently verified.
+3. Generated cases cover valid and invalid compositions, and a deliberately omitted premise is caught.
+4. Failed, incomplete and non-identified cases stay distinct.
 
-### Counterexample retention
+A proof that a derivation is valid says nothing about whether its causal assumptions hold for real data. Results go on reporting those assumptions as assumptions.
 
-Generated failures must retain sufficient information for deterministic reproduction.
+## 3.4: Statistical computation
 
-Where supported, counterexamples should be minimized without changing the violated scientific property.
+3.4 does for estimation what 3.3 does for identification.
 
-Confirmed defects should become permanent regressions in the existing test and evidence infrastructure.
+What it delivers:
 
-## Verification and gate policy
+- Typed statistical building blocks with stated obligations: expectations and conditioning, weighting and covariance, marginalization and differentiation, and selected estimators. Sampling, positivity, dependence and nuisance-fitting assumptions are explicit.
+- A study of influence-function and debiasing primitives, restricted to a family of targets where the mathematics is settled.
+- Verified implementation properties for a few critical kernels, and independent checking of interval optimization and equilibrium and root certificates. Gappa, PRECiSA or similar open-source tools are evaluated for floating-point bounds.
+- Metamorphic tests: order invariance where a method specifies it, unit conversions, equivalent input representations, and valid decompositions under declared dependence. Numerical and stochastic tolerances are stated explicitly.
+- Generated invalid compositions: positivity violations, incompatible sampling assumptions, unsupported dependence or covariance structures, wrong variance propagation, numerically unstable inputs. Each outcome is recorded as a refusal, an unresolved obligation, a numerical failure or a wrong answer.
+- Comparison with separately implemented numerical references, and targeted mutations of estimators and certificate checks.
 
-### Ordinary CI
+Approximation error, sampling uncertainty, numerical error and statistical coverage remain separate quantities throughout.
 
-Ordinary CI should run:
+Done when:
 
-- Existing capability-record, support, provenance, parity, artifact, and relevant implementation gates.
-- Bounded deterministic adversarial scientific tests.
-- Required fast proof and specification checks.
-- Verification-record consistency and dependency checks.
+1. Two or more statistical operations compose into a new executable computation, with their premises carried through.
+2. At least two kernels or numerical certificates have independently checked bounds.
+3. Invalid dependence or variance constructions produce a typed refusal or an unresolved obligation.
+4. A consequential numerical or variance mutation is caught, and generated numerical failures reproduce deterministically.
+5. No estimator gains a calibration claim from proof, composition or adversarial testing. Calibration still comes only from coverage measurement.
 
-Ordinary CI must not silently skip required assurance cases.
+## 3.5: Proof-carrying results
 
-### Extended verification
+3.5 joins the pieces end to end, so that a result can carry evidence a separate checker can verify. It also turns the adversarial work from 3.1 to 3.4 into a release gate.
 
-Extended campaigns may include:
+What it delivers:
 
-- Larger state-space exploration.
-- Long generated operation sequences.
-- Expensive Rust verification.
-- Numerical reference regeneration.
-- Mutation testing.
-- More extensive fuzzing and adversarial statistical testing.
+- Versioned links from the scientific target through the derivation, the statistical operations and the compiled plan to the executed result.
+- A small independent checker for derivations and numerical certificates that does not trust the code that produced them.
+- Assurance evidence bound to exact dependencies and visible through the existing artifact and result inspection, next to the existing support status.
+- Two complete workflows: causal identification through estimation, and either a feedback-system intervention analysis or a program optimization.
+- A record of which links are proved mathematically, which are verified against production code, and which solver, library or execution boundaries remain unverified.
+- An adversarial release gate combining specification checks, model checking and trace replay, stateful property tests, scientific mutation testing, numerical and certificate checks, and assurance-record dependency checks. It runs on successful and refused workflows and has positive and negative controls. A bounded version runs in ordinary CI and the full campaign runs before release.
+- A reviewed set of required mutations: dropping a premise, changing a target identity, accepting mismatched evidence, weakening artifact acceptance, restoring withdrawn authority, raising standing silently, and dropping a dependence obligation.
+- Independent review of selected theorem statements, asking whether each theorem says what the science needs, and of numerical references, asking whether they were produced independently of the code under test. Findings become regression tests where a machine can check them and are kept as documented limitations where it cannot.
 
-These campaigns may run outside ordinary CI when their results are reproducible and bound to exact dependencies.
+Done when:
 
-### Release assurance
+1. Two workflows carry inspectable assurance evidence with exact scope and assumptions.
+2. Valid certificates, including independently produced ones, are accepted. Tampered, mismatched or scientifically incompatible ones are rejected.
+3. Code or contract changes invalidate or rerun the affected checks.
+4. The adversarial gate catches every required mutation within its declared coverage, and fails when selected safeguards are weakened.
+5. No mandatory gate can pass with missing tests, stale evidence or an obligation that never ran.
+6. At least one review finding is kept as a reproducible regression.
+7. Runtime, artifact size, verification time and maintenance cost are measured and published.
 
-A release gate must establish that:
+## 3.6: Bounded method synthesis (research)
 
-1. Required assurance records exist.
-2. Their scientific propositions and scopes are explicit.
-3. Their implementation and toolchain dependencies still match.
-4. Required execution evidence was actually produced.
-5. Applicable adversarial controls detected the defects they were designed to expose.
-6. Missing or stale verification evidence cannot be silently substituted.
-7. Calibration claims are supported by separate, applicable measurements.
+The goal is for Antecedent to build a valid estimation procedure for a combination of supported operations that nobody implemented end to end. A search engine proposes derivations and plans from the verified operations, and the 3.5 checker decides whether they are valid. The search engine is not trusted.
 
-The existing support and standing vocabulary remains authoritative.
+Work starts only when:
 
-### Assurance coverage
+- the causal rule library from 3.3 composes,
+- the estimation building blocks from 3.4 have explicit contracts,
+- generated procedures can be compiled and checked independently (3.5),
+- a constrained domain and its stopping and refusal rules are agreed, and
+- the adversarial tooling can challenge a synthesized procedure with specifications the synthesizer did not produce.
 
-Do not reduce assurance to a single percentage.
+What it would deliver:
 
-Track separately:
+- A restricted domain of causal targets, evidence sources, observation models and estimators.
+- A search engine over the typed operations that derives causal and estimation expressions, accumulates their obligations, and produces plans through the existing compiler.
+- Independent checking of every derivation and of the applicable implementation and numerical evidence.
+- Adversarial variants of each synthesized procedure: missing or altered premises, incompatible evidence, invalid dependence assumptions, changed targets, unsupported steps and numerical edge cases.
+- An explanation whenever a combination is unsupported, not identifiable, invalid or beyond the search budget.
 
-- Formally proved properties.
-- Production implementation properties checked.
-- State-machine invariants explored or verified.
-- Generated test families and their scopes.
-- Required semantic mutations detected.
-- Independently reproduced numerical references.
-- Supported execution coverage.
-- Statistical calibration coverage.
-- Unverified boundaries and unresolved obligations.
+Done when:
 
-A high mutation-detection rate does not establish correctness outside the selected mutation model.
+1. A held-out combination with no hand-written estimator is synthesized, executed, and agrees with an independent reference within a stated tolerance.
+2. Its derivation and evidence are checked independently.
+3. Invalid combinations are rejected, including at least one with a missing assumption and one with an incompatible dependence.
+4. The synthesizer cannot turn an unchecked proposal into a supported result.
+5. The result keeps what was checked apart from statistical assumptions, numerical limits and calibration status.
 
-A large number of generated tests does not establish scientific validity without justified expectations.
+## Rules for every release
 
-## Program-level acceptance and governance
+**Build on what exists.** The work extends the existing compiler, contracts, prepared studies, identified expressions, support decisions, evidence identities and artifacts. There is no second compiler, claim vocabulary or assurance framework. Formal specifications must correspond to real operations and observable behaviour.
 
-### Per-release scope
+**Say exactly what was established.** A mathematical proof, a verified implementation, a model check, a generated test campaign, a numerical certificate, an executing support check, a calibration measurement and an external review each establish something different, and none stands in for another. Passing generated tests is not a proof, and a proof does not show that real-world causal assumptions hold. Each release's notes say which kinds of evidence back each claim. They are never merged into a single "verified" label or a single coverage percentage.
 
-Document what is:
+**Check independently of the code under test.** Whatever proposes a derivation, test case, plan or certificate does not need to be trusted. The check must rest on an independent specification or reference. The implementation's own earlier output is only a regression baseline.
 
-- Mathematically proved.
-- Verified against production Rust.
-- Model-checked.
-- Exercised through generated or adversarial testing.
-- Independently numerically checked.
-- Supported by executing evidence.
-- Statistically calibrated.
-- Assumed, unsupported, or unresolved.
+**Fail closed.** Unsupported, unproved, non-identifiable, incompatible and out-of-budget cases stay distinguishable. A failed, incomplete, skipped or empty check never counts as a pass.
 
-Do not collapse these categories into a generic verified or validated label.
+**Track dependencies.** An assurance record names its specification, implementation, toolchain, inputs, seeds, configuration, premises and scope. A relevant change reruns or invalidates it.
 
-### Independent review
+**Keep calibration separate.** Calibration is measured when methods are stable, and code changes invalidate coverage evidence under the existing rules. Proofs, generated tests, certificates and mutation results never imply calibration.
 
-Require review of selected formal theorem statements and their relationship to intended scientific claims.
+**Verify selectively.** A small verified kernel, a bounded model check or an independently reproduced numerical reference is often worth more than an expensive attempt to verify a whole subsystem.
 
-A mathematically correct proof of the wrong specification does not establish the intended scientific result.
+**Keep it inside the project.** Users do not run formal tools, submit assurance cases, follow prescribed workflows or ask for approval to use supported features, and ordinary execution carries no proof overhead.
 
-Review the scientific meaning of adversarial properties, not merely whether the generated tests pass.
+**Use open-source tools only.** Every mandatory check must run on free and open-source software, with no proprietary solver, hosted service, licence or credential. Versions are pinned, licences are checked before adoption, and the toolchain stays small. The candidates are:
 
-External reviewers may contribute candidate counterexamples, reference implementations, or specification challenges. Adopt these as permanent regressions where appropriate.
+| Purpose | Candidates |
+| --- | --- |
+| Scientific semantics | Lean 4 / Lake |
+| Property testing of Lean specifications | Plausible |
+| Rust verification | Aeneas/Charon, Verus, Creusot, Kani |
+| State-machine specification and model checking | Quint, TLA+, Apalache |
+| Replaying specification traces against Rust | Quint Connect or a small adapter |
+| Property-based testing | proptest (Rust), Hypothesis (Python) |
+| Mutation testing | cargo-mutants |
+| Constraint solving | Z3 and compatible SMT solvers |
+| Numerical certification | Gappa, PRECiSA or alternatives |
+| Fuzzing | cargo-fuzz |
 
-Independent review is an assurance input, not an external approval requirement for ordinary Antecedent users.
+A tool is adopted only where it adds a guarantee worth its maintenance cost.
 
-### Reproducibility
+## Operation records
 
-Pin verification toolchains and preserve relevant specifications, checker inputs, reference generators, test seeds, and dependency identities.
+From 3.1 on, every verified operation is described with the same fields. They are attached to the existing operation, not kept in a separate model.
 
-Mandatory verification must be locally reproducible using OSS-only tooling.
+| Field | Meaning |
+| --- | --- |
+| `inputs` | Named quantities and the kinds of evidence accepted |
+| `output` | The resulting quantity and its identity |
+| `premises` | Required assumptions, design conditions, support and dependencies |
+| `transformation` | The formula, estimation step or computation |
+| `justification` | The theorem, verification result or scoped evidence behind it |
+| `implementation` | The Rust route, its identity and its execution binding |
+| `obligations` | Requirements not yet met, carried to whatever uses the output |
+| `limitations` | What is not justified, such as unsupported modes or numerical scope |
 
-### Risk register
+Composing operations keeps their provenance and meaning. An obligation is discharged only by a checked rule or valid evidence. The existence of a proof artifact discharges nothing.
 
-Track:
+## Adversarial testing
 
-- Rust translation and verifier coverage.
-- Proof maintenance cost.
-- Specification-to-implementation correspondence.
-- Trusted computing base.
-- Model fidelity and omitted states.
-- Generated-test oracle independence.
-- Test-generator defects.
-- Mutation representativeness and surviving mutations.
-- Numerical approximation and tolerance scope.
-- Calibration coverage.
-- CI runtime and operational cost.
-- Verification record freshness.
-- Certificate size and checking overhead.
+Adversarial cases are generated from a formal specification of an operation, run against the production code, and compared with an independent expectation. There are three kinds:
 
-### Release independence
+- **Meaning-preserving changes**: a different representation of the same thing, such as a permitted reordering, a unit conversion or an equivalent intervention. The result must not change beyond stated numerical and stochastic tolerances.
+- **Meaning-changing changes**: a different population, conditioning set, horizon, evidence dependency or dependence model. The affected obligations must be carried forward, rechecked or refused.
+- **Invalid combinations**: incompatible estimands, missing identification premises, mismatched evidence, unsupported variance constructions, attempts to restore withdrawn authority. The result must be a correctly classified refusal or unresolved obligation.
 
-Completing 3.1–3.5 delivers meaningful assurance even if 3.6 is delayed or abandoned.
+Expected outcomes come from proved rules, independently specified transition systems, analytic results, separately implemented references or reviewed invariants.
 
-Adversarial verification improvements remain independently useful even where formal proof of the corresponding production behavior is infeasible.
+Mutation campaigns inject defects that match real failure modes: dropping a premise, ignoring a population identity, treating dependent evidence as independent, bypassing an acceptance check. A campaign reports detected, undetected, non-applicable and unexecuted mutations separately. A campaign that failed or did not run is not evidence of anything, and a high detection rate says nothing about defects outside the chosen mutations.
 
-## Out of scope
+Every failure is kept with enough information to reproduce it deterministically, minimized where that does not change the property it violates. Confirmed defects become permanent regression tests.
 
-- Universal formal verification of Antecedent or its dependencies.
-- Automatic proof that real-world causal assumptions hold.
-- Equating mathematical proof with statistical coverage or calibration.
-- General theorem invention or unrestricted statistical-method discovery.
-- A separate scientific compiler, contract taxonomy, or assurance framework.
-- Mandatory proof overhead for ordinary users.
-- Prescriptive research workflows or approval mechanisms for downstream applications.
-- Universal validation of arbitrary natural-language scientific claims.
-- Autonomous experiments or autonomous scientific decision-making.
-- Requiring every scientific operation to be implemented in multiple languages.
-- Treating generated test counts, mutation scores, or model-checking success as blanket scientific certification.
-- Proprietary dependencies in mandatory assurance and verification infrastructure.
+## CI and release gates
 
-## Open decisions
+Ordinary CI runs the existing evidence, support, provenance and artifact gates, plus bounded deterministic adversarial tests, fast proof and specification checks, and assurance-record dependency checks. It may not silently skip a required case.
 
-### Formal verification
+Larger campaigns, such as state-space exploration, long operation sequences, expensive Rust verification, regeneration of numerical references, mutation testing and fuzzing, can run outside ordinary CI as long as their results are reproducible and bound to exact dependencies.
 
-- Which Rust verification tool or combination proves cost-effective on the first three production kernels?
-- Which minimal causal model family should be formalized first?
-- Which existing contract and intermediate-representation structures should carry compositional obligations?
-- What correspondence can be established between Lean specifications and selected production Rust operations?
+The release gate confirms that the required assurance records exist, state their proposition and scope, still match their code and toolchain, and came from checks that actually ran. It also confirms that adversarial controls caught what they were designed to catch, and that calibration claims rest on their own measurements.
 
-### Adversarial assurance
+## Risks
 
-- Which existing scientific boundaries should receive the first generated adversarial tests?
-- Should Quint or TLA+/Apalache be the primary state-machine specification system?
-- Can Quint Connect provide a sufficiently faithful and maintainable execution adapter for the relevant Rust APIs, or is a small OSS adapter preferable?
-- Which properties are best tested through model-based traces, property-based generation, bounded model checking, or deductive proof?
-- Which scientific-semantic mutations represent the highest-risk failures?
-- How should a reviewed, minimal set of required mutations be maintained without overfitting the gate to those mutations?
-- How should stochastic equivalence and floating-point tolerances be specified for metamorphic tests?
-- Which assurance records can reuse existing parity, provenance, and capability-record schemas without extension?
+Tracked through the whole line: Rust verifier coverage and the cost of maintaining proofs; how closely specifications match the implementation; the size of the trusted base; states a model leaves out; whether test expectations are really independent; defects in the test generators themselves; whether the chosen mutations are representative; the scope of numerical tolerances; CI time and cost; keeping records current; and certificate size and checking cost.
 
-### Proof-carrying execution
+## Not planned
 
-- Which two real workflows provide the strongest 3.5 demonstration?
-- Which certificate claims can be checked by a small independent verifier?
-- How should certificate verification interact with existing artifact identity and scientific standing?
+- Formal verification of all of Antecedent or its dependencies.
+- Proving that real-world causal assumptions hold.
+- Treating a proof as a coverage or calibration result.
+- General theorem invention or open-ended discovery of statistical methods.
+- A separate compiler, contract taxonomy or assurance framework.
+- Proof overhead for ordinary users, or required workflows and approvals for applications built on Antecedent.
+- Validating arbitrary natural-language scientific claims.
+- Autonomous experiments or autonomous scientific decisions.
+- Reimplementing every operation in several languages.
+- Treating test counts, mutation scores or model-checking success as scientific certification.
+- Proprietary dependencies in mandatory verification.
 
-### Method synthesis
+## Open questions
 
-- Which held-out method combination makes a compelling yet tractable 3.6 test?
-- What constrained synthesis domain permits meaningful automatic composition without hiding scientific assumptions?
-- How will generated procedures be adversarially challenged independently of the synthesis engine?
+Each is settled when the work reaches it.
 
-### Engineering cost
-
-- What are acceptable CI runtime, proof-maintenance, mutation-campaign, and certificate-size budgets?
-- Which expensive verification campaigns should be required only at release gates?
-- What minimum evidence is necessary to make a particular assurance claim without imposing disproportionate implementation overhead?
-
-## Long-term direction
-
-Antecedent's high-assurance approach begins with an important distinction:
-
-**Correct scientific computations do not necessarily compose into correct scientific conclusions.**
-
-The 3.x program addresses this through three mutually reinforcing capabilities.
-
-**Formal verification** establishes selected mathematical and implementation properties.
-
-**Adversarial scientific assurance** systematically challenges the boundaries where scientific meaning, evidence, identity, and uncertainty can be lost or misapplied.
-
-**Proof-carrying composition and bounded synthesis** allow increasingly sophisticated scientific procedures to be assembled while retaining their obligations and independently checkable justifications.
-
-The intended result is not a system that claims scientific infallibility.
-
-It is a scientific compiler and runtime in which supported transformations are explicit, consequential assumptions remain visible, verification evidence has precise scope, and unsupported transitions fail closed.
-
-The long-term engineering objective is:
-
-**Every critical scientific boundary should have a defined contract, independently checkable behavior where feasible, and reproducible evidence that meaningful violations are detected.**
-
-That objective strengthens the reliability of every application built on Antecedent without dictating how those applications must conduct their work.
+- **3.1:** Which Rust verifier, or combination, is affordable on the first three production kernels? What correspondence can be established between Lean specifications and Rust operations?
+- **3.1 and 3.2:** Which existing contract and intermediate structures should carry obligations? Which assurance records can reuse the existing provenance and evidence-record formats unchanged? Which boundaries get adversarial tests first?
+- **3.2:** Quint or TLA+/Apalache? Is Quint Connect faithful and maintainable enough for the Rust API, or is a small adapter better? Which properties suit trace testing, property generation, bounded model checking or deductive proof?
+- **3.3:** Which causal model family is formalized first?
+- **3.4:** How are stochastic equivalence and floating-point tolerance specified for metamorphic tests?
+- **3.5:** Which two workflows make the strongest demonstration? Which certificate claims can a small checker verify? How does certificate checking interact with artifact identity and standing? How is the required mutation set kept current without tuning the gate to it?
+- **3.6:** Which held-out combination is a convincing but tractable test, and what domain allows real composition without hiding assumptions?
+- **Throughout:** What budgets are acceptable for CI time, proof maintenance, mutation campaigns and certificate size? Which campaigns run only at release?
