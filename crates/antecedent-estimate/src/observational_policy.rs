@@ -495,9 +495,10 @@ impl ObservationalPolicyValue {
             }
             selected
         });
-        let policy_ncols = self.policy_features.as_ref().map_or(ncols, |features| features.len() + 1);
-        let policy_valid = policy_design.as_ref()
-            .map(|design| rows_colmajor(design, n, policy_ncols, valid));
+        let policy_ncols =
+            self.policy_features.as_ref().map_or(ncols, |features| features.len() + 1);
+        let policy_valid =
+            policy_design.as_ref().map(|design| rows_colmajor(design, n, policy_ncols, valid));
         let nv = valid.len();
         let propensity = if let Some(known) = &prepared.known_propensity {
             let mut out = vec![0.0; k * nv];
@@ -555,16 +556,22 @@ impl ObservationalPolicyValue {
             if let (Some(policy_design), Some(policy_valid), Some(policy_mean)) =
                 (&policy_design, &policy_valid, &mut policy_mean)
             {
-                let policy_level = rows_colmajor(
-                    policy_design, n, policy_ncols, &level_train,
-                );
-                let policy_fit = FaerBackend.least_squares(
-                    &policy_level, level_train.len(), policy_ncols,
-                    &y_level, &mut workspace.ols,
-                ).map_err(crate::error::EstimationError::from)?;
+                let policy_level = rows_colmajor(policy_design, n, policy_ncols, &level_train);
+                let policy_fit = FaerBackend
+                    .least_squares(
+                        &policy_level,
+                        level_train.len(),
+                        policy_ncols,
+                        &y_level,
+                        &mut workspace.ols,
+                    )
+                    .map_err(crate::error::EstimationError::from)?;
                 predict_colmajor(
-                    policy_valid, nv, policy_ncols,
-                    &policy_fit.coefficients, &mut prediction,
+                    policy_valid,
+                    nv,
+                    policy_ncols,
+                    &policy_fit.coefficients,
+                    &mut prediction,
                 );
                 policy_mean[c * nv..(c + 1) * nv].copy_from_slice(&prediction);
             }

@@ -26,12 +26,9 @@ pub fn solve_event_input_path(
         || policy.output_every != 1
         || !policy.check_step
         || initial.len() != dimension
-        || initial
-            .iter()
-            .zip(&compiled.certificate.state_bounds)
-            .any(|(&x, &[lo, hi])| {
-                !x.is_finite() || lo.is_some_and(|v| x < v) || hi.is_some_and(|v| x > v)
-            })
+        || initial.iter().zip(&compiled.certificate.state_bounds).any(|(&x, &[lo, hi])| {
+            !x.is_finite() || lo.is_some_and(|v| x < v) || hi.is_some_and(|v| x > v)
+        })
         || plan.inputs.len() != compiled.system.inputs.len()
         || plan
             .inputs
@@ -50,22 +47,10 @@ pub fn solve_event_input_path(
         actions: plan.actions.clone(),
         inputs: plan.inputs.clone(),
     };
-    let plan = compiled
-        .system
-        .plan_world(&world, policy.start, policy.step)?;
+    let plan = compiled.system.plan_world(&world, policy.start, policy.step)?;
     let theta = compiled.system.parameter_values();
     let mut coarse = vec![0.0; (policy.steps + 1) * dimension];
-    run_path(
-        compiled,
-        &theta,
-        &plan,
-        policy,
-        initial,
-        path,
-        false,
-        &mut coarse,
-        ctx,
-    )?;
+    run_path(compiled, &theta, &plan, policy, initial, path, false, &mut coarse, ctx)?;
     // Keep the Brownian primitive at the original half-step precision. A fine
     // runner normally records coarse timestamps, so use a separate recorder
     // that advances on the same half-step grid.
@@ -192,10 +177,7 @@ mod tests {
         let compiled = system.compile().unwrap();
         let plan = system
             .plan_world(
-                &super::super::SdeWorld {
-                    id: "baseline".into(),
-                    ..Default::default()
-                },
+                &super::super::SdeWorld { id: "baseline".into(), ..Default::default() },
                 policy.start,
                 policy.step,
             )
@@ -203,18 +185,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(0);
         let (_, fine) = solve_event_input_path(&compiled, &plan, &[0.0], &policy, 1, &ctx).unwrap();
         let mut reference = vec![0.0; 5];
-        run_path(
-            &compiled,
-            &[],
-            &plan,
-            &policy,
-            &[0.0],
-            1,
-            true,
-            &mut reference,
-            &ctx,
-        )
-        .unwrap();
+        run_path(&compiled, &[], &plan, &policy, &[0.0], 1, true, &mut reference, &ctx).unwrap();
         assert_eq!(fine.into_iter().step_by(2).collect::<Vec<_>>(), reference);
     }
 }

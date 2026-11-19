@@ -56,21 +56,21 @@ mod wire;
 use bounds::check_bounds;
 pub use identity::propagation_chain_identity;
 pub use wire::{
-    ChainChangeWire, ChainCoefficientWire, ChainExprTermWire, ChainFactorWire, ChainOpWire,
-    ChainJointOutputWire, ChainSourceWire, ChainStageResultWire, ChainStageWire, ChainUnaryWire,
-    ConsumedPropagationChain, PropagationChainRecordWire,
+    ChainChangeWire, ChainCoefficientWire, ChainExprTermWire, ChainFactorWire,
+    ChainJointOutputWire, ChainOpWire, ChainSourceWire, ChainStageResultWire, ChainStageWire,
+    ChainUnaryWire, ConsumedPropagationChain, PropagationChainRecordWire,
 };
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_contract::dependence::SharedFactorKind;
-use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_contract::propagation_chain::{
     ChainDecl, ChainPlan, ChainReading, ChainRefusal, ChainSourceDecl, ChainStageDecl,
-    DROP_DUPLICATED_SOURCE, FIX_CHAIN_DECLARATION, FactorDecl, LawMeaning, OperatorClass,
-    NodeRepresentation, RAISE_BUDGET_OR_THIN_DRAWS, RAISE_DRAWS_OR_WIDEN_STUDY, Representation,
+    DROP_DUPLICATED_SOURCE, FIX_CHAIN_DECLARATION, FactorDecl, LawMeaning, NodeRepresentation,
+    OperatorClass, RAISE_BUDGET_OR_THIN_DRAWS, RAISE_DRAWS_OR_WIDEN_STUDY, Representation,
     SUPPLY_DRAWS_FOR_INTERVAL, StageKind, TableConstruction, check_propagation_chain,
 };
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 #[cfg(test)]
 use antecedent_core::CanonicalWriter;
 use antecedent_core::ExecutionContext;
@@ -81,9 +81,9 @@ use antecedent_stats::propagation_chain::{
 };
 
 use crate::IoError;
-use crate::quantity_wire::ScientificQuantityWire;
 use crate::container::{CompressPolicy, EncodedArtifact, pack_section_shared};
 use crate::joint_law_propagation_artifact::verdict_code;
+use crate::quantity_wire::ScientificQuantityWire;
 
 /// The section id of the retained record on a composite artifact.
 pub const PROPAGATION_CHAIN_SECTION: &str = "analysis_result.propagation";
@@ -561,11 +561,14 @@ impl PropagationChainRecordWire {
         if self.joint_outputs.len() < 2
             || !matches!(plan.reading, ChainReading::Posterior | ChainReading::Predictive)
         {
-            return Err(malformed("a joint output law needs at least two posterior or predictive stage coordinates"));
+            return Err(malformed(
+                "a joint output law needs at least two posterior or predictive stage coordinates",
+            ));
         }
-        let primary = self.output_quantity.as_ref().ok_or_else(|| {
-            malformed("a joint output law declares the primary output quantity")
-        })?;
+        let primary = self
+            .output_quantity
+            .as_ref()
+            .ok_or_else(|| malformed("a joint output law declares the primary output quantity"))?;
         let expected = if plan.reading == ChainReading::Predictive {
             LawMeaning::Predictive
         } else {
@@ -578,7 +581,10 @@ impl PropagationChainRecordWire {
             if !stages.insert(output.stage.as_str()) {
                 return Err(malformed("a joint output stage is declared twice"));
             }
-            let quantity: ScientificQuantity = output.quantity.clone().try_into()
+            let quantity: ScientificQuantity = output
+                .quantity
+                .clone()
+                .try_into()
                 .map_err(|message| malformed(format!("joint output quantity: {message}")))?;
             if plan.reading == ChainReading::Predictive
                 && !matches!(quantity.role, QuantityRole::Outcome | QuantityRole::Utility)
@@ -590,23 +596,29 @@ impl PropagationChainRecordWire {
             if !coordinates.insert(quantity.canonical_identity()) {
                 return Err(malformed("joint output quantities must be distinct"));
             }
-            let stage = plan.stage(&output.stage)
-                .ok_or_else(|| malformed(format!("joint output stage `{}` does not exist", output.stage)))?;
-            if stage.representation != NodeRepresentation::Draws || stage.meaning != Some(expected) {
+            let stage = plan.stage(&output.stage).ok_or_else(|| {
+                malformed(format!("joint output stage `{}` does not exist", output.stage))
+            })?;
+            if stage.representation != NodeRepresentation::Draws || stage.meaning != Some(expected)
+            {
                 return Err(malformed(format!(
                     "joint output stage `{}` does not carry the declared law meaning",
                     output.stage
                 )));
             }
             if stage.kind == StageKind::PreposteriorUpdate {
-                return Err(malformed("a preposterior update is a value of information, not a law column"));
+                return Err(malformed(
+                    "a preposterior update is a value of information, not a law column",
+                ));
             }
             if output.stage == self.output {
                 primary_seen = output.quantity == *primary;
             }
         }
         if !primary_seen {
-            return Err(malformed("joint outputs must include the primary stage with its output quantity"));
+            return Err(malformed(
+                "joint outputs must include the primary stage with its output quantity",
+            ));
         }
         Ok(())
     }
@@ -627,15 +639,16 @@ impl PropagationChainRecordWire {
                 "a predictive law or assumption envelope declares its scientific quantity",
             ));
         }
-        if matches!(self.version, PROPAGATION_CHAIN_LAW_VERSION | PROPAGATION_CHAIN_JOINT_LAW_VERSION)
-            && self.stages.iter().any(|stage| {
-                stage.id == self.output && stage.decision_reference.is_some()
-            })
+        if matches!(
+            self.version,
+            PROPAGATION_CHAIN_LAW_VERSION | PROPAGATION_CHAIN_JOINT_LAW_VERSION
+        ) && self
+            .stages
+            .iter()
+            .any(|stage| stage.id == self.output && stage.decision_reference.is_some())
             && self.output_quantity.is_none()
         {
-            return Err(malformed(
-                "a retained output-law decision declares its utility quantity",
-            ));
+            return Err(malformed("a retained output-law decision declares its utility quantity"));
         }
         if let Some(wire) = &self.output_quantity {
             let quantity: ScientificQuantity = wire
@@ -662,7 +675,12 @@ impl PropagationChainRecordWire {
     }
 
     fn check_decision_references(&self) -> Result<(), Error> {
-        if !matches!(self.version, PROPAGATION_CHAIN_LAW_VERSION | PROPAGATION_CHAIN_ASSUMPTION_VERSION | PROPAGATION_CHAIN_JOINT_LAW_VERSION) {
+        if !matches!(
+            self.version,
+            PROPAGATION_CHAIN_LAW_VERSION
+                | PROPAGATION_CHAIN_ASSUMPTION_VERSION
+                | PROPAGATION_CHAIN_JOINT_LAW_VERSION
+        ) {
             return Ok(());
         }
         for stage in &self.stages {
@@ -931,7 +949,13 @@ impl PropagationChainRecordWire {
                         let reference = f64::from_bits(reference_bits);
                         let lower_gap = lower_summary.mean - reference;
                         let upper_gap = upper_summary.mean - reference;
-                        let verdict = if lower_gap > 0.0 { 0 } else if upper_gap < 0.0 { 1 } else { 2 };
+                        let verdict = if lower_gap > 0.0 {
+                            0
+                        } else if upper_gap < 0.0 {
+                            1
+                        } else {
+                            2
+                        };
                         push_float(&mut values, "reference_utility", reference);
                         push_float(&mut values, "robust_gap_lower", lower_gap);
                         push_float(&mut values, "robust_gap_upper", upper_gap);
@@ -950,9 +974,16 @@ impl PropagationChainRecordWire {
                     values,
                 });
             }
-            return Ok(Executed { plan, results, output_draws: None, output_weights,
-                output_lower_bounds, output_upper_bounds,
-                joint_output_draws: None, joint_output_weights: None });
+            return Ok(Executed {
+                plan,
+                results,
+                output_draws: None,
+                output_weights,
+                output_lower_bounds,
+                output_upper_bounds,
+                joint_output_draws: None,
+                joint_output_weights: None,
+            });
         }
         if enclosure_mode {
             let boxes = self
@@ -983,9 +1014,16 @@ impl PropagationChainRecordWire {
                     values,
                 });
             }
-            return Ok(Executed { plan, results, output_draws: None, output_weights: None,
-                output_lower_bounds: None, output_upper_bounds: None,
-                joint_output_draws: None, joint_output_weights: None });
+            return Ok(Executed {
+                plan,
+                results,
+                output_draws: None,
+                output_weights: None,
+                output_lower_bounds: None,
+                output_upper_bounds: None,
+                joint_output_draws: None,
+                joint_output_weights: None,
+            });
         }
         let table_rows = rows.unwrap_or(1);
         if table_rows
@@ -1030,8 +1068,10 @@ impl PropagationChainRecordWire {
                 values,
             });
         }
-        let (output_draws, output_weights) = if matches!(self.version, PROPAGATION_CHAIN_LAW_VERSION | PROPAGATION_CHAIN_JOINT_LAW_VERSION)
-            && law_record(&self.reading)
+        let (output_draws, output_weights) = if matches!(
+            self.version,
+            PROPAGATION_CHAIN_LAW_VERSION | PROPAGATION_CHAIN_JOINT_LAW_VERSION
+        ) && law_record(&self.reading)
             && stage_status(&self.output).0 != STATUS_INVALIDATED
         {
             let position = self
@@ -1054,20 +1094,28 @@ impl PropagationChainRecordWire {
         };
         let (joint_output_draws, joint_output_weights) = if self.version
             == PROPAGATION_CHAIN_JOINT_LAW_VERSION
-            && self.joint_outputs.iter().all(|output| {
-                stage_status(&output.stage).0 != STATUS_INVALIDATED
-            })
+            && self
+                .joint_outputs
+                .iter()
+                .all(|output| stage_status(&output.stage).0 != STATUS_INVALIDATED)
         {
             let mut shared_sources = BTreeSet::new();
             let mut columns = Vec::with_capacity(self.joint_outputs.len());
             for output in &self.joint_outputs {
-                let position = self.stages.iter().position(|stage| stage.id == output.stage)
+                let position = self
+                    .stages
+                    .iter()
+                    .position(|stage| stage.id == output.stage)
                     .ok_or_else(|| malformed("a joint output stage does not exist"))?;
-                let column = evaluated.columns[position].as_ref()
+                let column = evaluated.columns[position]
+                    .as_ref()
                     .ok_or_else(|| malformed("a joint output stage has no draw column"))?;
                 columns.push(column.iter().map(|value| value.to_bits()).collect());
-                for source in &plan.stage(&output.stage)
-                    .ok_or_else(|| malformed("a joint output stage has no plan"))?.sources {
+                for source in &plan
+                    .stage(&output.stage)
+                    .ok_or_else(|| malformed("a joint output stage has no plan"))?
+                    .sources
+                {
                     shared_sources.insert(source.clone());
                 }
             }
@@ -1078,9 +1126,16 @@ impl PropagationChainRecordWire {
         } else {
             (None, None)
         };
-        Ok(Executed { plan, results, output_draws, output_weights,
-            output_lower_bounds: None, output_upper_bounds: None,
-            joint_output_draws, joint_output_weights })
+        Ok(Executed {
+            plan,
+            results,
+            output_draws,
+            output_weights,
+            output_lower_bounds: None,
+            output_upper_bounds: None,
+            joint_output_draws,
+            joint_output_weights,
+        })
     }
 
     #[allow(
@@ -1311,28 +1366,44 @@ impl PropagationChainRecordWire {
                 || self.joint_output_draws.is_some()
                 || self.joint_output_weights.is_some())
         {
-            return Err(Error::UnsupportedSemantics("version 1 does not publish a law or assumption envelope"));
+            return Err(Error::UnsupportedSemantics(
+                "version 1 does not publish a law or assumption envelope",
+            ));
         }
         if self.version == PROPAGATION_CHAIN_LAW_VERSION && !law_record(&self.reading) {
             return Err(Error::UnsupportedSemantics("version 2 requires a law reading"));
         }
         if self.version == PROPAGATION_CHAIN_LAW_VERSION
-            && (self.output_lower_bounds.is_some() || self.output_upper_bounds.is_some()
-                || !self.joint_outputs.is_empty() || self.joint_output_draws.is_some()
-                || self.joint_output_weights.is_some()) {
-            return Err(Error::UnsupportedSemantics("version 2 does not publish an assumption envelope"));
+            && (self.output_lower_bounds.is_some()
+                || self.output_upper_bounds.is_some()
+                || !self.joint_outputs.is_empty()
+                || self.joint_output_draws.is_some()
+                || self.joint_output_weights.is_some())
+        {
+            return Err(Error::UnsupportedSemantics(
+                "version 2 does not publish an assumption envelope",
+            ));
         }
         if self.version == PROPAGATION_CHAIN_ASSUMPTION_VERSION
-            && (self.reading != ChainReading::AssumptionEnvelope.as_str() || self.output_draws.is_some()
-                || !self.joint_outputs.is_empty() || self.joint_output_draws.is_some()
-                || self.joint_output_weights.is_some()) {
-            return Err(Error::UnsupportedSemantics("version 3 requires an assumption-envelope reading"));
+            && (self.reading != ChainReading::AssumptionEnvelope.as_str()
+                || self.output_draws.is_some()
+                || !self.joint_outputs.is_empty()
+                || self.joint_output_draws.is_some()
+                || self.joint_output_weights.is_some())
+        {
+            return Err(Error::UnsupportedSemantics(
+                "version 3 requires an assumption-envelope reading",
+            ));
         }
         if self.version == PROPAGATION_CHAIN_JOINT_LAW_VERSION
-            && (!law_record(&self.reading) || self.joint_outputs.len() < 2
-                || self.output_lower_bounds.is_some() || self.output_upper_bounds.is_some())
+            && (!law_record(&self.reading)
+                || self.joint_outputs.len() < 2
+                || self.output_lower_bounds.is_some()
+                || self.output_upper_bounds.is_some())
         {
-            return Err(Error::UnsupportedSemantics("version 4 requires a joint posterior or predictive law"));
+            return Err(Error::UnsupportedSemantics(
+                "version 4 requires a joint posterior or predictive law",
+            ));
         }
         check_bounds(self, limits)?;
         let recomputed = propagation_chain_identity(self)?;

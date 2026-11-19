@@ -1,10 +1,12 @@
 //! Compiler routing of a retained predictive law through a multi-action
 //! nonlinear utility, and refusal of posterior parameters as outcome risk.
 
-use antecedent_contract::propagation_chain::{ChainReading, LawMeaning, StageKind, TableConstruction};
+use antecedent_contract::propagation_chain::{
+    ChainReading, LawMeaning, StageKind, TableConstruction,
+};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
-use antecedent_core::{ExecutionContext, SemanticDigest};
 use antecedent_core::SupportStatus;
+use antecedent_core::{ExecutionContext, SemanticDigest};
 use antecedent_design::composition_boundary::{SupportPolicy, UnsupportedActionPolicy};
 use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy, UtilityExpr,
@@ -13,14 +15,14 @@ use antecedent_design::decision_transported_source::{
     TransportDeclaration, TransportedResponse, TransportedRoute,
 };
 use antecedent_io::distribution_artifact::{
-    DistributionArtifact, DistributionCalibration, DistributionIdentity,
-    DistributionMetadata, DistributionProvenance, DistributionTrust, DrawAlignment,
+    DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
+    DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io::propagation_chain_record::{
     ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire, ChainStageWire,
 };
-use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_io::quantity_wire::ScientificQuantityWire;
 
 use super::propagation_chain::PropagationChain;
 use super::propagation_chain_decision::{
@@ -43,7 +45,10 @@ fn outcome() -> ScientificQuantity {
     }
 }
 
-fn draft(meaning: LawMeaning, reading: ChainReading) -> antecedent_io::propagation_chain_record::PropagationChainRecordWire {
+fn draft(
+    meaning: LawMeaning,
+    reading: ChainReading,
+) -> antecedent_io::propagation_chain_record::PropagationChainRecordWire {
     PropagationChain::draft(
         TableConstruction::JointDraws,
         reading,
@@ -94,20 +99,50 @@ fn joint_draft() -> antecedent_io::propagation_chain_record::PropagationChainRec
         ChainReading::Predictive,
         "wishlists",
         vec![
-            ChainSourceWire::draws("traffic", LawMeaning::Predictive, "joint:game-a", &[1.0, 2.0, 3.0, 4.0]),
-            ChainSourceWire::draws("conversion", LawMeaning::Predictive, "joint:game-a", &[2.0, 2.0, 2.0, 2.0]),
+            ChainSourceWire::draws(
+                "traffic",
+                LawMeaning::Predictive,
+                "joint:game-a",
+                &[1.0, 2.0, 3.0, 4.0],
+            ),
+            ChainSourceWire::draws(
+                "conversion",
+                LawMeaning::Predictive,
+                "joint:game-a",
+                &[2.0, 2.0, 2.0, 2.0],
+            ),
         ],
         vec![
-            ChainStageWire::new("wishlists", StageKind::DerivedQuantity, &["traffic"],
-                ChainOpWire::affine(ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0))),
-            ChainStageWire::new("sales", StageKind::DerivedQuantity, &["conversion"],
-                ChainOpWire::affine(ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0))),
+            ChainStageWire::new(
+                "wishlists",
+                StageKind::DerivedQuantity,
+                &["traffic"],
+                ChainOpWire::affine(
+                    ChainCoefficientWire::fixed(1.0),
+                    ChainCoefficientWire::fixed(0.0),
+                ),
+            ),
+            ChainStageWire::new(
+                "sales",
+                StageKind::DerivedQuantity,
+                &["conversion"],
+                ChainOpWire::affine(
+                    ChainCoefficientWire::fixed(1.0),
+                    ChainCoefficientWire::fixed(0.0),
+                ),
+            ),
         ],
     )
     .with_output_quantity(ScientificQuantityWire::from(&outcome()))
     .with_joint_outputs(vec![
-        ChainJointOutputWire { stage: "wishlists".into(), quantity: ScientificQuantityWire::from(&outcome()) },
-        ChainJointOutputWire { stage: "sales".into(), quantity: ScientificQuantityWire::from(&sales) },
+        ChainJointOutputWire {
+            stage: "wishlists".into(),
+            quantity: ScientificQuantityWire::from(&outcome()),
+        },
+        ChainJointOutputWire {
+            stage: "sales".into(),
+            quantity: ScientificQuantityWire::from(&sales),
+        },
     ])
 }
 
@@ -118,9 +153,11 @@ fn joint_chain_law_keeps_cross_quantity_rows_for_nonlinear_utility() {
     sales.variable_id = "steam:sales".into();
     sales.variable_name = "sales".into();
     contract.actions[0].inputs.push(sales);
-    contract.actions[0].utility = UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1));
+    contract.actions[0].utility =
+        UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1));
     let ctx = ExecutionContext::for_tests(13);
-    let plan = compile_chain_decision(joint_draft(), contract, &ctx).expect("joint output compiler");
+    let plan =
+        compile_chain_decision(joint_draft(), contract, &ctx).expect("joint output compiler");
     let result = plan.execute(&ctx).expect("joint utility");
     let (columns, weights) = result.chain.joint_output_law().expect("retained joint rows");
     assert_eq!(columns.len(), 2);
@@ -128,7 +165,9 @@ fn joint_chain_law_keeps_cross_quantity_rows_for_nonlinear_utility() {
     let mut tampered = result.chain.record().clone();
     tampered.joint_output_draws.as_mut().expect("retained joint law")[0][0] = 99.0_f64.to_bits();
     assert!(tampered.consume(None, &ctx).is_err());
-    assert!(result.decision.actions[0].expected_utility > result.decision.actions[1].expected_utility);
+    assert!(
+        result.decision.actions[0].expected_utility > result.decision.actions[1].expected_utility
+    );
     let bytes = plan.export(&result, "joint-wishlists").expect("export");
     let replay = consume_chain_decision(&bytes, Some(result.lowered_program_identity), &ctx)
         .expect("independent joint replay");
@@ -161,8 +200,12 @@ fn action_specific_worlds_use_only_the_declared_joint_coupling() {
     let result = plan.execute(&ctx).expect("paired regret evaluation");
     assert_eq!(result.decision.n_draws, 4);
     let bytes = plan.export(&result, "paired-worlds").expect("paired artifact");
-    assert_eq!(consume_chain_decision(&bytes, Some(result.lowered_program_identity), &ctx)
-        .expect("independent paired replay").decision, result.decision);
+    assert_eq!(
+        consume_chain_decision(&bytes, Some(result.lowered_program_identity), &ctx)
+            .expect("independent paired replay")
+            .decision,
+        result.decision
+    );
     draft.sources[1].factors.clear();
     assert!(compile_action_world_chain_decision(draft, contract, &ctx).is_err());
 }
@@ -170,30 +213,38 @@ fn action_specific_worlds_use_only_the_declared_joint_coupling() {
 #[test]
 fn predictive_chain_decision_compiles_and_scores_nonlinear_actions() {
     let ctx = ExecutionContext::for_tests(13);
-    let plan = compile_chain_decision(draft(LawMeaning::Predictive, ChainReading::Predictive), decision(), &ctx)
-        .expect("one compiled chain and decision");
+    let plan = compile_chain_decision(
+        draft(LawMeaning::Predictive, ChainReading::Predictive),
+        decision(),
+        &ctx,
+    )
+    .expect("one compiled chain and decision");
     let lowered_decision = plan.lowered().evidence().decision.as_ref().expect("decision layer");
     assert_eq!(lowered_decision.actions(), 2);
     let result = plan.execute(&ctx).expect("decision on retained law");
     assert_eq!(result.chain.output_law().map(|(draws, _)| draws.len()), Some(4));
-    assert!(result.decision.actions[0].expected_utility > result.decision.actions[1].expected_utility);
+    assert!(
+        result.decision.actions[0].expected_utility > result.decision.actions[1].expected_utility
+    );
     assert_eq!(result.lowered_program_identity, result.chain.lowered_program_identity());
     let bytes = plan.export(&result, "wishlists-decision").expect("versioned artifact");
     let consumed = consume_chain_decision(&bytes, Some(result.lowered_program_identity), &ctx)
         .expect("independent compiler replay");
     assert_eq!(consumed.decision, result.decision);
-    assert!(consume_chain_decision(
-        &bytes,
-        Some(SemanticDigest::from_bytes([0; 32])),
-        &ctx,
-    ).is_err());
+    assert!(
+        consume_chain_decision(&bytes, Some(SemanticDigest::from_bytes([0; 32])), &ctx,).is_err()
+    );
 }
 
 #[test]
 fn posterior_parameters_do_not_answer_an_outcome_law_decision() {
     let ctx = ExecutionContext::for_tests(13);
-    let refused = compile_chain_decision(draft(LawMeaning::Posterior, ChainReading::Posterior), decision(), &ctx)
-        .expect_err("a posterior is not a predictive outcome law");
+    let refused = compile_chain_decision(
+        draft(LawMeaning::Posterior, ChainReading::Posterior),
+        decision(),
+        &ctx,
+    )
+    .expect_err("a posterior is not a predictive outcome law");
     assert!(refused.to_string().contains("outcome risk requires a predictive law"));
 }
 
@@ -209,7 +260,8 @@ fn transported_response(weights: Option<Vec<f64>>) -> TransportedResponse {
             snapshot_id: "snapshot-1".into(),
             causal_contract_id: "transport-contract".into(),
         },
-    ).expect("law identity");
+    )
+    .expect("law identity");
     let law = DistributionArtifact::new(
         DistributionMetadata {
             version: 1,
@@ -224,38 +276,50 @@ fn transported_response(weights: Option<Vec<f64>>) -> TransportedResponse {
             legacy_bindings: None,
         },
         vec![1.0, 2.0, 3.0, 4.0],
-    ).expect("aligned law");
-    TransportedResponse::declared_law(law, &TransportDeclaration {
-        route: TransportedRoute::Declared,
-        source_identity: "source-trial".into(),
-        source_populations: vec!["trial".into()],
-        target_population: "game-a".into(),
-        transport_identities: vec!["selection-diagram".into()],
-        assumptions: vec!["transport mechanism declared".into()],
-        support: SupportStatus::Extrapolative,
-        uncalibrated_standard_error: None,
-        provider_id: "declared-transport".into(),
-        snapshot_id: "snapshot-1".into(),
-        causal_contract_id: "transport-contract".into(),
-    }).expect("transport receipt")
+    )
+    .expect("aligned law");
+    TransportedResponse::declared_law(
+        law,
+        &TransportDeclaration {
+            route: TransportedRoute::Declared,
+            source_identity: "source-trial".into(),
+            source_populations: vec!["trial".into()],
+            target_population: "game-a".into(),
+            transport_identities: vec!["selection-diagram".into()],
+            assumptions: vec!["transport mechanism declared".into()],
+            support: SupportStatus::Extrapolative,
+            uncalibrated_standard_error: None,
+            provider_id: "declared-transport".into(),
+            snapshot_id: "snapshot-1".into(),
+            causal_contract_id: "transport-contract".into(),
+        },
+    )
+    .expect("transport receipt")
 }
 
 #[test]
 fn transported_law_decision_requires_accepted_support_and_replays() {
     let response = transported_response(None);
     let ctx = ExecutionContext::for_tests(17);
-    assert!(compile_transported_law_chain_decision(
-        &response, decision(), &SupportPolicy::require_all(), &ctx,
-    ).is_err());
+    assert!(
+        compile_transported_law_chain_decision(
+            &response,
+            decision(),
+            &SupportPolicy::require_all(),
+            &ctx,
+        )
+        .is_err()
+    );
     let accepting = SupportPolicy {
         unsupported: UnsupportedActionPolicy::RequireAllActions,
         weakest_support: SupportStatus::Extrapolative,
     };
-    let plan = compile_transported_law_chain_decision(
-        &response, decision(), &accepting, &ctx,
-    ).expect("accepted transported law compiler");
+    let plan = compile_transported_law_chain_decision(&response, decision(), &accepting, &ctx)
+        .expect("accepted transported law compiler");
     let result = plan.execute(&ctx).expect("decision execution");
-    assert!(result.decision.actions[0].expected_utility > result.decision.actions[1].expected_utility);
+    assert!(
+        result.decision.actions[0].expected_utility > result.decision.actions[1].expected_utility
+    );
     let bytes = plan.export(&result, "transported-wishlists-decision").expect("artifact");
     let replay = consume_chain_decision(&bytes, Some(result.lowered_program_identity), &ctx)
         .expect("independent replay");
@@ -270,15 +334,13 @@ fn zero_mass_transport_rows_keep_exact_joint_weights_through_the_compiler() {
         unsupported: UnsupportedActionPolicy::RequireAllActions,
         weakest_support: SupportStatus::Extrapolative,
     };
-    let plan = compile_transported_law_chain_decision(
-        &response, decision(), &accepting, &ctx,
-    ).expect("weighted transported law compiler");
+    let plan = compile_transported_law_chain_decision(&response, decision(), &accepting, &ctx)
+        .expect("weighted transported law compiler");
     let result = plan.execute(&ctx).expect("weighted decision execution");
-    let (draws, weights) = result.chain.output_law()
-        .expect("retained aligned law");
+    let (draws, weights) = result.chain.output_law().expect("retained aligned law");
     assert_eq!(draws.len(), 2);
-    let normalized: Vec<f64> = weights.expect("joint row weights")
-        .iter().copied().map(f64::from_bits).collect();
+    let normalized: Vec<f64> =
+        weights.expect("joint row weights").iter().copied().map(f64::from_bits).collect();
     assert!((normalized[0] - 0.25).abs() < 1e-12);
     assert!((normalized[1] - 0.75).abs() < 1e-12);
     assert!((result.decision.actions[0].expected_utility - 7.75).abs() < 1e-12);
@@ -298,7 +360,8 @@ fn weighted_transport_rows_are_shared_across_two_decision_coordinates() {
     let quantities = [outcome(), sales.clone()];
     let identity = DistributionIdentity::new(
         DistributionMeaningWire::InterventionalPredictive,
-        &quantities, DrawAlignment::Joint,
+        &quantities,
+        DrawAlignment::Joint,
         DistributionProvenance {
             source_id: "transported-wishlists-sales".into(),
             provider_id: "declared-transport".into(),
@@ -306,57 +369,64 @@ fn weighted_transport_rows_are_shared_across_two_decision_coordinates() {
             snapshot_id: "snapshot-2".into(),
             causal_contract_id: "transport-contract".into(),
         },
-    ).unwrap();
+    )
+    .unwrap();
     let law = DistributionArtifact::new(
         DistributionMetadata {
-            version: 1, identity,
-            axes: ["draw".into(), "quantity".into()], shape: [4, 2],
-            weights: Some(vec![0.0, 1.0, 3.0, 0.0]), supported: None,
+            version: 1,
+            identity,
+            axes: ["draw".into(), "quantity".into()],
+            shape: [4, 2],
+            weights: Some(vec![0.0, 1.0, 3.0, 0.0]),
+            supported: None,
             calibration: DistributionCalibration::NotMeasured,
             trust: DistributionTrust::Unverified,
-            legacy_posterior: None, legacy_bindings: None,
+            legacy_posterior: None,
+            legacy_bindings: None,
         },
         vec![1.0, 10.0, 2.0, 20.0, 3.0, 30.0, 4.0, 40.0],
-    ).unwrap();
-    let response = TransportedResponse::declared_law(law, &TransportDeclaration {
-        route: TransportedRoute::Declared,
-        source_identity: "source-trial".into(),
-        source_populations: vec!["trial".into()],
-        target_population: "game-a".into(),
-        transport_identities: vec!["selection-diagram".into()],
-        assumptions: vec!["transport mechanism declared".into()],
-        support: SupportStatus::Extrapolative,
-        uncalibrated_standard_error: None,
-        provider_id: "declared-transport".into(),
-        snapshot_id: "snapshot-2".into(),
-        causal_contract_id: "transport-contract".into(),
-    }).unwrap();
+    )
+    .unwrap();
+    let response = TransportedResponse::declared_law(
+        law,
+        &TransportDeclaration {
+            route: TransportedRoute::Declared,
+            source_identity: "source-trial".into(),
+            source_populations: vec!["trial".into()],
+            target_population: "game-a".into(),
+            transport_identities: vec!["selection-diagram".into()],
+            assumptions: vec!["transport mechanism declared".into()],
+            support: SupportStatus::Extrapolative,
+            uncalibrated_standard_error: None,
+            provider_id: "declared-transport".into(),
+            snapshot_id: "snapshot-2".into(),
+            causal_contract_id: "transport-contract".into(),
+        },
+    )
+    .unwrap();
     let mut contract = decision();
     contract.actions[0].inputs.push(sales);
-    contract.actions[0].utility = UtilityExpr::product(
-        UtilityExpr::Input(0), UtilityExpr::Input(1),
-    );
+    contract.actions[0].utility =
+        UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1));
     let ctx = ExecutionContext::for_tests(23);
     let accepting = SupportPolicy {
         unsupported: UnsupportedActionPolicy::RequireAllActions,
         weakest_support: SupportStatus::Extrapolative,
     };
-    let plan = compile_transported_law_chain_decision(
-        &response, contract, &accepting, &ctx,
-    ).unwrap();
+    let plan =
+        compile_transported_law_chain_decision(&response, contract, &accepting, &ctx).unwrap();
     let result = plan.execute(&ctx).unwrap();
     let (columns, weights) = result.chain.joint_output_law().unwrap();
     assert_eq!(columns.len(), 2);
     assert_eq!(columns[0].len(), 2);
-    let normalized: Vec<f64> = weights.unwrap().iter().copied()
-        .map(f64::from_bits).collect();
+    let normalized: Vec<f64> = weights.unwrap().iter().copied().map(f64::from_bits).collect();
     assert!((normalized[0] - 0.25).abs() < 1e-12);
     assert!((normalized[1] - 0.75).abs() < 1e-12);
     assert!((result.decision.actions[0].expected_utility - 77.5).abs() < 1e-12);
     assert!((result.decision.actions[1].expected_utility - 2.75).abs() < 1e-12);
     let bytes = plan.export(&result, "weighted-joint-transport").unwrap();
-    let replay = consume_chain_decision(&bytes, Some(result.lowered_program_identity), &ctx)
-        .unwrap();
+    let replay =
+        consume_chain_decision(&bytes, Some(result.lowered_program_identity), &ctx).unwrap();
     assert_eq!(replay.decision, result.decision);
     assert_eq!(replay.chain.joint_output_law(), result.chain.joint_output_law());
 }

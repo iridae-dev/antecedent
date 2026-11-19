@@ -1162,11 +1162,21 @@ fn stream_identities_are_semantic_and_policies_share_them() {
     // a different policy on the same streams gives a different estimate
     let c = rollout_policy(&model, &policy_of("c", &act_now_repair()), config, &ctx()).unwrap();
     assert_ne!(a.mean.to_bits(), c.mean.to_bits());
-    let draws = antecedent_design::sequential_evaluation::rollout_decision_draws(&[a.clone(), c.clone()], "utility").unwrap();
+    let draws = antecedent_design::sequential_evaluation::rollout_decision_draws(
+        &[a.clone(), c.clone()],
+        "utility",
+    )
+    .unwrap();
     assert_eq!(draws.n_draws(), config.rollouts as usize);
     let mut wrong_stream = c;
     wrong_stream.seed += 1;
-    assert!(antecedent_design::sequential_evaluation::rollout_decision_draws(&[a, wrong_stream], "utility").is_err());
+    assert!(
+        antecedent_design::sequential_evaluation::rollout_decision_draws(
+            &[a, wrong_stream],
+            "utility"
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -1848,15 +1858,49 @@ fn paired_bootstrap_replays_and_rejects_low_support() {
     let target = policy_of("fixed", &inspect_then_act());
     let targets = vec![target.clone(), target];
     let mut ledger = EvidenceLedger::new();
-    let result = bootstrap_off_policy(&model, &targets, &behaviour_policy(), &log,
-        &mut ledger, EvaluationLimits::default(), 17, 8, 2.0, &ctx()).unwrap();
+    let result = bootstrap_off_policy(
+        &model,
+        &targets,
+        &behaviour_policy(),
+        &log,
+        &mut ledger,
+        EvaluationLimits::default(),
+        17,
+        8,
+        2.0,
+        &ctx(),
+    )
+    .unwrap();
     assert_eq!(result.replicates[0], result.replicates[1]);
     assert_eq!(result.source_paradigm, "sampling_distribution");
     assert_eq!(result.calibration, "not_measured");
-    let again = bootstrap_off_policy(&model, &targets, &behaviour_policy(), &log,
-        &mut ledger, EvaluationLimits::default(), 17, 8, 2.0, &ctx()).unwrap();
+    let again = bootstrap_off_policy(
+        &model,
+        &targets,
+        &behaviour_policy(),
+        &log,
+        &mut ledger,
+        EvaluationLimits::default(),
+        17,
+        8,
+        2.0,
+        &ctx(),
+    )
+    .unwrap();
     assert_eq!(result.replicates, again.replicates);
-    assert!(bootstrap_off_policy(&model, &targets, &behaviour_policy(), &log,
-        &mut EvidenceLedger::new(), EvaluationLimits::default(), 17, 8,
-        log.len() as f64 + 1.0, &ctx()).is_err());
+    assert!(
+        bootstrap_off_policy(
+            &model,
+            &targets,
+            &behaviour_policy(),
+            &log,
+            &mut EvidenceLedger::new(),
+            EvaluationLimits::default(),
+            17,
+            8,
+            log.len() as f64 + 1.0,
+            &ctx()
+        )
+        .is_err()
+    );
 }

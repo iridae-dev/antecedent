@@ -13,34 +13,31 @@ use std::sync::Arc;
 
 use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_core::query::{
-    CounterfactualEvent, CounterfactualEventQuery, CrossWorldQuery,
-    ExogenousCoupling, WorldId,
+    CounterfactualEvent, CounterfactualEventQuery, CrossWorldQuery, ExogenousCoupling, WorldId,
 };
 use antecedent_core::{
     ByteEstimates, CalibrationBasis, CanonicalWriter, EvidenceCatalog, ExecutionContext,
-    PhysicalEffect, PhysicalOperator, QueryError, ScoreFrequentist, ScoreModel,
-    SearchLimits, SemanticDigest, VariableId,
+    PhysicalEffect, PhysicalOperator, QueryError, ScoreFrequentist, ScoreModel, SearchLimits,
+    SemanticDigest, VariableId,
 };
+use antecedent_estimate::EstimationError;
 use antecedent_estimate::counterfactual_transport_sampled::{
     SampledTransportContrastEstimate, SampledTransportRequest,
     estimate_sampled_counterfactual_transport_contrast,
 };
-use antecedent_estimate::EstimationError;
 use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
-    CounterfactualTransportProblem, CounterfactualTransportQuery,
-    CounterfactualTransportSource,
+    CounterfactualTransportProblem, CounterfactualTransportQuery, CounterfactualTransportSource,
 };
 use antecedent_io::IoError;
 use antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits;
 use antecedent_io::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity;
-use antecedent_io::exact_law_wire::ExactLawWire;
-use antecedent_io::sampled_counterfactual_transport_artifact::{
-    SampledCountTableWire, SampledLimitsWire, SampledOverlapWire,
-    SampledUnseenRuleWire,
-};
 use antecedent_io::counterfactual_transport_wire::{
     CounterfactualTransportProblemWire, CounterfactualTransportQueryWire,
+};
+use antecedent_io::exact_law_wire::ExactLawWire;
+use antecedent_io::sampled_counterfactual_transport_artifact::{
+    SampledCountTableWire, SampledLimitsWire, SampledOverlapWire, SampledUnseenRuleWire,
 };
 use antecedent_io::transport_catalog_wire::EvidenceCatalogWire;
 use serde::{Deserialize, Serialize};
@@ -52,11 +49,10 @@ use super::counterfactual_transport::{
     prepare_counterfactual_transport,
 };
 use crate::planner::lowered::{
-    ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram,
-    EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer,
-    LoweredProgram, NonGraphicalIdentification, PhysicalLayer, ProblemTarget,
-    ProgramCell, ProgramIdentityScope, ScientificProblem,
-    StandaloneCompositionLoweredParts, UncertaintyReading,
+    ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
+    EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
+    ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
@@ -190,34 +186,42 @@ impl From<&CounterfactualTransportOptions> for TemporalPathOptionsWire {
 impl TemporalPathOptionsWire {
     fn to_options(&self) -> CounterfactualTransportOptions {
         CounterfactualTransportOptions {
-            search: SearchLimits {
-                operations: self.search_operations, depth: self.search_depth,
-            },
+            search: SearchLimits { operations: self.search_operations, depth: self.search_depth },
             evaluation: ExactEvaluationLimits {
-                operations: self.evaluation_operations, depth: self.evaluation_depth,
+                operations: self.evaluation_operations,
+                depth: self.evaluation_depth,
             },
             variable_names: self.variable_names.clone(),
         }
     }
 }
 
-fn variables_and_edges(problem: &CounterfactualTransportProblem)
-    -> Vec<(VariableId, VariableId)> {
-    problem.directed().iter().map(|&(from, to)| {
-        (problem.variables()[from], problem.variables()[to])
-    }).collect()
+fn variables_and_edges(problem: &CounterfactualTransportProblem) -> Vec<(VariableId, VariableId)> {
+    problem
+        .directed()
+        .iter()
+        .map(|&(from, to)| (problem.variables()[from], problem.variables()[to]))
+        .collect()
 }
 
 fn queries(
     problem: &CounterfactualTransportProblem,
-    target: Arc<str>, sources: Arc<[CounterfactualTransportSource]>,
+    target: Arc<str>,
+    sources: Arc<[CounterfactualTransportSource]>,
     spec: &TemporalPathSpec,
-) -> Result<(CounterfactualTransportQuery, CounterfactualTransportQuery), TemporalPathTransportError> {
+) -> Result<(CounterfactualTransportQuery, CounterfactualTransportQuery), TemporalPathTransportError>
+{
     if spec.times.len() != problem.variable_count()
-        || spec.times.iter().zip(problem.variables()).any(|(&(variable, _), id)| variable != id.raw())
+        || spec
+            .times
+            .iter()
+            .zip(problem.variables())
+            .any(|(&(variable, _), id)| variable != id.raw())
         || spec.active_edges.is_empty()
     {
-        return Err(TemporalPathTransportError::Invalid("time labels must cover every graph node and select a path"));
+        return Err(TemporalPathTransportError::Invalid(
+            "time labels must cover every graph node and select a path",
+        ));
     }
     let times: Vec<u32> = spec.times.iter().map(|(_, time)| *time).collect();
     let Some(treatment) = problem.index_of(VariableId::from_raw(spec.treatment)) else {
@@ -230,7 +234,9 @@ fn queries(
         || !problem.levels(treatment).contains(&f64::from_bits(spec.active_bits))
         || !problem.levels(outcome).contains(&f64::from_bits(spec.outcome_level_bits))
     {
-        return Err(TemporalPathTransportError::Invalid("treatment or outcome event level is outside the finite model"));
+        return Err(TemporalPathTransportError::Invalid(
+            "treatment or outcome event level is outside the finite model",
+        ));
     }
     if times[treatment] >= times[outcome]
         || times[outcome] != *times.iter().max().unwrap_or(&0)
@@ -241,9 +247,11 @@ fn queries(
         ));
     }
     let edges = variables_and_edges(problem);
-    let active_edges: Vec<_> = spec.active_edges.iter().map(|&(from, to)| {
-        (VariableId::from_raw(from), VariableId::from_raw(to))
-    }).collect();
+    let active_edges: Vec<_> = spec
+        .active_edges
+        .iter()
+        .map(|&(from, to)| (VariableId::from_raw(from), VariableId::from_raw(to)))
+        .collect();
     if active_edges.iter().any(|&(from, _)| from != VariableId::from_raw(spec.treatment))
         || active_edges.iter().copied().collect::<BTreeSet<_>>().len() != active_edges.len()
     {
@@ -252,24 +260,42 @@ fn queries(
         ));
     }
     let contrast = CrossWorldQuery::path_specific(
-        VariableId::from_raw(spec.treatment), VariableId::from_raw(spec.outcome),
-        f64::from_bits(spec.control_bits), f64::from_bits(spec.active_bits),
-        &edges, &active_edges,
+        VariableId::from_raw(spec.treatment),
+        VariableId::from_raw(spec.outcome),
+        f64::from_bits(spec.control_bits),
+        f64::from_bits(spec.active_bits),
+        &edges,
+        &active_edges,
     )?;
     let worlds = contrast.worlds().to_vec();
     let active_event = CounterfactualEventQuery::new(
-        worlds.clone(), ExogenousCoupling::SharedLatentExogenous,
-        [CounterfactualEvent::new(WorldId::new(1), VariableId::from_raw(spec.outcome),
-            f64::from_bits(spec.outcome_level_bits))?], [],
+        worlds.clone(),
+        ExogenousCoupling::SharedLatentExogenous,
+        [CounterfactualEvent::new(
+            WorldId::new(1),
+            VariableId::from_raw(spec.outcome),
+            f64::from_bits(spec.outcome_level_bits),
+        )?],
+        [],
     )?;
     let baseline_event = CounterfactualEventQuery::new(
-        worlds, ExogenousCoupling::SharedLatentExogenous,
-        [CounterfactualEvent::new(WorldId::new(0), VariableId::from_raw(spec.outcome),
-            f64::from_bits(spec.outcome_level_bits))?], [],
+        worlds,
+        ExogenousCoupling::SharedLatentExogenous,
+        [CounterfactualEvent::new(
+            WorldId::new(0),
+            VariableId::from_raw(spec.outcome),
+            f64::from_bits(spec.outcome_level_bits),
+        )?],
+        [],
     )?;
-    let make = |event| CounterfactualTransportQuery {
-        event, target: Arc::clone(&target), sources: Arc::clone(&sources),
-    }.canonical();
+    let make = |event| {
+        CounterfactualTransportQuery {
+            event,
+            target: Arc::clone(&target),
+            sources: Arc::clone(&sources),
+        }
+        .canonical()
+    };
     Ok((make(active_event), make(baseline_event)))
 }
 
@@ -282,73 +308,112 @@ fn lower(
     spec: &TemporalPathSpec,
     options: &TemporalPathOptionsWire,
 ) -> Result<Arc<LoweredProgram>, TemporalPathTransportError> {
-    let mut law_bytes: Vec<Vec<u8>> = data.laws().iter().map(|law| {
-        antecedent_io::to_cbor(&ExactLawWire::from_law(law))
-    }).collect::<Result<_, _>>()?;
+    let mut law_bytes: Vec<Vec<u8>> = data
+        .laws()
+        .iter()
+        .map(|law| antecedent_io::to_cbor(&ExactLawWire::from_law(law)))
+        .collect::<Result<_, _>>()?;
     law_bytes.sort();
-    let mut source_writer = CanonicalWriter::new("antecedent.temporal_path_transport.exact_laws.v1");
+    let mut source_writer =
+        CanonicalWriter::new("antecedent.temporal_path_transport.exact_laws.v1");
     source_writer.word(law_bytes.len() as u64);
-    for bytes in &law_bytes { source_writer.bytes(bytes); }
+    for bytes in &law_bytes {
+        source_writer.bytes(bytes);
+    }
     let source_digest = source_writer.finish();
     let catalog_bytes = antecedent_io::to_cbor(&EvidenceCatalogWire::from_catalog(catalog))?;
     let spec_bytes = antecedent_io::to_cbor(spec)?;
     let options_bytes = antecedent_io::to_cbor(options)?;
     let mut writer = CanonicalWriter::new("antecedent.temporal_path_transport.question.v1");
-    writer.text(&problem.canonical_text()).text(&active.canonical_text())
-        .text(&baseline.canonical_text()).bytes(&catalog_bytes)
-        .bytes(&spec_bytes).bytes(&options_bytes).bytes(&source_digest);
+    writer
+        .text(&problem.canonical_text())
+        .text(&active.canonical_text())
+        .text(&baseline.canonical_text())
+        .bytes(&catalog_bytes)
+        .bytes(&spec_bytes)
+        .bytes(&options_bytes)
+        .bytes(&source_digest);
     let query = writer.finish();
-    let design = DesignShape::quoted(data.laws().len() as u64, problem.variable_count() as u64, true);
+    let design =
+        DesignShape::quoted(data.laws().len() as u64, problem.variable_count() as u64, true);
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
             kind: FunctionalKind::PathSpecific,
-            outcome: Some(VariableId::from_raw(spec.outcome)), query,
+            outcome: Some(VariableId::from_raw(spec.outcome)),
+            query,
         },
         plan_id: Arc::from("temporal_path_transport.v1"),
         data: DataClassification::Tabular,
         graph_class: "time_ordered_selection_admg",
         query_variables: Arc::from(problem.variables().to_vec()),
         source_digest: Some(source_digest),
-        support_coordinate: None, supported: false, support_status: None,
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: query },
     ));
     let statistical = StatisticalProgram {
-        identifier: None, estimator: None,
+        identifier: None,
+        estimator: None,
         realization: Realization::ExactPoint {
             evaluator: Arc::from("finite_counterfactual_transport.path_contrast"),
         },
-        models: Arc::from([]), folds: None, resampling: None,
-        posterior: None, design, operators: Arc::from([]),
+        models: Arc::from([]),
+        folds: None,
+        resampling: None,
+        posterior: None,
+        design,
+        operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([EvidenceSourceRef {
-            role: EvidenceRole::TransportSource, digest: Some(source_digest),
+            role: EvidenceRole::TransportSource,
+            digest: Some(source_digest),
         }]),
         composition: Composition::Chained { stages: 2 },
-        decision: None, planning: None, chain: None,
+        decision: None,
+        planning: None,
+        chain: None,
     };
     let physical = PhysicalLayer {
         operators: Arc::from([
             PhysicalOperator::declare(PhysicalEffect::Read)
-                .estimates(ByteEstimates::absent().with_output(
-                    law_bytes.iter().map(|bytes| bytes.len() as u64).sum(),
-                )).build().map_err(|_| TemporalPathTransportError::Invalid("exact law read cannot be lowered"))?,
-            PhysicalOperator::declare(PhysicalEffect::Intervene)
-                .build().map_err(|_| TemporalPathTransportError::Invalid("path intervention cannot be lowered"))?,
-            PhysicalOperator::declare(PhysicalEffect::Transport)
-                .build().map_err(|_| TemporalPathTransportError::Invalid("path transport cannot be lowered"))?,
+                .estimates(
+                    ByteEstimates::absent()
+                        .with_output(law_bytes.iter().map(|bytes| bytes.len() as u64).sum()),
+                )
+                .build()
+                .map_err(|_| {
+                    TemporalPathTransportError::Invalid("exact law read cannot be lowered")
+                })?,
+            PhysicalOperator::declare(PhysicalEffect::Intervene).build().map_err(|_| {
+                TemporalPathTransportError::Invalid("path intervention cannot be lowered")
+            })?,
+            PhysicalOperator::declare(PhysicalEffect::Transport).build().map_err(|_| {
+                TemporalPathTransportError::Invalid("path transport cannot be lowered")
+            })?,
         ]),
         design,
     };
-    Ok(Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::TemporalPathTransport,
-        scientific, identification, statistical, evidence, physical,
-        claim: ClaimDemand { uncertainty: UncertaintyReading::None,
-            kind: Some(ClaimKind::Point) },
-    }.finish()))
+    Ok(Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::TemporalPathTransport,
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical,
+            claim: ClaimDemand {
+                uncertainty: UncertaintyReading::None,
+                kind: Some(ClaimKind::Point),
+            },
+        }
+        .finish(),
+    ))
 }
 
 /// Compile a target-population path-specific event contrast after checking
@@ -359,18 +424,25 @@ fn lower(
 /// # Errors
 /// Invalid temporal order or edge routes, a missing identification proof,
 /// proven nontransportability or a resource refusal.
-#[allow(clippy::too_many_arguments, reason = "one declared time/path/selection problem with its exact evidence")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one declared time/path/selection problem with its exact evidence"
+)]
 pub fn compile_temporal_path_transport(
     problem: CounterfactualTransportProblem,
-    target: Arc<str>, sources: Arc<[CounterfactualTransportSource]>,
-    catalog: EvidenceCatalog, data: ExactTransportData,
-    spec: TemporalPathSpec, options: CounterfactualTransportOptions,
+    target: Arc<str>,
+    sources: Arc<[CounterfactualTransportSource]>,
+    catalog: EvidenceCatalog,
+    data: ExactTransportData,
+    spec: TemporalPathSpec,
+    options: CounterfactualTransportOptions,
     ctx: &ExecutionContext,
 ) -> Result<CompiledTemporalPathTransport, TemporalPathTransportError> {
     let catalog = catalog.canonicalized()?;
     let (active_query, baseline_query) = queries(&problem, target, sources, &spec)?;
     let options_wire = TemporalPathOptionsWire::from(&options);
-    let lowered = lower(&problem, &active_query, &baseline_query, &catalog, &data, &spec, &options_wire)?;
+    let lowered =
+        lower(&problem, &active_query, &baseline_query, &catalog, &data, &spec, &options_wire)?;
     let scoped = ctx.enter_lowered_dispatch(lowered.identity());
     let prepare = |query| {
         prepare_counterfactual_transport(&problem, query, &catalog, None, &options, &scoped)
@@ -387,13 +459,22 @@ pub fn compile_temporal_path_transport(
             return Err(TemporalPathTransportError::ProvenNonTransportable);
         }
     };
-    Ok(CompiledTemporalPathTransport { spec, options: options_wire, data, active, baseline, lowered })
+    Ok(CompiledTemporalPathTransport {
+        spec,
+        options: options_wire,
+        data,
+        active,
+        baseline,
+        lowered,
+    })
 }
 
 impl CompiledTemporalPathTransport {
     /// All six compiler layers of the time/path/selection/law program.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the compiled program without evaluating its exact laws.
     #[must_use]
@@ -407,7 +488,8 @@ impl CompiledTemporalPathTransport {
     /// # Errors
     /// A cited regime law is missing, contradictory or outside exact support.
     pub fn execute(
-        &self, ctx: &ExecutionContext,
+        &self,
+        ctx: &ExecutionContext,
     ) -> Result<TemporalPathTransportResult, TemporalPathTransportError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let active = self.active.evaluate(&self.data, &scoped)?;
@@ -417,7 +499,9 @@ impl CompiledTemporalPathTransport {
             return Err(TemporalPathTransportError::Invalid("the path contrast is nonfinite"));
         }
         Ok(TemporalPathTransportResult {
-            active, baseline, contrast,
+            active,
+            baseline,
+            contrast,
             lowered_program_identity: self.lowered.identity(),
         })
     }
@@ -428,7 +512,9 @@ impl CompiledTemporalPathTransport {
     /// # Errors
     /// Changed exact result or artifact encoding failure.
     pub fn export(
-        &self, result: &TemporalPathTransportResult, ctx: &ExecutionContext,
+        &self,
+        result: &TemporalPathTransportResult,
+        ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, TemporalPathTransportError> {
         let live = self.execute(ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
@@ -439,7 +525,9 @@ impl CompiledTemporalPathTransport {
             return Err(TemporalPathTransportError::Invalid("path result differs on replay"));
         }
         let wire = TemporalPathTransportWire {
-            version: 1, required_feature: FEATURE.into(), spec: self.spec.clone(),
+            version: 1,
+            required_feature: FEATURE.into(),
+            spec: self.spec.clone(),
             options: self.options.clone(),
             program_identity: *self.lowered.identity().as_bytes(),
             active_identity: live.active.identity()?.into(),
@@ -463,20 +551,26 @@ impl CompiledTemporalPathTransport {
 /// # Errors
 /// A foreign feature, altered path, changed law/derivation or mismatched point.
 pub fn consume_temporal_path_transport(
-    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<TemporalPathTransportResult, TemporalPathTransportError> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(TemporalPathTransportError::Invalid("path artifact exceeds its bound"));
     }
     let wire: TemporalPathTransportWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != FEATURE
+    if wire.version != 1
+        || wire.required_feature != FEATURE
         || wire.program_identity != *expected_program.as_bytes()
     {
         return Err(TemporalPathTransportError::Invalid("path feature or program differs"));
     }
     let identified = |bytes: &[u8], identity: InnerIdentityWire| {
         match consume_counterfactual_transport_artifact(
-            bytes, &identity.into(), CounterfactualTransportConsumeLimits::default(), ctx,
+            bytes,
+            &identity.into(),
+            CounterfactualTransportConsumeLimits::default(),
+            ctx,
         )? {
             CounterfactualTransportConsumption::Identified(result) => Ok(*result),
             CounterfactualTransportConsumption::ProvenNonTransportable(_) => {
@@ -491,8 +585,10 @@ pub fn consume_temporal_path_transport(
     let catalog = &derivation.catalog;
     let data = active.data();
     let (active_query, baseline_query) = queries(
-        problem, Arc::clone(&derivation.query.target),
-        Arc::clone(&derivation.query.sources), &wire.spec,
+        problem,
+        Arc::clone(&derivation.query.target),
+        Arc::clone(&derivation.query.sources),
+        &wire.spec,
     )?;
     if derivation.query.canonical_text() != active_query.canonical_text()
         || baseline.derivation().query.canonical_text() != baseline_query.canonical_text()
@@ -500,16 +596,17 @@ pub fn consume_temporal_path_transport(
     {
         return Err(TemporalPathTransportError::Invalid("path worlds or source laws differ"));
     }
-    let lowered = lower(problem, &active_query, &baseline_query,
-        catalog, data, &wire.spec, &wire.options)?;
+    let lowered =
+        lower(problem, &active_query, &baseline_query, catalog, data, &wire.spec, &wire.options)?;
     let contrast = active.probability() - baseline.probability();
-    if lowered.identity() != expected_program
-        || contrast.to_bits() != wire.contrast_bits
-    {
+    if lowered.identity() != expected_program || contrast.to_bits() != wire.contrast_bits {
         return Err(TemporalPathTransportError::Invalid("recompiled path contrast differs"));
     }
     Ok(TemporalPathTransportResult {
-        active, baseline, contrast, lowered_program_identity: lowered.identity(),
+        active,
+        baseline,
+        contrast,
+        lowered_program_identity: lowered.identity(),
     })
 }
 
@@ -538,18 +635,26 @@ impl SampledPathRequestWire {
     }
 
     fn to_request(&self) -> Result<SampledTransportRequest, TemporalPathTransportError> {
-        let tables = self.tables.iter().map(SampledCountTableWire::to_table)
+        let tables = self
+            .tables
+            .iter()
+            .map(SampledCountTableWire::to_table)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| IoError::Convert(error.to_string()))?;
-        let overlap = self.overlap.to_declaration()
-            .map_err(|error| IoError::Convert(error.to_string()))?;
-        let unseen_rule = self.unseen_rule.to_rule()
-            .map_err(|error| IoError::Convert(error.to_string()))?;
+        let overlap =
+            self.overlap.to_declaration().map_err(|error| IoError::Convert(error.to_string()))?;
+        let unseen_rule =
+            self.unseen_rule.to_rule().map_err(|error| IoError::Convert(error.to_string()))?;
         let request = SampledTransportRequest {
-            tables, overlap, unseen_rule, limits: self.limits.to_limits(),
+            tables,
+            overlap,
+            unseen_rule,
+            limits: self.limits.to_limits(),
         };
         if Self::from_request(&request).tables != self.tables {
-            return Err(TemporalPathTransportError::Invalid("sampled path tables are not canonical"));
+            return Err(TemporalPathTransportError::Invalid(
+                "sampled path tables are not canonical",
+            ));
         }
         Ok(request)
     }
@@ -646,58 +751,87 @@ fn lower_sampled(
     source_writer.bytes(&request_bytes);
     let source_digest = source_writer.finish();
     let mut writer = CanonicalWriter::new("antecedent.sampled_temporal_path.question.v1");
-    writer.text(&problem.canonical_text()).text(&active.canonical_text())
-        .text(&baseline.canonical_text()).bytes(&catalog_bytes)
-        .bytes(&spec_bytes).bytes(&options_bytes).bytes(&source_digest);
+    writer
+        .text(&problem.canonical_text())
+        .text(&active.canonical_text())
+        .text(&baseline.canonical_text())
+        .bytes(&catalog_bytes)
+        .bytes(&spec_bytes)
+        .bytes(&options_bytes)
+        .bytes(&source_digest);
     let query = writer.finish();
-    let design = DesignShape::quoted(request.tables.len() as u64,
-        problem.variable_count() as u64, true);
+    let design =
+        DesignShape::quoted(request.tables.len() as u64, problem.variable_count() as u64, true);
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
             kind: FunctionalKind::PathSpecific,
-            outcome: Some(VariableId::from_raw(spec.outcome)), query,
+            outcome: Some(VariableId::from_raw(spec.outcome)),
+            query,
         },
         plan_id: Arc::from("sampled_temporal_path_transport.v1"),
         data: DataClassification::Tabular,
         graph_class: "time_ordered_selection_admg",
         query_variables: Arc::from(problem.variables().to_vec()),
         source_digest: Some(source_digest),
-        support_coordinate: None, supported: false, support_status: None,
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
-    let score = ScoreModel::new("paired_sampled_transport_delta")
-        .map_err(|_| TemporalPathTransportError::Invalid("sampled path score identity is invalid"))?;
+    let score = ScoreModel::new("paired_sampled_transport_delta").map_err(|_| {
+        TemporalPathTransportError::Invalid("sampled path score identity is invalid")
+    })?;
     let statistical = StatisticalProgram {
-        identifier: None, estimator: None,
+        identifier: None,
+        estimator: None,
         realization: Realization::Frequentist(ScoreFrequentist::new(score)),
-        models: Arc::from([]), folds: None, resampling: None,
-        posterior: None, design, operators: Arc::from([]),
+        models: Arc::from([]),
+        folds: None,
+        resampling: None,
+        posterior: None,
+        design,
+        operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([EvidenceSourceRef {
-            role: EvidenceRole::TransportSource, digest: Some(source_digest),
+            role: EvidenceRole::TransportSource,
+            digest: Some(source_digest),
         }]),
         composition: Composition::Chained { stages: 3 },
-        decision: None, planning: None, chain: None,
+        decision: None,
+        planning: None,
+        chain: None,
     };
     let mut operators = Vec::new();
-    for effect in [PhysicalEffect::Read, PhysicalEffect::Intervene,
-        PhysicalEffect::Transport, PhysicalEffect::Fit] {
+    for effect in [
+        PhysicalEffect::Read,
+        PhysicalEffect::Intervene,
+        PhysicalEffect::Transport,
+        PhysicalEffect::Fit,
+    ] {
         operators.push(PhysicalOperator::declare(effect).build().map_err(|_| {
             TemporalPathTransportError::Invalid("sampled path operator cannot be lowered")
         })?);
     }
     let physical = PhysicalLayer { operators: operators.into(), design };
-    Ok(Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::TemporalPathTransport,
-        scientific,
-        identification: IdentificationLayer::NonGraphical(Arc::new(
-            NonGraphicalIdentification::SharedEvidenceContract { contract: query },
-        )),
-        statistical, evidence, physical,
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Sampling,
-            kind: Some(ClaimKind::Point) },
-    }.finish()))
+    Ok(Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::TemporalPathTransport,
+            scientific,
+            identification: IdentificationLayer::NonGraphical(Arc::new(
+                NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+            )),
+            statistical,
+            evidence,
+            physical,
+            claim: ClaimDemand {
+                uncertainty: UncertaintyReading::Sampling,
+                kind: Some(ClaimKind::Point),
+            },
+        }
+        .finish(),
+    ))
 }
 
 /// Compile time-checked path worlds and a shared sampled count schedule before
@@ -706,24 +840,37 @@ fn lower_sampled(
 ///
 /// # Errors
 /// Invalid time/path/evidence declarations or nontransportability.
-#[allow(clippy::too_many_arguments, reason = "one path, selection and sampled-evidence declaration")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one path, selection and sampled-evidence declaration"
+)]
 pub fn compile_sampled_temporal_path_transport(
     problem: CounterfactualTransportProblem,
-    target: Arc<str>, sources: Arc<[CounterfactualTransportSource]>,
-    catalog: EvidenceCatalog, request: SampledTransportRequest,
-    spec: TemporalPathSpec, options: CounterfactualTransportOptions,
+    target: Arc<str>,
+    sources: Arc<[CounterfactualTransportSource]>,
+    catalog: EvidenceCatalog,
+    request: SampledTransportRequest,
+    spec: TemporalPathSpec,
+    options: CounterfactualTransportOptions,
     ctx: &ExecutionContext,
 ) -> Result<CompiledSampledTemporalPathTransport, TemporalPathTransportError> {
     let catalog = catalog.canonicalized()?;
     let (active_query, baseline_query) = queries(&problem, target, sources, &spec)?;
     let options_wire = TemporalPathOptionsWire::from(&options);
     let request_wire = SampledPathRequestWire::from_request(&request);
-    let lowered = lower_sampled(&problem, &active_query, &baseline_query,
-        &catalog, &request_wire, &spec, &options_wire)?;
+    let lowered = lower_sampled(
+        &problem,
+        &active_query,
+        &baseline_query,
+        &catalog,
+        &request_wire,
+        &spec,
+        &options_wire,
+    )?;
     let scoped = ctx.enter_lowered_dispatch(lowered.identity());
-    let prepare = |query| prepare_counterfactual_transport(
-        &problem, query, &catalog, None, &options, &scoped,
-    );
+    let prepare = |query| {
+        prepare_counterfactual_transport(&problem, query, &catalog, None, &options, &scoped)
+    };
     let active = match prepare(&active_query)? {
         CounterfactualTransportPreparation::Identified(value) => *value,
         CounterfactualTransportPreparation::ProvenNonTransportable(_) => {
@@ -737,14 +884,21 @@ pub fn compile_sampled_temporal_path_transport(
         }
     };
     Ok(CompiledSampledTemporalPathTransport {
-        spec, options: options_wire, request, active, baseline, lowered,
+        spec,
+        options: options_wire,
+        request,
+        active,
+        baseline,
+        lowered,
     })
 }
 
 impl CompiledSampledTemporalPathTransport {
     /// The complete compiler program, including the sampled evidence identity.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the compiled route without estimating the contrast.
     #[must_use]
@@ -756,14 +910,20 @@ impl CompiledSampledTemporalPathTransport {
     ///
     /// # Errors
     /// Missing or unsupported sampled evidence, budget or numerical refusal.
-    pub fn execute(&self, ctx: &ExecutionContext)
-        -> Result<SampledTemporalPathTransportResult, TemporalPathTransportError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<SampledTemporalPathTransportResult, TemporalPathTransportError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let estimate = estimate_sampled_counterfactual_transport_contrast(
-            self.active.derivation(), self.baseline.derivation(), &self.request, &scoped,
+            self.active.derivation(),
+            self.baseline.derivation(),
+            &self.request,
+            &scoped,
         )?;
         Ok(SampledTemporalPathTransportResult {
-            estimate, lowered_program_identity: self.lowered.identity(),
+            estimate,
+            lowered_program_identity: self.lowered.identity(),
         })
     }
 
@@ -774,38 +934,68 @@ impl CompiledSampledTemporalPathTransport {
     ///
     /// # Errors
     /// A missing paired standard error or sampled execution refusal.
-    pub fn calibration_candidate(&self, ctx: &ExecutionContext)
-        -> Result<SampledTemporalPathCalibrationCandidate, TemporalPathTransportError> {
+    pub fn calibration_candidate(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<SampledTemporalPathCalibrationCandidate, TemporalPathTransportError> {
         let result = self.execute(ctx)?;
-        let standard_error = result.estimate.standard_error.as_ref().ok_or(
-            TemporalPathTransportError::Invalid("sampled path contrast has no standard error"),
-        )?.value;
+        let standard_error = result
+            .estimate
+            .standard_error
+            .as_ref()
+            .ok_or(TemporalPathTransportError::Invalid(
+                "sampled path contrast has no standard error",
+            ))?
+            .value;
         let margin = 1.959_963_984_540_054 * standard_error;
-        let interval = ((result.estimate.contrast - margin).max(-1.0),
-            (result.estimate.contrast + margin).min(1.0));
+        let interval = (
+            (result.estimate.contrast - margin).max(-1.0),
+            (result.estimate.contrast + margin).min(1.0),
+        );
         let derivation = self.active.derivation();
         let mut shape = SampledPathRequestWire::from_request(&self.request);
         for table in &mut shape.tables {
             table.counts.clear();
             table.snapshot_identity.clear();
         }
-        let mut writer = CanonicalWriter::new("antecedent.sampled_temporal_path.calibration_scope.v1");
-        writer.text(&derivation.problem.canonical_text())
+        let mut writer =
+            CanonicalWriter::new("antecedent.sampled_temporal_path.calibration_scope.v1");
+        writer
+            .text(&derivation.problem.canonical_text())
             .text(&derivation.query.canonical_text())
             .text(&self.baseline.derivation().query.canonical_text())
-            .bytes(&antecedent_io::to_cbor(&EvidenceCatalogWire::from_catalog(&derivation.catalog))?)
+            .bytes(&antecedent_io::to_cbor(&EvidenceCatalogWire::from_catalog(
+                &derivation.catalog,
+            ))?)
             .bytes(&antecedent_io::to_cbor(&self.spec)?)
             .bytes(&antecedent_io::to_cbor(&self.options)?)
             .bytes(&antecedent_io::to_cbor(&shape)?);
         let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
-        let functional = format!("target_path_contrast:outcome={}:scope={scope}", self.spec.outcome);
-        let basis = CalibrationBasis::new([
-            "PathSpecific", "time_ordered_selection_admg", "fixed", "tabular",
-            "Frequentist", SAMPLED_FEATURE, "paired_delta_wald_clamped_95",
-            "paired_multinomial_delta", "declared_table_overlap", "",
-            functional.as_str(),
-        ].map(Arc::from), 0.95, Arc::from("point"),
-            result.estimate.sampled_units, None, None, 0.0).with_validation("none");
+        let functional =
+            format!("target_path_contrast:outcome={}:scope={scope}", self.spec.outcome);
+        let basis = CalibrationBasis::new(
+            [
+                "PathSpecific",
+                "time_ordered_selection_admg",
+                "fixed",
+                "tabular",
+                "Frequentist",
+                SAMPLED_FEATURE,
+                "paired_delta_wald_clamped_95",
+                "paired_multinomial_delta",
+                "declared_table_overlap",
+                "",
+                functional.as_str(),
+            ]
+            .map(Arc::from),
+            0.95,
+            Arc::from("point"),
+            result.estimate.sampled_units,
+            None,
+            None,
+            0.0,
+        )
+        .with_validation("none");
         Ok(SampledTemporalPathCalibrationCandidate { result, interval, basis })
     }
 
@@ -813,26 +1003,35 @@ impl CompiledSampledTemporalPathTransport {
     ///
     /// # Errors
     /// A changed result or artifact encoding refusal.
-    pub fn export(&self, result: &SampledTemporalPathTransportResult,
-        ctx: &ExecutionContext) -> Result<Vec<u8>, TemporalPathTransportError> {
+    pub fn export(
+        &self,
+        result: &SampledTemporalPathTransportResult,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, TemporalPathTransportError> {
         let live = self.execute(ctx)?;
         if live != *result {
-            return Err(TemporalPathTransportError::Invalid("sampled path result differs on replay"));
+            return Err(TemporalPathTransportError::Invalid(
+                "sampled path result differs on replay",
+            ));
         }
         let derivation = self.active.derivation();
         let wire = SampledPathArtifactWire {
-            version: 1, required_feature: SAMPLED_FEATURE.into(),
+            version: 1,
+            required_feature: SAMPLED_FEATURE.into(),
             program_identity: *self.lowered.identity().as_bytes(),
             problem: CounterfactualTransportProblemWire::from_problem(&derivation.problem),
             active_query: CounterfactualTransportQueryWire::from_query(&derivation.query),
             catalog: EvidenceCatalogWire::from_catalog(&derivation.catalog),
-            spec: self.spec.clone(), options: self.options.clone(),
+            spec: self.spec.clone(),
+            options: self.options.clone(),
             request: SampledPathRequestWire::from_request(&self.request),
             result: SampledPathResultWire::from_result(&live),
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
-            return Err(TemporalPathTransportError::Invalid("sampled path artifact exceeds its bound"));
+            return Err(TemporalPathTransportError::Invalid(
+                "sampled path artifact exceeds its bound",
+            ));
         }
         Ok(bytes)
     }
@@ -844,25 +1043,34 @@ impl CompiledSampledTemporalPathTransport {
 /// # Errors
 /// Foreign feature, changed path/evidence/derivation, or changed result.
 pub fn consume_sampled_temporal_path_transport(
-    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<SampledTemporalPathTransportResult, TemporalPathTransportError> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(TemporalPathTransportError::Invalid("sampled path artifact exceeds its bound"));
     }
     let wire: SampledPathArtifactWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != SAMPLED_FEATURE
-        || wire.program_identity != *expected_program.as_bytes() {
+    if wire.version != 1
+        || wire.required_feature != SAMPLED_FEATURE
+        || wire.program_identity != *expected_program.as_bytes()
+    {
         return Err(TemporalPathTransportError::Invalid("sampled path feature or program differs"));
     }
-    let problem = wire.problem.to_problem()
-        .map_err(|error| IoError::Convert(error.to_string()))?;
-    let active_query = wire.active_query.to_query()
-        .map_err(|error| IoError::Convert(error.to_string()))?;
+    let problem = wire.problem.to_problem().map_err(|error| IoError::Convert(error.to_string()))?;
+    let active_query =
+        wire.active_query.to_query().map_err(|error| IoError::Convert(error.to_string()))?;
     let catalog = wire.catalog.to_catalog()?;
     let request = wire.request.to_request()?;
     let compiled = compile_sampled_temporal_path_transport(
-        problem, Arc::clone(&active_query.target), Arc::clone(&active_query.sources),
-        catalog, request, wire.spec, wire.options.to_options(), ctx,
+        problem,
+        Arc::clone(&active_query.target),
+        Arc::clone(&active_query.sources),
+        catalog,
+        request,
+        wire.spec,
+        wire.options.to_options(),
+        ctx,
     )?;
     if compiled.lowered.identity() != expected_program
         || compiled.active.derivation().query.canonical_text() != active_query.canonical_text()
@@ -877,7 +1085,8 @@ pub fn consume_sampled_temporal_path_transport(
         || replayed.standard_error_bits != wire.result.standard_error_bits
         || replayed.withheld_reason != wire.result.withheld_reason
         || replayed.evidence_identity != wire.result.evidence_identity
-        || replayed.sampled_units != wire.result.sampled_units {
+        || replayed.sampled_units != wire.result.sampled_units
+    {
         return Err(TemporalPathTransportError::Invalid("sampled path estimate differs on replay"));
     }
     Ok(live)
@@ -966,62 +1175,97 @@ struct ContinuousChainTransportWire {
 }
 
 // OLS for one declared structural equation; partial pivoting rejects rank deficiency.
-fn continuous_chain_fit(rows: &[&ContinuousChainSourceRow], equation: usize,
-    parents: &[usize], treatment_edge: bool)
-    -> Result<Vec<f64>, TemporalPathTransportError> {
+fn continuous_chain_fit(
+    rows: &[&ContinuousChainSourceRow],
+    equation: usize,
+    parents: &[usize],
+    treatment_edge: bool,
+) -> Result<Vec<f64>, TemporalPathTransportError> {
     let p = 2 + usize::from(treatment_edge) + parents.len();
     let mut matrix = vec![vec![0.0; p + 1]; p];
     for row in rows {
         let mut x = Vec::with_capacity(p);
         x.push(1.0);
         x.push(row.baseline);
-        if treatment_edge { x.push(if row.treated { 1.0 } else { 0.0 }); }
+        if treatment_edge {
+            x.push(if row.treated { 1.0 } else { 0.0 });
+        }
         x.extend(parents.iter().map(|&parent| row.mediators[parent]));
         let y = if equation == row.mediators.len() { row.outcome } else { row.mediators[equation] };
         for i in 0..p {
-            for j in 0..p { matrix[i][j] += x[i] * x[j]; }
+            for j in 0..p {
+                matrix[i][j] += x[i] * x[j];
+            }
             matrix[i][p] += x[i] * y;
         }
     }
     for col in 0..p {
-        let pivot = (col..p).max_by(|&a, &b| matrix[a][col].abs().total_cmp(&matrix[b][col].abs()))
+        let pivot = (col..p)
+            .max_by(|&a, &b| matrix[a][col].abs().total_cmp(&matrix[b][col].abs()))
             .ok_or(TemporalPathTransportError::Invalid("continuous chain fit has no pivot"))?;
         if !matrix[pivot][col].is_finite() || matrix[pivot][col].abs() <= 1e-10 {
-            return Err(TemporalPathTransportError::Invalid("continuous chain structural fit is singular"));
+            return Err(TemporalPathTransportError::Invalid(
+                "continuous chain structural fit is singular",
+            ));
         }
         matrix.swap(col, pivot);
         let divisor = matrix[col][col];
-        for j in col..=p { matrix[col][j] /= divisor; }
+        for j in col..=p {
+            matrix[col][j] /= divisor;
+        }
         let pivot_row = matrix[col].clone();
         for i in 0..p {
             if i != col {
                 let factor = matrix[i][col];
-                for j in col..=p { matrix[i][j] -= factor * pivot_row[j]; }
+                for j in col..=p {
+                    matrix[i][j] -= factor * pivot_row[j];
+                }
             }
         }
     }
     let coefficients: Vec<f64> = matrix.iter().map(|row| row[p]).collect();
     if coefficients.iter().any(|value| !value.is_finite()) {
-        return Err(TemporalPathTransportError::Invalid("continuous chain coefficients are nonfinite"));
+        return Err(TemporalPathTransportError::Invalid(
+            "continuous chain coefficients are nonfinite",
+        ));
     }
     Ok(coefficients)
 }
 
-fn continuous_chain_worlds(rows: &[&ContinuousChainSourceRow], x: f64,
-    request: &ContinuousChainTransportRequest) -> Result<(f64, f64), TemporalPathTransportError> {
+fn continuous_chain_worlds(
+    rows: &[&ContinuousChainSourceRow],
+    x: f64,
+    request: &ContinuousChainTransportRequest,
+) -> Result<(f64, f64), TemporalPathTransportError> {
     let k = rows[0].mediators.len();
-    let coefficients = (0..=k).map(|equation| continuous_chain_fit(rows, equation,
-        &request.mediator_parents[equation], request.treatment_edges[equation]))
+    let coefficients = (0..=k)
+        .map(|equation| {
+            continuous_chain_fit(
+                rows,
+                equation,
+                &request.mediator_parents[equation],
+                request.treatment_edges[equation],
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let world = |active: bool| {
         let mut prior = Vec::with_capacity(k + 1);
         for (equation, beta) in coefficients.iter().enumerate() {
             let has_treatment = request.treatment_edges[equation];
-            let treatment_input = if active && request.active_treatment_edges[equation] { 1.0 } else { 0.0 };
+            let treatment_input =
+                if active && request.active_treatment_edges[equation] { 1.0 } else { 0.0 };
             let mut mean = beta[0] + beta[1] * x;
-            let offset = if has_treatment { mean += beta[2] * treatment_input; 3 } else { 2 };
-            mean += request.mediator_parents[equation].iter().enumerate()
-                .map(|(i, &parent)| prior[parent] * beta[offset + i]).sum::<f64>();
+            let offset = if has_treatment {
+                mean += beta[2] * treatment_input;
+                3
+            } else {
+                2
+            };
+            mean += request.mediator_parents[equation]
+                .iter()
+                .enumerate()
+                .map(|(i, &parent)| prior[parent] * beta[offset + i])
+                .sum::<f64>();
             prior.push(mean);
         }
         prior[k]
@@ -1036,9 +1280,13 @@ fn continuous_chain_worlds(rows: &[&ContinuousChainSourceRow], x: f64,
 
 fn continuous_chain_fingerprint(result: &ContinuousChainTransportResult) -> [u8; 32] {
     let mut writer = CanonicalWriter::new("antecedent.continuous_chain_transport.result.v1");
-    writer.word(result.active.to_bits()).word(result.baseline.to_bits())
-        .word(result.contrast.to_bits()).word(result.interval.0.to_bits())
-        .word(result.interval.1.to_bits()).text(result.calibration)
+    writer
+        .word(result.active.to_bits())
+        .word(result.baseline.to_bits())
+        .word(result.contrast.to_bits())
+        .word(result.interval.0.to_bits())
+        .word(result.interval.1.to_bits())
+        .text(result.calibration)
         .bytes(result.lowered_program_identity.as_bytes());
     writer.finish()
 }
@@ -1051,81 +1299,147 @@ fn continuous_chain_fingerprint(result: &ContinuousChainTransportResult) -> [u8;
 /// Unsupported dimensions, nonfinite rows, no empirical arm overlap, singular
 /// original fits, or resource bound.
 pub fn compile_continuous_chain_transport(
-    request: ContinuousChainTransportRequest, ctx: &ExecutionContext,
+    request: ContinuousChainTransportRequest,
+    ctx: &ExecutionContext,
 ) -> Result<CompiledContinuousChainTransport, TemporalPathTransportError> {
     let n = request.source.len();
     let m = request.target_baseline.len();
     let k = request.source.first().map_or(0, |row| row.mediators.len());
-    if n < 40 || m < 20 || k < 2 || k > 8 || request.bootstrap_replicates < 100
+    if n < 40
+        || m < 20
+        || k < 2
+        || k > 8
+        || request.bootstrap_replicates < 100
         || request.bootstrap_replicates > 4096
-        || n.checked_add(m).and_then(|v| v.checked_mul(request.bootstrap_replicates))
+        || n.checked_add(m)
+            .and_then(|v| v.checked_mul(request.bootstrap_replicates))
             .is_none_or(|work| work > 50_000_000)
-        || request.source.iter().any(|row| !row.baseline.is_finite() || !row.outcome.is_finite()
-            || row.mediators.len() != k || row.mediators.iter().any(|x| !x.is_finite()))
+        || request.source.iter().any(|row| {
+            !row.baseline.is_finite()
+                || !row.outcome.is_finite()
+                || row.mediators.len() != k
+                || row.mediators.iter().any(|x| !x.is_finite())
+        })
         || request.target_baseline.iter().any(|x| !x.is_finite())
-        || request.mediator_parents.len() != k + 1 || request.treatment_edges.len() != k + 1
+        || request.mediator_parents.len() != k + 1
+        || request.treatment_edges.len() != k + 1
         || request.active_treatment_edges.len() != k + 1
         || !request.active_treatment_edges.iter().any(|active| *active)
-        || request.active_treatment_edges.iter().zip(&request.treatment_edges)
+        || request
+            .active_treatment_edges
+            .iter()
+            .zip(&request.treatment_edges)
             .any(|(active, exists)| *active && !*exists)
-        || request.mediator_parents.iter().enumerate().any(|(node, parents)|
+        || request.mediator_parents.iter().enumerate().any(|(node, parents)| {
             parents.iter().any(|&parent| parent >= node)
-                || parents.windows(2).any(|pair| pair[0] >= pair[1]))
+                || parents.windows(2).any(|pair| pair[0] >= pair[1])
+        })
     {
-        return Err(TemporalPathTransportError::Invalid("invalid continuous chain source or schedule"));
+        return Err(TemporalPathTransportError::Invalid(
+            "invalid continuous chain source or schedule",
+        ));
     }
     let target_mean = request.target_baseline.iter().sum::<f64>() / m as f64;
     for arm in [false, true] {
         let rows: Vec<_> = request.source.iter().filter(|row| row.treated == arm).collect();
-        if rows.len() < 20 { return Err(TemporalPathTransportError::Invalid("continuous chain requires twenty source units per arm")); }
+        if rows.len() < 20 {
+            return Err(TemporalPathTransportError::Invalid(
+                "continuous chain requires twenty source units per arm",
+            ));
+        }
         let min = rows.iter().map(|row| row.baseline).fold(f64::INFINITY, f64::min);
         let max = rows.iter().map(|row| row.baseline).fold(f64::NEG_INFINITY, f64::max);
         if request.target_baseline.iter().any(|x| *x < min || *x > max) {
-            return Err(TemporalPathTransportError::Invalid("target baseline is outside a source arm range"));
+            return Err(TemporalPathTransportError::Invalid(
+                "target baseline is outside a source arm range",
+            ));
         }
     }
     let all_rows: Vec<_> = request.source.iter().collect();
     continuous_chain_worlds(&all_rows, target_mean, &request)?;
     let bytes = antecedent_io::to_cbor(&request)?;
     if bytes.len() > MAX_ARTIFACT_BYTES {
-        return Err(TemporalPathTransportError::Invalid("continuous chain source exceeds its byte bound"));
+        return Err(TemporalPathTransportError::Invalid(
+            "continuous chain source exceeds its byte bound",
+        ));
     }
-    let source_digest = CanonicalWriter::digest_bytes("antecedent.continuous_chain_transport.source.v1", &bytes);
+    let source_digest =
+        CanonicalWriter::digest_bytes("antecedent.continuous_chain_transport.source.v1", &bytes);
     let seed = ctx.rng.master_seed();
     let mut writer = CanonicalWriter::new("antecedent.continuous_chain_transport.question.v1");
     writer.bytes(&source_digest).word(seed);
     let query = writer.finish();
     let design = DesignShape::quoted(n as u64, (k + 3) as u64, true);
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
-        target: ProblemTarget::QueryFunctional { kind: FunctionalKind::PathSpecific, outcome: None, query },
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
+        target: ProblemTarget::QueryFunctional {
+            kind: FunctionalKind::PathSpecific,
+            outcome: None,
+            query,
+        },
         plan_id: Arc::from("continuous_sequential_edge_dag_transport.v2"),
-        data: DataClassification::Tabular, graph_class: "declared_randomized_sequential_edge_dag",
-        query_variables: Arc::from([]), source_digest: Some(source_digest),
-        support_coordinate: None, supported: false, support_status: None,
+        data: DataClassification::Tabular,
+        graph_class: "declared_randomized_sequential_edge_dag",
+        query_variables: Arc::from([]),
+        source_digest: Some(source_digest),
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
-    let score = ScoreModel::new("continuous_sequential_edge_gformula_paired_bootstrap")
-        .map_err(|_| TemporalPathTransportError::Invalid("continuous chain score identity is invalid"))?;
+    let score =
+        ScoreModel::new("continuous_sequential_edge_gformula_paired_bootstrap").map_err(|_| {
+            TemporalPathTransportError::Invalid("continuous chain score identity is invalid")
+        })?;
     let statistical = StatisticalProgram {
-        identifier: None, estimator: None, realization: Realization::Frequentist(ScoreFrequentist::new(score)),
-        models: Arc::from([]), folds: None, resampling: None, posterior: None, design, operators: Arc::from([]),
+        identifier: None,
+        estimator: None,
+        realization: Realization::Frequentist(ScoreFrequentist::new(score)),
+        models: Arc::from([]),
+        folds: None,
+        resampling: None,
+        posterior: None,
+        design,
+        operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
-        sources: Arc::from([EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(source_digest) }]),
+        sources: Arc::from([EvidenceSourceRef {
+            role: EvidenceRole::TransportSource,
+            digest: Some(source_digest),
+        }]),
         composition: Composition::Chained { stages: request.bootstrap_replicates + 1 },
-        decision: None, planning: None, chain: None,
+        decision: None,
+        planning: None,
+        chain: None,
     };
     let mut operators = Vec::new();
-    for effect in [PhysicalEffect::Read, PhysicalEffect::Select, PhysicalEffect::Fit, PhysicalEffect::Transport] {
-        operators.push(PhysicalOperator::declare(effect).build().map_err(|_| TemporalPathTransportError::Invalid("continuous chain operator cannot be lowered"))?);
+    for effect in [
+        PhysicalEffect::Read,
+        PhysicalEffect::Select,
+        PhysicalEffect::Fit,
+        PhysicalEffect::Transport,
+    ] {
+        operators.push(PhysicalOperator::declare(effect).build().map_err(|_| {
+            TemporalPathTransportError::Invalid("continuous chain operator cannot be lowered")
+        })?);
     }
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::TemporalPathTransport, scientific,
-        identification: IdentificationLayer::NonGraphical(Arc::new(
-            NonGraphicalIdentification::SharedEvidenceContract { contract: query },
-        )), statistical, evidence, physical: PhysicalLayer { operators: operators.into(), design },
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Sampling, kind: Some(ClaimKind::Point) },
-    }.finish());
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::TemporalPathTransport,
+            scientific,
+            identification: IdentificationLayer::NonGraphical(Arc::new(
+                NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+            )),
+            statistical,
+            evidence,
+            physical: PhysicalLayer { operators: operators.into(), design },
+            claim: ClaimDemand {
+                uncertainty: UncertaintyReading::Sampling,
+                kind: Some(ClaimKind::Point),
+            },
+        }
+        .finish(),
+    );
     Ok(CompiledContinuousChainTransport { request, seed, lowered })
 }
 
@@ -1134,68 +1448,118 @@ fn continuous_chain_draw(rng: &mut antecedent_core::CausalRng, n: usize) -> usiz
     let threshold = bound.wrapping_neg() % bound;
     loop {
         let draw = rng.next_u64();
-        if draw >= threshold { return (draw % bound) as usize; }
+        if draw >= threshold {
+            return (draw % bound) as usize;
+        }
     }
 }
 
 impl CompiledContinuousChainTransport {
     /// Inspect the complete lowered transport and sampling program.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
     /// Inspect the compiled route before execution.
     #[must_use]
-    pub fn plan_view(&self) -> PlanView { PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled) }
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
 
     /// Refit both worlds on each shared source and target resample.
     ///
     /// # Errors
     /// Seed mismatch, cancellation or a singular bootstrap fit; failures are never discarded.
-    pub fn execute(&self, ctx: &ExecutionContext) -> Result<ContinuousChainTransportResult, TemporalPathTransportError> {
-        if ctx.rng.master_seed() != self.seed { return Err(TemporalPathTransportError::Invalid("continuous chain seed changed")); }
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<ContinuousChainTransportResult, TemporalPathTransportError> {
+        if ctx.rng.master_seed() != self.seed {
+            return Err(TemporalPathTransportError::Invalid("continuous chain seed changed"));
+        }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        let arms: Vec<Vec<_>> = [false, true].iter().map(|arm|
-            self.request.source.iter().filter(|row| row.treated == *arm).collect()).collect();
-        let target_mean = self.request.target_baseline.iter().sum::<f64>() / self.request.target_baseline.len() as f64;
+        let arms: Vec<Vec<_>> = [false, true]
+            .iter()
+            .map(|arm| self.request.source.iter().filter(|row| row.treated == *arm).collect())
+            .collect();
+        let target_mean = self.request.target_baseline.iter().sum::<f64>()
+            / self.request.target_baseline.len() as f64;
         let original: Vec<_> = self.request.source.iter().collect();
         let (baseline, active) = continuous_chain_worlds(&original, target_mean, &self.request)?;
         let contrast = active - baseline;
         let mut rng = scoped.rng.stream(0x434F_4E54_4348_4149);
         let mut replicates = Vec::with_capacity(self.request.bootstrap_replicates);
         for _ in 0..self.request.bootstrap_replicates {
-            if scoped.cancellation.is_cancelled() { return Err(TemporalPathTransportError::Invalid("continuous chain bootstrap cancelled")); }
-            let sampled: Vec<Vec<_>> = arms.iter().map(|arm| (0..arm.len())
-                .map(|_| arm[continuous_chain_draw(&mut rng, arm.len())]).collect()).collect();
-            let mean = (0..self.request.target_baseline.len()).map(|_|
-                self.request.target_baseline[continuous_chain_draw(&mut rng, self.request.target_baseline.len())]
-            ).sum::<f64>() / self.request.target_baseline.len() as f64;
+            if scoped.cancellation.is_cancelled() {
+                return Err(TemporalPathTransportError::Invalid(
+                    "continuous chain bootstrap cancelled",
+                ));
+            }
+            let sampled: Vec<Vec<_>> = arms
+                .iter()
+                .map(|arm| {
+                    (0..arm.len())
+                        .map(|_| arm[continuous_chain_draw(&mut rng, arm.len())])
+                        .collect()
+                })
+                .collect();
+            let mean = (0..self.request.target_baseline.len())
+                .map(|_| {
+                    self.request.target_baseline
+                        [continuous_chain_draw(&mut rng, self.request.target_baseline.len())]
+                })
+                .sum::<f64>()
+                / self.request.target_baseline.len() as f64;
             let rows: Vec<_> = sampled.iter().flat_map(|arm| arm.iter().copied()).collect();
             let (baseline, active) = continuous_chain_worlds(&rows, mean, &self.request)?;
             replicates.push(active - baseline);
         }
         replicates.sort_by(f64::total_cmp);
-        let interval = (antecedent_kernels::quantile_type7_sorted(&replicates, 0.025),
-            antecedent_kernels::quantile_type7_sorted(&replicates, 0.975));
+        let interval = (
+            antecedent_kernels::quantile_type7_sorted(&replicates, 0.025),
+            antecedent_kernels::quantile_type7_sorted(&replicates, 0.975),
+        );
         if !contrast.is_finite() || !interval.0.is_finite() || !interval.1.is_finite() {
-            return Err(TemporalPathTransportError::Invalid("continuous chain contrast is nonfinite"));
+            return Err(TemporalPathTransportError::Invalid(
+                "continuous chain contrast is nonfinite",
+            ));
         }
-        Ok(ContinuousChainTransportResult { active, baseline, contrast, interval,
-            calibration: "not_measured", lowered_program_identity: self.lowered.identity() })
+        Ok(ContinuousChainTransportResult {
+            active,
+            baseline,
+            contrast,
+            interval,
+            calibration: "not_measured",
+            lowered_program_identity: self.lowered.identity(),
+        })
     }
 
     /// Seal the complete raw schedule after fresh result verification.
     ///
     /// # Errors
     /// Changed result, execution failure or oversized artifact.
-    pub fn export(&self, result: &ContinuousChainTransportResult, ctx: &ExecutionContext) -> Result<Vec<u8>, TemporalPathTransportError> {
+    pub fn export(
+        &self,
+        result: &ContinuousChainTransportResult,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, TemporalPathTransportError> {
         let fingerprint = continuous_chain_fingerprint(result);
         if fingerprint != continuous_chain_fingerprint(&self.execute(ctx)?) {
             return Err(TemporalPathTransportError::Invalid("continuous chain result differs"));
         }
         let bytes = antecedent_io::to_cbor(&ContinuousChainTransportWire {
-            version: 1, feature: "continuous_sequential_edge_dag_transport_v2".into(),
-            request: self.request.clone(), seed: self.seed, program_identity: *self.lowered.identity().as_bytes(), result_fingerprint: fingerprint,
+            version: 1,
+            feature: "continuous_sequential_edge_dag_transport_v2".into(),
+            request: self.request.clone(),
+            seed: self.seed,
+            program_identity: *self.lowered.identity().as_bytes(),
+            result_fingerprint: fingerprint,
         })?;
-        if bytes.len() > MAX_ARTIFACT_BYTES { return Err(TemporalPathTransportError::Invalid("continuous chain artifact exceeds its byte bound")); }
+        if bytes.len() > MAX_ARTIFACT_BYTES {
+            return Err(TemporalPathTransportError::Invalid(
+                "continuous chain artifact exceeds its byte bound",
+            ));
+        }
         Ok(bytes)
     }
 }
@@ -1204,18 +1568,36 @@ impl CompiledContinuousChainTransport {
 ///
 /// # Errors
 /// Changed identity, source, seed, feature, result or nested fit.
-pub fn consume_continuous_chain_transport(bytes: &[u8], expected: SemanticDigest, ctx: &ExecutionContext)
-    -> Result<ContinuousChainTransportResult, TemporalPathTransportError> {
-    if bytes.len() > MAX_ARTIFACT_BYTES { return Err(TemporalPathTransportError::Invalid("continuous chain artifact exceeds its byte bound")); }
+pub fn consume_continuous_chain_transport(
+    bytes: &[u8],
+    expected: SemanticDigest,
+    ctx: &ExecutionContext,
+) -> Result<ContinuousChainTransportResult, TemporalPathTransportError> {
+    if bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(TemporalPathTransportError::Invalid(
+            "continuous chain artifact exceeds its byte bound",
+        ));
+    }
     let wire: ContinuousChainTransportWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.feature != "continuous_sequential_edge_dag_transport_v2"
-        || wire.seed != ctx.rng.master_seed() || wire.program_identity != *expected.as_bytes() {
-        return Err(TemporalPathTransportError::Invalid("continuous chain feature, seed or identity differs"));
+    if wire.version != 1
+        || wire.feature != "continuous_sequential_edge_dag_transport_v2"
+        || wire.seed != ctx.rng.master_seed()
+        || wire.program_identity != *expected.as_bytes()
+    {
+        return Err(TemporalPathTransportError::Invalid(
+            "continuous chain feature, seed or identity differs",
+        ));
     }
     let plan = compile_continuous_chain_transport(wire.request, ctx)?;
-    if plan.lowered.identity() != expected { return Err(TemporalPathTransportError::Invalid("continuous chain program differs")); }
+    if plan.lowered.identity() != expected {
+        return Err(TemporalPathTransportError::Invalid("continuous chain program differs"));
+    }
     let result = plan.execute(ctx)?;
-    if continuous_chain_fingerprint(&result) != wire.result_fingerprint { return Err(TemporalPathTransportError::Invalid("continuous chain result differs on replay")); }
+    if continuous_chain_fingerprint(&result) != wire.result_fingerprint {
+        return Err(TemporalPathTransportError::Invalid(
+            "continuous chain result differs on replay",
+        ));
+    }
     Ok(result)
 }
 
@@ -1232,24 +1614,47 @@ impl CompiledContinuousChainTransport {
     ///
     /// # Errors
     /// Any complete-schedule execution or fitting failure.
-    pub fn calibration_candidate(&self, ctx: &ExecutionContext)
-        -> Result<ContinuousChainCalibrationCandidate, TemporalPathTransportError> {
+    pub fn calibration_candidate(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<ContinuousChainCalibrationCandidate, TemporalPathTransportError> {
         let result = self.execute(ctx)?;
         let n0 = self.request.source.iter().filter(|row| !row.treated).count();
         let n1 = self.request.source.len() - n0;
-        let mut writer = CanonicalWriter::new("antecedent.continuous_edge_dag.calibration_scope.v2");
-        writer.bytes(&antecedent_io::to_cbor(&self.request.mediator_parents)?)
+        let mut writer =
+            CanonicalWriter::new("antecedent.continuous_edge_dag.calibration_scope.v2");
+        writer
+            .bytes(&antecedent_io::to_cbor(&self.request.mediator_parents)?)
             .bytes(&antecedent_io::to_cbor(&self.request.treatment_edges)?)
             .bytes(&antecedent_io::to_cbor(&self.request.active_treatment_edges)?);
         let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
-        let functional = format!("sequential_edge_dag:scope={scope}:source_control={n0}:source_active={n1}:target={}",
-            self.request.target_baseline.len());
-        let basis = CalibrationBasis::new([
-            "PathSpecific", "randomized_sequential_edge_dag", "fixed", "tabular", "Frequentist",
-            "continuous_sequential_edge_dag_transport_v2", "paired_stratified_percentile_bootstrap_95",
-            "full_refit", "independent_units_within_unit_longitudinal_dependence", "", functional.as_str(),
-        ].map(Arc::from), 0.95, Arc::from("point"), self.request.source.len() as u64,
-            Some(self.request.bootstrap_replicates as u32), None, 0.0).with_validation("none");
+        let functional = format!(
+            "sequential_edge_dag:scope={scope}:source_control={n0}:source_active={n1}:target={}",
+            self.request.target_baseline.len()
+        );
+        let basis = CalibrationBasis::new(
+            [
+                "PathSpecific",
+                "randomized_sequential_edge_dag",
+                "fixed",
+                "tabular",
+                "Frequentist",
+                "continuous_sequential_edge_dag_transport_v2",
+                "paired_stratified_percentile_bootstrap_95",
+                "full_refit",
+                "independent_units_within_unit_longitudinal_dependence",
+                "",
+                functional.as_str(),
+            ]
+            .map(Arc::from),
+            0.95,
+            Arc::from("point"),
+            self.request.source.len() as u64,
+            Some(self.request.bootstrap_replicates as u32),
+            None,
+            0.0,
+        )
+        .with_validation("none");
         Ok(ContinuousChainCalibrationCandidate { result, basis })
     }
 }
@@ -1262,29 +1667,38 @@ mod continuous_chain_tests {
     #[ignore = "source-only continuous chain transport; coverage is not earned"]
     fn continuous_chain_shared_schedule_replays() {
         let ctx = ExecutionContext::for_tests(991);
-        let source = (0..200).map(|i| {
-            let x = (i % 25) as f64 / 25.0;
-            let treated = i >= 100;
-            let a = if treated { 1.0 } else { 0.0 };
-            let noise1 = if (i / 25) % 2 == 0 { -1.0 } else { 1.0 };
-            let noise2 = if (i / 50) % 2 == 0 { -1.0 } else { 1.0 };
-            let m1 = x + a + noise1;
-            let m2 = 2.0 * m1 + 3.0 * a + noise2;
-            ContinuousChainSourceRow { baseline: x, treated,
-                mediators: vec![m1, m2], outcome: 3.0 + x + m2 + 4.0 * a }
-        }).collect();
+        let source = (0..200)
+            .map(|i| {
+                let x = (i % 25) as f64 / 25.0;
+                let treated = i >= 100;
+                let a = if treated { 1.0 } else { 0.0 };
+                let noise1 = if (i / 25) % 2 == 0 { -1.0 } else { 1.0 };
+                let noise2 = if (i / 50) % 2 == 0 { -1.0 } else { 1.0 };
+                let m1 = x + a + noise1;
+                let m2 = 2.0 * m1 + 3.0 * a + noise2;
+                ContinuousChainSourceRow {
+                    baseline: x,
+                    treated,
+                    mediators: vec![m1, m2],
+                    outcome: 3.0 + x + m2 + 4.0 * a,
+                }
+            })
+            .collect();
         let request = ContinuousChainTransportRequest {
-            source, target_baseline: (0..25).map(|i| i as f64 / 25.0).collect(),
+            source,
+            target_baseline: (0..25).map(|i| i as f64 / 25.0).collect(),
             mediator_parents: vec![vec![], vec![0], vec![0, 1]],
             treatment_edges: vec![true, true, true],
-            active_treatment_edges: vec![true, false, false], bootstrap_replicates: 100,
+            active_treatment_edges: vec![true, false, false],
+            bootstrap_replicates: 100,
         };
         let plan = compile_continuous_chain_transport(request.clone(), &ctx).unwrap();
         let candidate = plan.calibration_candidate(&ctx).unwrap();
         assert!((candidate.result.contrast - 2.0).abs() < 1e-10);
         assert_eq!(candidate.result.calibration, "not_measured");
         let artifact = plan.export(&candidate.result, &ctx).unwrap();
-        let replay = consume_continuous_chain_transport(&artifact, plan.lowered().identity(), &ctx).unwrap();
+        let replay =
+            consume_continuous_chain_transport(&artifact, plan.lowered().identity(), &ctx).unwrap();
         assert_eq!(candidate.result, replay);
         let mut alternate = request.clone();
         alternate.active_treatment_edges = vec![false, true, true];
@@ -1292,7 +1706,14 @@ mod continuous_chain_tests {
         assert_ne!(plan.lowered().identity(), alternate_plan.lowered().identity());
         let alternate_result = alternate_plan.execute(&ctx).unwrap();
         assert!((alternate_result.contrast - 7.0).abs() < 1e-10);
-        assert!(consume_continuous_chain_transport(&artifact, alternate_plan.lowered().identity(), &ctx).is_err());
+        assert!(
+            consume_continuous_chain_transport(
+                &artifact,
+                alternate_plan.lowered().identity(),
+                &ctx
+            )
+            .is_err()
+        );
         let mut invalid = request;
         invalid.mediator_parents[1] = vec![1];
         assert!(compile_continuous_chain_transport(invalid, &ctx).is_err());

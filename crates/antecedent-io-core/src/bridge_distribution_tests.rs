@@ -901,8 +901,11 @@ fn a_predictive_line_stage_adds_an_independent_residual_to_the_mean_line() {
     assert!(parts.sources[..3].iter().all(|s| !has(s, "disturbance")));
 
     let record = seal_predictive_stage(
-        parts.sources.clone(), parts.stage.clone(), parts.output_quantity.clone(),
-    ).expect("supported");
+        parts.sources.clone(),
+        parts.stage.clone(),
+        parts.output_quantity.clone(),
+    )
+    .expect("supported");
     let stage = record.results.iter().find(|r| r.stage == "line").expect("stage");
     let (mean, variance) = sample_moments(&bridged.mapped_column());
     // The same inputs give exactly the bridged draws.
@@ -917,8 +920,11 @@ fn a_predictive_line_stage_adds_an_independent_residual_to_the_mean_line() {
         ChainOpWire::affine(ChainCoefficientWire::input(1), ChainCoefficientWire::input(2)),
     );
     let mean_record = seal_predictive_stage(
-        parts.sources[..3].to_vec(), mean_stage, parts.output_quantity.clone(),
-    ).expect("the mean line is supported");
+        parts.sources[..3].to_vec(),
+        mean_stage,
+        parts.output_quantity.clone(),
+    )
+    .expect("the mean line is supported");
     let line = mean_record.results.iter().find(|r| r.stage == "mean_line").expect("mean line");
     let line_variance = line.value("variance").unwrap();
     let residuals = bridged.affine_columns().and_then(|a| a.residuals.clone()).expect("residuals");

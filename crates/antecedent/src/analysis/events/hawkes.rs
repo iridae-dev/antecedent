@@ -58,18 +58,12 @@ pub(super) struct Work<'a> {
 
 impl<'a> Work<'a> {
     pub(super) fn new(ctx: &'a ExecutionContext) -> Self {
-        Self {
-            ctx,
-            remaining: 250_000_000,
-        }
+        Self { ctx, remaining: 250_000_000 }
     }
 
     pub(super) fn take(&mut self, amount: usize) -> Result<(), EventError> {
         poll(self.ctx)?;
-        self.remaining = self
-            .remaining
-            .checked_sub(amount)
-            .ok_or(EventError::Budget)?;
+        self.remaining = self.remaining.checked_sub(amount).ok_or(EventError::Budget)?;
         Ok(())
     }
 }
@@ -79,11 +73,7 @@ impl HawkesParameters {
         if self.baseline.len() != n
             || self.branching.len() != n * n
             || self.decay.len() != n * n
-            || self
-                .baseline
-                .iter()
-                .chain(&self.branching)
-                .any(|x| !x.is_finite() || *x < 0.0)
+            || self.baseline.iter().chain(&self.branching).any(|x| !x.is_finite() || *x < 0.0)
             || self.decay.iter().any(|x| !x.is_finite() || *x <= 0.0)
         {
             return Err(EventError::invalid(
@@ -151,12 +141,7 @@ struct HistoryState<'a> {
 impl<'a> HistoryState<'a> {
     fn at(history: &EventHistory, decay: &'a [f64], time: f64, arrivals: &[Arrival]) -> Self {
         let n = history.catalog.len();
-        let mut state = Self {
-            time,
-            decay,
-            values: vec![0.0; n * n],
-            n,
-        };
+        let mut state = Self { time, decay, values: vec![0.0; n * n], n };
         for event in arrivals {
             for i in 0..n {
                 let k = i * n + event.kind;
@@ -209,11 +194,7 @@ impl Likelihood {
         state.advance(history.window.end, &mut integral);
         let mut compensator = vec![history.window.end - history.window.start; n];
         compensator.extend(integral);
-        Ok(Self {
-            n,
-            features,
-            compensator,
-        })
+        Ok(Self { n, features, compensator })
     }
 
     fn evaluate(
@@ -230,11 +211,7 @@ impl Likelihood {
         for (kind, row) in &self.features {
             let offset = self.n + *kind * self.n;
             let intensity = x[*kind]
-                + row
-                    .iter()
-                    .zip(&x[offset..offset + self.n])
-                    .map(|(a, b)| a * b)
-                    .sum::<f64>();
+                + row.iter().zip(&x[offset..offset + self.n]).map(|(a, b)| a * b).sum::<f64>();
             if !intensity.is_finite() || intensity <= 0.0 {
                 return Ok(f64::INFINITY);
             }
@@ -255,9 +232,7 @@ impl Likelihood {
         let width = n + 1;
         let mut covariance = vec![vec![0.0; width * width]; n];
         for (kind, features) in &self.features {
-            let row: Vec<_> = std::iter::once(1.0)
-                .chain(features.iter().copied())
-                .collect();
+            let row: Vec<_> = std::iter::once(1.0).chain(features.iter().copied()).collect();
             for i in 0..width {
                 for j in 0..width {
                     covariance[*kind][i * width + j] += row[i] * row[j];
@@ -298,10 +273,7 @@ impl HawkesFitSpec {
             || self.column_cap == 0.0
             || !(1..=2000).contains(&self.iterations)
             || self.decay.len() != n * n
-            || self
-                .decay
-                .iter()
-                .any(|rate| !rate.is_finite() || *rate <= 0.0)
+            || self.decay.iter().any(|rate| !rate.is_finite() || *rate <= 0.0)
         {
             return Err(EventError::invalid("invalid fixed-decay fit scope"));
         }
@@ -315,9 +287,7 @@ fn project(mut values: Vec<f64>, n: usize, cap: f64) -> Vec<f64> {
         *value = value.max(0.0);
     }
     for source in 0..n {
-        let mut column: Vec<_> = (0..n)
-            .map(|target| values[n + target * n + source])
-            .collect();
+        let mut column: Vec<_> = (0..n).map(|target| values[n + target * n + source]).collect();
         if column.iter().sum::<f64>() <= cap {
             continue;
         }
@@ -351,10 +321,8 @@ pub(super) fn fit(
         return Err(EventError::Fit("every fitted type needs observed arrivals"));
     }
     let scale = history.events.len() as f64;
-    let mut x: Vec<_> = counts
-        .into_iter()
-        .map(|x| f64::from(x) / likelihood.compensator[0])
-        .collect();
+    let mut x: Vec<_> =
+        counts.into_iter().map(|x| f64::from(x) / likelihood.compensator[0]).collect();
     x.resize(n + n * n, 0.0);
     let mut gradient = vec![0.0; x.len()];
     let mut step: f64 = 1.0;
@@ -366,16 +334,9 @@ pub(super) fn fit(
         for value in &mut gradient {
             *value /= scale;
         }
-        let projected = project(
-            x.iter().zip(&gradient).map(|(a, b)| a - b).collect(),
-            n,
-            spec.column_cap,
-        );
-        let residual = x
-            .iter()
-            .zip(&projected)
-            .map(|(a, b)| (a - b).abs())
-            .fold(0.0, f64::max);
+        let projected =
+            project(x.iter().zip(&gradient).map(|(a, b)| a - b).collect(), n, spec.column_cap);
+        let residual = x.iter().zip(&projected).map(|(a, b)| (a - b).abs()).fold(0.0, f64::max);
         if residual <= 1e-7 {
             let branching = x.split_off(n);
             let active_columns = (0..n)
@@ -388,11 +349,7 @@ pub(super) fn fit(
                 .enumerate()
                 .filter_map(|(k, &x)| (x <= 1e-7).then_some(k))
                 .collect();
-            let parameters = HawkesParameters {
-                baseline: x,
-                branching,
-                decay: spec.decay.clone(),
-            };
+            let parameters = HawkesParameters { baseline: x, branching, decay: spec.decay.clone() };
             parameters.validate(n)?;
             return Ok(HawkesFit {
                 parameters,
@@ -412,11 +369,8 @@ pub(super) fn fit(
                 n,
                 spec.column_cap,
             );
-            let descent: f64 = gradient
-                .iter()
-                .zip(x.iter().zip(&candidate))
-                .map(|(g, (a, b))| g * (b - a))
-                .sum();
+            let descent: f64 =
+                gradient.iter().zip(x.iter().zip(&candidate)).map(|(g, (a, b))| g * (b - a)).sum();
             let next = likelihood.evaluate(&candidate, &mut [], work)? / scale;
             if descent < 0.0 && next <= loss / scale + 1e-4 * descent {
                 accepted = Some(candidate);
@@ -477,9 +431,7 @@ pub(super) fn sample(
             break;
         }
         if proposal <= state.time {
-            return Err(EventError::Numerical(
-                "timestamp precision cannot resolve next event",
-            ));
+            return Err(EventError::Numerical("timestamp precision cannot resolve next event"));
         }
         state.advance(proposal, &mut []);
         let total = evaluate(&state, &mut intensity);
@@ -499,10 +451,7 @@ pub(super) fn sample(
             if events.len() == max_events {
                 return Err(EventError::Budget);
             }
-            events.push(Arrival {
-                time: proposal,
-                kind,
-            });
+            events.push(Arrival { time: proposal, kind });
             state.arrive(kind);
             bound = evaluate(&state, &mut intensity);
         } else {
@@ -519,12 +468,8 @@ pub(super) fn rescaled_gaps(
 ) -> Result<Vec<f64>, EventError> {
     let n = history.catalog.len();
     work.take((history.left.len() + history.events.len() + 1) * n * n)?;
-    let mut state = HistoryState::at(
-        history,
-        &parameters.decay,
-        history.window.start,
-        &history.left,
-    );
+    let mut state =
+        HistoryState::at(history, &parameters.decay, history.window.start, &history.left);
     let mut integral = vec![0.0; n * n];
     let mut gaps = Vec::with_capacity(history.events.len());
     let baseline = parameters.baseline.iter().sum::<f64>();
@@ -533,15 +478,9 @@ pub(super) fn rescaled_gaps(
         integral.fill(0.0);
         state.advance(arrival.time, &mut integral);
         let gap = baseline * length
-            + integral
-                .iter()
-                .zip(&parameters.branching)
-                .map(|(a, b)| a * b)
-                .sum::<f64>();
+            + integral.iter().zip(&parameters.branching).map(|(a, b)| a * b).sum::<f64>();
         if !gap.is_finite() {
-            return Err(EventError::Numerical(
-                "nonfinite integrated event intensity",
-            ));
+            return Err(EventError::Numerical("nonfinite integrated event intensity"));
         }
         gaps.push(gap);
         state.arrive(arrival.kind);

@@ -221,14 +221,9 @@ impl crate::Study {
         super::super::lowering::refuse_reentry(ctx)?;
         validate_budget(request.paths, request.max_events)?;
         prior.validate(request.paths)?;
-        let observation = EventWindow {
-            start: prior.history.window.end,
-            end: request.decision_time,
-        };
-        let continuation = EventWindow {
-            start: request.decision_time,
-            end: request.end,
-        };
+        let observation =
+            EventWindow { start: prior.history.window.end, end: request.decision_time };
+        let continuation = EventWindow { start: request.decision_time, end: request.end };
         observation.validate()?;
         continuation.validate()?;
         if request.kind >= prior.history.catalog.len()
@@ -398,13 +393,7 @@ impl PreparedEventUpdate {
             release_supported: release_supported(CAPABILITY),
             _lease: lease,
         };
-        Ok((
-            law,
-            EventBelief {
-                history,
-                hypotheses,
-            },
-        ))
+        Ok((law, EventBelief { history, hypotheses }))
     }
 }
 
@@ -423,14 +412,8 @@ impl PreparedEventStudy {
         let ctx = &scoped;
         let r = &self.request;
         let history = &self.prior.history;
-        let observation = EventWindow {
-            start: history.window.end,
-            end: r.decision_time,
-        };
-        let continuation = EventWindow {
-            start: r.decision_time,
-            end: r.end,
-        };
+        let observation = EventWindow { start: history.window.end, end: r.decision_time };
+        let continuation = EventWindow { start: r.decision_time, end: r.end };
         let prefix = history.prefix();
         let lease = Arc::new(admit(
             ctx,
@@ -547,12 +530,8 @@ impl PreparedEventStudy {
             if deletes.len() == 8 {
                 let mean = deletes.iter().sum::<f64>() / 8.0;
                 Some(
-                    (7.0 / 8.0
-                        * deletes
-                            .iter()
-                            .map(|value| (value - mean).powi(2))
-                            .sum::<f64>())
-                    .sqrt(),
+                    (7.0 / 8.0 * deletes.iter().map(|value| (value - mean).powi(2)).sum::<f64>())
+                        .sqrt(),
                 )
             } else {
                 None
@@ -611,11 +590,7 @@ impl DecisionSignal<usize> for ObservedBranch {
         output: &mut [f64],
     ) -> Result<(), DesignError> {
         for (&state, output) in states.iter().zip(output) {
-            *output = if statistic == state as f64 {
-                0.0
-            } else {
-                f64::NEG_INFINITY
-            };
+            *output = if statistic == state as f64 { 0.0 } else { f64::NEG_INFINITY };
         }
         Ok(())
     }
@@ -655,9 +630,8 @@ fn preposterior(
             .max_by(|a, b| a.1.total_cmp(b.1).then_with(|| b.0.cmp(&a.0)))
             .map(|(i, _)| i)
     };
-    let baseline: Vec<_> = (0..actions)
-        .map(|a| states.iter().map(|&s| weights[s] * utilities[s][a]).sum())
-        .collect();
+    let baseline: Vec<_> =
+        (0..actions).map(|a| states.iter().map(|&s| weights[s] * utilities[s][a]).sum()).collect();
     Ok((
         value,
         best(&baseline).ok_or(EventError::invalid("empty action set"))?,
@@ -673,9 +647,6 @@ mod tests {
         let (value, base, actions) = super::preposterior(&scores, [0.75, 0.25], 2).unwrap();
         assert_eq!((value, base, actions), (4.5, 0, [Some(0), Some(1)]));
         let constant = [vec![10.0, 0.0], vec![15.0, 8.0]];
-        assert_eq!(
-            super::preposterior(&constant, [0.75, 0.25], 2).unwrap().0,
-            0.0
-        );
+        assert_eq!(super::preposterior(&constant, [0.75, 0.25], 2).unwrap().0, 0.0);
     }
 }

@@ -301,9 +301,12 @@ pub fn check_joint_measured_slots(
     dependence: &str,
 ) -> Result<(), ExternalRefusal> {
     if dependence != "conditionally_independent_given_construct"
-        || request.conditioning.iter().filter(|slot| {
-            matches!(&slot.value, SlotValue::Measured(_))
-        }).count() < 2
+        || request
+            .conditioning
+            .iter()
+            .filter(|slot| matches!(&slot.value, SlotValue::Measured(_)))
+            .count()
+            < 2
         || request.conditioning.len() > 32
     {
         return Err(refuse(

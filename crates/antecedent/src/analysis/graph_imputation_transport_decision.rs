@@ -14,11 +14,11 @@
 
 use std::sync::Arc;
 
-use antecedent_contract::{ClaimKind, DataClassification, QuantityRole, ScientificQuantity};
 use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_contract::propagation_chain::{
     ChainReading, LawMeaning, StageKind, TableConstruction,
 };
+use antecedent_contract::{ClaimKind, DataClassification, QuantityRole, ScientificQuantity};
 use antecedent_core::graph_imputation_contract::GraphImputationSource;
 use antecedent_core::{
     ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, PhysicalEffect,
@@ -29,28 +29,23 @@ use antecedent_design::decision_artifact::DecisionContractArtifact;
 use antecedent_design::decision_contract::{DecisionContract, DecisionContractError};
 use antecedent_io::IoError;
 use antecedent_io::measured_inference::graph_candidate::{
-    GraphPointReading, TransportStandardization, replay_transport_point,
-    replay_confounded_transport_point,
+    GraphPointReading, TransportStandardization, replay_confounded_transport_point,
+    replay_transport_point,
 };
 use antecedent_io::propagation_chain_record::{
-    ChainCoefficientWire, ChainOpWire, ChainSourceWire, ChainStageWire,
-    PropagationChainRecordWire,
+    ChainCoefficientWire, ChainOpWire, ChainSourceWire, ChainStageWire, PropagationChainRecordWire,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
 
-use super::graph_imputation::{
-    CompiledGraphImputation, GraphImputationError, GraphImputationSpec,
-};
+use super::graph_imputation::{CompiledGraphImputation, GraphImputationError, GraphImputationSpec};
 use super::propagation_chain_decision::{
-    ChainDecisionError, ChainDecisionResult, compile_chain_decision,
-    consume_chain_decision,
+    ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
 };
 use crate::planner::lowered::{
-    CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape,
-    EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef, FunctionalKind,
-    IdentificationLayer, LoweredProgram, NonGraphicalIdentification,
-    PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
+    CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
+    EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{
@@ -64,7 +59,8 @@ const CONFOUNDED_BOOTSTRAP_FEATURE: &str =
     "graph_imputation_confounded_transport_target_bootstrap_decision_v2";
 const BOOTSTRAP_FEATURE: &str = "graph_imputation_transport_target_bootstrap_decision_v2";
 const CLUSTER_FEATURE: &str = "graph_imputation_transport_target_cluster_bootstrap_decision_v1";
-const CONFOUNDED_CLUSTER_FEATURE: &str = "graph_imputation_confounded_transport_target_cluster_bootstrap_decision_v1";
+const CONFOUNDED_CLUSTER_FEATURE: &str =
+    "graph_imputation_confounded_transport_target_cluster_bootstrap_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 
 /// Refusal of the bound source, target, decision or portable replay.
@@ -127,18 +123,31 @@ pub struct TargetClusterBootstrap {
 }
 
 impl TargetClusterBootstrap {
-    pub(crate) fn groups(&self, rows: usize) -> Result<Vec<Vec<usize>>, GraphImputationTransportDecisionError> {
-        if !(40..=256).contains(&self.replicates) || self.cluster_ids.len() != rows
-            || self.cluster_ids.iter().any(|id| id.trim().is_empty()) {
-            return Err(GraphImputationTransportDecisionError::Invalid("invalid target cluster bootstrap declaration"));
+    pub(crate) fn groups(
+        &self,
+        rows: usize,
+    ) -> Result<Vec<Vec<usize>>, GraphImputationTransportDecisionError> {
+        if !(40..=256).contains(&self.replicates)
+            || self.cluster_ids.len() != rows
+            || self.cluster_ids.iter().any(|id| id.trim().is_empty())
+        {
+            return Err(GraphImputationTransportDecisionError::Invalid(
+                "invalid target cluster bootstrap declaration",
+            ));
         }
         let mut groups = std::collections::BTreeMap::<&str, Vec<usize>>::new();
         for (row, id) in self.cluster_ids.iter().enumerate() {
             groups.entry(id.as_str()).or_default().push(row);
         }
-        if groups.len() < 2 || groups.len().checked_mul(groups.values().map(Vec::len).max().unwrap_or(0))
-            .is_none_or(|bound| bound > 1_000_000) {
-            return Err(GraphImputationTransportDecisionError::Invalid("target cluster count or worst-case replicate size is unsupported"));
+        if groups.len() < 2
+            || groups
+                .len()
+                .checked_mul(groups.values().map(Vec::len).max().unwrap_or(0))
+                .is_none_or(|bound| bound > 1_000_000)
+        {
+            return Err(GraphImputationTransportDecisionError::Invalid(
+                "target cluster count or worst-case replicate size is unsupported",
+            ));
         }
         Ok(groups.into_values().collect())
     }
@@ -189,11 +198,15 @@ struct GraphImputationTransportDecisionWire {
     cluster_bootstrap: Option<TargetClusterBootstrap>,
 }
 
-fn is_false(value: &bool) -> bool { !*value }
+fn is_false(value: &bool) -> bool {
+    !*value
+}
 
 fn check_quantity(
-    source: &GraphImputationSource, target: &TransportStandardization,
-    quantity: &ScientificQuantity, decision: &DecisionContract,
+    source: &GraphImputationSource,
+    target: &TransportStandardization,
+    quantity: &ScientificQuantity,
+    decision: &DecisionContract,
 ) -> Result<(), GraphImputationTransportDecisionError> {
     let parts = source.parts();
     let treatment = &parts.names[parts.treatment as usize];
@@ -205,12 +218,13 @@ fn check_quantity(
         || quantity.population_id != decision.target_population
         || quantity.regime_id != format!("do({treatment}=1)-do({treatment}=0)")
         || quantity.functional_id != "average_effect"
-        || quantity.horizon != 0 || quantity.horizon != decision.horizon
-        || !quantity.conditioning.is_empty() || quantity.transform_id != "identity"
+        || quantity.horizon != 0
+        || quantity.horizon != decision.horizon
+        || !quantity.conditioning.is_empty()
+        || quantity.transform_id != "identity"
         || decision.actions.is_empty()
         || decision.actions.iter().any(|action| {
-            action.inputs.len() != 1
-                || action.inputs[0].require_same_coordinate(quantity).is_err()
+            action.inputs.len() != 1 || action.inputs[0].require_same_coordinate(quantity).is_err()
         })
     {
         return Err(GraphImputationTransportDecisionError::Invalid(
@@ -221,18 +235,30 @@ fn check_quantity(
 }
 
 fn lower_outer(
-    source: &GraphImputationSource, target: &TransportStandardization,
-    quantity: &ScientificQuantity, decision: &DecisionContract,
-    target_bootstrap: Option<TargetFrameBootstrap>, confounded: bool,
+    source: &GraphImputationSource,
+    target: &TransportStandardization,
+    quantity: &ScientificQuantity,
+    decision: &DecisionContract,
+    target_bootstrap: Option<TargetFrameBootstrap>,
+    confounded: bool,
     cluster_bootstrap: Option<&TargetClusterBootstrap>,
 ) -> Result<Arc<LoweredProgram>, GraphImputationTransportDecisionError> {
-    if confounded { target.validate_confounded(source.parts())?; }
-    else { target.validate(source.parts())?; }
+    if confounded {
+        target.validate_confounded(source.parts())?;
+    } else {
+        target.validate(source.parts())?;
+    }
     if target_bootstrap.is_some_and(|policy| !(40..=256).contains(&policy.replicates)) {
-        return Err(GraphImputationTransportDecisionError::Invalid("target bootstrap needs 40 to 256 replicates"));
+        return Err(GraphImputationTransportDecisionError::Invalid(
+            "target bootstrap needs 40 to 256 replicates",
+        ));
     }
     if let Some(policy) = cluster_bootstrap {
-        if target_bootstrap.is_some() { return Err(GraphImputationTransportDecisionError::Invalid("row and cluster bootstrap are exclusive")); }
+        if target_bootstrap.is_some() {
+            return Err(GraphImputationTransportDecisionError::Invalid(
+                "row and cluster bootstrap are exclusive",
+            ));
+        }
         policy.groups(target.rows())?;
     }
     check_quantity(source, target, quantity, decision)?;
@@ -240,95 +266,169 @@ fn lower_outer(
     let source_digest = SemanticDigest::from_bytes(source.parts().data_digest);
     let coordinate = antecedent_io::to_cbor(&ScientificQuantityWire::from(quantity))?;
     let contract = decision.identity()?;
-    let mut writer = CanonicalWriter::new("antecedent.graph_imputation_transport_decision.question.v1");
-    writer.bytes(&source.program()).bytes(&source.parts().contract_digest())
-        .bytes(source_digest.as_bytes()).bytes(&target_digest)
-        .bytes(&coordinate).text(&contract);
-    if confounded { writer.text(CONFOUNDED_FEATURE); }
-    else { writer.text(FEATURE); }
+    let mut writer =
+        CanonicalWriter::new("antecedent.graph_imputation_transport_decision.question.v1");
+    writer
+        .bytes(&source.program())
+        .bytes(&source.parts().contract_digest())
+        .bytes(source_digest.as_bytes())
+        .bytes(&target_digest)
+        .bytes(&coordinate)
+        .text(&contract);
+    if confounded {
+        writer.text(CONFOUNDED_FEATURE);
+    } else {
+        writer.text(FEATURE);
+    }
     if let Some(policy) = target_bootstrap {
-        writer.text(if confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE })
-            .word(u64::from(policy.replicates)).word(policy.seed);
+        writer
+            .text(if confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE })
+            .word(u64::from(policy.replicates))
+            .word(policy.seed);
     }
     if let Some(policy) = cluster_bootstrap {
-        writer.text(if confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE })
+        writer
+            .text(if confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE })
             .bytes(&antecedent_io::to_cbor(policy)?);
     }
     let question = writer.finish();
     let rows = source.parts().rows().saturating_add(target.rows()) as u64;
     let design = DesignShape::quoted(rows, source.parts().names.len() as u64, true);
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
             kind: FunctionalKind::PolicyValue,
-            outcome: Some(VariableId::from_raw(source.parts().outcome)), query: question,
+            outcome: Some(VariableId::from_raw(source.parts().outcome)),
+            query: question,
         },
-        plan_id: Arc::from(if cluster_bootstrap.is_some() { if confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE } }
-            else if confounded && target_bootstrap.is_some() { CONFOUNDED_BOOTSTRAP_FEATURE }
-            else if confounded { CONFOUNDED_FEATURE }
-            else if target_bootstrap.is_some() { BOOTSTRAP_FEATURE } else { FEATURE }),
+        plan_id: Arc::from(if cluster_bootstrap.is_some() {
+            if confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE }
+        } else if confounded && target_bootstrap.is_some() {
+            CONFOUNDED_BOOTSTRAP_FEATURE
+        } else if confounded {
+            CONFOUNDED_FEATURE
+        } else if target_bootstrap.is_some() {
+            BOOTSTRAP_FEATURE
+        } else {
+            FEATURE
+        }),
         data: DataClassification::Tabular,
-        graph_class: if confounded { "bounded_graph_imputation_confounded_binary_target" }
-            else { "bounded_graph_imputation_binary_target_standardization" },
-        query_variables: Arc::from([]), source_digest: Some(*source_digest.as_bytes()),
-        support_coordinate: None, supported: false, support_status: None,
+        graph_class: if confounded {
+            "bounded_graph_imputation_confounded_binary_target"
+        } else {
+            "bounded_graph_imputation_binary_target_standardization"
+        },
+        query_variables: Arc::from([]),
+        source_digest: Some(*source_digest.as_bytes()),
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: question },
     ));
     let statistical = StatisticalProgram {
-        identifier: None, estimator: None,
+        identifier: None,
+        estimator: None,
         realization: Realization::GraphImputationV1,
-        models: Arc::from([]), folds: None,
-        resampling: if let Some(policy) = cluster_bootstrap { Some(ResamplingPlan {
-            method: ResamplingMethod::Bootstrap, replicates: policy.replicates, unit: ResampleUnit::Cluster,
-        }) } else { target_bootstrap.map(|policy| ResamplingPlan {
-            method: ResamplingMethod::Bootstrap, replicates: policy.replicates,
-            unit: ResampleUnit::Row,
-        }) },
-        posterior: None, design, operators: Arc::from([]),
+        models: Arc::from([]),
+        folds: None,
+        resampling: if let Some(policy) = cluster_bootstrap {
+            Some(ResamplingPlan {
+                method: ResamplingMethod::Bootstrap,
+                replicates: policy.replicates,
+                unit: ResampleUnit::Cluster,
+            })
+        } else {
+            target_bootstrap.map(|policy| ResamplingPlan {
+                method: ResamplingMethod::Bootstrap,
+                replicates: policy.replicates,
+                unit: ResampleUnit::Row,
+            })
+        },
+        posterior: None,
+        design,
+        operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([
-            EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(*source_digest.as_bytes()) },
-            EvidenceSourceRef { role: EvidenceRole::TransportSource,
-                digest: Some(target_digest) },
+            EvidenceSourceRef {
+                role: EvidenceRole::Observations,
+                digest: Some(*source_digest.as_bytes()),
+            },
+            EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(target_digest) },
         ]),
         composition: Composition::Chained { stages: 5 },
         decision: Some(DecisionProgram {
             carrier: CarrierDemand::ParameterPosterior,
             utility: DecisionProgram::utility_form(None),
-            actions: decision.actions.len(), constraints: decision.constraints.len(),
-            chance_threshold: decision.constraints.iter()
-                .map(|constraint| constraint.min_probability).fold(0.0_f64, f64::max),
+            actions: decision.actions.len(),
+            constraints: decision.constraints.len(),
+            chance_threshold: decision
+                .constraints
+                .iter()
+                .map(|constraint| constraint.min_probability)
+                .fold(0.0_f64, f64::max),
             utility_unit: Some(Arc::from(decision.utility_units.as_str())),
             contract_identity: Some(Arc::from(contract.as_str())),
             information_value: None,
             scenario_source: Some(Arc::from("graph_imputation_target_effect_draws_v1")),
-        }), planning: None, chain: None,
+        }),
+        planning: None,
+        chain: None,
     };
-    let mut operators = vec![PhysicalOperator::declare(PhysicalEffect::Read)
-        .estimates(ByteEstimates::absent().with_output(rows))
-        .build().map_err(|_| GraphImputationTransportDecisionError::Invalid("invalid source read operator"))?];
+    let mut operators = vec![
+        PhysicalOperator::declare(PhysicalEffect::Read)
+            .estimates(ByteEstimates::absent().with_output(rows))
+            .build()
+            .map_err(|_| {
+                GraphImputationTransportDecisionError::Invalid("invalid source read operator")
+            })?,
+    ];
     // The empirical fit and each bootstrap replicate run sequentially.
-    let executions = 1 + cluster_bootstrap.map_or_else(|| target_bootstrap.map_or(0, |policy| policy.replicates), |policy| policy.replicates);
+    let executions = 1 + cluster_bootstrap.map_or_else(
+        || target_bootstrap.map_or(0, |policy| policy.replicates),
+        |policy| policy.replicates,
+    );
     for _ in 0..executions {
-        operators.push(PhysicalOperator::declare(PhysicalEffect::Fit)
-            .build().map_err(|_| GraphImputationTransportDecisionError::Invalid("invalid graph fit operator"))?);
-        operators.push(PhysicalOperator::declare(PhysicalEffect::Transport)
-            .build().map_err(|_| GraphImputationTransportDecisionError::Invalid("invalid target standardization operator"))?);
+        operators.push(PhysicalOperator::declare(PhysicalEffect::Fit).build().map_err(|_| {
+            GraphImputationTransportDecisionError::Invalid("invalid graph fit operator")
+        })?);
+        operators.push(PhysicalOperator::declare(PhysicalEffect::Transport).build().map_err(
+            |_| {
+                GraphImputationTransportDecisionError::Invalid(
+                    "invalid target standardization operator",
+                )
+            },
+        )?);
     }
     let physical = PhysicalLayer { operators: Arc::from(operators), design };
-    Ok(Arc::new(StandaloneCompositionLoweredParts {
-        cell: if cluster_bootstrap.is_some() {
-            if confounded { ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision }
-            else { ProgramCell::GraphImputationTransportClusterBootstrapDecision }
-        } else if confounded { ProgramCell::GraphImputationConfoundedTransportDecision }
-            else { ProgramCell::GraphImputationTransportDecision },
-        scientific, identification, statistical, evidence, physical,
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Posterior,
-            kind: Some(ClaimKind::PolicyValue) },
-    }.finish()))
+    Ok(Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: if cluster_bootstrap.is_some() {
+                if confounded {
+                    ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision
+                } else {
+                    ProgramCell::GraphImputationTransportClusterBootstrapDecision
+                }
+            } else if confounded {
+                ProgramCell::GraphImputationConfoundedTransportDecision
+            } else {
+                ProgramCell::GraphImputationTransportDecision
+            },
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical,
+            claim: ClaimDemand {
+                uncertainty: UncertaintyReading::Posterior,
+                kind: Some(ClaimKind::PolicyValue),
+            },
+        }
+        .finish(),
+    ))
 }
 
 /// Bind source graph support, imputation schedule, target rows and selection
@@ -337,8 +437,10 @@ fn lower_outer(
 /// # Errors
 /// Invalid target support, quantity, contract or six-layer lowering.
 pub fn compile_graph_imputation_transport_decision(
-    producer: CompiledGraphImputation, target: TransportStandardization,
-    quantity: ScientificQuantity, decision: DecisionContract,
+    producer: CompiledGraphImputation,
+    target: TransportStandardization,
+    quantity: ScientificQuantity,
+    decision: DecisionContract,
 ) -> Result<CompiledGraphImputationTransportDecision, GraphImputationTransportDecisionError> {
     let source = GraphImputationSource::decode(producer.source_bytes())
         .map_err(GraphImputationTransportDecisionError::Invalid)?;
@@ -350,11 +452,20 @@ pub fn compile_graph_imputation_transport_decision(
         ));
     }
     let lowered = lower_outer(&source, &target, &quantity, &decision, None, false, None)?;
-    let native_source = GraphImputationSource::new(
-        source.parts().clone(), *lowered.identity().as_bytes(),
-    ).map_err(GraphImputationTransportDecisionError::Invalid)?.encode();
+    let native_source =
+        GraphImputationSource::new(source.parts().clone(), *lowered.identity().as_bytes())
+            .map_err(GraphImputationTransportDecisionError::Invalid)?
+            .encode();
     Ok(CompiledGraphImputationTransportDecision {
-        producer, target, quantity, decision, native_source, lowered, target_bootstrap: None, cluster_bootstrap: None, confounded: false,
+        producer,
+        target,
+        quantity,
+        decision,
+        native_source,
+        lowered,
+        target_bootstrap: None,
+        cluster_bootstrap: None,
+        confounded: false,
     })
 }
 
@@ -365,22 +476,36 @@ pub fn compile_graph_imputation_transport_decision(
 /// # Errors
 /// Invalid source, target, bootstrap policy or compiler binding.
 pub fn compile_graph_imputation_transport_target_bootstrap_decision(
-    producer: CompiledGraphImputation, target: TransportStandardization,
-    quantity: ScientificQuantity, decision: DecisionContract, policy: TargetFrameBootstrap,
+    producer: CompiledGraphImputation,
+    target: TransportStandardization,
+    quantity: ScientificQuantity,
+    decision: DecisionContract,
+    policy: TargetFrameBootstrap,
 ) -> Result<CompiledGraphImputationTransportDecision, GraphImputationTransportDecisionError> {
-    let source = GraphImputationSource::decode(producer.source_bytes()).map_err(GraphImputationTransportDecisionError::Invalid)?;
+    let source = GraphImputationSource::decode(producer.source_bytes())
+        .map_err(GraphImputationTransportDecisionError::Invalid)?;
     if source.program() != *producer.lowered().identity().as_bytes()
         || target.source_sample != producer.source_identity().to_hex()
     {
-        return Err(GraphImputationTransportDecisionError::Invalid("target source-sample identity differs from retained producer"));
+        return Err(GraphImputationTransportDecisionError::Invalid(
+            "target source-sample identity differs from retained producer",
+        ));
     }
     let lowered = lower_outer(&source, &target, &quantity, &decision, Some(policy), false, None)?;
-    let native_source = GraphImputationSource::new(
-        source.parts().clone(), *lowered.identity().as_bytes(),
-    ).map_err(GraphImputationTransportDecisionError::Invalid)?.encode();
+    let native_source =
+        GraphImputationSource::new(source.parts().clone(), *lowered.identity().as_bytes())
+            .map_err(GraphImputationTransportDecisionError::Invalid)?
+            .encode();
     Ok(CompiledGraphImputationTransportDecision {
-        producer, target, quantity, decision, native_source, lowered,
-        target_bootstrap: Some(policy), cluster_bootstrap: None, confounded: false,
+        producer,
+        target,
+        quantity,
+        decision,
+        native_source,
+        lowered,
+        target_bootstrap: Some(policy),
+        cluster_bootstrap: None,
+        confounded: false,
     })
 }
 
@@ -391,21 +516,35 @@ pub fn compile_graph_imputation_transport_target_bootstrap_decision(
 /// # Errors
 /// Invalid source identity, unsafe graph, target or decision.
 pub fn compile_graph_imputation_confounded_transport_decision(
-    producer: CompiledGraphImputation, target: TransportStandardization,
-    quantity: ScientificQuantity, decision: DecisionContract,
+    producer: CompiledGraphImputation,
+    target: TransportStandardization,
+    quantity: ScientificQuantity,
+    decision: DecisionContract,
 ) -> Result<CompiledGraphImputationTransportDecision, GraphImputationTransportDecisionError> {
     let source = GraphImputationSource::decode(producer.source_bytes())
         .map_err(GraphImputationTransportDecisionError::Invalid)?;
     if source.program() != *producer.lowered().identity().as_bytes()
-        || target.source_sample != producer.source_identity().to_hex() {
-        return Err(GraphImputationTransportDecisionError::Invalid("confounded source identity differs"));
+        || target.source_sample != producer.source_identity().to_hex()
+    {
+        return Err(GraphImputationTransportDecisionError::Invalid(
+            "confounded source identity differs",
+        ));
     }
     let lowered = lower_outer(&source, &target, &quantity, &decision, None, true, None)?;
-    let native_source = GraphImputationSource::new(source.parts().clone(), *lowered.identity().as_bytes())
-        .map_err(GraphImputationTransportDecisionError::Invalid)?.encode();
+    let native_source =
+        GraphImputationSource::new(source.parts().clone(), *lowered.identity().as_bytes())
+            .map_err(GraphImputationTransportDecisionError::Invalid)?
+            .encode();
     Ok(CompiledGraphImputationTransportDecision {
-        producer, target, quantity, decision, native_source, lowered,
-        target_bootstrap: None, cluster_bootstrap: None, confounded: true,
+        producer,
+        target,
+        quantity,
+        decision,
+        native_source,
+        lowered,
+        target_bootstrap: None,
+        cluster_bootstrap: None,
+        confounded: true,
     })
 }
 
@@ -417,21 +556,36 @@ pub fn compile_graph_imputation_confounded_transport_decision(
 /// # Errors
 /// Invalid source binding, unsafe graph, target, bootstrap policy or utility.
 pub fn compile_graph_imputation_confounded_transport_target_bootstrap_decision(
-    producer: CompiledGraphImputation, target: TransportStandardization,
-    quantity: ScientificQuantity, decision: DecisionContract, policy: TargetFrameBootstrap,
+    producer: CompiledGraphImputation,
+    target: TransportStandardization,
+    quantity: ScientificQuantity,
+    decision: DecisionContract,
+    policy: TargetFrameBootstrap,
 ) -> Result<CompiledGraphImputationTransportDecision, GraphImputationTransportDecisionError> {
     let source = GraphImputationSource::decode(producer.source_bytes())
         .map_err(GraphImputationTransportDecisionError::Invalid)?;
     if source.program() != *producer.lowered().identity().as_bytes()
-        || target.source_sample != producer.source_identity().to_hex() {
-        return Err(GraphImputationTransportDecisionError::Invalid("confounded source identity differs"));
+        || target.source_sample != producer.source_identity().to_hex()
+    {
+        return Err(GraphImputationTransportDecisionError::Invalid(
+            "confounded source identity differs",
+        ));
     }
     let lowered = lower_outer(&source, &target, &quantity, &decision, Some(policy), true, None)?;
-    let native_source = GraphImputationSource::new(source.parts().clone(), *lowered.identity().as_bytes())
-        .map_err(GraphImputationTransportDecisionError::Invalid)?.encode();
+    let native_source =
+        GraphImputationSource::new(source.parts().clone(), *lowered.identity().as_bytes())
+            .map_err(GraphImputationTransportDecisionError::Invalid)?
+            .encode();
     Ok(CompiledGraphImputationTransportDecision {
-        producer, target, quantity, decision, native_source, lowered,
-        target_bootstrap: Some(policy), cluster_bootstrap: None, confounded: true,
+        producer,
+        target,
+        quantity,
+        decision,
+        native_source,
+        lowered,
+        target_bootstrap: Some(policy),
+        cluster_bootstrap: None,
+        confounded: true,
     })
 }
 
@@ -442,20 +596,39 @@ pub fn compile_graph_imputation_confounded_transport_target_bootstrap_decision(
 /// # Errors
 /// Invalid producer, frame, cluster policy or decision.
 pub fn compile_graph_imputation_transport_cluster_bootstrap_decision(
-    producer: CompiledGraphImputation, target: TransportStandardization,
-    quantity: ScientificQuantity, decision: DecisionContract, policy: TargetClusterBootstrap,
+    producer: CompiledGraphImputation,
+    target: TransportStandardization,
+    quantity: ScientificQuantity,
+    decision: DecisionContract,
+    policy: TargetClusterBootstrap,
     confounded: bool,
 ) -> Result<CompiledGraphImputationTransportDecision, GraphImputationTransportDecisionError> {
-    let source = GraphImputationSource::decode(producer.source_bytes()).map_err(GraphImputationTransportDecisionError::Invalid)?;
+    let source = GraphImputationSource::decode(producer.source_bytes())
+        .map_err(GraphImputationTransportDecisionError::Invalid)?;
     if source.program() != *producer.lowered().identity().as_bytes()
-        || target.source_sample != producer.source_identity().to_hex() {
-        return Err(GraphImputationTransportDecisionError::Invalid("cluster target source identity differs"));
+        || target.source_sample != producer.source_identity().to_hex()
+    {
+        return Err(GraphImputationTransportDecisionError::Invalid(
+            "cluster target source identity differs",
+        ));
     }
-    let lowered = lower_outer(&source, &target, &quantity, &decision, None, confounded, Some(&policy))?;
-    let native_source = GraphImputationSource::new(source.parts().clone(), *lowered.identity().as_bytes())
-        .map_err(GraphImputationTransportDecisionError::Invalid)?.encode();
-    Ok(CompiledGraphImputationTransportDecision { producer, target, quantity, decision, native_source,
-        lowered, target_bootstrap: None, cluster_bootstrap: Some(policy), confounded })
+    let lowered =
+        lower_outer(&source, &target, &quantity, &decision, None, confounded, Some(&policy))?;
+    let native_source =
+        GraphImputationSource::new(source.parts().clone(), *lowered.identity().as_bytes())
+            .map_err(GraphImputationTransportDecisionError::Invalid)?
+            .encode();
+    Ok(CompiledGraphImputationTransportDecision {
+        producer,
+        target,
+        quantity,
+        decision,
+        native_source,
+        lowered,
+        target_bootstrap: None,
+        cluster_bootstrap: Some(policy),
+        confounded,
+    })
 }
 
 // SplitMix64 provides a stable, locally specified stream for portable replay.
@@ -472,7 +645,9 @@ pub(crate) fn bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
     let threshold = bound.wrapping_neg() % bound;
     loop {
         let word = bootstrap_word(state);
-        if word >= threshold { return (word % bound) as usize; }
+        if word >= threshold {
+            return (word % bound) as usize;
+        }
     }
 }
 
@@ -485,29 +660,38 @@ pub(crate) fn bootstrap_cluster_rows(state: &mut u64, groups: &[Vec<usize>]) -> 
 }
 
 pub(crate) fn effect_chain(
-    reading: &GraphPointReading, quantity: &ScientificQuantity,
+    reading: &GraphPointReading,
+    quantity: &ScientificQuantity,
 ) -> PropagationChainRecordWire {
     let receipt = SemanticDigest::from_bytes(reading.receipt).to_hex();
     let source = ChainSourceWire::draws(
-        "transport.effect.posterior", LawMeaning::Posterior,
-        &format!("graph_imputation_transport:{receipt}"), &reading.draws,
-    ).with_factor(SharedFactorKind::Model, &receipt);
+        "transport.effect.posterior",
+        LawMeaning::Posterior,
+        &format!("graph_imputation_transport:{receipt}"),
+        &reading.draws,
+    )
+    .with_factor(SharedFactorKind::Model, &receipt);
     PropagationChainRecordWire::draft(
-        TableConstruction::JointDraws, ChainReading::Posterior,
-        "transport.effect", vec![source], vec![ChainStageWire::new(
-            "transport.effect", StageKind::DerivedQuantity,
+        TableConstruction::JointDraws,
+        ChainReading::Posterior,
+        "transport.effect",
+        vec![source],
+        vec![ChainStageWire::new(
+            "transport.effect",
+            StageKind::DerivedQuantity,
             &["transport.effect.posterior"],
-            ChainOpWire::affine(
-                ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0),
-            ),
+            ChainOpWire::affine(ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0)),
         )],
-    ).with_output_quantity(ScientificQuantityWire::from(quantity))
+    )
+    .with_output_quantity(ScientificQuantityWire::from(quantity))
 }
 
 impl CompiledGraphImputationTransportDecision {
     /// Inspect the complete six-layer schedule before executing it.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the retained plan without fitting.
     #[must_use]
@@ -521,94 +705,153 @@ impl CompiledGraphImputationTransportDecision {
     /// # Errors
     /// Source, target, fit or decision refusal.
     pub fn execute(
-        &self, ctx: &ExecutionContext,
+        &self,
+        ctx: &ExecutionContext,
     ) -> Result<GraphImputationTransportDecisionResult, GraphImputationTransportDecisionError> {
         let source = GraphImputationSource::decode(&self.native_source)
             .map_err(GraphImputationTransportDecisionError::Invalid)?;
         if source.program() != *self.lowered.identity().as_bytes()
             || self.target.source_sample != self.producer.source_identity().to_hex()
         {
-            return Err(GraphImputationTransportDecisionError::Invalid("retained native source changed"));
+            return Err(GraphImputationTransportDecisionError::Invalid(
+                "retained native source changed",
+            ));
         }
         let mut reading = if self.confounded {
             replay_confounded_transport_point(&self.native_source, &self.target, ctx)?
-        } else { replay_transport_point(&self.native_source, &self.target, ctx)? };
-        let cluster_groups = self.cluster_bootstrap.as_ref().map(|policy| policy.groups(self.target.rows())).transpose()?;
-        let effective_bootstrap = self.target_bootstrap.or_else(|| self.cluster_bootstrap.as_ref().map(|policy|
-            TargetFrameBootstrap { replicates: policy.replicates, seed: policy.seed }));
+        } else {
+            replay_transport_point(&self.native_source, &self.target, ctx)?
+        };
+        let cluster_groups = self
+            .cluster_bootstrap
+            .as_ref()
+            .map(|policy| policy.groups(self.target.rows()))
+            .transpose()?;
+        let effective_bootstrap = self.target_bootstrap.or_else(|| {
+            self.cluster_bootstrap.as_ref().map(|policy| TargetFrameBootstrap {
+                replicates: policy.replicates,
+                seed: policy.seed,
+            })
+        });
         if let Some(policy) = effective_bootstrap {
             // Account for the sampled column copy, row indices and pooled draws;
             // each nested replay separately admits its own fitting workspace.
-            let max_rows = cluster_groups.as_ref().map_or(self.target.rows(), |groups|
-                groups.len() * groups.iter().map(Vec::len).max().unwrap_or(0));
+            let max_rows = cluster_groups.as_ref().map_or(self.target.rows(), |groups| {
+                groups.len() * groups.iter().map(Vec::len).max().unwrap_or(0)
+            });
             let bootstrap_bytes = (max_rows as u64)
                 .saturating_mul((self.target.columns.len() as u64).saturating_mul(2) + 1)
                 .saturating_mul(8)
-                .saturating_add(self.target.source_unit_ids.iter()
-                    .chain(&self.target.target_unit_ids)
-                    .map(|id| (id.len() as u64).saturating_add(24))
-                    .fold(0_u64, u64::saturating_add))
+                .saturating_add(
+                    self.target
+                        .source_unit_ids
+                        .iter()
+                        .chain(&self.target.target_unit_ids)
+                        .map(|id| (id.len() as u64).saturating_add(24))
+                        .fold(0_u64, u64::saturating_add),
+                )
                 .saturating_add(u64::from(policy.replicates).saturating_mul(8))
-                .saturating_add(if cluster_groups.is_some() { (max_rows as u64).saturating_mul(128) } else { 0 });
-            let _bootstrap_lease = ctx.acquire_admission(0, bootstrap_bytes)
-                .map_err(|_| GraphImputationTransportDecisionError::Invalid("target bootstrap admission refused"))?;
+                .saturating_add(if cluster_groups.is_some() {
+                    (max_rows as u64).saturating_mul(128)
+                } else {
+                    0
+                });
+            let _bootstrap_lease = ctx.acquire_admission(0, bootstrap_bytes).map_err(|_| {
+                GraphImputationTransportDecisionError::Invalid("target bootstrap admission refused")
+            })?;
             let mut state = policy.seed;
             // Domain-separated stream selects uniformly across all imputation/graph draws.
-            let mut draw_state = antecedent_core::execution::mix64(policy.seed ^ 0x4452_4157_5f56_3201);
+            let mut draw_state =
+                antecedent_core::execution::mix64(policy.seed ^ 0x4452_4157_5f56_3201);
             let rows = self.target.rows();
             let mut draws = Vec::with_capacity(policy.replicates as usize);
             let mut receipt = CanonicalWriter::new(if cluster_groups.is_some() {
                 "antecedent.graph_imputation_transport.target_cluster_bootstrap.execution.v1"
             } else if self.confounded {
                 "antecedent.graph_imputation_confounded_transport.target_bootstrap.execution.v2"
-            } else { "antecedent.graph_imputation_transport.target_bootstrap.execution.v2" });
-            receipt.bytes(self.lowered.identity().as_bytes())
-                .bytes(&self.target.digest()?).word(u64::from(policy.replicates)).word(policy.seed);
+            } else {
+                "antecedent.graph_imputation_transport.target_bootstrap.execution.v2"
+            });
+            receipt
+                .bytes(self.lowered.identity().as_bytes())
+                .bytes(&self.target.digest()?)
+                .word(u64::from(policy.replicates))
+                .word(policy.seed);
             for replicate in 0..policy.replicates {
                 if ctx.cancellation.is_cancelled() {
-                    return Err(GraphImputationTransportDecisionError::Invalid("target bootstrap execution cancelled"));
+                    return Err(GraphImputationTransportDecisionError::Invalid(
+                        "target bootstrap execution cancelled",
+                    ));
                 }
                 let mut sampled = self.target.clone();
                 let indices: Vec<usize> = if let Some(groups) = &cluster_groups {
                     bootstrap_cluster_rows(&mut state, groups)
-                } else { (0..rows).map(|_| {
-                    // Rejection avoids modulo bias for arbitrary frame sizes.
-                    let bound = rows as u64;
-                    let threshold = bound.wrapping_neg() % bound;
-                    loop {
-                        let word = bootstrap_word(&mut state);
-                        if word >= threshold { break (word % bound) as usize; }
-                    }
-                }).collect() };
-                for ((_, values), (_, original)) in sampled.columns.iter_mut().zip(&self.target.columns) {
+                } else {
+                    (0..rows)
+                        .map(|_| {
+                            // Rejection avoids modulo bias for arbitrary frame sizes.
+                            let bound = rows as u64;
+                            let threshold = bound.wrapping_neg() % bound;
+                            loop {
+                                let word = bootstrap_word(&mut state);
+                                if word >= threshold {
+                                    break (word % bound) as usize;
+                                }
+                            }
+                        })
+                        .collect()
+                };
+                for ((_, values), (_, original)) in
+                    sampled.columns.iter_mut().zip(&self.target.columns)
+                {
                     *values = indices.iter().map(|&index| original[index]).collect();
                 }
                 // Cluster resampling can change row count. Give each slot a
                 // distinct deterministic identity, disjoint from source units.
                 if cluster_groups.is_some() {
-                    let source_ids: std::collections::BTreeSet<&str> = sampled.source_unit_ids.iter().map(String::as_str).collect();
+                    let source_ids: std::collections::BTreeSet<&str> =
+                        sampled.source_unit_ids.iter().map(String::as_str).collect();
                     let mut nonce = 0_u64;
                     let prefix = loop {
                         let candidate = format!("bootstrap-slot:{nonce}:");
-                        if !source_ids.iter().any(|id| id.starts_with(&candidate)) { break candidate; }
-                        nonce = nonce.checked_add(1).ok_or_else(|| GraphImputationTransportDecisionError::Invalid("bootstrap slot identity overflow"))?;
+                        if !source_ids.iter().any(|id| id.starts_with(&candidate)) {
+                            break candidate;
+                        }
+                        nonce = nonce.checked_add(1).ok_or_else(|| {
+                            GraphImputationTransportDecisionError::Invalid(
+                                "bootstrap slot identity overflow",
+                            )
+                        })?;
                     };
-                    sampled.target_unit_ids = (0..indices.len()).map(|row| format!("{prefix}{row}")).collect();
+                    sampled.target_unit_ids =
+                        (0..indices.len()).map(|row| format!("{prefix}{row}")).collect();
                 }
                 let run = if self.confounded {
                     replay_confounded_transport_point(&self.native_source, &sampled, ctx)?
-                } else { replay_transport_point(&self.native_source, &sampled, ctx)? };
-                if run.draws.is_empty() { return Err(GraphImputationTransportDecisionError::Invalid("target bootstrap has no posterior draws")); }
+                } else {
+                    replay_transport_point(&self.native_source, &sampled, ctx)?
+                };
+                if run.draws.is_empty() {
+                    return Err(GraphImputationTransportDecisionError::Invalid(
+                        "target bootstrap has no posterior draws",
+                    ));
+                }
                 let draw_index = bootstrap_pool_index(&mut draw_state, run.draws.len());
                 let draw = run.draws[draw_index];
                 receipt.word(u64::from(replicate));
-                for index in indices { receipt.word(index as u64); }
+                for index in indices {
+                    receipt.word(index as u64);
+                }
                 receipt.bytes(&run.receipt).word(draw_index as u64).word(draw.to_bits());
                 if cluster_groups.is_some() {
                     let replicate_decision = compile_chain_decision(
-                        effect_chain(&run, &self.quantity), self.decision.clone(), ctx,
-                    )?.execute(ctx)?;
-                    receipt.bytes(replicate_decision.chain.identity().as_bytes())
+                        effect_chain(&run, &self.quantity),
+                        self.decision.clone(),
+                        ctx,
+                    )?
+                    .execute(ctx)?;
+                    receipt
+                        .bytes(replicate_decision.chain.identity().as_bytes())
                         .bytes(replicate_decision.lowered_program_identity.as_bytes());
                 }
                 draws.push(draw);
@@ -624,13 +867,19 @@ impl CompiledGraphImputationTransportDecision {
         if reading.program != *self.lowered.identity().as_bytes()
             || reading.source != *self.producer.source_identity().as_bytes()
         {
-            return Err(GraphImputationTransportDecisionError::Invalid("native replay belongs to another source or program"));
+            return Err(GraphImputationTransportDecisionError::Invalid(
+                "native replay belongs to another source or program",
+            ));
         }
         let decision = compile_chain_decision(
-            effect_chain(&reading, &self.quantity), self.decision.clone(), ctx,
-        )?.execute(ctx)?;
+            effect_chain(&reading, &self.quantity),
+            self.decision.clone(),
+            ctx,
+        )?
+        .execute(ctx)?;
         Ok(GraphImputationTransportDecisionResult {
-            producer: reading, decision,
+            producer: reading,
+            decision,
             lowered_program_identity: self.lowered.identity(),
             calibration: "not_measured",
         })
@@ -643,64 +892,116 @@ impl CompiledGraphImputationTransportDecision {
     /// # Errors
     /// Any execution refusal or an invalid final draw table.
     pub fn calibration_candidate(
-        &self, ctx: &ExecutionContext,
-    ) -> Result<GraphImputationTransportCalibrationCandidate, GraphImputationTransportDecisionError> {
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<GraphImputationTransportCalibrationCandidate, GraphImputationTransportDecisionError>
+    {
         let result = self.execute(ctx)?;
         let mut ordered = result.producer.draws.clone();
         if ordered.len() < 40 || ordered.iter().any(|value| !value.is_finite()) {
-            return Err(GraphImputationTransportDecisionError::Invalid("target effect interval needs finite posterior draws"));
+            return Err(GraphImputationTransportDecisionError::Invalid(
+                "target effect interval needs finite posterior draws",
+            ));
         }
         ordered.sort_by(f64::total_cmp);
-        let rank = |numerator: usize| {
-            (ordered.len() * numerator).div_ceil(1000).saturating_sub(1)
-        };
+        let rank = |numerator: usize| (ordered.len() * numerator).div_ceil(1000).saturating_sub(1);
         let interval = (ordered[rank(25)], ordered[rank(975)]);
         let source = GraphImputationSource::decode(&self.native_source)
             .map_err(GraphImputationTransportDecisionError::Invalid)?;
         let parts = source.parts();
         let mut functional = format!(
             "target_average_effect:graph_support={}:graphs={}:variables={}:domains={}:selected={:?}:m={}:sweeps={}:draws={}:prior_bits={:016x}:target_columns={}",
-            parts.support.as_str(), parts.atoms.len(), parts.names.len(),
+            parts.support.as_str(),
+            parts.atoms.len(),
+            parts.names.len(),
             parts.domains.iter().map(u8::to_string).collect::<String>(),
-            self.target.selection_targets, parts.imputations, parts.iterations,
-            parts.posterior_draws, parts.prior_scale.to_bits(), self.target.columns.len(),
+            self.target.selection_targets,
+            parts.imputations,
+            parts.iterations,
+            parts.posterior_draws,
+            parts.prior_scale.to_bits(),
+            self.target.columns.len(),
         );
         let (feature, model, draws) = if let Some(bootstrap) = &self.cluster_bootstrap {
-            let mut sizes: Vec<_> = bootstrap.groups(self.target.rows())?.iter().map(Vec::len).collect();
+            let mut sizes: Vec<_> =
+                bootstrap.groups(self.target.rows())?.iter().map(Vec::len).collect();
             sizes.sort_unstable();
-            functional.push_str(&format!(":source_n={}:target_n={}:target_bootstrap=independent_clusters:replicates={}",
-                parts.rows(), self.target.rows(), bootstrap.replicates));
+            functional.push_str(&format!(
+                ":source_n={}:target_n={}:target_bootstrap=independent_clusters:replicates={}",
+                parts.rows(),
+                self.target.rows(),
+                bootstrap.replicates
+            ));
             functional.push_str(&format!(":cluster_sizes={sizes:?}"));
-            (if self.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE },
-                "mar_graph_mixture_binary_target_cluster_bootstrap_v1", bootstrap.replicates)
+            (
+                if self.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE },
+                "mar_graph_mixture_binary_target_cluster_bootstrap_v1",
+                bootstrap.replicates,
+            )
         } else if let Some(bootstrap) = self.target_bootstrap {
             functional.push_str(&format!(
                 ":source_n={}:target_n={}:target_bootstrap=iid_rows_unbiased_pool_v2:replicates={}:seed={}",
                 parts.rows(), self.target.rows(), bootstrap.replicates, bootstrap.seed,
             ));
-            (if self.confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE },
-                if self.confounded { "mar_confounded_graph_mixture_binary_target_iid_bootstrap_v1" }
-                else { "mar_graph_mixture_binary_target_iid_bootstrap_v1" }, bootstrap.replicates)
+            (
+                if self.confounded { CONFOUNDED_BOOTSTRAP_FEATURE } else { BOOTSTRAP_FEATURE },
+                if self.confounded {
+                    "mar_confounded_graph_mixture_binary_target_iid_bootstrap_v1"
+                } else {
+                    "mar_graph_mixture_binary_target_iid_bootstrap_v1"
+                },
+                bootstrap.replicates,
+            )
         } else if self.confounded {
-            functional.push_str(&format!(":source_n={}:target_n={}:s_admissibility=v2", parts.rows(), self.target.rows()));
-            (CONFOUNDED_FEATURE, "mar_graph_mixture_confounded_target_standardization_v2",
-                parts.posterior_draws.saturating_mul(parts.imputations))
+            functional.push_str(&format!(
+                ":source_n={}:target_n={}:s_admissibility=v2",
+                parts.rows(),
+                self.target.rows()
+            ));
+            (
+                CONFOUNDED_FEATURE,
+                "mar_graph_mixture_confounded_target_standardization_v2",
+                parts.posterior_draws.saturating_mul(parts.imputations),
+            )
         } else {
-            functional.push_str(&format!(":source_n={}:target_n={}:s_admissibility=v2", parts.rows(), self.target.rows()));
-            (FEATURE, "mar_graph_mixture_target_standardization_v2",
-                parts.posterior_draws.saturating_mul(parts.imputations))
+            functional.push_str(&format!(
+                ":source_n={}:target_n={}:s_admissibility=v2",
+                parts.rows(),
+                self.target.rows()
+            ));
+            (
+                FEATURE,
+                "mar_graph_mixture_target_standardization_v2",
+                parts.posterior_draws.saturating_mul(parts.imputations),
+            )
         };
         let basis = CalibrationBasis::new(
             [
-                "AverageEffect", "Dag", "graph_posterior", "multi_env", "Bayesian",
-                feature, "nearest_rank_95", "",
-                if self.cluster_bootstrap.is_some() { "independent_source_units_and_target_clusters" }
-                    else { "independent_source_target_units" }, model, &functional,
-            ].map(Arc::from),
-            0.95, Arc::from("model_conditional"),
+                "AverageEffect",
+                "Dag",
+                "graph_posterior",
+                "multi_env",
+                "Bayesian",
+                feature,
+                "nearest_rank_95",
+                "",
+                if self.cluster_bootstrap.is_some() {
+                    "independent_source_units_and_target_clusters"
+                } else {
+                    "independent_source_target_units"
+                },
+                model,
+                &functional,
+            ]
+            .map(Arc::from),
+            0.95,
+            Arc::from("model_conditional"),
             (parts.rows() as u64).saturating_add(self.target.rows() as u64),
-            None, Some(draws), 0.0,
-        ).with_validation("none");
+            None,
+            Some(draws),
+            0.0,
+        )
+        .with_validation("none");
         Ok(GraphImputationTransportCalibrationCandidate { result, interval, basis })
     }
 
@@ -710,8 +1011,10 @@ impl CompiledGraphImputationTransportDecision {
     /// # Errors
     /// A changed receipt, utility or artifact encoding.
     pub fn export(
-        &self, result: &GraphImputationTransportDecisionResult,
-        artifact_id: &str, ctx: &ExecutionContext,
+        &self,
+        result: &GraphImputationTransportDecisionResult,
+        artifact_id: &str,
+        ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, GraphImputationTransportDecisionError> {
         let live = self.execute(ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
@@ -721,18 +1024,30 @@ impl CompiledGraphImputationTransportDecision {
             || result.decision.decision != live.decision.decision
             || result.decision.chain.identity() != live.decision.chain.identity()
         {
-            return Err(GraphImputationTransportDecisionError::Invalid("transport decision changed on replay"));
+            return Err(GraphImputationTransportDecisionError::Invalid(
+                "transport decision changed on replay",
+            ));
         }
         let contract = DecisionContractArtifact::new(self.decision.clone())?;
         let chain = compile_chain_decision(
-            effect_chain(&live.producer, &self.quantity), self.decision.clone(), ctx,
+            effect_chain(&live.producer, &self.quantity),
+            self.decision.clone(),
+            ctx,
         )?;
         let wire = GraphImputationTransportDecisionWire {
-            version: 1, required_feature: if self.cluster_bootstrap.is_some() { if self.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE } }
-            else if self.confounded && self.target_bootstrap.is_some() {
+            version: 1,
+            required_feature: if self.cluster_bootstrap.is_some() {
+                if self.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE }
+            } else if self.confounded && self.target_bootstrap.is_some() {
                 CONFOUNDED_BOOTSTRAP_FEATURE
-            } else if self.confounded { CONFOUNDED_FEATURE }
-                else if self.target_bootstrap.is_some() { BOOTSTRAP_FEATURE } else { FEATURE }.into(),
+            } else if self.confounded {
+                CONFOUNDED_FEATURE
+            } else if self.target_bootstrap.is_some() {
+                BOOTSTRAP_FEATURE
+            } else {
+                FEATURE
+            }
+            .into(),
             original_source: self.producer.source_bytes().to_vec(),
             target: self.target.clone(),
             quantity: ScientificQuantityWire::from(&self.quantity),
@@ -743,11 +1058,14 @@ impl CompiledGraphImputationTransportDecision {
             program_identity: *self.lowered.identity().as_bytes(),
             calibration: "not_measured".into(),
             target_bootstrap: self.target_bootstrap,
-            confounded: self.confounded, cluster_bootstrap: self.cluster_bootstrap.clone(),
+            confounded: self.confounded,
+            cluster_bootstrap: self.cluster_bootstrap.clone(),
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
-            return Err(GraphImputationTransportDecisionError::Invalid("combined artifact exceeds its byte bound"));
+            return Err(GraphImputationTransportDecisionError::Invalid(
+                "combined artifact exceeds its byte bound",
+            ));
         }
         Ok(bytes)
     }
@@ -760,73 +1078,117 @@ impl CompiledGraphImputationTransportDecision {
 /// # Errors
 /// Foreign feature or changed source, target, receipt or final decision.
 pub fn consume_graph_imputation_transport_decision(
-    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<GraphImputationTransportDecisionResult, GraphImputationTransportDecisionError> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
-        return Err(GraphImputationTransportDecisionError::Invalid("combined artifact exceeds its byte bound"));
+        return Err(GraphImputationTransportDecisionError::Invalid(
+            "combined artifact exceeds its byte bound",
+        ));
     }
     let wire: GraphImputationTransportDecisionWire = antecedent_io::from_cbor(bytes)?;
     if wire.cluster_bootstrap.is_some() && wire.target_bootstrap.is_some() {
-        return Err(GraphImputationTransportDecisionError::Invalid("stored bootstrap policies conflict"));
+        return Err(GraphImputationTransportDecisionError::Invalid(
+            "stored bootstrap policies conflict",
+        ));
     }
-    let expected_feature = if wire.cluster_bootstrap.is_some() { if wire.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE } }
-    else if wire.confounded && wire.target_bootstrap.is_some() {
+    let expected_feature = if wire.cluster_bootstrap.is_some() {
+        if wire.confounded { CONFOUNDED_CLUSTER_FEATURE } else { CLUSTER_FEATURE }
+    } else if wire.confounded && wire.target_bootstrap.is_some() {
         CONFOUNDED_BOOTSTRAP_FEATURE
-    } else if wire.confounded { CONFOUNDED_FEATURE }
-        else if wire.target_bootstrap.is_some() { BOOTSTRAP_FEATURE } else { FEATURE };
-    if wire.version != 1 || wire.required_feature != expected_feature
+    } else if wire.confounded {
+        CONFOUNDED_FEATURE
+    } else if wire.target_bootstrap.is_some() {
+        BOOTSTRAP_FEATURE
+    } else {
+        FEATURE
+    };
+    if wire.version != 1
+        || wire.required_feature != expected_feature
         || wire.program_identity != *expected_program.as_bytes()
         || wire.calibration != "not_measured"
     {
-        return Err(GraphImputationTransportDecisionError::Invalid("combined feature or identity differs"));
+        return Err(GraphImputationTransportDecisionError::Invalid(
+            "combined feature or identity differs",
+        ));
     }
     let original = GraphImputationSource::decode(&wire.original_source)
         .map_err(GraphImputationTransportDecisionError::Invalid)?;
     let parts = original.parts();
     let table = TabularData::from_f64_columns(
-        parts.names.iter().zip(&parts.columns)
+        parts
+            .names
+            .iter()
+            .zip(&parts.columns)
             .map(|(name, column)| (name.as_str(), column.as_slice())),
-    ).map_err(|_| GraphImputationTransportDecisionError::Invalid("stored source table is invalid"))?;
+    )
+    .map_err(|_| {
+        GraphImputationTransportDecisionError::Invalid("stored source table is invalid")
+    })?;
     let spec = GraphImputationSpec {
         treatment: VariableId::from_raw(parts.treatment),
-        outcome: VariableId::from_raw(parts.outcome), support: parts.support,
+        outcome: VariableId::from_raw(parts.outcome),
+        support: parts.support,
         imputation: ImputationSpec::new()
-            .with_imputations(parts.imputations).with_iterations(parts.iterations)
+            .with_imputations(parts.imputations)
+            .with_iterations(parts.iterations)
             .with_seed(parts.imputation_seed),
         domains: Arc::from(parts.domains.clone()),
-        posterior_draws: parts.posterior_draws, prior_scale: parts.prior_scale,
+        posterior_draws: parts.posterior_draws,
+        prior_scale: parts.prior_scale,
         execution_seed: parts.execution_seed,
     };
     let producer = CompiledGraphImputation::compile(table, &spec, ctx)?;
     if producer.source_bytes() != wire.original_source.as_slice()
         || original.program() != *producer.lowered().identity().as_bytes()
     {
-        return Err(GraphImputationTransportDecisionError::Invalid("original source compiler changed"));
+        return Err(GraphImputationTransportDecisionError::Invalid(
+            "original source compiler changed",
+        ));
     }
-    let quantity: ScientificQuantity = wire.quantity.try_into()
-        .map_err(GraphImputationTransportDecisionError::Invalid)?;
-    let contract = DecisionContractArtifact::from_bytes(
-        &wire.decision_artifact, &wire.decision_identity,
-    )?;
+    let quantity: ScientificQuantity =
+        wire.quantity.try_into().map_err(GraphImputationTransportDecisionError::Invalid)?;
+    let contract =
+        DecisionContractArtifact::from_bytes(&wire.decision_artifact, &wire.decision_identity)?;
     let plan = if let Some(policy) = wire.cluster_bootstrap {
         compile_graph_imputation_transport_cluster_bootstrap_decision(
-            producer, wire.target, quantity, contract.contract().clone(), policy, wire.confounded,
+            producer,
+            wire.target,
+            quantity,
+            contract.contract().clone(),
+            policy,
+            wire.confounded,
         )?
     } else if let (true, Some(policy)) = (wire.confounded, wire.target_bootstrap) {
         compile_graph_imputation_confounded_transport_target_bootstrap_decision(
-            producer, wire.target, quantity, contract.contract().clone(), policy,
+            producer,
+            wire.target,
+            quantity,
+            contract.contract().clone(),
+            policy,
         )?
     } else if wire.confounded {
         compile_graph_imputation_confounded_transport_decision(
-            producer, wire.target, quantity, contract.contract().clone(),
+            producer,
+            wire.target,
+            quantity,
+            contract.contract().clone(),
         )?
     } else if let Some(policy) = wire.target_bootstrap {
         compile_graph_imputation_transport_target_bootstrap_decision(
-            producer, wire.target, quantity, contract.contract().clone(), policy,
+            producer,
+            wire.target,
+            quantity,
+            contract.contract().clone(),
+            policy,
         )?
     } else {
         compile_graph_imputation_transport_decision(
-            producer, wire.target, quantity, contract.contract().clone(),
+            producer,
+            wire.target,
+            quantity,
+            contract.contract().clone(),
         )?
     };
     if plan.lowered.identity() != expected_program {
@@ -834,15 +1196,21 @@ pub fn consume_graph_imputation_transport_decision(
     }
     let live = plan.execute(ctx)?;
     if live.producer.receipt != wire.producer_receipt {
-        return Err(GraphImputationTransportDecisionError::Invalid("target-standardized producer changed"));
+        return Err(GraphImputationTransportDecisionError::Invalid(
+            "target-standardized producer changed",
+        ));
     }
     let replay = consume_chain_decision(
-        &wire.chain_artifact, Some(live.decision.lowered_program_identity), ctx,
+        &wire.chain_artifact,
+        Some(live.decision.lowered_program_identity),
+        ctx,
     )?;
     if replay.chain.identity() != live.decision.chain.identity()
         || replay.decision != live.decision.decision
     {
-        return Err(GraphImputationTransportDecisionError::Invalid("effect utility changed on replay"));
+        return Err(GraphImputationTransportDecisionError::Invalid(
+            "effect utility changed on replay",
+        ));
     }
     Ok(live)
 }
@@ -853,16 +1221,29 @@ mod tests {
 
     #[test]
     fn cluster_bootstrap_keeps_whole_clusters_and_is_reproducible() {
-        let policy = TargetClusterBootstrap { replicates: 40, seed: 19,
-            cluster_ids: vec!["a".into(), "b".into(), "a".into(), "b".into(), "c".into()] };
+        let policy = TargetClusterBootstrap {
+            replicates: 40,
+            seed: 19,
+            cluster_ids: vec!["a".into(), "b".into(), "a".into(), "b".into(), "c".into()],
+        };
         let groups = policy.groups(5).unwrap();
         let mut first = policy.seed;
         let mut second = policy.seed;
         let rows = bootstrap_cluster_rows(&mut first, &groups);
         assert_eq!(rows, bootstrap_cluster_rows(&mut second, &groups));
-        assert_eq!(rows.iter().filter(|&&row| row == 0).count(), rows.iter().filter(|&&row| row == 2).count());
-        assert_eq!(rows.iter().filter(|&&row| row == 1).count(), rows.iter().filter(|&&row| row == 3).count());
-        assert!(TargetClusterBootstrap { cluster_ids: vec!["same".into(); 5], ..policy }.groups(5).is_err());
+        assert_eq!(
+            rows.iter().filter(|&&row| row == 0).count(),
+            rows.iter().filter(|&&row| row == 2).count()
+        );
+        assert_eq!(
+            rows.iter().filter(|&&row| row == 1).count(),
+            rows.iter().filter(|&&row| row == 3).count()
+        );
+        assert!(
+            TargetClusterBootstrap { cluster_ids: vec!["same".into(); 5], ..policy }
+                .groups(5)
+                .is_err()
+        );
     }
 
     #[test]
@@ -890,28 +1271,44 @@ mod tests {
             let x = f64::from(u8::from(row % 2 == 0));
             let a = f64::from(u8::from(row % 4 == 0 || row % 4 == 3));
             treatment.push(a);
-            outcome.push(if row % 13 == 0 { f64::NAN }
-                else { 0.2 * x + a * (0.5 + 0.5 * x) + 0.1 * (row % 5) as f64 });
+            outcome.push(if row % 13 == 0 {
+                f64::NAN
+            } else {
+                0.2 * x + a * (0.5 + 0.5 * x) + 0.1 * (row % 5) as f64
+            });
             covariate.push(x);
         }
         let table = TabularData::from_f64_columns([
-            ("t", treatment.as_slice()), ("y", outcome.as_slice()),
+            ("t", treatment.as_slice()),
+            ("y", outcome.as_slice()),
             ("x", covariate.as_slice()),
-        ]).unwrap();
+        ])
+        .unwrap();
         let ctx = ExecutionContext::for_tests(19);
-        let producer = CompiledGraphImputation::compile(table, &GraphImputationSpec {
-            treatment: VariableId::from_raw(0), outcome: VariableId::from_raw(1),
-            support: GraphSupport::TreatmentRootPreTreatmentCovariates,
-            imputation: ImputationSpec::new().with_imputations(2)
-                .with_iterations(2).with_seed(17),
-            domains: Arc::<[u8]>::from(vec![1, 0, 1]), posterior_draws: 100,
-            prior_scale: 1.0, execution_seed: 19,
-        }, &ctx).unwrap();
+        let producer = CompiledGraphImputation::compile(
+            table,
+            &GraphImputationSpec {
+                treatment: VariableId::from_raw(0),
+                outcome: VariableId::from_raw(1),
+                support: GraphSupport::TreatmentRootPreTreatmentCovariates,
+                imputation: ImputationSpec::new()
+                    .with_imputations(2)
+                    .with_iterations(2)
+                    .with_seed(17),
+                domains: Arc::<[u8]>::from(vec![1, 0, 1]),
+                posterior_draws: 100,
+                prior_scale: 1.0,
+                execution_seed: 19,
+            },
+            &ctx,
+        )
+        .unwrap();
         let source_effect = producer.execute(&ctx).unwrap().mean;
         let target = TransportStandardization {
             columns: vec![(2, (0..80).map(|row| f64::from(u8::from(row % 5 != 0))).collect())],
             selection_targets: vec![2],
-            source_population: "source".into(), target_population: "target".into(),
+            source_population: "source".into(),
+            target_population: "target".into(),
             source_sample: producer.source_identity().to_hex(),
             target_sample: "independent-target-sample".into(),
             source_unit_ids: (0..80).map(|row| format!("source-{row}")).collect(),
@@ -922,199 +1319,366 @@ mod tests {
         overlapping.target_unit_ids[0] = overlapping.source_unit_ids[0].clone();
         assert!(overlapping.validate(original.parts()).is_err());
         let quantity = ScientificQuantity {
-            variable_id: "y".into(), variable_name: "target effect".into(),
-            role: QuantityRole::Outcome, units: "score".into(),
+            variable_id: "y".into(),
+            variable_name: "target effect".into(),
+            role: QuantityRole::Outcome,
+            units: "score".into(),
             population_id: "target".into(),
-            regime_id: "do(t=1)-do(t=0)".into(), horizon: 0,
-            functional_id: "average_effect".into(), conditioning: Vec::new(),
+            regime_id: "do(t=1)-do(t=0)".into(),
+            horizon: 0,
+            functional_id: "average_effect".into(),
+            conditioning: Vec::new(),
             transform_id: "identity".into(),
         };
         let decision = DecisionContract {
             actions: vec![
                 DecisionAction {
-                    id: "treat".into(), kind: ActionKind::External,
+                    id: "treat".into(),
+                    kind: ActionKind::External,
                     inputs: vec![quantity.clone()],
                     utility: UtilityExpr::difference(
-                        UtilityExpr::Input(0), UtilityExpr::Const(0.2)),
+                        UtilityExpr::Input(0),
+                        UtilityExpr::Const(0.2),
+                    ),
                 },
                 DecisionAction {
-                    id: "hold".into(), kind: ActionKind::External,
-                    inputs: vec![quantity.clone()], utility: UtilityExpr::Const(0.0),
+                    id: "hold".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::Const(0.0),
                 },
             ],
             utility_units: "score".into(),
             criterion: DecisionCriterion::PosteriorExpectedUtility,
-            constraints: Vec::new(), target_population: "target".into(), horizon: 0,
+            constraints: Vec::new(),
+            target_population: "target".into(),
+            horizon: 0,
             structural_policy: StructuralPolicy::RequireInvariantBestAction,
         };
         let parts = original.parts();
         let bootstrap_table = TabularData::from_f64_columns(
-            parts.names.iter().zip(&parts.columns)
+            parts
+                .names
+                .iter()
+                .zip(&parts.columns)
                 .map(|(name, column)| (name.as_str(), column.as_slice())),
-        ).unwrap();
+        )
+        .unwrap();
         let bootstrap_producer = CompiledGraphImputation::compile(
-            bootstrap_table, &GraphImputationSpec {
+            bootstrap_table,
+            &GraphImputationSpec {
                 treatment: VariableId::from_raw(parts.treatment),
-                outcome: VariableId::from_raw(parts.outcome), support: parts.support,
-                imputation: ImputationSpec::new().with_imputations(parts.imputations)
-                    .with_iterations(parts.iterations).with_seed(parts.imputation_seed),
-                domains: Arc::from(parts.domains.clone()), posterior_draws: parts.posterior_draws,
-                prior_scale: parts.prior_scale, execution_seed: parts.execution_seed,
-            }, &ctx,
-        ).unwrap();
+                outcome: VariableId::from_raw(parts.outcome),
+                support: parts.support,
+                imputation: ImputationSpec::new()
+                    .with_imputations(parts.imputations)
+                    .with_iterations(parts.iterations)
+                    .with_seed(parts.imputation_seed),
+                domains: Arc::from(parts.domains.clone()),
+                posterior_draws: parts.posterior_draws,
+                prior_scale: parts.prior_scale,
+                execution_seed: parts.execution_seed,
+            },
+            &ctx,
+        )
+        .unwrap();
         let bootstrap = compile_graph_imputation_transport_target_bootstrap_decision(
-            bootstrap_producer, target.clone(), quantity.clone(), decision.clone(),
+            bootstrap_producer,
+            target.clone(),
+            quantity.clone(),
+            decision.clone(),
             TargetFrameBootstrap { replicates: 40, seed: 7 },
-        ).unwrap();
+        )
+        .unwrap();
         let cluster_table = TabularData::from_f64_columns(
-            parts.names.iter().zip(&parts.columns).map(|(name, column)| (name.as_str(), column.as_slice())),
-        ).unwrap();
-        let cluster_producer = CompiledGraphImputation::compile(cluster_table, &GraphImputationSpec {
-            treatment: VariableId::from_raw(parts.treatment), outcome: VariableId::from_raw(parts.outcome),
-            support: parts.support, imputation: ImputationSpec::new().with_imputations(parts.imputations)
-                .with_iterations(parts.iterations).with_seed(parts.imputation_seed),
-            domains: Arc::from(parts.domains.clone()), posterior_draws: parts.posterior_draws,
-            prior_scale: parts.prior_scale, execution_seed: parts.execution_seed,
-        }, &ctx).unwrap();
+            parts
+                .names
+                .iter()
+                .zip(&parts.columns)
+                .map(|(name, column)| (name.as_str(), column.as_slice())),
+        )
+        .unwrap();
+        let cluster_producer = CompiledGraphImputation::compile(
+            cluster_table,
+            &GraphImputationSpec {
+                treatment: VariableId::from_raw(parts.treatment),
+                outcome: VariableId::from_raw(parts.outcome),
+                support: parts.support,
+                imputation: ImputationSpec::new()
+                    .with_imputations(parts.imputations)
+                    .with_iterations(parts.iterations)
+                    .with_seed(parts.imputation_seed),
+                domains: Arc::from(parts.domains.clone()),
+                posterior_draws: parts.posterior_draws,
+                prior_scale: parts.prior_scale,
+                execution_seed: parts.execution_seed,
+            },
+            &ctx,
+        )
+        .unwrap();
         let cluster = compile_graph_imputation_transport_cluster_bootstrap_decision(
-            cluster_producer, target.clone(), quantity.clone(), decision.clone(),
-            TargetClusterBootstrap { replicates: 40, seed: 29,
-                cluster_ids: (0..80).map(|row| format!("cluster-{}", row / 2)).collect() }, false,
-        ).unwrap();
+            cluster_producer,
+            target.clone(),
+            quantity.clone(),
+            decision.clone(),
+            TargetClusterBootstrap {
+                replicates: 40,
+                seed: 29,
+                cluster_ids: (0..80).map(|row| format!("cluster-{}", row / 2)).collect(),
+            },
+            false,
+        )
+        .unwrap();
         let cluster_result = cluster.execute(&ctx).unwrap();
         assert_eq!(cluster_result.producer.draws.len(), 40);
         let cluster_bytes = cluster.export(&cluster_result, "cluster-target", &ctx).unwrap();
-        let cluster_replay = consume_graph_imputation_transport_decision(&cluster_bytes, cluster.lowered().identity(), &ctx).unwrap();
+        let cluster_replay = consume_graph_imputation_transport_decision(
+            &cluster_bytes,
+            cluster.lowered().identity(),
+            &ctx,
+        )
+        .unwrap();
         assert_eq!(cluster_result.producer.receipt, cluster_replay.producer.receipt);
-        let mut cluster_wire: GraphImputationTransportDecisionWire = antecedent_io::from_cbor(&cluster_bytes).unwrap();
+        let mut cluster_wire: GraphImputationTransportDecisionWire =
+            antecedent_io::from_cbor(&cluster_bytes).unwrap();
         cluster_wire.cluster_bootstrap.as_mut().unwrap().cluster_ids[0].push('x');
-        assert!(consume_graph_imputation_transport_decision(&antecedent_io::to_cbor(&cluster_wire).unwrap(), cluster.lowered().identity(), &ctx).is_err());
+        assert!(
+            consume_graph_imputation_transport_decision(
+                &antecedent_io::to_cbor(&cluster_wire).unwrap(),
+                cluster.lowered().identity(),
+                &ctx
+            )
+            .is_err()
+        );
         let confounded_table = TabularData::from_f64_columns(
-            parts.names.iter().zip(&parts.columns)
+            parts
+                .names
+                .iter()
+                .zip(&parts.columns)
                 .map(|(name, column)| (name.as_str(), column.as_slice())),
-        ).unwrap();
+        )
+        .unwrap();
         let confounded_producer = CompiledGraphImputation::compile(
-            confounded_table, &GraphImputationSpec {
+            confounded_table,
+            &GraphImputationSpec {
                 treatment: VariableId::from_raw(parts.treatment),
                 outcome: VariableId::from_raw(parts.outcome),
                 support: GraphSupport::PreTreatmentCovariates,
-                imputation: ImputationSpec::new().with_imputations(parts.imputations)
-                    .with_iterations(parts.iterations).with_seed(parts.imputation_seed),
-                domains: Arc::from(parts.domains.clone()), posterior_draws: parts.posterior_draws,
-                prior_scale: parts.prior_scale, execution_seed: parts.execution_seed,
-            }, &ctx,
-        ).unwrap();
+                imputation: ImputationSpec::new()
+                    .with_imputations(parts.imputations)
+                    .with_iterations(parts.iterations)
+                    .with_seed(parts.imputation_seed),
+                domains: Arc::from(parts.domains.clone()),
+                posterior_draws: parts.posterior_draws,
+                prior_scale: parts.prior_scale,
+                execution_seed: parts.execution_seed,
+            },
+            &ctx,
+        )
+        .unwrap();
         let mut confounded_target = target.clone();
         confounded_target.source_sample = confounded_producer.source_identity().to_hex();
         let confounded = compile_graph_imputation_confounded_transport_decision(
-            confounded_producer, confounded_target, quantity.clone(), decision.clone(),
-        ).unwrap();
+            confounded_producer,
+            confounded_target,
+            quantity.clone(),
+            decision.clone(),
+        )
+        .unwrap();
         let confounded_bootstrap_table = TabularData::from_f64_columns(
-            parts.names.iter().zip(&parts.columns)
+            parts
+                .names
+                .iter()
+                .zip(&parts.columns)
                 .map(|(name, column)| (name.as_str(), column.as_slice())),
-        ).unwrap();
+        )
+        .unwrap();
         let confounded_bootstrap_producer = CompiledGraphImputation::compile(
-            confounded_bootstrap_table, &GraphImputationSpec {
+            confounded_bootstrap_table,
+            &GraphImputationSpec {
                 treatment: VariableId::from_raw(parts.treatment),
-                outcome: VariableId::from_raw(parts.outcome), support: GraphSupport::PreTreatmentCovariates,
-                imputation: ImputationSpec::new().with_imputations(parts.imputations)
-                    .with_iterations(parts.iterations).with_seed(parts.imputation_seed),
-                domains: Arc::from(parts.domains.clone()), posterior_draws: parts.posterior_draws,
-                prior_scale: parts.prior_scale, execution_seed: parts.execution_seed,
-            }, &ctx,
-        ).unwrap();
-        let mut confounded_bootstrap_target = target.clone();
-        confounded_bootstrap_target.source_sample = confounded_bootstrap_producer.source_identity().to_hex();
-        let confounded_bootstrap = compile_graph_imputation_confounded_transport_target_bootstrap_decision(
-            confounded_bootstrap_producer, confounded_bootstrap_target,
-            quantity.clone(), decision.clone(), TargetFrameBootstrap { replicates: 40, seed: 11 },
-        ).unwrap();
-        let confounded_cluster_table = TabularData::from_f64_columns(
-            parts.names.iter().zip(&parts.columns).map(|(name, column)| (name.as_str(), column.as_slice())),
-        ).unwrap();
-        let confounded_cluster_producer = CompiledGraphImputation::compile(confounded_cluster_table, &GraphImputationSpec {
-            treatment: VariableId::from_raw(parts.treatment), outcome: VariableId::from_raw(parts.outcome),
-            support: GraphSupport::PreTreatmentCovariates,
-            imputation: ImputationSpec::new().with_imputations(parts.imputations)
-                .with_iterations(parts.iterations).with_seed(parts.imputation_seed),
-            domains: Arc::from(parts.domains.clone()), posterior_draws: parts.posterior_draws,
-            prior_scale: parts.prior_scale, execution_seed: parts.execution_seed,
-        }, &ctx).unwrap();
-        let mut confounded_cluster_target = target.clone();
-        confounded_cluster_target.source_sample = confounded_cluster_producer.source_identity().to_hex();
-        let confounded_cluster = compile_graph_imputation_transport_cluster_bootstrap_decision(
-            confounded_cluster_producer, confounded_cluster_target, quantity.clone(), decision.clone(),
-            TargetClusterBootstrap { replicates: 40, seed: 19,
-                cluster_ids: (0..80).map(|row| format!("cluster-{}", row / 2)).collect() }, true,
-        ).unwrap();
-        let confounded_cluster_result = confounded_cluster.execute(&ctx).unwrap();
-        let confounded_cluster_bytes = confounded_cluster.export(&confounded_cluster_result, "confounded-cluster", &ctx).unwrap();
-        let confounded_cluster_replay = consume_graph_imputation_transport_decision(
-            &confounded_cluster_bytes, confounded_cluster.lowered().identity(), &ctx,
-        ).unwrap();
-        assert_eq!(confounded_cluster_result.producer.receipt, confounded_cluster_replay.producer.receipt);
-        let no_overlap_table = TabularData::from_f64_columns([
-            ("t", covariate.as_slice()), ("y", outcome.as_slice()), ("x", covariate.as_slice()),
-        ]).unwrap();
-        let no_overlap_producer = CompiledGraphImputation::compile(
-            no_overlap_table, &GraphImputationSpec {
-                treatment: VariableId::from_raw(0), outcome: VariableId::from_raw(1),
+                outcome: VariableId::from_raw(parts.outcome),
                 support: GraphSupport::PreTreatmentCovariates,
-                imputation: ImputationSpec::new().with_imputations(2)
-                    .with_iterations(2).with_seed(17),
-                domains: Arc::<[u8]>::from(vec![1, 0, 1]), posterior_draws: 100,
-                prior_scale: 1.0, execution_seed: 19,
-            }, &ctx,
-        ).unwrap();
+                imputation: ImputationSpec::new()
+                    .with_imputations(parts.imputations)
+                    .with_iterations(parts.iterations)
+                    .with_seed(parts.imputation_seed),
+                domains: Arc::from(parts.domains.clone()),
+                posterior_draws: parts.posterior_draws,
+                prior_scale: parts.prior_scale,
+                execution_seed: parts.execution_seed,
+            },
+            &ctx,
+        )
+        .unwrap();
+        let mut confounded_bootstrap_target = target.clone();
+        confounded_bootstrap_target.source_sample =
+            confounded_bootstrap_producer.source_identity().to_hex();
+        let confounded_bootstrap =
+            compile_graph_imputation_confounded_transport_target_bootstrap_decision(
+                confounded_bootstrap_producer,
+                confounded_bootstrap_target,
+                quantity.clone(),
+                decision.clone(),
+                TargetFrameBootstrap { replicates: 40, seed: 11 },
+            )
+            .unwrap();
+        let confounded_cluster_table = TabularData::from_f64_columns(
+            parts
+                .names
+                .iter()
+                .zip(&parts.columns)
+                .map(|(name, column)| (name.as_str(), column.as_slice())),
+        )
+        .unwrap();
+        let confounded_cluster_producer = CompiledGraphImputation::compile(
+            confounded_cluster_table,
+            &GraphImputationSpec {
+                treatment: VariableId::from_raw(parts.treatment),
+                outcome: VariableId::from_raw(parts.outcome),
+                support: GraphSupport::PreTreatmentCovariates,
+                imputation: ImputationSpec::new()
+                    .with_imputations(parts.imputations)
+                    .with_iterations(parts.iterations)
+                    .with_seed(parts.imputation_seed),
+                domains: Arc::from(parts.domains.clone()),
+                posterior_draws: parts.posterior_draws,
+                prior_scale: parts.prior_scale,
+                execution_seed: parts.execution_seed,
+            },
+            &ctx,
+        )
+        .unwrap();
+        let mut confounded_cluster_target = target.clone();
+        confounded_cluster_target.source_sample =
+            confounded_cluster_producer.source_identity().to_hex();
+        let confounded_cluster = compile_graph_imputation_transport_cluster_bootstrap_decision(
+            confounded_cluster_producer,
+            confounded_cluster_target,
+            quantity.clone(),
+            decision.clone(),
+            TargetClusterBootstrap {
+                replicates: 40,
+                seed: 19,
+                cluster_ids: (0..80).map(|row| format!("cluster-{}", row / 2)).collect(),
+            },
+            true,
+        )
+        .unwrap();
+        let confounded_cluster_result = confounded_cluster.execute(&ctx).unwrap();
+        let confounded_cluster_bytes = confounded_cluster
+            .export(&confounded_cluster_result, "confounded-cluster", &ctx)
+            .unwrap();
+        let confounded_cluster_replay = consume_graph_imputation_transport_decision(
+            &confounded_cluster_bytes,
+            confounded_cluster.lowered().identity(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(
+            confounded_cluster_result.producer.receipt,
+            confounded_cluster_replay.producer.receipt
+        );
+        let no_overlap_table = TabularData::from_f64_columns([
+            ("t", covariate.as_slice()),
+            ("y", outcome.as_slice()),
+            ("x", covariate.as_slice()),
+        ])
+        .unwrap();
+        let no_overlap_producer = CompiledGraphImputation::compile(
+            no_overlap_table,
+            &GraphImputationSpec {
+                treatment: VariableId::from_raw(0),
+                outcome: VariableId::from_raw(1),
+                support: GraphSupport::PreTreatmentCovariates,
+                imputation: ImputationSpec::new()
+                    .with_imputations(2)
+                    .with_iterations(2)
+                    .with_seed(17),
+                domains: Arc::<[u8]>::from(vec![1, 0, 1]),
+                posterior_draws: 100,
+                prior_scale: 1.0,
+                execution_seed: 19,
+            },
+            &ctx,
+        )
+        .unwrap();
         let mut no_overlap_target = target.clone();
         no_overlap_target.source_sample = no_overlap_producer.source_identity().to_hex();
         let no_overlap = compile_graph_imputation_confounded_transport_decision(
-            no_overlap_producer, no_overlap_target, quantity.clone(), decision.clone(),
-        ).unwrap();
+            no_overlap_producer,
+            no_overlap_target,
+            quantity.clone(),
+            decision.clone(),
+        )
+        .unwrap();
         assert!(no_overlap.execute(&ctx).is_err());
-        let plan = compile_graph_imputation_transport_decision(
-            producer, target, quantity, decision,
-        ).unwrap();
+        let plan =
+            compile_graph_imputation_transport_decision(producer, target, quantity, decision)
+                .unwrap();
         assert_eq!(plan.plan_view().route().as_str(), "GraphImputationTransportDecision");
         let result = plan.execute(&ctx).unwrap();
         assert!(result.producer.mean.is_finite());
-        assert!(result.producer.mean > source_effect + 0.05,
-            "target standardization must respond to the x shift");
+        assert!(
+            result.producer.mean > source_effect + 0.05,
+            "target standardization must respond to the x shift"
+        );
         assert_eq!(result.calibration, "not_measured");
         let bytes = plan.export(&result, "source-target-graph-decision", &ctx).unwrap();
         let replay = consume_graph_imputation_transport_decision(
-            &bytes, result.lowered_program_identity, &ctx,
-        ).unwrap();
+            &bytes,
+            result.lowered_program_identity,
+            &ctx,
+        )
+        .unwrap();
         assert_eq!(replay.producer.receipt, result.producer.receipt);
         assert_eq!(replay.decision.decision, result.decision.decision);
         assert_ne!(confounded.lowered().identity(), plan.lowered().identity());
         let confounded_candidate = confounded.calibration_candidate(&ctx).unwrap();
         assert_eq!(confounded_candidate.result.calibration, "not_measured");
-        let bytes = confounded.export(&confounded_candidate.result, "confounded-target", &ctx).unwrap();
+        let bytes =
+            confounded.export(&confounded_candidate.result, "confounded-target", &ctx).unwrap();
         let confounded_replay = consume_graph_imputation_transport_decision(
-            &bytes, confounded_candidate.result.lowered_program_identity, &ctx,
-        ).unwrap();
+            &bytes,
+            confounded_candidate.result.lowered_program_identity,
+            &ctx,
+        )
+        .unwrap();
         assert_eq!(confounded_candidate.result.producer.draws, confounded_replay.producer.draws);
-        assert_eq!(confounded_candidate.result.decision.decision, confounded_replay.decision.decision);
+        assert_eq!(
+            confounded_candidate.result.decision.decision,
+            confounded_replay.decision.decision
+        );
         assert_ne!(confounded_bootstrap.lowered().identity(), confounded.lowered().identity());
         assert_ne!(confounded_bootstrap.lowered().identity(), bootstrap.lowered().identity());
         let confounded_sampled = confounded_bootstrap.calibration_candidate(&ctx).unwrap();
         assert_eq!(confounded_sampled.result.producer.draws.len(), 40);
         assert_eq!(confounded_sampled.result.calibration, "not_measured");
         assert_eq!(confounded_sampled.basis.estimator.as_ref(), CONFOUNDED_BOOTSTRAP_FEATURE);
-        let bytes = confounded_bootstrap.export(&confounded_sampled.result, "confounded-bootstrap", &ctx).unwrap();
+        let bytes = confounded_bootstrap
+            .export(&confounded_sampled.result, "confounded-bootstrap", &ctx)
+            .unwrap();
         let replay = consume_graph_imputation_transport_decision(
-            &bytes, confounded_sampled.result.lowered_program_identity, &ctx,
-        ).unwrap();
+            &bytes,
+            confounded_sampled.result.lowered_program_identity,
+            &ctx,
+        )
+        .unwrap();
         assert_eq!(replay.producer.draws, confounded_sampled.result.producer.draws);
         assert_eq!(replay.producer.receipt, confounded_sampled.result.producer.receipt);
         assert_eq!(replay.decision.decision, confounded_sampled.result.decision.decision);
-        let mut wire: GraphImputationTransportDecisionWire = antecedent_io::from_cbor(&bytes).unwrap();
+        let mut wire: GraphImputationTransportDecisionWire =
+            antecedent_io::from_cbor(&bytes).unwrap();
         wire.target_bootstrap.as_mut().unwrap().seed ^= 1;
         let tampered = antecedent_io::to_cbor(&wire).unwrap();
-        assert!(consume_graph_imputation_transport_decision(
-            &tampered, confounded_sampled.result.lowered_program_identity, &ctx,
-        ).is_err());
+        assert!(
+            consume_graph_imputation_transport_decision(
+                &tampered,
+                confounded_sampled.result.lowered_program_identity,
+                &ctx,
+            )
+            .is_err()
+        );
         assert_ne!(bootstrap.lowered().identity(), plan.lowered().identity());
         let candidate = bootstrap.calibration_candidate(&ctx).unwrap();
         assert_eq!(candidate.result.producer.draws.len(), 40);
@@ -1122,16 +1686,25 @@ mod tests {
         assert!(candidate.interval.0 <= candidate.interval.1);
         let bytes = bootstrap.export(&candidate.result, "binary-target-bootstrap", &ctx).unwrap();
         let replay = consume_graph_imputation_transport_decision(
-            &bytes, candidate.result.lowered_program_identity, &ctx,
-        ).unwrap();
+            &bytes,
+            candidate.result.lowered_program_identity,
+            &ctx,
+        )
+        .unwrap();
         assert_eq!(candidate.result.producer.draws, replay.producer.draws);
         assert_eq!(candidate.result.producer.receipt, replay.producer.receipt);
         assert_eq!(candidate.result.decision.decision, replay.decision.decision);
-        let mut wire: GraphImputationTransportDecisionWire = antecedent_io::from_cbor(&bytes).unwrap();
+        let mut wire: GraphImputationTransportDecisionWire =
+            antecedent_io::from_cbor(&bytes).unwrap();
         wire.target_bootstrap.as_mut().unwrap().seed ^= 1;
         let changed = antecedent_io::to_cbor(&wire).unwrap();
-        assert!(consume_graph_imputation_transport_decision(
-            &changed, candidate.result.lowered_program_identity, &ctx,
-        ).is_err());
+        assert!(
+            consume_graph_imputation_transport_decision(
+                &changed,
+                candidate.result.lowered_program_identity,
+                &ctx,
+            )
+            .is_err()
+        );
     }
 }

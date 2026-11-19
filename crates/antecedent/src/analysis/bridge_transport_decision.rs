@@ -9,15 +9,15 @@
 
 use std::sync::Arc;
 
-use antecedent_contract::{ClaimKind, DataClassification};
-use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_contract::bridge::{BridgeContract, ValueKind};
+use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_contract::propagation_chain::{
     ChainReading, LawMeaning, StageKind, TableConstruction,
 };
+use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_core::{
-    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect,
-    PhysicalOperator, SemanticDigest,
+    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect, PhysicalOperator,
+    SemanticDigest,
 };
 use antecedent_design::decision_artifact::DecisionContractArtifact;
 use antecedent_design::decision_contract::{
@@ -32,31 +32,32 @@ use antecedent_io::propagation_chain_record::{
 use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 use serde::{Deserialize, Serialize};
 
-use super::propagation_chain_decision::{
-    ChainDecisionError, ChainDecisionResult, compile_chain_decision,
-    consume_chain_decision,
+use super::bridge_transport_premise_assessment::{
+    BridgeTransportPremiseAssessmentError, BridgeTransportPremiseAssessmentResult,
+    CompiledBridgeTransportPremiseAssessment, recompile_bridge_transport_premise_assessment,
 };
 use super::propagation_chain::PropagationChain;
+use super::propagation_chain_decision::{
+    ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
+};
 use super::propagation_chain_robust_decision::{
-    ChainRobustDecisionPlan, ChainRobustDecisionResult,
-    compile_chain_robust_decision, consume_chain_robust_decision,
+    ChainRobustDecisionPlan, ChainRobustDecisionResult, compile_chain_robust_decision,
+    consume_chain_robust_decision,
 };
 use super::scientific_bridge::{
     PreparedScientificBridgeDistribution, ScientificBridgeDistributionResult,
     ScientificBridgeRefusal, consume_scientific_bridge_distribution_artifact,
 };
-use super::bridge_transport_premise_assessment::{
-    BridgeTransportPremiseAssessmentError, BridgeTransportPremiseAssessmentResult,
-    CompiledBridgeTransportPremiseAssessment, recompile_bridge_transport_premise_assessment,
-};
 use crate::planner::lowered::{
-    CarrierDemand, ClaimDemand, Composition, DecisionProgram,
-    EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef, FunctionalKind,
-    IdentificationLayer, LoweredProgram, NonGraphicalIdentification,
-    PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
+    CarrierDemand, ClaimDemand, Composition, DecisionProgram, EvidenceDecisionProgram,
+    EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
-use crate::planner::statistical::{ModelRole, ModelSlot, NestedFitLaw, PosteriorAlgorithm, PosteriorPlan, Realization, StatisticalProgram};
+use crate::planner::statistical::{
+    ModelRole, ModelSlot, NestedFitLaw, PosteriorAlgorithm, PosteriorPlan, Realization,
+    StatisticalProgram,
+};
 use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "bridge_transport_decision_v1";
@@ -132,12 +133,15 @@ pub fn compile_bridge_transport_decision(
     decision: DecisionContract,
 ) -> Result<CompiledBridgeTransportDecision, BridgeTransportDecisionError> {
     decision.validate()?;
-    if contract.transport.is_none() || contract.source_value != ValueKind::PredictiveLaw
+    if contract.transport.is_none()
+        || contract.source_value != ValueKind::PredictiveLaw
         || contract.target_value != ValueKind::PredictiveLaw
-        || !matches!(source.semantic(),
+        || !matches!(
+            source.semantic(),
             DistributionMeaningWire::PosteriorPredictive
                 | DistributionMeaningWire::InterventionalPredictive
-                | DistributionMeaningWire::EmpiricalOutcome)
+                | DistributionMeaningWire::EmpiricalOutcome
+        )
         || !source.quantities().contains(&ScientificQuantityWire::from(&contract.source.quantity))
         || source.n_draws() < 2
         || contract.target.quantity.population_id != decision.target_population
@@ -156,83 +160,118 @@ pub fn compile_bridge_transport_decision(
     let decision_identity = decision.identity()?;
     let source_bytes = source.to_bytes("bridge-transport-source")?;
     let source_digest = CanonicalWriter::digest_bytes(
-        "antecedent.bridge_transport_decision.source.v1", &source_bytes,
+        "antecedent.bridge_transport_decision.source.v1",
+        &source_bytes,
     );
     let mut writer = CanonicalWriter::new("antecedent.bridge_transport_decision.question.v1");
-    writer.bytes(&source_digest).bytes(bridge.contract_identity().as_bytes())
-        .text(&decision_identity).word(seed);
+    writer
+        .bytes(&source_digest)
+        .bytes(bridge.contract_identity().as_bytes())
+        .text(&decision_identity)
+        .word(seed);
     let query = writer.finish();
     let design = crate::planner::lowered::DesignShape::quoted(source.n_draws() as u64, 1, true);
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
-            kind: FunctionalKind::PolicyValue, outcome: None, query,
+            kind: FunctionalKind::PolicyValue,
+            outcome: None,
+            query,
         },
         plan_id: Arc::from("bridge_transport_decision.v1"),
         data: DataClassification::Tabular,
         graph_class: "declared_transportable_bridge",
         query_variables: Arc::from(Vec::new()),
         source_digest: Some(source_digest),
-        support_coordinate: None, supported: false, support_status: None,
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: query },
     ));
     let statistical = StatisticalProgram {
-        identifier: None, estimator: None,
+        identifier: None,
+        estimator: None,
         realization: Realization::DeclaredPredictive {
             evaluator: Arc::from("scientific_bridge.predictive_transport"),
         },
-        models: Arc::from([]), folds: None, resampling: None,
-        posterior: None, design, operators: Arc::from([]),
+        models: Arc::from([]),
+        folds: None,
+        resampling: None,
+        posterior: None,
+        design,
+        operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([EvidenceSourceRef {
-            role: EvidenceRole::TransportSource, digest: Some(source_digest),
+            role: EvidenceRole::TransportSource,
+            digest: Some(source_digest),
         }]),
         composition: Composition::Chained { stages: 3 },
         decision: Some(DecisionProgram {
             carrier: CarrierDemand::PredictiveLaw,
             utility: DecisionProgram::utility_form(None),
-            actions: decision.actions.len(), constraints: decision.constraints.len(),
-            chance_threshold: decision.constraints.iter()
-                .map(|constraint| constraint.min_probability).fold(0.0_f64, f64::max),
+            actions: decision.actions.len(),
+            constraints: decision.constraints.len(),
+            chance_threshold: decision
+                .constraints
+                .iter()
+                .map(|constraint| constraint.min_probability)
+                .fold(0.0_f64, f64::max),
             utility_unit: Some(Arc::from(decision.utility_units.as_str())),
             contract_identity: Some(Arc::from(decision_identity.as_str())),
             information_value: None,
             scenario_source: Some(Arc::from("transported_bridge_joint_draws_v1")),
         }),
-        planning: None, chain: None,
+        planning: None,
+        chain: None,
     };
     let physical = PhysicalLayer {
         operators: Arc::from([
             PhysicalOperator::declare(PhysicalEffect::Read)
                 .estimates(ByteEstimates::absent().with_output(source_bytes.len() as u64))
-                .build().map_err(|_| BridgeTransportDecisionError::Invalid(
-                    "bridge source intake cannot be lowered",
-                ))?,
+                .build()
+                .map_err(|_| {
+                    BridgeTransportDecisionError::Invalid("bridge source intake cannot be lowered")
+                })?,
             PhysicalOperator::declare(PhysicalEffect::Transport)
-                .estimates(ByteEstimates::absent().with_output(
-                    (source.n_draws() as u64).saturating_mul(8),
-                )).build().map_err(|_| BridgeTransportDecisionError::Invalid(
-                    "bridge transport cannot be lowered",
-                ))?,
+                .estimates(
+                    ByteEstimates::absent()
+                        .with_output((source.n_draws() as u64).saturating_mul(8)),
+                )
+                .build()
+                .map_err(|_| {
+                    BridgeTransportDecisionError::Invalid("bridge transport cannot be lowered")
+                })?,
         ]),
         design,
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::BridgeTransportDecision,
-        scientific, identification, statistical, evidence, physical,
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Predictive,
-            kind: Some(ClaimKind::PolicyValue) },
-    }.finish());
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::BridgeTransportDecision,
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical,
+            claim: ClaimDemand {
+                uncertainty: UncertaintyReading::Predictive,
+                kind: Some(ClaimKind::PolicyValue),
+            },
+        }
+        .finish(),
+    );
     Ok(CompiledBridgeTransportDecision { bridge, source, seed, decision, lowered })
 }
 
 impl CompiledBridgeTransportDecision {
     /// All compiler layers of the bridge, premise and utility.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the retained program without mapping or scoring draws.
     #[must_use]
@@ -241,15 +280,20 @@ impl CompiledBridgeTransportDecision {
     }
 
     fn chain_draft(
-        &self, result: &ScientificBridgeDistributionResult,
+        &self,
+        result: &ScientificBridgeDistributionResult,
     ) -> Result<PropagationChainRecordWire, BridgeTransportDecisionError> {
         result.require_value_kind(ValueKind::PredictiveLaw)?;
         let parts = result.chain_stage("bridged.outcome")?;
         let output = parts.stage.id.clone();
         Ok(PropagationChainRecordWire::draft(
-            TableConstruction::JointDraws, parts.reading, &output,
-            parts.sources, vec![parts.stage],
-        ).with_output_quantity(parts.output_quantity))
+            TableConstruction::JointDraws,
+            parts.reading,
+            &output,
+            parts.sources,
+            vec![parts.stage],
+        )
+        .with_output_quantity(parts.output_quantity))
     }
 
     /// Derive the transported terminal-outcome law and score its utility.
@@ -259,14 +303,16 @@ impl CompiledBridgeTransportDecision {
     /// # Errors
     /// A bridge mapping, chain or decision refusal.
     pub fn execute(
-        &self, ctx: &ExecutionContext,
+        &self,
+        ctx: &ExecutionContext,
     ) -> Result<BridgeTransportDecisionResult, BridgeTransportDecisionError> {
         let bridge = self.bridge.derive(&self.source, None, self.seed)?;
         let draft = self.chain_draft(&bridge)?;
-        let decision = compile_chain_decision(draft, self.decision.clone(), ctx)?
-            .execute(ctx)?;
+        let decision = compile_chain_decision(draft, self.decision.clone(), ctx)?.execute(ctx)?;
         Ok(BridgeTransportDecisionResult {
-            bridge, decision, lowered_program_identity: self.lowered.identity(),
+            bridge,
+            decision,
+            lowered_program_identity: self.lowered.identity(),
         })
     }
 
@@ -276,7 +322,9 @@ impl CompiledBridgeTransportDecision {
     /// # Errors
     /// Changed derivation, decision or artifact encoding failure.
     pub fn export(
-        &self, result: &BridgeTransportDecisionResult, artifact_id: &str,
+        &self,
+        result: &BridgeTransportDecisionResult,
+        artifact_id: &str,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, BridgeTransportDecisionError> {
         let replay = self.execute(ctx)?;
@@ -289,19 +337,23 @@ impl CompiledBridgeTransportDecision {
         }
         let bridge = result.bridge.export(artifact_id)?;
         let contract = DecisionContractArtifact::new(self.decision.clone())?;
-        let chain = compile_chain_decision(self.chain_draft(&replay.bridge)?,
-            self.decision.clone(), ctx)?;
+        let chain =
+            compile_chain_decision(self.chain_draft(&replay.bridge)?, self.decision.clone(), ctx)?;
         let wire = BridgeTransportDecisionWire {
-            version: 1, required_feature: FEATURE.into(),
+            version: 1,
+            required_feature: FEATURE.into(),
             program_identity: *self.lowered.identity().as_bytes(),
-            bridge_identity: bridge.identity, bridge_artifact: bridge.bytes,
+            bridge_identity: bridge.identity,
+            bridge_artifact: bridge.bytes,
             decision_identity: contract.identity().into(),
             decision_artifact: contract.to_bytes(artifact_id)?,
             chain_artifact: chain.export(&result.decision, artifact_id)?,
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
-            return Err(BridgeTransportDecisionError::Invalid("combined artifact exceeds its bound"));
+            return Err(BridgeTransportDecisionError::Invalid(
+                "combined artifact exceeds its bound",
+            ));
         }
         Ok(bytes)
     }
@@ -313,32 +365,42 @@ impl CompiledBridgeTransportDecision {
 /// # Errors
 /// A changed bridge, contract, law, decision or program identity.
 pub fn consume_bridge_transport_decision(
-    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<BridgeTransportDecisionResult, BridgeTransportDecisionError> {
     Ok(recompile_bridge_transport_decision(bytes, expected_program, ctx)?.1)
 }
 
 fn recompile_bridge_transport_decision(
-    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
-) -> Result<(CompiledBridgeTransportDecision, BridgeTransportDecisionResult), BridgeTransportDecisionError> {
+    bytes: &[u8],
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
+) -> Result<
+    (CompiledBridgeTransportDecision, BridgeTransportDecisionResult),
+    BridgeTransportDecisionError,
+> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(BridgeTransportDecisionError::Invalid("combined artifact exceeds its bound"));
     }
     let wire: BridgeTransportDecisionWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != FEATURE
+    if wire.version != 1
+        || wire.required_feature != FEATURE
         || wire.program_identity != *expected_program.as_bytes()
     {
         return Err(BridgeTransportDecisionError::Invalid("combined feature or identity differs"));
     }
     let bridge = consume_scientific_bridge_distribution_artifact(
-        &wire.bridge_artifact, Some(&wire.bridge_identity),
+        &wire.bridge_artifact,
+        Some(&wire.bridge_identity),
     )?;
-    let contract = DecisionContractArtifact::from_bytes(
-        &wire.decision_artifact, &wire.decision_identity,
-    )?;
+    let contract =
+        DecisionContractArtifact::from_bytes(&wire.decision_artifact, &wire.decision_identity)?;
     let plan = compile_bridge_transport_decision(
-        bridge.bridged.claim().contract.clone(), bridge.bridged.source().clone(),
-        bridge.bridged.claim().stream, contract.contract().clone(),
+        bridge.bridged.claim().contract.clone(),
+        bridge.bridged.source().clone(),
+        bridge.bridged.claim().stream,
+        contract.contract().clone(),
     )?;
     if plan.lowered.identity() != expected_program {
         return Err(BridgeTransportDecisionError::Invalid("recompiled bridge decision differs"));
@@ -348,7 +410,9 @@ fn recompile_bridge_transport_decision(
         return Err(BridgeTransportDecisionError::Invalid("mapped bridge law changed on replay"));
     }
     let inner = consume_chain_decision(
-        &wire.chain_artifact, Some(live.decision.lowered_program_identity), ctx,
+        &wire.chain_artifact,
+        Some(live.decision.lowered_program_identity),
+        ctx,
     )?;
     if inner.chain.identity() != live.decision.chain.identity()
         || inner.decision != live.decision.decision
@@ -427,39 +491,55 @@ pub fn compile_assessed_bridge_transport_decision(
     }
     let assessment_id = assessment.lowered().identity();
     let bridge_id = bridge.lowered().identity();
-    let mut writer = CanonicalWriter::new("antecedent.assessed_bridge_transport_decision.question.v1");
+    let mut writer =
+        CanonicalWriter::new("antecedent.assessed_bridge_transport_decision.question.v1");
     writer.bytes(assessment_id.as_bytes()).bytes(bridge_id.as_bytes());
     let query = writer.finish();
-    let design = crate::planner::lowered::DesignShape::quoted(
-        bridge.source.n_draws() as u64, 2, true,
-    );
+    let design =
+        crate::planner::lowered::DesignShape::quoted(bridge.source.n_draws() as u64, 2, true);
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
-            kind: FunctionalKind::PolicyValue, outcome: None, query,
+            kind: FunctionalKind::PolicyValue,
+            outcome: None,
+            query,
         },
         plan_id: Arc::from("assessed_bridge_transport_decision.v1"),
         data: DataClassification::Tabular,
         graph_class: "assessed_declared_transportable_bridge",
         query_variables: Arc::from(Vec::new()),
         source_digest: Some(*assessment_id.as_bytes()),
-        support_coordinate: None, supported: false, support_status: None,
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: query },
     ));
     let statistical = StatisticalProgram {
-        identifier: None, estimator: None,
+        identifier: None,
+        estimator: None,
         realization: Realization::DeclaredPredictive {
             evaluator: Arc::from("assessed_bridge.predictive_transport"),
         },
-        models: Arc::from([]), folds: None, resampling: None,
-        posterior: None, design, operators: Arc::from([]),
+        models: Arc::from([]),
+        folds: None,
+        resampling: None,
+        posterior: None,
+        design,
+        operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([
-            EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(*assessment_id.as_bytes()) },
-            EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(*bridge_id.as_bytes()) },
+            EvidenceSourceRef {
+                role: EvidenceRole::Observations,
+                digest: Some(*assessment_id.as_bytes()),
+            },
+            EvidenceSourceRef {
+                role: EvidenceRole::TransportSource,
+                digest: Some(*bridge_id.as_bytes()),
+            },
         ]),
         composition: Composition::Chained { stages: 2 },
         decision: Some(DecisionProgram {
@@ -467,42 +547,63 @@ pub fn compile_assessed_bridge_transport_decision(
             utility: DecisionProgram::utility_form(None),
             actions: bridge.decision.actions.len(),
             constraints: bridge.decision.constraints.len(),
-            chance_threshold: bridge.decision.constraints.iter()
-                .map(|constraint| constraint.min_probability).fold(0.0_f64, f64::max),
+            chance_threshold: bridge
+                .decision
+                .constraints
+                .iter()
+                .map(|constraint| constraint.min_probability)
+                .fold(0.0_f64, f64::max),
             utility_unit: Some(Arc::from(bridge.decision.utility_units.as_str())),
             contract_identity: Some(Arc::from(bridge.decision.identity()?.as_str())),
             information_value: None,
             scenario_source: Some(Arc::from("assessed_bridge_joint_draws_v1")),
         }),
-        planning: None, chain: None,
+        planning: None,
+        chain: None,
     };
     let physical = PhysicalLayer {
         operators: Arc::from([
-            PhysicalOperator::declare(PhysicalEffect::Read)
-                .build().map_err(|_| AssessedBridgeTransportDecisionError::Invalid(
-                    "assessment intake cannot be lowered",
-                ))?,
+            PhysicalOperator::declare(PhysicalEffect::Read).build().map_err(|_| {
+                AssessedBridgeTransportDecisionError::Invalid("assessment intake cannot be lowered")
+            })?,
             PhysicalOperator::declare(PhysicalEffect::Transport)
-                .estimates(ByteEstimates::absent().with_output(
-                    (bridge.source.n_draws() as u64).saturating_mul(8),
-                )).build().map_err(|_| AssessedBridgeTransportDecisionError::Invalid(
-                    "assessed bridge transport cannot be lowered",
-                ))?,
-        ]), design,
+                .estimates(
+                    ByteEstimates::absent()
+                        .with_output((bridge.source.n_draws() as u64).saturating_mul(8)),
+                )
+                .build()
+                .map_err(|_| {
+                    AssessedBridgeTransportDecisionError::Invalid(
+                        "assessed bridge transport cannot be lowered",
+                    )
+                })?,
+        ]),
+        design,
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::AssessedBridgeTransportDecision,
-        scientific, identification, statistical, evidence, physical,
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Predictive,
-            kind: Some(ClaimKind::PolicyValue) },
-    }.finish());
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::AssessedBridgeTransportDecision,
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical,
+            claim: ClaimDemand {
+                uncertainty: UncertaintyReading::Predictive,
+                kind: Some(ClaimKind::PolicyValue),
+            },
+        }
+        .finish(),
+    );
     Ok(CompiledAssessedBridgeTransportDecision { assessment, bridge, lowered })
 }
 
 impl CompiledAssessedBridgeTransportDecision {
     /// All compiler layers of the matched validation and decision schedule.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the combined schedule before fitting or mapping.
     #[must_use]
@@ -517,12 +618,15 @@ impl CompiledAssessedBridgeTransportDecision {
     /// # Errors
     /// Validation, bridge or decision execution refused.
     pub fn execute(
-        &self, ctx: &ExecutionContext,
+        &self,
+        ctx: &ExecutionContext,
     ) -> Result<AssessedBridgeTransportDecisionResult, AssessedBridgeTransportDecisionError> {
         let assessment = self.assessment.execute(ctx)?;
         let bridge = self.bridge.execute(ctx)?;
         Ok(AssessedBridgeTransportDecisionResult {
-            assessment, bridge, lowered_program_identity: self.lowered.identity(),
+            assessment,
+            bridge,
+            lowered_program_identity: self.lowered.identity(),
         })
     }
 
@@ -531,7 +635,9 @@ impl CompiledAssessedBridgeTransportDecision {
     /// # Errors
     /// A child changed or artifact encoding refused.
     pub fn export(
-        &self, result: &AssessedBridgeTransportDecisionResult, artifact_id: &str,
+        &self,
+        result: &AssessedBridgeTransportDecisionResult,
+        artifact_id: &str,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, AssessedBridgeTransportDecisionError> {
         let live = self.execute(ctx)?;
@@ -546,7 +652,8 @@ impl CompiledAssessedBridgeTransportDecision {
             ));
         }
         let wire = AssessedBridgeDecisionWire {
-            version: 1, required_feature: ASSESSED_FEATURE.into(),
+            version: 1,
+            required_feature: ASSESSED_FEATURE.into(),
             program_identity: *self.lowered.identity().as_bytes(),
             assessment_identity: *self.assessment.lowered().identity().as_bytes(),
             assessment_artifact: self.assessment.export(&result.assessment, ctx)?,
@@ -569,7 +676,9 @@ impl CompiledAssessedBridgeTransportDecision {
 /// # Errors
 /// A foreign feature, changed child, premise or combined result.
 pub fn consume_assessed_bridge_transport_decision(
-    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<AssessedBridgeTransportDecisionResult, AssessedBridgeTransportDecisionError> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(AssessedBridgeTransportDecisionError::Invalid(
@@ -577,7 +686,8 @@ pub fn consume_assessed_bridge_transport_decision(
         ));
     }
     let wire: AssessedBridgeDecisionWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != ASSESSED_FEATURE
+    if wire.version != 1
+        || wire.required_feature != ASSESSED_FEATURE
         || wire.program_identity != *expected_program.as_bytes()
     {
         return Err(AssessedBridgeTransportDecisionError::Invalid(
@@ -585,10 +695,14 @@ pub fn consume_assessed_bridge_transport_decision(
         ));
     }
     let (assessment, assessed) = recompile_bridge_transport_premise_assessment(
-        &wire.assessment_artifact, SemanticDigest::from_bytes(wire.assessment_identity), ctx,
+        &wire.assessment_artifact,
+        SemanticDigest::from_bytes(wire.assessment_identity),
+        ctx,
     )?;
     let (bridge, bridged) = recompile_bridge_transport_decision(
-        &wire.bridge_artifact, SemanticDigest::from_bytes(wire.bridge_identity), ctx,
+        &wire.bridge_artifact,
+        SemanticDigest::from_bytes(wire.bridge_identity),
+        ctx,
     )?;
     let plan = compile_assessed_bridge_transport_decision(assessment, bridge)?;
     if plan.lowered.identity() != expected_program {
@@ -685,9 +799,10 @@ pub fn compile_assessed_bridge_robust_decision(
     if !matches!(contract.criterion, DecisionCriterion::MaximinOverStructures)
         || contract.target_population != target.population_id
         || contract.horizon != target.horizon
-        || contract.actions.iter().any(|action| action.inputs.iter().any(|input| {
-            input.require_same_coordinate(target).is_err()
-        })) {
+        || contract.actions.iter().any(|action| {
+            action.inputs.iter().any(|input| input.require_same_coordinate(target).is_err())
+        })
+    {
         return Err(AssessedBridgeRobustDecisionError::Invalid(
             "robust actions must read the assessed bridge target and use maximin",
         ));
@@ -695,79 +810,115 @@ pub fn compile_assessed_bridge_robust_decision(
     let contract_id = contract.identity()?;
     let child_id = assessed.lowered.identity();
     let mut writer = CanonicalWriter::new("antecedent.assessed_bridge_robust.question.v1");
-    writer.bytes(child_id.as_bytes()).text(&contract_id)
+    writer
+        .bytes(child_id.as_bytes())
+        .text(&contract_id)
         .text("global_overlap_grid_discrepancy_envelope_v1");
     let query = writer.finish();
     let design = crate::planner::lowered::DesignShape::quoted(
-        assessed.bridge.source.n_draws() as u64, 2, true,
+        assessed.bridge.source.n_draws() as u64,
+        2,
+        true,
     );
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
-            kind: FunctionalKind::PolicyValue, outcome: None, query,
+            kind: FunctionalKind::PolicyValue,
+            outcome: None,
+            query,
         },
         plan_id: Arc::from("assessed_bridge_discrepancy_robust.v1"),
         data: DataClassification::Tabular,
         graph_class: "assessed_bridge_discrepancy_envelope",
-        query_variables: Arc::from(Vec::new()), source_digest: Some(*child_id.as_bytes()),
-        support_coordinate: None, supported: false, support_status: None,
+        query_variables: Arc::from(Vec::new()),
+        source_digest: Some(*child_id.as_bytes()),
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([EvidenceSourceRef {
-            role: EvidenceRole::TransportSource, digest: Some(*child_id.as_bytes()),
+            role: EvidenceRole::TransportSource,
+            digest: Some(*child_id.as_bytes()),
         }]),
         composition: Composition::Chained { stages: 3 },
         decision: Some(DecisionProgram {
             carrier: CarrierDemand::IdentifiedSet,
             utility: DecisionProgram::utility_form(None),
-            actions: contract.actions.len(), constraints: contract.constraints.len(),
-            chance_threshold: contract.constraints.iter()
-                .map(|constraint| constraint.min_probability).fold(0.0_f64, f64::max),
+            actions: contract.actions.len(),
+            constraints: contract.constraints.len(),
+            chance_threshold: contract
+                .constraints
+                .iter()
+                .map(|constraint| constraint.min_probability)
+                .fold(0.0_f64, f64::max),
             utility_unit: Some(Arc::from(contract.utility_units.as_str())),
             contract_identity: Some(Arc::from(contract_id.as_str())),
             information_value: None,
             scenario_source: Some(Arc::from("unmeasured_global_discrepancy_envelope_v1")),
-        }), planning: None, chain: None,
+        }),
+        planning: None,
+        chain: None,
     };
     let physical = PhysicalLayer {
         operators: Arc::from([
-            PhysicalOperator::declare(PhysicalEffect::Read)
-                .build().map_err(|_| AssessedBridgeRobustDecisionError::Invalid(
+            PhysicalOperator::declare(PhysicalEffect::Read).build().map_err(|_| {
+                AssessedBridgeRobustDecisionError::Invalid(
                     "robust bridge assessment read cannot be lowered",
-                ))?,
+                )
+            })?,
             PhysicalOperator::declare(PhysicalEffect::Transport)
-                .estimates(ByteEstimates::absent().with_output(
-                    (assessed.bridge.source.n_draws() as u64).saturating_mul(16),
-                )).build().map_err(|_| AssessedBridgeRobustDecisionError::Invalid(
-                    "robust bridge shift cannot be lowered",
-                ))?,
-        ]), design,
+                .estimates(
+                    ByteEstimates::absent()
+                        .with_output((assessed.bridge.source.n_draws() as u64).saturating_mul(16)),
+                )
+                .build()
+                .map_err(|_| {
+                    AssessedBridgeRobustDecisionError::Invalid(
+                        "robust bridge shift cannot be lowered",
+                    )
+                })?,
+        ]),
+        design,
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::AssessedBridgeTransportDecision,
-        scientific,
-        identification: IdentificationLayer::NonGraphical(Arc::new(
-            NonGraphicalIdentification::SharedEvidenceContract { contract: query },
-        )),
-        statistical: StatisticalProgram {
-            identifier: None, estimator: None,
-            realization: Realization::DeclaredAssumptionEnvelope {
-                evaluator: Arc::from("assessed_bridge.global_discrepancy_envelope"),
-                draw_meaning: LawMeaning::Predictive,
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::AssessedBridgeTransportDecision,
+            scientific,
+            identification: IdentificationLayer::NonGraphical(Arc::new(
+                NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+            )),
+            statistical: StatisticalProgram {
+                identifier: None,
+                estimator: None,
+                realization: Realization::DeclaredAssumptionEnvelope {
+                    evaluator: Arc::from("assessed_bridge.global_discrepancy_envelope"),
+                    draw_meaning: LawMeaning::Predictive,
+                },
+                models: Arc::from([]),
+                folds: None,
+                resampling: None,
+                posterior: None,
+                design,
+                operators: Arc::from([]),
             },
-            models: Arc::from([]), folds: None, resampling: None,
-            posterior: None, design, operators: Arc::from([]),
-        },
-        evidence, physical,
-        claim: ClaimDemand { uncertainty: UncertaintyReading::AssumptionEnvelope,
-            kind: Some(ClaimKind::PolicyValue) },
-    }.finish());
+            evidence,
+            physical,
+            claim: ClaimDemand {
+                uncertainty: UncertaintyReading::AssumptionEnvelope,
+                kind: Some(ClaimKind::PolicyValue),
+            },
+        }
+        .finish(),
+    );
     Ok(CompiledAssessedBridgeRobustDecision { assessed, contract, lowered })
 }
 
 fn discrepancy_robust_plan(
     assessed: &AssessedBridgeTransportDecisionResult,
-    contract: &DecisionContract, ctx: &ExecutionContext,
+    contract: &DecisionContract,
+    ctx: &ExecutionContext,
 ) -> Result<ChainRobustDecisionPlan, AssessedBridgeRobustDecisionError> {
     let grid = &assessed.assessment.grid;
     let (Some(first), Some(last)) = (grid.first(), grid.last()) else {
@@ -785,8 +936,11 @@ fn discrepancy_robust_plan(
     let mapped = bridged.distribution();
     let column = bridged.column();
     let width = source.quantities().len();
-    if width == 0 || column >= width || mapped.quantities().len() != width
-        || source.n_draws() != mapped.n_draws() {
+    if width == 0
+        || column >= width
+        || mapped.quantities().len() != width
+        || source.n_draws() != mapped.n_draws()
+    {
         return Err(AssessedBridgeRobustDecisionError::Invalid(
             "source and mapped bridge rows are not aligned",
         ));
@@ -796,8 +950,11 @@ fn discrepancy_robust_plan(
         let offset = row * width + column;
         let x = source.draws()[offset];
         let y = mapped.draws()[offset];
-        if !x.is_finite() || !y.is_finite()
-            || x < first.surrogate_effect || x > last.surrogate_effect {
+        if !x.is_finite()
+            || !y.is_finite()
+            || x < first.surrogate_effect
+            || x > last.surrogate_effect
+        {
             return Err(AssessedBridgeRobustDecisionError::Invalid(
                 "a source draw leaves the assessed surrogate overlap grid",
             ));
@@ -806,23 +963,35 @@ fn discrepancy_robust_plan(
     }
     let target = &assessed.bridge.bridge.claim().contract.target.quantity;
     let draft = PropagationChain::draft(
-        TableConstruction::JointDraws, ChainReading::AssumptionEnvelope,
-        "target_terminal", vec![
-            ChainSourceWire::draws("source_mapped", LawMeaning::Predictive,
-                bridged.alignment_identity(), &values),
+        TableConstruction::JointDraws,
+        ChainReading::AssumptionEnvelope,
+        "target_terminal",
+        vec![
+            ChainSourceWire::draws(
+                "source_mapped",
+                LawMeaning::Predictive,
+                bridged.alignment_identity(),
+                &values,
+            ),
             ChainSourceWire::interval("target_minus_source", lower, upper),
-        ], vec![ChainStageWire::new(
-            "target_terminal", StageKind::DerivedQuantity,
-            &["source_mapped", "target_minus_source"], ChainOpWire::binary("sum"),
+        ],
+        vec![ChainStageWire::new(
+            "target_terminal",
+            StageKind::DerivedQuantity,
+            &["source_mapped", "target_minus_source"],
+            ChainOpWire::binary("sum"),
         )],
-    ).with_output_quantity(ScientificQuantityWire::from(target));
+    )
+    .with_output_quantity(ScientificQuantityWire::from(target));
     Ok(compile_chain_robust_decision(draft, contract.clone(), ctx)?)
 }
 
 impl CompiledAssessedBridgeRobustDecision {
     /// Complete compiler program of the assessed discrepancy decision.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the bound graph, validation, mapping and utility before execution.
     #[must_use]
@@ -835,13 +1004,18 @@ impl CompiledAssessedBridgeRobustDecision {
     ///
     /// # Errors
     /// A child, support, chain or utility refusal.
-    pub fn execute(&self, ctx: &ExecutionContext)
-        -> Result<AssessedBridgeRobustDecisionResult, AssessedBridgeRobustDecisionError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<AssessedBridgeRobustDecisionResult, AssessedBridgeRobustDecisionError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let assessed = self.assessed.execute(&scoped)?;
-        let robust = discrepancy_robust_plan(&assessed, &self.contract, &scoped)?.execute(&scoped)?;
+        let robust =
+            discrepancy_robust_plan(&assessed, &self.contract, &scoped)?.execute(&scoped)?;
         Ok(AssessedBridgeRobustDecisionResult {
-            assessed, robust, lowered_program_identity: self.lowered.identity(),
+            assessed,
+            robust,
+            lowered_program_identity: self.lowered.identity(),
             calibration: "not_measured",
         })
     }
@@ -850,14 +1024,18 @@ impl CompiledAssessedBridgeRobustDecision {
     ///
     /// # Errors
     /// Changed result, child or artifact encoding refusal.
-    pub fn export(&self, result: &AssessedBridgeRobustDecisionResult,
-        artifact_id: &str, ctx: &ExecutionContext)
-        -> Result<Vec<u8>, AssessedBridgeRobustDecisionError> {
+    pub fn export(
+        &self,
+        result: &AssessedBridgeRobustDecisionResult,
+        artifact_id: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, AssessedBridgeRobustDecisionError> {
         let live = self.execute(ctx)?;
         if result.lowered_program_identity != live.lowered_program_identity
             || result.calibration != "not_measured"
             || result.assessed.assessment != live.assessed.assessment
-            || result.robust != live.robust {
+            || result.robust != live.robust
+        {
             return Err(AssessedBridgeRobustDecisionError::Invalid(
                 "assessed robust decision differs on replay",
             ));
@@ -865,7 +1043,8 @@ impl CompiledAssessedBridgeRobustDecision {
         let contract = DecisionContractArtifact::new(self.contract.clone())?;
         let robust_plan = discrepancy_robust_plan(&live.assessed, &self.contract, ctx)?;
         let wire = AssessedBridgeRobustWire {
-            version: 1, required_feature: ASSESSED_ROBUST_FEATURE.into(),
+            version: 1,
+            required_feature: ASSESSED_ROBUST_FEATURE.into(),
             program_identity: *self.lowered.identity().as_bytes(),
             assessment_identity: *self.assessed.assessment.lowered().identity().as_bytes(),
             assessment_artifact: self
@@ -900,7 +1079,9 @@ impl CompiledAssessedBridgeRobustDecision {
 /// # Errors
 /// A foreign feature, changed child, support domain, contract or result.
 pub fn consume_assessed_bridge_robust_decision(
-    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<AssessedBridgeRobustDecisionResult, AssessedBridgeRobustDecisionError> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(AssessedBridgeRobustDecisionError::Invalid(
@@ -908,38 +1089,48 @@ pub fn consume_assessed_bridge_robust_decision(
         ));
     }
     let wire: AssessedBridgeRobustWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != ASSESSED_ROBUST_FEATURE
-        || wire.program_identity != *expected_program.as_bytes() {
+    if wire.version != 1
+        || wire.required_feature != ASSESSED_ROBUST_FEATURE
+        || wire.program_identity != *expected_program.as_bytes()
+    {
         return Err(AssessedBridgeRobustDecisionError::Invalid(
             "assessed robust feature or identity differs",
         ));
     }
     let (assessment, assessed) = recompile_bridge_transport_premise_assessment(
-        &wire.assessment_artifact, SemanticDigest::from_bytes(wire.assessment_identity), ctx,
-    ).map_err(AssessedBridgeTransportDecisionError::from)?;
+        &wire.assessment_artifact,
+        SemanticDigest::from_bytes(wire.assessment_identity),
+        ctx,
+    )
+    .map_err(AssessedBridgeTransportDecisionError::from)?;
     let (bridge, bridged) = recompile_bridge_transport_decision(
-        &wire.bridge_artifact, SemanticDigest::from_bytes(wire.bridge_identity), ctx,
-    ).map_err(AssessedBridgeTransportDecisionError::from)?;
+        &wire.bridge_artifact,
+        SemanticDigest::from_bytes(wire.bridge_identity),
+        ctx,
+    )
+    .map_err(AssessedBridgeTransportDecisionError::from)?;
     let contract = DecisionContractArtifact::from_bytes(
-        &wire.robust_contract_artifact, &wire.robust_contract_identity,
+        &wire.robust_contract_artifact,
+        &wire.robust_contract_identity,
     )?;
     let child = compile_assessed_bridge_transport_decision(assessment, bridge)?;
     let plan = compile_assessed_bridge_robust_decision(child, contract.contract().clone())?;
     if plan.lowered().identity() != expected_program {
-        return Err(AssessedBridgeRobustDecisionError::Invalid(
-            "assessed robust compiler changed",
-        ));
+        return Err(AssessedBridgeRobustDecisionError::Invalid("assessed robust compiler changed"));
     }
     let live = plan.execute(ctx)?;
     if live.assessed.assessment != assessed
         || live.assessed.bridge.bridge.inspect() != bridged.bridge.inspect()
-        || live.robust.lowered_program_identity != SemanticDigest::from_bytes(wire.robust_identity) {
+        || live.robust.lowered_program_identity != SemanticDigest::from_bytes(wire.robust_identity)
+    {
         return Err(AssessedBridgeRobustDecisionError::Invalid(
             "assessed robust child result changed",
         ));
     }
     let replay = consume_chain_robust_decision(
-        &wire.robust_artifact, Some(live.robust.lowered_program_identity), ctx,
+        &wire.robust_artifact,
+        Some(live.robust.lowered_program_identity),
+        ctx,
     )?;
     if replay != live.robust {
         return Err(AssessedBridgeRobustDecisionError::Invalid(
@@ -991,10 +1182,15 @@ pub struct AssessedBridgePosteriorDecisionResult {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct AssessedBridgePosteriorWire {
-    version: u32, feature: String, program_identity: [u8; 32], seed: u64,
+    version: u32,
+    feature: String,
+    program_identity: [u8; 32],
+    seed: u64,
     premises: BridgeTargetPosteriorPremises,
-    assessed_identity: [u8; 32], assessed_artifact: Vec<u8>,
-    chain_identity: [u8; 32], chain_artifact: Vec<u8>,
+    assessed_identity: [u8; 32],
+    assessed_artifact: Vec<u8>,
+    chain_identity: [u8; 32],
+    chain_artifact: Vec<u8>,
 }
 
 /// Compile a matched bridge with an independent normal target-line posterior.
@@ -1004,22 +1200,32 @@ struct AssessedBridgePosteriorWire {
 /// # Errors
 /// Missing premises, incompatible criterion, or lowering refusal.
 pub fn compile_assessed_bridge_posterior_decision(
-    assessed: CompiledAssessedBridgeTransportDecision, premises: BridgeTargetPosteriorPremises,
+    assessed: CompiledAssessedBridgeTransportDecision,
+    premises: BridgeTargetPosteriorPremises,
     ctx: &ExecutionContext,
 ) -> Result<CompiledAssessedBridgePosteriorDecision, AssessedBridgeRobustDecisionError> {
-    if premises.validation_design.trim().is_empty() || !premises.target_validation_independent
+    if premises.validation_design.trim().is_empty()
+        || !premises.target_validation_independent
         || !premises.source_innovation_transfers
-        || !matches!(assessed.bridge.decision.criterion, DecisionCriterion::ExpectedRegret) {
-        return Err(AssessedBridgeRobustDecisionError::Invalid("independent target validation, transferred innovation and expected-regret criterion are required"));
+        || !matches!(assessed.bridge.decision.criterion, DecisionCriterion::ExpectedRegret)
+    {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "independent target validation, transferred innovation and expected-regret criterion are required",
+        ));
     }
     let seed = ctx.rng.master_seed();
     let child = assessed.lowered.identity();
-    let mut writer = CanonicalWriter::new("antecedent.assessed_bridge.target_posterior.question.v1");
-    writer.bytes(child.as_bytes()).bytes(&antecedent_io::to_cbor(&premises)?).word(seed)
+    let mut writer =
+        CanonicalWriter::new("antecedent.assessed_bridge.target_posterior.question.v1");
+    writer
+        .bytes(child.as_bytes())
+        .bytes(&antecedent_io::to_cbor(&premises)?)
+        .word(seed)
         .text("normal_line_reference_prior_variance_inverse_v1");
     let query = writer.finish();
     let mut scientific = assessed.lowered.scientific().clone();
-    scientific.target = ProblemTarget::QueryFunctional { kind: FunctionalKind::PolicyValue, outcome: None, query };
+    scientific.target =
+        ProblemTarget::QueryFunctional { kind: FunctionalKind::PolicyValue, outcome: None, query };
     scientific.plan_id = Arc::from("assessed_bridge_target_posterior_decision.v1");
     scientific.graph_class = "independent_target_normal_trial_posterior";
     let identification = IdentificationLayer::NonGraphical(Arc::new(
@@ -1027,64 +1233,113 @@ pub fn compile_assessed_bridge_posterior_decision(
     ));
     let mut evidence = assessed.lowered.evidence().clone();
     let mut sources = evidence.sources.to_vec();
-    sources.push(EvidenceSourceRef { role: EvidenceRole::ChainSource, digest: Some(*child.as_bytes()) });
+    sources.push(EvidenceSourceRef {
+        role: EvidenceRole::ChainSource,
+        digest: Some(*child.as_bytes()),
+    });
     evidence.sources = Arc::from(sources);
     let mut operators = assessed.lowered.physical().operators().to_vec();
-    operators.push(PhysicalOperator::declare(PhysicalEffect::Fit).build()
-        .map_err(|_| AssessedBridgeRobustDecisionError::Invalid("target posterior cannot be lowered"))?);
+    operators.push(PhysicalOperator::declare(PhysicalEffect::Fit).build().map_err(|_| {
+        AssessedBridgeRobustDecisionError::Invalid("target posterior cannot be lowered")
+    })?);
     let mut statistical = assessed.lowered.statistical().clone();
     statistical.realization = Realization::NestedFit {
         producer_program: child,
-        method: Arc::from("independent_target_normal_reference_posterior_retained_source_innovation_v1"),
+        method: Arc::from(
+            "independent_target_normal_reference_posterior_retained_source_innovation_v1",
+        ),
         law: NestedFitLaw::Predictive,
     };
     let mut models = statistical.models.to_vec();
-    models.push(ModelSlot { role: ModelRole::Outcome,
+    models.push(ModelSlot {
+        role: ModelRole::Outcome,
         family: Arc::from("target_normal_linear_fixed_design_reference_variance_inverse"),
-        inputs: Arc::from([]), output: None });
+        inputs: Arc::from([]),
+        output: None,
+    });
     statistical.models = Arc::from(models);
     let prior = antecedent_core::Prior::new("target_line_reference_prior_inverse_variance")
-        .map_err(|_| AssessedBridgeRobustDecisionError::Invalid("target posterior prior identity is invalid"))?;
-    let active_draws = assessed.bridge.source.metadata().weights.as_ref().map_or(
-        assessed.bridge.source.n_draws(),
-        |weights| weights.iter().filter(|weight| **weight > 0.0).count(),
-    );
+        .map_err(|_| {
+            AssessedBridgeRobustDecisionError::Invalid("target posterior prior identity is invalid")
+        })?;
+    let active_draws = assessed
+        .bridge
+        .source
+        .metadata()
+        .weights
+        .as_ref()
+        .map_or(assessed.bridge.source.n_draws(), |weights| {
+            weights.iter().filter(|weight| **weight > 0.0).count()
+        });
     if active_draws < 2 {
         return Err(AssessedBridgeRobustDecisionError::Invalid(
             "target posterior needs at least two positive-mass source rows",
         ));
     }
-    statistical.posterior = Some(PosteriorPlan { algorithm: PosteriorAlgorithm::Conjugate,
-        draws: active_draws, prior });
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::AssessedBridgeTransportDecision, scientific, identification,
-        statistical, evidence,
-        physical: PhysicalLayer { operators: Arc::from(operators), design: assessed.lowered.physical().design() },
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Predictive, kind: Some(ClaimKind::PolicyValue) },
-    }.finish());
+    statistical.posterior = Some(PosteriorPlan {
+        algorithm: PosteriorAlgorithm::Conjugate,
+        draws: active_draws,
+        prior,
+    });
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::AssessedBridgeTransportDecision,
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical: PhysicalLayer {
+                operators: Arc::from(operators),
+                design: assessed.lowered.physical().design(),
+            },
+            claim: ClaimDemand {
+                uncertainty: UncertaintyReading::Predictive,
+                kind: Some(ClaimKind::PolicyValue),
+            },
+        }
+        .finish(),
+    );
     Ok(CompiledAssessedBridgePosteriorDecision { assessed, premises, seed, lowered })
 }
 
 impl CompiledAssessedBridgePosteriorDecision {
     /// Outer compiler identity, including posterior prior and dependence premises.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
     /// Inspect all retained layers before posterior sampling.
     #[must_use]
-    pub fn plan_view(&self) -> PlanView { PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled) }
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
 
-    fn posterior_plan(&self, result: &AssessedBridgeTransportDecisionResult, ctx: &ExecutionContext)
-        -> Result<super::propagation_chain_decision::ChainDecisionPlan, AssessedBridgeRobustDecisionError> {
+    fn posterior_plan(
+        &self,
+        result: &AssessedBridgeTransportDecisionResult,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        super::propagation_chain_decision::ChainDecisionPlan,
+        AssessedBridgeRobustDecisionError,
+    > {
         let bridged = result.bridge.bridge.bridged();
         let all_source = bridged.source_column();
-        let all_residuals = bridged.affine_columns().and_then(|columns| columns.residuals.as_ref())
-            .ok_or(AssessedBridgeRobustDecisionError::Invalid("source predictive innovation is absent"))?;
+        let all_residuals = bridged
+            .affine_columns()
+            .and_then(|columns| columns.residuals.as_ref())
+            .ok_or(AssessedBridgeRobustDecisionError::Invalid(
+                "source predictive innovation is absent",
+            ))?;
         if all_source.len() != all_residuals.len() {
-            return Err(AssessedBridgeRobustDecisionError::Invalid("source rows and innovations differ"));
+            return Err(AssessedBridgeRobustDecisionError::Invalid(
+                "source rows and innovations differ",
+            ));
         }
         let source_weights = bridged.source().metadata().weights.as_ref();
         if source_weights.is_some_and(|weights| weights.len() != all_source.len()) {
-            return Err(AssessedBridgeRobustDecisionError::Invalid("source weights and rows differ"));
+            return Err(AssessedBridgeRobustDecisionError::Invalid(
+                "source weights and rows differ",
+            ));
         }
         let mut source = Vec::with_capacity(all_source.len());
         let mut residuals = Vec::with_capacity(all_residuals.len());
@@ -1092,12 +1347,16 @@ impl CompiledAssessedBridgePosteriorDecision {
         for (index, (&value, &innovation)) in all_source.iter().zip(all_residuals).enumerate() {
             let weight = source_weights.map_or(1.0, |weights| weights[index]);
             if !weight.is_finite() || weight < 0.0 {
-                return Err(AssessedBridgeRobustDecisionError::Invalid("source weights are invalid"));
+                return Err(AssessedBridgeRobustDecisionError::Invalid(
+                    "source weights are invalid",
+                ));
             }
             if weight > 0.0 {
                 source.push(value);
                 residuals.push(innovation);
-                if source_weights.is_some() { log_weights.push(weight.ln()); }
+                if source_weights.is_some() {
+                    log_weights.push(weight.ln());
+                }
             }
         }
         if source.len() < 2 {
@@ -1105,36 +1364,79 @@ impl CompiledAssessedBridgePosteriorDecision {
                 "target posterior needs at least two positive-mass source rows",
             ));
         }
-        let first = result.assessment.grid.first().ok_or(AssessedBridgeRobustDecisionError::Invalid("validation grid absent"))?.surrogate_effect;
-        let last = result.assessment.grid.last().ok_or(AssessedBridgeRobustDecisionError::Invalid("validation grid absent"))?.surrogate_effect;
+        let first = result
+            .assessment
+            .grid
+            .first()
+            .ok_or(AssessedBridgeRobustDecisionError::Invalid("validation grid absent"))?
+            .surrogate_effect;
+        let last = result
+            .assessment
+            .grid
+            .last()
+            .ok_or(AssessedBridgeRobustDecisionError::Invalid("validation grid absent"))?
+            .surrogate_effect;
         if source.iter().any(|x| !x.is_finite() || *x < first || *x > last) {
-            return Err(AssessedBridgeRobustDecisionError::Invalid("source draws leave validation overlap"));
+            return Err(AssessedBridgeRobustDecisionError::Invalid(
+                "source draws leave validation overlap",
+            ));
         }
-        let mut writer = CanonicalWriter::new("antecedent.assessed_bridge.target_posterior.seed.v1");
+        let mut writer =
+            CanonicalWriter::new("antecedent.assessed_bridge.target_posterior.seed.v1");
         writer.bytes(self.lowered.identity().as_bytes()).word(self.seed);
         let digest = writer.finish();
-        let mut seed_bytes = [0u8; 8]; seed_bytes.copy_from_slice(&digest[..8]);
-        let target = self.assessed.assessment.target_line_posterior(source.len(), u64::from_le_bytes(seed_bytes), ctx)
+        let mut seed_bytes = [0u8; 8];
+        seed_bytes.copy_from_slice(&digest[..8]);
+        let target = self
+            .assessed
+            .assessment
+            .target_line_posterior(source.len(), u64::from_le_bytes(seed_bytes), ctx)
             .map_err(AssessedBridgeTransportDecisionError::from)?;
         let intercept: Vec<_> = target.iter().map(|draw| draw.intercept).collect();
         let slope: Vec<_> = target.iter().map(|draw| draw.slope).collect();
         let alignment = format!("target-posterior:{}", self.lowered.identity().to_hex());
-        let mut draft = PropagationChain::draft(TableConstruction::JointDraws, ChainReading::Predictive,
-            "target_terminal", vec![
+        let mut draft = PropagationChain::draft(
+            TableConstruction::JointDraws,
+            ChainReading::Predictive,
+            "target_terminal",
+            vec![
                 ChainSourceWire::draws("source", LawMeaning::Predictive, &alignment, &source)
                     .with_factor(SharedFactorKind::Model, "retained_source_predictive_pair"),
                 ChainSourceWire::draws("target_slope", LawMeaning::Posterior, &alignment, &slope)
                     .with_factor(SharedFactorKind::Parameter, "independent_target_line_posterior"),
-                ChainSourceWire::draws("target_intercept", LawMeaning::Posterior, &alignment, &intercept)
-                    .with_factor(SharedFactorKind::Parameter, "independent_target_line_posterior"),
-                ChainSourceWire::draws("source_innovation", LawMeaning::Innovation, &alignment, &residuals)
-                    .with_factor(SharedFactorKind::Model, "retained_source_predictive_pair"),
-            ], vec![ChainStageWire::new("target_terminal", StageKind::PredictiveMapping,
+                ChainSourceWire::draws(
+                    "target_intercept",
+                    LawMeaning::Posterior,
+                    &alignment,
+                    &intercept,
+                )
+                .with_factor(SharedFactorKind::Parameter, "independent_target_line_posterior"),
+                ChainSourceWire::draws(
+                    "source_innovation",
+                    LawMeaning::Innovation,
+                    &alignment,
+                    &residuals,
+                )
+                .with_factor(SharedFactorKind::Model, "retained_source_predictive_pair"),
+            ],
+            vec![ChainStageWire::new(
+                "target_terminal",
+                StageKind::PredictiveMapping,
                 &["source", "target_slope", "target_intercept", "source_innovation"],
-                ChainOpWire::expression(vec![ChainExprTermWire::input(0), ChainExprTermWire::input(1),
-                    ChainExprTermWire::Multiply, ChainExprTermWire::input(2), ChainExprTermWire::Add,
-                    ChainExprTermWire::input(3), ChainExprTermWire::Add]))],
-        ).with_output_quantity(ScientificQuantityWire::from(&self.assessed.bridge.bridge.contract().target.quantity));
+                ChainOpWire::expression(vec![
+                    ChainExprTermWire::input(0),
+                    ChainExprTermWire::input(1),
+                    ChainExprTermWire::Multiply,
+                    ChainExprTermWire::input(2),
+                    ChainExprTermWire::Add,
+                    ChainExprTermWire::input(3),
+                    ChainExprTermWire::Add,
+                ]),
+            )],
+        )
+        .with_output_quantity(ScientificQuantityWire::from(
+            &self.assessed.bridge.bridge.contract().target.quantity,
+        ));
         if source_weights.is_some() {
             draft.changes.push(ChainChangeWire::reweight("source", &log_weights));
         }
@@ -1145,35 +1447,64 @@ impl CompiledAssessedBridgePosteriorDecision {
     ///
     /// # Errors
     /// Changed seed, improper posterior, unsupported overlap or nested refusal.
-    pub fn execute(&self, ctx: &ExecutionContext) -> Result<AssessedBridgePosteriorDecisionResult, AssessedBridgeRobustDecisionError> {
-        if ctx.rng.master_seed() != self.seed { return Err(AssessedBridgeRobustDecisionError::Invalid("target posterior seed changed")); }
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<AssessedBridgePosteriorDecisionResult, AssessedBridgeRobustDecisionError> {
+        if ctx.rng.master_seed() != self.seed {
+            return Err(AssessedBridgeRobustDecisionError::Invalid(
+                "target posterior seed changed",
+            ));
+        }
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let assessed = self.assessed.execute(&scoped)?;
         let decision = self.posterior_plan(&assessed, &scoped)?.execute(&scoped)?;
-        Ok(AssessedBridgePosteriorDecisionResult { assessed, decision, lowered_program_identity: self.lowered.identity(), calibration: "not_measured" })
+        Ok(AssessedBridgePosteriorDecisionResult {
+            assessed,
+            decision,
+            lowered_program_identity: self.lowered.identity(),
+            calibration: "not_measured",
+        })
     }
 
     /// Seal source-bound child artifacts and the posterior predictive decision.
     ///
     /// # Errors
     /// Changed result, failed replay or oversized artifact.
-    pub fn export(&self, result: &AssessedBridgePosteriorDecisionResult, artifact_id: &str, ctx: &ExecutionContext)
-        -> Result<Vec<u8>, AssessedBridgeRobustDecisionError> {
+    pub fn export(
+        &self,
+        result: &AssessedBridgePosteriorDecisionResult,
+        artifact_id: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, AssessedBridgeRobustDecisionError> {
         let live = self.execute(ctx)?;
-        if result.lowered_program_identity != self.lowered.identity() || result.calibration != "not_measured"
+        if result.lowered_program_identity != self.lowered.identity()
+            || result.calibration != "not_measured"
             || result.assessed.assessment != live.assessed.assessment
-            || result.decision.chain.identity() != live.decision.chain.identity() || result.decision.decision != live.decision.decision {
-            return Err(AssessedBridgeRobustDecisionError::Invalid("target posterior decision differs on replay"));
+            || result.decision.chain.identity() != live.decision.chain.identity()
+            || result.decision.decision != live.decision.decision
+        {
+            return Err(AssessedBridgeRobustDecisionError::Invalid(
+                "target posterior decision differs on replay",
+            ));
         }
         let chain = self.posterior_plan(&live.assessed, ctx)?;
         let bytes = antecedent_io::to_cbor(&AssessedBridgePosteriorWire {
-            version: 1, feature: "assessed_bridge_target_posterior_decision_v1".into(), seed: self.seed,
-            program_identity: *self.lowered.identity().as_bytes(), premises: self.premises.clone(),
+            version: 1,
+            feature: "assessed_bridge_target_posterior_decision_v1".into(),
+            seed: self.seed,
+            program_identity: *self.lowered.identity().as_bytes(),
+            premises: self.premises.clone(),
             assessed_identity: *self.assessed.lowered.identity().as_bytes(),
             assessed_artifact: self.assessed.export(&live.assessed, artifact_id, ctx)?,
-            chain_identity: *chain.lowered().identity().as_bytes(), chain_artifact: chain.export(&live.decision, artifact_id)?,
+            chain_identity: *chain.lowered().identity().as_bytes(),
+            chain_artifact: chain.export(&live.decision, artifact_id)?,
         })?;
-        if bytes.len() > MAX_ARTIFACT_BYTES { return Err(AssessedBridgeRobustDecisionError::Invalid("target posterior artifact exceeds its bound")); }
+        if bytes.len() > MAX_ARTIFACT_BYTES {
+            return Err(AssessedBridgeRobustDecisionError::Invalid(
+                "target posterior artifact exceeds its bound",
+            ));
+        }
         Ok(bytes)
     }
 }
@@ -1183,36 +1514,71 @@ impl CompiledAssessedBridgePosteriorDecision {
 ///
 /// # Errors
 /// Changed feature, seed, child, compiled identity, posterior or decision.
-pub fn consume_assessed_bridge_posterior_decision(bytes: &[u8], expected: SemanticDigest, ctx: &ExecutionContext)
-    -> Result<AssessedBridgePosteriorDecisionResult, AssessedBridgeRobustDecisionError> {
-    if bytes.len() > MAX_ARTIFACT_BYTES { return Err(AssessedBridgeRobustDecisionError::Invalid("target posterior artifact exceeds its bound")); }
-    let wire: AssessedBridgePosteriorWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.feature != "assessed_bridge_target_posterior_decision_v1"
-        || wire.program_identity != *expected.as_bytes() || wire.seed != ctx.rng.master_seed() {
-        return Err(AssessedBridgeRobustDecisionError::Invalid("target posterior feature, seed or identity differs"));
+pub fn consume_assessed_bridge_posterior_decision(
+    bytes: &[u8],
+    expected: SemanticDigest,
+    ctx: &ExecutionContext,
+) -> Result<AssessedBridgePosteriorDecisionResult, AssessedBridgeRobustDecisionError> {
+    if bytes.len() > MAX_ARTIFACT_BYTES {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "target posterior artifact exceeds its bound",
+        ));
     }
-    let original = consume_assessed_bridge_transport_decision(&wire.assessed_artifact,
-        SemanticDigest::from_bytes(wire.assessed_identity), ctx)?;
+    let wire: AssessedBridgePosteriorWire = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1
+        || wire.feature != "assessed_bridge_target_posterior_decision_v1"
+        || wire.program_identity != *expected.as_bytes()
+        || wire.seed != ctx.rng.master_seed()
+    {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "target posterior feature, seed or identity differs",
+        ));
+    }
+    let original = consume_assessed_bridge_transport_decision(
+        &wire.assessed_artifact,
+        SemanticDigest::from_bytes(wire.assessed_identity),
+        ctx,
+    )?;
     let child: AssessedBridgeDecisionWire = antecedent_io::from_cbor(&wire.assessed_artifact)?;
-    let (assessment, _) = recompile_bridge_transport_premise_assessment(&child.assessment_artifact,
-        SemanticDigest::from_bytes(child.assessment_identity), ctx).map_err(AssessedBridgeTransportDecisionError::from)?;
-    let (bridge, _) = recompile_bridge_transport_decision(&child.bridge_artifact,
-        SemanticDigest::from_bytes(child.bridge_identity), ctx).map_err(AssessedBridgeTransportDecisionError::from)?;
+    let (assessment, _) = recompile_bridge_transport_premise_assessment(
+        &child.assessment_artifact,
+        SemanticDigest::from_bytes(child.assessment_identity),
+        ctx,
+    )
+    .map_err(AssessedBridgeTransportDecisionError::from)?;
+    let (bridge, _) = recompile_bridge_transport_decision(
+        &child.bridge_artifact,
+        SemanticDigest::from_bytes(child.bridge_identity),
+        ctx,
+    )
+    .map_err(AssessedBridgeTransportDecisionError::from)?;
     let assessed = compile_assessed_bridge_transport_decision(assessment, bridge)?;
     let plan = compile_assessed_bridge_posterior_decision(assessed, wire.premises, ctx)?;
-    if plan.lowered.identity() != expected { return Err(AssessedBridgeRobustDecisionError::Invalid("target posterior compiler differs")); }
+    if plan.lowered.identity() != expected {
+        return Err(AssessedBridgeRobustDecisionError::Invalid(
+            "target posterior compiler differs",
+        ));
+    }
     let live = plan.execute(ctx)?;
     if live.assessed.lowered_program_identity != original.lowered_program_identity
         || live.assessed.assessment != original.assessment
         || live.assessed.bridge.lowered_program_identity != original.bridge.lowered_program_identity
         || live.assessed.bridge.bridge.inspect() != original.bridge.bridge.inspect()
-        || live.assessed.bridge.decision.chain.identity() != original.bridge.decision.chain.identity()
+        || live.assessed.bridge.decision.chain.identity()
+            != original.bridge.decision.chain.identity()
         || live.assessed.bridge.decision.decision != original.bridge.decision.decision
-        || live.decision.lowered_program_identity != SemanticDigest::from_bytes(wire.chain_identity) {
+        || live.decision.lowered_program_identity != SemanticDigest::from_bytes(wire.chain_identity)
+    {
         return Err(AssessedBridgeRobustDecisionError::Invalid("target posterior children differ"));
     }
-    let replay = consume_chain_decision(&wire.chain_artifact, Some(live.decision.lowered_program_identity), ctx)?;
-    if replay.chain.identity() != live.decision.chain.identity() || replay.decision != live.decision.decision {
+    let replay = consume_chain_decision(
+        &wire.chain_artifact,
+        Some(live.decision.lowered_program_identity),
+        ctx,
+    )?;
+    if replay.chain.identity() != live.decision.chain.identity()
+        || replay.decision != live.decision.decision
+    {
         return Err(AssessedBridgeRobustDecisionError::Invalid("target posterior utility differs"));
     }
     Ok(live)
@@ -1231,21 +1597,45 @@ impl CompiledAssessedBridgePosteriorDecision {
     ///
     /// # Errors
     /// Full-route execution failure.
-    pub fn calibration_candidate(&self, ctx: &ExecutionContext)
-        -> Result<AssessedBridgePosteriorCalibrationCandidate, AssessedBridgeRobustDecisionError> {
+    pub fn calibration_candidate(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<AssessedBridgePosteriorCalibrationCandidate, AssessedBridgeRobustDecisionError>
+    {
         let result = self.execute(ctx)?;
-        let active_draws = self.lowered.statistical().posterior.as_ref()
-            .map(PosteriorPlan::draws).unwrap_or(0);
-        let functional = format!("predictive_expected_regret:assessed={}:design={}:source_draws={}:active_draws={}:target_trials={}",
-            self.assessed.lowered.identity().to_hex(), self.premises.validation_design,
-            self.assessed.bridge.source.n_draws(), active_draws,
-            self.assessed.assessment.target_trial_count());
-        let basis = antecedent_core::CalibrationBasis::new([
-            "PolicyValue", "independent_target_validation", "fixed", "tabular", "Bayesian",
-            "assessed_bridge_target_posterior_decision_v1", "none", "joint_normal_line_reference_posterior",
-            "independent_target_transferred_source_innovation", "reference_variance_inverse", functional.as_str(),
-        ].map(Arc::from), 0.95, Arc::from("point"), active_draws as u64,
-            None, None, 0.0).with_validation("none");
+        let active_draws =
+            self.lowered.statistical().posterior.as_ref().map(PosteriorPlan::draws).unwrap_or(0);
+        let functional = format!(
+            "predictive_expected_regret:assessed={}:design={}:source_draws={}:active_draws={}:target_trials={}",
+            self.assessed.lowered.identity().to_hex(),
+            self.premises.validation_design,
+            self.assessed.bridge.source.n_draws(),
+            active_draws,
+            self.assessed.assessment.target_trial_count()
+        );
+        let basis = antecedent_core::CalibrationBasis::new(
+            [
+                "PolicyValue",
+                "independent_target_validation",
+                "fixed",
+                "tabular",
+                "Bayesian",
+                "assessed_bridge_target_posterior_decision_v1",
+                "none",
+                "joint_normal_line_reference_posterior",
+                "independent_target_transferred_source_innovation",
+                "reference_variance_inverse",
+                functional.as_str(),
+            ]
+            .map(Arc::from),
+            0.95,
+            Arc::from("point"),
+            active_draws as u64,
+            None,
+            None,
+            0.0,
+        )
+        .with_validation("none");
         Ok(AssessedBridgePosteriorCalibrationCandidate { result, basis })
     }
 }

@@ -127,7 +127,8 @@ fn assumption_envelope_retains_two_axes_and_replays_changes() {
             &["estimate", "bias"],
             ChainOpWire::binary("sum"),
         )],
-    ).with_output_quantity(predictive_quantity());
+    )
+    .with_output_quantity(predictive_quantity());
     let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("mixed enclosure");
     assert_eq!(record.version, PROPAGATION_CHAIN_ASSUMPTION_VERSION);
     assert_eq!(record.label, "assumption_envelope");
@@ -137,25 +138,28 @@ fn assumption_envelope_retains_two_axes_and_replays_changes() {
     assert_eq!(record.output_upper_bounds.as_ref(), Some(&upper));
     assert_eq!(value(stage(&record, "answer"), "lower"), 2.0);
     assert_eq!(value(stage(&record, "answer"), "upper"), 3.0);
-    let decoded = PropagationChainRecordWire::decode(&record.export().expect("export"))
-        .expect("decode");
+    let decoded =
+        PropagationChainRecordWire::decode(&record.export().expect("export")).expect("decode");
     let consumed = decoded.consume(Some(&record.identity), &ctx()).expect("replay");
     assert_eq!(consumed.output_lower_bounds.as_ref(), Some(&lower));
     let mut tampered = record.clone();
     tampered.output_upper_bounds.as_mut().expect("upper")[0] = 99.0_f64.to_bits();
     assert!(matches!(tampered.consume(None, &ctx()), Err(Error::ResultMismatch)));
-    let reweighted = record.with_change(
-        ChainChangeWire::Reweight {
-            source: "estimate".into(),
-            log_weights: vec![0.0_f64.to_bits(), 0.0_f64.to_bits(), 3.0_f64.to_bits()],
-        }, &ctx(),
-    ).expect("reweight");
+    let reweighted = record
+        .with_change(
+            ChainChangeWire::Reweight {
+                source: "estimate".into(),
+                log_weights: vec![0.0_f64.to_bits(), 0.0_f64.to_bits(), 3.0_f64.to_bits()],
+            },
+            &ctx(),
+        )
+        .expect("reweight");
     assert_eq!(reweighted.output_lower_bounds.as_ref(), Some(&lower));
     assert!(reweighted.output_weights.is_some());
     assert!(value(stage(&reweighted, "answer"), "lower") > 2.0);
-    let withdrawn = record.with_change(
-        ChainChangeWire::Withdraw { source: "bias".into() }, &ctx(),
-    ).expect("withdraw");
+    let withdrawn = record
+        .with_change(ChainChangeWire::Withdraw { source: "bias".into() }, &ctx())
+        .expect("withdraw");
     assert_eq!(withdrawn.output_lower_bounds, None);
     assert_eq!(withdrawn.output_upper_bounds, None);
 }
@@ -170,11 +174,17 @@ fn assumption_envelope_decision_is_conditional_and_replayed() {
             ChainSourceWire::draws("estimate", LawMeaning::Sampling, TABLE, &[1.0, 2.0]),
             ChainSourceWire::interval("bias", 0.0, 1.0),
         ],
-        vec![ChainStageWire::new(
-            "utility", StageKind::DecisionUtility, &["estimate", "bias"],
-            ChainOpWire::binary("sum"),
-        ).with_decision_reference(2.0)],
-    ).with_output_quantity(ScientificQuantityWire {
+        vec![
+            ChainStageWire::new(
+                "utility",
+                StageKind::DecisionUtility,
+                &["estimate", "bias"],
+                ChainOpWire::binary("sum"),
+            )
+            .with_decision_reference(2.0),
+        ],
+    )
+    .with_output_quantity(ScientificQuantityWire {
         role: "utility".into(),
         functional_id: "utility_score".into(),
         ..predictive_quantity()
@@ -269,9 +279,7 @@ fn predictive_law_requires_a_quantity_coordinate() {
         TableConstruction::JointDraws,
         ChainReading::Predictive,
         "outcome_stage",
-        vec![ChainSourceWire::draws(
-            "outcome", LawMeaning::Predictive, TABLE, &[1.0, 2.0, 3.0],
-        )],
+        vec![ChainSourceWire::draws("outcome", LawMeaning::Predictive, TABLE, &[1.0, 2.0, 3.0])],
         vec![ChainStageWire::new(
             "outcome_stage",
             StageKind::DerivedQuantity,
@@ -289,9 +297,7 @@ fn posterior_law_reweights_and_withdraws_with_its_source() {
         TableConstruction::JointDraws,
         ChainReading::Posterior,
         "scaled",
-        vec![ChainSourceWire::draws(
-            "theta", LawMeaning::Posterior, TABLE, &[1.0, 2.0, 3.0, 4.0],
-        )],
+        vec![ChainSourceWire::draws("theta", LawMeaning::Posterior, TABLE, &[1.0, 2.0, 3.0, 4.0])],
         vec![ChainStageWire::new(
             "scaled",
             StageKind::DerivedQuantity,
@@ -301,16 +307,18 @@ fn posterior_law_reweights_and_withdraws_with_its_source() {
     );
     let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("posterior law");
     assert_eq!(record.version, PROPAGATION_CHAIN_LAW_VERSION);
-    assert_eq!(record.output_draws, Some(vec![2.0_f64.to_bits(), 4.0_f64.to_bits(), 6.0_f64.to_bits(), 8.0_f64.to_bits()]));
+    assert_eq!(
+        record.output_draws,
+        Some(vec![2.0_f64.to_bits(), 4.0_f64.to_bits(), 6.0_f64.to_bits(), 8.0_f64.to_bits()])
+    );
     let changed = record
         .with_change(ChainChangeWire::reweight("theta", &[0.0, 0.0, 0.0, 2.0]), &ctx())
         .expect("reweighted law");
     assert_eq!(changed.output_draws, record.output_draws);
     assert!(changed.output_weights.is_some());
     changed.consume(None, &ctx()).expect("reweighted replay");
-    let withdrawn = record
-        .with_change(ChainChangeWire::withdraw("theta"), &ctx())
-        .expect("withdrawn law");
+    let withdrawn =
+        record.with_change(ChainChangeWire::withdraw("theta"), &ctx()).expect("withdrawn law");
     assert_eq!(withdrawn.output_draws, None);
     assert_eq!(withdrawn.output_weights, None);
     withdrawn.consume(None, &ctx()).expect("withdrawn replay");
@@ -322,9 +330,7 @@ fn version_one_posterior_summary_remains_consumable() {
         TableConstruction::JointDraws,
         ChainReading::Posterior,
         "copy",
-        vec![ChainSourceWire::draws(
-            "theta", LawMeaning::Posterior, TABLE, &[1.0, 2.0, 3.0],
-        )],
+        vec![ChainSourceWire::draws("theta", LawMeaning::Posterior, TABLE, &[1.0, 2.0, 3.0])],
         vec![ChainStageWire::new(
             "copy",
             StageKind::DerivedQuantity,

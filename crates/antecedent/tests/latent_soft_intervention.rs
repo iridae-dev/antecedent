@@ -1,10 +1,10 @@
 //! Independent structural truth for the compiled latent soft-intervention route.
 
+use antecedent::Study;
 use antecedent::analysis::latent_soft_intervention::{
     LatentSoftInterventionRequest, VersionEvidence, replay_forecast,
 };
 use antecedent::planner::PlanRoute;
-use antecedent::Study;
 use antecedent::prelude::ExecutionContext;
 use antecedent_core::CausalRng;
 

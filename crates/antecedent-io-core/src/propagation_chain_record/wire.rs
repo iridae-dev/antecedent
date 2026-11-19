@@ -1,9 +1,9 @@
 //! Public wire forms and constructors for propagation-chain records.
 
+use crate::quantity_wire::ScientificQuantityWire;
 use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_contract::propagation_chain::{ChainPlan, LawMeaning, Representation, StageKind};
 use serde::{Deserialize, Serialize};
-use crate::quantity_wire::ScientificQuantityWire;
 
 use super::{bits, word_of};
 

@@ -461,9 +461,10 @@ impl PropagationChain {
     /// are the ones the independent record consumer replays.
     #[must_use]
     pub fn output_law(&self) -> Option<(&[u64], Option<&[u64]>)> {
-        self.record.output_draws.as_deref().map(|draws| {
-            (draws, self.record.output_weights.as_deref())
-        })
+        self.record
+            .output_draws
+            .as_deref()
+            .map(|draws| (draws, self.record.output_weights.as_deref()))
     }
 
     /// Rowwise lower and upper bounds under interval-valued assumptions,
@@ -471,18 +472,21 @@ impl PropagationChain {
     /// bounds have no measured sampling coverage.
     #[must_use]
     pub fn output_envelope(&self) -> Option<(&[u64], &[u64], Option<&[u64]>)> {
-        self.record.output_lower_bounds.as_deref().zip(
-            self.record.output_upper_bounds.as_deref(),
-        ).map(|(lower, upper)| (lower, upper, self.record.output_weights.as_deref()))
+        self.record
+            .output_lower_bounds
+            .as_deref()
+            .zip(self.record.output_upper_bounds.as_deref())
+            .map(|(lower, upper)| (lower, upper, self.record.output_weights.as_deref()))
     }
 
     /// Several aligned output-law columns and their common normalized row
     /// weights, retained and replayed under version 4.
     #[must_use]
     pub fn joint_output_law(&self) -> Option<(&[Vec<u64>], Option<&[u64]>)> {
-        self.record.joint_output_draws.as_deref().map(|draws| {
-            (draws, self.record.joint_output_weights.as_deref())
-        })
+        self.record
+            .joint_output_draws
+            .as_deref()
+            .map(|draws| (draws, self.record.joint_output_weights.as_deref()))
     }
 
     /// Encode the retained record.

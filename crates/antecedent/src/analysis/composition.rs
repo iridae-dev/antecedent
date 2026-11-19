@@ -23,8 +23,8 @@ pub use antecedent_design::composition_bundle::{
     BundleConsumer, BundleEdge, BundleError, BundleLimits, BundleNode, BundleStage, ClaimLabel,
     CompositionBundle, ConsumedBundle, ConsumedNode, EvidenceRelationship, FACT_EVIDENCE_DIGEST,
     FACT_LAW, FACT_QUANTITY_DIGEST, FACT_REQUEST, FACT_REQUIRES_LAW, FACT_SNAPSHOT, FACT_TRUST,
-    LAW_JOINT, LAW_MEAN_ONLY, NodeFailure, NodeKind, NodeSource, NodeStatus, ProviderOrData,
-    SuppliedData, SuppliedProvider, SuppliedSources, NodeVerifier, UpstreamNode, VerifiedNode,
+    LAW_JOINT, LAW_MEAN_ONLY, NodeFailure, NodeKind, NodeSource, NodeStatus, NodeVerifier,
+    ProviderOrData, SuppliedData, SuppliedProvider, SuppliedSources, UpstreamNode, VerifiedNode,
 };
 pub use antecedent_design::composition_verifiers::{
     ArtifactDescription, FACT_COORDINATES, FACT_MEAN_SOURCE, FACT_PROVIDER_BINDING,
@@ -34,34 +34,32 @@ pub use antecedent_design::composition_verifiers::{
 };
 pub use antecedent_design::decision_artifact::mean_result_to_bytes;
 
-use std::sync::Arc;
-use antecedent_contract::DataClassification;
-use antecedent_contract::bridge::{BridgeContract, ValueKind};
-use antecedent_core::{
-    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect,
-    PhysicalOperator, SemanticDigest,
-};
-use antecedent_contract::propagation_chain::ChainRefusal;
-use antecedent_io::propagation_chain_record::PropagationChainRecordWire;
-use antecedent_io::IoError;
-use antecedent_io::distribution_artifact::DistributionArtifact;
-use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
-use serde::{Deserialize, Serialize};
 use super::propagation_chain::{PropagationChainPlan, compile_propagation_chain};
 use super::scientific_bridge::{
     PreparedScientificBridgeDistribution, ScientificBridgeRefusal,
     consume_scientific_bridge_distribution_artifact,
 };
 use crate::planner::lowered::{
-    ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram,
-    EvidenceRole, EvidenceSourceRef,
-    FunctionalKind, IdentificationLayer, LoweredProgram,
-    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell,
-    ProgramIdentityScope, ScientificProblem, StandaloneCompositionLoweredParts,
-    UncertaintyReading,
+    ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
+    EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
+    ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{NestedFitLaw, Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
+use antecedent_contract::DataClassification;
+use antecedent_contract::bridge::{BridgeContract, ValueKind};
+use antecedent_contract::propagation_chain::ChainRefusal;
+use antecedent_core::{
+    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect, PhysicalOperator,
+    SemanticDigest,
+};
+use antecedent_io::IoError;
+use antecedent_io::distribution_artifact::DistributionArtifact;
+use antecedent_io::propagation_chain_record::PropagationChainRecordWire;
+use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 fn refused(stage: BundleStage, reason: &str, offending: Option<&str>) -> BundleError {
     BundleError::Refused {
@@ -174,22 +172,34 @@ impl BundleBuilder {
     /// # Errors
     /// Changed producer program, failed fit, repeated id or a size bound.
     pub fn add_cyclic_posterior_fit(
-        &mut self, node_id: &str, artifact: &[u8], program: SemanticDigest,
+        &mut self,
+        node_id: &str,
+        artifact: &[u8],
+        program: SemanticDigest,
         ctx: &ExecutionContext,
     ) -> Result<(), CyclicPosteriorBundleError> {
         self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
         let bytes = antecedent_io::to_cbor(&CyclicPosteriorFitWire {
-            version: 2, required_feature: CYCLIC_POSTERIOR_FIT_FEATURE_V2.into(),
-            replay_seed: Some(ctx.rng.master_seed()), producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
-        }).map_err(ChainBundleRecomputeError::Io)?;
+            version: 2,
+            required_feature: CYCLIC_POSTERIOR_FIT_FEATURE_V2.into(),
+            replay_seed: Some(ctx.rng.master_seed()),
+            producer_program: *program.as_bytes(),
+            artifact: artifact.to_vec(),
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > self.limits.max_embedded_bytes {
             return Err(CyclicPosteriorBundleError::Invalid("fit node exceeds its embedded bound"));
         }
-        let inspected = CyclicPosteriorFitVerifier { ctx: ctx.clone() }
-            .verify(node_id, &bytes, &[])
-            .map_err(|failure| ChainBundleRecomputeError::Bundle(node_refused(node_id, &failure)))?;
-        self.nodes.push(BundleNode::embedded(node_id, NodeKind::CyclicPosteriorFit,
-            &inspected.identity, bytes));
+        let inspected =
+            CyclicPosteriorFitVerifier { ctx: ctx.clone() }.verify(node_id, &bytes, &[]).map_err(
+                |failure| ChainBundleRecomputeError::Bundle(node_refused(node_id, &failure)),
+            )?;
+        self.nodes.push(BundleNode::embedded(
+            node_id,
+            NodeKind::CyclicPosteriorFit,
+            &inspected.identity,
+            bytes,
+        ));
         Ok(())
     }
 
@@ -198,22 +208,34 @@ impl BundleBuilder {
     /// # Errors
     /// The producer replay, graph id or embedded byte limit refuses.
     pub fn add_trial_ipw_transport_fit(
-        &mut self, node_id: &str, artifact: &[u8], program: SemanticDigest,
+        &mut self,
+        node_id: &str,
+        artifact: &[u8],
+        program: SemanticDigest,
         ctx: &ExecutionContext,
     ) -> Result<(), TrialIpwBundleError> {
         self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
         let bytes = antecedent_io::to_cbor(&TrialIpwFitWire {
-            version: 2, required_feature: TRIAL_IPW_FIT_FEATURE_V2.into(),
-            replay_seed: Some(ctx.rng.master_seed()), producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
-        }).map_err(ChainBundleRecomputeError::Io)?;
+            version: 2,
+            required_feature: TRIAL_IPW_FIT_FEATURE_V2.into(),
+            replay_seed: Some(ctx.rng.master_seed()),
+            producer_program: *program.as_bytes(),
+            artifact: artifact.to_vec(),
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > self.limits.max_embedded_bytes {
             return Err(TrialIpwBundleError::Invalid("trial fit exceeds its embedded bound"));
         }
-        let inspected = TrialIpwFitVerifier { ctx: ctx.clone() }
-            .verify(node_id, &bytes, &[])
-            .map_err(|failure| ChainBundleRecomputeError::Bundle(node_refused(node_id, &failure)))?;
-        self.nodes.push(BundleNode::embedded(node_id, NodeKind::TrialIpwTransportFit,
-            &inspected.identity, bytes));
+        let inspected =
+            TrialIpwFitVerifier { ctx: ctx.clone() }.verify(node_id, &bytes, &[]).map_err(
+                |failure| ChainBundleRecomputeError::Bundle(node_refused(node_id, &failure)),
+            )?;
+        self.nodes.push(BundleNode::embedded(
+            node_id,
+            NodeKind::TrialIpwTransportFit,
+            &inspected.identity,
+            bytes,
+        ));
         Ok(())
     }
 
@@ -222,22 +244,37 @@ impl BundleBuilder {
     /// # Errors
     /// The producer replay, graph id or embedded byte limit refuses.
     pub fn add_graph_imputation_transport_fit(
-        &mut self, node_id: &str, artifact: &[u8], program: SemanticDigest,
+        &mut self,
+        node_id: &str,
+        artifact: &[u8],
+        program: SemanticDigest,
         ctx: &ExecutionContext,
     ) -> Result<(), GraphImputationTransportBundleError> {
         self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
         let bytes = antecedent_io::to_cbor(&GraphImputationTransportFitWire {
-            version: 2, required_feature: GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2.into(),
-            replay_seed: Some(ctx.rng.master_seed()), producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
-        }).map_err(ChainBundleRecomputeError::Io)?;
+            version: 2,
+            required_feature: GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2.into(),
+            replay_seed: Some(ctx.rng.master_seed()),
+            producer_program: *program.as_bytes(),
+            artifact: artifact.to_vec(),
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > self.limits.max_embedded_bytes {
-            return Err(GraphImputationTransportBundleError::Invalid("graph transport fit exceeds its embedded bound"));
+            return Err(GraphImputationTransportBundleError::Invalid(
+                "graph transport fit exceeds its embedded bound",
+            ));
         }
         let inspected = GraphImputationTransportFitVerifier { ctx: ctx.clone() }
             .verify(node_id, &bytes, &[])
-            .map_err(|failure| ChainBundleRecomputeError::Bundle(node_refused(node_id, &failure)))?;
-        self.nodes.push(BundleNode::embedded(node_id, NodeKind::GraphImputationTransportFit,
-            &inspected.identity, bytes));
+            .map_err(|failure| {
+                ChainBundleRecomputeError::Bundle(node_refused(node_id, &failure))
+            })?;
+        self.nodes.push(BundleNode::embedded(
+            node_id,
+            NodeKind::GraphImputationTransportFit,
+            &inspected.identity,
+            bytes,
+        ));
         Ok(())
     }
 
@@ -246,22 +283,37 @@ impl BundleBuilder {
     /// # Errors
     /// The producer replay, graph id or embedded byte limit refuses.
     pub fn add_joint_transport_effect_fit(
-        &mut self, node_id: &str, artifact: &[u8], program: SemanticDigest,
+        &mut self,
+        node_id: &str,
+        artifact: &[u8],
+        program: SemanticDigest,
         ctx: &ExecutionContext,
     ) -> Result<(), JointTransportEffectBundleError> {
         self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
         let bytes = antecedent_io::to_cbor(&JointTransportEffectFitWire {
-            version: 2, required_feature: JOINT_TRANSPORT_EFFECT_FIT_FEATURE_V2.into(),
-            replay_seed: Some(ctx.rng.master_seed()), producer_program: *program.as_bytes(), artifact: artifact.to_vec(),
-        }).map_err(ChainBundleRecomputeError::Io)?;
+            version: 2,
+            required_feature: JOINT_TRANSPORT_EFFECT_FIT_FEATURE_V2.into(),
+            replay_seed: Some(ctx.rng.master_seed()),
+            producer_program: *program.as_bytes(),
+            artifact: artifact.to_vec(),
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > self.limits.max_embedded_bytes {
-            return Err(JointTransportEffectBundleError::Invalid("joint transport effect fit exceeds its embedded bound"));
+            return Err(JointTransportEffectBundleError::Invalid(
+                "joint transport effect fit exceeds its embedded bound",
+            ));
         }
         let inspected = JointTransportEffectFitVerifier { ctx: ctx.clone() }
             .verify(node_id, &bytes, &[])
-            .map_err(|failure| ChainBundleRecomputeError::Bundle(node_refused(node_id, &failure)))?;
-        self.nodes.push(BundleNode::embedded(node_id, NodeKind::JointTransportEffectFit,
-            &inspected.identity, bytes));
+            .map_err(|failure| {
+                ChainBundleRecomputeError::Bundle(node_refused(node_id, &failure))
+            })?;
+        self.nodes.push(BundleNode::embedded(
+            node_id,
+            NodeKind::JointTransportEffectFit,
+            &inspected.identity,
+            bytes,
+        ));
         Ok(())
     }
 
@@ -538,7 +590,10 @@ pub fn compile_chain_bundle_recomputation(
     terminal_node: &str,
     chain: PropagationChainPlan,
 ) -> Result<CompiledChainBundleRecomputation, ChainBundleRecomputeError> {
-    let node = bundle.nodes().iter().find(|node| node.id == terminal_node)
+    let node = bundle
+        .nodes()
+        .iter()
+        .find(|node| node.id == terminal_node)
         .ok_or(ChainBundleRecomputeError::Invalid("terminal node is absent from the bundle"))?;
     if node.kind != NodeKind::PropagationChain
         || !matches!(&node.source, NodeSource::Embedded { .. })
@@ -548,63 +603,85 @@ pub fn compile_chain_bundle_recomputation(
         ));
     }
     let bundle_digest = CanonicalWriter::digest_bytes(
-        "antecedent.bundle_recomputation.bundle.v1", bundle.identity().as_bytes(),
+        "antecedent.bundle_recomputation.bundle.v1",
+        bundle.identity().as_bytes(),
     );
     let mut writer = CanonicalWriter::new("antecedent.bundle_recomputation.question.v1");
     writer.bytes(&bundle_digest).text(terminal_node).bytes(chain.identity().as_bytes());
     let query = writer.finish();
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
-            kind: FunctionalKind::PropagatedChain, outcome: None, query,
+            kind: FunctionalKind::PropagatedChain,
+            outcome: None,
+            query,
         },
         plan_id: Arc::from("chain_bundle_recomputation.v1"),
-        data: DataClassification::Tabular, graph_class: "bundle_dependency_graph",
-        query_variables: Arc::from(Vec::new()), source_digest: Some(bundle_digest),
-        support_coordinate: None, supported: false, support_status: None,
+        data: DataClassification::Tabular,
+        graph_class: "bundle_dependency_graph",
+        query_variables: Arc::from(Vec::new()),
+        source_digest: Some(bundle_digest),
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: query },
     ));
     let mut sources = chain.lowered().evidence().sources().to_vec();
-    sources.push(EvidenceSourceRef {
-        role: EvidenceRole::ChainSource, digest: Some(bundle_digest),
-    });
+    sources
+        .push(EvidenceSourceRef { role: EvidenceRole::ChainSource, digest: Some(bundle_digest) });
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from(sources),
         composition: Composition::Chained {
             stages: chain.plan().stages.len() + bundle.nodes().len(),
         },
-        decision: chain.lowered().evidence().decision().cloned(), planning: None,
+        decision: chain.lowered().evidence().decision().cloned(),
+        planning: None,
         chain: chain.lowered().propagation_chain().cloned(),
     };
     let mut operators = chain.lowered().physical().operators().to_vec();
     let quote = (bundle.nodes().len() as u64).saturating_mul(128);
-    operators.push(PhysicalOperator::declare(PhysicalEffect::Read)
-        .estimates(ByteEstimates::absent().with_output(quote))
-        .build().map_err(|_| ChainBundleRecomputeError::Invalid(
-            "the bundle replay physical operator is invalid",
-        ))?);
+    operators.push(
+        PhysicalOperator::declare(PhysicalEffect::Read)
+            .estimates(ByteEstimates::absent().with_output(quote))
+            .build()
+            .map_err(|_| {
+                ChainBundleRecomputeError::Invalid("the bundle replay physical operator is invalid")
+            })?,
+    );
     let physical = PhysicalLayer {
         operators: Arc::from(operators),
         design: chain.lowered().physical().design(),
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::BundleRecomputation,
-        scientific, identification,
-        statistical: chain.lowered().statistical().clone(),
-        evidence, physical, claim: *chain.lowered().claim(),
-    }.finish());
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::BundleRecomputation,
+            scientific,
+            identification,
+            statistical: chain.lowered().statistical().clone(),
+            evidence,
+            physical,
+            claim: *chain.lowered().claim(),
+        }
+        .finish(),
+    );
     let chain = chain.within_lowered(Arc::clone(&lowered))?;
     Ok(CompiledChainBundleRecomputation {
-        bundle, terminal_node: terminal_node.to_owned(), chain, lowered,
+        bundle,
+        terminal_node: terminal_node.to_owned(),
+        chain,
+        lowered,
     })
 }
 
 impl CompiledChainBundleRecomputation {
     /// The bundle and live terminal's six-layer compiler program.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the compiled bundle recomputation without executing it.
     #[must_use]
@@ -617,8 +694,10 @@ impl CompiledChainBundleRecomputation {
     ///
     /// # Errors
     /// A failed dependency, changed terminal law or compiler refusal.
-    pub fn execute(&self, ctx: &ExecutionContext)
-        -> Result<ChainBundleRecomputationReceipt, ChainBundleRecomputeError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<ChainBundleRecomputationReceipt, ChainBundleRecomputeError> {
         let bytes = export_bundle(&self.bundle, "chain-bundle-recomputation")?;
         let consumed = consume(&bytes, self.bundle.identity(), &SuppliedSources::default())?;
         if !consumed.all_replayed() {
@@ -626,14 +705,19 @@ impl CompiledChainBundleRecomputation {
                 "every bundle dependency must pass an embedded artifact consumer",
             ));
         }
-        let node = self.bundle.nodes().iter().find(|node| node.id == self.terminal_node)
+        let node = self
+            .bundle
+            .nodes()
+            .iter()
+            .find(|node| node.id == self.terminal_node)
             .ok_or(ChainBundleRecomputeError::Invalid("terminal node disappeared"))?;
         let NodeSource::Embedded { bytes } = &node.source else {
             return Err(ChainBundleRecomputeError::Invalid("terminal node is a reference"));
         };
         let recorded = PropagationChainRecordWire::decode(bytes)
             .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
-        recorded.consume(Some(&node.identity), ctx)
+        recorded
+            .consume(Some(&node.identity), ctx)
             .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
         let live = self.chain.execute(ctx)?;
         if &recorded != live.record() || node.identity != live.identity() {
@@ -641,11 +725,15 @@ impl CompiledChainBundleRecomputation {
                 "the embedded terminal differs from the compiler's live result",
             ));
         }
-        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
-            node_id: node.id.clone(),
-            artifact_identity: node.identity.clone(),
-            chain_digest: node.chain_digest.clone(),
-        }).collect();
+        let dependencies = consumed
+            .nodes()
+            .iter()
+            .map(|node| ReplayedBundleDependency {
+                node_id: node.id.clone(),
+                artifact_identity: node.identity.clone(),
+                chain_digest: node.chain_digest.clone(),
+            })
+            .collect();
         Ok(ChainBundleRecomputationReceipt {
             bundle_identity: consumed.identity().to_owned(),
             terminal_node: self.terminal_node.clone(),
@@ -659,17 +747,23 @@ impl CompiledChainBundleRecomputation {
     ///
     /// # Errors
     /// A changed receipt or artifact encoding refusal.
-    pub fn export(&self, receipt: &ChainBundleRecomputationReceipt, ctx: &ExecutionContext)
-        -> Result<Vec<u8>, ChainBundleRecomputeError> {
+    pub fn export(
+        &self,
+        receipt: &ChainBundleRecomputationReceipt,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, ChainBundleRecomputeError> {
         if self.execute(ctx)? != *receipt {
             return Err(ChainBundleRecomputeError::Invalid("bundle execution receipt differs"));
         }
         let bytes = antecedent_io::to_cbor(&ChainBundleRecomputationWire {
-            version: 1, required_feature: BUNDLE_RECOMPUTE_FEATURE.into(),
+            version: 1,
+            required_feature: BUNDLE_RECOMPUTE_FEATURE.into(),
             receipt: receipt.clone(),
         })?;
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(ChainBundleRecomputeError::Invalid("bundle recomputation receipt exceeds its byte bound"));
+            return Err(ChainBundleRecomputeError::Invalid(
+                "bundle recomputation receipt exceeds its byte bound",
+            ));
         }
         Ok(bytes)
     }
@@ -680,7 +774,9 @@ impl CompiledChainBundleRecomputation {
     /// # Errors
     /// A changed receipt or a container over the portable byte limit.
     pub fn export_portable(
-        &self, receipt: &ChainBundleRecomputationReceipt, ctx: &ExecutionContext,
+        &self,
+        receipt: &ChainBundleRecomputationReceipt,
+        ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, ChainBundleRecomputeError> {
         if self.execute(ctx)? != *receipt {
             return Err(ChainBundleRecomputeError::Invalid("bundle execution receipt differs"));
@@ -707,21 +803,30 @@ impl CompiledChainBundleRecomputation {
     /// # Errors
     /// A foreign feature, changed program or changed replay result.
     pub fn consume(
-        &self, bytes: &[u8], expected_program: SemanticDigest,
+        &self,
+        bytes: &[u8],
+        expected_program: SemanticDigest,
         ctx: &ExecutionContext,
     ) -> Result<ChainBundleRecomputationReceipt, ChainBundleRecomputeError> {
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(ChainBundleRecomputeError::Invalid("bundle recomputation receipt exceeds its byte bound"));
+            return Err(ChainBundleRecomputeError::Invalid(
+                "bundle recomputation receipt exceeds its byte bound",
+            ));
         }
         let wire: ChainBundleRecomputationWire = antecedent_io::from_cbor(bytes)?;
-        if wire.version != 1 || wire.required_feature != BUNDLE_RECOMPUTE_FEATURE
+        if wire.version != 1
+            || wire.required_feature != BUNDLE_RECOMPUTE_FEATURE
             || expected_program != self.lowered.identity()
         {
-            return Err(ChainBundleRecomputeError::Invalid("bundle recomputation feature or program differs"));
+            return Err(ChainBundleRecomputeError::Invalid(
+                "bundle recomputation feature or program differs",
+            ));
         }
         let live = self.execute(ctx)?;
         if wire.receipt != live {
-            return Err(ChainBundleRecomputeError::Invalid("bundle dependency or terminal replay differs"));
+            return Err(ChainBundleRecomputeError::Invalid(
+                "bundle dependency or terminal replay differs",
+            ));
         }
         Ok(live)
     }
@@ -735,25 +840,39 @@ impl CompiledChainBundleRecomputation {
 /// A foreign feature, changed graph or program, failed embedded consumer or
 /// changed live terminal value.
 pub fn consume_portable_chain_bundle_recomputation(
-    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<ChainBundleRecomputationReceipt, ChainBundleRecomputeError> {
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-        return Err(ChainBundleRecomputeError::Invalid("portable bundle receipt exceeds its byte bound"));
+        return Err(ChainBundleRecomputeError::Invalid(
+            "portable bundle receipt exceeds its byte bound",
+        ));
     }
     let wire: PortableChainBundleRecomputationWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 2 || wire.required_feature != PORTABLE_BUNDLE_RECOMPUTE_FEATURE
+    if wire.version != 2
+        || wire.required_feature != PORTABLE_BUNDLE_RECOMPUTE_FEATURE
         || wire.bundle_identity != expected_bundle
     {
-        return Err(ChainBundleRecomputeError::Invalid("portable bundle feature or identity differs"));
+        return Err(ChainBundleRecomputeError::Invalid(
+            "portable bundle feature or identity differs",
+        ));
     }
     let bundle = CompositionBundle::from_bytes(
-        &wire.bundle_bytes, expected_bundle, &BundleLimits::default(),
+        &wire.bundle_bytes,
+        expected_bundle,
+        &BundleLimits::default(),
     )?;
-    let terminal = bundle.nodes().iter().find(|node| node.id == wire.terminal_node)
+    let terminal = bundle
+        .nodes()
+        .iter()
+        .find(|node| node.id == wire.terminal_node)
         .ok_or(ChainBundleRecomputeError::Invalid("portable terminal node is absent"))?;
     if terminal.kind != NodeKind::PropagationChain {
-        return Err(ChainBundleRecomputeError::Invalid("portable terminal is not a propagation chain"));
+        return Err(ChainBundleRecomputeError::Invalid(
+            "portable terminal is not a propagation chain",
+        ));
     }
     let NodeSource::Embedded { bytes: terminal_bytes } = &terminal.source else {
         return Err(ChainBundleRecomputeError::Invalid("portable terminal is not embedded"));
@@ -839,10 +958,16 @@ struct PortableBridgeBundleRecomputationWire {
 /// Missing or non-embedded terminal, unsupported predictive carrier, bridge
 /// contract, source artifact or physical lowering refusal.
 pub fn compile_bridge_bundle_recomputation(
-    bundle: CompositionBundle, terminal_node: &str,
-    contract: BridgeContract, source: DistributionArtifact, seed: u64,
+    bundle: CompositionBundle,
+    terminal_node: &str,
+    contract: BridgeContract,
+    source: DistributionArtifact,
+    seed: u64,
 ) -> Result<CompiledBridgeBundleRecomputation, BridgeBundleRecomputeError> {
-    let node = bundle.nodes().iter().find(|node| node.id == terminal_node)
+    let node = bundle
+        .nodes()
+        .iter()
+        .find(|node| node.id == terminal_node)
         .ok_or(BridgeBundleRecomputeError::Invalid("bridge terminal node is absent"))?;
     if node.kind != NodeKind::ScientificBridge
         || !matches!(&node.source, NodeSource::Embedded { .. })
@@ -853,10 +978,12 @@ pub fn compile_bridge_bundle_recomputation(
     }
     if contract.source_value != ValueKind::PredictiveLaw
         || contract.target_value != ValueKind::PredictiveLaw
-        || !matches!(source.semantic(),
+        || !matches!(
+            source.semantic(),
             DistributionMeaningWire::PosteriorPredictive
                 | DistributionMeaningWire::InterventionalPredictive
-                | DistributionMeaningWire::EmpiricalOutcome)
+                | DistributionMeaningWire::EmpiricalOutcome
+        )
         || !source.quantities().contains(&ScientificQuantityWire::from(&contract.source.quantity))
         || source.n_draws() < 2
     {
@@ -867,36 +994,54 @@ pub fn compile_bridge_bundle_recomputation(
     let bridge = PreparedScientificBridgeDistribution::prepare(contract)?;
     let source_bytes = source.to_bytes("bridge-bundle-source")?;
     let source_digest = CanonicalWriter::digest_bytes(
-        "antecedent.bridge_bundle_recomputation.source.v1", &source_bytes,
+        "antecedent.bridge_bundle_recomputation.source.v1",
+        &source_bytes,
     );
     let bundle_digest = CanonicalWriter::digest_bytes(
-        "antecedent.bridge_bundle_recomputation.bundle.v1", bundle.identity().as_bytes(),
+        "antecedent.bridge_bundle_recomputation.bundle.v1",
+        bundle.identity().as_bytes(),
     );
     let mut writer = CanonicalWriter::new("antecedent.bridge_bundle_recomputation.question.v1");
-    writer.bytes(&bundle_digest).text(terminal_node).bytes(&source_digest)
-        .bytes(bridge.contract_identity().as_bytes()).word(seed);
+    writer
+        .bytes(&bundle_digest)
+        .text(terminal_node)
+        .bytes(&source_digest)
+        .bytes(bridge.contract_identity().as_bytes())
+        .word(seed);
     let query = writer.finish();
     let design = DesignShape::quoted(source.n_draws() as u64, 1, true);
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
-            kind: FunctionalKind::PropagatedChain, outcome: None, query,
+            kind: FunctionalKind::PropagatedChain,
+            outcome: None,
+            query,
         },
         plan_id: Arc::from("bridge_bundle_recomputation.v1"),
-        data: DataClassification::Tabular, graph_class: "bundle_bridge_dependency_graph",
-        query_variables: Arc::from(Vec::new()), source_digest: Some(source_digest),
-        support_coordinate: None, supported: false, support_status: None,
+        data: DataClassification::Tabular,
+        graph_class: "bundle_bridge_dependency_graph",
+        query_variables: Arc::from(Vec::new()),
+        source_digest: Some(source_digest),
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: query },
     ));
     let statistical = StatisticalProgram {
-        identifier: None, estimator: None,
+        identifier: None,
+        estimator: None,
         realization: Realization::DeclaredPredictive {
             evaluator: Arc::from("scientific_bridge.bundle_terminal"),
         },
-        models: Arc::from([]), folds: None, resampling: None,
-        posterior: None, design, operators: Arc::from([]),
+        models: Arc::from([]),
+        folds: None,
+        resampling: None,
+        posterior: None,
+        design,
+        operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([
@@ -904,37 +1049,60 @@ pub fn compile_bridge_bundle_recomputation(
             EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(bundle_digest) },
         ]),
         composition: Composition::Chained { stages: bundle.nodes().len() + 1 },
-        decision: None, planning: None, chain: None,
+        decision: None,
+        planning: None,
+        chain: None,
     };
     let physical = PhysicalLayer {
         operators: Arc::from([
             PhysicalOperator::declare(PhysicalEffect::Read)
                 .estimates(ByteEstimates::absent().with_output(source_bytes.len() as u64))
-                .build().map_err(|_| BridgeBundleRecomputeError::Invalid(
-                    "bridge bundle source read cannot be lowered",
-                ))?,
+                .build()
+                .map_err(|_| {
+                    BridgeBundleRecomputeError::Invalid(
+                        "bridge bundle source read cannot be lowered",
+                    )
+                })?,
             PhysicalOperator::declare(PhysicalEffect::Transport)
-                .estimates(ByteEstimates::absent().with_output(
-                    (source.n_draws() as u64).saturating_mul(8),
-                )).build().map_err(|_| BridgeBundleRecomputeError::Invalid(
-                    "bridge bundle transport cannot be lowered",
-                ))?,
-        ]), design,
+                .estimates(
+                    ByteEstimates::absent()
+                        .with_output((source.n_draws() as u64).saturating_mul(8)),
+                )
+                .build()
+                .map_err(|_| {
+                    BridgeBundleRecomputeError::Invalid("bridge bundle transport cannot be lowered")
+                })?,
+        ]),
+        design,
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::BridgeBundleRecomputation,
-        scientific, identification, statistical, evidence, physical,
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Predictive, kind: None },
-    }.finish());
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::BridgeBundleRecomputation,
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical,
+            claim: ClaimDemand { uncertainty: UncertaintyReading::Predictive, kind: None },
+        }
+        .finish(),
+    );
     Ok(CompiledBridgeBundleRecomputation {
-        bundle, terminal_node: terminal_node.to_owned(), bridge, source, seed, lowered,
+        bundle,
+        terminal_node: terminal_node.to_owned(),
+        bridge,
+        source,
+        seed,
+        lowered,
     })
 }
 
 impl CompiledBridgeBundleRecomputation {
     /// Complete bridge-terminal bundle compiler program.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the retained bundle and terminal schedule without mapping.
     #[must_use]
@@ -947,11 +1115,15 @@ impl CompiledBridgeBundleRecomputation {
     ///
     /// # Errors
     /// A reference, failed artifact or changed live bridge refuses a receipt.
-    pub fn execute(&self, ctx: &ExecutionContext)
-        -> Result<BridgeBundleRecomputationReceipt, BridgeBundleRecomputeError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<BridgeBundleRecomputationReceipt, BridgeBundleRecomputeError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         if scoped.cancellation.is_cancelled() {
-            return Err(BridgeBundleRecomputeError::Invalid("bridge bundle execution was cancelled"));
+            return Err(BridgeBundleRecomputeError::Invalid(
+                "bridge bundle execution was cancelled",
+            ));
         }
         let bytes = export_bundle(&self.bundle, "bridge-bundle-recomputation")?;
         let consumed = consume(&bytes, self.bundle.identity(), &SuppliedSources::default())?;
@@ -960,27 +1132,36 @@ impl CompiledBridgeBundleRecomputation {
                 "every bridge bundle dependency must pass its artifact consumer",
             ));
         }
-        let node = self.bundle.nodes().iter().find(|node| node.id == self.terminal_node)
+        let node = self
+            .bundle
+            .nodes()
+            .iter()
+            .find(|node| node.id == self.terminal_node)
             .ok_or(BridgeBundleRecomputeError::Invalid("bridge terminal disappeared"))?;
         let NodeSource::Embedded { bytes: terminal_bytes } = &node.source else {
             return Err(BridgeBundleRecomputeError::Invalid("bridge terminal became a reference"));
         };
-        let stored = consume_scientific_bridge_distribution_artifact(
-            terminal_bytes, Some(&node.identity),
-        )?;
+        let stored =
+            consume_scientific_bridge_distribution_artifact(terminal_bytes, Some(&node.identity))?;
         let live = self.bridge.derive(&self.source, None, self.seed)?;
         let exported = live.export("bridge-bundle-live")?;
-        if exported.identity != node.identity || stored.identity != exported.identity
+        if exported.identity != node.identity
+            || stored.identity != exported.identity
             || stored.bridged.claim().claim.claim_id != live.claim().claim.claim_id
         {
             return Err(BridgeBundleRecomputeError::Invalid(
                 "embedded bridge differs from the live compiler terminal",
             ));
         }
-        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
-            node_id: node.id.clone(), artifact_identity: node.identity.clone(),
-            chain_digest: node.chain_digest.clone(),
-        }).collect();
+        let dependencies = consumed
+            .nodes()
+            .iter()
+            .map(|node| ReplayedBundleDependency {
+                node_id: node.id.clone(),
+                artifact_identity: node.identity.clone(),
+                chain_digest: node.chain_digest.clone(),
+            })
+            .collect();
         Ok(BridgeBundleRecomputationReceipt {
             bundle_identity: consumed.identity().to_owned(),
             terminal_node: self.terminal_node.clone(),
@@ -995,19 +1176,25 @@ impl CompiledBridgeBundleRecomputation {
     /// # Errors
     /// Changed live result or oversized portable artifact.
     pub fn export_portable(
-        &self, receipt: &BridgeBundleRecomputationReceipt, ctx: &ExecutionContext,
+        &self,
+        receipt: &BridgeBundleRecomputationReceipt,
+        ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, BridgeBundleRecomputeError> {
         if self.execute(ctx)? != *receipt {
             return Err(BridgeBundleRecomputeError::Invalid("bridge bundle receipt differs"));
         }
         let bytes = antecedent_io::to_cbor(&PortableBridgeBundleRecomputationWire {
-            version: 1, required_feature: BRIDGE_BUNDLE_FEATURE.into(),
+            version: 1,
+            required_feature: BRIDGE_BUNDLE_FEATURE.into(),
             bundle_bytes: export_bundle(&self.bundle, "portable-bridge-bundle-recomputation")?,
             bundle_identity: self.bundle.identity().to_owned(),
-            terminal_node: self.terminal_node.clone(), receipt: receipt.clone(),
+            terminal_node: self.terminal_node.clone(),
+            receipt: receipt.clone(),
         })?;
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(BridgeBundleRecomputeError::Invalid("portable bridge bundle exceeds its byte bound"));
+            return Err(BridgeBundleRecomputeError::Invalid(
+                "portable bridge bundle exceeds its byte bound",
+            ));
         }
         Ok(bytes)
     }
@@ -1020,86 +1207,133 @@ impl CompiledBridgeBundleRecomputation {
 /// # Errors
 /// Foreign feature, changed graph, mapping, source, seed or dependency.
 pub fn consume_portable_bridge_bundle_recomputation(
-    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<BridgeBundleRecomputationReceipt, BridgeBundleRecomputeError> {
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-        return Err(BridgeBundleRecomputeError::Invalid("portable bridge bundle exceeds its byte bound"));
+        return Err(BridgeBundleRecomputeError::Invalid(
+            "portable bridge bundle exceeds its byte bound",
+        ));
     }
     let wire: PortableBridgeBundleRecomputationWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != BRIDGE_BUNDLE_FEATURE
+    if wire.version != 1
+        || wire.required_feature != BRIDGE_BUNDLE_FEATURE
         || wire.bundle_identity != expected_bundle
     {
-        return Err(BridgeBundleRecomputeError::Invalid("portable bridge bundle feature or identity differs"));
+        return Err(BridgeBundleRecomputeError::Invalid(
+            "portable bridge bundle feature or identity differs",
+        ));
     }
     let bundle = CompositionBundle::from_bytes(
-        &wire.bundle_bytes, expected_bundle, &BundleLimits::default(),
+        &wire.bundle_bytes,
+        expected_bundle,
+        &BundleLimits::default(),
     )?;
-    let terminal = bundle.nodes().iter().find(|node| node.id == wire.terminal_node)
+    let terminal = bundle
+        .nodes()
+        .iter()
+        .find(|node| node.id == wire.terminal_node)
         .ok_or(BridgeBundleRecomputeError::Invalid("portable bridge terminal is absent"))?;
     if terminal.kind != NodeKind::ScientificBridge {
-        return Err(BridgeBundleRecomputeError::Invalid("portable terminal is not a scientific bridge"));
+        return Err(BridgeBundleRecomputeError::Invalid(
+            "portable terminal is not a scientific bridge",
+        ));
     }
     let NodeSource::Embedded { bytes: terminal_bytes } = &terminal.source else {
-        return Err(BridgeBundleRecomputeError::Invalid("portable bridge terminal is not embedded"));
+        return Err(BridgeBundleRecomputeError::Invalid(
+            "portable bridge terminal is not embedded",
+        ));
     };
-    let stored = consume_scientific_bridge_distribution_artifact(
-        terminal_bytes, Some(&terminal.identity),
-    )?;
+    let stored =
+        consume_scientific_bridge_distribution_artifact(terminal_bytes, Some(&terminal.identity))?;
     let plan = compile_bridge_bundle_recomputation(
-        bundle, &wire.terminal_node, stored.bridged.claim().contract.clone(),
-        stored.bridged.source().clone(), stored.bridged.claim().stream,
+        bundle,
+        &wire.terminal_node,
+        stored.bridged.claim().contract.clone(),
+        stored.bridged.source().clone(),
+        stored.bridged.claim().stream,
     )?;
     if plan.lowered().identity() != expected_program {
         return Err(BridgeBundleRecomputeError::Invalid("portable bridge bundle compiler differs"));
     }
     let live = plan.execute(ctx)?;
     if live != wire.receipt {
-        return Err(BridgeBundleRecomputeError::Invalid("portable bridge bundle live receipt differs"));
+        return Err(BridgeBundleRecomputeError::Invalid(
+            "portable bridge bundle live receipt differs",
+        ));
     }
     Ok(live)
 }
 
 // Version 1 used the caller's seed. Version 2 binds the producer's replay
 // stream in the node while retaining the caller's cancellation/admission pool.
-fn fit_node_version_supported(version: u32, feature: &str, seed: Option<u64>,
-    legacy: &str, current: &str) -> bool {
+fn fit_node_version_supported(
+    version: u32,
+    feature: &str,
+    seed: Option<u64>,
+    legacy: &str,
+    current: &str,
+) -> bool {
     (version == 1 && feature == legacy && seed.is_none())
         || (version == 2 && feature == current && seed.is_some())
 }
 
 fn fit_node_context(ctx: &ExecutionContext, seed: Option<u64>) -> ExecutionContext {
     let mut scoped = ctx.clone();
-    if let Some(seed) = seed { scoped.rng = antecedent_core::RngFactory::from_seed(seed); }
+    if let Some(seed) = seed {
+        scoped.rng = antecedent_core::RngFactory::from_seed(seed);
+    }
     scoped
 }
 
-fn fit_node_failure(ctx: &ExecutionContext, error: &(dyn std::error::Error + 'static)) -> NodeFailure {
+fn fit_node_failure(
+    ctx: &ExecutionContext,
+    error: &(dyn std::error::Error + 'static),
+) -> NodeFailure {
     let mut stage = if ctx.cancellation.is_cancelled() {
         BundleStage::ExecutionCancelled
-    } else { BundleStage::SwappedEvidence };
+    } else {
+        BundleStage::SwappedEvidence
+    };
     let mut cause = Some(error);
     while let Some(current) = cause {
         if let Some(io) = current.downcast_ref::<IoError>() {
             stage = match io {
-                IoError::UnsupportedVersion { .. } | IoError::UnsupportedFormat { .. } => BundleStage::IncompatibleVersion,
+                IoError::UnsupportedVersion { .. } | IoError::UnsupportedFormat { .. } => {
+                    BundleStage::IncompatibleVersion
+                }
                 IoError::TooLarge => BundleStage::Oversized,
                 IoError::StreamCancelled => BundleStage::ExecutionCancelled,
-                IoError::Admission(antecedent_core::execution::AdmissionError::Cancelled) => BundleStage::ExecutionCancelled,
-                IoError::Admission(_) | IoError::StreamBudgetRefused { .. } => BundleStage::ResourceRefused,
+                IoError::Admission(antecedent_core::execution::AdmissionError::Cancelled) => {
+                    BundleStage::ExecutionCancelled
+                }
+                IoError::Admission(_) | IoError::StreamBudgetRefused { .. } => {
+                    BundleStage::ResourceRefused
+                }
                 _ => stage,
             };
         }
-        if let Some(admission) = current.downcast_ref::<antecedent_core::execution::AdmissionError>() {
+        if let Some(admission) =
+            current.downcast_ref::<antecedent_core::execution::AdmissionError>()
+        {
             stage = if matches!(admission, antecedent_core::execution::AdmissionError::Cancelled) {
                 BundleStage::ExecutionCancelled
-            } else { BundleStage::ResourceRefused };
+            } else {
+                BundleStage::ResourceRefused
+            };
         }
-        if matches!(current.downcast_ref::<antecedent_model::nonlinear_equilibrium::EquilibriumError>(),
-            Some(antecedent_model::nonlinear_equilibrium::EquilibriumError::Resource(_)))
-            || matches!(current.downcast_ref::<crate::error::CausalError>(), Some(crate::error::CausalError::Resource { .. }))
-        {
-            if stage != BundleStage::ExecutionCancelled { stage = BundleStage::ResourceRefused; }
+        if matches!(
+            current.downcast_ref::<antecedent_model::nonlinear_equilibrium::EquilibriumError>(),
+            Some(antecedent_model::nonlinear_equilibrium::EquilibriumError::Resource(_))
+        ) || matches!(
+            current.downcast_ref::<crate::error::CausalError>(),
+            Some(crate::error::CausalError::Resource { .. })
+        ) {
+            if stage != BundleStage::ExecutionCancelled {
+                stage = BundleStage::ResourceRefused;
+            }
         }
         cause = current.source();
     }
@@ -1121,31 +1355,59 @@ struct CyclicPosteriorFitWire {
     replay_seed: Option<u64>,
 }
 
-struct CyclicPosteriorFitVerifier { ctx: ExecutionContext }
+struct CyclicPosteriorFitVerifier {
+    ctx: ExecutionContext,
+}
 
 impl NodeVerifier for CyclicPosteriorFitVerifier {
-    fn kind(&self) -> NodeKind { NodeKind::CyclicPosteriorFit }
+    fn kind(&self) -> NodeKind {
+        NodeKind::CyclicPosteriorFit
+    }
 
-    fn verify(&self, _node_id: &str, bytes: &[u8], _upstream: &[UpstreamNode<'_>])
-        -> Result<VerifiedNode, NodeFailure> {
+    fn verify(
+        &self,
+        _node_id: &str,
+        bytes: &[u8],
+        _upstream: &[UpstreamNode<'_>],
+    ) -> Result<VerifiedNode, NodeFailure> {
         let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(NodeFailure { stage: BundleStage::Oversized, reason: "cyclic posterior fit node exceeds its bound".into() });
+            return Err(NodeFailure {
+                stage: BundleStage::Oversized,
+                reason: "cyclic posterior fit node exceeds its bound".into(),
+            });
         }
-        let wire: CyclicPosteriorFitWire = antecedent_io::from_cbor(bytes)
-            .map_err(|error| fail(error.to_string()))?;
-        if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, CYCLIC_POSTERIOR_FIT_FEATURE, CYCLIC_POSTERIOR_FIT_FEATURE_V2) {
-            return Err(NodeFailure { stage: BundleStage::IncompatibleVersion, reason: "cyclic posterior fit feature differs".into() });
+        let wire: CyclicPosteriorFitWire =
+            antecedent_io::from_cbor(bytes).map_err(|error| fail(error.to_string()))?;
+        if !fit_node_version_supported(
+            wire.version,
+            &wire.required_feature,
+            wire.replay_seed,
+            CYCLIC_POSTERIOR_FIT_FEATURE,
+            CYCLIC_POSTERIOR_FIT_FEATURE_V2,
+        ) {
+            return Err(NodeFailure {
+                stage: BundleStage::IncompatibleVersion,
+                reason: "cyclic posterior fit feature differs".into(),
+            });
         }
         let node_ctx = fit_node_context(&self.ctx, wire.replay_seed);
-        let producer = super::cyclic_posterior_action_decision::consume_cyclic_posterior_action_decision(
-            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &node_ctx,
-        ).map_err(|error| fit_node_failure(&node_ctx, &error))?;
+        let producer =
+            super::cyclic_posterior_action_decision::consume_cyclic_posterior_action_decision(
+                &wire.artifact,
+                SemanticDigest::from_bytes(wire.producer_program),
+                &node_ctx,
+            )
+            .map_err(|error| fit_node_failure(&node_ctx, &error))?;
         let mut facts = std::collections::BTreeMap::new();
         facts.insert(CYCLIC_FIT_CHAIN_FACT.into(), producer.decision.chain.identity().into());
         Ok(VerifiedNode {
-            identity: CanonicalWriter::digest_bytes_hex("antecedent.cyclic_posterior_fit_node.v1", bytes),
-            facts, values: Vec::new(),
+            identity: CanonicalWriter::digest_bytes_hex(
+                "antecedent.cyclic_posterior_fit_node.v1",
+                bytes,
+            ),
+            facts,
+            values: Vec::new(),
         })
     }
 }
@@ -1166,11 +1428,26 @@ pub fn native_fit_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
         .register(Box::new(TrialIpwFitVerifier { ctx: ctx.clone() }))
         .register(Box::new(GraphImputationTransportFitVerifier { ctx: ctx.clone() }))
         .register(Box::new(JointTransportEffectFitVerifier { ctx: ctx.clone() }))
-        .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Joint }))
-        .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Trial }))
-        .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Cyclic }))
-        .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Graph }))
-        .register(Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind: PredictiveFitKind::Bridge }))
+        .register(Box::new(PredictiveFitVerifier {
+            ctx: ctx.clone(),
+            kind: PredictiveFitKind::Joint,
+        }))
+        .register(Box::new(PredictiveFitVerifier {
+            ctx: ctx.clone(),
+            kind: PredictiveFitKind::Trial,
+        }))
+        .register(Box::new(PredictiveFitVerifier {
+            ctx: ctx.clone(),
+            kind: PredictiveFitKind::Cyclic,
+        }))
+        .register(Box::new(PredictiveFitVerifier {
+            ctx: ctx.clone(),
+            kind: PredictiveFitKind::Graph,
+        }))
+        .register(Box::new(PredictiveFitVerifier {
+            ctx: ctx.clone(),
+            kind: PredictiveFitKind::Bridge,
+        }))
         .register(Box::new(PredictiveTerminalVerifier { ctx: ctx.clone() }))
         .register(Box::new(sequential_live::SequentialFitVerifier { ctx: ctx.clone() }))
         .register(Box::new(sequential_live::SequentialDrawsVerifier))
@@ -1236,13 +1513,19 @@ const CYCLIC_POSTERIOR_BUNDLE_FEATURE: &str = "cyclic_posterior_bundle_recomputa
 /// # Errors
 /// A missing or malformed chain, an oversized producer, or a lowering refusal.
 pub fn compile_cyclic_posterior_bundle_recomputation(
-    bundle: CompositionBundle, terminal_node: &str, producer_artifact: Vec<u8>,
-    producer_program: SemanticDigest, ctx: &ExecutionContext,
+    bundle: CompositionBundle,
+    terminal_node: &str,
+    producer_artifact: Vec<u8>,
+    producer_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<CompiledCyclicPosteriorBundleRecomputation, CyclicPosteriorBundleError> {
     if producer_artifact.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(CyclicPosteriorBundleError::Invalid("producer artifact exceeds its bound"));
     }
-    let node = bundle.nodes().iter().find(|node| node.id == terminal_node)
+    let node = bundle
+        .nodes()
+        .iter()
+        .find(|node| node.id == terminal_node)
         .ok_or(CyclicPosteriorBundleError::Invalid("terminal node is absent"))?;
     if node.kind != NodeKind::PropagationChain {
         return Err(CyclicPosteriorBundleError::Invalid("terminal is not a propagation chain"));
@@ -1252,19 +1535,24 @@ pub fn compile_cyclic_posterior_bundle_recomputation(
     };
     let recorded = PropagationChainRecordWire::decode(bytes)
         .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
-    let chain = compile_propagation_chain(recorded, ctx)
-        .map_err(ChainBundleRecomputeError::Chain)?;
+    let chain =
+        compile_propagation_chain(recorded, ctx).map_err(ChainBundleRecomputeError::Chain)?;
     let chain = compile_chain_bundle_recomputation(bundle, terminal_node, chain)?;
     let artifact_digest = CanonicalWriter::digest_bytes(
-        "antecedent.cyclic_posterior_bundle.producer.v1", &producer_artifact,
+        "antecedent.cyclic_posterior_bundle.producer.v1",
+        &producer_artifact,
     );
     let mut writer = CanonicalWriter::new("antecedent.cyclic_posterior_bundle.question.v1");
-    writer.bytes(chain.lowered().identity().as_bytes())
-        .bytes(producer_program.as_bytes()).bytes(&artifact_digest);
+    writer
+        .bytes(chain.lowered().identity().as_bytes())
+        .bytes(producer_program.as_bytes())
+        .bytes(&artifact_digest);
     let query = writer.finish();
     let mut scientific = chain.lowered().scientific().clone();
     scientific.target = ProblemTarget::QueryFunctional {
-        kind: FunctionalKind::PropagatedChain, outcome: None, query,
+        kind: FunctionalKind::PropagatedChain,
+        outcome: None,
+        query,
     };
     scientific.plan_id = Arc::from("cyclic_posterior_bundle_recomputation.v1");
     scientific.source_digest = Some(artifact_digest);
@@ -1273,7 +1561,10 @@ pub fn compile_cyclic_posterior_bundle_recomputation(
     ));
     let mut evidence = chain.lowered().evidence().clone();
     let mut sources = evidence.sources.to_vec();
-    sources.push(EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(artifact_digest) });
+    sources.push(EvidenceSourceRef {
+        role: EvidenceRole::Observations,
+        digest: Some(artifact_digest),
+    });
     evidence.sources = Arc::from(sources);
     let mut operators = Vec::new();
     for effect in [PhysicalEffect::Read, PhysicalEffect::Fit, PhysicalEffect::Intervene] {
@@ -1283,22 +1574,35 @@ pub fn compile_cyclic_posterior_bundle_recomputation(
     }
     operators.extend_from_slice(chain.lowered().physical().operators());
     let physical = PhysicalLayer {
-        operators: Arc::from(operators), design: chain.lowered().physical().design(),
+        operators: Arc::from(operators),
+        design: chain.lowered().physical().design(),
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::CyclicPosteriorBundleRecomputation, scientific, identification,
-        statistical: chain.lowered().statistical().clone(), evidence, physical,
-        claim: *chain.lowered().claim(),
-    }.finish());
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::CyclicPosteriorBundleRecomputation,
+            scientific,
+            identification,
+            statistical: chain.lowered().statistical().clone(),
+            evidence,
+            physical,
+            claim: *chain.lowered().claim(),
+        }
+        .finish(),
+    );
     Ok(CompiledCyclicPosteriorBundleRecomputation {
-        chain, producer_artifact, producer_program, lowered,
+        chain,
+        producer_artifact,
+        producer_program,
+        lowered,
     })
 }
 
 impl CompiledCyclicPosteriorBundleRecomputation {
     /// Inspect the full six-layer program before fitting.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the compiled route without fitting or executing the bundle.
     #[must_use]
@@ -1310,12 +1614,17 @@ impl CompiledCyclicPosteriorBundleRecomputation {
     ///
     /// # Errors
     /// Changed raw evidence, posterior, generated chain or bundle dependency.
-    pub fn execute(&self, ctx: &ExecutionContext)
-        -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        let producer = super::cyclic_posterior_action_decision::consume_cyclic_posterior_action_decision(
-            &self.producer_artifact, self.producer_program, &scoped,
-        )?;
+        let producer =
+            super::cyclic_posterior_action_decision::consume_cyclic_posterior_action_decision(
+                &self.producer_artifact,
+                self.producer_program,
+                &scoped,
+            )?;
         let bundle = self.chain.execute(&scoped)?;
         if producer.decision.chain.identity() != bundle.terminal_identity {
             return Err(CyclicPosteriorBundleError::Invalid(
@@ -1323,7 +1632,8 @@ impl CompiledCyclicPosteriorBundleRecomputation {
             ));
         }
         Ok(CyclicPosteriorBundleReceipt {
-            bundle, producer_program_identity: *self.producer_program.as_bytes(),
+            bundle,
+            producer_program_identity: *self.producer_program.as_bytes(),
             lowered_program_identity: *self.lowered.identity().as_bytes(),
         })
     }
@@ -1332,20 +1642,26 @@ impl CompiledCyclicPosteriorBundleRecomputation {
     ///
     /// # Errors
     /// A changed execution or oversized artifact.
-    pub fn export_portable(&self, receipt: &CyclicPosteriorBundleReceipt, ctx: &ExecutionContext)
-        -> Result<Vec<u8>, CyclicPosteriorBundleError> {
+    pub fn export_portable(
+        &self,
+        receipt: &CyclicPosteriorBundleReceipt,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicPosteriorBundleError> {
         if self.execute(ctx)? != *receipt {
             return Err(CyclicPosteriorBundleError::Invalid("bundle receipt differs"));
         }
         let bytes = antecedent_io::to_cbor(&PortableCyclicPosteriorBundleWire {
-            version: 1, required_feature: CYCLIC_POSTERIOR_BUNDLE_FEATURE.into(),
+            version: 1,
+            required_feature: CYCLIC_POSTERIOR_BUNDLE_FEATURE.into(),
             bundle_bytes: export_bundle(&self.chain.bundle, "cyclic-posterior-bundle")
                 .map_err(ChainBundleRecomputeError::Bundle)?,
             bundle_identity: self.chain.bundle.identity().to_owned(),
             terminal_node: self.chain.terminal_node.clone(),
             producer_artifact: self.producer_artifact.clone(),
-            producer_program: *self.producer_program.as_bytes(), receipt: receipt.clone(),
-        }).map_err(ChainBundleRecomputeError::Io)?;
+            producer_program: *self.producer_program.as_bytes(),
+            receipt: receipt.clone(),
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
             return Err(CyclicPosteriorBundleError::Invalid("portable bundle exceeds its bound"));
         }
@@ -1359,24 +1675,36 @@ impl CompiledCyclicPosteriorBundleRecomputation {
 /// # Errors
 /// Changed graph, compiler program, producer evidence or fitted terminal.
 pub fn consume_portable_cyclic_posterior_bundle_recomputation(
-    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(CyclicPosteriorBundleError::Invalid("portable bundle exceeds its bound"));
     }
-    let wire: PortableCyclicPosteriorBundleWire = antecedent_io::from_cbor(bytes)
-        .map_err(ChainBundleRecomputeError::Io)?;
-    if wire.version != 1 || wire.required_feature != CYCLIC_POSTERIOR_BUNDLE_FEATURE
+    let wire: PortableCyclicPosteriorBundleWire =
+        antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1
+        || wire.required_feature != CYCLIC_POSTERIOR_BUNDLE_FEATURE
         || wire.bundle_identity != expected_bundle
     {
-        return Err(CyclicPosteriorBundleError::Invalid("portable feature or bundle identity differs"));
+        return Err(CyclicPosteriorBundleError::Invalid(
+            "portable feature or bundle identity differs",
+        ));
     }
-    let bundle = CompositionBundle::from_bytes(&wire.bundle_bytes, expected_bundle, &BundleLimits::default())
-        .map_err(ChainBundleRecomputeError::Bundle)?;
+    let bundle = CompositionBundle::from_bytes(
+        &wire.bundle_bytes,
+        expected_bundle,
+        &BundleLimits::default(),
+    )
+    .map_err(ChainBundleRecomputeError::Bundle)?;
     let plan = compile_cyclic_posterior_bundle_recomputation(
-        bundle, &wire.terminal_node, wire.producer_artifact,
-        SemanticDigest::from_bytes(wire.producer_program), ctx,
+        bundle,
+        &wire.terminal_node,
+        wire.producer_artifact,
+        SemanticDigest::from_bytes(wire.producer_program),
+        ctx,
     )?;
     if plan.lowered().identity() != expected_program {
         return Err(CyclicPosteriorBundleError::Invalid("portable compiler program differs"));
@@ -1418,34 +1746,55 @@ const CYCLIC_NODE_BUNDLE_FEATURE: &str = "cyclic_posterior_node_bundle_recomputa
 /// # Errors
 /// Missing nodes or edge, malformed fit declaration or chain compiler refusal.
 pub fn compile_cyclic_posterior_node_bundle_recomputation(
-    bundle: CompositionBundle, producer_node: &str, terminal_node: &str,
+    bundle: CompositionBundle,
+    producer_node: &str,
+    terminal_node: &str,
     ctx: &ExecutionContext,
 ) -> Result<CompiledCyclicPosteriorNodeBundle, CyclicPosteriorBundleError> {
     if !bundle.edges().iter().any(|edge| edge.from == producer_node && edge.to == terminal_node) {
-        return Err(CyclicPosteriorBundleError::Invalid("fit must be a direct terminal dependency"));
+        return Err(CyclicPosteriorBundleError::Invalid(
+            "fit must be a direct terminal dependency",
+        ));
     }
-    let node = bundle.nodes().iter().find(|node| node.id == producer_node)
+    let node = bundle
+        .nodes()
+        .iter()
+        .find(|node| node.id == producer_node)
         .ok_or(CyclicPosteriorBundleError::Invalid("fit node is absent"))?;
     if node.kind != NodeKind::CyclicPosteriorFit {
-        return Err(CyclicPosteriorBundleError::Invalid("producer node is not a cyclic posterior fit"));
+        return Err(CyclicPosteriorBundleError::Invalid(
+            "producer node is not a cyclic posterior fit",
+        ));
     }
     let NodeSource::Embedded { bytes } = &node.source else {
         return Err(CyclicPosteriorBundleError::Invalid("fit node is not embedded"));
     };
-    let wire: CyclicPosteriorFitWire = antecedent_io::from_cbor(bytes)
-        .map_err(ChainBundleRecomputeError::Io)?;
-    if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, CYCLIC_POSTERIOR_FIT_FEATURE, CYCLIC_POSTERIOR_FIT_FEATURE_V2) {
+    let wire: CyclicPosteriorFitWire =
+        antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if !fit_node_version_supported(
+        wire.version,
+        &wire.required_feature,
+        wire.replay_seed,
+        CYCLIC_POSTERIOR_FIT_FEATURE,
+        CYCLIC_POSTERIOR_FIT_FEATURE_V2,
+    ) {
         return Err(CyclicPosteriorBundleError::Invalid("fit node feature differs"));
     }
     let inner = compile_cyclic_posterior_bundle_recomputation(
-        bundle, terminal_node, wire.artifact, SemanticDigest::from_bytes(wire.producer_program), ctx,
+        bundle,
+        terminal_node,
+        wire.artifact,
+        SemanticDigest::from_bytes(wire.producer_program),
+        ctx,
     )?;
     let mut writer = CanonicalWriter::new("antecedent.cyclic_posterior_node_bundle.question.v1");
     writer.bytes(inner.lowered.identity().as_bytes()).text(producer_node).text(terminal_node);
     let query = writer.finish();
     let mut scientific = inner.lowered.scientific().clone();
     scientific.target = ProblemTarget::QueryFunctional {
-        kind: FunctionalKind::PropagatedChain, outcome: None, query,
+        kind: FunctionalKind::PropagatedChain,
+        outcome: None,
+        query,
     };
     scientific.plan_id = Arc::from("cyclic_posterior_node_bundle_recomputation.v1");
     let identification = IdentificationLayer::NonGraphical(Arc::new(
@@ -1453,60 +1802,91 @@ pub fn compile_cyclic_posterior_node_bundle_recomputation(
     ));
     let mut statistical = inner.lowered.statistical().clone();
     statistical.realization = Realization::NestedFit {
-        producer_program: inner.producer_program, method: Arc::from("cyclic_posterior_action_decision_v1"),
+        producer_program: inner.producer_program,
+        method: Arc::from("cyclic_posterior_action_decision_v1"),
         law: NestedFitLaw::Predictive,
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::CyclicPosteriorNodeBundleRecomputation, scientific, identification,
-        statistical, evidence: inner.lowered.evidence().clone(),
-        physical: inner.lowered.physical().clone(), claim: *inner.lowered.claim(),
-    }.finish());
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::CyclicPosteriorNodeBundleRecomputation,
+            scientific,
+            identification,
+            statistical,
+            evidence: inner.lowered.evidence().clone(),
+            physical: inner.lowered.physical().clone(),
+            claim: *inner.lowered.claim(),
+        }
+        .finish(),
+    );
     Ok(CompiledCyclicPosteriorNodeBundle { inner, producer_node: producer_node.into(), lowered })
 }
 
 impl CompiledCyclicPosteriorNodeBundle {
     /// Complete compiler program, binding the graph, fit and terminal.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Refit the embedded source through the bundle consumer and execute the
     /// terminal chain, requiring the source's fresh chain identity to match.
     ///
     /// # Errors
     /// A failed embedded verifier, changed fitted source or terminal.
-    pub fn execute(&self, ctx: &ExecutionContext)
-        -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let bundle = &self.inner.chain.bundle;
         let bytes = export_bundle(bundle, "cyclic-posterior-node-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = cyclic_posterior_bundle_consumer(&scoped).consume(
-            &bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
-        ).map_err(ChainBundleRecomputeError::Bundle)?;
+        let consumed = cyclic_posterior_bundle_consumer(&scoped)
+            .consume(
+                &bytes,
+                &BundleLimits::default(),
+                bundle.identity(),
+                &SuppliedSources::default(),
+            )
+            .map_err(ChainBundleRecomputeError::Bundle)?;
         if !consumed.all_replayed() {
             return Err(CyclicPosteriorBundleError::Invalid("bundle dependency did not replay"));
         }
-        let fit = consumed.node(&self.producer_node)
+        let fit = consumed
+            .node(&self.producer_node)
             .ok_or(CyclicPosteriorBundleError::Invalid("consumed fit is absent"))?;
-        let terminal = bundle.nodes().iter().find(|node| node.id == self.inner.chain.terminal_node)
+        let terminal = bundle
+            .nodes()
+            .iter()
+            .find(|node| node.id == self.inner.chain.terminal_node)
             .ok_or(CyclicPosteriorBundleError::Invalid("terminal disappeared"))?;
         let NodeSource::Embedded { bytes: terminal_bytes } = &terminal.source else {
             return Err(CyclicPosteriorBundleError::Invalid("terminal became a reference"));
         };
         let recorded = PropagationChainRecordWire::decode(terminal_bytes)
             .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
-        recorded.consume(Some(&terminal.identity), &scoped)
+        recorded
+            .consume(Some(&terminal.identity), &scoped)
             .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
-        let live = self.inner.chain.chain.execute(&scoped).map_err(ChainBundleRecomputeError::Chain)?;
-        if &recorded != live.record() || terminal.identity != live.identity()
+        let live =
+            self.inner.chain.chain.execute(&scoped).map_err(ChainBundleRecomputeError::Chain)?;
+        if &recorded != live.record()
+            || terminal.identity != live.identity()
             || fit.facts.get(CYCLIC_FIT_CHAIN_FACT).map(String::as_str) != Some(live.identity())
         {
-            return Err(CyclicPosteriorBundleError::Invalid("refitted source and live terminal differ"));
+            return Err(CyclicPosteriorBundleError::Invalid(
+                "refitted source and live terminal differ",
+            ));
         }
-        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
-            node_id: node.id.clone(), artifact_identity: node.identity.clone(),
-            chain_digest: node.chain_digest.clone(),
-        }).collect();
+        let dependencies = consumed
+            .nodes()
+            .iter()
+            .map(|node| ReplayedBundleDependency {
+                node_id: node.id.clone(),
+                artifact_identity: node.identity.clone(),
+                chain_digest: node.chain_digest.clone(),
+            })
+            .collect();
         Ok(CyclicPosteriorBundleReceipt {
             bundle: ChainBundleRecomputationReceipt {
                 bundle_identity: consumed.identity().into(),
@@ -1524,21 +1904,29 @@ impl CompiledCyclicPosteriorNodeBundle {
     ///
     /// # Errors
     /// Changed live execution or oversized artifact.
-    pub fn export_portable(&self, receipt: &CyclicPosteriorBundleReceipt, ctx: &ExecutionContext)
-        -> Result<Vec<u8>, CyclicPosteriorBundleError> {
+    pub fn export_portable(
+        &self,
+        receipt: &CyclicPosteriorBundleReceipt,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CyclicPosteriorBundleError> {
         if self.execute(ctx)? != *receipt {
             return Err(CyclicPosteriorBundleError::Invalid("node bundle receipt differs"));
         }
         let bytes = antecedent_io::to_cbor(&PortableCyclicPosteriorNodeBundleWire {
-            version: 1, required_feature: CYCLIC_NODE_BUNDLE_FEATURE.into(),
+            version: 1,
+            required_feature: CYCLIC_NODE_BUNDLE_FEATURE.into(),
             bundle_bytes: export_bundle(&self.inner.chain.bundle, "portable-cyclic-node-bundle")
                 .map_err(ChainBundleRecomputeError::Bundle)?,
             bundle_identity: self.inner.chain.bundle.identity().into(),
-            producer_node: self.producer_node.clone(), terminal_node: self.inner.chain.terminal_node.clone(),
+            producer_node: self.producer_node.clone(),
+            terminal_node: self.inner.chain.terminal_node.clone(),
             receipt: receipt.clone(),
-        }).map_err(ChainBundleRecomputeError::Io)?;
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(CyclicPosteriorBundleError::Invalid("portable node bundle exceeds its bound"));
+            return Err(CyclicPosteriorBundleError::Invalid(
+                "portable node bundle exceeds its bound",
+            ));
         }
         Ok(bytes)
     }
@@ -1549,22 +1937,33 @@ impl CompiledCyclicPosteriorNodeBundle {
 /// # Errors
 /// Changed graph, fit, compiler identity, terminal or receipt.
 pub fn consume_portable_cyclic_posterior_node_bundle_recomputation(
-    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(CyclicPosteriorBundleError::Invalid("portable node bundle exceeds its bound"));
     }
-    let wire: PortableCyclicPosteriorNodeBundleWire = antecedent_io::from_cbor(bytes)
-        .map_err(ChainBundleRecomputeError::Io)?;
-    if wire.version != 1 || wire.required_feature != CYCLIC_NODE_BUNDLE_FEATURE
+    let wire: PortableCyclicPosteriorNodeBundleWire =
+        antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1
+        || wire.required_feature != CYCLIC_NODE_BUNDLE_FEATURE
         || wire.bundle_identity != expected_bundle
     {
         return Err(CyclicPosteriorBundleError::Invalid("portable node feature or bundle differs"));
     }
-    let bundle = CompositionBundle::from_bytes(&wire.bundle_bytes, expected_bundle, &BundleLimits::default())
-        .map_err(ChainBundleRecomputeError::Bundle)?;
+    let bundle = CompositionBundle::from_bytes(
+        &wire.bundle_bytes,
+        expected_bundle,
+        &BundleLimits::default(),
+    )
+    .map_err(ChainBundleRecomputeError::Bundle)?;
     let plan = compile_cyclic_posterior_node_bundle_recomputation(
-        bundle, &wire.producer_node, &wire.terminal_node, ctx,
+        bundle,
+        &wire.producer_node,
+        &wire.terminal_node,
+        ctx,
     )?;
     if plan.lowered().identity() != expected_program {
         return Err(CyclicPosteriorBundleError::Invalid("portable node compiler differs"));
@@ -1584,37 +1983,66 @@ const TRIAL_IPW_CHAIN_FACT: &str = "trial_ipw_transport_fit_chain_identity";
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct TrialIpwFitWire {
-    version: u32, required_feature: String,
-    producer_program: [u8; 32], artifact: Vec<u8>,
+    version: u32,
+    required_feature: String,
+    producer_program: [u8; 32],
+    artifact: Vec<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     replay_seed: Option<u64>,
 }
 
-struct TrialIpwFitVerifier { ctx: ExecutionContext }
+struct TrialIpwFitVerifier {
+    ctx: ExecutionContext,
+}
 
 impl NodeVerifier for TrialIpwFitVerifier {
-    fn kind(&self) -> NodeKind { NodeKind::TrialIpwTransportFit }
+    fn kind(&self) -> NodeKind {
+        NodeKind::TrialIpwTransportFit
+    }
 
-    fn verify(&self, _node_id: &str, bytes: &[u8], _upstream: &[UpstreamNode<'_>])
-        -> Result<VerifiedNode, NodeFailure> {
+    fn verify(
+        &self,
+        _node_id: &str,
+        bytes: &[u8],
+        _upstream: &[UpstreamNode<'_>],
+    ) -> Result<VerifiedNode, NodeFailure> {
         let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(NodeFailure { stage: BundleStage::Oversized, reason: "trial IPW fit node exceeds its bound".into() });
+            return Err(NodeFailure {
+                stage: BundleStage::Oversized,
+                reason: "trial IPW fit node exceeds its bound".into(),
+            });
         }
-        let wire: TrialIpwFitWire = antecedent_io::from_cbor(bytes)
-            .map_err(|error| fail(error.to_string()))?;
-        if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, TRIAL_IPW_FIT_FEATURE, TRIAL_IPW_FIT_FEATURE_V2) {
-            return Err(NodeFailure { stage: BundleStage::IncompatibleVersion, reason: "trial IPW fit feature differs".into() });
+        let wire: TrialIpwFitWire =
+            antecedent_io::from_cbor(bytes).map_err(|error| fail(error.to_string()))?;
+        if !fit_node_version_supported(
+            wire.version,
+            &wire.required_feature,
+            wire.replay_seed,
+            TRIAL_IPW_FIT_FEATURE,
+            TRIAL_IPW_FIT_FEATURE_V2,
+        ) {
+            return Err(NodeFailure {
+                stage: BundleStage::IncompatibleVersion,
+                reason: "trial IPW fit feature differs".into(),
+            });
         }
         let node_ctx = fit_node_context(&self.ctx, wire.replay_seed);
         let producer = super::trial_ipw_transport_decision::consume_trial_ipw_transport_decision(
-            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &node_ctx,
-        ).map_err(|error| fit_node_failure(&node_ctx, &error))?;
+            &wire.artifact,
+            SemanticDigest::from_bytes(wire.producer_program),
+            &node_ctx,
+        )
+        .map_err(|error| fit_node_failure(&node_ctx, &error))?;
         let mut facts = std::collections::BTreeMap::new();
         facts.insert(TRIAL_IPW_CHAIN_FACT.into(), producer.decision.chain.identity().into());
         Ok(VerifiedNode {
-            identity: CanonicalWriter::digest_bytes_hex("antecedent.trial_ipw_transport_fit_node.v1", bytes),
-            facts, values: Vec::new(),
+            identity: CanonicalWriter::digest_bytes_hex(
+                "antecedent.trial_ipw_transport_fit_node.v1",
+                bytes,
+            ),
+            facts,
+            values: Vec::new(),
         })
     }
 }
@@ -1661,8 +2089,12 @@ pub struct TrialIpwNodeBundleReceipt {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct PortableTrialIpwNodeBundleWire {
-    version: u32, required_feature: String, bundle_bytes: Vec<u8>,
-    bundle_identity: String, producer_node: String, terminal_node: String,
+    version: u32,
+    required_feature: String,
+    bundle_bytes: Vec<u8>,
+    bundle_identity: String,
+    producer_node: String,
+    terminal_node: String,
     receipt: TrialIpwNodeBundleReceipt,
 }
 
@@ -1673,12 +2105,18 @@ struct PortableTrialIpwNodeBundleWire {
 /// # Errors
 /// Missing node or edge, malformed fit declaration or chain compiler refusal.
 pub fn compile_trial_ipw_node_bundle_recomputation(
-    bundle: CompositionBundle, producer_node: &str, terminal_node: &str, ctx: &ExecutionContext,
+    bundle: CompositionBundle,
+    producer_node: &str,
+    terminal_node: &str,
+    ctx: &ExecutionContext,
 ) -> Result<CompiledTrialIpwNodeBundle, TrialIpwBundleError> {
     if !bundle.edges().iter().any(|edge| edge.from == producer_node && edge.to == terminal_node) {
         return Err(TrialIpwBundleError::Invalid("trial fit must be a direct terminal dependency"));
     }
-    let node = bundle.nodes().iter().find(|node| node.id == producer_node)
+    let node = bundle
+        .nodes()
+        .iter()
+        .find(|node| node.id == producer_node)
         .ok_or(TrialIpwBundleError::Invalid("trial fit node is absent"))?;
     if node.kind != NodeKind::TrialIpwTransportFit {
         return Err(TrialIpwBundleError::Invalid("producer is not a trial IPW fit"));
@@ -1686,13 +2124,23 @@ pub fn compile_trial_ipw_node_bundle_recomputation(
     let NodeSource::Embedded { bytes } = &node.source else {
         return Err(TrialIpwBundleError::Invalid("trial fit is not embedded"));
     };
-    let wire: TrialIpwFitWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
-    if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, TRIAL_IPW_FIT_FEATURE, TRIAL_IPW_FIT_FEATURE_V2) {
+    let wire: TrialIpwFitWire =
+        antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if !fit_node_version_supported(
+        wire.version,
+        &wire.required_feature,
+        wire.replay_seed,
+        TRIAL_IPW_FIT_FEATURE,
+        TRIAL_IPW_FIT_FEATURE_V2,
+    ) {
         return Err(TrialIpwBundleError::Invalid("trial fit feature differs"));
     }
     let producer_program = SemanticDigest::from_bytes(wire.producer_program);
     let fit_digest = CanonicalWriter::digest_bytes("antecedent.trial_ipw_bundle.fit.v1", bytes);
-    let terminal = bundle.nodes().iter().find(|node| node.id == terminal_node)
+    let terminal = bundle
+        .nodes()
+        .iter()
+        .find(|node| node.id == terminal_node)
         .ok_or(TrialIpwBundleError::Invalid("trial terminal is absent"))?;
     if terminal.kind != NodeKind::PropagationChain {
         return Err(TrialIpwBundleError::Invalid("trial terminal is not a propagation chain"));
@@ -1705,12 +2153,17 @@ pub fn compile_trial_ipw_node_bundle_recomputation(
     let child = compile_propagation_chain(record, ctx).map_err(ChainBundleRecomputeError::Chain)?;
     let chain = compile_chain_bundle_recomputation(bundle, terminal_node, child)?;
     let mut writer = CanonicalWriter::new("antecedent.trial_ipw_bundle.question.v1");
-    writer.bytes(chain.lowered().identity().as_bytes()).text(producer_node)
-        .bytes(producer_program.as_bytes()).bytes(&fit_digest);
+    writer
+        .bytes(chain.lowered().identity().as_bytes())
+        .text(producer_node)
+        .bytes(producer_program.as_bytes())
+        .bytes(&fit_digest);
     let query = writer.finish();
     let mut scientific = chain.lowered().scientific().clone();
     scientific.target = ProblemTarget::QueryFunctional {
-        kind: FunctionalKind::PropagatedChain, outcome: None, query,
+        kind: FunctionalKind::PropagatedChain,
+        outcome: None,
+        query,
     };
     scientific.plan_id = Arc::from("trial_ipw_node_bundle_recomputation.v1");
     scientific.source_digest = Some(fit_digest);
@@ -1729,24 +2182,41 @@ pub fn compile_trial_ipw_node_bundle_recomputation(
     }
     operators.extend_from_slice(chain.lowered().physical().operators());
     let physical = PhysicalLayer {
-        operators: Arc::from(operators), design: chain.lowered().physical().design(),
+        operators: Arc::from(operators),
+        design: chain.lowered().physical().design(),
     };
     let mut statistical = chain.lowered().statistical().clone();
     statistical.realization = Realization::NestedFit {
-        producer_program, method: Arc::from("trial_ipw_transport_effect_decision_v1"), law: NestedFitLaw::Posterior,
+        producer_program,
+        method: Arc::from("trial_ipw_transport_effect_decision_v1"),
+        law: NestedFitLaw::Posterior,
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::TrialIpwNodeBundleRecomputation, scientific, identification,
-        statistical, evidence, physical,
-        claim: *chain.lowered().claim(),
-    }.finish());
-    Ok(CompiledTrialIpwNodeBundle { chain, producer_node: producer_node.into(), producer_program, lowered })
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::TrialIpwNodeBundleRecomputation,
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical,
+            claim: *chain.lowered().claim(),
+        }
+        .finish(),
+    );
+    Ok(CompiledTrialIpwNodeBundle {
+        chain,
+        producer_node: producer_node.into(),
+        producer_program,
+        lowered,
+    })
 }
 
 impl CompiledTrialIpwNodeBundle {
     /// Complete distinct compiler identity for this trial fit and graph.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the outer program without fitting.
     #[must_use]
@@ -1759,41 +2229,66 @@ impl CompiledTrialIpwNodeBundle {
     ///
     /// # Errors
     /// A failed dependency, changed fitted chain or terminal.
-    pub fn execute(&self, ctx: &ExecutionContext) -> Result<TrialIpwNodeBundleReceipt, TrialIpwBundleError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<TrialIpwNodeBundleReceipt, TrialIpwBundleError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let bundle = &self.chain.bundle;
-        let bytes = export_bundle(bundle, "trial-ipw-node-bundle").map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = trial_ipw_bundle_consumer(&scoped).consume(
-            &bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
-        ).map_err(ChainBundleRecomputeError::Bundle)?;
+        let bytes = export_bundle(bundle, "trial-ipw-node-bundle")
+            .map_err(ChainBundleRecomputeError::Bundle)?;
+        let consumed = trial_ipw_bundle_consumer(&scoped)
+            .consume(
+                &bytes,
+                &BundleLimits::default(),
+                bundle.identity(),
+                &SuppliedSources::default(),
+            )
+            .map_err(ChainBundleRecomputeError::Bundle)?;
         if !consumed.all_replayed() {
             return Err(TrialIpwBundleError::Invalid("trial bundle dependency did not replay"));
         }
-        let fit = consumed.node(&self.producer_node).ok_or(TrialIpwBundleError::Invalid("trial fit disappeared"))?;
-        let terminal = bundle.nodes().iter().find(|node| node.id == self.chain.terminal_node)
+        let fit = consumed
+            .node(&self.producer_node)
+            .ok_or(TrialIpwBundleError::Invalid("trial fit disappeared"))?;
+        let terminal = bundle
+            .nodes()
+            .iter()
+            .find(|node| node.id == self.chain.terminal_node)
             .ok_or(TrialIpwBundleError::Invalid("trial terminal disappeared"))?;
         let NodeSource::Embedded { bytes } = &terminal.source else {
             return Err(TrialIpwBundleError::Invalid("trial terminal became a reference"));
         };
         let record = PropagationChainRecordWire::decode(bytes)
             .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
-        record.consume(Some(&terminal.identity), &scoped)
+        record
+            .consume(Some(&terminal.identity), &scoped)
             .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
         let live = self.chain.chain.execute(&scoped).map_err(ChainBundleRecomputeError::Chain)?;
-        if &record != live.record() || terminal.identity != live.identity()
+        if &record != live.record()
+            || terminal.identity != live.identity()
             || fit.facts.get(TRIAL_IPW_CHAIN_FACT).map(String::as_str) != Some(live.identity())
         {
-            return Err(TrialIpwBundleError::Invalid("refitted trial source and live chain differ"));
+            return Err(TrialIpwBundleError::Invalid(
+                "refitted trial source and live chain differ",
+            ));
         }
-        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
-            node_id: node.id.clone(), artifact_identity: node.identity.clone(),
-            chain_digest: node.chain_digest.clone(),
-        }).collect();
+        let dependencies = consumed
+            .nodes()
+            .iter()
+            .map(|node| ReplayedBundleDependency {
+                node_id: node.id.clone(),
+                artifact_identity: node.identity.clone(),
+                chain_digest: node.chain_digest.clone(),
+            })
+            .collect();
         Ok(TrialIpwNodeBundleReceipt {
             bundle: ChainBundleRecomputationReceipt {
-                bundle_identity: consumed.identity().into(), terminal_node: self.chain.terminal_node.clone(),
+                bundle_identity: consumed.identity().into(),
+                terminal_node: self.chain.terminal_node.clone(),
                 terminal_identity: live.identity().into(),
-                lowered_program_identity: *self.chain.lowered.identity().as_bytes(), dependencies,
+                lowered_program_identity: *self.chain.lowered.identity().as_bytes(),
+                dependencies,
             },
             producer_program_identity: *self.producer_program.as_bytes(),
             lowered_program_identity: *self.lowered.identity().as_bytes(),
@@ -1804,16 +2299,25 @@ impl CompiledTrialIpwNodeBundle {
     ///
     /// # Errors
     /// Changed receipt, codec or byte-bound refusal.
-    pub fn export_portable(&self, receipt: &TrialIpwNodeBundleReceipt, ctx: &ExecutionContext)
-        -> Result<Vec<u8>, TrialIpwBundleError> {
-        if self.execute(ctx)? != *receipt { return Err(TrialIpwBundleError::Invalid("trial bundle receipt differs")); }
+    pub fn export_portable(
+        &self,
+        receipt: &TrialIpwNodeBundleReceipt,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, TrialIpwBundleError> {
+        if self.execute(ctx)? != *receipt {
+            return Err(TrialIpwBundleError::Invalid("trial bundle receipt differs"));
+        }
         let bytes = antecedent_io::to_cbor(&PortableTrialIpwNodeBundleWire {
-            version: 1, required_feature: TRIAL_IPW_NODE_FEATURE.into(),
+            version: 1,
+            required_feature: TRIAL_IPW_NODE_FEATURE.into(),
             bundle_bytes: export_bundle(&self.chain.bundle, "portable-trial-ipw-node-bundle")
                 .map_err(ChainBundleRecomputeError::Bundle)?,
-            bundle_identity: self.chain.bundle.identity().into(), producer_node: self.producer_node.clone(),
-            terminal_node: self.chain.terminal_node.clone(), receipt: receipt.clone(),
-        }).map_err(ChainBundleRecomputeError::Io)?;
+            bundle_identity: self.chain.bundle.identity().into(),
+            producer_node: self.producer_node.clone(),
+            terminal_node: self.chain.terminal_node.clone(),
+            receipt: receipt.clone(),
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
             return Err(TrialIpwBundleError::Invalid("portable trial bundle exceeds its bound"));
         }
@@ -1826,65 +2330,117 @@ impl CompiledTrialIpwNodeBundle {
 /// # Errors
 /// Changed graph, fit, compiler, terminal or receipt.
 pub fn consume_portable_trial_ipw_node_bundle_recomputation(
-    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<TrialIpwNodeBundleReceipt, TrialIpwBundleError> {
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(TrialIpwBundleError::Invalid("portable trial bundle exceeds its bound"));
     }
-    let wire: PortableTrialIpwNodeBundleWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
-    if wire.version != 1 || wire.required_feature != TRIAL_IPW_NODE_FEATURE || wire.bundle_identity != expected_bundle {
-        return Err(TrialIpwBundleError::Invalid("portable trial bundle feature or identity differs"));
+    let wire: PortableTrialIpwNodeBundleWire =
+        antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1
+        || wire.required_feature != TRIAL_IPW_NODE_FEATURE
+        || wire.bundle_identity != expected_bundle
+    {
+        return Err(TrialIpwBundleError::Invalid(
+            "portable trial bundle feature or identity differs",
+        ));
     }
-    let bundle = CompositionBundle::from_bytes(&wire.bundle_bytes, expected_bundle, &BundleLimits::default())
-        .map_err(ChainBundleRecomputeError::Bundle)?;
-    let plan = compile_trial_ipw_node_bundle_recomputation(bundle, &wire.producer_node, &wire.terminal_node, ctx)?;
+    let bundle = CompositionBundle::from_bytes(
+        &wire.bundle_bytes,
+        expected_bundle,
+        &BundleLimits::default(),
+    )
+    .map_err(ChainBundleRecomputeError::Bundle)?;
+    let plan = compile_trial_ipw_node_bundle_recomputation(
+        bundle,
+        &wire.producer_node,
+        &wire.terminal_node,
+        ctx,
+    )?;
     if plan.lowered().identity() != expected_program {
         return Err(TrialIpwBundleError::Invalid("portable trial bundle compiler differs"));
     }
     let live = plan.execute(ctx)?;
-    if live != wire.receipt { return Err(TrialIpwBundleError::Invalid("portable trial bundle receipt differs")); }
+    if live != wire.receipt {
+        return Err(TrialIpwBundleError::Invalid("portable trial bundle receipt differs"));
+    }
     Ok(live)
 }
 
-const GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE: &str = "graph_imputation_transport_fit_bundle_node_v1";
-const GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2: &str = "graph_imputation_transport_fit_bundle_node_v2";
-const GRAPH_IMPUTATION_TRANSPORT_NODE_FEATURE: &str = "graph_imputation_transport_node_bundle_recomputation_v1";
+const GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE: &str =
+    "graph_imputation_transport_fit_bundle_node_v1";
+const GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2: &str =
+    "graph_imputation_transport_fit_bundle_node_v2";
+const GRAPH_IMPUTATION_TRANSPORT_NODE_FEATURE: &str =
+    "graph_imputation_transport_node_bundle_recomputation_v1";
 const GRAPH_IMPUTATION_TRANSPORT_CHAIN_FACT: &str = "graph_imputation_transport_fit_chain_identity";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct GraphImputationTransportFitWire {
-    version: u32, required_feature: String,
-    producer_program: [u8; 32], artifact: Vec<u8>,
+    version: u32,
+    required_feature: String,
+    producer_program: [u8; 32],
+    artifact: Vec<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     replay_seed: Option<u64>,
 }
 
-struct GraphImputationTransportFitVerifier { ctx: ExecutionContext }
+struct GraphImputationTransportFitVerifier {
+    ctx: ExecutionContext,
+}
 
 impl NodeVerifier for GraphImputationTransportFitVerifier {
-    fn kind(&self) -> NodeKind { NodeKind::GraphImputationTransportFit }
+    fn kind(&self) -> NodeKind {
+        NodeKind::GraphImputationTransportFit
+    }
 
-    fn verify(&self, _node_id: &str, bytes: &[u8], _upstream: &[UpstreamNode<'_>])
-        -> Result<VerifiedNode, NodeFailure> {
+    fn verify(
+        &self,
+        _node_id: &str,
+        bytes: &[u8],
+        _upstream: &[UpstreamNode<'_>],
+    ) -> Result<VerifiedNode, NodeFailure> {
         let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(NodeFailure { stage: BundleStage::Oversized, reason: "graph-imputation transport fit node exceeds its bound".into() });
+            return Err(NodeFailure {
+                stage: BundleStage::Oversized,
+                reason: "graph-imputation transport fit node exceeds its bound".into(),
+            });
         }
-        let wire: GraphImputationTransportFitWire = antecedent_io::from_cbor(bytes)
-            .map_err(|error| fail(error.to_string()))?;
-        if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE, GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2) {
-            return Err(NodeFailure { stage: BundleStage::IncompatibleVersion, reason: "graph-imputation transport fit feature differs".into() });
+        let wire: GraphImputationTransportFitWire =
+            antecedent_io::from_cbor(bytes).map_err(|error| fail(error.to_string()))?;
+        if !fit_node_version_supported(
+            wire.version,
+            &wire.required_feature,
+            wire.replay_seed,
+            GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE,
+            GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2,
+        ) {
+            return Err(NodeFailure {
+                stage: BundleStage::IncompatibleVersion,
+                reason: "graph-imputation transport fit feature differs".into(),
+            });
         }
         let node_ctx = fit_node_context(&self.ctx, wire.replay_seed);
         let producer = super::graph_imputation_transport_decision::consume_graph_imputation_transport_decision(
             &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &node_ctx,
         ).map_err(|error| fit_node_failure(&node_ctx, &error))?;
         let mut facts = std::collections::BTreeMap::new();
-        facts.insert(GRAPH_IMPUTATION_TRANSPORT_CHAIN_FACT.into(), producer.decision.chain.identity().into());
+        facts.insert(
+            GRAPH_IMPUTATION_TRANSPORT_CHAIN_FACT.into(),
+            producer.decision.chain.identity().into(),
+        );
         Ok(VerifiedNode {
-            identity: CanonicalWriter::digest_bytes_hex("antecedent.graph_imputation_transport_fit_node.v1", bytes),
-            facts, values: Vec::new(),
+            identity: CanonicalWriter::digest_bytes_hex(
+                "antecedent.graph_imputation_transport_fit_node.v1",
+                bytes,
+            ),
+            facts,
+            values: Vec::new(),
         })
     }
 }
@@ -1931,8 +2487,12 @@ pub struct GraphImputationTransportNodeBundleReceipt {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct PortableGraphImputationTransportNodeBundleWire {
-    version: u32, required_feature: String, bundle_bytes: Vec<u8>,
-    bundle_identity: String, producer_node: String, terminal_node: String,
+    version: u32,
+    required_feature: String,
+    bundle_bytes: Vec<u8>,
+    bundle_identity: String,
+    producer_node: String,
+    terminal_node: String,
     receipt: GraphImputationTransportNodeBundleReceipt,
 }
 
@@ -1943,44 +2503,75 @@ struct PortableGraphImputationTransportNodeBundleWire {
 /// # Errors
 /// Missing node or edge, malformed fit declaration or chain compiler refusal.
 pub fn compile_graph_imputation_transport_node_bundle_recomputation(
-    bundle: CompositionBundle, producer_node: &str, terminal_node: &str, ctx: &ExecutionContext,
+    bundle: CompositionBundle,
+    producer_node: &str,
+    terminal_node: &str,
+    ctx: &ExecutionContext,
 ) -> Result<CompiledGraphImputationTransportNodeBundle, GraphImputationTransportBundleError> {
     if !bundle.edges().iter().any(|edge| edge.from == producer_node && edge.to == terminal_node) {
-        return Err(GraphImputationTransportBundleError::Invalid("graph transport fit must be a direct terminal dependency"));
+        return Err(GraphImputationTransportBundleError::Invalid(
+            "graph transport fit must be a direct terminal dependency",
+        ));
     }
-    let node = bundle.nodes().iter().find(|node| node.id == producer_node)
-        .ok_or(GraphImputationTransportBundleError::Invalid("graph transport fit node is absent"))?;
+    let node = bundle.nodes().iter().find(|node| node.id == producer_node).ok_or(
+        GraphImputationTransportBundleError::Invalid("graph transport fit node is absent"),
+    )?;
     if node.kind != NodeKind::GraphImputationTransportFit {
-        return Err(GraphImputationTransportBundleError::Invalid("producer is not a graph-imputation transport fit"));
+        return Err(GraphImputationTransportBundleError::Invalid(
+            "producer is not a graph-imputation transport fit",
+        ));
     }
     let NodeSource::Embedded { bytes } = &node.source else {
-        return Err(GraphImputationTransportBundleError::Invalid("graph transport fit is not embedded"));
+        return Err(GraphImputationTransportBundleError::Invalid(
+            "graph transport fit is not embedded",
+        ));
     };
-    let wire: GraphImputationTransportFitWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
-    if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE, GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2) {
-        return Err(GraphImputationTransportBundleError::Invalid("graph transport fit feature differs"));
+    let wire: GraphImputationTransportFitWire =
+        antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if !fit_node_version_supported(
+        wire.version,
+        &wire.required_feature,
+        wire.replay_seed,
+        GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE,
+        GRAPH_IMPUTATION_TRANSPORT_FIT_FEATURE_V2,
+    ) {
+        return Err(GraphImputationTransportBundleError::Invalid(
+            "graph transport fit feature differs",
+        ));
     }
     let producer_program = SemanticDigest::from_bytes(wire.producer_program);
-    let fit_digest = CanonicalWriter::digest_bytes("antecedent.graph_imputation_transport_bundle.fit.v1", bytes);
-    let terminal = bundle.nodes().iter().find(|node| node.id == terminal_node)
-        .ok_or(GraphImputationTransportBundleError::Invalid("graph transport terminal is absent"))?;
+    let fit_digest =
+        CanonicalWriter::digest_bytes("antecedent.graph_imputation_transport_bundle.fit.v1", bytes);
+    let terminal = bundle.nodes().iter().find(|node| node.id == terminal_node).ok_or(
+        GraphImputationTransportBundleError::Invalid("graph transport terminal is absent"),
+    )?;
     if terminal.kind != NodeKind::PropagationChain {
-        return Err(GraphImputationTransportBundleError::Invalid("graph transport terminal is not a propagation chain"));
+        return Err(GraphImputationTransportBundleError::Invalid(
+            "graph transport terminal is not a propagation chain",
+        ));
     }
     let NodeSource::Embedded { bytes } = &terminal.source else {
-        return Err(GraphImputationTransportBundleError::Invalid("graph transport terminal is not embedded"));
+        return Err(GraphImputationTransportBundleError::Invalid(
+            "graph transport terminal is not embedded",
+        ));
     };
     let record = PropagationChainRecordWire::decode(bytes)
         .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
     let child = compile_propagation_chain(record, ctx).map_err(ChainBundleRecomputeError::Chain)?;
     let chain = compile_chain_bundle_recomputation(bundle, terminal_node, child)?;
-    let mut writer = CanonicalWriter::new("antecedent.graph_imputation_transport_bundle.question.v1");
-    writer.bytes(chain.lowered().identity().as_bytes()).text(producer_node)
-        .bytes(producer_program.as_bytes()).bytes(&fit_digest);
+    let mut writer =
+        CanonicalWriter::new("antecedent.graph_imputation_transport_bundle.question.v1");
+    writer
+        .bytes(chain.lowered().identity().as_bytes())
+        .text(producer_node)
+        .bytes(producer_program.as_bytes())
+        .bytes(&fit_digest);
     let query = writer.finish();
     let mut scientific = chain.lowered().scientific().clone();
     scientific.target = ProblemTarget::QueryFunctional {
-        kind: FunctionalKind::PropagatedChain, outcome: None, query,
+        kind: FunctionalKind::PropagatedChain,
+        outcome: None,
+        query,
     };
     scientific.plan_id = Arc::from("graph_imputation_transport_node_bundle_recomputation.v1");
     scientific.source_digest = Some(fit_digest);
@@ -1994,29 +2585,48 @@ pub fn compile_graph_imputation_transport_node_bundle_recomputation(
     let mut operators = Vec::new();
     for effect in [PhysicalEffect::Read, PhysicalEffect::Fit] {
         operators.push(PhysicalOperator::declare(effect).build().map_err(|_| {
-            GraphImputationTransportBundleError::Invalid("graph transport fit physical operator cannot be lowered")
+            GraphImputationTransportBundleError::Invalid(
+                "graph transport fit physical operator cannot be lowered",
+            )
         })?);
     }
     operators.extend_from_slice(chain.lowered().physical().operators());
     let physical = PhysicalLayer {
-        operators: Arc::from(operators), design: chain.lowered().physical().design(),
+        operators: Arc::from(operators),
+        design: chain.lowered().physical().design(),
     };
     let mut statistical = chain.lowered().statistical().clone();
     statistical.realization = Realization::NestedFit {
-        producer_program, method: Arc::from("graph_imputation_transport_decision"), law: NestedFitLaw::Posterior,
+        producer_program,
+        method: Arc::from("graph_imputation_transport_decision"),
+        law: NestedFitLaw::Posterior,
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::GraphImputationTransportNodeBundleRecomputation, scientific, identification,
-        statistical, evidence, physical,
-        claim: *chain.lowered().claim(),
-    }.finish());
-    Ok(CompiledGraphImputationTransportNodeBundle { chain, producer_node: producer_node.into(), producer_program, lowered })
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::GraphImputationTransportNodeBundleRecomputation,
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical,
+            claim: *chain.lowered().claim(),
+        }
+        .finish(),
+    );
+    Ok(CompiledGraphImputationTransportNodeBundle {
+        chain,
+        producer_node: producer_node.into(),
+        producer_program,
+        lowered,
+    })
 }
 
 impl CompiledGraphImputationTransportNodeBundle {
     /// Complete distinct compiler identity for this graph transport fit and graph.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the outer program without fitting.
     #[must_use]
@@ -2029,41 +2639,73 @@ impl CompiledGraphImputationTransportNodeBundle {
     ///
     /// # Errors
     /// A failed dependency, changed fitted chain or terminal.
-    pub fn execute(&self, ctx: &ExecutionContext) -> Result<GraphImputationTransportNodeBundleReceipt, GraphImputationTransportBundleError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<GraphImputationTransportNodeBundleReceipt, GraphImputationTransportBundleError>
+    {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let bundle = &self.chain.bundle;
-        let bytes = export_bundle(bundle, "graph-transport-node-bundle").map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = graph_imputation_transport_bundle_consumer(&scoped).consume(
-            &bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
-        ).map_err(ChainBundleRecomputeError::Bundle)?;
+        let bytes = export_bundle(bundle, "graph-transport-node-bundle")
+            .map_err(ChainBundleRecomputeError::Bundle)?;
+        let consumed = graph_imputation_transport_bundle_consumer(&scoped)
+            .consume(
+                &bytes,
+                &BundleLimits::default(),
+                bundle.identity(),
+                &SuppliedSources::default(),
+            )
+            .map_err(ChainBundleRecomputeError::Bundle)?;
         if !consumed.all_replayed() {
-            return Err(GraphImputationTransportBundleError::Invalid("graph transport bundle dependency did not replay"));
+            return Err(GraphImputationTransportBundleError::Invalid(
+                "graph transport bundle dependency did not replay",
+            ));
         }
-        let fit = consumed.node(&self.producer_node).ok_or(GraphImputationTransportBundleError::Invalid("graph transport fit disappeared"))?;
-        let terminal = bundle.nodes().iter().find(|node| node.id == self.chain.terminal_node)
-            .ok_or(GraphImputationTransportBundleError::Invalid("graph transport terminal disappeared"))?;
+        let fit = consumed.node(&self.producer_node).ok_or(
+            GraphImputationTransportBundleError::Invalid("graph transport fit disappeared"),
+        )?;
+        let terminal =
+            bundle.nodes().iter().find(|node| node.id == self.chain.terminal_node).ok_or(
+                GraphImputationTransportBundleError::Invalid(
+                    "graph transport terminal disappeared",
+                ),
+            )?;
         let NodeSource::Embedded { bytes } = &terminal.source else {
-            return Err(GraphImputationTransportBundleError::Invalid("graph transport terminal became a reference"));
+            return Err(GraphImputationTransportBundleError::Invalid(
+                "graph transport terminal became a reference",
+            ));
         };
         let record = PropagationChainRecordWire::decode(bytes)
             .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
-        record.consume(Some(&terminal.identity), &scoped)
+        record
+            .consume(Some(&terminal.identity), &scoped)
             .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
         let live = self.chain.chain.execute(&scoped).map_err(ChainBundleRecomputeError::Chain)?;
-        if &record != live.record() || terminal.identity != live.identity()
-            || fit.facts.get(GRAPH_IMPUTATION_TRANSPORT_CHAIN_FACT).map(String::as_str) != Some(live.identity())
+        if &record != live.record()
+            || terminal.identity != live.identity()
+            || fit.facts.get(GRAPH_IMPUTATION_TRANSPORT_CHAIN_FACT).map(String::as_str)
+                != Some(live.identity())
         {
-            return Err(GraphImputationTransportBundleError::Invalid("refitted graph transport source and live chain differ"));
+            return Err(GraphImputationTransportBundleError::Invalid(
+                "refitted graph transport source and live chain differ",
+            ));
         }
-        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
-            node_id: node.id.clone(), artifact_identity: node.identity.clone(),
-            chain_digest: node.chain_digest.clone(),
-        }).collect();
+        let dependencies = consumed
+            .nodes()
+            .iter()
+            .map(|node| ReplayedBundleDependency {
+                node_id: node.id.clone(),
+                artifact_identity: node.identity.clone(),
+                chain_digest: node.chain_digest.clone(),
+            })
+            .collect();
         Ok(GraphImputationTransportNodeBundleReceipt {
             bundle: ChainBundleRecomputationReceipt {
-                bundle_identity: consumed.identity().into(), terminal_node: self.chain.terminal_node.clone(),
+                bundle_identity: consumed.identity().into(),
+                terminal_node: self.chain.terminal_node.clone(),
                 terminal_identity: live.identity().into(),
-                lowered_program_identity: *self.chain.lowered.identity().as_bytes(), dependencies,
+                lowered_program_identity: *self.chain.lowered.identity().as_bytes(),
+                dependencies,
             },
             producer_program_identity: *self.producer_program.as_bytes(),
             lowered_program_identity: *self.lowered.identity().as_bytes(),
@@ -2074,18 +2716,31 @@ impl CompiledGraphImputationTransportNodeBundle {
     ///
     /// # Errors
     /// Changed receipt, codec or byte-bound refusal.
-    pub fn export_portable(&self, receipt: &GraphImputationTransportNodeBundleReceipt, ctx: &ExecutionContext)
-        -> Result<Vec<u8>, GraphImputationTransportBundleError> {
-        if self.execute(ctx)? != *receipt { return Err(GraphImputationTransportBundleError::Invalid("graph transport bundle receipt differs")); }
+    pub fn export_portable(
+        &self,
+        receipt: &GraphImputationTransportNodeBundleReceipt,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, GraphImputationTransportBundleError> {
+        if self.execute(ctx)? != *receipt {
+            return Err(GraphImputationTransportBundleError::Invalid(
+                "graph transport bundle receipt differs",
+            ));
+        }
         let bytes = antecedent_io::to_cbor(&PortableGraphImputationTransportNodeBundleWire {
-            version: 1, required_feature: GRAPH_IMPUTATION_TRANSPORT_NODE_FEATURE.into(),
+            version: 1,
+            required_feature: GRAPH_IMPUTATION_TRANSPORT_NODE_FEATURE.into(),
             bundle_bytes: export_bundle(&self.chain.bundle, "portable-graph-transport-node-bundle")
                 .map_err(ChainBundleRecomputeError::Bundle)?,
-            bundle_identity: self.chain.bundle.identity().into(), producer_node: self.producer_node.clone(),
-            terminal_node: self.chain.terminal_node.clone(), receipt: receipt.clone(),
-        }).map_err(ChainBundleRecomputeError::Io)?;
+            bundle_identity: self.chain.bundle.identity().into(),
+            producer_node: self.producer_node.clone(),
+            terminal_node: self.chain.terminal_node.clone(),
+            receipt: receipt.clone(),
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(GraphImputationTransportBundleError::Invalid("portable graph transport bundle exceeds its bound"));
+            return Err(GraphImputationTransportBundleError::Invalid(
+                "portable graph transport bundle exceeds its bound",
+            ));
         }
         Ok(bytes)
     }
@@ -2096,65 +2751,125 @@ impl CompiledGraphImputationTransportNodeBundle {
 /// # Errors
 /// Changed graph, fit, compiler, terminal or receipt.
 pub fn consume_portable_graph_imputation_transport_node_bundle_recomputation(
-    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<GraphImputationTransportNodeBundleReceipt, GraphImputationTransportBundleError> {
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-        return Err(GraphImputationTransportBundleError::Invalid("portable graph transport bundle exceeds its bound"));
+        return Err(GraphImputationTransportBundleError::Invalid(
+            "portable graph transport bundle exceeds its bound",
+        ));
     }
-    let wire: PortableGraphImputationTransportNodeBundleWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
-    if wire.version != 1 || wire.required_feature != GRAPH_IMPUTATION_TRANSPORT_NODE_FEATURE || wire.bundle_identity != expected_bundle {
-        return Err(GraphImputationTransportBundleError::Invalid("portable graph transport bundle feature or identity differs"));
+    let wire: PortableGraphImputationTransportNodeBundleWire =
+        antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1
+        || wire.required_feature != GRAPH_IMPUTATION_TRANSPORT_NODE_FEATURE
+        || wire.bundle_identity != expected_bundle
+    {
+        return Err(GraphImputationTransportBundleError::Invalid(
+            "portable graph transport bundle feature or identity differs",
+        ));
     }
-    let bundle = CompositionBundle::from_bytes(&wire.bundle_bytes, expected_bundle, &BundleLimits::default())
-        .map_err(ChainBundleRecomputeError::Bundle)?;
-    let plan = compile_graph_imputation_transport_node_bundle_recomputation(bundle, &wire.producer_node, &wire.terminal_node, ctx)?;
+    let bundle = CompositionBundle::from_bytes(
+        &wire.bundle_bytes,
+        expected_bundle,
+        &BundleLimits::default(),
+    )
+    .map_err(ChainBundleRecomputeError::Bundle)?;
+    let plan = compile_graph_imputation_transport_node_bundle_recomputation(
+        bundle,
+        &wire.producer_node,
+        &wire.terminal_node,
+        ctx,
+    )?;
     if plan.lowered().identity() != expected_program {
-        return Err(GraphImputationTransportBundleError::Invalid("portable graph transport bundle compiler differs"));
+        return Err(GraphImputationTransportBundleError::Invalid(
+            "portable graph transport bundle compiler differs",
+        ));
     }
     let live = plan.execute(ctx)?;
-    if live != wire.receipt { return Err(GraphImputationTransportBundleError::Invalid("portable graph transport bundle receipt differs")); }
+    if live != wire.receipt {
+        return Err(GraphImputationTransportBundleError::Invalid(
+            "portable graph transport bundle receipt differs",
+        ));
+    }
     Ok(live)
 }
 
 const JOINT_TRANSPORT_EFFECT_FIT_FEATURE: &str = "joint_transport_effect_fit_bundle_node_v1";
 const JOINT_TRANSPORT_EFFECT_FIT_FEATURE_V2: &str = "joint_transport_effect_fit_bundle_node_v2";
-const JOINT_TRANSPORT_EFFECT_NODE_FEATURE: &str = "joint_transport_effect_node_bundle_recomputation_v1";
+const JOINT_TRANSPORT_EFFECT_NODE_FEATURE: &str =
+    "joint_transport_effect_node_bundle_recomputation_v1";
 const JOINT_TRANSPORT_EFFECT_CHAIN_FACT: &str = "joint_transport_effect_fit_chain_identity";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct JointTransportEffectFitWire {
-    version: u32, required_feature: String,
-    producer_program: [u8; 32], artifact: Vec<u8>,
+    version: u32,
+    required_feature: String,
+    producer_program: [u8; 32],
+    artifact: Vec<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     replay_seed: Option<u64>,
 }
 
-struct JointTransportEffectFitVerifier { ctx: ExecutionContext }
+struct JointTransportEffectFitVerifier {
+    ctx: ExecutionContext,
+}
 
 impl NodeVerifier for JointTransportEffectFitVerifier {
-    fn kind(&self) -> NodeKind { NodeKind::JointTransportEffectFit }
+    fn kind(&self) -> NodeKind {
+        NodeKind::JointTransportEffectFit
+    }
 
-    fn verify(&self, _node_id: &str, bytes: &[u8], _upstream: &[UpstreamNode<'_>])
-        -> Result<VerifiedNode, NodeFailure> {
+    fn verify(
+        &self,
+        _node_id: &str,
+        bytes: &[u8],
+        _upstream: &[UpstreamNode<'_>],
+    ) -> Result<VerifiedNode, NodeFailure> {
         let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(NodeFailure { stage: BundleStage::Oversized, reason: "joint transport effect fit node exceeds its bound".into() });
+            return Err(NodeFailure {
+                stage: BundleStage::Oversized,
+                reason: "joint transport effect fit node exceeds its bound".into(),
+            });
         }
-        let wire: JointTransportEffectFitWire = antecedent_io::from_cbor(bytes)
-            .map_err(|error| fail(error.to_string()))?;
-        if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, JOINT_TRANSPORT_EFFECT_FIT_FEATURE, JOINT_TRANSPORT_EFFECT_FIT_FEATURE_V2) {
-            return Err(NodeFailure { stage: BundleStage::IncompatibleVersion, reason: "joint transport effect fit feature differs".into() });
+        let wire: JointTransportEffectFitWire =
+            antecedent_io::from_cbor(bytes).map_err(|error| fail(error.to_string()))?;
+        if !fit_node_version_supported(
+            wire.version,
+            &wire.required_feature,
+            wire.replay_seed,
+            JOINT_TRANSPORT_EFFECT_FIT_FEATURE,
+            JOINT_TRANSPORT_EFFECT_FIT_FEATURE_V2,
+        ) {
+            return Err(NodeFailure {
+                stage: BundleStage::IncompatibleVersion,
+                reason: "joint transport effect fit feature differs".into(),
+            });
         }
         let node_ctx = fit_node_context(&self.ctx, wire.replay_seed);
-        let producer = super::joint_transport_effect_decision::consume_joint_transport_effect_decision(
-            &wire.artifact, SemanticDigest::from_bytes(wire.producer_program), &node_ctx,
-        ).map_err(|error| fit_node_failure(&node_ctx, &error))?;
+        let producer =
+            super::joint_transport_effect_decision::consume_joint_transport_effect_decision(
+                &wire.artifact,
+                SemanticDigest::from_bytes(wire.producer_program),
+                &node_ctx,
+            )
+            .map_err(|error| fit_node_failure(&node_ctx, &error))?;
         let mut facts = std::collections::BTreeMap::new();
-        facts.insert(JOINT_TRANSPORT_EFFECT_CHAIN_FACT.into(), producer.decision.chain.identity().into());
+        facts.insert(
+            JOINT_TRANSPORT_EFFECT_CHAIN_FACT.into(),
+            producer.decision.chain.identity().into(),
+        );
         Ok(VerifiedNode {
-            identity: CanonicalWriter::digest_bytes_hex("antecedent.joint_transport_effect_fit_node.v1", bytes),
-            facts, values: Vec::new(),
+            identity: CanonicalWriter::digest_bytes_hex(
+                "antecedent.joint_transport_effect_fit_node.v1",
+                bytes,
+            ),
+            facts,
+            values: Vec::new(),
         })
     }
 }
@@ -2201,8 +2916,12 @@ pub struct JointTransportEffectNodeBundleReceipt {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct PortableJointTransportEffectNodeBundleWire {
-    version: u32, required_feature: String, bundle_bytes: Vec<u8>,
-    bundle_identity: String, producer_node: String, terminal_node: String,
+    version: u32,
+    required_feature: String,
+    bundle_bytes: Vec<u8>,
+    bundle_identity: String,
+    producer_node: String,
+    terminal_node: String,
     receipt: JointTransportEffectNodeBundleReceipt,
 }
 
@@ -2213,44 +2932,74 @@ struct PortableJointTransportEffectNodeBundleWire {
 /// # Errors
 /// Missing node or edge, malformed fit declaration or chain compiler refusal.
 pub fn compile_joint_transport_effect_node_bundle_recomputation(
-    bundle: CompositionBundle, producer_node: &str, terminal_node: &str, ctx: &ExecutionContext,
+    bundle: CompositionBundle,
+    producer_node: &str,
+    terminal_node: &str,
+    ctx: &ExecutionContext,
 ) -> Result<CompiledJointTransportEffectNodeBundle, JointTransportEffectBundleError> {
     if !bundle.edges().iter().any(|edge| edge.from == producer_node && edge.to == terminal_node) {
-        return Err(JointTransportEffectBundleError::Invalid("joint transport effect fit must be a direct terminal dependency"));
+        return Err(JointTransportEffectBundleError::Invalid(
+            "joint transport effect fit must be a direct terminal dependency",
+        ));
     }
-    let node = bundle.nodes().iter().find(|node| node.id == producer_node)
-        .ok_or(JointTransportEffectBundleError::Invalid("joint transport effect fit node is absent"))?;
+    let node = bundle.nodes().iter().find(|node| node.id == producer_node).ok_or(
+        JointTransportEffectBundleError::Invalid("joint transport effect fit node is absent"),
+    )?;
     if node.kind != NodeKind::JointTransportEffectFit {
-        return Err(JointTransportEffectBundleError::Invalid("producer is not a joint transport effect fit"));
+        return Err(JointTransportEffectBundleError::Invalid(
+            "producer is not a joint transport effect fit",
+        ));
     }
     let NodeSource::Embedded { bytes } = &node.source else {
-        return Err(JointTransportEffectBundleError::Invalid("joint transport effect fit is not embedded"));
+        return Err(JointTransportEffectBundleError::Invalid(
+            "joint transport effect fit is not embedded",
+        ));
     };
-    let wire: JointTransportEffectFitWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
-    if !fit_node_version_supported(wire.version, &wire.required_feature, wire.replay_seed, JOINT_TRANSPORT_EFFECT_FIT_FEATURE, JOINT_TRANSPORT_EFFECT_FIT_FEATURE_V2) {
-        return Err(JointTransportEffectBundleError::Invalid("joint transport effect fit feature differs"));
+    let wire: JointTransportEffectFitWire =
+        antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if !fit_node_version_supported(
+        wire.version,
+        &wire.required_feature,
+        wire.replay_seed,
+        JOINT_TRANSPORT_EFFECT_FIT_FEATURE,
+        JOINT_TRANSPORT_EFFECT_FIT_FEATURE_V2,
+    ) {
+        return Err(JointTransportEffectBundleError::Invalid(
+            "joint transport effect fit feature differs",
+        ));
     }
     let producer_program = SemanticDigest::from_bytes(wire.producer_program);
-    let fit_digest = CanonicalWriter::digest_bytes("antecedent.joint_transport_effect_bundle.fit.v1", bytes);
-    let terminal = bundle.nodes().iter().find(|node| node.id == terminal_node)
-        .ok_or(JointTransportEffectBundleError::Invalid("joint transport effect terminal is absent"))?;
+    let fit_digest =
+        CanonicalWriter::digest_bytes("antecedent.joint_transport_effect_bundle.fit.v1", bytes);
+    let terminal = bundle.nodes().iter().find(|node| node.id == terminal_node).ok_or(
+        JointTransportEffectBundleError::Invalid("joint transport effect terminal is absent"),
+    )?;
     if terminal.kind != NodeKind::PropagationChain {
-        return Err(JointTransportEffectBundleError::Invalid("joint transport effect terminal is not a propagation chain"));
+        return Err(JointTransportEffectBundleError::Invalid(
+            "joint transport effect terminal is not a propagation chain",
+        ));
     }
     let NodeSource::Embedded { bytes } = &terminal.source else {
-        return Err(JointTransportEffectBundleError::Invalid("joint transport effect terminal is not embedded"));
+        return Err(JointTransportEffectBundleError::Invalid(
+            "joint transport effect terminal is not embedded",
+        ));
     };
     let record = PropagationChainRecordWire::decode(bytes)
         .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
     let child = compile_propagation_chain(record, ctx).map_err(ChainBundleRecomputeError::Chain)?;
     let chain = compile_chain_bundle_recomputation(bundle, terminal_node, child)?;
     let mut writer = CanonicalWriter::new("antecedent.joint_transport_effect_bundle.question.v1");
-    writer.bytes(chain.lowered().identity().as_bytes()).text(producer_node)
-        .bytes(producer_program.as_bytes()).bytes(&fit_digest);
+    writer
+        .bytes(chain.lowered().identity().as_bytes())
+        .text(producer_node)
+        .bytes(producer_program.as_bytes())
+        .bytes(&fit_digest);
     let query = writer.finish();
     let mut scientific = chain.lowered().scientific().clone();
     scientific.target = ProblemTarget::QueryFunctional {
-        kind: FunctionalKind::PropagatedChain, outcome: None, query,
+        kind: FunctionalKind::PropagatedChain,
+        outcome: None,
+        query,
     };
     scientific.plan_id = Arc::from("joint_transport_effect_node_bundle_recomputation.v1");
     scientific.source_digest = Some(fit_digest);
@@ -2264,29 +3013,48 @@ pub fn compile_joint_transport_effect_node_bundle_recomputation(
     let mut operators = Vec::new();
     for effect in [PhysicalEffect::Read, PhysicalEffect::Fit] {
         operators.push(PhysicalOperator::declare(effect).build().map_err(|_| {
-            JointTransportEffectBundleError::Invalid("joint transport effect fit physical operator cannot be lowered")
+            JointTransportEffectBundleError::Invalid(
+                "joint transport effect fit physical operator cannot be lowered",
+            )
         })?);
     }
     operators.extend_from_slice(chain.lowered().physical().operators());
     let physical = PhysicalLayer {
-        operators: Arc::from(operators), design: chain.lowered().physical().design(),
+        operators: Arc::from(operators),
+        design: chain.lowered().physical().design(),
     };
     let mut statistical = chain.lowered().statistical().clone();
     statistical.realization = Realization::NestedFit {
-        producer_program, method: Arc::from("joint_transport_effect_decision_v1"), law: NestedFitLaw::Posterior,
+        producer_program,
+        method: Arc::from("joint_transport_effect_decision_v1"),
+        law: NestedFitLaw::Posterior,
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::JointTransportEffectNodeBundleRecomputation, scientific, identification,
-        statistical, evidence, physical,
-        claim: *chain.lowered().claim(),
-    }.finish());
-    Ok(CompiledJointTransportEffectNodeBundle { chain, producer_node: producer_node.into(), producer_program, lowered })
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::JointTransportEffectNodeBundleRecomputation,
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical,
+            claim: *chain.lowered().claim(),
+        }
+        .finish(),
+    );
+    Ok(CompiledJointTransportEffectNodeBundle {
+        chain,
+        producer_node: producer_node.into(),
+        producer_program,
+        lowered,
+    })
 }
 
 impl CompiledJointTransportEffectNodeBundle {
     /// Complete distinct compiler identity for this joint transport effect fit and graph.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the outer program without fitting.
     #[must_use]
@@ -2299,41 +3067,72 @@ impl CompiledJointTransportEffectNodeBundle {
     ///
     /// # Errors
     /// A failed dependency, changed fitted chain or terminal.
-    pub fn execute(&self, ctx: &ExecutionContext) -> Result<JointTransportEffectNodeBundleReceipt, JointTransportEffectBundleError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<JointTransportEffectNodeBundleReceipt, JointTransportEffectBundleError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let bundle = &self.chain.bundle;
-        let bytes = export_bundle(bundle, "joint-transport-effect-node-bundle").map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = joint_transport_effect_bundle_consumer(&scoped).consume(
-            &bytes, &BundleLimits::default(), bundle.identity(), &SuppliedSources::default(),
-        ).map_err(ChainBundleRecomputeError::Bundle)?;
+        let bytes = export_bundle(bundle, "joint-transport-effect-node-bundle")
+            .map_err(ChainBundleRecomputeError::Bundle)?;
+        let consumed = joint_transport_effect_bundle_consumer(&scoped)
+            .consume(
+                &bytes,
+                &BundleLimits::default(),
+                bundle.identity(),
+                &SuppliedSources::default(),
+            )
+            .map_err(ChainBundleRecomputeError::Bundle)?;
         if !consumed.all_replayed() {
-            return Err(JointTransportEffectBundleError::Invalid("joint transport effect bundle dependency did not replay"));
+            return Err(JointTransportEffectBundleError::Invalid(
+                "joint transport effect bundle dependency did not replay",
+            ));
         }
-        let fit = consumed.node(&self.producer_node).ok_or(JointTransportEffectBundleError::Invalid("joint transport effect fit disappeared"))?;
-        let terminal = bundle.nodes().iter().find(|node| node.id == self.chain.terminal_node)
-            .ok_or(JointTransportEffectBundleError::Invalid("joint transport effect terminal disappeared"))?;
+        let fit = consumed.node(&self.producer_node).ok_or(
+            JointTransportEffectBundleError::Invalid("joint transport effect fit disappeared"),
+        )?;
+        let terminal =
+            bundle.nodes().iter().find(|node| node.id == self.chain.terminal_node).ok_or(
+                JointTransportEffectBundleError::Invalid(
+                    "joint transport effect terminal disappeared",
+                ),
+            )?;
         let NodeSource::Embedded { bytes } = &terminal.source else {
-            return Err(JointTransportEffectBundleError::Invalid("joint transport effect terminal became a reference"));
+            return Err(JointTransportEffectBundleError::Invalid(
+                "joint transport effect terminal became a reference",
+            ));
         };
         let record = PropagationChainRecordWire::decode(bytes)
             .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
-        record.consume(Some(&terminal.identity), &scoped)
+        record
+            .consume(Some(&terminal.identity), &scoped)
             .map_err(|error| ChainBundleRecomputeError::Chain(error.to_refusal()))?;
         let live = self.chain.chain.execute(&scoped).map_err(ChainBundleRecomputeError::Chain)?;
-        if &record != live.record() || terminal.identity != live.identity()
-            || fit.facts.get(JOINT_TRANSPORT_EFFECT_CHAIN_FACT).map(String::as_str) != Some(live.identity())
+        if &record != live.record()
+            || terminal.identity != live.identity()
+            || fit.facts.get(JOINT_TRANSPORT_EFFECT_CHAIN_FACT).map(String::as_str)
+                != Some(live.identity())
         {
-            return Err(JointTransportEffectBundleError::Invalid("refitted joint transport effect source and live chain differ"));
+            return Err(JointTransportEffectBundleError::Invalid(
+                "refitted joint transport effect source and live chain differ",
+            ));
         }
-        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
-            node_id: node.id.clone(), artifact_identity: node.identity.clone(),
-            chain_digest: node.chain_digest.clone(),
-        }).collect();
+        let dependencies = consumed
+            .nodes()
+            .iter()
+            .map(|node| ReplayedBundleDependency {
+                node_id: node.id.clone(),
+                artifact_identity: node.identity.clone(),
+                chain_digest: node.chain_digest.clone(),
+            })
+            .collect();
         Ok(JointTransportEffectNodeBundleReceipt {
             bundle: ChainBundleRecomputationReceipt {
-                bundle_identity: consumed.identity().into(), terminal_node: self.chain.terminal_node.clone(),
+                bundle_identity: consumed.identity().into(),
+                terminal_node: self.chain.terminal_node.clone(),
                 terminal_identity: live.identity().into(),
-                lowered_program_identity: *self.chain.lowered.identity().as_bytes(), dependencies,
+                lowered_program_identity: *self.chain.lowered.identity().as_bytes(),
+                dependencies,
             },
             producer_program_identity: *self.producer_program.as_bytes(),
             lowered_program_identity: *self.lowered.identity().as_bytes(),
@@ -2344,18 +3143,34 @@ impl CompiledJointTransportEffectNodeBundle {
     ///
     /// # Errors
     /// Changed receipt, codec or byte-bound refusal.
-    pub fn export_portable(&self, receipt: &JointTransportEffectNodeBundleReceipt, ctx: &ExecutionContext)
-        -> Result<Vec<u8>, JointTransportEffectBundleError> {
-        if self.execute(ctx)? != *receipt { return Err(JointTransportEffectBundleError::Invalid("joint transport effect bundle receipt differs")); }
+    pub fn export_portable(
+        &self,
+        receipt: &JointTransportEffectNodeBundleReceipt,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, JointTransportEffectBundleError> {
+        if self.execute(ctx)? != *receipt {
+            return Err(JointTransportEffectBundleError::Invalid(
+                "joint transport effect bundle receipt differs",
+            ));
+        }
         let bytes = antecedent_io::to_cbor(&PortableJointTransportEffectNodeBundleWire {
-            version: 1, required_feature: JOINT_TRANSPORT_EFFECT_NODE_FEATURE.into(),
-            bundle_bytes: export_bundle(&self.chain.bundle, "portable-joint-transport-effect-node-bundle")
-                .map_err(ChainBundleRecomputeError::Bundle)?,
-            bundle_identity: self.chain.bundle.identity().into(), producer_node: self.producer_node.clone(),
-            terminal_node: self.chain.terminal_node.clone(), receipt: receipt.clone(),
-        }).map_err(ChainBundleRecomputeError::Io)?;
+            version: 1,
+            required_feature: JOINT_TRANSPORT_EFFECT_NODE_FEATURE.into(),
+            bundle_bytes: export_bundle(
+                &self.chain.bundle,
+                "portable-joint-transport-effect-node-bundle",
+            )
+            .map_err(ChainBundleRecomputeError::Bundle)?,
+            bundle_identity: self.chain.bundle.identity().into(),
+            producer_node: self.producer_node.clone(),
+            terminal_node: self.chain.terminal_node.clone(),
+            receipt: receipt.clone(),
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
         if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-            return Err(JointTransportEffectBundleError::Invalid("portable joint transport effect bundle exceeds its bound"));
+            return Err(JointTransportEffectBundleError::Invalid(
+                "portable joint transport effect bundle exceeds its bound",
+            ));
         }
         Ok(bytes)
     }
@@ -2366,23 +3181,49 @@ impl CompiledJointTransportEffectNodeBundle {
 /// # Errors
 /// Changed graph, fit, compiler, terminal or receipt.
 pub fn consume_portable_joint_transport_effect_node_bundle_recomputation(
-    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<JointTransportEffectNodeBundleReceipt, JointTransportEffectBundleError> {
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
-        return Err(JointTransportEffectBundleError::Invalid("portable joint transport effect bundle exceeds its bound"));
+        return Err(JointTransportEffectBundleError::Invalid(
+            "portable joint transport effect bundle exceeds its bound",
+        ));
     }
-    let wire: PortableJointTransportEffectNodeBundleWire = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
-    if wire.version != 1 || wire.required_feature != JOINT_TRANSPORT_EFFECT_NODE_FEATURE || wire.bundle_identity != expected_bundle {
-        return Err(JointTransportEffectBundleError::Invalid("portable joint transport effect bundle feature or identity differs"));
+    let wire: PortableJointTransportEffectNodeBundleWire =
+        antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1
+        || wire.required_feature != JOINT_TRANSPORT_EFFECT_NODE_FEATURE
+        || wire.bundle_identity != expected_bundle
+    {
+        return Err(JointTransportEffectBundleError::Invalid(
+            "portable joint transport effect bundle feature or identity differs",
+        ));
     }
-    let bundle = CompositionBundle::from_bytes(&wire.bundle_bytes, expected_bundle, &BundleLimits::default())
-        .map_err(ChainBundleRecomputeError::Bundle)?;
-    let plan = compile_joint_transport_effect_node_bundle_recomputation(bundle, &wire.producer_node, &wire.terminal_node, ctx)?;
+    let bundle = CompositionBundle::from_bytes(
+        &wire.bundle_bytes,
+        expected_bundle,
+        &BundleLimits::default(),
+    )
+    .map_err(ChainBundleRecomputeError::Bundle)?;
+    let plan = compile_joint_transport_effect_node_bundle_recomputation(
+        bundle,
+        &wire.producer_node,
+        &wire.terminal_node,
+        ctx,
+    )?;
     if plan.lowered().identity() != expected_program {
-        return Err(JointTransportEffectBundleError::Invalid("portable joint transport effect bundle compiler differs"));
+        return Err(JointTransportEffectBundleError::Invalid(
+            "portable joint transport effect bundle compiler differs",
+        ));
     }
     let live = plan.execute(ctx)?;
-    if live != wire.receipt { return Err(JointTransportEffectBundleError::Invalid("portable joint transport effect bundle receipt differs")); }
+    if live != wire.receipt {
+        return Err(JointTransportEffectBundleError::Invalid(
+            "portable joint transport effect bundle receipt differs",
+        ));
+    }
     Ok(live)
 }
 
@@ -2395,54 +3236,110 @@ const PREDICTIVE_CHAIN_FACT: &str = "predictive_fit_chain_identity";
 const PREDICTIVE_DECISION_FACT: &str = "predictive_fit_decision_fingerprint";
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
-enum PredictiveFitKind { Joint, Trial, Cyclic, Graph, Bridge }
+enum PredictiveFitKind {
+    Joint,
+    Trial,
+    Cyclic,
+    Graph,
+    Bridge,
+}
 impl PredictiveFitKind {
-    fn node(self) -> NodeKind { match self { Self::Joint => NodeKind::JointTransportPredictiveFit,
-        Self::Trial => NodeKind::TrialIpwPredictiveFit, Self::Cyclic => NodeKind::CyclicTargetFeedbackFit,
-        Self::Graph => NodeKind::GraphImputationPredictiveFit, Self::Bridge => NodeKind::AssessedBridgePosteriorFit } }
-    fn cell(self) -> ProgramCell { match self { Self::Joint => ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation,
-        Self::Trial => ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation,
-        Self::Cyclic => ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation,
-        Self::Graph => ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation,
-        Self::Bridge => ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation } }
-    fn name(self) -> &'static str { match self { Self::Joint => "joint_transport_predictive_decision_v2",
-        Self::Trial => "trial_ipw_transport_predictive_decision_v1",
-        Self::Cyclic => "cyclic_target_feedback_decision_v1", Self::Graph => "graph_imputation_predictive_world_decision_v1",
-        Self::Bridge => "assessed_bridge_posterior_predictive_decision_v1" } }
+    fn node(self) -> NodeKind {
+        match self {
+            Self::Joint => NodeKind::JointTransportPredictiveFit,
+            Self::Trial => NodeKind::TrialIpwPredictiveFit,
+            Self::Cyclic => NodeKind::CyclicTargetFeedbackFit,
+            Self::Graph => NodeKind::GraphImputationPredictiveFit,
+            Self::Bridge => NodeKind::AssessedBridgePosteriorFit,
+        }
+    }
+    fn cell(self) -> ProgramCell {
+        match self {
+            Self::Joint => ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation,
+            Self::Trial => ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation,
+            Self::Cyclic => ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation,
+            Self::Graph => ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation,
+            Self::Bridge => ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation,
+        }
+    }
+    fn name(self) -> &'static str {
+        match self {
+            Self::Joint => "joint_transport_predictive_decision_v2",
+            Self::Trial => "trial_ipw_transport_predictive_decision_v1",
+            Self::Cyclic => "cyclic_target_feedback_decision_v1",
+            Self::Graph => "graph_imputation_predictive_world_decision_v1",
+            Self::Bridge => "assessed_bridge_posterior_predictive_decision_v1",
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct PredictiveFitWire { version: u32, feature: String, kind: PredictiveFitKind,
-    seed: u64, program: [u8; 32], artifact: Vec<u8> }
+struct PredictiveFitWire {
+    version: u32,
+    feature: String,
+    kind: PredictiveFitKind,
+    seed: u64,
+    program: [u8; 32],
+    artifact: Vec<u8>,
+}
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct PredictiveTerminalWire { version: u32, feature: String, seed: u64, artifact: Vec<u8> }
+struct PredictiveTerminalWire {
+    version: u32,
+    feature: String,
+    seed: u64,
+    artifact: Vec<u8>,
+}
 // Mirrors the portable chain-decision envelope solely to compile its retained
 // declaration without scoring it. Execution always uses its own consumer.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PredictiveChainDeclaration {
-    version: u32, required_feature: String, chain_record: Vec<u8>, chain_identity: String,
-    contract: Vec<u8>, contract_identity: String, decision_fingerprint: String,
+    version: u32,
+    required_feature: String,
+    chain_record: Vec<u8>,
+    chain_identity: String,
+    contract: Vec<u8>,
+    contract_identity: String,
+    decision_fingerprint: String,
     lowered_program_identity: [u8; 32],
 }
 
-fn predictive_facts(result: &super::propagation_chain_decision::ChainDecisionResult)
-    -> Result<std::collections::BTreeMap<String, String>, IoError> {
+fn predictive_facts(
+    result: &super::propagation_chain_decision::ChainDecisionResult,
+) -> Result<std::collections::BTreeMap<String, String>, IoError> {
     let mut facts = std::collections::BTreeMap::new();
     facts.insert(PREDICTIVE_CHAIN_FACT.into(), result.chain.identity().into());
-    facts.insert(PREDICTIVE_DECISION_FACT.into(), antecedent_design::decision_artifact::decision_result_fingerprint(
-        &result.decision, result.chain.identity())?);
+    facts.insert(
+        PREDICTIVE_DECISION_FACT.into(),
+        antecedent_design::decision_artifact::decision_result_fingerprint(
+            &result.decision,
+            result.chain.identity(),
+        )?,
+    );
     Ok(facts)
 }
-struct PredictiveFitVerifier { ctx: ExecutionContext, kind: PredictiveFitKind }
+struct PredictiveFitVerifier {
+    ctx: ExecutionContext,
+    kind: PredictiveFitKind,
+}
 impl NodeVerifier for PredictiveFitVerifier {
-    fn kind(&self) -> NodeKind { self.kind.node() }
-    fn verify(&self, _id: &str, bytes: &[u8], _upstream: &[UpstreamNode<'_>]) -> Result<VerifiedNode, NodeFailure> {
+    fn kind(&self) -> NodeKind {
+        self.kind.node()
+    }
+    fn verify(
+        &self,
+        _id: &str,
+        bytes: &[u8],
+        _upstream: &[UpstreamNode<'_>],
+    ) -> Result<VerifiedNode, NodeFailure> {
         let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
-        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES { return Err(fail("predictive fit exceeds bound".into())); }
-        let wire: PredictiveFitWire = antecedent_io::from_cbor(bytes).map_err(|e| fail(e.to_string()))?;
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(fail("predictive fit exceeds bound".into()));
+        }
+        let wire: PredictiveFitWire =
+            antecedent_io::from_cbor(bytes).map_err(|e| fail(e.to_string()))?;
         if wire.version != 1 || wire.feature != PREDICTIVE_FIT_FEATURE || wire.kind != self.kind {
             return Err(fail("predictive fit feature differs".into()));
         }
@@ -2460,25 +3357,53 @@ impl NodeVerifier for PredictiveFitVerifier {
             PredictiveFitKind::Bridge => super::bridge_transport_decision::consume_assessed_bridge_posterior_decision(
                 &wire.artifact, program, &ctx).map_err(|e| fit_node_failure(&ctx, &e))?.decision,
         };
-        if decision.chain.record().reading != "predictive" { return Err(fail("producer law is not predictive".into())); }
-        Ok(VerifiedNode { identity: CanonicalWriter::digest_bytes_hex("antecedent.predictive_fit_node.v1", bytes),
-            facts: predictive_facts(&decision).map_err(|e| fail(e.to_string()))?, values: Vec::new() })
+        if decision.chain.record().reading != "predictive" {
+            return Err(fail("producer law is not predictive".into()));
+        }
+        Ok(VerifiedNode {
+            identity: CanonicalWriter::digest_bytes_hex("antecedent.predictive_fit_node.v1", bytes),
+            facts: predictive_facts(&decision).map_err(|e| fail(e.to_string()))?,
+            values: Vec::new(),
+        })
     }
 }
-struct PredictiveTerminalVerifier { ctx: ExecutionContext }
+struct PredictiveTerminalVerifier {
+    ctx: ExecutionContext,
+}
 impl NodeVerifier for PredictiveTerminalVerifier {
-    fn kind(&self) -> NodeKind { NodeKind::PredictiveChainDecision }
-    fn verify(&self, _id: &str, bytes: &[u8], _upstream: &[UpstreamNode<'_>]) -> Result<VerifiedNode, NodeFailure> {
+    fn kind(&self) -> NodeKind {
+        NodeKind::PredictiveChainDecision
+    }
+    fn verify(
+        &self,
+        _id: &str,
+        bytes: &[u8],
+        _upstream: &[UpstreamNode<'_>],
+    ) -> Result<VerifiedNode, NodeFailure> {
         let fail = |reason: String| NodeFailure { stage: BundleStage::SwappedEvidence, reason };
-        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES { return Err(fail("predictive decision exceeds bound".into())); }
-        let wire: PredictiveTerminalWire = antecedent_io::from_cbor(bytes).map_err(|e| fail(e.to_string()))?;
-        if wire.version != 1 || wire.feature != PREDICTIVE_DECISION_FEATURE { return Err(fail("predictive decision feature differs".into())); }
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(fail("predictive decision exceeds bound".into()));
+        }
+        let wire: PredictiveTerminalWire =
+            antecedent_io::from_cbor(bytes).map_err(|e| fail(e.to_string()))?;
+        if wire.version != 1 || wire.feature != PREDICTIVE_DECISION_FEATURE {
+            return Err(fail("predictive decision feature differs".into()));
+        }
         let ctx = fit_node_context(&self.ctx, Some(wire.seed));
-        let result = super::propagation_chain_decision::consume_chain_decision(&wire.artifact, None, &ctx)
-            .map_err(|e| fit_node_failure(&ctx, &e))?;
-        if result.chain.record().reading != "predictive" { return Err(fail("decision law is not predictive".into())); }
-        Ok(VerifiedNode { identity: CanonicalWriter::digest_bytes_hex("antecedent.predictive_chain_decision_node.v1", bytes),
-            facts: predictive_facts(&result).map_err(|e| fail(e.to_string()))?, values: Vec::new() })
+        let result =
+            super::propagation_chain_decision::consume_chain_decision(&wire.artifact, None, &ctx)
+                .map_err(|e| fit_node_failure(&ctx, &e))?;
+        if result.chain.record().reading != "predictive" {
+            return Err(fail("decision law is not predictive".into()));
+        }
+        Ok(VerifiedNode {
+            identity: CanonicalWriter::digest_bytes_hex(
+                "antecedent.predictive_chain_decision_node.v1",
+                bytes,
+            ),
+            facts: predictive_facts(&result).map_err(|e| fail(e.to_string()))?,
+            values: Vec::new(),
+        })
     }
 }
 
@@ -2494,62 +3419,124 @@ pub enum PredictiveFitDecisionBundleError {
 }
 
 impl BundleBuilder {
-    fn add_predictive_fit(&mut self, node_id: &str, artifact: &[u8], program: SemanticDigest,
-        ctx: &ExecutionContext, kind: PredictiveFitKind) -> Result<(), PredictiveFitDecisionBundleError> {
+    fn add_predictive_fit(
+        &mut self,
+        node_id: &str,
+        artifact: &[u8],
+        program: SemanticDigest,
+        ctx: &ExecutionContext,
+        kind: PredictiveFitKind,
+    ) -> Result<(), PredictiveFitDecisionBundleError> {
         self.ensure_new(node_id).map_err(ChainBundleRecomputeError::Bundle)?;
-        let bytes = antecedent_io::to_cbor(&PredictiveFitWire { version: 1, feature: PREDICTIVE_FIT_FEATURE.into(),
-            kind, seed: ctx.rng.master_seed(), program: *program.as_bytes(), artifact: artifact.to_vec() })
-            .map_err(ChainBundleRecomputeError::Io)?;
-        if bytes.len() > self.limits.max_embedded_bytes { return Err(PredictiveFitDecisionBundleError::Invalid("fit exceeds bound")); }
-        let inspected = PredictiveFitVerifier { ctx: ctx.clone(), kind }.verify(node_id, &bytes, &[])
+        let bytes = antecedent_io::to_cbor(&PredictiveFitWire {
+            version: 1,
+            feature: PREDICTIVE_FIT_FEATURE.into(),
+            kind,
+            seed: ctx.rng.master_seed(),
+            program: *program.as_bytes(),
+            artifact: artifact.to_vec(),
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > self.limits.max_embedded_bytes {
+            return Err(PredictiveFitDecisionBundleError::Invalid("fit exceeds bound"));
+        }
+        let inspected = PredictiveFitVerifier { ctx: ctx.clone(), kind }
+            .verify(node_id, &bytes, &[])
             .map_err(|e| ChainBundleRecomputeError::Bundle(node_refused(node_id, &e)))?;
         self.nodes.push(BundleNode::embedded(node_id, kind.node(), &inspected.identity, bytes));
         Ok(())
     }
     /// Embed a joint transport predictive producer, refitting its raw evidence.
-    pub fn add_joint_transport_predictive_fit(&mut self, id: &str, artifact: &[u8], program: SemanticDigest,
-        ctx: &ExecutionContext) -> Result<(), PredictiveFitDecisionBundleError> {
+    pub fn add_joint_transport_predictive_fit(
+        &mut self,
+        id: &str,
+        artifact: &[u8],
+        program: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<(), PredictiveFitDecisionBundleError> {
         self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Joint)
     }
     /// Embed a trial IPW predictive producer, refitting its raw evidence.
-    pub fn add_trial_ipw_predictive_fit(&mut self, id: &str, artifact: &[u8], program: SemanticDigest,
-        ctx: &ExecutionContext) -> Result<(), PredictiveFitDecisionBundleError> {
+    pub fn add_trial_ipw_predictive_fit(
+        &mut self,
+        id: &str,
+        artifact: &[u8],
+        program: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<(), PredictiveFitDecisionBundleError> {
         self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Trial)
     }
     /// Embed a cyclic target-feedback fit and predictive decision.
-    pub fn add_cyclic_target_feedback_fit(&mut self, id: &str, artifact: &[u8], program: SemanticDigest,
-        ctx: &ExecutionContext) -> Result<(), PredictiveFitDecisionBundleError> {
+    pub fn add_cyclic_target_feedback_fit(
+        &mut self,
+        id: &str,
+        artifact: &[u8],
+        program: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<(), PredictiveFitDecisionBundleError> {
         self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Cyclic)
     }
     /// Embed a predictive graph-imputation fit and action-world decision.
-    pub fn add_graph_imputation_predictive_fit(&mut self, id: &str, artifact: &[u8], program: SemanticDigest,
-        ctx: &ExecutionContext) -> Result<(), PredictiveFitDecisionBundleError> {
+    pub fn add_graph_imputation_predictive_fit(
+        &mut self,
+        id: &str,
+        artifact: &[u8],
+        program: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<(), PredictiveFitDecisionBundleError> {
         self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Graph)
     }
     /// Embed an assessed bridge posterior producer and replay its raw validation evidence.
-    pub fn add_assessed_bridge_posterior_fit(&mut self, id: &str, artifact: &[u8], program: SemanticDigest,
-        ctx: &ExecutionContext) -> Result<(), PredictiveFitDecisionBundleError> {
+    pub fn add_assessed_bridge_posterior_fit(
+        &mut self,
+        id: &str,
+        artifact: &[u8],
+        program: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<(), PredictiveFitDecisionBundleError> {
         self.add_predictive_fit(id, artifact, program, ctx, PredictiveFitKind::Bridge)
     }
     /// Embed a chain decision artifact that will be recompiled and scored live.
-    pub fn add_predictive_chain_decision(&mut self, id: &str, artifact: &[u8], ctx: &ExecutionContext)
-        -> Result<(), PredictiveFitDecisionBundleError> {
+    pub fn add_predictive_chain_decision(
+        &mut self,
+        id: &str,
+        artifact: &[u8],
+        ctx: &ExecutionContext,
+    ) -> Result<(), PredictiveFitDecisionBundleError> {
         self.ensure_new(id).map_err(ChainBundleRecomputeError::Bundle)?;
-        let bytes = antecedent_io::to_cbor(&PredictiveTerminalWire { version: 1, feature: PREDICTIVE_DECISION_FEATURE.into(),
-            seed: ctx.rng.master_seed(), artifact: artifact.to_vec() }).map_err(ChainBundleRecomputeError::Io)?;
-        if bytes.len() > self.limits.max_embedded_bytes { return Err(PredictiveFitDecisionBundleError::Invalid("decision exceeds bound")); }
-        let inspected = PredictiveTerminalVerifier { ctx: ctx.clone() }.verify(id, &bytes, &[])
+        let bytes = antecedent_io::to_cbor(&PredictiveTerminalWire {
+            version: 1,
+            feature: PREDICTIVE_DECISION_FEATURE.into(),
+            seed: ctx.rng.master_seed(),
+            artifact: artifact.to_vec(),
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > self.limits.max_embedded_bytes {
+            return Err(PredictiveFitDecisionBundleError::Invalid("decision exceeds bound"));
+        }
+        let inspected = PredictiveTerminalVerifier { ctx: ctx.clone() }
+            .verify(id, &bytes, &[])
             .map_err(|e| ChainBundleRecomputeError::Bundle(node_refused(id, &e)))?;
-        self.nodes.push(BundleNode::embedded(id, NodeKind::PredictiveChainDecision, &inspected.identity, bytes));
+        self.nodes.push(BundleNode::embedded(
+            id,
+            NodeKind::PredictiveChainDecision,
+            &inspected.identity,
+            bytes,
+        ));
         Ok(())
     }
 }
 
 /// Compiled producer -> retained chain -> live decision graph.
 pub struct CompiledPredictiveFitDecisionBundle {
-    bundle: CompositionBundle, kind: PredictiveFitKind, producer_node: String, chain_node: String,
-    terminal_node: String, producer_program: SemanticDigest,
-    chain: super::propagation_chain_decision::ChainDecisionPlan, lowered: Arc<LoweredProgram>,
+    bundle: CompositionBundle,
+    kind: PredictiveFitKind,
+    producer_node: String,
+    chain_node: String,
+    terminal_node: String,
+    producer_program: SemanticDigest,
+    chain: super::propagation_chain_decision::ChainDecisionPlan,
+    lowered: Arc<LoweredProgram>,
 }
 /// Replayed bundle identities and live decision fingerprint; no calibration is earned.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -2570,218 +3557,486 @@ pub struct PredictiveFitDecisionBundleReceipt {
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct PortablePredictiveFitDecisionBundle {
-    version: u32, feature: String, kind: PredictiveFitKind, bundle: Vec<u8>, bundle_identity: String,
-    producer: String, chain: String, terminal: String, receipt: PredictiveFitDecisionBundleReceipt,
+    version: u32,
+    feature: String,
+    kind: PredictiveFitKind,
+    bundle: Vec<u8>,
+    bundle_identity: String,
+    producer: String,
+    chain: String,
+    terminal: String,
+    receipt: PredictiveFitDecisionBundleReceipt,
 }
-fn embedded_node<'a>(bundle: &'a CompositionBundle, id: &str, kind: NodeKind)
-    -> Result<&'a [u8], PredictiveFitDecisionBundleError> {
-    let node = bundle.nodes().iter().find(|n| n.id == id).ok_or(PredictiveFitDecisionBundleError::Invalid("node absent"))?;
-    if node.kind != kind { return Err(PredictiveFitDecisionBundleError::Invalid("node kind differs")); }
-    match &node.source { NodeSource::Embedded { bytes } => Ok(bytes),
-        _ => Err(PredictiveFitDecisionBundleError::Invalid("node must be embedded")) }
+fn embedded_node<'a>(
+    bundle: &'a CompositionBundle,
+    id: &str,
+    kind: NodeKind,
+) -> Result<&'a [u8], PredictiveFitDecisionBundleError> {
+    let node = bundle
+        .nodes()
+        .iter()
+        .find(|n| n.id == id)
+        .ok_or(PredictiveFitDecisionBundleError::Invalid("node absent"))?;
+    if node.kind != kind {
+        return Err(PredictiveFitDecisionBundleError::Invalid("node kind differs"));
+    }
+    match &node.source {
+        NodeSource::Embedded { bytes } => Ok(bytes),
+        _ => Err(PredictiveFitDecisionBundleError::Invalid("node must be embedded")),
+    }
 }
-fn compile_predictive_fit_decision_bundle(bundle: CompositionBundle, producer: &str, chain_id: &str,
-    terminal: &str, ctx: &ExecutionContext, kind: PredictiveFitKind)
-    -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+fn compile_predictive_fit_decision_bundle(
+    bundle: CompositionBundle,
+    producer: &str,
+    chain_id: &str,
+    terminal: &str,
+    ctx: &ExecutionContext,
+    kind: PredictiveFitKind,
+) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
     for (from, to) in [(producer, chain_id), (chain_id, terminal)] {
         if !bundle.edges().iter().any(|edge| edge.from == from && edge.to == to) {
-            return Err(PredictiveFitDecisionBundleError::Invalid("producer, chain and decision need direct dependency edges"));
+            return Err(PredictiveFitDecisionBundleError::Invalid(
+                "producer, chain and decision need direct dependency edges",
+            ));
         }
     }
-    let fit: PredictiveFitWire = antecedent_io::from_cbor(embedded_node(&bundle, producer, kind.node())?)
-        .map_err(ChainBundleRecomputeError::Io)?;
+    let fit: PredictiveFitWire =
+        antecedent_io::from_cbor(embedded_node(&bundle, producer, kind.node())?)
+            .map_err(ChainBundleRecomputeError::Io)?;
     if fit.version != 1 || fit.feature != PREDICTIVE_FIT_FEATURE || fit.kind != kind {
         return Err(PredictiveFitDecisionBundleError::Invalid("fit declaration differs"));
     }
-    let terminal_wire: PredictiveTerminalWire = antecedent_io::from_cbor(embedded_node(&bundle, terminal, NodeKind::PredictiveChainDecision)?)
-        .map_err(ChainBundleRecomputeError::Io)?;
+    let terminal_wire: PredictiveTerminalWire = antecedent_io::from_cbor(embedded_node(
+        &bundle,
+        terminal,
+        NodeKind::PredictiveChainDecision,
+    )?)
+    .map_err(ChainBundleRecomputeError::Io)?;
     if terminal_wire.version != 1 || terminal_wire.feature != PREDICTIVE_DECISION_FEATURE {
         return Err(PredictiveFitDecisionBundleError::Invalid("decision declaration differs"));
     }
-    let declaration: PredictiveChainDeclaration = antecedent_io::from_cbor(&terminal_wire.artifact).map_err(ChainBundleRecomputeError::Io)?;
-    let feature = if kind == PredictiveFitKind::Bridge { "chain_decision_v1" } else { "chain_action_world_decision_v1" };
+    let declaration: PredictiveChainDeclaration =
+        antecedent_io::from_cbor(&terminal_wire.artifact).map_err(ChainBundleRecomputeError::Io)?;
+    let feature = if kind == PredictiveFitKind::Bridge {
+        "chain_decision_v1"
+    } else {
+        "chain_action_world_decision_v1"
+    };
     if declaration.version != 1 || declaration.required_feature != feature {
-        return Err(PredictiveFitDecisionBundleError::Invalid("decision feature differs from producer"));
+        return Err(PredictiveFitDecisionBundleError::Invalid(
+            "decision feature differs from producer",
+        ));
     }
-    let record = PropagationChainRecordWire::decode(embedded_node(&bundle, chain_id, NodeKind::PropagationChain)?)
-        .map_err(|e| ChainBundleRecomputeError::Chain(e.to_refusal()))?;
+    let record = PropagationChainRecordWire::decode(embedded_node(
+        &bundle,
+        chain_id,
+        NodeKind::PropagationChain,
+    )?)
+    .map_err(|e| ChainBundleRecomputeError::Chain(e.to_refusal()))?;
     let declared_record = PropagationChainRecordWire::decode(&declaration.chain_record)
         .map_err(|e| ChainBundleRecomputeError::Chain(e.to_refusal()))?;
-    let retained_identity = &bundle.nodes().iter().find(|node| node.id == chain_id)
-        .ok_or(PredictiveFitDecisionBundleError::Invalid("chain node absent"))?.identity;
-    if record != declared_record || record.reading != "predictive"
-        || &declaration.chain_identity != retained_identity || declaration.decision_fingerprint.is_empty() {
-        return Err(PredictiveFitDecisionBundleError::Invalid("decision and predictive chain differ"));
+    let retained_identity = &bundle
+        .nodes()
+        .iter()
+        .find(|node| node.id == chain_id)
+        .ok_or(PredictiveFitDecisionBundleError::Invalid("chain node absent"))?
+        .identity;
+    if record != declared_record
+        || record.reading != "predictive"
+        || &declaration.chain_identity != retained_identity
+        || declaration.decision_fingerprint.is_empty()
+    {
+        return Err(PredictiveFitDecisionBundleError::Invalid(
+            "decision and predictive chain differ",
+        ));
     }
-    let contract = antecedent_design::decision_artifact::DecisionContractArtifact::from_bytes(&declaration.contract, &declaration.contract_identity)
-        .map_err(ChainBundleRecomputeError::Io)?;
+    let contract = antecedent_design::decision_artifact::DecisionContractArtifact::from_bytes(
+        &declaration.contract,
+        &declaration.contract_identity,
+    )
+    .map_err(ChainBundleRecomputeError::Io)?;
     let chain = if kind == PredictiveFitKind::Bridge {
-        super::propagation_chain_decision::compile_chain_decision(record, contract.contract().clone(), ctx)
+        super::propagation_chain_decision::compile_chain_decision(
+            record,
+            contract.contract().clone(),
+            ctx,
+        )
     } else {
-        super::propagation_chain_decision::compile_action_world_chain_decision(record, contract.contract().clone(), ctx)
-    }.map_err(|_| PredictiveFitDecisionBundleError::Invalid("decision chain refused"))?;
+        super::propagation_chain_decision::compile_action_world_chain_decision(
+            record,
+            contract.contract().clone(),
+            ctx,
+        )
+    }
+    .map_err(|_| PredictiveFitDecisionBundleError::Invalid("decision chain refused"))?;
     if chain.lowered().identity().as_bytes() != &declaration.lowered_program_identity {
         return Err(PredictiveFitDecisionBundleError::Invalid("decision compiler differs"));
     }
     let producer_program = SemanticDigest::from_bytes(fit.program);
-    let digest = CanonicalWriter::digest_bytes("antecedent.predictive_fit_decision_bundle.graph.v1", bundle.identity().as_bytes());
+    let digest = CanonicalWriter::digest_bytes(
+        "antecedent.predictive_fit_decision_bundle.graph.v1",
+        bundle.identity().as_bytes(),
+    );
     let mut writer = CanonicalWriter::new("antecedent.predictive_fit_decision_bundle.question.v1");
-    writer.bytes(&digest).text(producer).text(chain_id).text(terminal).bytes(producer_program.as_bytes())
-        .bytes(chain.lowered().identity().as_bytes()).text(kind.name());
+    writer
+        .bytes(&digest)
+        .text(producer)
+        .text(chain_id)
+        .text(terminal)
+        .bytes(producer_program.as_bytes())
+        .bytes(chain.lowered().identity().as_bytes())
+        .text(kind.name());
     let query = writer.finish();
     let mut scientific = chain.lowered().scientific().clone();
-    scientific.target = ProblemTarget::QueryFunctional { kind: FunctionalKind::PolicyValue, outcome: None, query };
-    scientific.plan_id = Arc::from(kind.name()); scientific.source_digest = Some(digest);
-    let identification = IdentificationLayer::NonGraphical(Arc::new(NonGraphicalIdentification::SharedEvidenceContract { contract: query }));
+    scientific.target =
+        ProblemTarget::QueryFunctional { kind: FunctionalKind::PolicyValue, outcome: None, query };
+    scientific.plan_id = Arc::from(kind.name());
+    scientific.source_digest = Some(digest);
+    let identification = IdentificationLayer::NonGraphical(Arc::new(
+        NonGraphicalIdentification::SharedEvidenceContract { contract: query },
+    ));
     let mut statistical = chain.lowered().statistical().clone();
-    statistical.realization = Realization::NestedFit { producer_program, method: Arc::from(kind.name()), law: NestedFitLaw::Predictive };
+    statistical.realization = Realization::NestedFit {
+        producer_program,
+        method: Arc::from(kind.name()),
+        law: NestedFitLaw::Predictive,
+    };
     let mut evidence = chain.lowered().evidence().clone();
-    let mut sources = evidence.sources.to_vec(); sources.push(EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(digest) });
-    evidence.sources = Arc::from(sources); evidence.composition = Composition::Chained { stages: bundle.nodes().len() + 1 };
+    let mut sources = evidence.sources.to_vec();
+    sources.push(EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(digest) });
+    evidence.sources = Arc::from(sources);
+    evidence.composition = Composition::Chained { stages: bundle.nodes().len() + 1 };
     let mut operators = Vec::new();
     for effect in [PhysicalEffect::Read, PhysicalEffect::Fit, PhysicalEffect::Transport] {
-        operators.push(PhysicalOperator::declare(effect).build().map_err(|_| PredictiveFitDecisionBundleError::Invalid("physical operator refused"))?);
+        operators.push(
+            PhysicalOperator::declare(effect).build().map_err(|_| {
+                PredictiveFitDecisionBundleError::Invalid("physical operator refused")
+            })?,
+        );
     }
     operators.extend_from_slice(chain.lowered().physical().operators());
-    let physical = PhysicalLayer { operators: Arc::from(operators), design: chain.lowered().physical().design() };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts { cell: kind.cell(), scientific, identification,
-        statistical, evidence, physical, claim: *chain.lowered().claim() }.finish());
-    Ok(CompiledPredictiveFitDecisionBundle { bundle, kind, producer_node: producer.into(), chain_node: chain_id.into(),
-        terminal_node: terminal.into(), producer_program, chain, lowered })
+    let physical = PhysicalLayer {
+        operators: Arc::from(operators),
+        design: chain.lowered().physical().design(),
+    };
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: kind.cell(),
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical,
+            claim: *chain.lowered().claim(),
+        }
+        .finish(),
+    );
+    Ok(CompiledPredictiveFitDecisionBundle {
+        bundle,
+        kind,
+        producer_node: producer.into(),
+        chain_node: chain_id.into(),
+        terminal_node: terminal.into(),
+        producer_program,
+        chain,
+        lowered,
+    })
 }
 /// Compile a live joint transport predictive fit and decision bundle.
-pub fn compile_joint_transport_predictive_node_decision_bundle(bundle: CompositionBundle, producer: &str,
-    chain: &str, terminal: &str, ctx: &ExecutionContext) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
-    compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Joint)
+pub fn compile_joint_transport_predictive_node_decision_bundle(
+    bundle: CompositionBundle,
+    producer: &str,
+    chain: &str,
+    terminal: &str,
+    ctx: &ExecutionContext,
+) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    compile_predictive_fit_decision_bundle(
+        bundle,
+        producer,
+        chain,
+        terminal,
+        ctx,
+        PredictiveFitKind::Joint,
+    )
 }
 /// Compile a live trial IPW predictive fit and decision bundle.
-pub fn compile_trial_ipw_predictive_node_decision_bundle(bundle: CompositionBundle, producer: &str,
-    chain: &str, terminal: &str, ctx: &ExecutionContext) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
-    compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Trial)
+pub fn compile_trial_ipw_predictive_node_decision_bundle(
+    bundle: CompositionBundle,
+    producer: &str,
+    chain: &str,
+    terminal: &str,
+    ctx: &ExecutionContext,
+) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    compile_predictive_fit_decision_bundle(
+        bundle,
+        producer,
+        chain,
+        terminal,
+        ctx,
+        PredictiveFitKind::Trial,
+    )
 }
 /// Compile a live cyclic target-feedback predictive fit and decision bundle.
-pub fn compile_cyclic_target_feedback_node_decision_bundle(bundle: CompositionBundle, producer: &str,
-    chain: &str, terminal: &str, ctx: &ExecutionContext) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
-    compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Cyclic)
+pub fn compile_cyclic_target_feedback_node_decision_bundle(
+    bundle: CompositionBundle,
+    producer: &str,
+    chain: &str,
+    terminal: &str,
+    ctx: &ExecutionContext,
+) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    compile_predictive_fit_decision_bundle(
+        bundle,
+        producer,
+        chain,
+        terminal,
+        ctx,
+        PredictiveFitKind::Cyclic,
+    )
 }
 /// Compile a live predictive graph-imputation fit and decision bundle.
-pub fn compile_graph_imputation_predictive_node_decision_bundle(bundle: CompositionBundle, producer: &str,
-    chain: &str, terminal: &str, ctx: &ExecutionContext) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
-    compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Graph)
+pub fn compile_graph_imputation_predictive_node_decision_bundle(
+    bundle: CompositionBundle,
+    producer: &str,
+    chain: &str,
+    terminal: &str,
+    ctx: &ExecutionContext,
+) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    compile_predictive_fit_decision_bundle(
+        bundle,
+        producer,
+        chain,
+        terminal,
+        ctx,
+        PredictiveFitKind::Graph,
+    )
 }
 /// Compile an assessed bridge posterior predictive fit and decision bundle.
-pub fn compile_assessed_bridge_posterior_node_decision_bundle(bundle: CompositionBundle, producer: &str,
-    chain: &str, terminal: &str, ctx: &ExecutionContext) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
-    compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Bridge)
+pub fn compile_assessed_bridge_posterior_node_decision_bundle(
+    bundle: CompositionBundle,
+    producer: &str,
+    chain: &str,
+    terminal: &str,
+    ctx: &ExecutionContext,
+) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    compile_predictive_fit_decision_bundle(
+        bundle,
+        producer,
+        chain,
+        terminal,
+        ctx,
+        PredictiveFitKind::Bridge,
+    )
 }
 impl CompiledPredictiveFitDecisionBundle {
     /// The lowered program this bundle executes.
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
     /// Plan view of the lowered program at the compiled stage.
-    pub fn plan_view(&self) -> PlanView { PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled) }
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+    }
     /// Refit raw evidence, execute the predictive chain and rescore its decision.
-    pub fn execute(&self, ctx: &ExecutionContext) -> Result<PredictiveFitDecisionBundleReceipt, PredictiveFitDecisionBundleError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<PredictiveFitDecisionBundleReceipt, PredictiveFitDecisionBundleError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        let bytes = export_bundle(&self.bundle, "predictive-fit-decision-bundle").map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = native_fit_bundle_consumer(&scoped).consume(&bytes, &BundleLimits::default(), self.bundle.identity(), &SuppliedSources::default())
+        let bytes = export_bundle(&self.bundle, "predictive-fit-decision-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        if !consumed.all_replayed() { return Err(PredictiveFitDecisionBundleError::Invalid("dependency did not replay")); }
-        let fit = consumed.node(&self.producer_node).ok_or(PredictiveFitDecisionBundleError::Invalid("producer missing"))?;
-        let terminal = consumed.node(&self.terminal_node).ok_or(PredictiveFitDecisionBundleError::Invalid("decision missing"))?;
-        let live = self.chain.execute(&scoped).map_err(|_| PredictiveFitDecisionBundleError::Invalid("live decision refused"))?;
+        let consumed = native_fit_bundle_consumer(&scoped)
+            .consume(
+                &bytes,
+                &BundleLimits::default(),
+                self.bundle.identity(),
+                &SuppliedSources::default(),
+            )
+            .map_err(ChainBundleRecomputeError::Bundle)?;
+        if !consumed.all_replayed() {
+            return Err(PredictiveFitDecisionBundleError::Invalid("dependency did not replay"));
+        }
+        let fit = consumed
+            .node(&self.producer_node)
+            .ok_or(PredictiveFitDecisionBundleError::Invalid("producer missing"))?;
+        let terminal = consumed
+            .node(&self.terminal_node)
+            .ok_or(PredictiveFitDecisionBundleError::Invalid("decision missing"))?;
+        let live = self
+            .chain
+            .execute(&scoped)
+            .map_err(|_| PredictiveFitDecisionBundleError::Invalid("live decision refused"))?;
         let facts = predictive_facts(&live).map_err(ChainBundleRecomputeError::Io)?;
-        let chain_node = self.bundle.nodes().iter().find(|n| n.id == self.chain_node).ok_or(PredictiveFitDecisionBundleError::Invalid("chain missing"))?;
-        if chain_node.identity != live.chain.identity() || fit.facts.get(PREDICTIVE_CHAIN_FACT) != facts.get(PREDICTIVE_CHAIN_FACT)
+        let chain_node = self
+            .bundle
+            .nodes()
+            .iter()
+            .find(|n| n.id == self.chain_node)
+            .ok_or(PredictiveFitDecisionBundleError::Invalid("chain missing"))?;
+        if chain_node.identity != live.chain.identity()
+            || fit.facts.get(PREDICTIVE_CHAIN_FACT) != facts.get(PREDICTIVE_CHAIN_FACT)
             || fit.facts.get(PREDICTIVE_DECISION_FACT) != facts.get(PREDICTIVE_DECISION_FACT)
             || terminal.facts.get(PREDICTIVE_CHAIN_FACT) != facts.get(PREDICTIVE_CHAIN_FACT)
-            || terminal.facts.get(PREDICTIVE_DECISION_FACT) != facts.get(PREDICTIVE_DECISION_FACT) {
-            return Err(PredictiveFitDecisionBundleError::Invalid("refitted predictive fit, live chain and decision differ"));
+            || terminal.facts.get(PREDICTIVE_DECISION_FACT) != facts.get(PREDICTIVE_DECISION_FACT)
+        {
+            return Err(PredictiveFitDecisionBundleError::Invalid(
+                "refitted predictive fit, live chain and decision differ",
+            ));
         }
-        Ok(PredictiveFitDecisionBundleReceipt { bundle_identity: consumed.identity().into(), chain_identity: live.chain.identity().into(),
-            decision_fingerprint: facts[PREDICTIVE_DECISION_FACT].clone(), producer_program_identity: *self.producer_program.as_bytes(),
-            lowered_program_identity: *self.lowered.identity().as_bytes(), dependencies: consumed.nodes().iter().map(|node| ReplayedBundleDependency {
-                node_id: node.id.clone(), artifact_identity: node.identity.clone(), chain_digest: node.chain_digest.clone(),
-            }).collect() })
+        Ok(PredictiveFitDecisionBundleReceipt {
+            bundle_identity: consumed.identity().into(),
+            chain_identity: live.chain.identity().into(),
+            decision_fingerprint: facts[PREDICTIVE_DECISION_FACT].clone(),
+            producer_program_identity: *self.producer_program.as_bytes(),
+            lowered_program_identity: *self.lowered.identity().as_bytes(),
+            dependencies: consumed
+                .nodes()
+                .iter()
+                .map(|node| ReplayedBundleDependency {
+                    node_id: node.id.clone(),
+                    artifact_identity: node.identity.clone(),
+                    chain_digest: node.chain_digest.clone(),
+                })
+                .collect(),
+        })
     }
     /// Export the bundle and its receipt as a portable artifact.
     ///
     /// # Errors
     /// A receipt that differs from a live execution, an oversized artifact or an
     /// encoding failure.
-    pub fn export_portable(&self, receipt: &PredictiveFitDecisionBundleReceipt, ctx: &ExecutionContext)
-        -> Result<Vec<u8>, PredictiveFitDecisionBundleError> {
-        if self.execute(ctx)? != *receipt { return Err(PredictiveFitDecisionBundleError::Invalid("receipt changed")); }
-        let bytes = antecedent_io::to_cbor(&PortablePredictiveFitDecisionBundle { version: 1, feature: PREDICTIVE_BUNDLE_FEATURE.into(),
-            kind: self.kind, bundle: export_bundle(&self.bundle, "portable-predictive-fit-decision").map_err(ChainBundleRecomputeError::Bundle)?,
-            bundle_identity: self.bundle.identity().into(), producer: self.producer_node.clone(), chain: self.chain_node.clone(),
-            terminal: self.terminal_node.clone(), receipt: receipt.clone() }).map_err(ChainBundleRecomputeError::Io)?;
-        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES { return Err(PredictiveFitDecisionBundleError::Invalid("portable bundle exceeds bound")); }
+    pub fn export_portable(
+        &self,
+        receipt: &PredictiveFitDecisionBundleReceipt,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, PredictiveFitDecisionBundleError> {
+        if self.execute(ctx)? != *receipt {
+            return Err(PredictiveFitDecisionBundleError::Invalid("receipt changed"));
+        }
+        let bytes = antecedent_io::to_cbor(&PortablePredictiveFitDecisionBundle {
+            version: 1,
+            feature: PREDICTIVE_BUNDLE_FEATURE.into(),
+            kind: self.kind,
+            bundle: export_bundle(&self.bundle, "portable-predictive-fit-decision")
+                .map_err(ChainBundleRecomputeError::Bundle)?,
+            bundle_identity: self.bundle.identity().into(),
+            producer: self.producer_node.clone(),
+            chain: self.chain_node.clone(),
+            terminal: self.terminal_node.clone(),
+            receipt: receipt.clone(),
+        })
+        .map_err(ChainBundleRecomputeError::Io)?;
+        if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+            return Err(PredictiveFitDecisionBundleError::Invalid("portable bundle exceeds bound"));
+        }
         Ok(bytes)
     }
 }
 /// Independently reconstruct, refit and rescore the portable predictive bundle.
-pub fn consume_portable_predictive_fit_decision_bundle(bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
-    ctx: &ExecutionContext) -> Result<PredictiveFitDecisionBundleReceipt, PredictiveFitDecisionBundleError> {
-    if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES { return Err(PredictiveFitDecisionBundleError::Invalid("portable bundle exceeds bound")); }
-    let wire: PortablePredictiveFitDecisionBundle = antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
-    if wire.version != 1 || wire.feature != PREDICTIVE_BUNDLE_FEATURE || wire.bundle_identity != expected_bundle {
+pub fn consume_portable_predictive_fit_decision_bundle(
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
+) -> Result<PredictiveFitDecisionBundleReceipt, PredictiveFitDecisionBundleError> {
+    if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
+        return Err(PredictiveFitDecisionBundleError::Invalid("portable bundle exceeds bound"));
+    }
+    let wire: PortablePredictiveFitDecisionBundle =
+        antecedent_io::from_cbor(bytes).map_err(ChainBundleRecomputeError::Io)?;
+    if wire.version != 1
+        || wire.feature != PREDICTIVE_BUNDLE_FEATURE
+        || wire.bundle_identity != expected_bundle
+    {
         return Err(PredictiveFitDecisionBundleError::Invalid("portable identity differs"));
     }
-    let bundle = CompositionBundle::from_bytes(&wire.bundle, expected_bundle, &BundleLimits::default()).map_err(ChainBundleRecomputeError::Bundle)?;
-    let plan = compile_predictive_fit_decision_bundle(bundle, &wire.producer, &wire.chain, &wire.terminal, ctx, wire.kind)?;
-    if plan.lowered.identity() != expected_program { return Err(PredictiveFitDecisionBundleError::Invalid("portable compiler differs")); }
+    let bundle =
+        CompositionBundle::from_bytes(&wire.bundle, expected_bundle, &BundleLimits::default())
+            .map_err(ChainBundleRecomputeError::Bundle)?;
+    let plan = compile_predictive_fit_decision_bundle(
+        bundle,
+        &wire.producer,
+        &wire.chain,
+        &wire.terminal,
+        ctx,
+        wire.kind,
+    )?;
+    if plan.lowered.identity() != expected_program {
+        return Err(PredictiveFitDecisionBundleError::Invalid("portable compiler differs"));
+    }
     let live = plan.execute(ctx)?;
-    if live != wire.receipt { return Err(PredictiveFitDecisionBundleError::Invalid("portable receipt differs")); }
+    if live != wire.receipt {
+        return Err(PredictiveFitDecisionBundleError::Invalid("portable receipt differs"));
+    }
     Ok(live)
 }
 
 #[cfg(test)]
 mod compiler_recomputation_tests {
     use super::*;
+    use crate::analysis::propagation_chain::{PropagationChain, compile_propagation_chain};
     use antecedent_contract::propagation_chain::{
         ChainReading, LawMeaning, StageKind, TableConstruction,
     };
     use antecedent_io::propagation_chain_record::{
         ChainCoefficientWire, ChainOpWire, ChainSourceWire, ChainStageWire,
     };
-    use crate::analysis::propagation_chain::{PropagationChain, compile_propagation_chain};
 
     #[test]
     fn a_bundle_terminal_is_recomputed_by_its_compiler_and_replayed() {
         let ctx = ExecutionContext::for_tests(23);
         let draft = PropagationChain::draft(
-            TableConstruction::JointDraws, ChainReading::Spread, "output",
+            TableConstruction::JointDraws,
+            ChainReading::Spread,
+            "output",
             vec![ChainSourceWire::draws(
-                "source", LawMeaning::Sampling, "aligned-bundle", &[1.0, 2.0, 3.0],
+                "source",
+                LawMeaning::Sampling,
+                "aligned-bundle",
+                &[1.0, 2.0, 3.0],
             )],
             vec![ChainStageWire::new(
-                "output", StageKind::DerivedQuantity, &["source"],
+                "output",
+                StageKind::DerivedQuantity,
+                &["source"],
                 ChainOpWire::affine(
-                    ChainCoefficientWire::fixed(2.0), ChainCoefficientWire::fixed(0.0),
+                    ChainCoefficientWire::fixed(2.0),
+                    ChainCoefficientWire::fixed(0.0),
                 ),
             )],
         );
         let chain = compile_propagation_chain(draft, &ctx).expect("chain compiler");
         let sealed = chain.execute(&ctx).expect("source execution");
         let mut builder = BundleBuilder::new();
-        builder.add_artifact(
-            Some("terminal"), NodeKind::PropagationChain,
-            &sealed.export().expect("chain bytes"),
-        ).expect("embedded chain");
+        builder
+            .add_artifact(
+                Some("terminal"),
+                NodeKind::PropagationChain,
+                &sealed.export().expect("chain bytes"),
+            )
+            .expect("embedded chain");
         let bundle = builder.build().expect("bundle");
-        let plan = compile_chain_bundle_recomputation(bundle, "terminal", chain)
-            .expect("bundle compiler");
+        let plan =
+            compile_chain_bundle_recomputation(bundle, "terminal", chain).expect("bundle compiler");
         assert_eq!(plan.plan_view().route().as_str(), "BundleRecomputation");
         let receipt = plan.execute(&ctx).expect("live bundle replay");
         assert_eq!(receipt.dependencies.len(), 1);
         assert_eq!(receipt.terminal_identity, sealed.identity());
         let bytes = plan.export(&receipt, &ctx).expect("recalculation receipt");
-        assert_eq!(plan.consume(&bytes, plan.lowered().identity(), &ctx)
-            .expect("independent replay"), receipt);
+        assert_eq!(
+            plan.consume(&bytes, plan.lowered().identity(), &ctx).expect("independent replay"),
+            receipt
+        );
         let portable = plan.export_portable(&receipt, &ctx).expect("portable artifact");
-        assert_eq!(consume_portable_chain_bundle_recomputation(
-            &portable, plan.bundle.identity(), plan.lowered().identity(), &ctx,
-        ).expect("fresh compiler replay"), receipt);
+        assert_eq!(
+            consume_portable_chain_bundle_recomputation(
+                &portable,
+                plan.bundle.identity(),
+                plan.lowered().identity(),
+                &ctx,
+            )
+            .expect("fresh compiler replay"),
+            receipt
+        );
     }
 }
 

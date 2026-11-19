@@ -202,13 +202,7 @@ impl crate::Study {
         if let Some(contract) = &contract {
             compiled.validate_decision(contract)?;
         }
-        Ok(PreparedEventWorlds {
-            compiled,
-            law: law.clone(),
-            contract,
-            plan,
-            _lease: lease,
-        })
+        Ok(PreparedEventWorlds { compiled, law: law.clone(), contract, plan, _lease: lease })
     }
 }
 
@@ -229,12 +223,7 @@ impl PreparedEventWorlds {
     /// Incomplete path law, failed decision validation, cancellation or resource refusal.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<EventDecision, EventError> {
         let scoped = super::scoped_execution(ctx, self.plan.identity(), CAPABILITY)?;
-        self.compiled.execute(
-            &self.law,
-            self.plan.identity(),
-            self.contract.as_ref(),
-            &scoped,
-        )
+        self.compiled.execute(&self.law, self.plan.identity(), self.contract.as_ref(), &scoped)
     }
 }
 
@@ -266,12 +255,8 @@ impl CompiledWorlds {
         }
         p.validate().map_err(EventError::invalid)?;
         let compiled = request.system.compile().map_err(EventError::invalid)?;
-        let inputs: BTreeSet<_> = request
-            .system
-            .inputs
-            .iter()
-            .map(|input| input.name.as_str())
-            .collect();
+        let inputs: BTreeSet<_> =
+            request.system.inputs.iter().map(|input| input.name.as_str()).collect();
         for rule in &request.bindings {
             if rule.kind >= history.catalog.len()
                 || !inputs.contains(rule.input.as_str())
@@ -296,16 +281,10 @@ impl CompiledWorlds {
                     .iter()
                     .position(|input| input.name == rule.input)
                     .expect("known input");
-            if request
-                .system
-                .diffusion
-                .iter()
-                .any(|diffusion| reads(&diffusion.expression, slot))
+            if request.system.diffusion.iter().any(|diffusion| reads(&diffusion.expression, slot))
                 || !request.system.drift.iter().any(|drift| reads(drift, slot))
             {
-                return Err(EventError::invalid(
-                    "event-bound inputs must enter drift only",
-                ));
+                return Err(EventError::invalid("event-bound inputs must enter drift only"));
             }
             if input.envelope.is_none() {
                 return Err(EventError::invalid(
@@ -317,27 +296,19 @@ impl CompiledWorlds {
         let mut ids = BTreeSet::from([BASELINE_WORLD]);
         for world in &request.worlds {
             if !ids.insert(&world.id)
-                || world
-                    .inputs
-                    .iter()
-                    .any(|i| named_inputs.contains(i.name.as_str()))
+                || world.inputs.iter().any(|i| named_inputs.contains(i.name.as_str()))
             {
                 return Err(EventError::invalid(
                     "duplicate world or replacement of an event-owned input",
                 ));
             }
         }
-        let worlds: Vec<_> = std::iter::once(SdeWorld {
-            id: BASELINE_WORLD.into(),
-            ..SdeWorld::default()
-        })
-        .chain(request.worlds.iter().cloned())
-        .collect();
+        let worlds: Vec<_> =
+            std::iter::once(SdeWorld { id: BASELINE_WORLD.into(), ..SdeWorld::default() })
+                .chain(request.worlds.iter().cloned())
+                .collect();
         for world in &worlds {
-            request
-                .system
-                .plan_world(world, p.start, p.step)
-                .map_err(EventError::invalid)?;
+            request.system.plan_world(world, p.start, p.step).map_err(EventError::invalid)?;
         }
         let mut slots = Vec::with_capacity(request.outputs.len());
         let mut quantities = Vec::with_capacity(request.outputs.len());
@@ -373,13 +344,7 @@ impl CompiledWorlds {
         if work > 75_000_000 {
             return Err(EventError::Budget);
         }
-        Ok(Self {
-            request,
-            compiled,
-            worlds,
-            slots,
-            quantities,
-        })
+        Ok(Self { request, compiled, worlds, slots, quantities })
     }
 
     pub(super) fn validate_decision(&self, contract: &DecisionContract) -> Result<(), EventError> {
@@ -423,20 +388,16 @@ impl CompiledWorlds {
         let lease = admit(ctx, working, retained)?;
         let mut values = vec![0.0; p.paths * width];
         let mut differences = vec![0.0; values.len()];
-        let times: Vec<_> = (0..=2 * p.steps)
-            .map(|step| p.start + step as f64 * (p.step / 2.0))
-            .collect();
+        let times: Vec<_> =
+            (0..=2 * p.steps).map(|step| p.start + step as f64 * (p.step / 2.0)).collect();
         let prehistory = law.history.prefix();
         let initial_pulses = self.initial_pulses(&prehistory, &times, ctx)?;
         for (path, arrivals) in law.paths.iter().enumerate() {
             poll(ctx)?;
             let schedules = if let Some(left) = &law.path_left {
                 let carried = self.initial_pulses(&left[path], &times, ctx)?;
-                let initial: Vec<_> = initial_pulses
-                    .iter()
-                    .zip(carried)
-                    .map(|(a, b)| a + b)
-                    .collect();
+                let initial: Vec<_> =
+                    initial_pulses.iter().zip(carried).map(|(a, b)| a + b).collect();
                 self.bind(arrivals, &times, &initial)
             } else {
                 self.bind(arrivals, &times, &initial_pulses)
@@ -467,10 +428,7 @@ impl CompiledWorlds {
                 )
                 .map_err(|e| {
                     if ctx.cancellation.is_cancelled() {
-                        crate::error::CausalError::Cancelled {
-                            stage: "paired event path",
-                        }
-                        .into()
+                        crate::error::CausalError::Cancelled { stage: "paired event path" }.into()
                     } else {
                         failed(&e)
                     }
@@ -504,11 +462,7 @@ impl CompiledWorlds {
         let outcome_monte_carlo_standard_errors = (0..width)
             .map(|col| {
                 let column: Vec<_> = values[col..].iter().step_by(width).copied().collect();
-                let mean = column
-                    .iter()
-                    .enumerate()
-                    .map(|(i, value)| weight(law, i) * value)
-                    .sum();
+                let mean = column.iter().enumerate().map(|(i, value)| weight(law, i) * value).sum();
                 paired_standard_error(law, &column, mean)
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -643,8 +597,7 @@ impl CompiledWorlds {
 }
 
 fn weight(law: &EventLaw, i: usize) -> f64 {
-    law.weights()
-        .map_or_else(|| 1.0 / law.paths.len() as f64, |weights| weights[i])
+    law.weights().map_or_else(|| 1.0 / law.paths.len() as f64, |weights| weights[i])
 }
 
 fn summarize_grid(
@@ -652,27 +605,13 @@ fn summarize_grid(
     deltas: &[f64],
     tolerance: f64,
 ) -> Result<GridDifference, EventError> {
-    let mean: f64 = deltas
-        .iter()
-        .enumerate()
-        .map(|(i, v)| weight(law, i) * v)
-        .sum();
-    let rms = deltas
-        .iter()
-        .enumerate()
-        .map(|(i, v)| weight(law, i) * v * v)
-        .sum::<f64>()
-        .sqrt();
+    let mean: f64 = deltas.iter().enumerate().map(|(i, v)| weight(law, i) * v).sum();
+    let rms = deltas.iter().enumerate().map(|(i, v)| weight(law, i) * v * v).sum::<f64>().sqrt();
     let standard_error = paired_standard_error(law, deltas, mean)?;
     if !rms.is_finite() {
         return Err(EventError::Numerical("nonfinite grid diagnostic"));
     }
-    Ok(GridDifference {
-        mean,
-        rms,
-        standard_error,
-        within_tolerance: rms <= tolerance,
-    })
+    Ok(GridDifference { mean, rms, standard_error, within_tolerance: rms <= tolerance })
 }
 
 fn paired_standard_error(
@@ -682,9 +621,9 @@ fn paired_standard_error(
 ) -> Result<Option<f64>, EventError> {
     let group_count = match law.meaning() {
         EventLawMeaning::Fixed | EventLawMeaning::PlugIn => deltas.len(),
-        EventLawMeaning::RecursiveRefit => law
-            .refit_parameters()
-            .map_or(0, <[super::HawkesParameters]>::len),
+        EventLawMeaning::RecursiveRefit => {
+            law.refit_parameters().map_or(0, <[super::HawkesParameters]>::len)
+        }
         _ => 0,
     };
     let standard_error = (group_count > 1).then(|| {

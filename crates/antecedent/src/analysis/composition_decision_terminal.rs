@@ -11,14 +11,15 @@ use std::sync::Arc;
 
 use antecedent_contract::DataClassification;
 use antecedent_core::{
-    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect,
-    PhysicalOperator, SemanticDigest,
+    ByteEstimates, CanonicalWriter, ExecutionContext, PhysicalEffect, PhysicalOperator,
+    SemanticDigest,
 };
 use antecedent_design::decision_artifact::{
-    DecisionContractArtifact, DecisionResultArtifact, decision_result_fingerprint,
-    source_digest,
+    DecisionContractArtifact, DecisionResultArtifact, decision_result_fingerprint, source_digest,
 };
-use antecedent_design::decision_contract::{DecisionContract, DecisionContractError, DecisionCriterion};
+use antecedent_design::decision_contract::{
+    DecisionContract, DecisionContractError, DecisionCriterion,
+};
 use antecedent_design::decision_eval::evaluate_contract;
 use antecedent_io::IoError;
 use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionIdentity};
@@ -26,14 +27,13 @@ use antecedent_io::quantity_wire::DistributionMeaningWire;
 use serde::{Deserialize, Serialize};
 
 use super::composition::{
-    BundleError, BundleLimits, CompositionBundle, NodeKind, NodeSource,
-    ReplayedBundleDependency, SuppliedSources, consume, export_bundle,
+    BundleError, BundleLimits, CompositionBundle, NodeKind, NodeSource, ReplayedBundleDependency,
+    SuppliedSources, consume, export_bundle,
 };
 use crate::planner::lowered::{
-    CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape,
-    EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef, FunctionalKind,
-    IdentificationLayer, LoweredProgram, NonGraphicalIdentification,
-    PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
+    CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
+    EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
@@ -117,8 +117,10 @@ struct PortableDecisionBundleWire {
 /// Missing terminal, invalid contract or unsupported source-law meaning.
 #[allow(clippy::too_many_lines, reason = "all six layers bind one predictive decision terminal")]
 pub fn compile_decision_bundle_recomputation(
-    bundle: CompositionBundle, terminal_node: &str,
-    contract: DecisionContract, source: DistributionArtifact,
+    bundle: CompositionBundle,
+    terminal_node: &str,
+    contract: DecisionContract,
+    source: DistributionArtifact,
 ) -> Result<CompiledDecisionBundleRecomputation, DecisionBundleRecomputeError> {
     compile_decision_bundle(bundle, terminal_node, contract, source, false)
 }
@@ -129,39 +131,55 @@ pub fn compile_decision_bundle_recomputation(
 /// # Errors
 /// Missing terminal, invalid contract or unsupported posterior carrier.
 pub fn compile_posterior_decision_bundle_recomputation(
-    bundle: CompositionBundle, terminal_node: &str,
-    contract: DecisionContract, source: DistributionArtifact,
+    bundle: CompositionBundle,
+    terminal_node: &str,
+    contract: DecisionContract,
+    source: DistributionArtifact,
 ) -> Result<CompiledDecisionBundleRecomputation, DecisionBundleRecomputeError> {
     compile_decision_bundle(bundle, terminal_node, contract, source, true)
 }
 
 fn compile_decision_bundle(
-    bundle: CompositionBundle, terminal_node: &str,
-    contract: DecisionContract, source: DistributionArtifact, posterior: bool,
+    bundle: CompositionBundle,
+    terminal_node: &str,
+    contract: DecisionContract,
+    source: DistributionArtifact,
+    posterior: bool,
 ) -> Result<CompiledDecisionBundleRecomputation, DecisionBundleRecomputeError> {
-    let node = bundle.nodes().iter().find(|node| node.id == terminal_node)
+    let node = bundle
+        .nodes()
+        .iter()
+        .find(|node| node.id == terminal_node)
         .ok_or(DecisionBundleRecomputeError::Invalid("decision terminal is absent"))?;
-    if node.kind != NodeKind::DecisionResult
-        || !matches!(&node.source, NodeSource::Embedded { .. }) {
+    if node.kind != NodeKind::DecisionResult || !matches!(&node.source, NodeSource::Embedded { .. })
+    {
         return Err(DecisionBundleRecomputeError::Invalid(
             "decision terminal must be an embedded decision result",
         ));
     }
     if posterior {
         if !matches!(source.semantic(), DistributionMeaningWire::ParameterPosterior)
-            || !matches!(contract.criterion, DecisionCriterion::PosteriorExpectedUtility
-                | DecisionCriterion::PosteriorExpectedLoss)
-            || contract.actions.iter().flat_map(|action| &action.inputs)
+            || !matches!(
+                contract.criterion,
+                DecisionCriterion::PosteriorExpectedUtility
+                    | DecisionCriterion::PosteriorExpectedLoss
+            )
+            || contract
+                .actions
+                .iter()
+                .flat_map(|action| &action.inputs)
                 .any(|quantity| quantity.functional_id == "outcome")
         {
             return Err(DecisionBundleRecomputeError::Invalid(
                 "posterior decision requires parameter draws and a non-outcome expected utility or loss",
             ));
         }
-    } else if !matches!(source.semantic(),
+    } else if !matches!(
+        source.semantic(),
         DistributionMeaningWire::PosteriorPredictive
             | DistributionMeaningWire::InterventionalPredictive
-            | DistributionMeaningWire::EmpiricalOutcome) {
+            | DistributionMeaningWire::EmpiricalOutcome
+    ) {
         return Err(DecisionBundleRecomputeError::Invalid(
             "live decision terminal requires a predictive outcome law",
         ));
@@ -175,35 +193,48 @@ fn compile_decision_bundle(
     let source_digest = source_digest(&source);
     let source_bytes = source.to_bytes("decision-bundle-source")?;
     let bundle_digest = CanonicalWriter::digest_bytes(
-        "antecedent.decision_bundle.graph.v1", bundle.identity().as_bytes(),
+        "antecedent.decision_bundle.graph.v1",
+        bundle.identity().as_bytes(),
     );
-    let source_identity_digest = CanonicalWriter::digest_bytes(
-        "antecedent.decision_bundle.source.v1", &source_bytes,
-    );
+    let source_identity_digest =
+        CanonicalWriter::digest_bytes("antecedent.decision_bundle.source.v1", &source_bytes);
     let mut writer = CanonicalWriter::new("antecedent.decision_bundle.question.v1");
-    writer.bytes(&bundle_digest).text(terminal_node).text(&contract_identity)
-        .text(&source_digest).bytes(&source_identity_digest);
+    writer
+        .bytes(&bundle_digest)
+        .text(terminal_node)
+        .text(&contract_identity)
+        .text(&source_digest)
+        .bytes(&source_identity_digest);
     let query = writer.finish();
-    let design = DesignShape::quoted(source.n_draws() as u64,
-        source.quantities().len() as u64, true);
+    let design =
+        DesignShape::quoted(source.n_draws() as u64, source.quantities().len() as u64, true);
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
-            kind: FunctionalKind::PropagatedChain, outcome: None, query,
+            kind: FunctionalKind::PropagatedChain,
+            outcome: None,
+            query,
         },
-        plan_id: Arc::from(if posterior { "posterior_decision_bundle_recomputation.v1" }
-            else { "decision_bundle_recomputation.v1" }),
+        plan_id: Arc::from(if posterior {
+            "posterior_decision_bundle_recomputation.v1"
+        } else {
+            "decision_bundle_recomputation.v1"
+        }),
         data: DataClassification::Tabular,
         graph_class: "bundle_decision_dependency_graph",
         query_variables: Arc::from(Vec::new()),
         source_digest: Some(source_identity_digest),
-        support_coordinate: None, supported: false, support_status: None,
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: query },
     ));
     let statistical = StatisticalProgram {
-        identifier: None, estimator: None,
+        identifier: None,
+        estimator: None,
         realization: if posterior {
             Realization::DeclaredPosterior {
                 evaluator: Arc::from("decision_bundle.live_parameter_posterior_terminal"),
@@ -213,59 +244,100 @@ fn compile_decision_bundle(
                 evaluator: Arc::from("decision_bundle.live_predictive_terminal"),
             }
         },
-        models: Arc::from([]), folds: None, resampling: None,
-        posterior: None, design, operators: Arc::from([]),
+        models: Arc::from([]),
+        folds: None,
+        resampling: None,
+        posterior: None,
+        design,
+        operators: Arc::from([]),
     };
     let decision = DecisionProgram {
-        carrier: if posterior { CarrierDemand::ParameterPosterior } else { CarrierDemand::PredictiveLaw },
+        carrier: if posterior {
+            CarrierDemand::ParameterPosterior
+        } else {
+            CarrierDemand::PredictiveLaw
+        },
         utility: DecisionProgram::utility_form(None),
-        actions: contract.actions.len(), constraints: contract.constraints.len(),
-        chance_threshold: contract.constraints.iter()
-            .map(|constraint| constraint.min_probability).fold(0.0_f64, f64::max),
+        actions: contract.actions.len(),
+        constraints: contract.constraints.len(),
+        chance_threshold: contract
+            .constraints
+            .iter()
+            .map(|constraint| constraint.min_probability)
+            .fold(0.0_f64, f64::max),
         utility_unit: Some(Arc::from(contract.utility_units.as_str())),
         contract_identity: Some(Arc::from(contract_identity.as_str())),
-        information_value: None, scenario_source: None,
+        information_value: None,
+        scenario_source: None,
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([
-            EvidenceSourceRef { role: EvidenceRole::ChainSource,
-                digest: Some(source_identity_digest) },
-            EvidenceSourceRef { role: EvidenceRole::TransportSource,
-                digest: Some(bundle_digest) },
+            EvidenceSourceRef {
+                role: EvidenceRole::ChainSource,
+                digest: Some(source_identity_digest),
+            },
+            EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(bundle_digest) },
         ]),
         composition: Composition::Chained { stages: bundle.nodes().len() + 1 },
-        decision: Some(decision), planning: None, chain: None,
+        decision: Some(decision),
+        planning: None,
+        chain: None,
     };
     let physical = PhysicalLayer {
         operators: Arc::from([
             PhysicalOperator::declare(PhysicalEffect::Read)
                 .estimates(ByteEstimates::absent().with_output(source_bytes.len() as u64))
-                .build().map_err(|_| DecisionBundleRecomputeError::Invalid(
-                    "decision source read cannot be lowered",
-                ))?,
-            PhysicalOperator::declare(PhysicalEffect::Condition)
-                .build().map_err(|_| DecisionBundleRecomputeError::Invalid(
-                    "decision scoring cannot be lowered",
-                ))?,
-        ]), design,
+                .build()
+                .map_err(|_| {
+                    DecisionBundleRecomputeError::Invalid("decision source read cannot be lowered")
+                })?,
+            PhysicalOperator::declare(PhysicalEffect::Condition).build().map_err(|_| {
+                DecisionBundleRecomputeError::Invalid("decision scoring cannot be lowered")
+            })?,
+        ]),
+        design,
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: if posterior { ProgramCell::PosteriorDecisionBundleRecomputation }
-            else { ProgramCell::BundleRecomputation },
-        scientific, identification, statistical, evidence, physical,
-        claim: ClaimDemand { uncertainty: if posterior { UncertaintyReading::Posterior }
-            else { UncertaintyReading::Predictive }, kind: None },
-    }.finish());
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: if posterior {
+                ProgramCell::PosteriorDecisionBundleRecomputation
+            } else {
+                ProgramCell::BundleRecomputation
+            },
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical,
+            claim: ClaimDemand {
+                uncertainty: if posterior {
+                    UncertaintyReading::Posterior
+                } else {
+                    UncertaintyReading::Predictive
+                },
+                kind: None,
+            },
+        }
+        .finish(),
+    );
     Ok(CompiledDecisionBundleRecomputation {
-        bundle, terminal_node: terminal_node.to_owned(), contract, source,
-        contract_identity, source_digest, lowered, posterior,
+        bundle,
+        terminal_node: terminal_node.to_owned(),
+        contract,
+        source,
+        contract_identity,
+        source_digest,
+        lowered,
+        posterior,
     })
 }
 
 impl CompiledDecisionBundleRecomputation {
     /// Complete bundle and decision terminal program.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the compiled route without scoring its decision.
     #[must_use]
@@ -278,8 +350,10 @@ impl CompiledDecisionBundleRecomputation {
     ///
     /// # Errors
     /// Failed dependency, changed source/contract or changed utility result.
-    pub fn execute(&self, ctx: &ExecutionContext)
-        -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         if scoped.cancellation.is_cancelled() {
             return Err(DecisionBundleRecomputeError::Invalid("decision bundle was cancelled"));
@@ -291,13 +365,19 @@ impl CompiledDecisionBundleRecomputation {
                 "every decision bundle dependency must replay",
             ));
         }
-        let node = self.bundle.nodes().iter().find(|node| node.id == self.terminal_node)
+        let node = self
+            .bundle
+            .nodes()
+            .iter()
+            .find(|node| node.id == self.terminal_node)
             .ok_or(DecisionBundleRecomputeError::Invalid("decision terminal disappeared"))?;
         let NodeSource::Embedded { bytes: terminal_bytes } = &node.source else {
             return Err(DecisionBundleRecomputeError::Invalid("decision terminal is a reference"));
         };
         let stored = DecisionResultArtifact::from_bytes(
-            terminal_bytes, &self.contract_identity, &self.source_digest,
+            terminal_bytes,
+            &self.contract_identity,
+            &self.source_digest,
         )?;
         stored.replay(&self.contract, &self.source)?;
         let live = evaluate_contract(&self.contract, &self.source)
@@ -308,14 +388,20 @@ impl CompiledDecisionBundleRecomputation {
                 "embedded decision differs from live compiler scoring",
             ));
         }
-        let dependencies = consumed.nodes().iter().map(|node| ReplayedBundleDependency {
-            node_id: node.id.clone(), artifact_identity: node.identity.clone(),
-            chain_digest: node.chain_digest.clone(),
-        }).collect();
+        let dependencies = consumed
+            .nodes()
+            .iter()
+            .map(|node| ReplayedBundleDependency {
+                node_id: node.id.clone(),
+                artifact_identity: node.identity.clone(),
+                chain_digest: node.chain_digest.clone(),
+            })
+            .collect();
         Ok(DecisionBundleRecomputationReceipt {
             bundle_identity: consumed.identity().to_owned(),
             terminal_node: self.terminal_node.clone(),
-            terminal_identity: node.identity.clone(), decision_fingerprint: fingerprint,
+            terminal_identity: node.identity.clone(),
+            decision_fingerprint: fingerprint,
             lowered_program_identity: *self.lowered.identity().as_bytes(),
             dependencies,
         })
@@ -325,19 +411,24 @@ impl CompiledDecisionBundleRecomputation {
     ///
     /// # Errors
     /// Changed live decision or oversized portable artifact.
-    pub fn export_portable(&self, receipt: &DecisionBundleRecomputationReceipt,
-        ctx: &ExecutionContext) -> Result<Vec<u8>, DecisionBundleRecomputeError> {
+    pub fn export_portable(
+        &self,
+        receipt: &DecisionBundleRecomputationReceipt,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, DecisionBundleRecomputeError> {
         if self.execute(ctx)? != *receipt {
             return Err(DecisionBundleRecomputeError::Invalid("decision bundle receipt differs"));
         }
         let bytes = antecedent_io::to_cbor(&PortableDecisionBundleWire {
-            version: 1, required_feature: if self.posterior { POSTERIOR_FEATURE } else { FEATURE }.into(),
+            version: 1,
+            required_feature: if self.posterior { POSTERIOR_FEATURE } else { FEATURE }.into(),
             bundle_bytes: export_bundle(&self.bundle, "portable-decision-bundle")?,
             bundle_identity: self.bundle.identity().to_owned(),
             terminal_node: self.terminal_node.clone(),
             contract_identity: self.contract_identity.clone(),
             source_identity: self.source.metadata().identity.clone(),
-            source_digest: self.source_digest.clone(), receipt: receipt.clone(),
+            source_digest: self.source_digest.clone(),
+            receipt: receipt.clone(),
         })?;
         if bytes.len() > MAX_BYTES {
             return Err(DecisionBundleRecomputeError::Invalid(
@@ -356,7 +447,9 @@ impl CompiledDecisionBundleRecomputation {
 /// changed decision value.
 #[allow(clippy::too_many_lines, reason = "the portable consumer reconstructs each bound node")]
 pub fn consume_portable_decision_bundle_recomputation(
-    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
     consume_portable_decision_bundle(bytes, expected_bundle, expected_program, ctx, false)
@@ -367,47 +460,67 @@ pub fn consume_portable_decision_bundle_recomputation(
 /// # Errors
 /// Changed graph, carrier, program, dependency or result.
 pub fn consume_portable_posterior_decision_bundle_recomputation(
-    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
     consume_portable_decision_bundle(bytes, expected_bundle, expected_program, ctx, true)
 }
 
 fn consume_portable_decision_bundle(
-    bytes: &[u8], expected_bundle: &str, expected_program: SemanticDigest,
-    ctx: &ExecutionContext, posterior: bool,
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
+    posterior: bool,
 ) -> Result<DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError> {
     if bytes.len() > MAX_BYTES {
-        return Err(DecisionBundleRecomputeError::Invalid("portable decision bundle exceeds its byte bound"));
+        return Err(DecisionBundleRecomputeError::Invalid(
+            "portable decision bundle exceeds its byte bound",
+        ));
     }
     let wire: PortableDecisionBundleWire = antecedent_io::from_cbor(bytes)?;
     let expected_feature = if posterior { POSTERIOR_FEATURE } else { FEATURE };
-    if wire.version != 1 || wire.required_feature != expected_feature
-        || wire.bundle_identity != expected_bundle {
-        return Err(DecisionBundleRecomputeError::Invalid("portable decision bundle feature differs"));
+    if wire.version != 1
+        || wire.required_feature != expected_feature
+        || wire.bundle_identity != expected_bundle
+    {
+        return Err(DecisionBundleRecomputeError::Invalid(
+            "portable decision bundle feature differs",
+        ));
     }
     let bundle = CompositionBundle::from_bytes(
-        &wire.bundle_bytes, expected_bundle, &BundleLimits::default(),
+        &wire.bundle_bytes,
+        expected_bundle,
+        &BundleLimits::default(),
     )?;
-    let contract_nodes: Vec<_> = bundle.nodes().iter().filter(|node| {
-        node.kind == NodeKind::DecisionContract && node.identity == wire.contract_identity
-    }).collect();
+    let contract_nodes: Vec<_> = bundle
+        .nodes()
+        .iter()
+        .filter(|node| {
+            node.kind == NodeKind::DecisionContract && node.identity == wire.contract_identity
+        })
+        .collect();
     if contract_nodes.len() != 1 {
         return Err(DecisionBundleRecomputeError::Invalid(
             "portable decision contract is absent or ambiguous",
         ));
     }
     let NodeSource::Embedded { bytes: contract_bytes } = &contract_nodes[0].source else {
-        return Err(DecisionBundleRecomputeError::Invalid("portable decision contract is a reference"));
+        return Err(DecisionBundleRecomputeError::Invalid(
+            "portable decision contract is a reference",
+        ));
     };
-    let contract = DecisionContractArtifact::from_bytes(
-        contract_bytes, &wire.contract_identity,
-    )?.contract().clone();
+    let contract = DecisionContractArtifact::from_bytes(contract_bytes, &wire.contract_identity)?
+        .contract()
+        .clone();
     let mut matched_source = None;
     for node in bundle.nodes().iter().filter(|node| node.kind == NodeKind::Distribution) {
         if let NodeSource::Embedded { bytes } = &node.source
             && let Ok(source) = DistributionArtifact::from_bytes(bytes, &wire.source_identity)
-            && source_digest(&source) == wire.source_digest {
+            && source_digest(&source) == wire.source_digest
+        {
             if matched_source.replace(source).is_some() {
                 return Err(DecisionBundleRecomputeError::Invalid(
                     "portable decision source is ambiguous",
@@ -418,9 +531,7 @@ fn consume_portable_decision_bundle(
     let source = matched_source.ok_or(DecisionBundleRecomputeError::Invalid(
         "portable predictive decision source is absent",
     ))?;
-    let plan = compile_decision_bundle(
-        bundle, &wire.terminal_node, contract, source, posterior,
-    )?;
+    let plan = compile_decision_bundle(bundle, &wire.terminal_node, contract, source, posterior)?;
     if plan.lowered().identity() != expected_program {
         return Err(DecisionBundleRecomputeError::Invalid(
             "portable decision bundle compiler differs",

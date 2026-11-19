@@ -36,16 +36,15 @@ use antecedent_core::{
     PhysicalOperator, Prior, ScoreFrequentist, ScoreModel,
 };
 use antecedent_io::propagation_chain_record::{
-    PROPAGATION_CHAIN_ASSUMPTION_VERSION, PROPAGATION_CHAIN_JOINT_LAW_VERSION, PROPAGATION_CHAIN_LAW_VERSION,
-    PropagationChainRecordWire, propagation_chain_identity,
+    PROPAGATION_CHAIN_ASSUMPTION_VERSION, PROPAGATION_CHAIN_JOINT_LAW_VERSION,
+    PROPAGATION_CHAIN_LAW_VERSION, PropagationChainRecordWire, propagation_chain_identity,
 };
 
 use crate::planner::lowered::{
     CarrierDemand, ChainLoweredParts, ChainProgram, ClaimDemand, Composition, DecisionProgram,
-    DesignShape,
-    EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer,
-    LoweredProgram, NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ScientificProblem,
-    UncertaintyReading,
+    DesignShape, EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef, FunctionalKind,
+    IdentificationLayer, LoweredProgram, NonGraphicalIdentification, PhysicalLayer, ProblemTarget,
+    ScientificProblem, UncertaintyReading,
 };
 use crate::planner::statistical::{ModelRole, ModelSlot, Realization, StatisticalProgram};
 
@@ -132,7 +131,9 @@ fn statistical_program(
             return Err(refuse("Monte Carlo decision draws require their own compiler route"));
         }
         UncertaintyReading::AssumptionEnvelope => {
-            let draw_meaning = plan.stage(&plan.output).and_then(|stage| stage.meaning)
+            let draw_meaning = plan
+                .stage(&plan.output)
+                .and_then(|stage| stage.meaning)
                 .ok_or_else(|| refuse("an assumption envelope needs a draw-law meaning"))?;
             Realization::DeclaredAssumptionEnvelope { evaluator: Arc::from(name), draw_meaning }
         }
@@ -144,10 +145,7 @@ fn statistical_program(
         .stages
         .iter()
         .map(|stage| ModelSlot {
-            role: if matches!(
-                stage.kind.as_str(),
-                "preposterior_update" | "predictive_mapping"
-            ) {
+            role: if matches!(stage.kind.as_str(), "preposterior_update" | "predictive_mapping") {
                 ModelRole::Outcome
             } else {
                 ModelRole::Mechanism
@@ -211,9 +209,7 @@ fn physical_layer(
         // Utility and chance-constraint scoring is a physical step of this
         // combined program. The law route may retain one utility column per
         // action and a weight column; the envelope route retains less.
-        let decision_bytes = rows
-            .saturating_mul(decision.actions() as u64 + 1)
-            .saturating_mul(8);
+        let decision_bytes = rows.saturating_mul(decision.actions() as u64 + 1).saturating_mul(8);
         operators.push(operator(PhysicalEffect::Condition, Some(decision_bytes))?);
     }
     Ok(PhysicalLayer {
@@ -304,7 +300,12 @@ pub(crate) fn lower_chain_with_decision(
     let decision = if let Some(declared) = declared_decision {
         Some(declared)
     } else if let Some(reference_bits) = decision_reference
-        && matches!(draft.version, PROPAGATION_CHAIN_LAW_VERSION | PROPAGATION_CHAIN_ASSUMPTION_VERSION | PROPAGATION_CHAIN_JOINT_LAW_VERSION)
+        && matches!(
+            draft.version,
+            PROPAGATION_CHAIN_LAW_VERSION
+                | PROPAGATION_CHAIN_ASSUMPTION_VERSION
+                | PROPAGATION_CHAIN_JOINT_LAW_VERSION
+        )
     {
         let reference = f64::from_bits(reference_bits);
         let assumption_envelope = draft.version == PROPAGATION_CHAIN_ASSUMPTION_VERSION;
@@ -340,7 +341,9 @@ pub(crate) fn lower_chain_with_decision(
     let claim = ClaimDemand {
         uncertainty,
         kind: Some(match uncertainty {
-            UncertaintyReading::Envelope | UncertaintyReading::AssumptionEnvelope => ClaimKind::Bounds,
+            UncertaintyReading::Envelope | UncertaintyReading::AssumptionEnvelope => {
+                ClaimKind::Bounds
+            }
             UncertaintyReading::Predictive => ClaimKind::Associational,
             _ => ClaimKind::Point,
         }),

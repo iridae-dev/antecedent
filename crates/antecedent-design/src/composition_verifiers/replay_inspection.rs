@@ -223,8 +223,11 @@ pub(super) fn inspect_propagation_chain(bytes: &[u8]) -> Result<Inspected, NodeF
     if let Some(columns) = consumed.joint_output_draws.as_ref() {
         publish(&mut facts, "chain_joint_law_meaning", consumed.plan.reading.as_str());
         push_value(&mut values, "answer.n_joint_coordinates".to_owned(), columns.len() as f64);
-        push_value(&mut values, "answer.n_joint_rows".to_owned(),
-            columns.first().map_or(0, Vec::len) as f64);
+        push_value(
+            &mut values,
+            "answer.n_joint_rows".to_owned(),
+            columns.first().map_or(0, Vec::len) as f64,
+        );
     }
     if let Some(lower) = consumed.output_lower_bounds.as_ref() {
         publish(&mut facts, "chain_assumption_envelope", "draw_indexed_uncalibrated");

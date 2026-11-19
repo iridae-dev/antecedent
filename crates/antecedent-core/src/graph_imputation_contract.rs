@@ -130,11 +130,13 @@ impl GraphSupport {
     #[must_use]
     pub fn from_label(label: &str) -> Option<Self> {
         [
-            Self::TreatmentRootDirectEffect, Self::TreatmentDirectEffect,
-            Self::PreTreatmentCovariates, Self::TreatmentRootPreTreatmentCovariates,
+            Self::TreatmentRootDirectEffect,
+            Self::TreatmentDirectEffect,
+            Self::PreTreatmentCovariates,
+            Self::TreatmentRootPreTreatmentCovariates,
         ]
-            .into_iter()
-            .find(|support| support.as_str() == label)
+        .into_iter()
+        .find(|support| support.as_str() == label)
     }
 }
 

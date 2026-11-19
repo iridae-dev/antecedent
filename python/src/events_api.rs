@@ -56,9 +56,7 @@ impl NativePreparedEventProgram {
         match &self.inner {
             Prepared::Forecast(p) => Ok(p.program_identity().to_hex()),
             Prepared::Worlds(p) => Ok(p.program_identity().to_hex()),
-            _ => Err(crate::errors::value_err(
-                "replay accepts forecast and world declarations",
-            )),
+            _ => Err(crate::errors::value_err("replay accepts forecast and world declarations")),
         }
     }
 
@@ -106,12 +104,7 @@ impl NativePreparedEventProgram {
                             parse::<Value>(&encoded)
                         })
                         .transpose()?;
-                    let identity = w
-                        .distribution
-                        .metadata()
-                        .identity
-                        .causal_contract_id
-                        .clone();
+                    let identity = w.distribution.metadata().identity.causal_contract_id.clone();
                     let artifact = w
                         .distribution
                         .to_bytes(&identity)
@@ -135,11 +128,7 @@ impl NativePreparedEventProgram {
                 }
             }
         })?;
-        Ok(NativeEventResult {
-            law,
-            report,
-            artifact,
-        })
+        Ok(NativeEventResult { law, report, artifact })
     }
 
     #[pyo3(signature = (kind, memory_bytes=None, cancel=None))]
@@ -151,9 +140,7 @@ impl NativePreparedEventProgram {
         cancel: Option<PyCancellationToken>,
     ) -> PyResult<String> {
         let Prepared::Forecast(forecast) = &self.inner else {
-            return Err(crate::errors::value_err(
-                "count interval requires a compiled forecast",
-            ));
+            return Err(crate::errors::value_err("count interval requires a compiled forecast"));
         };
         let ctx = execution_context(0, memory_bytes, cancel);
         let interval = detach_catch(py, || forecast.count_interval(kind, &ctx).map_err(error))?;
@@ -254,9 +241,7 @@ fn events_prepare(
 ) -> PyResult<NativePreparedEventProgram> {
     let law = source.as_ref().and_then(|s| s.law.clone());
     if source.is_some() && law.is_none() {
-        return Err(crate::errors::value_err(
-            "source result does not retain an event law",
-        ));
+        return Err(crate::errors::value_err("source result does not retain an event law"));
     }
     let receipt = receipt.as_ref().map(|r| r.inner.clone());
     let ctx = execution_context(0, memory_bytes, cancel);
@@ -279,16 +264,10 @@ fn events_prepare(
             Request::Forecast { request } => Prepared::Forecast(
                 Study::prepare_event_forecast(request, receipt.as_ref(), &ctx).map_err(error)?,
             ),
-            Request::Likelihood {
-                history,
-                parameters,
-            } => Prepared::Likelihood(
+            Request::Likelihood { history, parameters } => Prepared::Likelihood(
                 Study::prepare_event_likelihood(history, parameters, &ctx).map_err(error)?,
             ),
-            Request::Worlds {
-                worlds,
-                contract: declaration,
-            } => {
+            Request::Worlds { worlds, contract: declaration } => {
                 let law = law.as_ref().ok_or_else(|| {
                     crate::errors::value_err("worlds require a retained compiled forecast")
                 })?;
@@ -300,38 +279,24 @@ fn events_prepare(
             Request::Assessment { request } => {
                 Prepared::Assessment(Study::prepare_event_assessment(request, &ctx).map_err(error)?)
             }
-            Request::Update {
-                prior,
-                observation,
-                forecast,
-                paths,
-                max_events,
-                seed,
-            } => Prepared::Update(
-                Study::prepare_event_update(
-                    prior,
-                    observation,
-                    forecast,
-                    paths,
-                    max_events,
-                    seed,
-                    &ctx,
+            Request::Update { prior, observation, forecast, paths, max_events, seed } => {
+                Prepared::Update(
+                    Study::prepare_event_update(
+                        prior,
+                        observation,
+                        forecast,
+                        paths,
+                        max_events,
+                        seed,
+                        &ctx,
+                    )
+                    .map_err(error)?,
                 )
-                .map_err(error)?,
-            ),
-            Request::Study {
-                prior,
-                request,
-                worlds,
-                contract: declaration,
-                cost,
-            } => {
+            }
+            Request::Study { prior, request, worlds, contract: declaration, cost } => {
                 let cost = cost.map(|c| {
                     (
-                        StudyCostSpec {
-                            amount: c.amount,
-                            unit: c.unit.clone(),
-                        },
+                        StudyCostSpec { amount: c.amount, unit: c.unit.clone() },
                         CostToUtilityMap {
                             cost_unit: c.unit,
                             utility_unit: c.utility_unit,

@@ -1,8 +1,8 @@
 //! Propagation of structural enclosures through chain stages.
 
 use super::{
-    CANCEL_STRIDE, ChainError, Coefficient, Combine, ExprTerm, MAX_CHAIN_CELLS, StageOp,
-    StageSpec, UnaryFn, check_cancel, validate_spec,
+    CANCEL_STRIDE, ChainError, Coefficient, Combine, ExprTerm, MAX_CHAIN_CELLS, StageOp, StageSpec,
+    UnaryFn, check_cancel, validate_spec,
 };
 use antecedent_core::CancellationToken;
 
@@ -131,8 +131,10 @@ pub fn evaluate_mixed_enclosures(
     }) else {
         return Err(ChainError::Shape("a mixed enclosure needs draw rows"));
     };
-    if rows == 0 || rows.checked_mul(sources.len() + stages.len())
-        .is_none_or(|cells| cells > MAX_CHAIN_CELLS)
+    if rows == 0
+        || rows
+            .checked_mul(sources.len() + stages.len())
+            .is_none_or(|cells| cells > MAX_CHAIN_CELLS)
     {
         return Err(ChainError::Budget("mixed enclosure cells"));
     }

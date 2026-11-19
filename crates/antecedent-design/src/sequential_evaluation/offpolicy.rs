@@ -553,25 +553,36 @@ pub fn bootstrap_off_policy(
     minimum_effective_sample_size: f64,
     ctx: &ExecutionContext,
 ) -> SequentialResult<OffPolicyBootstrap> {
-    if targets.len() < 2 || replicates < 2 || replicates > super::MAX_ROLLOUTS
-        || !minimum_effective_sample_size.is_finite() || minimum_effective_sample_size < 2.0
+    if targets.len() < 2
+        || replicates < 2
+        || replicates > super::MAX_ROLLOUTS
+        || !minimum_effective_sample_size.is_finite()
+        || minimum_effective_sample_size < 2.0
     {
-        return Err(refusal!("invalid_argument", "sequential_evaluation.bootstrap_config",
+        return Err(refusal!(
+            "invalid_argument",
+            "sequential_evaluation.bootstrap_config",
             "bootstrap requires at least two policies and replicates and a finite minimum effective sample size of at least two",
-            "supply a bounded bootstrap configuration and minimum support"));
+            "supply a bounded bootstrap configuration and minimum support"
+        ));
     }
     if (targets.len() as u128) * ((log.len() as u128) + u128::from(replicates)) > 10_000_000
-        || (log.len() as u128) * u128::from(replicates) > 10_000_000 {
+        || (log.len() as u128) * u128::from(replicates) > 10_000_000
+    {
         return Err(limit_exceeded("bootstrap retained values", 10_000_000));
     }
     let mut staged = ledger.clone();
     let mut estimates = Vec::with_capacity(targets.len());
     for target in targets {
-        let estimate = evaluate_off_policy(model, target, behaviour, log, &mut staged, limits, ctx)?;
+        let estimate =
+            evaluate_off_policy(model, target, behaviour, log, &mut staged, limits, ctx)?;
         if estimate.effective_sample_size < minimum_effective_sample_size {
-            return Err(refusal!("history_support_violated", "sequential_evaluation.low_effective_support",
+            return Err(refusal!(
+                "history_support_violated",
+                "sequential_evaluation.low_effective_support",
                 "a policy has insufficient effective sample size in the log",
-                "supply more overlapping trajectories or restrict the policy set"));
+                "supply more overlapping trajectories or restrict the policy set"
+            ));
         }
         estimates.push(estimate);
     }
@@ -581,10 +592,13 @@ pub fn bootstrap_off_policy(
     let mut log_writer = CanonicalWriter::new("antecedent.sequential_evaluation.bootstrap_log.v1");
     log_writer.word(ordered.len() as u64);
     for trajectory in &ordered {
-        log_writer.text(&trajectory.id).word(trajectory.outcome_utility.to_bits())
+        log_writer
+            .text(&trajectory.id)
+            .word(trajectory.outcome_utility.to_bits())
             .word(trajectory.steps.len() as u64);
         for step in &trajectory.steps {
-            log_writer.word(step.action as u64)
+            log_writer
+                .word(step.action as u64)
                 .word(step.observation.map_or(u64::MAX, |value| value as u64))
                 .word(step.assignment_probability.to_bits());
         }
@@ -612,7 +626,8 @@ pub fn bootstrap_off_policy(
             let mut word = [0_u8; 8];
             word.copy_from_slice(&digest[..8]);
             let u = RngFactory::from_seed(seed)
-                .stream_for(StreamDomain::Design, u64::from_le_bytes(word)).next_f64();
+                .stream_for(StreamDomain::Design, u64::from_le_bytes(word))
+                .next_f64();
             let index = ((u * ordered.len() as f64) as usize).min(ordered.len() - 1);
             for (total, row) in totals.iter_mut().zip(&values) {
                 *total += row[index];
@@ -621,13 +636,23 @@ pub fn bootstrap_off_policy(
         for (row, total) in output.iter_mut().zip(totals) {
             let value = total / ordered.len() as f64;
             if !value.is_finite() {
-                return Err(refusal!("invalid_argument", "sequential_evaluation.bootstrap_overflow",
-                    "a bootstrap estimate is not finite", "rescale the outcome utilities"));
+                return Err(refusal!(
+                    "invalid_argument",
+                    "sequential_evaluation.bootstrap_overflow",
+                    "a bootstrap estimate is not finite",
+                    "rescale the outcome utilities"
+                ));
             }
             row.push(value);
         }
     }
     *ledger = staged;
-    Ok(OffPolicyBootstrap { estimates, replicates: output, log_identity, seed,
-        source_paradigm: "sampling_distribution", calibration: "not_measured" })
+    Ok(OffPolicyBootstrap {
+        estimates,
+        replicates: output,
+        log_identity,
+        seed,
+        source_paradigm: "sampling_distribution",
+        calibration: "not_measured",
+    })
 }

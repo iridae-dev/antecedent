@@ -3,7 +3,9 @@
 use super::{
     ChainChangeWire, ChainOpWire, Error, PropagationChainLimits, PropagationChainRecordWire,
 };
-use antecedent_stats::propagation_chain::{MAX_CHAIN_CELLS, MAX_CHAIN_NODES, MAX_CHAIN_ROWS, MAX_EXPRESSION_TERMS};
+use antecedent_stats::propagation_chain::{
+    MAX_CHAIN_CELLS, MAX_CHAIN_NODES, MAX_CHAIN_ROWS, MAX_EXPRESSION_TERMS,
+};
 
 fn text_ok(text: &str, limits: &PropagationChainLimits) -> Result<(), Error> {
     if text.len() > limits.max_text_bytes {
@@ -37,9 +39,10 @@ pub(super) fn check_bounds(
         || record.joint_output_draws.as_ref().is_some_and(|columns| {
             columns.len() > MAX_CHAIN_NODES
                 || columns.iter().any(|column| column.len() > MAX_CHAIN_ROWS)
-                || columns.iter().try_fold(0_usize, |cells, column| {
-                    cells.checked_add(column.len())
-                }).is_none_or(|cells| cells > MAX_CHAIN_CELLS)
+                || columns
+                    .iter()
+                    .try_fold(0_usize, |cells, column| cells.checked_add(column.len()))
+                    .is_none_or(|cells| cells > MAX_CHAIN_CELLS)
         })
         || record.joint_output_weights.as_ref().is_some_and(|values| values.len() > MAX_CHAIN_ROWS)
     {

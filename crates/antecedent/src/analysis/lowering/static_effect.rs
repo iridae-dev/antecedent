@@ -310,10 +310,16 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
             Realization::DeclaredPredictive { .. } => UncertaintyReading::Predictive,
             Realization::DeclaredPosterior { .. } => UncertaintyReading::Posterior,
             Realization::NestedFit { law, .. } => match law {
-                crate::planner::statistical::NestedFitLaw::Posterior => UncertaintyReading::Posterior,
-                crate::planner::statistical::NestedFitLaw::Predictive => UncertaintyReading::Predictive,
+                crate::planner::statistical::NestedFitLaw::Posterior => {
+                    UncertaintyReading::Posterior
+                }
+                crate::planner::statistical::NestedFitLaw::Predictive => {
+                    UncertaintyReading::Predictive
+                }
             },
-            Realization::DeclaredAssumptionEnvelope { .. } => UncertaintyReading::AssumptionEnvelope,
+            Realization::DeclaredAssumptionEnvelope { .. } => {
+                UncertaintyReading::AssumptionEnvelope
+            }
             Realization::GraphImputationV1
             | Realization::CategoricalPosteriorCandidateV1
             | Realization::ExactPoint { .. } => UncertaintyReading::None,

@@ -117,9 +117,7 @@ impl PreparedEventForecast {
     ) -> Result<CountCoverageCandidate, EventError> {
         let request = &self.request;
         let EventSource::Fitted { fit, refits } = &request.source else {
-            return Err(EventError::invalid(
-                "coverage candidates use recursive refit forecasts",
-            ));
+            return Err(EventError::invalid("coverage candidates use recursive refit forecasts"));
         };
         if *refits == 0 || request.paths < 128 || kind >= request.history.catalog.len() {
             return Err(EventError::invalid(
@@ -182,11 +180,7 @@ impl PreparedEventForecast {
         };
         #[cfg(not(feature = "calibration-internal"))]
         let law = self.execute(ctx)?;
-        let mut counts: Vec<_> = law
-            .paths()
-            .iter()
-            .map(|events| count(events, kind))
-            .collect();
+        let mut counts: Vec<_> = law.paths().iter().map(|events| count(events, kind)).collect();
         Ok(CountCoverageCandidate {
             program: interval_plan.identity().to_hex(),
             bounds: nearest_rank_count_bounds(&mut counts),
@@ -270,10 +264,7 @@ impl crate::Study {
             || request.kind >= request.history.catalog.len()
             || !(1..=request.max_events).contains(&request.minimum_count)
             || !request.origins[0].validation
-            || request
-                .origins
-                .last()
-                .is_none_or(|origin| origin.validation)
+            || request.origins.last().is_none_or(|origin| origin.validation)
             || request
                 .origins
                 .windows(2)
@@ -284,11 +275,7 @@ impl crate::Study {
             ));
         }
         for origin in &request.origins {
-            EventWindow {
-                start: origin.cutoff,
-                end: origin.end,
-            }
-            .validate()?;
+            EventWindow { start: origin.cutoff, end: origin.end }.validate()?;
             if origin.cutoff <= request.history.window.start
                 || origin.end > request.history.window.end
             {
@@ -300,11 +287,7 @@ impl crate::Study {
         let lease = admit(ctx, 0, history_bytes(&request.history) + 32_000)?;
         let source = digest("antecedent.events.assessment.v1", &request)?;
         let plan = PreparedKernel::new(source, "assess_forecasts", CAPABILITY)?;
-        Ok(PreparedForecastAssessment {
-            request,
-            plan,
-            _lease: lease,
-        })
+        Ok(PreparedForecastAssessment { request, plan, _lease: lease })
     }
 }
 
@@ -334,12 +317,8 @@ impl PreparedForecastAssessment {
         let mut scores = Vec::with_capacity(r.origins.len());
         for (origin_index, &origin) in r.origins.iter().enumerate() {
             let mut training = r.history.clone();
-            let split = training
-                .events
-                .partition_point(|event| event.time < origin.cutoff);
-            let held_end = training
-                .events
-                .partition_point(|event| event.time < origin.end);
+            let split = training.events.partition_point(|event| event.time < origin.cutoff);
+            let held_end = training.events.partition_point(|event| event.time < origin.end);
             let actual = &r.history.events[split..held_end];
             training.events.truncate(split);
             training.window.end = origin.cutoff;
@@ -359,10 +338,7 @@ impl PreparedForecastAssessment {
                 decay: r.fit.decay.clone(),
             };
             let prefix = training.prefix();
-            let window = EventWindow {
-                start: origin.cutoff,
-                end: origin.end,
-            };
+            let window = EventWindow { start: origin.cutoff, end: origin.end };
             let mut hawkes_count = Vec::with_capacity(r.paths);
             let mut poisson_count = Vec::with_capacity(r.paths);
             for i in 0..r.paths {
@@ -391,20 +367,13 @@ impl PreparedForecastAssessment {
             let observed = count(actual, r.kind);
             let outcome = f64::from(u8::from(observed >= r.minimum_count));
             let probability = |samples: &[usize]| {
-                samples
-                    .iter()
-                    .filter(|&&count| count >= r.minimum_count)
-                    .count() as f64
+                samples.iter().filter(|&&count| count >= r.minimum_count).count() as f64
                     / r.paths as f64
             };
             let threshold_probability = probability(&hawkes_count);
             let training_events = training.events.len();
-            let observed_segment = EventHistory {
-                window,
-                left: prefix,
-                events: actual.to_vec(),
-                ..training
-            };
+            let observed_segment =
+                EventHistory { window, left: prefix, events: actual.to_vec(), ..training };
             let log_likelihood =
                 hawkes::log_likelihood(&observed_segment, &model.parameters, &mut work)?;
             if !log_likelihood.is_finite() {
@@ -440,18 +409,13 @@ impl PreparedForecastAssessment {
                     })
                     .collect();
                 let windows = outcomes.len();
-                let true_count = outcomes
-                    .iter()
-                    .filter(|score| score.observed_count >= r.minimum_count)
-                    .count();
+                let true_count =
+                    outcomes.iter().filter(|score| score.observed_count >= r.minimum_count).count();
                 ReliabilityBin {
                     lower,
                     windows,
                     forecast: (windows > 0).then(|| {
-                        outcomes
-                            .iter()
-                            .map(|score| score.threshold_probability)
-                            .sum::<f64>()
+                        outcomes.iter().map(|score| score.threshold_probability).sum::<f64>()
                             / windows as f64
                     }),
                     observed: (windows > 0).then(|| true_count as f64 / windows as f64),
@@ -472,17 +436,10 @@ impl PreparedForecastAssessment {
 fn count_score(draws: &mut [usize], observed: usize) -> f64 {
     draws.sort_unstable();
     let n = draws.len() as f64;
-    let absolute = draws
-        .iter()
-        .map(|&x| x.abs_diff(observed) as f64)
-        .sum::<f64>()
-        / n;
-    let spread = draws
-        .iter()
-        .enumerate()
-        .map(|(i, &x)| (2.0 * i as f64 + 1.0 - n) * x as f64)
-        .sum::<f64>()
-        / (n * n);
+    let absolute = draws.iter().map(|&x| x.abs_diff(observed) as f64).sum::<f64>() / n;
+    let spread =
+        draws.iter().enumerate().map(|(i, &x)| (2.0 * i as f64 + 1.0 - n) * x as f64).sum::<f64>()
+            / (n * n);
     (absolute - spread).max(0.0)
 }
 

@@ -132,7 +132,9 @@ impl MissingCarrier {
     #[must_use]
     pub const fn of(carrier: CarrierDemand) -> Option<Self> {
         match carrier {
-            CarrierDemand::Mean | CarrierDemand::IdentifiedSet | CarrierDemand::DecisionDraws => None,
+            CarrierDemand::Mean | CarrierDemand::IdentifiedSet | CarrierDemand::DecisionDraws => {
+                None
+            }
             CarrierDemand::ParameterPosterior => Some(Self::ParameterPosterior),
             CarrierDemand::OutcomeLaw | CarrierDemand::PredictiveLaw => Some(Self::OutcomeLaw),
         }
@@ -304,7 +306,9 @@ const fn offered_port(realization: &Realization) -> EvidencePort {
         Realization::DeclaredPredictive { .. } => EvidencePort::PredictiveLaw,
         Realization::DeclaredPosterior { .. } => EvidencePort::ParameterPosterior,
         Realization::NestedFit { law, .. } => match law {
-            crate::planner::statistical::NestedFitLaw::Posterior => EvidencePort::ParameterPosterior,
+            crate::planner::statistical::NestedFitLaw::Posterior => {
+                EvidencePort::ParameterPosterior
+            }
             crate::planner::statistical::NestedFitLaw::Predictive => EvidencePort::PredictiveLaw,
         },
         Realization::ExactPoint { .. }
@@ -356,14 +360,19 @@ pub(crate) fn require_carrier(
             DISTRIBUTIONAL_CARRIER,
         ));
     }
-    let envelope = matches!(realization, Realization::Envelope(_) | Realization::DeclaredAssumptionEnvelope { .. });
+    let envelope = matches!(
+        realization,
+        Realization::Envelope(_) | Realization::DeclaredAssumptionEnvelope { .. }
+    );
     let attempt = |otherwise: NextAttempt| {
         if envelope { ROBUST_OVER_IDENTIFIED_SET } else { otherwise }
     };
     match demanded {
         CarrierDemand::DecisionDraws => Err(DecisionCarrierError::contract(
             "decision draws require a compiler-owned reliability route over aligned raw utilities",
-            demanded, name, DISTRIBUTIONAL_CARRIER,
+            demanded,
+            name,
+            DISTRIBUTIONAL_CARRIER,
         )),
         CarrierDemand::IdentifiedSet => Err(DecisionCarrierError::contract(
             "compile_for_robust_decision requires an explicit joint scenario carrier; a marginal envelope cannot establish cross-action dependence",
@@ -401,7 +410,12 @@ pub(crate) fn require_carrier(
                     .try_coerce(DecisionRequest::IndividualOutcomeRisk)
                     .map(drop)
                     .map_err(|port| {
-                        DecisionCarrierError::from_port(port, demanded, name, attempt(INTERVENTIONAL_LAW))
+                        DecisionCarrierError::from_port(
+                            port,
+                            demanded,
+                            name,
+                            attempt(INTERVENTIONAL_LAW),
+                        )
                     })
             }
         }

@@ -1989,54 +1989,110 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::ObservationalPolicy => PlanRoute::ObservationalPolicy,
         ProgramCell::JointMeasuredObservation => PlanRoute::JointMeasuredObservation,
         ProgramCell::DependentMeasuredObservation => PlanRoute::DependentMeasuredObservation,
-        ProgramCell::FittedDependentMeasuredObservation => PlanRoute::FittedDependentMeasuredObservation,
+        ProgramCell::FittedDependentMeasuredObservation => {
+            PlanRoute::FittedDependentMeasuredObservation
+        }
         ProgramCell::CyclicActionWorldDecision => PlanRoute::CyclicActionWorldDecision,
         ProgramCell::CyclicPosteriorActionDecision => PlanRoute::CyclicPosteriorActionDecision,
         ProgramCell::CyclicTargetFeedbackDecision => PlanRoute::CyclicTargetFeedbackDecision,
         ProgramCell::BridgeTransportDecision => PlanRoute::BridgeTransportDecision,
-        ProgramCell::BridgeTransportPremiseAssessment => PlanRoute::BridgeTransportPremiseAssessment,
+        ProgramCell::BridgeTransportPremiseAssessment => {
+            PlanRoute::BridgeTransportPremiseAssessment
+        }
         ProgramCell::AssessedBridgeTransportDecision => PlanRoute::AssessedBridgeTransportDecision,
         ProgramCell::JointTransportEffectDecision => PlanRoute::JointTransportEffectDecision,
         ProgramCell::TrialIpwTransportDecision => PlanRoute::TrialIpwTransportDecision,
         ProgramCell::TrialIpwPredictiveDecision => PlanRoute::TrialIpwPredictiveDecision,
-        ProgramCell::JointTransportPredictiveDecision => PlanRoute::JointTransportPredictiveDecision,
+        ProgramCell::JointTransportPredictiveDecision => {
+            PlanRoute::JointTransportPredictiveDecision
+        }
         ProgramCell::TemporalPathTransport => PlanRoute::TemporalPathTransport,
         ProgramCell::SamplingAssumptionUnion => PlanRoute::SamplingAssumptionUnion,
         ProgramCell::IidSamplingAssumptionUnion => PlanRoute::IidSamplingAssumptionUnion,
         ProgramCell::ClusterSamplingAssumptionUnion => PlanRoute::ClusterSamplingAssumptionUnion,
-        ProgramCell::MovingBlockSamplingAssumptionUnion => PlanRoute::MovingBlockSamplingAssumptionUnion,
+        ProgramCell::MovingBlockSamplingAssumptionUnion => {
+            PlanRoute::MovingBlockSamplingAssumptionUnion
+        }
         ProgramCell::PolicySubsampling => PlanRoute::PolicySubsampling,
         ProgramCell::SequentialPolicyReliability => PlanRoute::SequentialPolicyReliability,
         ProgramCell::BundleRecomputation => PlanRoute::BundleRecomputation,
         ProgramCell::BridgeBundleRecomputation => PlanRoute::BridgeBundleRecomputation,
-        ProgramCell::CyclicPosteriorBundleRecomputation => PlanRoute::CyclicPosteriorBundleRecomputation,
-        ProgramCell::CyclicPosteriorNodeBundleRecomputation => PlanRoute::CyclicPosteriorNodeBundleRecomputation,
+        ProgramCell::CyclicPosteriorBundleRecomputation => {
+            PlanRoute::CyclicPosteriorBundleRecomputation
+        }
+        ProgramCell::CyclicPosteriorNodeBundleRecomputation => {
+            PlanRoute::CyclicPosteriorNodeBundleRecomputation
+        }
         ProgramCell::TrialIpwNodeBundleRecomputation => PlanRoute::TrialIpwNodeBundleRecomputation,
-        ProgramCell::GraphImputationTransportNodeBundleRecomputation => PlanRoute::GraphImputationTransportNodeBundleRecomputation,
-        ProgramCell::JointTransportEffectNodeBundleRecomputation => PlanRoute::JointTransportEffectNodeBundleRecomputation,
-        ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation => PlanRoute::JointTransportPredictiveNodeDecisionBundleRecomputation,
-        ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation => PlanRoute::TrialIpwPredictiveNodeDecisionBundleRecomputation,
-        ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation => PlanRoute::CyclicTargetFeedbackNodeDecisionBundleRecomputation,
-        ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation => PlanRoute::GraphImputationPredictiveNodeDecisionBundleRecomputation,
-        ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation => PlanRoute::AssessedBridgePosteriorNodeDecisionBundleRecomputation,
-        ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation => PlanRoute::SequentialPolicyReliabilityNodeBundleRecomputation,
+        ProgramCell::GraphImputationTransportNodeBundleRecomputation => {
+            PlanRoute::GraphImputationTransportNodeBundleRecomputation
+        }
+        ProgramCell::JointTransportEffectNodeBundleRecomputation => {
+            PlanRoute::JointTransportEffectNodeBundleRecomputation
+        }
+        ProgramCell::JointTransportPredictiveNodeDecisionBundleRecomputation => {
+            PlanRoute::JointTransportPredictiveNodeDecisionBundleRecomputation
+        }
+        ProgramCell::TrialIpwPredictiveNodeDecisionBundleRecomputation => {
+            PlanRoute::TrialIpwPredictiveNodeDecisionBundleRecomputation
+        }
+        ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation => {
+            PlanRoute::CyclicTargetFeedbackNodeDecisionBundleRecomputation
+        }
+        ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation => {
+            PlanRoute::GraphImputationPredictiveNodeDecisionBundleRecomputation
+        }
+        ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation => {
+            PlanRoute::AssessedBridgePosteriorNodeDecisionBundleRecomputation
+        }
+        ProgramCell::SequentialPolicyReliabilityNodeBundleRecomputation => {
+            PlanRoute::SequentialPolicyReliabilityNodeBundleRecomputation
+        }
         ProgramCell::JointComponentPosteriorDecision => PlanRoute::JointComponentPosteriorDecision,
-        ProgramCell::BoundedComponentPosteriorDecision => PlanRoute::BoundedComponentPosteriorDecision,
-        ProgramCell::PosteriorDecisionBundleRecomputation => PlanRoute::PosteriorDecisionBundleRecomputation,
+        ProgramCell::BoundedComponentPosteriorDecision => {
+            PlanRoute::BoundedComponentPosteriorDecision
+        }
+        ProgramCell::PosteriorDecisionBundleRecomputation => {
+            PlanRoute::PosteriorDecisionBundleRecomputation
+        }
         ProgramCell::GraphImputation => PlanRoute::GraphImputation,
         ProgramCell::GraphImputationEffectDecision => PlanRoute::GraphImputationEffectDecision,
-        ProgramCell::GraphImputationBernoulliPredictiveWorldDecision => PlanRoute::GraphImputationBernoulliPredictiveWorldDecision,
-        ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision => PlanRoute::GraphImputationGaussianTargetPredictiveWorldDecision,
-        ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision => PlanRoute::GraphImputationBernoulliPredictiveClusterBootstrapDecision,
-        ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision => PlanRoute::GraphImputationGaussianPredictiveClusterBootstrapDecision,
-        ProgramCell::GraphImputationTransportDecision => PlanRoute::GraphImputationTransportDecision,
-        ProgramCell::GraphImputationTransportClusterBootstrapDecision => PlanRoute::GraphImputationTransportClusterBootstrapDecision,
-        ProgramCell::GraphImputationConfoundedTransportDecision => PlanRoute::GraphImputationConfoundedTransportDecision,
-        ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision => PlanRoute::GraphImputationConfoundedTransportClusterBootstrapDecision,
-        ProgramCell::GraphImputationKernelTransportDecision => PlanRoute::GraphImputationKernelTransportDecision,
-        ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision => PlanRoute::GraphImputationKernelTransportClusterBootstrapDecision,
-        ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => PlanRoute::GraphImputationConfoundedKernelTransportClusterBootstrapDecision,
-        ProgramCell::GraphImputationMarTransportDecision => PlanRoute::GraphImputationMarTransportDecision,
+        ProgramCell::GraphImputationBernoulliPredictiveWorldDecision => {
+            PlanRoute::GraphImputationBernoulliPredictiveWorldDecision
+        }
+        ProgramCell::GraphImputationGaussianTargetPredictiveWorldDecision => {
+            PlanRoute::GraphImputationGaussianTargetPredictiveWorldDecision
+        }
+        ProgramCell::GraphImputationBernoulliPredictiveClusterBootstrapDecision => {
+            PlanRoute::GraphImputationBernoulliPredictiveClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationGaussianPredictiveClusterBootstrapDecision => {
+            PlanRoute::GraphImputationGaussianPredictiveClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationTransportDecision => {
+            PlanRoute::GraphImputationTransportDecision
+        }
+        ProgramCell::GraphImputationTransportClusterBootstrapDecision => {
+            PlanRoute::GraphImputationTransportClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationConfoundedTransportDecision => {
+            PlanRoute::GraphImputationConfoundedTransportDecision
+        }
+        ProgramCell::GraphImputationConfoundedTransportClusterBootstrapDecision => {
+            PlanRoute::GraphImputationConfoundedTransportClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationKernelTransportDecision => {
+            PlanRoute::GraphImputationKernelTransportDecision
+        }
+        ProgramCell::GraphImputationKernelTransportClusterBootstrapDecision => {
+            PlanRoute::GraphImputationKernelTransportClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => {
+            PlanRoute::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
+        }
+        ProgramCell::GraphImputationMarTransportDecision => {
+            PlanRoute::GraphImputationMarTransportDecision
+        }
         ProgramCell::CategoricalPosteriorCandidate => PlanRoute::CategoricalPosteriorCandidate,
         ProgramCell::MnarFixedShift => PlanRoute::MnarFixedShift,
         ProgramCell::LatentSoftIntervention => PlanRoute::LatentSoftIntervention,

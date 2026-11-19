@@ -8,30 +8,26 @@
 use std::sync::Arc;
 
 use antecedent_contract::ScientificQuantity;
+use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_contract::propagation_chain::{
     ChainReading, ChainRefusal, LawMeaning, StageKind, TableConstruction,
 };
-use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_core::execution_facts::OutputRetention;
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
-use antecedent_design::decision_contract::{ActionKind, DecisionContract, DecisionContractError};
 use antecedent_design::composition_boundary::SupportPolicy;
-use antecedent_design::decision_transported_source::{
-    TransportedResponse, TransportedValue,
-};
-use antecedent_design::decision_artifact::{
-    DecisionContractArtifact, decision_result_fingerprint,
-};
+use antecedent_design::decision_artifact::{DecisionContractArtifact, decision_result_fingerprint};
+use antecedent_design::decision_contract::{ActionKind, DecisionContract, DecisionContractError};
 use antecedent_design::decision_eval::{DecisionResult, MeanEstimate, SourceReceipt};
 use antecedent_design::decision_evaluation::{
     DemandBudget, DemandSource, DemandSourceError, EvaluationError, execute_demand_admitted,
 };
+use antecedent_design::decision_transported_source::{TransportedResponse, TransportedValue};
+use antecedent_io::IoError;
 use antecedent_io::propagation_chain_record::{
     ChainChangeWire, ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire,
     ChainStageWire, PropagationChainRecordWire,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
-use antecedent_io::IoError;
 use serde::{Deserialize, Serialize};
 
 use super::lowering::chain::lower_chain_with_decision;
@@ -132,11 +128,8 @@ fn compile_chain_decision_with_worlds(
         .lowered()
         .propagation_chain()
         .ok_or(ChainDecisionError::Coordinate("the chain has no retained program"))?;
-    let quantity = retained
-        .draft()
-        .output_quantity
-        .clone()
-        .ok_or(ChainDecisionError::Coordinate(
+    let quantity =
+        retained.draft().output_quantity.clone().ok_or(ChainDecisionError::Coordinate(
             "the decision source must declare its scientific output coordinate",
         ))?;
     let primary: ScientificQuantity = quantity
@@ -145,20 +138,29 @@ fn compile_chain_decision_with_worlds(
     let coordinates: Vec<ScientificQuantity> = if retained.draft().joint_outputs.is_empty() {
         vec![primary]
     } else {
-        retained.draft().joint_outputs.iter().map(|output| {
-            output.quantity.clone().try_into().map_err(|_| {
-                ChainDecisionError::Coordinate("invalid joint decision source coordinate")
+        retained
+            .draft()
+            .joint_outputs
+            .iter()
+            .map(|output| {
+                output.quantity.clone().try_into().map_err(|_| {
+                    ChainDecisionError::Coordinate("invalid joint decision source coordinate")
+                })
             })
-        }).collect::<Result<_, _>>()?
+            .collect::<Result<_, _>>()?
     };
     for action in &contract.actions {
         for input in &action.inputs {
-            if !coordinates.iter().any(|coordinate| input.require_same_coordinate(coordinate).is_ok()) {
+            if !coordinates
+                .iter()
+                .any(|coordinate| input.require_same_coordinate(coordinate).is_ok())
+            {
                 return Err(ChainDecisionError::Coordinate(
                     "every action input must match a retained chain law coordinate",
                 ));
             }
-            if input.functional_id == "outcome" && chain.plan().reading != ChainReading::Predictive {
+            if input.functional_id == "outcome" && chain.plan().reading != ChainReading::Predictive
+            {
                 return Err(ChainDecisionError::Coordinate(
                     "outcome risk requires a predictive law; posterior parameter draws are insufficient",
                 ));
@@ -191,11 +193,8 @@ fn compile_chain_decision_with_worlds(
         information_value: None,
         scenario_source: action_worlds.then(|| Arc::from("declared_joint_action_worlds_v1")),
     };
-    let lowered = lower_chain_with_decision(
-        retained.draft().clone(),
-        chain.plan().clone(),
-        Some(program),
-    )?;
+    let lowered =
+        lower_chain_with_decision(retained.draft().clone(), chain.plan().clone(), Some(program))?;
     let lowered = Arc::new(lowered);
     let chain = chain.within_lowered(Arc::clone(&lowered))?;
     Ok(ChainDecisionPlan { chain, contract, coordinates, lowered, action_worlds })
@@ -219,7 +218,8 @@ pub fn compile_action_world_chain_decision(
         || draft.joint_outputs.len() < 2
         || draft.sources.len() < 2
         || draft.sources.iter().any(|source| {
-            source.representation != "draws" || !source.complete_disclosure
+            source.representation != "draws"
+                || !source.complete_disclosure
                 || source.alignment.is_none()
         })
     {
@@ -234,9 +234,14 @@ pub fn compile_action_world_chain_decision(
         ));
     }
     let common = draft.sources[0].factors.iter().any(|factor| {
-        matches!(SharedFactorKind::from_name(&factor.kind),
-            Some(SharedFactorKind::Model | SharedFactorKind::Parameter | SharedFactorKind::Disturbance))
-            && draft.sources[1..].iter().all(|source| source.factors.contains(factor))
+        matches!(
+            SharedFactorKind::from_name(&factor.kind),
+            Some(
+                SharedFactorKind::Model
+                    | SharedFactorKind::Parameter
+                    | SharedFactorKind::Disturbance
+            )
+        ) && draft.sources[1..].iter().all(|source| source.factors.contains(factor))
     });
     if !common {
         return Err(ChainDecisionError::Coordinate(
@@ -245,8 +250,10 @@ pub fn compile_action_world_chain_decision(
     }
     let mut regimes = std::collections::BTreeSet::new();
     for action in &contract.actions {
-        if !matches!(action.kind, ActionKind::Intervention | ActionKind::Regime | ActionKind::Policy)
-            || action.inputs.is_empty()
+        if !matches!(
+            action.kind,
+            ActionKind::Intervention | ActionKind::Regime | ActionKind::Policy
+        ) || action.inputs.is_empty()
         {
             return Err(ChainDecisionError::Coordinate(
                 "each action world must be an intervention, regime or policy with an input",
@@ -255,7 +262,10 @@ pub fn compile_action_world_chain_decision(
         let regime = &action.inputs[0].regime_id;
         if !regimes.insert(regime.as_str())
             || action.inputs.iter().any(|input| input.regime_id != regime.as_str())
-            || !draft.joint_outputs.iter().any(|output| output.quantity.regime_id == regime.as_str())
+            || !draft
+                .joint_outputs
+                .iter()
+                .any(|output| output.quantity.regime_id == regime.as_str())
         {
             return Err(ChainDecisionError::Coordinate(
                 "each action must name a distinct retained world regime",
@@ -289,9 +299,9 @@ pub fn compile_transported_law_chain_decision(
     policy: &SupportPolicy,
     ctx: &ExecutionContext,
 ) -> Result<ChainDecisionPlan, ChainDecisionError> {
-    let support = response.receipt().support_status().ok_or(
-        ChainDecisionError::Coordinate("transport receipt has no recognized support label"),
-    )?;
+    let support = response.receipt().support_status().ok_or(ChainDecisionError::Coordinate(
+        "transport receipt has no recognized support label",
+    ))?;
     if support.severity() > policy.weakest_support.severity() {
         return Err(ChainDecisionError::Coordinate(
             "transport support is below the decision policy",
@@ -305,7 +315,8 @@ pub fn compile_transported_law_chain_decision(
     let TransportedValue::Law(law) = response.value() else {
         return Err(ChainDecisionError::Coordinate("transported decision needs an aligned law"));
     };
-    if law.metadata().supported.as_ref().is_some_and(|mask| mask.iter().any(|supported| !supported)) {
+    if law.metadata().supported.as_ref().is_some_and(|mask| mask.iter().any(|supported| !supported))
+    {
         return Err(ChainDecisionError::Coordinate(
             "transported chain law requires every declared coordinate to be supported",
         ));
@@ -352,9 +363,12 @@ pub fn compile_transported_law_chain_decision(
     let alignment = if retained_rows.len() == law.n_draws() {
         alignment
     } else {
-        let mut writer = CanonicalWriter::new("antecedent.transported_law.positive_row_alignment.v1");
+        let mut writer =
+            CanonicalWriter::new("antecedent.transported_law.positive_row_alignment.v1");
         writer.text(&alignment).word(retained_rows.len() as u64);
-        for &row in &retained_rows { writer.word(row as u64); }
+        for &row in &retained_rows {
+            writer.word(row as u64);
+        }
         SemanticDigest::from_bytes(writer.finish()).to_hex()
     };
     let receipt = format!("transport_receipt:{}", response.receipt().canonical_identity());
@@ -366,55 +380,75 @@ pub fn compile_transported_law_chain_decision(
     for (column, quantity) in quantities.iter().enumerate() {
         let source_id = format!("transported.column.{column}");
         let stage_id = format!("transported.output.{column}");
-        let values: Vec<f64> = retained_rows.iter()
-            .map(|&row| law.draws()[row * width + column]).collect();
-        sources.push(ChainSourceWire::draws(&source_id, meaning, &alignment, &values)
-            .with_factor(SharedFactorKind::Model, &receipt));
+        let values: Vec<f64> =
+            retained_rows.iter().map(|&row| law.draws()[row * width + column]).collect();
+        sources.push(
+            ChainSourceWire::draws(&source_id, meaning, &alignment, &values)
+                .with_factor(SharedFactorKind::Model, &receipt),
+        );
         let stage = if weighted {
             ChainStageWire::new(
-                &stage_id, StageKind::DerivedQuantity, &[source_id.as_str(), carrier_id],
+                &stage_id,
+                StageKind::DerivedQuantity,
+                &[source_id.as_str(), carrier_id],
                 ChainOpWire::affine(
-                    ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::input(1),
+                    ChainCoefficientWire::fixed(1.0),
+                    ChainCoefficientWire::input(1),
                 ),
             )
         } else {
             ChainStageWire::new(
-                &stage_id, StageKind::DerivedQuantity, &[source_id.as_str()],
+                &stage_id,
+                StageKind::DerivedQuantity,
+                &[source_id.as_str()],
                 ChainOpWire::affine(
-                    ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0),
+                    ChainCoefficientWire::fixed(1.0),
+                    ChainCoefficientWire::fixed(0.0),
                 ),
             )
         };
         stages.push(stage);
-        outputs.push(ChainJointOutputWire {
-            stage: stage_id,
-            quantity: quantity.clone(),
-        });
+        outputs.push(ChainJointOutputWire { stage: stage_id, quantity: quantity.clone() });
     }
     if weighted {
-        sources.push(ChainSourceWire::draws(
-            carrier_id, meaning, &alignment, &vec![0.0; retained_rows.len()],
-        ).with_factor(SharedFactorKind::Model, &receipt));
+        sources.push(
+            ChainSourceWire::draws(
+                carrier_id,
+                meaning,
+                &alignment,
+                &vec![0.0; retained_rows.len()],
+            )
+            .with_factor(SharedFactorKind::Model, &receipt),
+        );
     }
     let mut draft = PropagationChainRecordWire::draft(
-        TableConstruction::JointDraws, reading, &outputs[0].stage,
-        sources, stages,
-    ).with_output_quantity(quantities[0].clone());
+        TableConstruction::JointDraws,
+        reading,
+        &outputs[0].stage,
+        sources,
+        stages,
+    )
+    .with_output_quantity(quantities[0].clone());
     if outputs.len() > 1 {
         draft = draft.with_joint_outputs(outputs);
     }
     if let Some(weights) = &law.metadata().weights {
-        let log_weights: Vec<f64> = retained_rows.iter()
-            .map(|&row| weights[row].ln()).collect();
+        let log_weights: Vec<f64> = retained_rows.iter().map(|&row| weights[row].ln()).collect();
         draft.changes.push(ChainChangeWire::reweight(carrier_id, &log_weights));
     }
     compile_chain_decision(draft, contract, ctx)
 }
 
 fn declared_transport_receipt(chain: &PropagationChain) -> Option<&str> {
-    chain.record().sources.iter().flat_map(|source| &source.factors)
-        .find(|factor| factor.kind == SharedFactorKind::Model.as_str()
-            && factor.id.starts_with("transport_receipt:"))
+    chain
+        .record()
+        .sources
+        .iter()
+        .flat_map(|source| &source.factors)
+        .find(|factor| {
+            factor.kind == SharedFactorKind::Model.as_str()
+                && factor.id.starts_with("transport_receipt:")
+        })
         .map(|factor| factor.id.as_str())
 }
 
@@ -436,22 +470,25 @@ impl ChainDecisionPlan {
     ///
     /// # Errors
     /// A chain execution refusal, invalidated output law or decision refusal.
-    pub fn execute(&self, ctx: &ExecutionContext) -> Result<ChainDecisionResult, ChainDecisionError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<ChainDecisionResult, ChainDecisionError> {
         let chain = self.chain.execute(ctx)?;
         let mut source = ChainLawDemand::new(&chain, self.coordinates.clone())?;
         let row_bytes = (self.coordinates.len() as u64).saturating_mul(8).max(8);
         let draws = source.draw_count() as u64;
         let scratch = row_bytes.saturating_mul(draws).clamp(row_bytes, (1 << 20).max(row_bytes));
-        let retained = (self.contract.actions.len() as u64 + 1)
-            .saturating_mul(draws)
-            .saturating_mul(8);
+        let retained =
+            (self.contract.actions.len() as u64 + 1).saturating_mul(draws).saturating_mul(8);
         let budget = DemandBudget {
             scratch_bytes: scratch,
             retained_bytes: retained,
             retention: OutputRetention::SummaryOnly,
         };
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        let mut decision = execute_demand_admitted(&self.contract, &mut source, budget, &scoped)?.decision;
+        let mut decision =
+            execute_demand_admitted(&self.contract, &mut source, budget, &scoped)?.decision;
         decision.assumptions.push("model-conditional chain law; no measured coverage".into());
         decision.assumptions.push(
             "each action's outcome effect must already be represented by its declared input coordinates and aligned worlds".into(),
@@ -493,7 +530,8 @@ impl ChainDecisionPlan {
                 ACTION_WORLD_DECISION_FEATURE
             } else {
                 CHAIN_DECISION_FEATURE
-            }.into(),
+            }
+            .into(),
             chain_record: result.chain.export()?,
             chain_identity: result.chain.identity().to_owned(),
             contract: contract.to_bytes(artifact_id)?,
@@ -506,7 +544,9 @@ impl ChainDecisionPlan {
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_CHAIN_DECISION_ARTIFACT_BYTES {
-            return Err(ChainDecisionError::Coordinate("chain decision artifact exceeds its byte limit"));
+            return Err(ChainDecisionError::Coordinate(
+                "chain decision artifact exceeds its byte limit",
+            ));
         }
         Ok(bytes)
     }
@@ -527,17 +567,25 @@ pub fn consume_chain_decision(
     ctx: &ExecutionContext,
 ) -> Result<ChainDecisionResult, ChainDecisionError> {
     if bytes.len() > MAX_CHAIN_DECISION_ARTIFACT_BYTES {
-        return Err(ChainDecisionError::Coordinate("chain decision artifact exceeds its byte limit"));
+        return Err(ChainDecisionError::Coordinate(
+            "chain decision artifact exceeds its byte limit",
+        ));
     }
     let wire: ChainDecisionArtifactWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || !matches!(wire.required_feature.as_str(),
-        CHAIN_DECISION_FEATURE | ACTION_WORLD_DECISION_FEATURE)
+    if wire.version != 1
+        || !matches!(
+            wire.required_feature.as_str(),
+            CHAIN_DECISION_FEATURE | ACTION_WORLD_DECISION_FEATURE
+        )
     {
-        return Err(ChainDecisionError::Coordinate("unsupported chain decision version or feature"));
+        return Err(ChainDecisionError::Coordinate(
+            "unsupported chain decision version or feature",
+        ));
     }
     let recorded = PropagationChainRecordWire::decode(&wire.chain_record)
         .map_err(|error| ChainDecisionError::Chain(error.to_refusal()))?;
-    recorded.consume(Some(&wire.chain_identity), ctx)
+    recorded
+        .consume(Some(&wire.chain_identity), ctx)
         .map_err(|error| ChainDecisionError::Chain(error.to_refusal()))?;
     let contract = DecisionContractArtifact::from_bytes(&wire.contract, &wire.contract_identity)?;
     let plan = if wire.required_feature == ACTION_WORLD_DECISION_FEATURE {
@@ -572,30 +620,43 @@ struct ChainLawDemand<'a> {
 }
 
 impl<'a> ChainLawDemand<'a> {
-    fn new(chain: &'a PropagationChain, coordinates: Vec<ScientificQuantity>) -> Result<Self, ChainDecisionError> {
+    fn new(
+        chain: &'a PropagationChain,
+        coordinates: Vec<ScientificQuantity>,
+    ) -> Result<Self, ChainDecisionError> {
         let weights = if let Some((columns, weights)) = chain.joint_output_law() {
             if columns.len() != coordinates.len() {
-                return Err(ChainDecisionError::Coordinate("joint law width differs from its coordinates"));
+                return Err(ChainDecisionError::Coordinate(
+                    "joint law width differs from its coordinates",
+                ));
             }
             weights
         } else {
             if coordinates.len() != 1 {
-                return Err(ChainDecisionError::Coordinate("the joint output law was withdrawn or is unavailable"));
+                return Err(ChainDecisionError::Coordinate(
+                    "the joint output law was withdrawn or is unavailable",
+                ));
             }
-            chain.output_law().ok_or(ChainDecisionError::Coordinate(
-                "the chain output law was withdrawn or is unavailable",
-            ))?.1
+            chain
+                .output_law()
+                .ok_or(ChainDecisionError::Coordinate(
+                    "the chain output law was withdrawn or is unavailable",
+                ))?
+                .1
         };
         Ok(Self {
             chain,
             coordinates,
-            weights: weights.map(|values| values.iter().map(|bits| f64::from_bits(*bits)).collect()),
+            weights: weights
+                .map(|values| values.iter().map(|bits| f64::from_bits(*bits)).collect()),
         })
     }
 }
 
 impl DemandSource for ChainLawDemand<'_> {
-    fn coordinates(&self) -> &[ScientificQuantity] { &self.coordinates }
+    fn coordinates(&self) -> &[ScientificQuantity] {
+        &self.coordinates
+    }
 
     fn receipt(&self) -> SourceReceipt {
         SourceReceipt {
@@ -605,9 +666,11 @@ impl DemandSource for ChainLawDemand<'_> {
                 "declared_independent_product"
             } else {
                 "declared_aligned_draws"
-            }.into(),
+            }
+            .into(),
             causal_contract_id: declared_transport_receipt(self.chain)
-                .unwrap_or("none_declared").to_owned(),
+                .unwrap_or("none_declared")
+                .to_owned(),
         }
     }
 
@@ -623,14 +686,24 @@ impl DemandSource for ChainLawDemand<'_> {
         Err(DemandSourceError::new("a retained chain law is read through its draws"))
     }
 
-    fn supplies_means(&self) -> bool { false }
-    fn supplies_draws(&self) -> bool { true }
-    fn joint(&self) -> bool { true }
-    fn requires_joint_rows(&self) -> bool { true }
+    fn supplies_means(&self) -> bool {
+        false
+    }
+    fn supplies_draws(&self) -> bool {
+        true
+    }
+    fn joint(&self) -> bool {
+        true
+    }
+    fn requires_joint_rows(&self) -> bool {
+        true
+    }
     fn answers_outcome_law(&self) -> bool {
         self.chain.record().reading == ChainReading::Predictive.as_str()
     }
-    fn weights(&self) -> Option<&[f64]> { self.weights.as_deref() }
+    fn weights(&self) -> Option<&[f64]> {
+        self.weights.as_deref()
+    }
     fn draw_count(&self) -> usize {
         self.chain.joint_output_law().map_or_else(
             || self.chain.output_law().map_or(0, |(draws, _)| draws.len()),
@@ -638,26 +711,34 @@ impl DemandSource for ChainLawDemand<'_> {
         )
     }
 
-    fn fill_draws(&mut self, start: usize, rows: usize, out: &mut [f64])
-        -> Result<(), DemandSourceError> {
-        let end = start.checked_add(rows)
-            .ok_or_else(|| DemandSourceError::new("draw range overflow"))?;
+    fn fill_draws(
+        &mut self,
+        start: usize,
+        rows: usize,
+        out: &mut [f64],
+    ) -> Result<(), DemandSourceError> {
+        let end =
+            start.checked_add(rows).ok_or_else(|| DemandSourceError::new("draw range overflow"))?;
         let width = self.coordinates.len();
         if out.len() != rows.saturating_mul(width) {
             return Err(DemandSourceError::new("one cell per coordinate and draw is required"));
         }
         if let Some((columns, _)) = self.chain.joint_output_law() {
             for (column, draws) in columns.iter().enumerate() {
-                let selected = draws.get(start..end)
+                let selected = draws
+                    .get(start..end)
                     .ok_or_else(|| DemandSourceError::new("draw range outside joint law"))?;
                 for (row, bits) in selected.iter().enumerate() {
                     out[row * width + column] = f64::from_bits(*bits);
                 }
             }
         } else {
-            let (draws, _) = self.chain.output_law()
+            let (draws, _) = self
+                .chain
+                .output_law()
                 .ok_or_else(|| DemandSourceError::new("output law unavailable"))?;
-            let selected = draws.get(start..end)
+            let selected = draws
+                .get(start..end)
                 .ok_or_else(|| DemandSourceError::new("draw range outside retained law"))?;
             for (slot, bits) in out.iter_mut().zip(selected) {
                 *slot = f64::from_bits(*bits);

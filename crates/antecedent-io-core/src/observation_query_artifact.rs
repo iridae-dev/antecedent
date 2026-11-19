@@ -50,8 +50,8 @@ pub use error::{ObservationQueryArtifactError, query_error_refusals};
 use error::{composition_error, query_error, refused, registry_refusal};
 
 pub use wire::{
-    DependentMeasurementWire, MeasuredSlotWire, ObservationQueryWire, ObservationResultWire, RedrawPriorWire,
-    RedrawTargetWire, RetainedMechanismWire,
+    DependentMeasurementWire, MeasuredSlotWire, ObservationQueryWire, ObservationResultWire,
+    RedrawPriorWire, RedrawTargetWire, RetainedMechanismWire,
 };
 use wire::{level_bits, real_refs};
 
@@ -105,7 +105,8 @@ pub const OBSERVATION_QUERY_JOINT_MEASURED_FEATURE: &str = "observation_query_jo
 /// Additive format for a complete dependent-error measurement law.
 pub const OBSERVATION_QUERY_DEPENDENT_MEASURED_VERSION: u32 = 4;
 /// Required feature of dependent-error conditioning.
-pub const OBSERVATION_QUERY_DEPENDENT_MEASURED_FEATURE: &str = "observation_query_dependent_measured_v1";
+pub const OBSERVATION_QUERY_DEPENDENT_MEASURED_FEATURE: &str =
+    "observation_query_dependent_measured_v1";
 /// Most retained mechanisms, and most parent-configuration rows of one retained
 /// table, a redraw query may carry.
 pub const OBSERVATION_QUERY_MAX_RETAINED_ROWS: usize = 4096;
@@ -169,7 +170,10 @@ pub fn observation_query_identity(
             &(
                 OBSERVATION_QUERY_DEPENDENT_MEASURED_FEATURE,
                 OBSERVATION_QUERY_DEPENDENT_MEASURED_VERSION,
-                query.operation(), inference_basis, premises, query,
+                query.operation(),
+                inference_basis,
+                premises,
+                query,
             ),
         );
     }
@@ -179,7 +183,10 @@ pub fn observation_query_identity(
             &(
                 OBSERVATION_QUERY_JOINT_MEASURED_FEATURE,
                 OBSERVATION_QUERY_JOINT_MEASURED_VERSION,
-                query.operation(), inference_basis, premises, query,
+                query.operation(),
+                inference_basis,
+                premises,
+                query,
             ),
         );
     }
@@ -218,7 +225,9 @@ pub fn observation_query_identity(
 /// # Errors
 /// A malformed or oversized declaration.
 #[allow(clippy::match_same_arms, reason = "the cases retain distinct wire or replay semantics")]
-pub fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), ObservationQueryArtifactError> {
+pub fn check_query_bounds(
+    query: &ObservationQueryWire,
+) -> Result<(), ObservationQueryArtifactError> {
     match query {
         ObservationQueryWire::ConditionalOutcome { .. }
         | ObservationQueryWire::InterventionalOutcome { .. }
@@ -227,7 +236,8 @@ pub fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), Observatio
         | ObservationQueryWire::ConditionalInterventionalOutcome { .. }
         | ObservationQueryWire::ThresholdCrossing { .. } => Ok(()),
         ObservationQueryWire::JointMeasuredOutcome { measured, dependence, .. } => {
-            if measured.len() < 2 || measured.len() > 16
+            if measured.len() < 2
+                || measured.len() > 16
                 || dependence != "conditionally_independent_given_construct"
             {
                 return Err(ObservationQueryArtifactError::Malformed(
@@ -236,9 +246,10 @@ pub fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), Observatio
             }
             let construct = &measured[0].construct;
             let mut ids = std::collections::BTreeSet::new();
-            if measured.iter().any(|slot| {
-                slot.construct != *construct || !ids.insert(slot.indicator_id.as_str())
-            }) {
+            if measured
+                .iter()
+                .any(|slot| slot.construct != *construct || !ids.insert(slot.indicator_id.as_str()))
+            {
                 return Err(ObservationQueryArtifactError::Malformed(
                     "joint indicators must be distinct and name one construct".into(),
                 ));
@@ -247,7 +258,8 @@ pub fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), Observatio
         }
         ObservationQueryWire::DependentMeasuredOutcome { measured, error_law, .. } => {
             let n = error_law.indicator_ids.len();
-            if !(2..=16).contains(&n) || measured.len() != n
+            if !(2..=16).contains(&n)
+                || measured.len() != n
                 || error_law.indicator_levels.len() != n
                 || error_law.construct_levels.is_empty()
                 || error_law.construct_levels.len() > 16
@@ -258,7 +270,11 @@ pub fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), Observatio
                 || error_law.indicator_ids.windows(2).any(|pair| pair[0] >= pair[1])
                 || error_law.indicator_ids.iter().any(|id| id.trim().is_empty())
                 || error_law.construct_levels.iter().any(|level| level.trim().is_empty())
-                || error_law.construct_levels.iter().collect::<std::collections::BTreeSet<_>>().len()
+                || error_law
+                    .construct_levels
+                    .iter()
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len()
                     != error_law.construct_levels.len()
             {
                 return Err(ObservationQueryArtifactError::Malformed(
@@ -267,9 +283,11 @@ pub fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), Observatio
             }
             let mut cells = 1usize;
             for (index, levels) in error_law.indicator_levels.iter().enumerate() {
-                if levels.is_empty() || levels.len() > 16
+                if levels.is_empty()
+                    || levels.len() > 16
                     || levels.iter().any(|level| level.trim().is_empty())
-                    || levels.iter().collect::<std::collections::BTreeSet<_>>().len() != levels.len()
+                    || levels.iter().collect::<std::collections::BTreeSet<_>>().len()
+                        != levels.len()
                     || measured[index].0.as_str() != error_law.indicator_ids[index].as_str()
                     || !levels.contains(&measured[index].1)
                 {
@@ -277,10 +295,13 @@ pub fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), Observatio
                         "indicator identities, levels or recorded values differ from the dependent-error table".into(),
                     ));
                 }
-                cells = cells.checked_mul(levels.len()).ok_or_else(||
-                    ObservationQueryArtifactError::LimitsExceeded("dependent measurement cells"))?;
+                cells = cells.checked_mul(levels.len()).ok_or_else(|| {
+                    ObservationQueryArtifactError::LimitsExceeded("dependent measurement cells")
+                })?;
                 if cells > 65_536 {
-                    return Err(ObservationQueryArtifactError::LimitsExceeded("dependent measurement cells"));
+                    return Err(ObservationQueryArtifactError::LimitsExceeded(
+                        "dependent measurement cells",
+                    ));
                 }
             }
             if error_law.probability_bits.len() != cells * error_law.construct_levels.len() {
@@ -289,8 +310,11 @@ pub fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), Observatio
                 ));
             }
             for row in error_law.probability_bits.chunks_exact(cells) {
-                let probabilities: Vec<f64> = row.iter().map(|bits| f64::from_bits(*bits)).collect();
-                if probabilities.iter().any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+                let probabilities: Vec<f64> =
+                    row.iter().map(|bits| f64::from_bits(*bits)).collect();
+                if probabilities
+                    .iter()
+                    .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
                     || (probabilities.iter().sum::<f64>() - 1.0).abs() > 1e-9
                 {
                     return Err(ObservationQueryArtifactError::Malformed(
@@ -669,13 +693,20 @@ fn evaluate_finite(
     let model = ComposedFinite::compile(spec).map_err(composition_error)?;
     match query {
         ObservationQueryWire::DependentMeasuredOutcome {
-            outcome, interventions, observed, measured, error_law,
+            outcome,
+            interventions,
+            observed,
+            measured,
+            error_law,
         } => {
             let observed = refs(observed);
             let interventions_ref = refs(interventions);
-            let law = intervened_law(&model, &interventions_ref, &observed, ctx)
-                .map_err(query_error)?;
-            if interventions_ref.iter().any(|(variable, _)| *variable == error_law.construct.as_str()) {
+            let law =
+                intervened_law(&model, &interventions_ref, &observed, ctx).map_err(query_error)?;
+            if interventions_ref
+                .iter()
+                .any(|(variable, _)| *variable == error_law.construct.as_str())
+            {
                 return Err(refused(mixed_conditioning_refusal(&error_law.construct)));
             }
             let mut regime = interventions.clone();
@@ -683,8 +714,14 @@ fn evaluate_finite(
             let expected_regime = if regime.is_empty() {
                 spec.target.regime.clone()
             } else {
-                format!("do({})", regime.iter().map(|(v, level)| format!("{v}={level}"))
-                    .collect::<Vec<_>>().join(","))
+                format!(
+                    "do({})",
+                    regime
+                        .iter()
+                        .map(|(v, level)| format!("{v}={level}"))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
             };
             if error_law.population_id != spec.target.population
                 || error_law.regime_id != expected_regime
@@ -693,26 +730,35 @@ fn evaluate_finite(
                     "dependent measurement law is outside the query population or regime".into(),
                 ));
             }
-            let index = law.variables().iter().position(|variable| variable == &error_law.construct)
-                .ok_or_else(|| ObservationQueryArtifactError::Malformed(
-                    "dependent measurement construct is absent from the finite model".into()))?;
+            let index = law
+                .variables()
+                .iter()
+                .position(|variable| variable == &error_law.construct)
+                .ok_or_else(|| {
+                    ObservationQueryArtifactError::Malformed(
+                        "dependent measurement construct is absent from the finite model".into(),
+                    )
+                })?;
             if law.levels()[index].as_slice() != error_law.construct_levels.as_slice() {
                 return Err(ObservationQueryArtifactError::Malformed(
                     "dependent measurement construct levels differ from the finite model".into(),
                 ));
             }
             let mut cell = 0usize;
-            for ((id, recorded), (table_id, levels)) in measured.iter().zip(
-                error_law.indicator_ids.iter().zip(&error_law.indicator_levels)
-            ) {
+            for ((id, recorded), (table_id, levels)) in
+                measured.iter().zip(error_law.indicator_ids.iter().zip(&error_law.indicator_levels))
+            {
                 if id != table_id {
                     return Err(ObservationQueryArtifactError::Malformed(
                         "dependent measurement indicator order differs".into(),
                     ));
                 }
-                let position = levels.iter().position(|level| level == recorded)
-                    .ok_or_else(|| ObservationQueryArtifactError::Malformed(
-                        "dependent measurement recorded level is absent".into()))?;
+                let position =
+                    levels.iter().position(|level| level == recorded).ok_or_else(|| {
+                        ObservationQueryArtifactError::Malformed(
+                            "dependent measurement recorded level is absent".into(),
+                        )
+                    })?;
                 cell = cell * levels.len() + position;
             }
             let cells = error_law.probability_bits.len() / error_law.construct_levels.len();
@@ -720,8 +766,14 @@ fn evaluate_finite(
                 .map(|row| f64::from_bits(error_law.probability_bits[row * cells + cell]))
                 .collect();
             let answer = condition_on_measured(
-                &law, outcome, &error_law.construct, &observed, &likelihood, ctx,
-            ).map_err(query_error)?;
+                &law,
+                outcome,
+                &error_law.construct,
+                &observed,
+                &likelihood,
+                ctx,
+            )
+            .map_err(query_error)?;
             Ok(ObservationResultWire::Conditional {
                 operation: query.operation().to_owned(),
                 evidence_probability_bits: answer.evidence_probability.to_bits(),
@@ -730,12 +782,16 @@ fn evaluate_finite(
             })
         }
         ObservationQueryWire::JointMeasuredOutcome {
-            outcome, interventions, observed, measured, ..
+            outcome,
+            interventions,
+            observed,
+            measured,
+            ..
         } => {
             let observed = refs(observed);
             let interventions = refs(interventions);
-            let law = intervened_law(&model, &interventions, &observed, ctx)
-                .map_err(query_error)?;
+            let law =
+                intervened_law(&model, &interventions, &observed, ctx).map_err(query_error)?;
             let construct = &measured[0].construct;
             if interventions.iter().any(|(variable, _)| *variable == construct) {
                 return Err(refused(mixed_conditioning_refusal(construct)));
@@ -752,9 +808,9 @@ fn evaluate_finite(
                     *joint *= factor;
                 }
             }
-            let answer = condition_on_measured(
-                &law, outcome, construct, &observed, &likelihood, ctx,
-            ).map_err(query_error)?;
+            let answer =
+                condition_on_measured(&law, outcome, construct, &observed, &likelihood, ctx)
+                    .map_err(query_error)?;
             Ok(ObservationResultWire::Conditional {
                 operation: query.operation().to_owned(),
                 evidence_probability_bits: answer.evidence_probability.to_bits(),

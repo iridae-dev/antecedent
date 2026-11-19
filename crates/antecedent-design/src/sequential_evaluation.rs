@@ -100,8 +100,8 @@ pub use model::{
     ObservationChannel, StoppingBoundary,
 };
 pub use offpolicy::{
-    LoggedStep, LoggedTrajectory, OFF_POLICY_INTERVAL_LEVEL, OffPolicyBootstrap, OffPolicyEstimate, OffPolicyInterval,
-    bootstrap_off_policy, evaluate_off_policy,
+    LoggedStep, LoggedTrajectory, OFF_POLICY_INTERVAL_LEVEL, OffPolicyBootstrap, OffPolicyEstimate,
+    OffPolicyInterval, bootstrap_off_policy, evaluate_off_policy,
 };
 pub use policy::{ContingentPolicy, HistoryKey, HistoryStep, PolicySpec};
 pub use reliability::{bootstrap_decision_draws, rollout_decision_draws};

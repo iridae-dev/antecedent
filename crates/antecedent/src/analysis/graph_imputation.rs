@@ -18,6 +18,7 @@
 //! No external callback, likelihood or posterior is accepted.
 use std::sync::Arc;
 
+use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::graph_imputation_contract::{
     AtomOperation, GraphImputationParts, GraphImputationSource, MAX_VARIABLES, MIN_IMPUTATIONS,
     MIN_ITERATIONS, MIN_POSTERIOR_DRAWS, MIN_ROWS, admission_bytes, labeled_dag_count,
@@ -25,19 +26,18 @@ use antecedent_core::graph_imputation_contract::{
 use antecedent_core::{
     AverageEffectQuery, CanonicalWriter, ExecutionContext, SemanticDigest, VariableId,
 };
-use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_data::{ImputationSpec, TableView, TabularData};
 use antecedent_discovery::adjacency_mask::{AdjacencyMask, dag_from_adjacency_mask};
 use antecedent_io::IoError;
 use antecedent_io::distribution_artifact::{
-    DistributionArtifact, DistributionCalibration, DistributionIdentity,
-    DistributionMetadata, DistributionProvenance, DistributionTrust, DrawAlignment,
+    DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
+    DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::quantity_wire::DistributionMeaningWire;
 use antecedent_io::measured_inference::MeasuredInference;
 use antecedent_io::measured_inference::graph_candidate::{
     GraphPointReading, replay_point, retained_support,
 };
+use antecedent_io::quantity_wire::DistributionMeaningWire;
 
 use super::RetainedOperation;
 use super::lowering::graph_imputation::{LoweringInput, RetainedAtomBinding, lower};
@@ -241,12 +241,11 @@ impl GraphImputationPoint {
     /// A coordinate naming another outcome or treatment contrast, an invalid
     /// source, or distribution-artifact refusal.
     pub fn effect_law(
-        &self, quantity: ScientificQuantity,
+        &self,
+        quantity: ScientificQuantity,
     ) -> Result<DistributionArtifact, GraphImputationError> {
         let source = GraphImputationSource::decode(&self.bytes).map_err(|error| {
-            GraphImputationError::Engine(CausalError::Compile {
-                message: error.to_string(),
-            })
+            GraphImputationError::Engine(CausalError::Compile { message: error.to_string() })
         })?;
         let parts = source.parts();
         let treatment = &parts.names[parts.treatment as usize];
@@ -258,33 +257,43 @@ impl GraphImputationPoint {
             || quantity.regime_id != regime
             || quantity.horizon != 0
         {
-            return Err(invalid("graph mixture law requires the exact binary average-effect coordinate").into());
+            return Err(invalid(
+                "graph mixture law requires the exact binary average-effect coordinate",
+            )
+            .into());
         }
         let identity = DistributionIdentity::new(
             DistributionMeaningWire::CausalFunctionalPosterior,
-            &[quantity], DrawAlignment::Joint,
+            &[quantity],
+            DrawAlignment::Joint,
             DistributionProvenance {
                 source_id: SemanticDigest::from_bytes(self.receipt).to_hex(),
                 provider_id: "antecedent.graph_imputation".into(),
                 rng_id: format!(
-                    "imputation:{}:child:{}", parts.imputation_seed, parts.execution_seed,
+                    "imputation:{}:child:{}",
+                    parts.imputation_seed, parts.execution_seed,
                 ),
                 snapshot_id: SemanticDigest::from_bytes(self.source).to_hex(),
                 causal_contract_id: SemanticDigest::from_bytes(parts.contract_digest()).to_hex(),
             },
-        ).map_err(|error| GraphImputationError::Engine(CausalError::from(error)))?;
+        )
+        .map_err(|error| GraphImputationError::Engine(CausalError::from(error)))?;
         DistributionArtifact::new(
             DistributionMetadata {
-                version: 1, identity,
+                version: 1,
+                identity,
                 axes: ["draw".into(), "quantity".into()],
                 shape: [self.effect_draws().len(), 1],
-                weights: None, supported: None,
+                weights: None,
+                supported: None,
                 calibration: DistributionCalibration::PointOnly,
                 trust: DistributionTrust::Unverified,
-                legacy_posterior: None, legacy_bindings: None,
+                legacy_posterior: None,
+                legacy_bindings: None,
             },
             self.effect_draws().to_vec(),
-        ).map_err(|error| GraphImputationError::Engine(CausalError::from(error)))
+        )
+        .map_err(|error| GraphImputationError::Engine(CausalError::from(error)))
     }
 
     /// The measured report of this execution's original source, issued by the same native
@@ -342,7 +351,8 @@ impl CompiledGraphImputation {
     /// Check a proposed decision input against the outcome and treatment of
     /// this compiled mixture before any graph search or imputation executes.
     pub(crate) fn matches_effect_quantity(
-        &self, quantity: &ScientificQuantity,
+        &self,
+        quantity: &ScientificQuantity,
     ) -> Result<bool, GraphImputationError> {
         let source = GraphImputationSource::decode(&self.source_bytes).map_err(invalid)?;
         let parts = source.parts();
@@ -976,42 +986,51 @@ mod compiled_tests {
     #[test]
     #[ignore = "source-only whole-schedule reference assertion; decision reliability not earned"]
     fn graph_imputation_effect_decision_replays_known_positive_effect() {
-        use antecedent_design::decision_contract::{
-            ActionKind, DecisionAction, DecisionContract, DecisionCriterion,
-            StructuralPolicy, UtilityExpr,
-        };
         use super::super::graph_imputation_effect_decision::{
-            compile_graph_imputation_effect_decision,
-            consume_graph_imputation_effect_decision,
+            compile_graph_imputation_effect_decision, consume_graph_imputation_effect_decision,
+        };
+        use antecedent_design::decision_contract::{
+            ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy,
+            UtilityExpr,
         };
 
         let ctx = ExecutionContext::for_tests(19);
         let producer = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 40, false);
         let quantity = ScientificQuantity {
-            variable_id: "y".into(), variable_name: "outcome effect".into(),
-            role: QuantityRole::Outcome, units: "outcome_units".into(),
+            variable_id: "y".into(),
+            variable_name: "outcome effect".into(),
+            role: QuantityRole::Outcome,
+            units: "outcome_units".into(),
             population_id: "declared_population".into(),
-            regime_id: "do(t=1)-do(t=0)".into(), horizon: 0,
-            functional_id: "average_effect".into(), conditioning: Vec::new(),
+            regime_id: "do(t=1)-do(t=0)".into(),
+            horizon: 0,
+            functional_id: "average_effect".into(),
+            conditioning: Vec::new(),
             transform_id: "identity".into(),
         };
         let contract = DecisionContract {
             actions: vec![
                 DecisionAction {
-                    id: "treat".into(), kind: ActionKind::External,
+                    id: "treat".into(),
+                    kind: ActionKind::External,
                     inputs: vec![quantity.clone()],
                     utility: UtilityExpr::difference(
-                        UtilityExpr::Input(0), UtilityExpr::Const(0.1)),
+                        UtilityExpr::Input(0),
+                        UtilityExpr::Const(0.1),
+                    ),
                 },
                 DecisionAction {
-                    id: "hold".into(), kind: ActionKind::External,
-                    inputs: vec![quantity.clone()], utility: UtilityExpr::Const(0.0),
+                    id: "hold".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::Const(0.0),
                 },
             ],
             utility_units: "outcome_units".into(),
             criterion: DecisionCriterion::PosteriorExpectedUtility,
             constraints: Vec::new(),
-            target_population: "declared_population".into(), horizon: 0,
+            target_population: "declared_population".into(),
+            horizon: 0,
             structural_policy: StructuralPolicy::RequireInvariantBestAction,
         };
         let plan = compile_graph_imputation_effect_decision(producer, quantity, contract).unwrap();
@@ -1019,9 +1038,9 @@ mod compiled_tests {
         assert!(result.producer.mean > 0.1);
         assert_eq!(result.calibration, "not_measured");
         let bytes = plan.export(&result, "graph-effect-decision-known-truth", &ctx).unwrap();
-        let replay = consume_graph_imputation_effect_decision(
-            &bytes, result.lowered_program_identity, &ctx,
-        ).unwrap();
+        let replay =
+            consume_graph_imputation_effect_decision(&bytes, result.lowered_program_identity, &ctx)
+                .unwrap();
         assert_eq!(replay.producer.receipt, result.producer.receipt);
         assert_eq!(replay.decision.decision, result.decision.decision);
     }

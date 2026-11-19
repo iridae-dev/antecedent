@@ -257,8 +257,8 @@ struct NonGraphical<'a>(&'a crate::planner::lowered::NonGraphicalIdentification)
 impl Serialize for NonGraphical<'_> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         use crate::planner::lowered::NonGraphicalIdentification::{
-            CyclicIoScm, DeclaredPolicyEvaluation, GraphCheckedPolicyEvaluation, ExperimentalRecovery,
-            SharedEvidenceContract, SpecifiedModelConditional,
+            CyclicIoScm, DeclaredPolicyEvaluation, ExperimentalRecovery,
+            GraphCheckedPolicyEvaluation, SharedEvidenceContract, SpecifiedModelConditional,
         };
         let mut object = s.serialize_map(None)?;
         match self.0 {

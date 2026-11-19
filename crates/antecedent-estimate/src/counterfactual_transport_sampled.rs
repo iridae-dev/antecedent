@@ -989,17 +989,23 @@ pub fn estimate_sampled_counterfactual_transport_contrast(
         ));
     }
     let mut work = SampledWork { remaining: request.limits.evaluation.operations, ctx };
-    let cells = request.tables.iter().try_fold(0usize, |n, table| {
-        n.checked_add(table.cell_count())
-    }).ok_or_else(|| invalid_counts("the sampled contrast table size overflows"))?;
-    let memory = cells.checked_mul(128).and_then(|n| n.checked_add(8192))
+    let cells = request
+        .tables
+        .iter()
+        .try_fold(0usize, |n, table| n.checked_add(table.cell_count()))
+        .ok_or_else(|| invalid_counts("the sampled contrast table size overflows"))?;
+    let memory = cells
+        .checked_mul(128)
+        .and_then(|n| n.checked_add(8192))
         .and_then(|n| u64::try_from(n).ok())
         .ok_or_else(|| invalid_counts("the sampled contrast memory quote overflows"))?;
-    let _admission = ctx.acquire_admission(0, memory).map_err(|_| refused(
-        antecedent_core::reason_code!("transport_budget_cancel"),
-        "counterfactual_transport.budget",
-        "the sampled contrast exceeds memory admission",
-    ))?;
+    let _admission = ctx.acquire_admission(0, memory).map_err(|_| {
+        refused(
+            antecedent_core::reason_code!("transport_budget_cancel"),
+            "counterfactual_transport.budget",
+            "the sampled contrast exceeds memory admission",
+        )
+    })?;
     let mut keyed = Vec::with_capacity(request.tables.len());
     for table in &request.tables {
         let table_units = table_work(table, &mut work)?;
@@ -1013,7 +1019,9 @@ pub fn estimate_sampled_counterfactual_transport_contrast(
     let keyed = checked_sort_tables(keyed, &mut work)?;
     for pair in keyed.windows(2) {
         if checked_key_cmp(&pair[0].0, &pair[1].0, &mut work)? == std::cmp::Ordering::Equal {
-            return Err(invalid_counts("two count tables name one population, regime and intervention world"));
+            return Err(invalid_counts(
+                "two count tables name one population, regime and intervention world",
+            ));
         }
     }
     let tables: Vec<_> = keyed.into_iter().map(|(_, _, table)| table).collect();
@@ -1021,17 +1029,29 @@ pub fn estimate_sampled_counterfactual_transport_contrast(
     union.cited.extend(baseline.cited.iter().cloned());
     validate_cited_tables(&tables, &union, &mut work)?;
     let groups = resolve_overlap_checked(&tables, &request.overlap, &mut work)?;
-    let sampled_units = groups.groups.iter().try_fold(0u64, |total, group| {
-        total.checked_add(tables[group[0]].total())
-    }).ok_or_else(|| invalid_counts("the sampled contrast unit total overflows"))?;
+    let sampled_units = groups
+        .groups
+        .iter()
+        .try_fold(0u64, |total, group| total.checked_add(tables[group[0]].total()))
+        .ok_or_else(|| invalid_counts("the sampled contrast unit total overflows"))?;
     let prepared = prepare_sampled_tables(&tables, request, &mut work)?;
     let (active_point, _) = evaluate_detailed(
-        active, &tables, &prepared.probabilities, &prepared.flavors,
-        &request.limits, ctx, &mut work,
+        active,
+        &tables,
+        &prepared.probabilities,
+        &prepared.flavors,
+        &request.limits,
+        ctx,
+        &mut work,
     )?;
     let (baseline_point, _) = evaluate_detailed(
-        baseline, &tables, &prepared.probabilities, &prepared.flavors,
-        &request.limits, ctx, &mut work,
+        baseline,
+        &tables,
+        &prepared.probabilities,
+        &prepared.flavors,
+        &request.limits,
+        ctx,
+        &mut work,
     )?;
     let contrast = active_point.probability - baseline_point.probability;
     if !contrast.is_finite() {
@@ -1042,22 +1062,34 @@ pub fn estimate_sampled_counterfactual_transport_contrast(
         ));
     }
     let (standard_error, standard_error_withheld_reason) = match delta_contrast_standard_error(
-        active, baseline, &tables, &prepared.probabilities, &groups,
-        &request.limits, ctx, &mut work,
+        active,
+        baseline,
+        &tables,
+        &prepared.probabilities,
+        &groups,
+        &request.limits,
+        ctx,
+        &mut work,
     )? {
         DeltaOutcome::Computed { standard_error, evaluations } => (
             Some(UncalibratedStandardError {
-                value: standard_error, label: UNCALIBRATED_STANDARD_ERROR,
+                value: standard_error,
+                label: UNCALIBRATED_STANDARD_ERROR,
                 method: SAMPLED_TRANSPORT_UNCERTAINTY_METHOD,
                 gradient_relative_step: SAMPLED_TRANSPORT_GRADIENT_RELATIVE_STEP,
-                gradient_evaluations: evaluations, datasets: groups.groups.len(),
-            }), None,
+                gradient_evaluations: evaluations,
+                datasets: groups.groups.len(),
+            }),
+            None,
         ),
         DeltaOutcome::Withheld { reason } => (None, Some(reason)),
     };
     Ok(SampledTransportContrastEstimate {
-        active: active_point.probability, baseline: baseline_point.probability,
-        contrast, standard_error, standard_error_withheld_reason,
+        active: active_point.probability,
+        baseline: baseline_point.probability,
+        contrast,
+        standard_error,
+        standard_error_withheld_reason,
         evidence_identity: evidence_identity(request, &tables, &mut work)?,
         sampled_units,
         calibration: "not_measured",

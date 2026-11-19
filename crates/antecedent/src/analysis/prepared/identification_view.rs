@@ -510,7 +510,7 @@ fn demotion(d: &crate::analysis::identification_cache::DbnIdentifyDemotion) -> V
 }
 fn non_graphical(proof: &crate::planner::lowered::NonGraphicalIdentification) -> Value {
     use crate::planner::lowered::NonGraphicalIdentification::{
-        CyclicIoScm, DeclaredPolicyEvaluation, GraphCheckedPolicyEvaluation, ExperimentalRecovery,
+        CyclicIoScm, DeclaredPolicyEvaluation, ExperimentalRecovery, GraphCheckedPolicyEvaluation,
         SharedEvidenceContract, SpecifiedModelConditional,
     };
     match proof {

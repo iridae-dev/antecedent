@@ -439,9 +439,7 @@ pub fn decision_result_fingerprint(
     source_identity: &str,
 ) -> Result<String, IoError> {
     let body = to_cbor(&result_to_body(result, source_identity))?;
-    Ok(CanonicalWriter::new("antecedent.decision_result_fingerprint.v1")
-        .bytes(&body)
-        .finish_hex())
+    Ok(CanonicalWriter::new("antecedent.decision_result_fingerprint.v1").bytes(&body).finish_hex())
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

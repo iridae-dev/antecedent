@@ -12,9 +12,7 @@ use std::sync::Arc;
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_design::decision_artifact::DecisionContractArtifact;
-use antecedent_design::decision_contract::{
-    DecisionContract, DecisionCriterion, UtilityExpr,
-};
+use antecedent_design::decision_contract::{DecisionContract, DecisionCriterion, UtilityExpr};
 use antecedent_io::propagation_chain_record::PropagationChainRecordWire;
 use serde::{Deserialize, Serialize};
 
@@ -39,7 +37,9 @@ struct Range {
 impl Range {
     fn new(lower: f64, upper: f64) -> Result<Self, ChainDecisionError> {
         if !lower.is_finite() || !upper.is_finite() || lower > upper {
-            return Err(ChainDecisionError::Coordinate("a utility interval is nonfinite or reversed"));
+            return Err(ChainDecisionError::Coordinate(
+                "a utility interval is nonfinite or reversed",
+            ));
         }
         Ok(Self { lower, upper })
     }
@@ -64,10 +64,8 @@ impl Range {
             }
             UtilityExpr::Mul(a, b) => {
                 let (a, b) = (Self::eval(a, inputs)?, Self::eval(b, inputs)?);
-                let values = [
-                    a.lower * b.lower, a.lower * b.upper,
-                    a.upper * b.lower, a.upper * b.upper,
-                ];
+                let values =
+                    [a.lower * b.lower, a.lower * b.upper, a.upper * b.lower, a.upper * b.upper];
                 Self {
                     lower: values.iter().copied().fold(f64::INFINITY, f64::min),
                     upper: values.iter().copied().fold(f64::NEG_INFINITY, f64::max),
@@ -173,18 +171,21 @@ pub fn compile_chain_robust_decision(
             "a robust chain decision requires an assumption envelope and maximin-over-structures criterion",
         ));
     }
-    let retained = chain.lowered().propagation_chain().ok_or(
-        ChainDecisionError::Coordinate("the chain has no retained program"),
-    )?;
-    let quantity: ScientificQuantity = retained.draft().output_quantity.clone().ok_or(
-        ChainDecisionError::Coordinate("the assumption envelope needs an output coordinate"),
-    )?.try_into().map_err(|_| ChainDecisionError::Coordinate(
-        "invalid assumption-envelope coordinate",
-    ))?;
+    let retained = chain
+        .lowered()
+        .propagation_chain()
+        .ok_or(ChainDecisionError::Coordinate("the chain has no retained program"))?;
+    let quantity: ScientificQuantity = retained
+        .draft()
+        .output_quantity
+        .clone()
+        .ok_or(ChainDecisionError::Coordinate(
+            "the assumption envelope needs an output coordinate",
+        ))?
+        .try_into()
+        .map_err(|_| ChainDecisionError::Coordinate("invalid assumption-envelope coordinate"))?;
     for action in &contract.actions {
-        if action.inputs.iter().any(|input| {
-            input.require_same_coordinate(&quantity).is_err()
-        }) {
+        if action.inputs.iter().any(|input| input.require_same_coordinate(&quantity).is_err()) {
             return Err(ChainDecisionError::Coordinate(
                 "every robust action input must match the retained assumption-envelope coordinate",
             ));
@@ -196,15 +197,20 @@ pub fn compile_chain_robust_decision(
         utility: DecisionProgram::utility_form(None),
         actions: contract.actions.len(),
         constraints: contract.constraints.len(),
-        chance_threshold: contract.constraints.iter()
-            .map(|constraint| constraint.min_probability).fold(0.0_f64, f64::max),
+        chance_threshold: contract
+            .constraints
+            .iter()
+            .map(|constraint| constraint.min_probability)
+            .fold(0.0_f64, f64::max),
         utility_unit: Some(Arc::from(contract.utility_units.as_str())),
         contract_identity: Some(Arc::from(contract.identity()?.as_str())),
         information_value: None,
         scenario_source: Some(Arc::from(chain_identity)),
     };
     let lowered = Arc::new(lower_chain_with_decision(
-        retained.draft().clone(), chain.plan().clone(), Some(decision),
+        retained.draft().clone(),
+        chain.plan().clone(),
+        Some(decision),
     )?);
     let chain = chain.within_lowered(Arc::clone(&lowered))?;
     Ok(ChainRobustDecisionPlan { chain, contract, lowered })
@@ -213,7 +219,9 @@ pub fn compile_chain_robust_decision(
 impl ChainRobustDecisionPlan {
     /// Every layer of the combined compiler program.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// View the compiled plan without execution.
     #[must_use]
@@ -226,17 +234,23 @@ impl ChainRobustDecisionPlan {
     ///
     /// # Errors
     /// An invalidated output, a nonfinite utility enclosure, or cancellation.
-    pub fn execute(&self, ctx: &ExecutionContext) -> Result<ChainRobustDecisionResult, ChainDecisionError> {
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<ChainRobustDecisionResult, ChainDecisionError> {
         let chain = self.chain.execute(ctx)?;
-        let (lower, upper, stored_weights) = chain.output_envelope().ok_or(
-            ChainDecisionError::Coordinate("the assumption envelope was withdrawn or is unavailable"),
-        )?;
+        let (lower, upper, stored_weights) =
+            chain.output_envelope().ok_or(ChainDecisionError::Coordinate(
+                "the assumption envelope was withdrawn or is unavailable",
+            ))?;
         if lower.len() != upper.len() || lower.is_empty() {
             return Err(ChainDecisionError::Coordinate("assumption-envelope row bounds differ"));
         }
         let total_weight = if let Some(bits) = stored_weights {
             if bits.len() != lower.len() {
-                return Err(ChainDecisionError::Coordinate("assumption-envelope weights differ from rows"));
+                return Err(ChainDecisionError::Coordinate(
+                    "assumption-envelope weights differ from rows",
+                ));
             }
             if bits.iter().any(|bits| {
                 let weight = f64::from_bits(*bits);
@@ -256,23 +270,29 @@ impl ChainRobustDecisionPlan {
         for action in &self.contract.actions {
             let mut utility_lower = 0.0;
             let mut utility_upper = 0.0;
-            let applicable = self.contract.constraints.iter().filter(|constraint| {
-                constraint.applies_to.is_empty()
-                    || constraint.applies_to.contains(&action.id)
-            }).collect::<Vec<_>>();
+            let applicable = self
+                .contract
+                .constraints
+                .iter()
+                .filter(|constraint| {
+                    constraint.applies_to.is_empty() || constraint.applies_to.contains(&action.id)
+                })
+                .collect::<Vec<_>>();
             let mut probability = vec![(0.0_f64, 0.0_f64); applicable.len()];
             let mut every_row_certain = vec![true; applicable.len()];
             let mut definite_violation = vec![false; applicable.len()];
             let mut inputs = vec![Range { lower: 0.0, upper: 0.0 }; action.inputs.len()];
             for row in 0..lower.len() {
                 if row % 1024 == 0 && scoped.cancellation.is_cancelled() {
-                    return Err(ChainDecisionError::Coordinate("robust decision execution was cancelled"));
+                    return Err(ChainDecisionError::Coordinate(
+                        "robust decision execution was cancelled",
+                    ));
                 }
                 let box_value = Range::new(f64::from_bits(lower[row]), f64::from_bits(upper[row]))?;
                 inputs.fill(box_value);
                 let utility = Range::eval(&action.utility, &inputs)?;
-                let weight = stored_weights.map_or(1.0, |bits| f64::from_bits(bits[row]))
-                    / total_weight;
+                let weight =
+                    stored_weights.map_or(1.0, |bits| f64::from_bits(bits[row])) / total_weight;
                 utility_lower += weight * utility.lower;
                 utility_upper += weight * utility.upper;
                 for (index, constraint) in applicable.iter().enumerate() {
@@ -290,13 +310,16 @@ impl ChainRobustDecisionPlan {
                 }
             }
             let utility = Range::new(utility_lower, utility_upper)?;
-            let constraints: Vec<RobustConstraintBound> = applicable.iter().zip(probability)
+            let constraints: Vec<RobustConstraintBound> = applicable
+                .iter()
+                .zip(probability)
                 .map(|(constraint, (lower, upper))| RobustConstraintBound {
                     id: constraint.id.clone(),
                     probability_lower: lower,
                     probability_upper: upper,
                     required: constraint.min_probability,
-                }).collect();
+                })
+                .collect();
             let certainly_admissible = constraints.iter().enumerate().all(|(index, bound)| {
                 if bound.required == 1.0 {
                     every_row_certain[index]
@@ -312,17 +335,25 @@ impl ChainRobustDecisionPlan {
                 }
             });
             actions.push(RobustActionBound {
-                id: action.id.clone(), utility_lower: utility.lower,
-                utility_upper: utility.upper, constraints,
-                certainly_admissible, certainly_excluded,
+                id: action.id.clone(),
+                utility_lower: utility.lower,
+                utility_upper: utility.upper,
+                constraints,
+                certainly_admissible,
+                certainly_excluded,
             });
         }
-        let dominant_action = actions.iter().find(|candidate| {
-            candidate.certainly_admissible && actions.iter().all(|other| {
-                other.id == candidate.id || other.certainly_excluded
-                    || candidate.utility_lower > other.utility_upper
+        let dominant_action = actions
+            .iter()
+            .find(|candidate| {
+                candidate.certainly_admissible
+                    && actions.iter().all(|other| {
+                        other.id == candidate.id
+                            || other.certainly_excluded
+                            || candidate.utility_lower > other.utility_upper
+                    })
             })
-        }).map(|candidate| candidate.id.clone());
+            .map(|candidate| candidate.id.clone());
         Ok(ChainRobustDecisionResult {
             chain,
             contract_identity: self.contract.identity()?,
@@ -336,13 +367,18 @@ impl ChainRobustDecisionPlan {
     ///
     /// # Errors
     /// A foreign result or encoding refusal.
-    pub fn export(&self, result: &ChainRobustDecisionResult, artifact_id: &str)
-        -> Result<Vec<u8>, ChainDecisionError> {
+    pub fn export(
+        &self,
+        result: &ChainRobustDecisionResult,
+        artifact_id: &str,
+    ) -> Result<Vec<u8>, ChainDecisionError> {
         if result.lowered_program_identity != self.lowered.identity()
             || result.chain.lowered_program_identity() != self.lowered.identity()
             || result.contract_identity != self.contract.identity()?
         {
-            return Err(ChainDecisionError::Coordinate("the robust result belongs to another compiler program"));
+            return Err(ChainDecisionError::Coordinate(
+                "the robust result belongs to another compiler program",
+            ));
         }
         let contract = DecisionContractArtifact::new(self.contract.clone())?;
         let wire = RobustArtifactWire {
@@ -357,7 +393,9 @@ impl ChainRobustDecisionPlan {
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_CHAIN_ROBUST_DECISION_BYTES {
-            return Err(ChainDecisionError::Coordinate("robust decision artifact exceeds its byte limit"));
+            return Err(ChainDecisionError::Coordinate(
+                "robust decision artifact exceeds its byte limit",
+            ));
         }
         Ok(bytes)
     }
@@ -365,20 +403,23 @@ impl ChainRobustDecisionPlan {
 
 fn result_fingerprint(result: &ChainRobustDecisionResult) -> String {
     let mut writer = CanonicalWriter::new("antecedent.chain_robust_decision_result.v1");
-    writer.text(result.chain.identity())
+    writer
+        .text(result.chain.identity())
         .bytes(result.lowered_program_identity.as_bytes())
         .text(&result.contract_identity)
         .opt_text(result.dominant_action.as_deref())
         .word(result.actions.len() as u64);
     for action in &result.actions {
-        writer.text(&action.id)
+        writer
+            .text(&action.id)
             .word(action.utility_lower.to_bits())
             .word(action.utility_upper.to_bits())
             .word(u64::from(action.certainly_admissible))
             .word(u64::from(action.certainly_excluded))
             .word(action.constraints.len() as u64);
         for constraint in &action.constraints {
-            writer.text(&constraint.id)
+            writer
+                .text(&constraint.id)
                 .word(constraint.probability_lower.to_bits())
                 .word(constraint.probability_upper.to_bits())
                 .word(constraint.required.to_bits());
@@ -393,10 +434,14 @@ fn result_fingerprint(result: &ChainRobustDecisionResult) -> String {
 /// # Errors
 /// A changed declaration, output enclosure, contract, program or result.
 pub fn consume_chain_robust_decision(
-    bytes: &[u8], expected_program: Option<SemanticDigest>, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_program: Option<SemanticDigest>,
+    ctx: &ExecutionContext,
 ) -> Result<ChainRobustDecisionResult, ChainDecisionError> {
     if bytes.len() > MAX_CHAIN_ROBUST_DECISION_BYTES {
-        return Err(ChainDecisionError::Coordinate("robust decision artifact exceeds its byte limit"));
+        return Err(ChainDecisionError::Coordinate(
+            "robust decision artifact exceeds its byte limit",
+        ));
     }
     let wire: RobustArtifactWire = antecedent_io::from_cbor(bytes)?;
     if wire.version != 1 || wire.required_feature != ARTIFACT_FEATURE {
@@ -404,7 +449,8 @@ pub fn consume_chain_robust_decision(
     }
     let recorded = PropagationChainRecordWire::decode(&wire.chain_record)
         .map_err(|error| ChainDecisionError::Chain(error.to_refusal()))?;
-    recorded.consume(Some(&wire.chain_identity), ctx)
+    recorded
+        .consume(Some(&wire.chain_identity), ctx)
         .map_err(|error| ChainDecisionError::Chain(error.to_refusal()))?;
     let contract = DecisionContractArtifact::from_bytes(&wire.contract, &wire.contract_identity)?;
     let plan = compile_chain_robust_decision(recorded, contract.contract().clone(), ctx)?;
@@ -417,7 +463,9 @@ pub fn consume_chain_robust_decision(
     if result.chain.identity() != wire.chain_identity
         || result_fingerprint(&result) != wire.result_fingerprint
     {
-        return Err(ChainDecisionError::Coordinate("robust decision replay differs from stored result"));
+        return Err(ChainDecisionError::Coordinate(
+            "robust decision replay differs from stored result",
+        ));
     }
     Ok(result)
 }
@@ -425,14 +473,12 @@ pub fn consume_chain_robust_decision(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use antecedent_contract::{QuantityRole, ScientificQuantity};
     use antecedent_contract::propagation_chain::{LawMeaning, StageKind, TableConstruction};
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
     use antecedent_design::decision_contract::{
         ActionKind, DecisionAction, HardConstraint, StructuralPolicy,
     };
-    use antecedent_io::propagation_chain_record::{
-        ChainOpWire, ChainSourceWire, ChainStageWire,
-    };
+    use antecedent_io::propagation_chain_record::{ChainOpWire, ChainSourceWire, ChainStageWire};
     use antecedent_io::quantity_wire::ScientificQuantityWire;
 
     fn quantity() -> ScientificQuantity {
@@ -456,28 +502,40 @@ mod tests {
             ChainReading::AssumptionEnvelope,
             "wishlists",
             vec![
-                ChainSourceWire::draws("traffic", LawMeaning::Sampling, "aligned", &[1.0, 2.0, 3.0]),
+                ChainSourceWire::draws(
+                    "traffic",
+                    LawMeaning::Sampling,
+                    "aligned",
+                    &[1.0, 2.0, 3.0],
+                ),
                 ChainSourceWire::interval("algorithm", 0.0, 1.0),
             ],
             vec![ChainStageWire::new(
-                "wishlists", StageKind::DerivedQuantity,
-                &["traffic", "algorithm"], ChainOpWire::binary("sum"),
+                "wishlists",
+                StageKind::DerivedQuantity,
+                &["traffic", "algorithm"],
+                ChainOpWire::binary("sum"),
             )],
-        ).with_output_quantity(ScientificQuantityWire::from(&quantity()))
+        )
+        .with_output_quantity(ScientificQuantityWire::from(&quantity()))
     }
 
     fn contract() -> DecisionContract {
         DecisionContract {
             actions: vec![
                 DecisionAction {
-                    id: "publish".into(), kind: ActionKind::External,
-                    inputs: vec![quantity()], utility: UtilityExpr::Input(0),
+                    id: "publish".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity()],
+                    utility: UtilityExpr::Input(0),
                 },
                 DecisionAction {
-                    id: "wait".into(), kind: ActionKind::External,
+                    id: "wait".into(),
+                    kind: ActionKind::External,
                     inputs: vec![quantity()],
                     utility: UtilityExpr::difference(
-                        UtilityExpr::Input(0), UtilityExpr::Const(10.0),
+                        UtilityExpr::Input(0),
+                        UtilityExpr::Const(10.0),
                     ),
                 },
             ],
@@ -501,15 +559,17 @@ mod tests {
     fn robust_multi_action_dominance_compiles_and_replays() {
         let ctx = ExecutionContext::for_tests(19);
         let plan = compile_chain_robust_decision(draft(), contract(), &ctx).expect("compiler");
-        assert_eq!(plan.lowered().evidence().decision().expect("decision").carrier(),
-            CarrierDemand::IdentifiedSet);
+        assert_eq!(
+            plan.lowered().evidence().decision().expect("decision").carrier(),
+            CarrierDemand::IdentifiedSet
+        );
         let result = plan.execute(&ctx).expect("robust decision");
         assert_eq!(result.dominant_action.as_deref(), Some("publish"));
         assert!(result.actions.iter().all(|action| action.certainly_admissible));
         let bytes = plan.export(&result, "robust-wishlists").expect("artifact");
-        let replay = consume_chain_robust_decision(
-            &bytes, Some(result.lowered_program_identity), &ctx,
-        ).expect("independent replay");
+        let replay =
+            consume_chain_robust_decision(&bytes, Some(result.lowered_program_identity), &ctx)
+                .expect("independent replay");
         assert_eq!(replay, result);
     }
 

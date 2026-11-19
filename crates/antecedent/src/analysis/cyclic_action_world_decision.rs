@@ -11,9 +11,11 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use antecedent_contract::{ClaimKind, ScientificQuantity};
 use antecedent_contract::dependence::SharedFactorKind;
-use antecedent_contract::propagation_chain::{ChainReading, LawMeaning, StageKind, TableConstruction};
+use antecedent_contract::propagation_chain::{
+    ChainReading, LawMeaning, StageKind, TableConstruction,
+};
+use antecedent_contract::{ClaimKind, ScientificQuantity};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_design::decision_artifact::DecisionContractArtifact;
 use antecedent_design::decision_contract::{ActionKind, DecisionContract, DecisionContractError};
@@ -23,8 +25,8 @@ use antecedent_io::cyclic_system_artifact::{
     consume_cyclic_artifact_with_request,
 };
 use antecedent_io::propagation_chain_record::{
-    ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire,
-    ChainStageWire, PropagationChainRecordWire,
+    ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire, ChainStageWire,
+    PropagationChainRecordWire,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
@@ -36,9 +38,9 @@ use super::propagation_chain_decision::{
 };
 use super::{PreparedStudy, Study};
 use crate::planner::lowered::{
-    CarrierDemand, ClaimDemand, Composition, DecisionProgram, EvidenceRole,
-    EvidenceSourceRef, FunctionalKind, LoweredProgram, ProblemTarget, ProgramCell,
-    StandaloneCompositionLoweredParts, UncertaintyReading,
+    CarrierDemand, ClaimDemand, Composition, DecisionProgram, EvidenceRole, EvidenceSourceRef,
+    FunctionalKind, LoweredProgram, ProblemTarget, ProgramCell, StandaloneCompositionLoweredParts,
+    UncertaintyReading,
 };
 use crate::planner::{PlanStage, PlanView};
 
@@ -128,8 +130,11 @@ pub fn compile_cyclic_action_world_decision(
     ctx: &ExecutionContext,
 ) -> Result<CompiledCyclicActionDecision, CyclicActionDecisionError> {
     contract.validate()?;
-    if request.fit.is_some() || request.factual.is_some() || request.noise.len() < 2
-        || outputs.len() < 2 || outputs.len() != request.worlds.len()
+    if request.fit.is_some()
+        || request.factual.is_some()
+        || request.noise.len() < 2
+        || outputs.len() < 2
+        || outputs.len() != request.worlds.len()
         || outputs.len() != contract.actions.len()
         || request.worlds.iter().any(Vec::is_empty)
     {
@@ -140,8 +145,10 @@ pub fn compile_cyclic_action_world_decision(
     let mut seen_worlds = BTreeSet::new();
     let mut seen_regimes = BTreeSet::new();
     for output in &outputs {
-        let equation = request.model.equations.get(output.equation)
-            .ok_or(CyclicActionDecisionError::Invalid("output equation is outside the model"))?;
+        let equation =
+            request.model.equations.get(output.equation).ok_or(
+                CyclicActionDecisionError::Invalid("output equation is outside the model"),
+            )?;
         if !seen_worlds.insert(output.world)
             || request.worlds.get(output.world).is_none()
             || equation.id != output.quantity.variable_id
@@ -155,9 +162,12 @@ pub fn compile_cyclic_action_world_decision(
             ));
         }
     }
-    if request.worlds.iter().enumerate().any(|(index, world)| {
-        request.worlds[..index].contains(world)
-    }) {
+    if request
+        .worlds
+        .iter()
+        .enumerate()
+        .any(|(index, world)| request.worlds[..index].contains(world))
+    {
         return Err(CyclicActionDecisionError::Invalid("two action worlds have identical clamps"));
     }
     let mut action_regimes = BTreeSet::new();
@@ -186,49 +196,63 @@ pub fn compile_cyclic_action_world_decision(
     let contract_identity = contract.identity()?;
     let outputs_bytes = antecedent_io::to_cbor(&outputs)?;
     let mut writer = CanonicalWriter::new("antecedent.cyclic_action_world_decision.question.v1");
-    writer.bytes(source.lowered().identity().as_bytes())
-        .text(&contract_identity).bytes(&outputs_bytes);
+    writer
+        .bytes(source.lowered().identity().as_bytes())
+        .text(&contract_identity)
+        .bytes(&outputs_bytes);
     let digest = writer.finish();
     let mut scientific = source.lowered().scientific().clone();
     scientific.target = ProblemTarget::QueryFunctional {
-        kind: FunctionalKind::PolicyValue, outcome: None, query: digest,
+        kind: FunctionalKind::PolicyValue,
+        outcome: None,
+        query: digest,
     };
     scientific.plan_id = Arc::from("cyclic_action_world_decision.v1");
     scientific.source_digest = Some(digest);
     let mut evidence = source.lowered().evidence().clone();
     let mut sources = evidence.sources.to_vec();
-    sources.push(EvidenceSourceRef {
-        role: EvidenceRole::JointScenarios, digest: Some(digest),
-    });
+    sources.push(EvidenceSourceRef { role: EvidenceRole::JointScenarios, digest: Some(digest) });
     evidence.sources = Arc::from(sources);
     evidence.composition = Composition::Chained { stages: 2 };
     evidence.decision = Some(DecisionProgram {
         carrier: CarrierDemand::PredictiveLaw,
         utility: DecisionProgram::utility_form(None),
-        actions: contract.actions.len(), constraints: contract.constraints.len(),
-        chance_threshold: contract.constraints.iter()
-            .map(|constraint| constraint.min_probability).fold(0.0_f64, f64::max),
+        actions: contract.actions.len(),
+        constraints: contract.constraints.len(),
+        chance_threshold: contract
+            .constraints
+            .iter()
+            .map(|constraint| constraint.min_probability)
+            .fold(0.0_f64, f64::max),
         utility_unit: Some(Arc::from(contract.utility_units.as_str())),
         contract_identity: Some(Arc::from(contract_identity.as_str())),
         information_value: None,
         scenario_source: Some(Arc::from("cyclic_shared_disturbance_worlds_v1")),
     });
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::CyclicActionWorldDecision,
-        scientific,
-        identification: source.lowered().identification_layer().clone(),
-        statistical: source.lowered().statistical().clone(),
-        evidence, physical: source.lowered().physical().clone(),
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Predictive,
-            kind: Some(ClaimKind::PolicyValue) },
-    }.finish());
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::CyclicActionWorldDecision,
+            scientific,
+            identification: source.lowered().identification_layer().clone(),
+            statistical: source.lowered().statistical().clone(),
+            evidence,
+            physical: source.lowered().physical().clone(),
+            claim: ClaimDemand {
+                uncertainty: UncertaintyReading::Predictive,
+                kind: Some(ClaimKind::PolicyValue),
+            },
+        }
+        .finish(),
+    );
     Ok(CompiledCyclicActionDecision { source, outputs, contract, lowered })
 }
 
 impl CompiledCyclicActionDecision {
     /// The complete model/world/decision program.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect all compiler layers before solving or evaluating utility.
     #[must_use]
@@ -237,23 +261,29 @@ impl CompiledCyclicActionDecision {
     }
 
     fn joint_chain(
-        &self, report: &CyclicExecutionReport,
+        &self,
+        report: &CyclicExecutionReport,
     ) -> Result<PropagationChainRecordWire, CyclicActionDecisionError> {
         if report.worlds.len() != self.source.request().worlds.len()
             || report.worlds.iter().any(|world| world.len() != self.source.request().noise.len())
         {
-            return Err(CyclicActionDecisionError::Invalid("cyclic execution lost paired disturbance rows"));
+            return Err(CyclicActionDecisionError::Invalid(
+                "cyclic execution lost paired disturbance rows",
+            ));
         }
         let alignment = self.source.lowered().identity().to_hex();
         let mut sources = Vec::with_capacity(self.outputs.len());
         let mut stages = Vec::with_capacity(self.outputs.len());
         let mut joint = Vec::with_capacity(self.outputs.len());
         for (index, output) in self.outputs.iter().enumerate() {
-            let values: Vec<f64> = report.worlds[output.world].iter().map(|row| {
-                row.values.get(output.equation).copied().ok_or(
-                    CyclicActionDecisionError::Invalid("a solved world lost its model output"),
-                )
-            }).collect::<Result<_, _>>()?;
+            let values: Vec<f64> = report.worlds[output.world]
+                .iter()
+                .map(|row| {
+                    row.values.get(output.equation).copied().ok_or(
+                        CyclicActionDecisionError::Invalid("a solved world lost its model output"),
+                    )
+                })
+                .collect::<Result<_, _>>()?;
             if report.worlds[output.world].iter().any(|row| {
                 !row.globally_unique || !row.existence_certified || !row.numerical_converged
             }) {
@@ -263,24 +293,31 @@ impl CompiledCyclicActionDecision {
             }
             let source_id = format!("cyclic.world.{index}");
             let stage_id = format!("cyclic.outcome.{index}");
-            sources.push(ChainSourceWire::draws(
-                &source_id, LawMeaning::Predictive, &alignment, &values,
-            ).with_factor(SharedFactorKind::Model, &alignment)
-             .with_factor(SharedFactorKind::Disturbance, &alignment));
+            sources.push(
+                ChainSourceWire::draws(&source_id, LawMeaning::Predictive, &alignment, &values)
+                    .with_factor(SharedFactorKind::Model, &alignment)
+                    .with_factor(SharedFactorKind::Disturbance, &alignment),
+            );
             stages.push(ChainStageWire::new(
-                &stage_id, StageKind::DerivedQuantity, &[source_id.as_str()],
+                &stage_id,
+                StageKind::DerivedQuantity,
+                &[source_id.as_str()],
                 ChainOpWire::affine(
-                    ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0),
+                    ChainCoefficientWire::fixed(1.0),
+                    ChainCoefficientWire::fixed(0.0),
                 ),
             ));
-            joint.push(ChainJointOutputWire {
-                stage: stage_id, quantity: output.quantity.clone(),
-            });
+            joint.push(ChainJointOutputWire { stage: stage_id, quantity: output.quantity.clone() });
         }
         Ok(PropagationChainRecordWire::draft(
-            TableConstruction::JointDraws, ChainReading::Predictive,
-            &joint[0].stage, sources, stages,
-        ).with_output_quantity(joint[0].quantity.clone()).with_joint_outputs(joint))
+            TableConstruction::JointDraws,
+            ChainReading::Predictive,
+            &joint[0].stage,
+            sources,
+            stages,
+        )
+        .with_output_quantity(joint[0].quantity.clone())
+        .with_joint_outputs(joint))
     }
 
     /// Solve all hard-clamp worlds on the same disturbance rows, then compile
@@ -289,15 +326,18 @@ impl CompiledCyclicActionDecision {
     /// # Errors
     /// Uncertified equilibrium, missing row or inner compiler refusal.
     pub fn execute(
-        &self, ctx: &ExecutionContext,
+        &self,
+        ctx: &ExecutionContext,
     ) -> Result<CyclicActionDecisionResult, CyclicActionDecisionError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let cyclic = self.source.estimate(&scoped)?;
         let draft = self.joint_chain(&cyclic)?;
-        let decision = compile_action_world_chain_decision(draft, self.contract.clone(), ctx)?
-            .execute(ctx)?;
+        let decision =
+            compile_action_world_chain_decision(draft, self.contract.clone(), ctx)?.execute(ctx)?;
         Ok(CyclicActionDecisionResult {
-            cyclic, decision, lowered_program_identity: self.lowered.identity(),
+            cyclic,
+            decision,
+            lowered_program_identity: self.lowered.identity(),
         })
     }
 
@@ -307,7 +347,9 @@ impl CompiledCyclicActionDecision {
     /// # Errors
     /// A changed result, an invalid artifact or an inner replay refusal.
     pub fn export(
-        &self, result: &CyclicActionDecisionResult, artifact_id: &str,
+        &self,
+        result: &CyclicActionDecisionResult,
+        artifact_id: &str,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, CyclicActionDecisionError> {
         if result.lowered_program_identity != self.lowered.identity() {
@@ -318,7 +360,9 @@ impl CompiledCyclicActionDecision {
             || result.decision.chain.identity() != replay.decision.chain.identity()
             || result.decision.decision != replay.decision.decision
         {
-            return Err(CyclicActionDecisionError::Invalid("model-derived decision differs on replay"));
+            return Err(CyclicActionDecisionError::Invalid(
+                "model-derived decision differs on replay",
+            ));
         }
         let (cyclic, cyclic_artifact) = self.source.export(artifact_id, ctx)?;
         if cyclic != result.cyclic {
@@ -326,11 +370,14 @@ impl CompiledCyclicActionDecision {
         }
         let contract = DecisionContractArtifact::new(self.contract.clone())?;
         let inner = compile_action_world_chain_decision(
-            self.joint_chain(&cyclic)?, self.contract.clone(), ctx,
+            self.joint_chain(&cyclic)?,
+            self.contract.clone(),
+            ctx,
         )?;
         let chain_artifact = inner.export(&result.decision, artifact_id)?;
         let wire = CyclicActionDecisionWire {
-            version: 1, required_feature: FEATURE.into(),
+            version: 1,
+            required_feature: FEATURE.into(),
             program_identity: *self.lowered.identity().as_bytes(),
             source_identity: cyclic.identity,
             cyclic_artifact,
@@ -353,25 +400,32 @@ impl CompiledCyclicActionDecision {
 /// # Errors
 /// A foreign feature, altered source or any model/decision replay mismatch.
 pub fn consume_cyclic_action_world_decision(
-    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<CyclicActionDecisionResult, CyclicActionDecisionError> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(CyclicActionDecisionError::Invalid("combined artifact exceeds its bound"));
     }
     let wire: CyclicActionDecisionWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != FEATURE
+    if wire.version != 1
+        || wire.required_feature != FEATURE
         || wire.program_identity != *expected_program.as_bytes()
     {
-        return Err(CyclicActionDecisionError::Invalid("combined artifact feature or identity differs"));
+        return Err(CyclicActionDecisionError::Invalid(
+            "combined artifact feature or identity differs",
+        ));
     }
-    let (request, original_cyclic) = consume_cyclic_artifact_with_request(
-        &wire.cyclic_artifact, &wire.source_identity, ctx,
+    let (request, original_cyclic) =
+        consume_cyclic_artifact_with_request(&wire.cyclic_artifact, &wire.source_identity, ctx)?;
+    let contract =
+        DecisionContractArtifact::from_bytes(&wire.contract_artifact, &wire.contract_identity)?;
+    let plan = compile_cyclic_action_world_decision(
+        request,
+        wire.outputs,
+        contract.contract().clone(),
+        ctx,
     )?;
-    let contract = DecisionContractArtifact::from_bytes(
-        &wire.contract_artifact, &wire.contract_identity,
-    )?;
-    let plan = compile_cyclic_action_world_decision(request, wire.outputs,
-        contract.contract().clone(), ctx)?;
     if plan.lowered.identity() != expected_program {
         return Err(CyclicActionDecisionError::Invalid("recompiled model and decision differ"));
     }
@@ -380,7 +434,9 @@ pub fn consume_cyclic_action_world_decision(
         return Err(CyclicActionDecisionError::Invalid("model-derived worlds changed on replay"));
     }
     let inner = consume_chain_decision(
-        &wire.chain_artifact, Some(result.decision.lowered_program_identity), ctx,
+        &wire.chain_artifact,
+        Some(result.decision.lowered_program_identity),
+        ctx,
     )?;
     if inner.chain.identity() != result.decision.chain.identity()
         || inner.decision != result.decision.decision
@@ -403,11 +459,16 @@ mod tests {
 
     fn quantity(regime: &str) -> ScientificQuantity {
         ScientificQuantity {
-            variable_id: "wishlists".into(), variable_name: "wishlists".into(),
-            role: QuantityRole::Outcome, units: "count".into(),
-            population_id: "game".into(), regime_id: regime.into(),
-            horizon: 0, functional_id: "outcome".into(),
-            conditioning: Vec::new(), transform_id: "identity".into(),
+            variable_id: "wishlists".into(),
+            variable_name: "wishlists".into(),
+            role: QuantityRole::Outcome,
+            units: "count".into(),
+            population_id: "game".into(),
+            regime_id: regime.into(),
+            horizon: 0,
+            functional_id: "outcome".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
         }
     }
 
@@ -415,12 +476,22 @@ mod tests {
         CyclicExecutionRequest {
             model: EquilibriumModel {
                 equations: vec![
-                    Equation { id: "wishlists".into(), intercept: 0.0,
-                        weights: vec![0.1, 0.3], activation: Activation::Identity,
-                        expression: None, parameters: Vec::new() },
-                    Equation { id: "traffic".into(), intercept: 0.0,
-                        weights: vec![0.2, 0.0], activation: Activation::Identity,
-                        expression: None, parameters: Vec::new() },
+                    Equation {
+                        id: "wishlists".into(),
+                        intercept: 0.0,
+                        weights: vec![0.1, 0.3],
+                        activation: Activation::Identity,
+                        expression: None,
+                        parameters: Vec::new(),
+                    },
+                    Equation {
+                        id: "traffic".into(),
+                        intercept: 0.0,
+                        weights: vec![0.2, 0.0],
+                        activation: Activation::Identity,
+                        expression: None,
+                        parameters: Vec::new(),
+                    },
                 ],
                 noise_covariance: vec![1.0, 0.0, 0.0, 1.0],
             },
@@ -429,30 +500,40 @@ mod tests {
                 vec![Clamp { variable: 1, value: 1.0 }],
                 vec![Clamp { variable: 1, value: 2.0 }],
             ],
-            noise: vec![vec![-0.2, 0.0], vec![0.0, 0.0],
-                vec![0.2, 0.0], vec![0.4, 0.0]],
-            initial: vec![0.0, 0.0], policy: SolvePolicy::default(), factual: None,
+            noise: vec![vec![-0.2, 0.0], vec![0.0, 0.0], vec![0.2, 0.0], vec![0.4, 0.0]],
+            initial: vec![0.0, 0.0],
+            policy: SolvePolicy::default(),
+            factual: None,
         }
     }
 
     fn outputs() -> Vec<CyclicDecisionOutput> {
-        ["ordinary", "promoted"].iter().enumerate().map(|(world, regime)| {
-            CyclicDecisionOutput {
-                world, equation: 0,
+        ["ordinary", "promoted"]
+            .iter()
+            .enumerate()
+            .map(|(world, regime)| CyclicDecisionOutput {
+                world,
+                equation: 0,
                 quantity: ScientificQuantityWire::from(&quantity(regime)),
-            }
-        }).collect()
+            })
+            .collect()
     }
 
     fn contract() -> DecisionContract {
         DecisionContract {
-            actions: ["ordinary", "promoted"].iter().map(|regime| DecisionAction {
-                id: (*regime).into(), kind: ActionKind::Intervention,
-                inputs: vec![quantity(regime)], utility: UtilityExpr::Input(0),
-            }).collect(),
+            actions: ["ordinary", "promoted"]
+                .iter()
+                .map(|regime| DecisionAction {
+                    id: (*regime).into(),
+                    kind: ActionKind::Intervention,
+                    inputs: vec![quantity(regime)],
+                    utility: UtilityExpr::Input(0),
+                })
+                .collect(),
             utility_units: "wishlist_count".into(),
             criterion: DecisionCriterion::ExpectedRegret,
-            constraints: Vec::new(), target_population: "game".into(),
+            constraints: Vec::new(),
+            target_population: "game".into(),
             horizon: 0,
             structural_policy: StructuralPolicy::RequireInvariantBestAction,
         }
@@ -467,18 +548,20 @@ mod tests {
         let result = plan.execute(&ctx).expect("paired model-derived worlds");
         assert_eq!(result.decision.decision.n_draws, 4);
         assert_eq!(result.cyclic.worlds.len(), 2);
-        assert!(result.cyclic.worlds[1].iter().zip(&result.cyclic.worlds[0])
-            .all(|(promoted, ordinary)| promoted.values[0] > ordinary.values[0]));
-        let bytes = plan.export(&result, "cyclic-paired-worlds", &ctx)
-            .expect("combined artifact");
-        let replay = consume_cyclic_action_world_decision(
-            &bytes, plan.lowered().identity(), &ctx,
-        ).expect("independent model and decision replay");
+        assert!(
+            result.cyclic.worlds[1]
+                .iter()
+                .zip(&result.cyclic.worlds[0])
+                .all(|(promoted, ordinary)| promoted.values[0] > ordinary.values[0])
+        );
+        let bytes = plan.export(&result, "cyclic-paired-worlds", &ctx).expect("combined artifact");
+        let replay = consume_cyclic_action_world_decision(&bytes, plan.lowered().identity(), &ctx)
+            .expect("independent model and decision replay");
         assert_eq!(replay.decision.decision, result.decision.decision);
         let mut repeated = request();
         repeated.worlds[1] = repeated.worlds[0].clone();
-        assert!(compile_cyclic_action_world_decision(
-            repeated, outputs(), contract(), &ctx,
-        ).is_err());
+        assert!(
+            compile_cyclic_action_world_decision(repeated, outputs(), contract(), &ctx,).is_err()
+        );
     }
 }

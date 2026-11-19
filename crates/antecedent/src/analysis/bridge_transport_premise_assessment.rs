@@ -9,11 +9,11 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use antecedent_contract::DataClassification;
 use antecedent_contract::bridge::{
     BridgeContract, BridgeMapping, BridgeRefusal, BridgeScope, TransportabilityPremise,
     TrialEffectPair, TrialLevelFit, TrialLevelValidation, fit_trial_level_linear,
 };
-use antecedent_contract::DataClassification;
 use antecedent_core::{
     ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, PhysicalEffect,
     PhysicalOperator, ScoreFrequentist, ScoreModel, SemanticDigest,
@@ -25,9 +25,8 @@ use serde::{Deserialize, Serialize};
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
-    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell,
-    ProgramIdentityScope, ScientificProblem, StandaloneCompositionLoweredParts,
-    UncertaintyReading,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
+    ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
@@ -120,19 +119,26 @@ struct TrialValidationWire {
 impl TrialValidationWire {
     fn from_domain(value: &TrialLevelValidation) -> Self {
         Self {
-            trials: value.trials.iter().map(|pair| [
-                pair.surrogate_effect.to_bits(), pair.terminal_effect.to_bits(),
-            ]).collect(),
-            min_trials: value.min_trials, min_r_squared: value.min_r_squared.to_bits(),
+            trials: value
+                .trials
+                .iter()
+                .map(|pair| [pair.surrogate_effect.to_bits(), pair.terminal_effect.to_bits()])
+                .collect(),
+            min_trials: value.min_trials,
+            min_r_squared: value.min_r_squared.to_bits(),
         }
     }
 
     fn to_domain(&self) -> TrialLevelValidation {
         TrialLevelValidation {
-            trials: self.trials.iter().map(|bits| TrialEffectPair {
-                surrogate_effect: f64::from_bits(bits[0]),
-                terminal_effect: f64::from_bits(bits[1]),
-            }).collect(),
+            trials: self
+                .trials
+                .iter()
+                .map(|bits| TrialEffectPair {
+                    surrogate_effect: f64::from_bits(bits[0]),
+                    terminal_effect: f64::from_bits(bits[1]),
+                })
+                .collect(),
             min_trials: self.min_trials,
             min_r_squared: f64::from_bits(self.min_r_squared),
         }
@@ -179,7 +185,8 @@ impl AssessmentInputWire {
     fn to_domain(&self) -> BridgeTransportPremiseAssessmentRequest {
         BridgeTransportPremiseAssessmentRequest {
             premise: TransportabilityPremise {
-                id: self.premise_id.clone(), statement: self.premise_statement.clone(),
+                id: self.premise_id.clone(),
+                statement: self.premise_statement.clone(),
                 established_in: BridgeScope {
                     population_id: self.established_population.clone(),
                     regime_id: self.established_regime.clone(),
@@ -190,7 +197,8 @@ impl AssessmentInputWire {
                 },
                 evidence: self.premise_evidence.clone(),
             },
-            source: self.source.to_domain(), target: self.target.to_domain(),
+            source: self.source.to_domain(),
+            target: self.target.to_domain(),
             source_trial_ids: self.source_trial_ids.clone(),
             target_trial_ids: self.target_trial_ids.clone(),
             surrogate_grid: self.surrogate_grid.iter().copied().map(f64::from_bits).collect(),
@@ -236,7 +244,8 @@ fn validate(
 ) -> Result<(), BridgeTransportPremiseAssessmentError> {
     let premise = &request.premise;
     let mut ids = BTreeSet::new();
-    if premise.id.trim().is_empty() || premise.statement.trim().is_empty()
+    if premise.id.trim().is_empty()
+        || premise.statement.trim().is_empty()
         || premise.established_in.population_id.trim().is_empty()
         || premise.established_in.regime_id.trim().is_empty()
         || premise.applies_to.population_id.trim().is_empty()
@@ -245,10 +254,15 @@ fn validate(
         || premise.evidence.as_ref().is_some_and(|evidence| evidence.trim().is_empty())
         || request.source_trial_ids.len() != request.source.trials.len()
         || request.target_trial_ids.len() != request.target.trials.len()
-        || request.source_trial_ids.iter().chain(&request.target_trial_ids)
+        || request
+            .source_trial_ids
+            .iter()
+            .chain(&request.target_trial_ids)
             .any(|id| id.trim().is_empty() || !ids.insert(id.as_str()))
-        || request.surrogate_grid.is_empty() || request.surrogate_grid.len() > 64
-        || !request.equivalence_margin.is_finite() || request.equivalence_margin <= 0.0
+        || request.surrogate_grid.is_empty()
+        || request.surrogate_grid.len() > 64
+        || !request.equivalence_margin.is_finite()
+        || request.equivalence_margin <= 0.0
     {
         return Err(invalid("premise, independent trial identities, grid or margin is invalid"));
     }
@@ -276,10 +290,14 @@ fn validate(
     };
     let (source_lo, source_hi) = range(&request.source);
     let (target_lo, target_hi) = range(&request.target);
-    if request.surrogate_grid.iter().any(|&x| {
-        x < source_lo || x > source_hi || x < target_lo || x > target_hi
-    }) {
-        return Err(invalid("assessment grid leaves the overlap of source and target trial effects"));
+    if request
+        .surrogate_grid
+        .iter()
+        .any(|&x| x < source_lo || x > source_hi || x < target_lo || x > target_hi)
+    {
+        return Err(invalid(
+            "assessment grid leaves the overlap of source and target trial effects",
+        ));
     }
     Ok(())
 }
@@ -300,24 +318,34 @@ pub fn compile_bridge_transport_premise_assessment(
         return Err(invalid("bridge premise input exceeds its byte bound"));
     }
     let source_digest = CanonicalWriter::digest_bytes(
-        "antecedent.bridge_transport_premise_assessment.source.v1", &input_bytes,
+        "antecedent.bridge_transport_premise_assessment.source.v1",
+        &input_bytes,
     );
-    let mut writer = CanonicalWriter::new("antecedent.bridge_transport_premise_assessment.question.v1");
+    let mut writer =
+        CanonicalWriter::new("antecedent.bridge_transport_premise_assessment.question.v1");
     writer.bytes(&source_digest);
     let question = writer.finish();
     let design = DesignShape::quoted(
-        (request.source.trials.len() + request.target.trials.len()) as u64, 2, true,
+        (request.source.trials.len() + request.target.trials.len()) as u64,
+        2,
+        true,
     );
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
-            kind: FunctionalKind::MechanismChange, outcome: None, query: question,
+            kind: FunctionalKind::MechanismChange,
+            outcome: None,
+            query: question,
         },
         plan_id: Arc::from("bridge_transport_premise_assessment.v1"),
-        data: DataClassification::Tabular, graph_class: "source_target_trial_mapping",
+        data: DataClassification::Tabular,
+        graph_class: "source_target_trial_mapping",
         query_variables: Arc::from([]),
         source_digest: Some(source_digest),
-        support_coordinate: None, supported: false, support_status: None,
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
     let identification = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: question },
@@ -325,51 +353,76 @@ pub fn compile_bridge_transport_premise_assessment(
     let score = ScoreModel::new("independent_trial_mapping_difference")
         .map_err(|_| invalid("invalid mapping difference score identity"))?;
     let statistical = StatisticalProgram {
-        identifier: None, estimator: None,
+        identifier: None,
+        estimator: None,
         realization: Realization::Frequentist(ScoreFrequentist::new(score)),
-        models: Arc::from([]), folds: None, resampling: None,
-        posterior: None, design, operators: Arc::from([]),
+        models: Arc::from([]),
+        folds: None,
+        resampling: None,
+        posterior: None,
+        design,
+        operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([
-            EvidenceSourceRef { role: EvidenceRole::Observations,
-                digest: Some(source_digest) },
+            EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(source_digest) },
             EvidenceSourceRef { role: EvidenceRole::TransportSource, digest: Some(question) },
         ]),
         composition: Composition::Chained { stages: 2 },
-        decision: None, planning: None, chain: None,
+        decision: None,
+        planning: None,
+        chain: None,
     };
     let physical = PhysicalLayer {
         operators: Arc::from([
             PhysicalOperator::declare(PhysicalEffect::Read)
                 .estimates(ByteEstimates::absent().with_output(input_bytes.len() as u64))
-                .build().map_err(|_| invalid("invalid bridge validation read operator"))?,
+                .build()
+                .map_err(|_| invalid("invalid bridge validation read operator"))?,
             PhysicalOperator::declare(PhysicalEffect::Fit)
-                .build().map_err(|_| invalid("invalid bridge validation fit operator"))?,
-        ]), design,
+                .build()
+                .map_err(|_| invalid("invalid bridge validation fit operator"))?,
+        ]),
+        design,
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::BridgeTransportPremiseAssessment,
-        scientific, identification, statistical, evidence, physical,
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Sampling, kind: None },
-    }.finish());
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::BridgeTransportPremiseAssessment,
+            scientific,
+            identification,
+            statistical,
+            evidence,
+            physical,
+            claim: ClaimDemand { uncertainty: UncertaintyReading::Sampling, kind: None },
+        }
+        .finish(),
+    );
     Ok(CompiledBridgeTransportPremiseAssessment { request, input, lowered })
 }
 
 fn predicted_variance(
-    validation: &TrialLevelValidation, fit: TrialLevelFit, x: f64,
+    validation: &TrialLevelValidation,
+    fit: TrialLevelFit,
+    x: f64,
 ) -> Result<f64, BridgeTransportPremiseAssessmentError> {
     let n = validation.trials.len();
     let nf = n as f64;
     let mean_x = validation.trials.iter().map(|trial| trial.surrogate_effect).sum::<f64>() / nf;
-    let sxx = validation.trials.iter()
-        .map(|trial| (trial.surrogate_effect - mean_x).powi(2)).sum::<f64>();
+    let sxx = validation
+        .trials
+        .iter()
+        .map(|trial| (trial.surrogate_effect - mean_x).powi(2))
+        .sum::<f64>();
     if n < 3 || !sxx.is_finite() || sxx <= 0.0 {
         return Err(invalid("trial regression has no finite surrogate spread"));
     }
-    let rss = validation.trials.iter().map(|trial| {
-        (trial.terminal_effect - fit.intercept - fit.slope * trial.surrogate_effect).powi(2)
-    }).sum::<f64>();
+    let rss = validation
+        .trials
+        .iter()
+        .map(|trial| {
+            (trial.terminal_effect - fit.intercept - fit.slope * trial.surrogate_effect).powi(2)
+        })
+        .sum::<f64>();
     let variance = rss / (nf - 2.0) * (1.0 / nf + (x - mean_x).powi(2) / sxx);
     if !variance.is_finite() || variance < 0.0 {
         return Err(invalid("trial regression prediction variance is invalid"));
@@ -378,14 +431,22 @@ fn predicted_variance(
 }
 
 fn fingerprint(result: &BridgeTransportPremiseAssessmentResult) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new("antecedent.bridge_transport_premise_assessment.result.v1");
-    writer.word(result.source_fit.intercept.to_bits()).word(result.source_fit.slope.to_bits())
-        .word(result.target_fit.intercept.to_bits()).word(result.target_fit.slope.to_bits())
+    let mut writer =
+        CanonicalWriter::new("antecedent.bridge_transport_premise_assessment.result.v1");
+    writer
+        .word(result.source_fit.intercept.to_bits())
+        .word(result.source_fit.slope.to_bits())
+        .word(result.target_fit.intercept.to_bits())
+        .word(result.target_fit.slope.to_bits())
         .word(u64::from(result.equivalence_screen_passed))
-        .text(result.calibration).bytes(result.lowered_program_identity.as_bytes());
+        .text(result.calibration)
+        .bytes(result.lowered_program_identity.as_bytes());
     for point in &result.grid {
-        writer.word(point.surrogate_effect.to_bits()).word(point.difference.to_bits())
-            .word(point.standard_error.to_bits()).word(point.lower.to_bits())
+        writer
+            .word(point.surrogate_effect.to_bits())
+            .word(point.difference.to_bits())
+            .word(point.standard_error.to_bits())
+            .word(point.lower.to_bits())
             .word(point.upper.to_bits());
     }
     writer.finish()
@@ -394,7 +455,9 @@ fn fingerprint(result: &BridgeTransportPremiseAssessmentResult) -> [u8; 32] {
 impl CompiledBridgeTransportPremiseAssessment {
     /// Six-layer program for the two trial fits and prespecified grid.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the retained program without fitting diagnostics.
     #[must_use]
@@ -419,7 +482,8 @@ impl CompiledBridgeTransportPremiseAssessment {
     /// # Errors
     /// Nonfinite regression variance or contrast.
     pub fn execute(
-        &self, ctx: &ExecutionContext,
+        &self,
+        ctx: &ExecutionContext,
     ) -> Result<BridgeTransportPremiseAssessmentResult, BridgeTransportPremiseAssessmentError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         if scoped.cancellation.is_cancelled() {
@@ -445,7 +509,11 @@ impl CompiledBridgeTransportPremiseAssessment {
                 return Err(invalid("bridge discrepancy band is nonfinite"));
             }
             grid.push(BridgeTransportDiscrepancy {
-                surrogate_effect: x, difference, standard_error, lower, upper,
+                surrogate_effect: x,
+                difference,
+                standard_error,
+                lower,
+                upper,
             });
         }
         let equivalence_screen_passed = grid.iter().all(|point| {
@@ -453,8 +521,11 @@ impl CompiledBridgeTransportPremiseAssessment {
                 && point.upper < self.request.equivalence_margin
         });
         Ok(BridgeTransportPremiseAssessmentResult {
-            source_fit, target_fit, grid,
-            equivalence_screen_passed, calibration: "not_measured",
+            source_fit,
+            target_fit,
+            grid,
+            equivalence_screen_passed,
+            calibration: "not_measured",
             lowered_program_identity: self.lowered.identity(),
         })
     }
@@ -466,14 +537,18 @@ impl CompiledBridgeTransportPremiseAssessment {
     /// # Errors
     /// Trial fitting or discrepancy construction refused.
     pub fn calibration_candidate(
-        &self, ctx: &ExecutionContext,
-    ) -> Result<BridgeTransportPremiseCalibrationCandidate, BridgeTransportPremiseAssessmentError> {
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<BridgeTransportPremiseCalibrationCandidate, BridgeTransportPremiseAssessmentError>
+    {
         let result = self.execute(ctx)?;
         let request = &self.request;
         let mut writer = CanonicalWriter::new(
             "antecedent.bridge_transport_premise_assessment.calibration_scope.v1",
         );
-        writer.text(&request.premise.id).text(&request.premise.statement)
+        writer
+            .text(&request.premise.id)
+            .text(&request.premise.statement)
             .text(&request.premise.established_in.population_id)
             .text(&request.premise.established_in.regime_id)
             .text(&request.premise.applies_to.population_id)
@@ -494,19 +569,34 @@ impl CompiledBridgeTransportPremiseAssessment {
             }
         }
         writer.word(request.surrogate_grid.len() as u64);
-        for &x in &request.surrogate_grid { writer.word(x.to_bits()); }
+        for &x in &request.surrogate_grid {
+            writer.word(x.to_bits());
+        }
         let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
         let functional = format!("trial_mapping_discrepancy_grid:scope={scope}");
         let basis = CalibrationBasis::new(
             [
-                "MechanismChange", "TrialLevelBridge", "fixed", "two_scope_trials",
-                "Frequentist", FEATURE, "bonferroni_normal_wald_95_grid", "ols_residual",
-                "independent_source_target_trials", "none", functional.as_str(),
-            ].map(Arc::from),
-            0.95, Arc::from("model_conditional"),
+                "MechanismChange",
+                "TrialLevelBridge",
+                "fixed",
+                "two_scope_trials",
+                "Frequentist",
+                FEATURE,
+                "bonferroni_normal_wald_95_grid",
+                "ols_residual",
+                "independent_source_target_trials",
+                "none",
+                functional.as_str(),
+            ]
+            .map(Arc::from),
+            0.95,
+            Arc::from("model_conditional"),
             (request.source.trials.len() + request.target.trials.len()) as u64,
-            None, None, 0.0,
-        ).with_validation("none");
+            None,
+            None,
+            0.0,
+        )
+        .with_validation("none");
         Ok(BridgeTransportPremiseCalibrationCandidate { result, basis })
     }
 
@@ -515,14 +605,18 @@ impl CompiledBridgeTransportPremiseAssessment {
     /// # Errors
     /// Changed result or oversized artifact.
     pub fn export(
-        &self, result: &BridgeTransportPremiseAssessmentResult, ctx: &ExecutionContext,
+        &self,
+        result: &BridgeTransportPremiseAssessmentResult,
+        ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, BridgeTransportPremiseAssessmentError> {
         let live = self.execute(ctx)?;
         if fingerprint(result) != fingerprint(&live) {
             return Err(invalid("bridge premise assessment changed on replay"));
         }
         let bytes = antecedent_io::to_cbor(&AssessmentArtifactWire {
-            version: 1, required_feature: FEATURE.into(), input: self.input.clone(),
+            version: 1,
+            required_feature: FEATURE.into(),
+            input: self.input.clone(),
             program_identity: *self.lowered.identity().as_bytes(),
             result_fingerprint: fingerprint(&live),
         })?;
@@ -539,19 +633,27 @@ impl CompiledBridgeTransportPremiseAssessment {
 /// # Errors
 /// Foreign feature, changed premise, trial data, fit or result.
 pub fn consume_bridge_transport_premise_assessment(
-    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<BridgeTransportPremiseAssessmentResult, BridgeTransportPremiseAssessmentError> {
     Ok(recompile_bridge_transport_premise_assessment(bytes, expected_program, ctx)?.1)
 }
 
 pub(crate) fn recompile_bridge_transport_premise_assessment(
-    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
-) -> Result<(CompiledBridgeTransportPremiseAssessment, BridgeTransportPremiseAssessmentResult), BridgeTransportPremiseAssessmentError> {
+    bytes: &[u8],
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
+) -> Result<
+    (CompiledBridgeTransportPremiseAssessment, BridgeTransportPremiseAssessmentResult),
+    BridgeTransportPremiseAssessmentError,
+> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
         return Err(invalid("bridge premise artifact exceeds its byte bound"));
     }
     let wire: AssessmentArtifactWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != FEATURE
+    if wire.version != 1
+        || wire.required_feature != FEATURE
         || wire.program_identity != *expected_program.as_bytes()
     {
         return Err(invalid("bridge premise feature or program identity differs"));
@@ -575,33 +677,42 @@ mod tests {
     #[ignore = "source-only premise assessment; simultaneous coverage is not earned"]
     fn independent_target_trials_replay_the_bridge_discrepancy() {
         let trials = |target: bool| TrialLevelValidation {
-            trials: (0..20).map(|i| {
-                let x = -1.0 + 2.0 * i as f64 / 19.0;
-                let shift = if target { 0.05 } else { 0.0 };
-                TrialEffectPair {
-                    surrogate_effect: x,
-                    terminal_effect: 0.3 + 2.0 * x + shift
-                        + (if i % 2 == 0 { 0.01 } else { -0.01 }),
-                }
-            }).collect(),
-            min_trials: 3, min_r_squared: 0.0,
+            trials: (0..20)
+                .map(|i| {
+                    let x = -1.0 + 2.0 * i as f64 / 19.0;
+                    let shift = if target { 0.05 } else { 0.0 };
+                    TrialEffectPair {
+                        surrogate_effect: x,
+                        terminal_effect: 0.3
+                            + 2.0 * x
+                            + shift
+                            + (if i % 2 == 0 { 0.01 } else { -0.01 }),
+                    }
+                })
+                .collect(),
+            min_trials: 3,
+            min_r_squared: 0.0,
         };
         let request = BridgeTransportPremiseAssessmentRequest {
             premise: TransportabilityPremise {
                 id: "surrogate-line-invariant".into(),
                 statement: "the trial-level surrogate relation transfers".into(),
                 established_in: BridgeScope {
-                    population_id: "source".into(), regime_id: "trial".into(),
+                    population_id: "source".into(),
+                    regime_id: "trial".into(),
                 },
                 applies_to: BridgeScope {
-                    population_id: "target".into(), regime_id: "trial".into(),
+                    population_id: "target".into(),
+                    regime_id: "trial".into(),
                 },
                 evidence: Some("independent-target-validation".into()),
             },
-            source: trials(false), target: trials(true),
+            source: trials(false),
+            target: trials(true),
             source_trial_ids: (0..20).map(|i| format!("source-trial-{i}")).collect(),
             target_trial_ids: (0..20).map(|i| format!("target-trial-{i}")).collect(),
-            surrogate_grid: vec![-0.8, 0.0, 0.8], equivalence_margin: 0.2,
+            surrogate_grid: vec![-0.8, 0.0, 0.8],
+            equivalence_margin: 0.2,
         };
         let ctx = ExecutionContext::for_tests(73);
         let plan = compile_bridge_transport_premise_assessment(request).unwrap();
@@ -611,8 +722,11 @@ mod tests {
         assert_eq!(result.calibration, "not_measured");
         let bytes = plan.export(&result, &ctx).unwrap();
         let replay = consume_bridge_transport_premise_assessment(
-            &bytes, result.lowered_program_identity, &ctx,
-        ).unwrap();
+            &bytes,
+            result.lowered_program_identity,
+            &ctx,
+        )
+        .unwrap();
         assert_eq!(replay, result);
     }
 }
@@ -629,10 +743,15 @@ impl CompiledBridgeTransportPremiseAssessment {
     /// Draw from the joint target-line posterior, retaining a common variance
     /// scale for both coefficients. The target design is conditioned on.
     /// Number of independently declared target validation trials.
-    pub(crate) fn target_trial_count(&self) -> usize { self.request.target.trials.len() }
+    pub(crate) fn target_trial_count(&self) -> usize {
+        self.request.target.trials.len()
+    }
 
     pub(crate) fn target_line_posterior(
-        &self, count: usize, seed: u64, ctx: &ExecutionContext,
+        &self,
+        count: usize,
+        seed: u64,
+        ctx: &ExecutionContext,
     ) -> Result<Vec<TargetLinePosteriorDraw>, BridgeTransportPremiseAssessmentError> {
         let trials = &self.request.target.trials;
         if count == 0 || count > 1_000_000 || trials.len() < 3 {
@@ -643,7 +762,10 @@ impl CompiledBridgeTransportPremiseAssessment {
         let n = trials.len() as f64;
         let xbar = trials.iter().map(|p| p.surrogate_effect).sum::<f64>() / n;
         let sxx = trials.iter().map(|p| (p.surrogate_effect - xbar).powi(2)).sum::<f64>();
-        let rss = trials.iter().map(|p| (p.terminal_effect - fit.intercept - fit.slope * p.surrogate_effect).powi(2)).sum::<f64>();
+        let rss = trials
+            .iter()
+            .map(|p| (p.terminal_effect - fit.intercept - fit.slope * p.surrogate_effect).powi(2))
+            .sum::<f64>();
         if !sxx.is_finite() || sxx <= 0.0 || !rss.is_finite() || rss <= 0.0 {
             return Err(invalid("target reference-prior line posterior is improper or singular"));
         }
@@ -652,13 +774,18 @@ impl CompiledBridgeTransportPremiseAssessment {
         let mut rng = antecedent_core::CausalRng::from_seed(seed);
         let mut result = Vec::with_capacity(count);
         for _ in 0..count {
-            if ctx.cancellation.is_cancelled() { return Err(invalid("target posterior sampling cancelled")); }
+            if ctx.cancellation.is_cancelled() {
+                return Err(invalid("target posterior sampling cancelled"));
+            }
             let chi2 = antecedent_kernels::sample_gamma(df / 2.0, 0.5, &mut rng);
             let scale = (df / chi2).sqrt();
-            let slope = fit.slope + scale * (variance / sxx).sqrt() * antecedent_kernels::standard_normal(&mut rng);
+            let slope = fit.slope
+                + scale * (variance / sxx).sqrt() * antecedent_kernels::standard_normal(&mut rng);
             let intercept = fit.intercept - (slope - fit.slope) * xbar
                 + scale * (variance / n).sqrt() * antecedent_kernels::standard_normal(&mut rng);
-            if !slope.is_finite() || !intercept.is_finite() { return Err(invalid("target posterior draw is nonfinite")); }
+            if !slope.is_finite() || !intercept.is_finite() {
+                return Err(invalid("target posterior draw is nonfinite"));
+            }
             result.push(TargetLinePosteriorDraw { intercept, slope });
         }
         Ok(result)

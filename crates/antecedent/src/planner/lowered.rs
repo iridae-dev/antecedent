@@ -952,10 +952,16 @@ impl StandaloneCompositionLoweredParts {
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
         LoweredProgram {
-            cell, depth, scientific: self.scientific,
+            cell,
+            depth,
+            scientific: self.scientific,
             identification: self.identification,
-            statistical: Arc::new(self.statistical), evidence: self.evidence,
-            physical: self.physical, claim: self.claim, identity, binding: None,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
         }
     }
 }
@@ -1291,32 +1297,70 @@ impl ProgramCell {
             Self::BundleRecomputation => "BundleRecomputation",
             Self::BridgeBundleRecomputation => "BridgeBundleRecomputation",
             Self::CyclicPosteriorBundleRecomputation => "CyclicPosteriorBundleRecomputation",
-            Self::CyclicPosteriorNodeBundleRecomputation => "CyclicPosteriorNodeBundleRecomputation",
+            Self::CyclicPosteriorNodeBundleRecomputation => {
+                "CyclicPosteriorNodeBundleRecomputation"
+            }
             Self::TrialIpwNodeBundleRecomputation => "TrialIpwNodeBundleRecomputation",
-            Self::GraphImputationTransportNodeBundleRecomputation => "GraphImputationTransportNodeBundleRecomputation",
-            Self::JointTransportEffectNodeBundleRecomputation => "JointTransportEffectNodeBundleRecomputation",
-            Self::JointTransportPredictiveNodeDecisionBundleRecomputation => "JointTransportPredictiveNodeDecisionBundleRecomputation",
-            Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => "TrialIpwPredictiveNodeDecisionBundleRecomputation",
-            Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => "CyclicTargetFeedbackNodeDecisionBundleRecomputation",
-            Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => "GraphImputationPredictiveNodeDecisionBundleRecomputation",
-            Self::AssessedBridgePosteriorNodeDecisionBundleRecomputation => "AssessedBridgePosteriorNodeDecisionBundleRecomputation",
-            Self::SequentialPolicyReliabilityNodeBundleRecomputation => "SequentialPolicyReliabilityNodeBundleRecomputation",
+            Self::GraphImputationTransportNodeBundleRecomputation => {
+                "GraphImputationTransportNodeBundleRecomputation"
+            }
+            Self::JointTransportEffectNodeBundleRecomputation => {
+                "JointTransportEffectNodeBundleRecomputation"
+            }
+            Self::JointTransportPredictiveNodeDecisionBundleRecomputation => {
+                "JointTransportPredictiveNodeDecisionBundleRecomputation"
+            }
+            Self::TrialIpwPredictiveNodeDecisionBundleRecomputation => {
+                "TrialIpwPredictiveNodeDecisionBundleRecomputation"
+            }
+            Self::CyclicTargetFeedbackNodeDecisionBundleRecomputation => {
+                "CyclicTargetFeedbackNodeDecisionBundleRecomputation"
+            }
+            Self::GraphImputationPredictiveNodeDecisionBundleRecomputation => {
+                "GraphImputationPredictiveNodeDecisionBundleRecomputation"
+            }
+            Self::AssessedBridgePosteriorNodeDecisionBundleRecomputation => {
+                "AssessedBridgePosteriorNodeDecisionBundleRecomputation"
+            }
+            Self::SequentialPolicyReliabilityNodeBundleRecomputation => {
+                "SequentialPolicyReliabilityNodeBundleRecomputation"
+            }
             Self::JointComponentPosteriorDecision => "JointComponentPosteriorDecision",
             Self::BoundedComponentPosteriorDecision => "BoundedComponentPosteriorDecision",
             Self::PosteriorDecisionBundleRecomputation => "PosteriorDecisionBundleRecomputation",
             Self::GraphImputation => "GraphImputation",
             Self::GraphImputationEffectDecision => "GraphImputationEffectDecision",
-            Self::GraphImputationBernoulliPredictiveWorldDecision => "GraphImputationBernoulliPredictiveWorldDecision",
-            Self::GraphImputationGaussianTargetPredictiveWorldDecision => "GraphImputationGaussianTargetPredictiveWorldDecision",
-            Self::GraphImputationBernoulliPredictiveClusterBootstrapDecision => "GraphImputationBernoulliPredictiveClusterBootstrapDecision",
-            Self::GraphImputationGaussianPredictiveClusterBootstrapDecision => "GraphImputationGaussianPredictiveClusterBootstrapDecision",
+            Self::GraphImputationBernoulliPredictiveWorldDecision => {
+                "GraphImputationBernoulliPredictiveWorldDecision"
+            }
+            Self::GraphImputationGaussianTargetPredictiveWorldDecision => {
+                "GraphImputationGaussianTargetPredictiveWorldDecision"
+            }
+            Self::GraphImputationBernoulliPredictiveClusterBootstrapDecision => {
+                "GraphImputationBernoulliPredictiveClusterBootstrapDecision"
+            }
+            Self::GraphImputationGaussianPredictiveClusterBootstrapDecision => {
+                "GraphImputationGaussianPredictiveClusterBootstrapDecision"
+            }
             Self::GraphImputationTransportDecision => "GraphImputationTransportDecision",
-            Self::GraphImputationTransportClusterBootstrapDecision => "GraphImputationTransportClusterBootstrapDecision",
-            Self::GraphImputationConfoundedTransportDecision => "GraphImputationConfoundedTransportDecision",
-            Self::GraphImputationConfoundedTransportClusterBootstrapDecision => "GraphImputationConfoundedTransportClusterBootstrapDecision",
-            Self::GraphImputationKernelTransportDecision => "GraphImputationKernelTransportDecision",
-            Self::GraphImputationKernelTransportClusterBootstrapDecision => "GraphImputationKernelTransportClusterBootstrapDecision",
-            Self::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => "GraphImputationConfoundedKernelTransportClusterBootstrapDecision",
+            Self::GraphImputationTransportClusterBootstrapDecision => {
+                "GraphImputationTransportClusterBootstrapDecision"
+            }
+            Self::GraphImputationConfoundedTransportDecision => {
+                "GraphImputationConfoundedTransportDecision"
+            }
+            Self::GraphImputationConfoundedTransportClusterBootstrapDecision => {
+                "GraphImputationConfoundedTransportClusterBootstrapDecision"
+            }
+            Self::GraphImputationKernelTransportDecision => {
+                "GraphImputationKernelTransportDecision"
+            }
+            Self::GraphImputationKernelTransportClusterBootstrapDecision => {
+                "GraphImputationKernelTransportClusterBootstrapDecision"
+            }
+            Self::GraphImputationConfoundedKernelTransportClusterBootstrapDecision => {
+                "GraphImputationConfoundedKernelTransportClusterBootstrapDecision"
+            }
             Self::GraphImputationMarTransportDecision => "GraphImputationMarTransportDecision",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
             Self::MnarFixedShift => "MnarFixedShift",

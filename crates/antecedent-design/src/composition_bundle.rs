@@ -196,8 +196,12 @@ impl BundleStage {
             Self::ExpectedIdentityMismatch => {
                 antecedent_core::reason_details::composition_bundle::EXPECTED_IDENTITY_MISMATCH
             }
-            Self::ExecutionCancelled => antecedent_core::reason_details::composition_bundle::EXECUTION_CANCELLED,
-            Self::ResourceRefused => antecedent_core::reason_details::composition_bundle::RESOURCE_REFUSED,
+            Self::ExecutionCancelled => {
+                antecedent_core::reason_details::composition_bundle::EXECUTION_CANCELLED
+            }
+            Self::ResourceRefused => {
+                antecedent_core::reason_details::composition_bundle::RESOURCE_REFUSED
+            }
         }
     }
 
@@ -526,10 +530,11 @@ impl CompositionBundle {
         limits: &BundleLimits,
     ) -> Result<Self, BundleError> {
         let decoded = decode(bytes, limits)?;
-        let dependencies: Vec<_> = decoded.edges.iter()
-            .map(|edge| (edge.from.clone(), edge.to.clone())).collect();
+        let dependencies: Vec<_> =
+            decoded.edges.iter().map(|edge| (edge.from.clone(), edge.to.clone())).collect();
         let bundle = Self::new(decoded.nodes, &dependencies, limits)?;
-        if bundle.edges != decoded.edges || bundle.identity != decoded.stored_identity
+        if bundle.edges != decoded.edges
+            || bundle.identity != decoded.stored_identity
             || bundle.identity != expected_identity
         {
             return Err(refused(

@@ -131,14 +131,20 @@ impl NodeKind {
     pub const fn stage(self) -> CompositionStage {
         match self {
             Self::CausalContract => CompositionStage::CausalContract,
-            Self::ExecutionOrFit | Self::CyclicPosteriorFit | Self::TrialIpwTransportFit
-            | Self::GraphImputationTransportFit | Self::JointTransportEffectFit
-            | Self::JointTransportPredictiveFit | Self::TrialIpwPredictiveFit
-            | Self::CyclicTargetFeedbackFit | Self::GraphImputationPredictiveFit | Self::AssessedBridgePosteriorFit
-            | Self::SequentialPolicyReliabilityFit | Self::SequentialDecisionDraws
-            | Self::Distribution | Self::FrozenScores => {
-                CompositionStage::DistributionArtifact
-            }
+            Self::ExecutionOrFit
+            | Self::CyclicPosteriorFit
+            | Self::TrialIpwTransportFit
+            | Self::GraphImputationTransportFit
+            | Self::JointTransportEffectFit
+            | Self::JointTransportPredictiveFit
+            | Self::TrialIpwPredictiveFit
+            | Self::CyclicTargetFeedbackFit
+            | Self::GraphImputationPredictiveFit
+            | Self::AssessedBridgePosteriorFit
+            | Self::SequentialPolicyReliabilityFit
+            | Self::SequentialDecisionDraws
+            | Self::Distribution
+            | Self::FrozenScores => CompositionStage::DistributionArtifact,
             Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,
             Self::EvidenceRelationship
             | Self::QuantityCoordinates
@@ -147,7 +153,9 @@ impl NodeKind {
             | Self::RecalculationReceipt => CompositionStage::Evidence,
             Self::Transformation | Self::Rollout => CompositionStage::Transformation,
             Self::DecisionContract => CompositionStage::DecisionContract,
-            Self::SequentialReliabilityDiagnostic | Self::PredictiveChainDecision | Self::DecisionResult
+            Self::SequentialReliabilityDiagnostic
+            | Self::PredictiveChainDecision
+            | Self::DecisionResult
             | Self::InverseQuery
             | Self::ObservationQuery
             | Self::ScientificBridge

@@ -69,7 +69,10 @@ pub(crate) fn delta_standard_error(
 /// Differentiate the *paired contrast* on one table stack. Subtracting two
 /// separately reported variances would discard the covariance of the two
 /// worlds, even when they cite the same sampled units.
-#[allow(clippy::too_many_arguments, reason = "both derivations share one evidence and work schedule")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "both derivations share one evidence and work schedule"
+)]
 pub(crate) fn delta_contrast_standard_error(
     active: &CounterfactualTransportDerivation,
     baseline: &CounterfactualTransportDerivation,
@@ -80,7 +83,16 @@ pub(crate) fn delta_contrast_standard_error(
     ctx: &ExecutionContext,
     work: &mut SampledWork<'_>,
 ) -> Result<DeltaOutcome, EstimationError> {
-    delta_standard_error_of(active, Some(baseline), tables, probabilities, groups, limits, ctx, work)
+    delta_standard_error_of(
+        active,
+        Some(baseline),
+        tables,
+        probabilities,
+        groups,
+        limits,
+        ctx,
+        work,
+    )
 }
 
 #[allow(
@@ -186,9 +198,7 @@ fn delta_standard_error_of(
                     Err(other) => return Err(other),
                 };
                 let baseline_value = if let Some(baseline) = baseline {
-                    match evaluate_detailed(
-                        baseline, tables, &trial, &flavors, limits, ctx, work,
-                    ) {
+                    match evaluate_detailed(baseline, tables, &trial, &flavors, limits, ctx, work) {
                         Ok((v, _)) => v.probability,
                         Err(EstimationError::Refused { code, .. })
                             if code != antecedent_core::reason_code!("transport_budget_cancel") =>

@@ -125,11 +125,18 @@ impl Realization {
                 writer.text("declared_predictive").text(evaluator);
             }
             Self::NestedFit { producer_program, method, law } => {
-                writer.text("nested_fit").bytes(producer_program.as_bytes()).text(method)
-                    .text(match law { NestedFitLaw::Posterior => "posterior", NestedFitLaw::Predictive => "predictive" });
+                writer.text("nested_fit").bytes(producer_program.as_bytes()).text(method).text(
+                    match law {
+                        NestedFitLaw::Posterior => "posterior",
+                        NestedFitLaw::Predictive => "predictive",
+                    },
+                );
             }
             Self::DeclaredAssumptionEnvelope { evaluator, draw_meaning } => {
-                writer.text("declared_assumption_envelope").text(evaluator).word(draw_meaning.tag());
+                writer
+                    .text("declared_assumption_envelope")
+                    .text(evaluator)
+                    .word(draw_meaning.tag());
             }
         }
     }

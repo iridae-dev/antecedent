@@ -1298,8 +1298,7 @@ fn finish_plan(
     };
     if decl.sources.iter().any(|source| {
         matches!(source.meaning, Some(LawMeaning::Predictive | LawMeaning::Innovation))
-    })
-        && decl.reading != ChainReading::Predictive
+    }) && decl.reading != ChainReading::Predictive
     {
         return Err(refuse(
             MEANING_CODE,

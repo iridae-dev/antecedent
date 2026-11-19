@@ -89,10 +89,13 @@ fn assumption_envelope_is_a_distinct_compiled_carrier() {
             ChainSourceWire::interval("bias", 0.0, 1.0),
         ],
         vec![ChainStageWire::new(
-            "answer", StageKind::DerivedQuantity, &["estimate", "bias"],
+            "answer",
+            StageKind::DerivedQuantity,
+            &["estimate", "bias"],
             ChainOpWire::binary("sum"),
         )],
-    ).with_output_quantity(antecedent_io::quantity_wire::ScientificQuantityWire {
+    )
+    .with_output_quantity(antecedent_io::quantity_wire::ScientificQuantityWire {
         version: 1,
         variable_id: "study.estimate_plus_bias".into(),
         variable_name: "Estimate plus bias".into(),
@@ -107,8 +110,10 @@ fn assumption_envelope_is_a_distinct_compiled_carrier() {
     });
     let plan = compile_propagation_chain(draft, &ctx()).expect("compiles");
     assert_eq!(plan.lowered().claim().uncertainty(), UncertaintyReading::AssumptionEnvelope);
-    assert!(matches!(plan.lowered().statistical().realization(),
-        Realization::DeclaredAssumptionEnvelope { draw_meaning: LawMeaning::Sampling, .. }));
+    assert!(matches!(
+        plan.lowered().statistical().realization(),
+        Realization::DeclaredAssumptionEnvelope { draw_meaning: LawMeaning::Sampling, .. }
+    ));
     let chain = plan.execute(&ctx()).expect("executes retained program");
     assert_eq!(chain.lowered_program_identity(), plan.identity());
     assert_eq!(chain.record().output_lower_bounds.as_ref().map(Vec::len), Some(3));
@@ -124,11 +129,17 @@ fn assumption_envelope_reference_decision_uses_compiled_set_carrier() {
             ChainSourceWire::draws("estimate", LawMeaning::Posterior, "table", &[1.0, 2.0]),
             ChainSourceWire::interval("assumption", 0.0, 1.0),
         ],
-        vec![ChainStageWire::new(
-            "utility", StageKind::DecisionUtility, &["estimate", "assumption"],
-            ChainOpWire::binary("sum"),
-        ).with_decision_reference(2.0)],
-    ).with_output_quantity(antecedent_io::quantity_wire::ScientificQuantityWire {
+        vec![
+            ChainStageWire::new(
+                "utility",
+                StageKind::DecisionUtility,
+                &["estimate", "assumption"],
+                ChainOpWire::binary("sum"),
+            )
+            .with_decision_reference(2.0),
+        ],
+    )
+    .with_output_quantity(antecedent_io::quantity_wire::ScientificQuantityWire {
         version: 1,
         variable_id: "study.utility".into(),
         variable_name: "Utility".into(),
@@ -292,8 +303,18 @@ fn predictive_law_is_lowered_before_its_output_draws_are_published() {
         ChainReading::Predictive,
         "utility",
         vec![
-            ChainSourceWire::draws("theta", LawMeaning::Posterior, "predictive-table", &[1.0, 2.0, 3.0]),
-            ChainSourceWire::draws("epsilon", LawMeaning::Innovation, "predictive-table", &[0.5, -0.5, 0.5]),
+            ChainSourceWire::draws(
+                "theta",
+                LawMeaning::Posterior,
+                "predictive-table",
+                &[1.0, 2.0, 3.0],
+            ),
+            ChainSourceWire::draws(
+                "epsilon",
+                LawMeaning::Innovation,
+                "predictive-table",
+                &[0.5, -0.5, 0.5],
+            ),
         ],
         vec![
             ChainStageWire::new(
@@ -326,17 +347,24 @@ fn predictive_law_is_lowered_before_its_output_draws_are_published() {
     });
     let plan = compile_propagation_chain(draft, &ctx()).expect("compiles");
     assert_eq!(plan.lowered().claim().uncertainty(), UncertaintyReading::Predictive);
-    assert!(matches!(plan.lowered().statistical().realization(), Realization::DeclaredPredictive { .. }));
+    assert!(matches!(
+        plan.lowered().statistical().realization(),
+        Realization::DeclaredPredictive { .. }
+    ));
     let terminal = plan.lowered().evidence().decision().expect("compiled terminal comparison");
     assert_eq!(terminal.actions(), 2);
     assert_eq!(terminal.carrier(), crate::planner::lowered::CarrierDemand::Mean);
     assert_eq!(terminal.utility_unit(), Some("utility_points"));
     let chain = plan.execute(&ctx()).expect("executes retained program");
     assert_eq!(chain.lowered_program_identity(), plan.identity());
-    assert_eq!(chain.record().version, antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_LAW_VERSION);
+    assert_eq!(
+        chain.record().version,
+        antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_LAW_VERSION
+    );
     assert_eq!(chain.record().output_draws.as_ref().map(Vec::len), Some(3));
-    let consumed = consume_propagation_chain(&chain.export().expect("export"), Some(chain.identity()), &ctx())
-        .expect("replay");
+    let consumed =
+        consume_propagation_chain(&chain.export().expect("export"), Some(chain.identity()), &ctx())
+            .expect("replay");
     assert_eq!(consumed.output_draws, chain.record().output_draws);
     let mut different_quantity = chain.record().clone();
     different_quantity.output_quantity.as_mut().expect("quantity").units = "thousands".into();

@@ -13,8 +13,7 @@ use antecedent::analysis::composition::{
     mean_source_of,
 };
 use antecedent::analysis::composition_decision_terminal::{
-    compile_decision_bundle_recomputation,
-    consume_portable_decision_bundle_recomputation,
+    compile_decision_bundle_recomputation, consume_portable_decision_bundle_recomputation,
 };
 use antecedent_contract::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
@@ -261,16 +260,20 @@ fn live_decision_terminal_replays_from_an_embedded_bundle() {
     let native = native();
     let bundle = native_builder(&native, false).build().unwrap();
     let ctx = ExecutionContext::for_tests(77);
-    let plan = compile_decision_bundle_recomputation(
-        bundle.clone(), "result", contract(), source(),
-    ).unwrap();
+    let plan =
+        compile_decision_bundle_recomputation(bundle.clone(), "result", contract(), source())
+            .unwrap();
     let receipt = plan.execute(&ctx).unwrap();
     assert_eq!(receipt.dependencies.len(), 3);
     assert!(!receipt.decision_fingerprint.is_empty());
     let bytes = plan.export_portable(&receipt, &ctx).unwrap();
     let replay = consume_portable_decision_bundle_recomputation(
-        &bytes, bundle.identity(), plan.lowered().identity(), &ctx,
-    ).unwrap();
+        &bytes,
+        bundle.identity(),
+        plan.lowered().identity(),
+        &ctx,
+    )
+    .unwrap();
     assert_eq!(replay, receipt);
 }
 

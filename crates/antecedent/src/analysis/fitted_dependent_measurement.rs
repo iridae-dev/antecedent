@@ -14,22 +14,21 @@ use antecedent_core::{
     ByteEstimates, CanonicalWriter, CausalRng, ExecutionContext, LikelihoodModel,
     OrdinaryBayesianLikelihood, PhysicalEffect, PhysicalOperator, Prior, SemanticDigest,
 };
-use antecedent_kernels::{quantile_type7_sorted, sample_gamma};
 use antecedent_io::IoError;
 use antecedent_io::calibration::{
     CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
 };
 use antecedent_io::contract_section::CalibrationSlotWire;
+use antecedent_kernels::{quantile_type7_sorted, sample_gamma};
 use serde::{Deserialize, Serialize};
 
+use super::PreparedMechanismComposition;
 use super::observation_query::{
     DependentMeasuredObservationRequest, JointMeasuredObservationPlan, ObservationQueryRefusal,
 };
-use super::PreparedMechanismComposition;
 use crate::planner::lowered::{
-    ClaimDemand, Composition, EvidenceRole, EvidenceSourceRef, FunctionalKind,
-    LoweredProgram, ProblemTarget, ProgramCell, StandaloneCompositionLoweredParts,
-    UncertaintyReading,
+    ClaimDemand, Composition, EvidenceRole, EvidenceSourceRef, FunctionalKind, LoweredProgram,
+    ProblemTarget, ProgramCell, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{
     ModelRole, ModelSlot, PosteriorAlgorithm, PosteriorPlan, Realization,
@@ -97,17 +96,26 @@ impl FittedDependentMeasurementReport {
     /// # Errors
     /// An unknown outcome level, malformed draw table or invalid level.
     pub fn nominal_interval(
-        &self, outcome_level: &str, level: f64,
+        &self,
+        outcome_level: &str,
+        level: f64,
     ) -> Result<FittedDependentMeasurementInterval, FittedDependentMeasurementError> {
         if !level.is_finite() || !(0.0..1.0).contains(&level) {
-            return Err(FittedDependentMeasurementError::Invalid("nominal interval level is invalid"));
+            return Err(FittedDependentMeasurementError::Invalid(
+                "nominal interval level is invalid",
+            ));
         }
-        let position = self.levels.iter().position(|name| name == outcome_level)
+        let position = self
+            .levels
+            .iter()
+            .position(|name| name == outcome_level)
             .ok_or(FittedDependentMeasurementError::Invalid("outcome level is unknown"))?;
         if self.posterior_draws.len() < 2
             || self.posterior_draws.iter().any(|row| row.len() != self.levels.len())
         {
-            return Err(FittedDependentMeasurementError::Invalid("posterior draw table is malformed"));
+            return Err(FittedDependentMeasurementError::Invalid(
+                "posterior draw table is malformed",
+            ));
         }
         let mut column: Vec<f64> = self.posterior_draws.iter().map(|row| row[position]).collect();
         column.sort_by(f64::total_cmp);
@@ -115,11 +123,16 @@ impl FittedDependentMeasurementReport {
         let lower = quantile_type7_sorted(&column, tail);
         let upper = quantile_type7_sorted(&column, 1.0 - tail);
         if !lower.is_finite() || !upper.is_finite() {
-            return Err(FittedDependentMeasurementError::Invalid("posterior quantile is nonfinite"));
+            return Err(FittedDependentMeasurementError::Invalid(
+                "posterior quantile is nonfinite",
+            ));
         }
         Ok(FittedDependentMeasurementInterval {
-            outcome_level: outcome_level.into(), nominal_level: level,
-            lower, upper, calibration: "not_measured".into(),
+            outcome_level: outcome_level.into(),
+            nominal_level: level,
+            lower,
+            upper,
+            calibration: "not_measured".into(),
         })
     }
 }
@@ -164,18 +177,26 @@ impl PreparedMechanismComposition {
     /// # Errors
     /// A malformed table, unsupported prior or observation-query refusal.
     pub fn compile_fitted_dependent_measurement(
-        &self, request: FittedDependentMeasurementRequest,
+        &self,
+        request: FittedDependentMeasurementRequest,
     ) -> Result<CompiledFittedDependentMeasurement, FittedDependentMeasurementError> {
         let law = &request.observation.error_law;
-        let cells = law.indicator_levels.iter().try_fold(1_usize, |product, levels| {
-            product.checked_mul(levels.len())
-        }).ok_or(FittedDependentMeasurementError::Invalid("indicator table size overflows"))?;
-        let expected = cells.checked_mul(law.construct_levels.len())
+        let cells = law
+            .indicator_levels
+            .iter()
+            .try_fold(1_usize, |product, levels| product.checked_mul(levels.len()))
+            .ok_or(FittedDependentMeasurementError::Invalid("indicator table size overflows"))?;
+        let expected = cells
+            .checked_mul(law.construct_levels.len())
             .ok_or(FittedDependentMeasurementError::Invalid("joint table size overflows"))?;
-        if cells == 0 || law.construct_levels.is_empty() || expected == 0
-            || expected > 4096 || request.counts.len() != expected
+        if cells == 0
+            || law.construct_levels.is_empty()
+            || expected == 0
+            || expected > 4096
+            || request.counts.len() != expected
             || request.counts.iter().any(|count| *count > 1_000_000_000)
-            || !request.prior_alpha.is_finite() || !(0.5..=1_000_000.0).contains(&request.prior_alpha)
+            || !request.prior_alpha.is_finite()
+            || !(0.5..=1_000_000.0).contains(&request.prior_alpha)
             || !(2..=2048).contains(&request.draws)
         {
             return Err(FittedDependentMeasurementError::Invalid(
@@ -183,33 +204,48 @@ impl PreparedMechanismComposition {
             ));
         }
         let mut plug_in_request = request.observation.clone();
-        plug_in_request.error_law.probability_bits = request.counts.chunks_exact(cells)
+        plug_in_request.error_law.probability_bits = request
+            .counts
+            .chunks_exact(cells)
             .flat_map(|row| {
-                let denominator: f64 = row.iter()
-                    .map(|count| *count as f64 + request.prior_alpha).sum();
-                row.iter().map(move |count| ((*count as f64 + request.prior_alpha) / denominator).to_bits())
-            }).collect();
+                let denominator: f64 =
+                    row.iter().map(|count| *count as f64 + request.prior_alpha).sum();
+                row.iter().map(move |count| {
+                    ((*count as f64 + request.prior_alpha) / denominator).to_bits()
+                })
+            })
+            .collect();
         let plug_in = self.compile_dependent_measured_observation(&plug_in_request)?;
-        let mut writer = CanonicalWriter::new("antecedent.fitted_dependent_measurement.question.v1");
-        writer.bytes(plug_in.lowered().identity().as_bytes())
-            .word(request.prior_alpha.to_bits()).word(request.draws as u64).word(request.seed)
+        let mut writer =
+            CanonicalWriter::new("antecedent.fitted_dependent_measurement.question.v1");
+        writer
+            .bytes(plug_in.lowered().identity().as_bytes())
+            .word(request.prior_alpha.to_bits())
+            .word(request.draws as u64)
+            .word(request.seed)
             .word(request.counts.len() as u64);
-        for count in &request.counts { writer.word(*count); }
+        for count in &request.counts {
+            writer.word(*count);
+        }
         let digest = writer.finish();
         let mut scientific = plug_in.lowered().scientific().clone();
         scientific.target = ProblemTarget::QueryFunctional {
-            kind: FunctionalKind::ConditionalObservation, outcome: None, query: digest,
+            kind: FunctionalKind::ConditionalObservation,
+            outcome: None,
+            query: digest,
         };
         scientific.plan_id = Arc::from("fitted_dependent_measurement.v1");
         scientific.source_digest = Some(digest);
         let mut statistical = plug_in.lowered().statistical().clone();
-        let prior = Prior::new(format!("symmetric_dirichlet_joint_error:{:016x}", request.prior_alpha.to_bits()))
-            .map_err(|_| FittedDependentMeasurementError::Invalid("invalid prior identity"))?;
+        let prior = Prior::new(format!(
+            "symmetric_dirichlet_joint_error:{:016x}",
+            request.prior_alpha.to_bits()
+        ))
+        .map_err(|_| FittedDependentMeasurementError::Invalid("invalid prior identity"))?;
         let likelihood = LikelihoodModel::new("labelled_joint_indicator_multinomial")
             .map_err(|_| FittedDependentMeasurementError::Invalid("invalid likelihood identity"))?;
-        statistical.realization = Realization::Bayesian(
-            OrdinaryBayesianLikelihood::new(likelihood, prior.clone()),
-        );
+        statistical.realization =
+            Realization::Bayesian(OrdinaryBayesianLikelihood::new(likelihood, prior.clone()));
         statistical.posterior = Some(PosteriorPlan {
             algorithm: PosteriorAlgorithm::Conjugate,
             draws: request.draws as usize,
@@ -217,36 +253,54 @@ impl PreparedMechanismComposition {
         });
         let mut models = statistical.models.to_vec();
         models.push(ModelSlot {
-            role: ModelRole::Mechanism, family: Arc::from("dependent_joint_error_dirichlet"),
-            inputs: Arc::from([]), output: None,
+            role: ModelRole::Mechanism,
+            family: Arc::from("dependent_joint_error_dirichlet"),
+            inputs: Arc::from([]),
+            output: None,
         });
         statistical.models = Arc::from(models);
         let mut evidence = plug_in.lowered().evidence().clone();
         let mut sources = evidence.sources.to_vec();
-        sources.push(EvidenceSourceRef {
-            role: EvidenceRole::Observations, digest: Some(digest),
-        });
+        sources.push(EvidenceSourceRef { role: EvidenceRole::Observations, digest: Some(digest) });
         evidence.sources = Arc::from(sources);
         evidence.composition = Composition::Chained { stages: 3 };
         let mut physical = plug_in.lowered().physical().clone();
         let mut operators = physical.operators.to_vec();
-        operators.insert(1, PhysicalOperator::declare(PhysicalEffect::Fit)
-            .estimates(ByteEstimates::absent().with_output(
-                (expected as u64).saturating_mul(request.draws as u64).saturating_mul(8),
-            )).build().map_err(|_| FittedDependentMeasurementError::Invalid(
-                "fitted table physical operator is invalid",
-            ))?);
+        operators.insert(
+            1,
+            PhysicalOperator::declare(PhysicalEffect::Fit)
+                .estimates(ByteEstimates::absent().with_output(
+                    (expected as u64).saturating_mul(request.draws as u64).saturating_mul(8),
+                ))
+                .build()
+                .map_err(|_| {
+                    FittedDependentMeasurementError::Invalid(
+                        "fitted table physical operator is invalid",
+                    )
+                })?,
+        );
         physical.operators = Arc::from(operators);
-        let lowered = Arc::new(StandaloneCompositionLoweredParts {
-            cell: ProgramCell::FittedDependentMeasuredObservation,
-            scientific,
-            identification: plug_in.lowered().identification_layer().clone(),
-            statistical, evidence, physical,
-            claim: ClaimDemand { uncertainty: UncertaintyReading::Posterior,
-                kind: Some(ClaimKind::Point) },
-        }.finish());
+        let lowered = Arc::new(
+            StandaloneCompositionLoweredParts {
+                cell: ProgramCell::FittedDependentMeasuredObservation,
+                scientific,
+                identification: plug_in.lowered().identification_layer().clone(),
+                statistical,
+                evidence,
+                physical,
+                claim: ClaimDemand {
+                    uncertainty: UncertaintyReading::Posterior,
+                    kind: Some(ClaimKind::Point),
+                },
+            }
+            .finish(),
+        );
         Ok(CompiledFittedDependentMeasurement {
-            composition: self.clone(), request, plug_in, lowered, cells,
+            composition: self.clone(),
+            request,
+            plug_in,
+            lowered,
+            cells,
         })
     }
 }
@@ -254,7 +308,9 @@ impl PreparedMechanismComposition {
 impl CompiledFittedDependentMeasurement {
     /// Every layer of the fitted measurement and observation program.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the retained program without drawing parameters.
     #[must_use]
@@ -270,51 +326,78 @@ impl CompiledFittedDependentMeasurement {
     /// # Errors
     /// The requested outcome level or nominal level is invalid.
     pub fn calibration_basis(
-        &self, outcome_level: &str, level: f64,
+        &self,
+        outcome_level: &str,
+        level: f64,
     ) -> Result<CalibrationBasisWire, FittedDependentMeasurementError> {
         if outcome_level.trim().is_empty() || !level.is_finite() || !(0.0..1.0).contains(&level) {
-            return Err(FittedDependentMeasurementError::Invalid("calibration outcome or level is invalid"));
+            return Err(FittedDependentMeasurementError::Invalid(
+                "calibration outcome or level is invalid",
+            ));
         }
         let observation = &self.request.observation;
         let law = &observation.error_law;
-        let mut writer = CanonicalWriter::new("antecedent.fitted_dependent_measurement.calibration_coordinate.v1");
-        writer.text(&self.composition.plan_identity_hex())
-            .text(&observation.outcome).text(outcome_level)
-            .text(&law.construct).text(&law.population_id)
-            .text(&law.regime_id).text(&law.evidence_id);
+        let mut writer = CanonicalWriter::new(
+            "antecedent.fitted_dependent_measurement.calibration_coordinate.v1",
+        );
+        writer
+            .text(&self.composition.plan_identity_hex())
+            .text(&observation.outcome)
+            .text(outcome_level)
+            .text(&law.construct)
+            .text(&law.population_id)
+            .text(&law.regime_id)
+            .text(&law.evidence_id);
         for (tag, cells) in [
             ("observed", &observation.observed),
             ("measured", &observation.measured),
             ("interventions", &observation.interventions),
         ] {
             writer.text(tag).word(cells.len() as u64);
-            for (variable, value) in cells { writer.text(variable).text(value); }
+            for (variable, value) in cells {
+                writer.text(variable).text(value);
+            }
         }
         writer.word(law.indicator_ids.len() as u64);
         for (indicator, levels) in law.indicator_ids.iter().zip(&law.indicator_levels) {
             writer.text(indicator).word(levels.len() as u64);
-            for value in levels { writer.text(value); }
+            for value in levels {
+                writer.text(value);
+            }
         }
         writer.word(law.construct_levels.len() as u64);
-        for value in &law.construct_levels { writer.text(value); }
-        let functional = format!("conditional_outcome_probability:{}", SemanticDigest::from_bytes(writer.finish()).to_hex());
+        for value in &law.construct_levels {
+            writer.text(value);
+        }
+        let functional = format!(
+            "conditional_outcome_probability:{}",
+            SemanticDigest::from_bytes(writer.finish()).to_hex()
+        );
         let row_count = self.request.counts.iter().sum::<u64>();
         Ok(CalibrationBasisWire {
             key: CalibrationKeyWire {
                 validation: "not_applicable".into(),
                 query: "conditional_outcome_probability_given_joint_measurement".into(),
                 graph_class: "declared_finite_mechanisms".into(),
-                structure: "fixed".into(), modality: "tabular".into(),
+                structure: "fixed".into(),
+                modality: "tabular".into(),
                 inference: "bayesian".into(),
                 estimator: "fitted_dependent_measurement_v1".into(),
                 interval_method: "fitted_joint_error_dirichlet_equal_tailed".into(),
                 se_kind: "posterior_draw_quantile".into(),
                 dependence: "joint_indicator_errors".into(),
-                posterior: format!("symmetric_dirichlet_rows_alpha_{:016x}", self.request.prior_alpha.to_bits()),
-                functional, level, identification: "model_conditional".into(),
+                posterior: format!(
+                    "symmetric_dirichlet_rows_alpha_{:016x}",
+                    self.request.prior_alpha.to_bits()
+                ),
+                functional,
+                level,
+                identification: "model_conditional".into(),
             },
             scope: CalibrationScopeWire {
-                row_count, replicates_ok: None, posterior_draws: Some(self.request.draws),
+                row_count,
+                replicates_ok: None,
+                posterior_draws: Some(self.request.draws),
                 unidentified_mass: 0.0,
             },
         })
@@ -327,11 +410,18 @@ impl CompiledFittedDependentMeasurement {
     /// # Errors
     /// The report came from another program, or the interval is invalid.
     pub fn nominal_interval_with_calibration(
-        &self, report: &FittedDependentMeasurementReport,
-        outcome_level: &str, level: f64,
-    ) -> Result<(FittedDependentMeasurementInterval, CalibrationSlotWire), FittedDependentMeasurementError> {
+        &self,
+        report: &FittedDependentMeasurementReport,
+        outcome_level: &str,
+        level: f64,
+    ) -> Result<
+        (FittedDependentMeasurementInterval, CalibrationSlotWire),
+        FittedDependentMeasurementError,
+    > {
         if report.alignment_identity != self.lowered.identity().to_hex() {
-            return Err(FittedDependentMeasurementError::Invalid("interval report came from another program"));
+            return Err(FittedDependentMeasurementError::Invalid(
+                "interval report came from another program",
+            ));
         }
         let mut interval = report.nominal_interval(outcome_level, level)?;
         let basis = self.calibration_basis(outcome_level, level)?;
@@ -346,7 +436,8 @@ impl CompiledFittedDependentMeasurement {
     /// # Errors
     /// Cancellation, invalid numerical draw or observation-query refusal.
     pub fn execute(
-        &self, ctx: &ExecutionContext,
+        &self,
+        ctx: &ExecutionContext,
     ) -> Result<FittedDependentMeasurementReport, FittedDependentMeasurementError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let point = self.plug_in.execute(&scoped)?;
@@ -364,22 +455,32 @@ impl CompiledFittedDependentMeasurement {
             let mut sampled = self.request.observation.clone();
             sampled.error_law.probability_bits.clear();
             for row in self.request.counts.chunks_exact(self.cells) {
-                let gamma: Vec<f64> = row.iter().map(|count| {
-                    sample_gamma(*count as f64 + self.request.prior_alpha, 1.0, &mut rng)
-                }).collect();
+                let gamma: Vec<f64> = row
+                    .iter()
+                    .map(|count| {
+                        sample_gamma(*count as f64 + self.request.prior_alpha, 1.0, &mut rng)
+                    })
+                    .collect();
                 let total: f64 = gamma.iter().sum();
-                if !total.is_finite() || total <= 0.0 || gamma.iter().any(|value| !value.is_finite()) {
-                    return Err(FittedDependentMeasurementError::Invalid("a posterior table draw is nonfinite"));
+                if !total.is_finite()
+                    || total <= 0.0
+                    || gamma.iter().any(|value| !value.is_finite())
+                {
+                    return Err(FittedDependentMeasurementError::Invalid(
+                        "a posterior table draw is nonfinite",
+                    ));
                 }
-                sampled.error_law.probability_bits.extend(
-                    gamma.into_iter().map(|value| (value / total).to_bits()),
-                );
+                sampled
+                    .error_law
+                    .probability_bits
+                    .extend(gamma.into_iter().map(|value| (value / total).to_bits()));
             }
             let plan = self.composition.compile_dependent_measured_observation(&sampled)?;
-            let outcome = plan.execute(&scoped)?.conditional_levels()
-                .ok_or(FittedDependentMeasurementError::Invalid(
+            let outcome = plan.execute(&scoped)?.conditional_levels().ok_or(
+                FittedDependentMeasurementError::Invalid(
                     "posterior measurement query did not return conditional levels",
-                ))?;
+                ),
+            )?;
             if outcome.iter().map(|(level, _)| level).ne(names.iter()) {
                 return Err(FittedDependentMeasurementError::Invalid(
                     "a posterior draw changed the outcome-level coordinate",
@@ -388,7 +489,9 @@ impl CompiledFittedDependentMeasurement {
             posterior_draws.push(outcome.into_iter().map(|(_, value)| value).collect());
         }
         Ok(FittedDependentMeasurementReport {
-            levels: names, plug_in, posterior_draws,
+            levels: names,
+            plug_in,
+            posterior_draws,
             alignment_identity: self.lowered.identity().to_hex(),
             calibration: "not_measured".into(),
         })
@@ -399,17 +502,25 @@ impl CompiledFittedDependentMeasurement {
     /// # Errors
     /// Changed report or artifact encoding refusal.
     pub fn export(
-        &self, report: &FittedDependentMeasurementReport, ctx: &ExecutionContext,
+        &self,
+        report: &FittedDependentMeasurementReport,
+        ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, FittedDependentMeasurementError> {
         if self.execute(ctx)? != *report {
-            return Err(FittedDependentMeasurementError::Invalid("fitted measurement report differs"));
+            return Err(FittedDependentMeasurementError::Invalid(
+                "fitted measurement report differs",
+            ));
         }
         let bytes = antecedent_io::to_cbor(&FittedDependentMeasurementWire {
-            version: 1, required_feature: FEATURE.into(),
-            program_identity: *self.lowered.identity().as_bytes(), report: report.clone(),
+            version: 1,
+            required_feature: FEATURE.into(),
+            program_identity: *self.lowered.identity().as_bytes(),
+            report: report.clone(),
         })?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
-            return Err(FittedDependentMeasurementError::Invalid("fitted measurement artifact exceeds its bound"));
+            return Err(FittedDependentMeasurementError::Invalid(
+                "fitted measurement artifact exceeds its bound",
+            ));
         }
         Ok(bytes)
     }
@@ -420,21 +531,31 @@ impl CompiledFittedDependentMeasurement {
     /// # Errors
     /// Foreign feature, changed program or changed posterior result.
     pub fn consume(
-        &self, bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+        &self,
+        bytes: &[u8],
+        expected_program: SemanticDigest,
+        ctx: &ExecutionContext,
     ) -> Result<FittedDependentMeasurementReport, FittedDependentMeasurementError> {
         if bytes.len() > MAX_ARTIFACT_BYTES {
-            return Err(FittedDependentMeasurementError::Invalid("fitted measurement artifact exceeds its bound"));
+            return Err(FittedDependentMeasurementError::Invalid(
+                "fitted measurement artifact exceeds its bound",
+            ));
         }
         let wire: FittedDependentMeasurementWire = antecedent_io::from_cbor(bytes)?;
-        if wire.version != 1 || wire.required_feature != FEATURE
+        if wire.version != 1
+            || wire.required_feature != FEATURE
             || wire.program_identity != *expected_program.as_bytes()
             || expected_program != self.lowered.identity()
         {
-            return Err(FittedDependentMeasurementError::Invalid("fitted measurement program differs"));
+            return Err(FittedDependentMeasurementError::Invalid(
+                "fitted measurement program differs",
+            ));
         }
         let live = self.execute(ctx)?;
         if wire.report != live {
-            return Err(FittedDependentMeasurementError::Invalid("fitted measurement posterior differs on replay"));
+            return Err(FittedDependentMeasurementError::Invalid(
+                "fitted measurement posterior differs on replay",
+            ));
         }
         Ok(live)
     }

@@ -79,10 +79,7 @@ pub(crate) fn lower(
             .build()
             .map_err(invalid)?,
     ];
-    if matches!(
-        operation,
-        "fit_and_forecast" | "refit_and_forecast" | "assess_forecasts"
-    ) {
+    if matches!(operation, "fit_and_forecast" | "refit_and_forecast" | "assess_forecasts") {
         operators.push(
             Operator::new(
                 OperatorDeclaration::new(
@@ -94,11 +91,7 @@ pub(crate) fn lower(
             )
             .map_err(invalid)?,
         );
-        physical.push(
-            PhysicalOperator::declare(PhysicalEffect::Fit)
-                .build()
-                .map_err(invalid)?,
-        );
+        physical.push(PhysicalOperator::declare(PhysicalEffect::Fit).build().map_err(invalid)?);
     }
     let condition = Operator::new(OperatorDeclaration::new(
         OperatorEffect::Condition,
@@ -107,20 +100,13 @@ pub(crate) fn lower(
     ))
     .map_err(invalid)?;
     operators.push(condition);
-    physical.push(
-        PhysicalOperator::declare(PhysicalEffect::Condition)
-            .build()
-            .map_err(invalid)?,
-    );
+    physical.push(PhysicalOperator::declare(PhysicalEffect::Condition).build().map_err(invalid)?);
     if matches!(operation, "paired_event_worlds" | "future_event_study") {
         operators.push(
             Operator::new(OperatorDeclaration::new(
                 OperatorEffect::Scan,
                 OperatorGraph::Causal,
-                OperatorPorts::new(
-                    [OperatorRole::Conditioning],
-                    [OperatorRole::WorldOrSchedule],
-                ),
+                OperatorPorts::new([OperatorRole::Conditioning], [OperatorRole::WorldOrSchedule]),
             ))
             .map_err(invalid)?,
         );
@@ -139,13 +125,9 @@ pub(crate) fn lower(
         identifier: None,
         estimator: None,
         realization: if point {
-            Realization::ExactPoint {
-                evaluator: Arc::from(operation),
-            }
+            Realization::ExactPoint { evaluator: Arc::from(operation) }
         } else {
-            Realization::DeclaredPredictive {
-                evaluator: Arc::from(operation),
-            }
+            Realization::DeclaredPredictive { evaluator: Arc::from(operation) }
         },
         models: Arc::from([]),
         folds: None,
@@ -184,9 +166,7 @@ pub(crate) fn lower(
         })
         .transpose()?;
     let composition = if parent.is_some() {
-        Composition::Chained {
-            stages: if decision.is_some() { 3 } else { 2 },
-        }
+        Composition::Chained { stages: if decision.is_some() { 3 } else { 2 } }
     } else {
         Composition::Single
     };
@@ -200,29 +180,22 @@ pub(crate) fn lower(
     Ok(EventProcessLoweredParts {
         scientific,
         identification: IdentificationLayer::NonGraphical(Arc::new(
-            NonGraphicalIdentification::SpecifiedModelConditional {
-                model: *source.as_bytes(),
-            },
+            NonGraphicalIdentification::SpecifiedModelConditional { model: *source.as_bytes() },
         )),
         statistical,
         evidence,
-        physical: PhysicalLayer {
-            operators: physical.into(),
-            design,
-        },
+        physical: PhysicalLayer { operators: physical.into(), design },
         claim: ClaimDemand {
             uncertainty: if point {
                 UncertaintyReading::None
             } else {
                 UncertaintyReading::Predictive
             },
-            kind: Some(
-                if matches!(operation, "paired_event_worlds" | "future_event_study") {
-                    ClaimKind::Response
-                } else {
-                    ClaimKind::Associational
-                },
-            ),
+            kind: Some(if matches!(operation, "paired_event_worlds" | "future_event_study") {
+                ClaimKind::Response
+            } else {
+                ClaimKind::Associational
+            }),
         },
     }
     .finish())

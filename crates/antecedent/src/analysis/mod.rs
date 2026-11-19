@@ -178,13 +178,13 @@ pub(crate) mod functional_sensitivity;
 pub(crate) mod functional_validation;
 pub mod graph_imputation;
 pub mod graph_imputation_effect_decision;
-pub mod graph_imputation_transport_decision;
 pub mod graph_imputation_kernel_transport_decision;
 pub mod graph_imputation_mar_transport_decision;
 #[cfg(test)]
 mod graph_imputation_mix;
 #[cfg(test)]
 mod graph_imputation_receipt;
+pub mod graph_imputation_transport_decision;
 pub mod horizon_composition;
 mod imputed_graph_selection;
 pub mod interface_contract;
@@ -195,17 +195,20 @@ mod joint_contrast_binding;
 mod joint_interval_artifact;
 pub mod joint_law_composed_basis;
 pub mod joint_law_propagation;
-pub mod joint_transport_effect_decision;
-pub mod trial_ipw_transport_decision;
-pub mod trial_ipw_predictive_decision;
-pub mod joint_transport_predictive_decision;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
+pub mod joint_transport_effect_decision;
+pub mod joint_transport_predictive_decision;
+pub mod trial_ipw_predictive_decision;
+pub mod trial_ipw_transport_decision;
 pub use joint_interval_artifact::{
     JOINT_INTERVAL_ARTIFACT_VERSION, JointIntervalConsumeLimits, JointIntervalConsumption,
     JointIntervalNumerics, JointSensitivityIntervalArtifact,
 };
+pub mod events;
+pub mod fitted_dependent_measurement;
 pub mod latent_class_effects;
+pub mod latent_soft_intervention;
 mod learned_continuous;
 pub mod learned_joint_scope;
 mod learned_trial;
@@ -221,8 +224,6 @@ mod missing_imputation;
 mod missing_imputation_vector;
 pub mod missing_support;
 mod mixed_source;
-pub mod events;
-pub mod latent_soft_intervention;
 pub mod mnar_fixed_shift;
 pub mod mnar_sensitivity;
 pub mod msm_sensitivity;
@@ -233,7 +234,6 @@ pub mod nonlinear_mediation;
 pub mod observation_evidence;
 pub mod observation_posterior;
 pub mod observation_query;
-pub mod fitted_dependent_measurement;
 pub mod observational_policy;
 pub mod observational_survival;
 pub mod per_population_discovery;
@@ -465,8 +465,8 @@ pub use propagation_chain_decision::{
     compile_transported_law_chain_decision, consume_chain_decision,
 };
 pub use propagation_chain_robust_decision::{
-    ChainRobustDecisionPlan, ChainRobustDecisionResult, RobustActionBound,
-    RobustConstraintBound, compile_chain_robust_decision, consume_chain_robust_decision,
+    ChainRobustDecisionPlan, ChainRobustDecisionResult, RobustActionBound, RobustConstraintBound,
+    compile_chain_robust_decision, consume_chain_robust_decision,
 };
 pub use provider_callbacks::{
     CallbackConnectionError, CallbackExecution, CallbackExecutionError, CallbackExecutionPolicy,
@@ -483,11 +483,12 @@ pub use recovery::{
     consume_observation_recovery_artifact,
 };
 pub use scientific_bridge::{
-    BridgeChainCompileError, BridgeInspection, ConsumedScientificBridge, ConsumedScientificBridgeDistribution,
-    DistributionBridgeInspection, PreparedScientificBridge, PreparedScientificBridgeDistribution,
-    ScientificBridgeDistributionResult, ScientificBridgeExport, ScientificBridgeRefusal,
-    ScientificBridgeResult, consume_scientific_bridge_artifact,
-    consume_scientific_bridge_distribution_artifact, scientific_bridge_artifact_shape,
+    BridgeChainCompileError, BridgeInspection, ConsumedScientificBridge,
+    ConsumedScientificBridgeDistribution, DistributionBridgeInspection, PreparedScientificBridge,
+    PreparedScientificBridgeDistribution, ScientificBridgeDistributionResult,
+    ScientificBridgeExport, ScientificBridgeRefusal, ScientificBridgeResult,
+    consume_scientific_bridge_artifact, consume_scientific_bridge_distribution_artifact,
+    scientific_bridge_artifact_shape,
 };
 pub use smoothed_dose::{
     PreparedSmoothedDose, SmoothedDoseInterval, SmoothedDosePosteriorResult, SmoothedDoseResult,
@@ -652,22 +653,22 @@ pub use antecedent_io::cyclic_family_artifact::{
     CyclicWorldAnswer, CyclicWorldWire, RecoveredDrawOriginWire, consume_cyclic_family,
 };
 
+pub mod bridge_transport_decision;
+pub mod bridge_transport_premise_assessment;
 /// Cyclic specialization of the common retained prepared-analysis handle.
 pub mod cyclic;
 pub mod cyclic_action_world_decision;
-pub mod cyclic_posterior_action_decision;
-pub mod cyclic_target_feedback_decision;
-pub mod sequential_policy_reliability;
-pub mod bridge_transport_decision;
-pub mod bridge_transport_premise_assessment;
-pub mod temporal_path_transport;
-pub mod sampling_assumption_union;
 pub mod cyclic_component_composition;
 pub mod cyclic_evidence;
+pub mod cyclic_posterior_action_decision;
+pub mod cyclic_target_feedback_decision;
+pub mod sampling_assumption_union;
+pub mod sequential_policy_reliability;
+pub mod temporal_path_transport;
 pub use cyclic_component_composition::{
-    ComponentFeedbackError, ComponentFeedbackRequest, ComponentFeedbackWorld,
-    FeedbackConnection, PreparedComponentFeedback, ScalarFeedbackComponent,
-    VectorFeedbackComponent, VectorFeedbackConnection, VectorFeedbackOutput, VectorFeedbackRequest,
+    ComponentFeedbackError, ComponentFeedbackRequest, ComponentFeedbackWorld, FeedbackConnection,
+    PreparedComponentFeedback, ScalarFeedbackComponent, VectorFeedbackComponent,
+    VectorFeedbackConnection, VectorFeedbackOutput, VectorFeedbackRequest,
     prepare_component_feedback, prepare_component_feedback_with_ledger,
     prepare_vector_component_feedback, prepare_vector_component_feedback_with_ledger,
 };

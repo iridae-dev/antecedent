@@ -12,7 +12,9 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_contract::dependence::SharedFactorKind;
-use antecedent_contract::propagation_chain::{ChainReading, LawMeaning, StageKind, TableConstruction};
+use antecedent_contract::propagation_chain::{
+    ChainReading, LawMeaning, StageKind, TableConstruction,
+};
 use antecedent_contract::{ClaimKind, DataClassification, QuantityRole, ScientificQuantity};
 use antecedent_core::{
     ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, LikelihoodModel,
@@ -36,22 +38,21 @@ use antecedent_io::propagation_chain_record::{
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::{
-    admg_from_wire, admg_to_wire, transport_query_from_wire, transport_query_to_wire,
-    AdmgWire, IoError, TransportQueryWire,
+    AdmgWire, IoError, TransportQueryWire, admg_from_wire, admg_to_wire, transport_query_from_wire,
+    transport_query_to_wire,
 };
 use antecedent_kernels::standard_normal;
 use serde::{Deserialize, Serialize};
 
 use super::propagation_chain_decision::{
-    compile_action_world_chain_decision, consume_chain_decision, ChainDecisionError,
-    ChainDecisionResult,
+    ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
+    consume_chain_decision,
 };
 use crate::planner::lowered::{
-    CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape,
-    EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef, FunctionalKind,
-    IdentificationLayer, LoweredProgram, NonGraphicalIdentification, PhysicalLayer,
-    ProblemTarget, ProgramCell, ProgramIdentityScope, ScientificProblem,
-    StandaloneCompositionLoweredParts, UncertaintyReading,
+    CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
+    EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
+    NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell, ProgramIdentityScope,
+    ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{
     ModelRole, ModelSlot, PosteriorAlgorithm, PosteriorPlan, Realization, StatisticalProgram,
@@ -170,7 +171,9 @@ fn check_worlds(
     request: &JointTransportPredictiveDecisionRequest,
 ) -> Result<VariableId, JointTransportPredictiveDecisionError> {
     let Some((treatment, outcome)) = request.query.response.functional.primary_pair() else {
-        return Err(JointTransportPredictiveDecisionError::Invalid("query lacks a treatment/outcome pair"));
+        return Err(JointTransportPredictiveDecisionError::Invalid(
+            "query lacks a treatment/outcome pair",
+        ));
     };
     if request.model.sharing != SourceSharing::SharedVaryingBlock
         || !request.target_noise_variance.is_finite()
@@ -195,22 +198,29 @@ fn check_worlds(
             || quantity.horizon != request.decision.horizon
             || !quantity.conditioning.is_empty()
         {
-            return Err(JointTransportPredictiveDecisionError::Invalid("target outcome world coordinate differs"));
+            return Err(JointTransportPredictiveDecisionError::Invalid(
+                "target outcome world coordinate differs",
+            ));
         }
     }
-    if request.worlds[0].units != request.worlds[1].units
-        || request.decision.actions.len() != 2
-    {
-        return Err(JointTransportPredictiveDecisionError::Invalid("paired outcome worlds or decision actions differ"));
+    if request.worlds[0].units != request.worlds[1].units || request.decision.actions.len() != 2 {
+        return Err(JointTransportPredictiveDecisionError::Invalid(
+            "paired outcome worlds or decision actions differ",
+        ));
     }
     let mut regimes = BTreeSet::new();
     for action in &request.decision.actions {
         if !matches!(action.kind, ActionKind::Intervention | ActionKind::Regime)
             || action.inputs.len() != 1
             || !regimes.insert(action.inputs[0].regime_id.as_str())
-            || !request.worlds.iter().any(|world| action.inputs[0].require_same_coordinate(world).is_ok())
+            || !request
+                .worlds
+                .iter()
+                .any(|world| action.inputs[0].require_same_coordinate(world).is_ok())
         {
-            return Err(JointTransportPredictiveDecisionError::Invalid("each action must read one distinct paired outcome world"));
+            return Err(JointTransportPredictiveDecisionError::Invalid(
+                "each action must read one distinct paired outcome world",
+            ));
         }
     }
     Ok(outcome)
@@ -229,37 +239,61 @@ pub fn compile_joint_transport_predictive_decision(
     let graph = admg_to_wire(request.diagram.causal_graph())?;
     let query = transport_query_to_wire(&request.query)?;
     let input = JointBayesianInputWire::from_declaration(
-        &request.model, &request.sources, &request.target, request.options,
+        &request.model,
+        &request.sources,
+        &request.target,
+        request.options,
     );
-    let identification = TransportIdentifier::new().identify(&request.diagram, &request.query)
+    let identification = TransportIdentifier::new()
+        .identify(&request.diagram, &request.query)
         .map_err(|error| JointTransportPredictiveDecisionError::Identify(error.to_string()))?;
     let contract_identity = request.decision.identity()?;
-    let selections: Vec<u32> = request.diagram.selection_targets().iter().map(|v| v.raw()).collect();
+    let selections: Vec<u32> =
+        request.diagram.selection_targets().iter().map(|v| v.raw()).collect();
     let input_bytes = antecedent_io::to_cbor(&input)?;
     let graph_bytes = antecedent_io::to_cbor(&graph)?;
     let query_bytes = antecedent_io::to_cbor(&query)?;
-    let worlds_bytes = antecedent_io::to_cbor(&request.worlds.clone().map(|q| ScientificQuantityWire::from(&q)))?;
+    let worlds_bytes =
+        antecedent_io::to_cbor(&request.worlds.clone().map(|q| ScientificQuantityWire::from(&q)))?;
     let source_digest = CanonicalWriter::digest_bytes(
-        "antecedent.joint_transport_predictive_decision.inputs.v2", &input_bytes,
+        "antecedent.joint_transport_predictive_decision.inputs.v2",
+        &input_bytes,
     );
-    let mut writer = CanonicalWriter::new("antecedent.joint_transport_predictive_decision.question.v2");
-    writer.bytes(&graph_bytes).words(&selections.iter().map(|v| u64::from(*v)).collect::<Vec<_>>())
-        .bytes(&query_bytes).bytes(&input_bytes).bytes(&worlds_bytes)
+    let mut writer =
+        CanonicalWriter::new("antecedent.joint_transport_predictive_decision.question.v2");
+    writer
+        .bytes(&graph_bytes)
+        .words(&selections.iter().map(|v| u64::from(*v)).collect::<Vec<_>>())
+        .bytes(&query_bytes)
+        .bytes(&input_bytes)
+        .bytes(&worlds_bytes)
         .word(request.target_noise_variance.to_bits())
-        .word(request.target_noise_correlation.to_bits()).text(&contract_identity);
+        .word(request.target_noise_correlation.to_bits())
+        .text(&contract_identity);
     let question = writer.finish();
-    let rows = request.sources.iter().map(|s| s.outcome.len() as u64).sum::<u64>()
+    let rows = request
+        .sources
+        .iter()
+        .map(|s| s.outcome.len() as u64)
+        .sum::<u64>()
         .saturating_add(request.target.rows as u64);
     let design = DesignShape::quoted(rows, request.model.features.len() as u64, true);
     let scientific = ScientificProblem {
-        runtime_query: None, identity_scope: ProgramIdentityScope::Semantic,
+        runtime_query: None,
+        identity_scope: ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
-            kind: FunctionalKind::PolicyValue, outcome: Some(outcome), query: question,
+            kind: FunctionalKind::PolicyValue,
+            outcome: Some(outcome),
+            query: question,
         },
         plan_id: Arc::from("joint_transport_predictive_decision.v2"),
-        data: DataClassification::Tabular, graph_class: "fixed_selection_dag_shared_baseline_predictive",
-        query_variables: Arc::from([]), source_digest: Some(source_digest),
-        support_coordinate: None, supported: false, support_status: None,
+        data: DataClassification::Tabular,
+        graph_class: "fixed_selection_dag_shared_baseline_predictive",
+        query_variables: Arc::from([]),
+        source_digest: Some(source_digest),
+        support_coordinate: None,
+        supported: false,
+        support_status: None,
     };
     let identification_layer = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: question },
@@ -270,19 +304,31 @@ pub fn compile_joint_transport_predictive_decision(
     ))
     .map_err(|_| JointTransportPredictiveDecisionError::Invalid("invalid prior identity"))?;
     let likelihood = LikelihoodModel::new("joint_transport_shared_baseline_known_variance_normal")
-        .map_err(|_| JointTransportPredictiveDecisionError::Invalid("invalid likelihood identity"))?;
+        .map_err(|_| {
+            JointTransportPredictiveDecisionError::Invalid("invalid likelihood identity")
+        })?;
     let statistical = StatisticalProgram {
-        identifier: None, estimator: None,
-        realization: Realization::Bayesian(OrdinaryBayesianLikelihood::new(likelihood, prior.clone())),
+        identifier: None,
+        estimator: None,
+        realization: Realization::Bayesian(OrdinaryBayesianLikelihood::new(
+            likelihood,
+            prior.clone(),
+        )),
         models: Arc::from([ModelSlot {
-            role: ModelRole::Outcome, family: Arc::from("joint_source_target_predictive_outcome"),
-            inputs: Arc::from([]), output: Some(outcome),
+            role: ModelRole::Outcome,
+            family: Arc::from("joint_source_target_predictive_outcome"),
+            inputs: Arc::from([]),
+            output: Some(outcome),
         }]),
-        folds: None, resampling: None,
+        folds: None,
+        resampling: None,
         posterior: Some(PosteriorPlan {
-            algorithm: PosteriorAlgorithm::Conjugate, draws: request.options.draws, prior,
+            algorithm: PosteriorAlgorithm::Conjugate,
+            draws: request.options.draws,
+            prior,
         }),
-        design, operators: Arc::from([]),
+        design,
+        operators: Arc::from([]),
     };
     let evidence = EvidenceDecisionProgram {
         sources: Arc::from([
@@ -295,61 +341,98 @@ pub fn compile_joint_transport_predictive_decision(
             utility: DecisionProgram::utility_form(None),
             actions: request.decision.actions.len(),
             constraints: request.decision.constraints.len(),
-            chance_threshold: request.decision.constraints.iter()
-                .map(|c| c.min_probability).fold(0.0_f64, f64::max),
+            chance_threshold: request
+                .decision
+                .constraints
+                .iter()
+                .map(|c| c.min_probability)
+                .fold(0.0_f64, f64::max),
             utility_unit: Some(Arc::from(request.decision.utility_units.as_str())),
             contract_identity: Some(Arc::from(contract_identity.as_str())),
             information_value: None,
-            scenario_source: Some(Arc::from("joint_transport_shared_baseline_target_prediction_v2")),
+            scenario_source: Some(Arc::from(
+                "joint_transport_shared_baseline_target_prediction_v2",
+            )),
         }),
-        planning: None, chain: None,
+        planning: None,
+        chain: None,
     };
     let physical = PhysicalLayer {
         operators: Arc::from([
             PhysicalOperator::declare(PhysicalEffect::Read)
                 .estimates(ByteEstimates::absent().with_output(input_bytes.len() as u64))
-                .build().map_err(|_| JointTransportPredictiveDecisionError::Invalid("invalid read operator"))?,
-            PhysicalOperator::declare(PhysicalEffect::Fit)
-                .build().map_err(|_| JointTransportPredictiveDecisionError::Invalid("invalid fit operator"))?,
-            PhysicalOperator::declare(PhysicalEffect::Transport)
-                .build().map_err(|_| JointTransportPredictiveDecisionError::Invalid("invalid transport operator"))?,
-            PhysicalOperator::declare(PhysicalEffect::Intervene)
-                .build().map_err(|_| JointTransportPredictiveDecisionError::Invalid("invalid intervention operator"))?,
-        ]), design,
+                .build()
+                .map_err(|_| {
+                    JointTransportPredictiveDecisionError::Invalid("invalid read operator")
+                })?,
+            PhysicalOperator::declare(PhysicalEffect::Fit).build().map_err(|_| {
+                JointTransportPredictiveDecisionError::Invalid("invalid fit operator")
+            })?,
+            PhysicalOperator::declare(PhysicalEffect::Transport).build().map_err(|_| {
+                JointTransportPredictiveDecisionError::Invalid("invalid transport operator")
+            })?,
+            PhysicalOperator::declare(PhysicalEffect::Intervene).build().map_err(|_| {
+                JointTransportPredictiveDecisionError::Invalid("invalid intervention operator")
+            })?,
+        ]),
+        design,
     };
-    let lowered = Arc::new(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::JointTransportPredictiveDecision,
-        scientific, identification: identification_layer, statistical, evidence, physical,
-        claim: ClaimDemand { uncertainty: UncertaintyReading::Predictive,
-            kind: Some(ClaimKind::PolicyValue) },
-    }.finish());
+    let lowered = Arc::new(
+        StandaloneCompositionLoweredParts {
+            cell: ProgramCell::JointTransportPredictiveDecision,
+            scientific,
+            identification: identification_layer,
+            statistical,
+            evidence,
+            physical,
+            claim: ClaimDemand {
+                uncertainty: UncertaintyReading::Predictive,
+                kind: Some(ClaimKind::PolicyValue),
+            },
+        }
+        .finish(),
+    );
     Ok(CompiledJointTransportPredictiveDecision {
-        request, identification, input, graph, query, lowered,
+        request,
+        identification,
+        input,
+        graph,
+        query,
+        lowered,
     })
 }
 
 fn paired_outcomes(
-    fit: &JointTransportFit, model: &JointTransportModel, target: &TargetData,
-    noise_variance: f64, noise_correlation: f64, ctx: &ExecutionContext,
+    fit: &JointTransportFit,
+    model: &JointTransportModel,
+    target: &TargetData,
+    noise_variance: f64,
+    noise_correlation: f64,
+    ctx: &ExecutionContext,
 ) -> Result<[Vec<f64>; 2], JointTransportPredictiveDecisionError> {
     let p = model.features.len();
     let expected_parameters = 2 + 2 * p;
     let width = fit.draws.width();
-    if fit.parameter_names.len() != expected_parameters || target.rows == 0
+    if fit.parameter_names.len() != expected_parameters
+        || target.rows == 0
         || target.covariates.len() != p
         || target.covariates.iter().any(|column| column.len() != target.rows)
         || fit.draws.n_draws == 0
         || width < expected_parameters
         || fit.draws.n_draws.checked_mul(width) != Some(fit.draws.values.len())
     {
-        return Err(JointTransportPredictiveDecisionError::Invalid("fit parameter or target-frame layout differs"));
+        return Err(JointTransportPredictiveDecisionError::Invalid(
+            "fit parameter or target-frame layout differs",
+        ));
     }
     let mut rng = ctx.rng.stream(0x5452_5052_4544_5631);
-    let mut outcomes = [Vec::with_capacity(fit.draws.n_draws), Vec::with_capacity(fit.draws.n_draws)];
+    let mut outcomes =
+        [Vec::with_capacity(fit.draws.n_draws), Vec::with_capacity(fit.draws.n_draws)];
     for draw in 0..fit.draws.n_draws {
         let row = uniform_target_row(&mut rng, target.rows);
         let values = &fit.draws.values[draw * width..draw * width + expected_parameters];
-        let mut untreated = values[expected_parameters - (1 + if model.varying == VaryingBlock::InterceptAndCovariates { p } else { 0 })];
+        let mut untreated = values[expected_parameters
+            - (1 + if model.varying == VaryingBlock::InterceptAndCovariates { p } else { 0 })];
         let mut effect = values[0];
         for j in 0..p {
             let x = target.covariates[j][row];
@@ -363,12 +446,14 @@ fn paired_outcomes(
         let z1 = standard_normal(&mut rng);
         let sd = noise_variance.sqrt();
         let y0 = untreated + sd * z0;
-        let y1 = untreated + effect + sd * (
-            noise_correlation * z0
-                + (1.0 - noise_correlation * noise_correlation).max(0.0).sqrt() * z1
-        );
+        let y1 = untreated
+            + effect
+            + sd * (noise_correlation * z0
+                + (1.0 - noise_correlation * noise_correlation).max(0.0).sqrt() * z1);
         if !y0.is_finite() || !y1.is_finite() {
-            return Err(JointTransportPredictiveDecisionError::Invalid("predictive outcome is nonfinite"));
+            return Err(JointTransportPredictiveDecisionError::Invalid(
+                "predictive outcome is nonfinite",
+            ));
         }
         outcomes[0].push(y0);
         outcomes[1].push(y1);
@@ -381,12 +466,15 @@ fn uniform_target_row(rng: &mut antecedent_core::CausalRng, rows: usize) -> usiz
     let threshold = bound.wrapping_neg() % bound;
     loop {
         let draw = rng.next_u64();
-        if draw >= threshold { return (draw % bound) as usize; }
+        if draw >= threshold {
+            return (draw % bound) as usize;
+        }
     }
 }
 
 fn predictive_chain(
-    outcomes: &[Vec<f64>; 2], worlds: &[ScientificQuantity; 2],
+    outcomes: &[Vec<f64>; 2],
+    worlds: &[ScientificQuantity; 2],
     alignment: &SemanticDigest,
 ) -> PropagationChainRecordWire {
     let alignment = alignment.to_hex();
@@ -396,28 +484,44 @@ fn predictive_chain(
     for world in 0..2 {
         let source_id = format!("target.predictive.world.{world}");
         let stage_id = format!("target.predictive.outcome.{world}");
-        sources.push(ChainSourceWire::draws(
-            &source_id, LawMeaning::Predictive, &alignment, &outcomes[world],
-        ).with_factor(SharedFactorKind::Parameter, &alignment)
-         .with_factor(SharedFactorKind::Disturbance, &alignment));
+        sources.push(
+            ChainSourceWire::draws(
+                &source_id,
+                LawMeaning::Predictive,
+                &alignment,
+                &outcomes[world],
+            )
+            .with_factor(SharedFactorKind::Parameter, &alignment)
+            .with_factor(SharedFactorKind::Disturbance, &alignment),
+        );
         stages.push(ChainStageWire::new(
-            &stage_id, StageKind::DerivedQuantity, &[source_id.as_str()],
+            &stage_id,
+            StageKind::DerivedQuantity,
+            &[source_id.as_str()],
             ChainOpWire::affine(ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0)),
         ));
         joint.push(ChainJointOutputWire {
-            stage: stage_id, quantity: ScientificQuantityWire::from(&worlds[world]),
+            stage: stage_id,
+            quantity: ScientificQuantityWire::from(&worlds[world]),
         });
     }
     PropagationChainRecordWire::draft(
-        TableConstruction::JointDraws, ChainReading::Predictive,
-        &joint[0].stage, sources, stages,
-    ).with_output_quantity(joint[0].quantity.clone()).with_joint_outputs(joint)
+        TableConstruction::JointDraws,
+        ChainReading::Predictive,
+        &joint[0].stage,
+        sources,
+        stages,
+    )
+    .with_output_quantity(joint[0].quantity.clone())
+    .with_joint_outputs(joint)
 }
 
 impl CompiledJointTransportPredictiveDecision {
     /// The complete six-layer predictive program.
     #[must_use]
-    pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    pub fn lowered(&self) -> &LoweredProgram {
+        &self.lowered
+    }
 
     /// Inspect the program without fitting or predicting.
     #[must_use]
@@ -431,28 +535,43 @@ impl CompiledJointTransportPredictiveDecision {
     /// # Errors
     /// Changed producer inputs, a failed fit, prediction or decision refuses.
     pub fn execute(
-        &self, ctx: &ExecutionContext,
+        &self,
+        ctx: &ExecutionContext,
     ) -> Result<JointTransportPredictiveDecisionResult, JointTransportPredictiveDecisionError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let (producer, fit) = JointBayesianArtifactWire::build(
-            &self.identification, &self.request.model, &self.request.sources,
-            &self.request.target, self.request.options, &scoped,
+            &self.identification,
+            &self.request.model,
+            &self.request.sources,
+            &self.request.target,
+            self.request.options,
+            &scoped,
         )?;
         if JointBayesianInputWire::from_artifact(&producer) != self.input {
-            return Err(JointTransportPredictiveDecisionError::Invalid("producer changed its compiled inputs"));
+            return Err(JointTransportPredictiveDecisionError::Invalid(
+                "producer changed its compiled inputs",
+            ));
         }
         let outcomes = paired_outcomes(
-            &fit, &self.request.model, &self.request.target,
+            &fit,
+            &self.request.model,
+            &self.request.target,
             self.request.target_noise_variance,
-            self.request.target_noise_correlation, &scoped,
+            self.request.target_noise_correlation,
+            &scoped,
         )?;
         let decision = compile_action_world_chain_decision(
             predictive_chain(&outcomes, &self.request.worlds, &self.lowered.identity()),
-            self.request.decision.clone(), ctx,
-        )?.execute(ctx)?;
+            self.request.decision.clone(),
+            ctx,
+        )?
+        .execute(ctx)?;
         Ok(JointTransportPredictiveDecisionResult {
-            fit, producer, decision,
-            lowered_program_identity: self.lowered.identity(), calibration: "not_measured",
+            fit,
+            producer,
+            decision,
+            lowered_program_identity: self.lowered.identity(),
+            calibration: "not_measured",
         })
     }
 
@@ -463,8 +582,10 @@ impl CompiledJointTransportPredictiveDecision {
     /// # Errors
     /// Any route execution refusal or invalid final predictive table.
     pub fn calibration_candidate(
-        &self, ctx: &ExecutionContext,
-    ) -> Result<JointTransportPredictiveCalibrationCandidate, JointTransportPredictiveDecisionError> {
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<JointTransportPredictiveCalibrationCandidate, JointTransportPredictiveDecisionError>
+    {
         let result = self.execute(ctx)?;
         let record = result.decision.chain.record();
         let treated = record.sources.get(1).ok_or(
@@ -472,38 +593,65 @@ impl CompiledJointTransportPredictiveDecision {
         )?;
         let mut ordered: Vec<f64> = treated.values.iter().copied().map(f64::from_bits).collect();
         if ordered.len() < 40 || ordered.iter().any(|value| !value.is_finite()) {
-            return Err(JointTransportPredictiveDecisionError::Invalid("predictive interval needs finite draws"));
+            return Err(JointTransportPredictiveDecisionError::Invalid(
+                "predictive interval needs finite draws",
+            ));
         }
         ordered.sort_by(f64::total_cmp);
-        let rank = |numerator: usize| {
-            (ordered.len() * numerator).div_ceil(1000).saturating_sub(1)
-        };
+        let rank = |numerator: usize| (ordered.len() * numerator).div_ceil(1000).saturating_sub(1);
         let interval = (ordered[rank(25)], ordered[rank(975)]);
         let producer_basis = result.fit.target_calibration_basis(0.95).map_err(|_| {
-            JointTransportPredictiveDecisionError::Invalid("producer calibration scope is unavailable")
+            JointTransportPredictiveDecisionError::Invalid(
+                "producer calibration scope is unavailable",
+            )
         })?;
         let functional = format!(
             "target_treated_outcome:features={}:varying={:?}:shared_baseline:target_noise_bits={:016x}:cross_world_rho_bits={:016x}:empirical_target_frame:target_rows={}:draws={}",
-            self.request.model.features.len(), self.request.model.varying,
+            self.request.model.features.len(),
+            self.request.model.varying,
             self.request.target_noise_variance.to_bits(),
             self.request.target_noise_correlation.to_bits(),
-            self.request.target.rows, self.request.options.draws,
+            self.request.target.rows,
+            self.request.options.draws,
         );
         let basis = CalibrationBasis::new(
             [
-                "OutcomePrediction", "Dag", "fixed", "multi_env", "Bayesian",
-                FEATURE, "nearest_rank_95", "", "independent_source_target_future_units",
-                producer_basis.posterior.as_ref(), functional.as_str(),
-            ].map(Arc::from),
-            0.95, Arc::from("model_conditional"), producer_basis.row_count,
-            None, producer_basis.posterior_draws, 0.0,
-        ).with_validation("none");
-        let mut action = CanonicalWriter::new("antecedent.joint_transport_predictive.action_choice_study.v1");
-        action.text(FEATURE).text(producer_basis.posterior.as_ref())
-            .text(&functional).text(&self.request.decision.identity()?)
-            .bytes(&antecedent_io::to_cbor(&self.request.worlds.clone().map(|q| ScientificQuantityWire::from(&q)))?);
+                "OutcomePrediction",
+                "Dag",
+                "fixed",
+                "multi_env",
+                "Bayesian",
+                FEATURE,
+                "nearest_rank_95",
+                "",
+                "independent_source_target_future_units",
+                producer_basis.posterior.as_ref(),
+                functional.as_str(),
+            ]
+            .map(Arc::from),
+            0.95,
+            Arc::from("model_conditional"),
+            producer_basis.row_count,
+            None,
+            producer_basis.posterior_draws,
+            0.0,
+        )
+        .with_validation("none");
+        let mut action =
+            CanonicalWriter::new("antecedent.joint_transport_predictive.action_choice_study.v1");
+        action
+            .text(FEATURE)
+            .text(producer_basis.posterior.as_ref())
+            .text(&functional)
+            .text(&self.request.decision.identity()?)
+            .bytes(&antecedent_io::to_cbor(
+                &self.request.worlds.clone().map(|q| ScientificQuantityWire::from(&q)),
+            )?);
         Ok(JointTransportPredictiveCalibrationCandidate {
-            result, interval, basis, action_choice_basis: SemanticDigest::from_bytes(action.finish()),
+            result,
+            interval,
+            basis,
+            action_choice_basis: SemanticDigest::from_bytes(action.finish()),
         })
     }
 
@@ -512,8 +660,10 @@ impl CompiledJointTransportPredictiveDecision {
     /// # Errors
     /// A changed fit, action-world law or utility refuses.
     pub fn export(
-        &self, result: &JointTransportPredictiveDecisionResult,
-        artifact_id: &str, ctx: &ExecutionContext,
+        &self,
+        result: &JointTransportPredictiveDecisionResult,
+        artifact_id: &str,
+        ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, JointTransportPredictiveDecisionError> {
         let replay = self.execute(ctx)?;
         if result.lowered_program_identity != self.lowered.identity()
@@ -523,14 +673,19 @@ impl CompiledJointTransportPredictiveDecision {
             || result.decision.decision != replay.decision.decision
             || result.decision.chain.identity() != replay.decision.chain.identity()
         {
-            return Err(JointTransportPredictiveDecisionError::Invalid("predictive decision changed on replay"));
+            return Err(JointTransportPredictiveDecisionError::Invalid(
+                "predictive decision changed on replay",
+            ));
         }
         let contract = DecisionContractArtifact::new(self.request.decision.clone())?;
         let chain = compile_action_world_chain_decision(
-            replay.decision.chain.record().clone(), self.request.decision.clone(), ctx,
+            replay.decision.chain.record().clone(),
+            self.request.decision.clone(),
+            ctx,
         )?;
         let wire = PredictiveDecisionWire {
-            version: 2, required_feature: FEATURE.into(),
+            version: 2,
+            required_feature: FEATURE.into(),
             graph: self.graph.clone(),
             selections: self.request.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
             query: self.query.clone(),
@@ -546,7 +701,9 @@ impl CompiledJointTransportPredictiveDecision {
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_ARTIFACT_BYTES {
-            return Err(JointTransportPredictiveDecisionError::Invalid("predictive artifact exceeds its byte bound"));
+            return Err(JointTransportPredictiveDecisionError::Invalid(
+                "predictive artifact exceeds its byte bound",
+            ));
         }
         Ok(bytes)
     }
@@ -558,60 +715,96 @@ impl CompiledJointTransportPredictiveDecision {
 /// # Errors
 /// Any altered premise, producer, predictive row or decision refuses.
 pub fn consume_joint_transport_predictive_decision(
-    bytes: &[u8], expected_program: SemanticDigest, ctx: &ExecutionContext,
+    bytes: &[u8],
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
 ) -> Result<JointTransportPredictiveDecisionResult, JointTransportPredictiveDecisionError> {
     if bytes.len() > MAX_ARTIFACT_BYTES {
-        return Err(JointTransportPredictiveDecisionError::Invalid("predictive artifact exceeds its byte bound"));
+        return Err(JointTransportPredictiveDecisionError::Invalid(
+            "predictive artifact exceeds its byte bound",
+        ));
     }
     let wire: PredictiveDecisionWire = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 2 || wire.required_feature != FEATURE
+    if wire.version != 2
+        || wire.required_feature != FEATURE
         || wire.calibration != "not_measured"
         || wire.program_identity != *expected_program.as_bytes()
     {
-        return Err(JointTransportPredictiveDecisionError::Invalid("predictive feature or identity differs"));
+        return Err(JointTransportPredictiveDecisionError::Invalid(
+            "predictive feature or identity differs",
+        ));
     }
     let (producer, fit) = JointBayesianArtifactWire::consume_with_limits(
-        &wire.producer_artifact, JointBayesianConsumeLimits::default(), ctx,
+        &wire.producer_artifact,
+        JointBayesianConsumeLimits::default(),
+        ctx,
     )?;
     let graph = admg_from_wire(&wire.graph)?;
     let diagram = SelectionDiagram::try_new(
-        graph, wire.selections.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
-    ).map_err(|_| JointTransportPredictiveDecisionError::Invalid("invalid stored selection diagram"))?;
+        graph,
+        wire.selections.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
+    )
+    .map_err(|_| {
+        JointTransportPredictiveDecisionError::Invalid("invalid stored selection diagram")
+    })?;
     let query = transport_query_from_wire(&wire.query)?;
-    let checked = TransportIdentifier::new().identify(&diagram, &query)
+    let checked = TransportIdentifier::new()
+        .identify(&diagram, &query)
         .map_err(|error| JointTransportPredictiveDecisionError::Identify(error.to_string()))?;
     if antecedent_io::transport_identification_to_wire(&checked) != producer.identification {
-        return Err(JointTransportPredictiveDecisionError::Invalid("fit certificate differs from raw graph"));
+        return Err(JointTransportPredictiveDecisionError::Invalid(
+            "fit certificate differs from raw graph",
+        ));
     }
     let input = JointBayesianInputWire::from_artifact(&producer);
     let (model, sources, target, options) = input.to_declaration();
     let worlds: [ScientificQuantity; 2] = [
-        wire.worlds[0].clone().try_into().map_err(JointTransportPredictiveDecisionError::Invalid)?,
-        wire.worlds[1].clone().try_into().map_err(JointTransportPredictiveDecisionError::Invalid)?,
+        wire.worlds[0]
+            .clone()
+            .try_into()
+            .map_err(JointTransportPredictiveDecisionError::Invalid)?,
+        wire.worlds[1]
+            .clone()
+            .try_into()
+            .map_err(JointTransportPredictiveDecisionError::Invalid)?,
     ];
-    let contract = DecisionContractArtifact::from_bytes(
-        &wire.decision_artifact, &wire.decision_identity,
-    )?;
-    let plan = compile_joint_transport_predictive_decision(JointTransportPredictiveDecisionRequest {
-        diagram, query, model, sources, target, options,
-        target_noise_variance: wire.target_noise_variance,
-        target_noise_correlation: wire.target_noise_correlation,
-        worlds, decision: contract.contract().clone(),
-    })?;
+    let contract =
+        DecisionContractArtifact::from_bytes(&wire.decision_artifact, &wire.decision_identity)?;
+    let plan =
+        compile_joint_transport_predictive_decision(JointTransportPredictiveDecisionRequest {
+            diagram,
+            query,
+            model,
+            sources,
+            target,
+            options,
+            target_noise_variance: wire.target_noise_variance,
+            target_noise_correlation: wire.target_noise_correlation,
+            worlds,
+            decision: contract.contract().clone(),
+        })?;
     if plan.lowered.identity() != expected_program {
-        return Err(JointTransportPredictiveDecisionError::Invalid("recompiled predictive program differs"));
+        return Err(JointTransportPredictiveDecisionError::Invalid(
+            "recompiled predictive program differs",
+        ));
     }
     let live = plan.execute(ctx)?;
     if live.fit != fit || live.producer.export()? != producer.export()? {
-        return Err(JointTransportPredictiveDecisionError::Invalid("producer fit differs on replay"));
+        return Err(JointTransportPredictiveDecisionError::Invalid(
+            "producer fit differs on replay",
+        ));
     }
     let chain = consume_chain_decision(
-        &wire.chain_artifact, Some(live.decision.lowered_program_identity), ctx,
+        &wire.chain_artifact,
+        Some(live.decision.lowered_program_identity),
+        ctx,
     )?;
     if chain.decision != live.decision.decision
         || chain.chain.identity() != live.decision.chain.identity()
     {
-        return Err(JointTransportPredictiveDecisionError::Invalid("predictive utility differs on replay"));
+        return Err(JointTransportPredictiveDecisionError::Invalid(
+            "predictive utility differs on replay",
+        ));
     }
     Ok(live)
 }
@@ -624,8 +817,8 @@ mod tests {
         DecisionAction, DecisionCriterion, StructuralPolicy, UtilityExpr,
     };
     use antecedent_estimate::joint_bayesian_transport::{
-        DataIdentity, GaussianPrior, JointPriors, PriorProvenance,
-        SourceDependence, TransportGraphClass,
+        DataIdentity, GaussianPrior, JointPriors, PriorProvenance, SourceDependence,
+        TransportGraphClass,
     };
 
     #[test]
@@ -641,34 +834,51 @@ mod tests {
         let query = TransportQuery::new(
             ResponseQuery::new(ResponseFunctional::MeanCurve {
                 outcome,
-                treatment: ContinuousDomain::new(treatment,
-                    GridSpec::Values(Arc::from([0.0, 1.0]))),
+                treatment: ContinuousDomain::new(
+                    treatment,
+                    GridSpec::Values(Arc::from([0.0, 1.0])),
+                ),
             }),
-            "trial", "target", [treatment],
+            "trial",
+            "target",
+            [treatment],
         );
         let world = |value: u8| ScientificQuantity {
-            variable_id: "2".into(), variable_name: "target outcome".into(),
-            role: QuantityRole::Outcome, units: "score".into(),
-            population_id: "target".into(), regime_id: format!("do(0={value})"),
-            horizon: 0, functional_id: "outcome".into(),
-            conditioning: Vec::new(), transform_id: "identity".into(),
+            variable_id: "2".into(),
+            variable_name: "target outcome".into(),
+            role: QuantityRole::Outcome,
+            units: "score".into(),
+            population_id: "target".into(),
+            regime_id: format!("do(0={value})"),
+            horizon: 0,
+            functional_id: "outcome".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
         };
         let worlds = [world(0), world(1)];
         let decision = DecisionContract {
             actions: vec![
                 DecisionAction {
-                    id: "hold".into(), kind: ActionKind::Intervention,
-                    inputs: vec![worlds[0].clone()], utility: UtilityExpr::Input(0),
+                    id: "hold".into(),
+                    kind: ActionKind::Intervention,
+                    inputs: vec![worlds[0].clone()],
+                    utility: UtilityExpr::Input(0),
                 },
                 DecisionAction {
-                    id: "treat".into(), kind: ActionKind::Intervention,
+                    id: "treat".into(),
+                    kind: ActionKind::Intervention,
                     inputs: vec![worlds[1].clone()],
-                    utility: UtilityExpr::difference(UtilityExpr::Input(0), UtilityExpr::Const(1.0)),
+                    utility: UtilityExpr::difference(
+                        UtilityExpr::Input(0),
+                        UtilityExpr::Const(1.0),
+                    ),
                 },
             ],
             utility_units: "score".into(),
             criterion: DecisionCriterion::PosteriorExpectedUtility,
-            constraints: Vec::new(), target_population: "target".into(), horizon: 0,
+            constraints: Vec::new(),
+            target_population: "target".into(),
+            horizon: 0,
             structural_policy: StructuralPolicy::RequireInvariantBestAction,
         };
         let rows = 40;
@@ -680,37 +890,51 @@ mod tests {
             },
             treatment: (0..rows).map(|i| i % 2 == 0).collect(),
             outcome: (0..rows).map(|i| 3.0 + if i % 2 == 0 { 2.0 } else { 0.0 }).collect(),
-            covariates: Vec::new(), noise_variance: 0.1,
+            covariates: Vec::new(),
+            noise_variance: 0.1,
         };
         let target = TargetData {
             identity: DataIdentity {
                 snapshot_digest: "target-snapshot".into(),
                 datum_ids: (0..rows).map(|i| format!("target-{i}")).collect(),
             },
-            rows, covariates: Vec::new(),
+            rows,
+            covariates: Vec::new(),
         };
         let model = JointTransportModel {
-            graph: TransportGraphClass::FixedDag, features: Vec::new(),
-            varying: VaryingBlock::Intercept, sharing: SourceSharing::SharedVaryingBlock,
+            graph: TransportGraphClass::FixedDag,
+            features: Vec::new(),
+            varying: VaryingBlock::Intercept,
+            sharing: SourceSharing::SharedVaryingBlock,
             dependence: SourceDependence::IndependentSamples,
             priors: JointPriors {
                 invariant: GaussianPrior::isotropic(1, 0.0, 10.0, PriorProvenance::Declared),
                 varying: GaussianPrior::isotropic(1, 0.0, 10.0, PriorProvenance::Declared),
             },
-            max_unsupported_mass: 0.0, conflict_z_threshold: 3.0,
+            max_unsupported_mass: 0.0,
+            conflict_z_threshold: 3.0,
         };
         let ctx = ExecutionContext::for_tests(92);
         let request = JointTransportPredictiveDecisionRequest {
-            diagram, query, model, sources: vec![source], target,
+            diagram,
+            query,
+            model,
+            sources: vec![source],
+            target,
             options: JointTransportOptions { draws: 1024, seed: 92 },
-            target_noise_variance: 0.1, target_noise_correlation: 1.0,
-            worlds, decision,
+            target_noise_variance: 0.1,
+            target_noise_correlation: 1.0,
+            worlds,
+            decision,
         };
         let plan = compile_joint_transport_predictive_decision(request.clone()).unwrap();
         assert_eq!(plan.plan_view().route().as_str(), "JointTransportPredictiveDecision");
         let result = plan.execute(&ctx).unwrap();
         let columns = &result.decision.chain.record().sources;
-        let effects: Vec<f64> = columns[0].values.iter().zip(&columns[1].values)
+        let effects: Vec<f64> = columns[0]
+            .values
+            .iter()
+            .zip(&columns[1].values)
             .map(|(left, right)| f64::from_bits(*right) - f64::from_bits(*left))
             .collect();
         let mean = effects.iter().sum::<f64>() / effects.len() as f64;
@@ -718,14 +942,19 @@ mod tests {
         assert_eq!(result.calibration, "not_measured");
         let bytes = plan.export(&result, "paired-target-outcomes", &ctx).unwrap();
         let replay = consume_joint_transport_predictive_decision(
-            &bytes, result.lowered_program_identity, &ctx,
-        ).unwrap();
+            &bytes,
+            result.lowered_program_identity,
+            &ctx,
+        )
+        .unwrap();
         assert_eq!(replay.fit, result.fit);
         assert_eq!(replay.decision.decision, result.decision.decision);
         let mut independent = request;
         independent.target_noise_correlation = 0.0;
-        let other = compile_joint_transport_predictive_decision(independent).unwrap()
-            .execute(&ctx).unwrap();
+        let other = compile_joint_transport_predictive_decision(independent)
+            .unwrap()
+            .execute(&ctx)
+            .unwrap();
         assert_eq!(other.fit, result.fit);
         assert_ne!(other.decision.chain.identity(), result.decision.chain.identity());
     }

@@ -287,11 +287,20 @@ impl BridgedDistribution {
         let mapping_factor = format!("bridge_mapping:{contract}");
         let mut source =
             ChainSourceWire::draws(&source_id, meaning, &self.alignment, &self.source_column());
-        let mut slope = ChainSourceWire::draws(&slope_id, LawMeaning::Posterior, &self.alignment, &affine.slopes)
-            .with_factor(SharedFactorKind::Parameter, &mapping_factor);
-        let intercept =
-            ChainSourceWire::draws(&intercept_id, LawMeaning::Posterior, &self.alignment, &affine.intercepts)
-                .with_factor(SharedFactorKind::Parameter, &mapping_factor);
+        let mut slope = ChainSourceWire::draws(
+            &slope_id,
+            LawMeaning::Posterior,
+            &self.alignment,
+            &affine.slopes,
+        )
+        .with_factor(SharedFactorKind::Parameter, &mapping_factor);
+        let intercept = ChainSourceWire::draws(
+            &intercept_id,
+            LawMeaning::Posterior,
+            &self.alignment,
+            &affine.intercepts,
+        )
+        .with_factor(SharedFactorKind::Parameter, &mapping_factor);
         if let Some(SourceMappingDependence::SlopeCovariance { evidence, .. }) =
             &self.claim.contract.source_dependence
         {
@@ -306,12 +315,14 @@ impl BridgedDistribution {
             // The new trial's residual is a disturbance of its own. It shares only the
             // Student-t scale with the coefficients, a parameter of the mapping.
             sources.push(
-                ChainSourceWire::draws(&residual_id, LawMeaning::Innovation, &self.alignment, residuals)
-                    .with_factor(
-                        SharedFactorKind::Disturbance,
-                        &format!("bridge_residual:{contract}"),
-                    )
-                    .with_factor(SharedFactorKind::Parameter, &mapping_factor),
+                ChainSourceWire::draws(
+                    &residual_id,
+                    LawMeaning::Innovation,
+                    &self.alignment,
+                    residuals,
+                )
+                .with_factor(SharedFactorKind::Disturbance, &format!("bridge_residual:{contract}"))
+                .with_factor(SharedFactorKind::Parameter, &mapping_factor),
             );
             inputs.push(residual_id.as_str());
             ChainOpWire::expression(vec![

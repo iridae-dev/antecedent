@@ -392,10 +392,18 @@ impl ObservationQueryWire {
             }
             Self::ConditionalInterventionalOutcome { .. } => "conditional_intervention",
             Self::JointMeasuredOutcome { interventions, .. } => {
-                if interventions.is_empty() { "conditioning" } else { "conditional_intervention" }
+                if interventions.is_empty() {
+                    "conditioning"
+                } else {
+                    "conditional_intervention"
+                }
             }
             Self::DependentMeasuredOutcome { interventions, .. } => {
-                if interventions.is_empty() { "conditioning" } else { "conditional_intervention" }
+                if interventions.is_empty() {
+                    "conditioning"
+                } else {
+                    "conditional_intervention"
+                }
             }
             Self::ParameterRedraw { .. } => "parameter_redraw",
             Self::ConditionalOutcome { .. } => "conditioning",

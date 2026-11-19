@@ -1,7 +1,7 @@
 //! Prospective count calibration against an independent simulator. Run through the calibration lane.
 
-use antecedent::analysis::events::{EventForecastRequest, EventSource, EventWindow, HawkesFitSpec};
 use antecedent::Study;
+use antecedent::analysis::events::{EventForecastRequest, EventSource, EventWindow, HawkesFitSpec};
 use antecedent::prelude::ExecutionContext;
 
 #[path = "common/calibration.rs"]
@@ -33,16 +33,9 @@ fn hawkes_recursive_refit_count_l90() {
         let context = ExecutionContext::for_tests(seed);
         let request = EventForecastRequest {
             history,
-            forecast: EventWindow {
-                start: cutoff,
-                end: cutoff + 2.0,
-            },
+            forecast: EventWindow { start: cutoff, end: cutoff + 2.0 },
             source: EventSource::Fitted {
-                fit: HawkesFitSpec {
-                    decay: vec![1.0],
-                    column_cap: 0.90,
-                    iterations: 1400,
-                },
+                fit: HawkesFitSpec { decay: vec![1.0], column_cap: 0.90, iterations: 1400 },
                 refits: 16,
             },
             paths: 256,

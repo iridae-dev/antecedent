@@ -135,8 +135,8 @@ pub use observation_query::{
     ObservationContext, ObservationOperation, ObservationSlotsRequest, ObservedSlot,
     SlotProvenance, SlotValue, calibration_refusal, check_continuous_assignments,
     check_joint_measured_slots, check_observation_slots, interval_refusal,
-    level_unreachable_refusal, measured_likelihood,
-    mixed_conditioning_refusal, zero_probability_evidence_refusal,
+    level_unreachable_refusal, measured_likelihood, mixed_conditioning_refusal,
+    zero_probability_evidence_refusal,
 };
 pub use plan::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,

@@ -525,7 +525,9 @@ impl JointBayesianInputWire {
     /// Capture the exact declaration consumed by the producer.
     #[must_use]
     pub fn from_declaration(
-        model: &JointTransportModel, sources: &[SourceData], target: &TargetData,
+        model: &JointTransportModel,
+        sources: &[SourceData],
+        target: &TargetData,
         options: JointTransportOptions,
     ) -> Self {
         Self {
@@ -533,7 +535,8 @@ impl JointBayesianInputWire {
             sources: sources.iter().map(JointSourceWire::from_source).collect(),
             target: JointTargetWire {
                 identity: DataIdentityWire::from_identity(&target.identity),
-                rows: target.rows, covariates: target.covariates.clone(),
+                rows: target.rows,
+                covariates: target.covariates.clone(),
             },
             options: JointOptionsWire { draws: options.draws, seed: options.seed },
         }
@@ -543,21 +546,24 @@ impl JointBayesianInputWire {
     #[must_use]
     pub fn from_artifact(artifact: &JointBayesianArtifactWire) -> Self {
         Self {
-            model: artifact.model.clone(), sources: artifact.sources.clone(),
-            target: artifact.target.clone(), options: artifact.options,
+            model: artifact.model.clone(),
+            sources: artifact.sources.clone(),
+            target: artifact.target.clone(),
+            options: artifact.options,
         }
     }
 
     /// Restore the domain declaration for a containing compiler's replay.
     #[must_use]
-    pub fn to_declaration(&self) -> (
-        JointTransportModel, Vec<SourceData>, TargetData, JointTransportOptions,
-    ) {
+    pub fn to_declaration(
+        &self,
+    ) -> (JointTransportModel, Vec<SourceData>, TargetData, JointTransportOptions) {
         (
             self.model.to_model(),
             self.sources.iter().map(JointSourceWire::to_source).collect(),
             TargetData {
-                identity: self.target.identity.to_identity(), rows: self.target.rows,
+                identity: self.target.identity.to_identity(),
+                rows: self.target.rows,
                 covariates: self.target.covariates.clone(),
             },
             JointTransportOptions { draws: self.options.draws, seed: self.options.seed },

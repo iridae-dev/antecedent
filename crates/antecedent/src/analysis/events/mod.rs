@@ -118,10 +118,7 @@ impl EventError {
 
 pub(super) fn poll(ctx: &ExecutionContext) -> Result<(), EventError> {
     if ctx.cancellation.is_cancelled() {
-        return Err(crate::error::CausalError::Cancelled {
-            stage: "event process",
-        }
-        .into());
+        return Err(crate::error::CausalError::Cancelled { stage: "event process" }.into());
     }
     Ok(())
 }
@@ -171,10 +168,7 @@ pub(super) fn release_supported(id: &str) -> bool {
         })
         .as_ref()
         .is_some_and(|snapshot| {
-            snapshot
-                .capabilities
-                .iter()
-                .any(|unit| unit.id == id && unit.status == "supported")
+            snapshot.capabilities.iter().any(|unit| unit.id == id && unit.status == "supported")
         })
 }
 
@@ -244,9 +238,7 @@ impl EventHistory {
             || self.catalog.len() > MAX_TYPES
             || self.catalog.iter().collect::<BTreeSet<_>>().len() != self.catalog.len()
             || self.catalog.iter().any(|kind| !valid_name(kind))
-            || [&self.time_unit, &self.origin, &self.source]
-                .iter()
-                .any(|name| !valid_name(name))
+            || [&self.time_unit, &self.origin, &self.source].iter().any(|name| !valid_name(name))
             || self.left.len().saturating_add(self.events.len()) > MAX_EVENTS
             || !self.empty_origin.is_finite()
             || self.empty_origin > self.window.start
@@ -288,13 +280,9 @@ fn validate_arrivals(
     if arrivals
         .iter()
         .any(|e| !e.time.is_finite() || e.time < start || e.time >= end || e.kind >= types)
-        || arrivals
-            .windows(2)
-            .any(|w| w[0].time > w[1].time || (strict && w[0].time == w[1].time))
+        || arrivals.windows(2).any(|w| w[0].time > w[1].time || (strict && w[0].time == w[1].time))
     {
-        return Err(EventError::invalid(
-            "out-of-window, unordered or tied native arrivals",
-        ));
+        return Err(EventError::invalid("out-of-window, unordered or tied native arrivals"));
     }
     Ok(())
 }
@@ -368,9 +356,7 @@ impl EventForecastRequest {
             EventSource::Fitted { .. } | EventSource::Declared { .. }
         ))?;
         if self.forecast.start != self.history.window.end {
-            return Err(EventError::invalid(
-                "forecast start must equal observation cutoff",
-            ));
+            return Err(EventError::invalid("forecast start must equal observation cutoff"));
         }
         match &self.source {
             EventSource::Fixture { paths } | EventSource::External { paths, .. } => {
@@ -395,9 +381,7 @@ impl EventForecastRequest {
             EventSource::Declared { parameters } => parameters.validate(self.history.catalog.len()),
             EventSource::Fitted { fit, refits } => {
                 if *refits != 0 && (*refits < 8 || *refits > 128 || self.paths % *refits != 0) {
-                    return Err(EventError::invalid(
-                        "use 8–128 equal-size refit blocks or zero",
-                    ));
+                    return Err(EventError::invalid("use 8–128 equal-size refit blocks or zero"));
                 }
                 fit.validate(self.history.catalog.len())
             }
@@ -415,13 +399,7 @@ impl EventForecastRequest {
         };
         Ok(digest(
             "antecedent.events.provider.request.v1",
-            &(
-                &self.history,
-                self.forecast,
-                paths,
-                self.max_events,
-                self.seed,
-            ),
+            &(&self.history, self.forecast, paths, self.max_events, self.seed),
         )?
         .to_hex())
     }
@@ -501,22 +479,16 @@ impl Study {
             }
             // Verification must cover this event payload and this operation.
             let contract = external_execution_contract(identity.clone());
-            let receipt = receipt
-                .filter(|r| r.covers_execution(&contract))
-                .ok_or(EventError::Unverified)?;
+            let receipt =
+                receipt.filter(|r| r.covers_execution(&contract)).ok_or(EventError::Unverified)?;
             Some(receipt.digest())
         } else {
             if receipt.is_some() {
-                return Err(EventError::invalid(
-                    "receipt belongs to an external event source",
-                ));
+                return Err(EventError::invalid("receipt belongs to an external event source"));
             }
             None
         };
-        let source = digest(
-            "antecedent.events.forecast.v1",
-            &(&request, &provider_receipt),
-        )?;
+        let source = digest("antecedent.events.forecast.v1", &(&request, &provider_receipt))?;
         let bytes = history_bytes(&request.history)
             + match &request.source {
                 EventSource::Fixture { paths } | EventSource::External { paths, .. } => {
@@ -812,11 +784,8 @@ fn scoped_execution(
     let scoped = ctx.enter_lowered_dispatch(identity);
     poll(&scoped)?;
     if !release_supported(capability) {
-        let evidence = if capability == COUNT_INTERVAL {
-            &[COUNT_INTERVAL][..]
-        } else {
-            &[CAPABILITY][..]
-        };
+        let evidence =
+            if capability == COUNT_INTERVAL { &[COUNT_INTERVAL][..] } else { &[CAPABILITY][..] };
         antecedent_core::support_gate::require_supported(
             &scoped,
             "event process awaits release evidence",
@@ -851,12 +820,7 @@ impl Study {
         let lease = admit(ctx, 0, history_bytes(&history))?;
         let source = digest("antecedent.events.likelihood.v1", &(&history, &parameters))?;
         let plan = PreparedKernel::new(source, "likelihood", CAPABILITY)?;
-        Ok(PreparedEventLikelihood {
-            history,
-            parameters,
-            plan,
-            _lease: lease,
-        })
+        Ok(PreparedEventLikelihood { history, parameters, plan, _lease: lease })
     }
 }
 
@@ -873,10 +837,6 @@ impl PreparedEventLikelihood {
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<f64, EventError> {
         let scoped = scoped_execution(ctx, self.plan.identity(), CAPABILITY)?;
         let _scratch = admit(&scoped, history_bytes(&self.history) * 12, 0)?;
-        hawkes::log_likelihood(
-            &self.history,
-            &self.parameters,
-            &mut hawkes::Work::new(&scoped),
-        )
+        hawkes::log_likelihood(&self.history, &self.parameters, &mut hawkes::Work::new(&scoped))
     }
 }

@@ -93,8 +93,8 @@ use antecedent_contract::bridge::{
     BridgedDistributionClaim, MappingKind, NonlinearMap, PointPropagation, Support, TrialLevelFit,
     ValueKind, derive_bridged_claim_propagating, point_propagation_unavailable,
 };
-use antecedent_contract::{ClaimEnvelope, ClaimFreshness, ClaimKind};
 use antecedent_contract::propagation_chain::{ChainRefusal, TableConstruction};
+use antecedent_contract::{ClaimEnvelope, ClaimFreshness, ClaimKind};
 use antecedent_core::ExecutionContext;
 use antecedent_core::identity::SemanticDigest;
 use antecedent_io::IoError;

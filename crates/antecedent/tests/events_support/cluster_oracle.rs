@@ -42,16 +42,10 @@ pub fn branching_history(seed: u64, cutoff: f64, end: f64) -> (EventHistory, usi
             origin: "oracle".into(),
             source: "independent_cluster_truth".into(),
             empty_origin: 0.0,
-            window: EventWindow {
-                start: 0.0,
-                end: cutoff,
-            },
+            window: EventWindow { start: 0.0, end: cutoff },
             left: vec![],
             gaps: vec![],
-            events: times[..split]
-                .iter()
-                .map(|&time| Arrival { time, kind: 0 })
-                .collect(),
+            events: times[..split].iter().map(|&time| Arrival { time, kind: 0 }).collect(),
         },
         future,
     )

@@ -58,7 +58,8 @@ fn chain_parts(py: Python<'_>, chain: &PropagationChain) -> Refused<ChainParts> 
     };
     let (draw_meaning, alignment) = match chain.plan() {
         Ok(plan) => (
-            plan.stage(&plan.output).and_then(|stage| stage.meaning)
+            plan.stage(&plan.output)
+                .and_then(|stage| stage.meaning)
                 .map(|meaning| meaning.as_str().to_owned()),
             if chain.record().construction == "independent_product" {
                 Some(format!("independent_product:{}", chain.identity()))
@@ -145,8 +146,11 @@ fn propagation_chain_consume(
     let ctx = execution_context(0, None, cancel);
     match consume_propagation_chain(artifact, expected_identity, &ctx) {
         Ok(consumed) => {
-            let output_draw_meaning = consumed.plan.stage(&consumed.output)
-                .and_then(|stage| stage.meaning).map(LawMeaning::as_str);
+            let output_draw_meaning = consumed
+                .plan
+                .stage(&consumed.output)
+                .and_then(|stage| stage.meaning)
+                .map(LawMeaning::as_str);
             let alignment = if consumed.construction == "independent_product" {
                 Some(format!("independent_product:{}", consumed.identity))
             } else {
