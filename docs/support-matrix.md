@@ -83,7 +83,7 @@ test that drops its builder, executes the retained plan, and inspects it.
 `scripts/gate_support.py --cited-tests` resolves those citations and
 `scripts/gate_checked_execution.sh` runs them.
 
-Interval calibration of the 2776 matrix cells: 2581 cite coverage records; 15 across 5 distinct coordinates have no coverage measurement for their estimator (`estimator_grid_not_measured`); 180 report no interval (`no_interval_reported`). A supported unit therefore does not imply that its interval coverage was measured, and cited records do not by themselves make a result `calibrated` (see `result.calibration`).
+Interval calibration of the 2776 matrix cells: 2593 cite coverage records; 3 across 1 distinct coordinates have no coverage measurement for their estimator (`estimator_grid_not_measured`); 180 report no interval (`no_interval_reported`). A supported unit therefore does not imply that its interval coverage was measured, and cited records do not by themselves make a result `calibrated` (see `result.calibration`).
 
 Static Frequentist `ResponseCurve` cells, and Frequentist `TemporalDag`
 `ResponseCurve` / `InterventionResponse` at validation `none`, also require
