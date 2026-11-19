@@ -2256,7 +2256,8 @@
   {
    "covered_by": [
     "composition.verifiers",
-    "composition.provenance"
+    "composition.provenance",
+    "composition.multi_source"
    ],
    "deviations": [
     "Claim policy: the bundle is point-only. It certifies that embedded artifacts decode and recompute and that the declared bindings hold; it grants no causal, interval, coverage or probability support. Every uncertainty diagnostic carried inside an embedded artifact keeps that artifact's own status (calibration 'not_measured' where it declares so).",
@@ -2267,7 +2268,7 @@
     "A consumer holding no retained expected bundle identity checks only internal consistency; a resealed forgery passes only under the forger's own identity, so the consumer passes the identity it retained independently of the bytes. Container, version, size and count bounds are checked before any decode allocation.",
     "A node-level failure does not refuse the bundle: the node is reported failed at a named stage and the rest of the bundle keeps its inspected result. Graph defects (blank or repeated node, dangling or repeated edge, self-dependency, cycle) and a digest that differs from its recomputation share the edge_digest_mismatch stage."
    ],
-   "digest": "77ff38df9dbf2ebe9e3a342590af2a80a7eb3e2eb71b0a48028ba767c5b1f96b",
+   "digest": "0ac487806ca84544c0a3c9e0ed3529d2f7825aa6898d0f7d6aa3bb1b6ff40dcf",
    "id": "composition.bundle",
    "review": "none",
    "scope_limits": [],
@@ -2288,7 +2289,13 @@
     "composition.bundle",
     "composition.native_response_claims",
     "composition.source_evidence",
-    "composition.verifiers"
+    "composition.verifiers",
+    "estimate.transport.trial_bayesian_bootstrap",
+    "transport.joint_bayesian",
+    "cyclic.general_systems",
+    "graph_imputation.compiled_candidate",
+    "decision.functionals",
+    "scientific_bridge.distribution_bridges"
    ],
    "deviations": [
     "Claim policy: point-only. The acceptance composes supported routes and checks their hand-derived values and refusals; it adds no source, no estimator and no interval or coverage claim. Every standard error, p-value, interval and Monte Carlo error inside a composed artifact is a diagnostic with calibration not_measured.",
@@ -2298,7 +2305,7 @@
     "The design ranking is bound to the joint law only by its source digest; the acceptance checks the digest binding and the hand-derived EVPI 1/8, EVSI 1/16 and net values 0.0425 and 0.0125, not any deeper link between the two artifacts.",
     "Independence is declared, not inferred: E1 and E2 are declared independent, N and E2 share data (registry 7), and unknown dependence is never read as independence."
    ],
-   "digest": "b21cf167b8cd1a49feb71444067053bc2409a69205dfc71614fba34a2856e4d4",
+   "digest": "016d4253ec15e95a64f8faa005aa55004a3f2cc29d271e65dd51e52d4bce9f26",
    "id": "composition.multi_source",
    "review": "none",
    "scope_limits": [],
@@ -2469,7 +2476,7 @@
     "Embedded kinds with no verifier (a causal contract, an attestation, quantity coordinates, a transformation) fail as unknown_node_kind and must travel as reference nodes; they are never verified by default. Recalculation receipts are not covered by this registry.",
     "A reference node is verified by the bundle only as 'matched a supplied source' and is never replayed by a verifier."
    ],
-   "digest": "fdd8d53f07923eb13ade5468e867ca44725846b8a21fb4ec801a662ae32ca2a4",
+   "digest": "96c1f17ecb97136de82c8698c6b27d88adb2f56c6d692629d6d1ce4de9bf3142",
    "id": "composition.verifiers",
    "review": "none",
    "scope_limits": [],
@@ -6753,13 +6760,19 @@
    "scope_limits": [],
    "sources": [
     {
+     "authors": [
+      "Larry Wasserman",
+      "Aaditya Ramdas",
+      "Sivaraman Balakrishnan"
+     ],
      "doi": "10.1073/pnas.1922664117",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "The Universal Likelihood Ratio Test",
       "Mixture Models"
      ],
-     "title": "Universal inference"
+     "title": "Universal inference",
+     "year": 2020
     }
    ]
   },
@@ -8900,6 +8913,52 @@
   },
   {
    "deviations": [
+    "Only the empirical trial outcome law is resampled: the trial and target sample sizes, target rows, supplied selection odds, and supplied treatment probabilities are held fixed, so uncertainty from fitting either probability model or from sampling the target is not propagated.",
+    "The inverse-odds (IOW) estimator only; the paper's doubly robust DR1 estimator is not resampled on this route.",
+    "Requires the Dahabreh-compatible identification certificate anew, at least two draws, and observed trial units in both treatment arms; binary treatment contrasts only.",
+    "Draws are Horvitz-style, normalized by the fixed target count rather than by the weighted sum of target rows, matching the frequentist cell. In the block form the weights are normalised over the trial rows, so a Dirichlet law on blocks holds only when every block has the same number of trial rows; otherwise the draw is a ratio of block-weighted sums.",
+    "The interval is a model-conditional pushforward; the two-row fixture checks exact moments and there is no coverage record under arbitrary target shift."
+   ],
+   "digest": "1aed0c95558fc227dbf62a5742c5eb36f24780ffcbd871320f8c4f3920f2e0bd",
+   "id": "estimate.transport.trial_bayesian_bootstrap",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the selection and treatment probability models (supplied), the identification certificate check beyond its refusal, the frequentist inverse-odds contrast, the doubly robust estimator, or coverage"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Issa J. Dahabreh",
+      "Sarah E. Robertson",
+      "Jon A. Steingrimsson",
+      "Elizabeth A. Stuart",
+      "Miguel A. Hernán"
+     ],
+     "doi": "10.1002/sim.8426",
+     "doi_verified": true,
+     "sections": [
+      "Section 4.2: identification for a target population of nonparticipants",
+      "Section 5.2, equation (2): inverse-odds weighting"
+     ],
+     "title": "Extending inferences from a randomized trial to a new target population",
+     "year": 2020
+    },
+    {
+     "authors": [
+      "Donald B. Rubin"
+     ],
+     "doi": "10.1214/aos/1176345338",
+     "doi_verified": true,
+     "sections": [
+      "Dirichlet(1..1) observation weights"
+     ],
+     "title": "The Bayesian Bootstrap",
+     "year": 1981
+    }
+   ]
+  },
+  {
+   "deviations": [
     "The implementation evaluates the paper's time-fixed binary-treatment inverse-odds and DR1 equations using caller-supplied nuisance arrays; it does not estimate, tune, or cross-fit participation, randomization, or outcome models.",
     "The target is restricted to the population of trial nonparticipants under direct Dahabreh-compatible identification. General target populations, longitudinal treatments, and recursive graphical transport are outside scope.",
     "Only binary treatment contrasts are supported.",
@@ -9360,12 +9419,19 @@
    "scope_limits": [],
    "sources": [
     {
+     "authors": [
+      "Giuseppe Cavaliere",
+      "Ye Lu",
+      "Anders Rahbek",
+      "Jacob Stærk-Østergaard"
+     ],
      "doi": "10.1016/j.jeconom.2022.02.006",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Recursive intensity bootstrap"
      ],
-     "title": "Bootstrap inference for Hawkes and general point processes"
+     "title": "Bootstrap inference for Hawkes and general point processes",
+     "year": 2023
     }
    ]
   },
@@ -9383,20 +9449,32 @@
    "scope_limits": [],
    "sources": [
     {
+     "authors": [
+      "Alan G. Hawkes",
+      "David Oakes"
+     ],
      "doi": "10.2307/3212693",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Cluster process representation"
      ],
-     "title": "A cluster process representation of a self-exciting process"
+     "title": "A cluster process representation of a self-exciting process",
+     "year": 1974
     },
     {
+     "authors": [
+      "Giuseppe Cavaliere",
+      "Ye Lu",
+      "Anders Rahbek",
+      "Jacob Stærk-Østergaard"
+     ],
      "doi": "10.1016/j.jeconom.2022.02.006",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Recursive intensity bootstrap"
      ],
-     "title": "Bootstrap inference for Hawkes and general point processes"
+     "title": "Bootstrap inference for Hawkes and general point processes",
+     "year": 2023
     }
    ]
   },
@@ -12185,7 +12263,7 @@
     "Spread is uncalibrated: the bridged draws carry the declared mapping uncertainty and dependence but no interval without a measured coverage record.",
     "Delta-method agreement is exact only to first order for a nonlinear map."
    ],
-   "digest": "72c86d6c978b991395fff66e8e7b9893e4c2284e50f24d3821f3355f1c20d4c9",
+   "digest": "5870366ba16f5190c2e48da7354c781dce57a5995697b280ef268147c258a481",
    "id": "scientific_bridge.distribution_bridges",
    "review": "none",
    "scope_limits": [],
