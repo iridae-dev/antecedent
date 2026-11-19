@@ -508,18 +508,6 @@ fn prepare_component_feedback_inner(
                 "a measured or inherited component calibration does not cover the connected equilibrium",
             ));
         }
-        if component
-            .interface
-            .consumes
-            .iter()
-            .filter(|port| port.dependence == DependenceRequirement::DisjointEvidence)
-            .count()
-            > 1
-        {
-            return Err(ComponentFeedbackError::Invalid(
-                "multiple disjoint-evidence inputs require a joint evidence-ledger check",
-            ));
-        }
         writer
             .text(&component.interface.component)
             .text(&component.interface.canonical_identity().to_hex())

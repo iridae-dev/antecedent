@@ -685,15 +685,15 @@ impl PropagationChainRecordWire {
         }
         for stage in &self.stages {
             if let Some(bits) = stage.decision_reference {
-                if stage.id != self.output {
-                    return Err(malformed(format!(
-                        "retained-chain decision reference on `{}` must be the output stage",
-                        stage.id
-                    )));
-                }
                 if stage.kind != StageKind::DecisionUtility.as_str() {
                     return Err(malformed(format!(
                         "decision reference on `{}` requires a decision utility stage",
+                        stage.id
+                    )));
+                }
+                if stage.id != self.output {
+                    return Err(malformed(format!(
+                        "retained-chain decision reference on `{}` must be the output stage",
                         stage.id
                     )));
                 }
@@ -764,8 +764,10 @@ impl PropagationChainRecordWire {
     /// As [`Self::plan`]; a bound of `limits` exceeded is `LimitsExceeded`.
     pub fn plan_within(&self, limits: &PropagationChainLimits) -> Result<ChainPlan, Error> {
         check_bounds(self, limits)?;
-        self.check_output_quantity()?;
+        // A decision reference is checked as a finite utility comparison before
+        // the record-level rule that an output-law decision declares its quantity.
         self.check_decision_references()?;
+        self.check_output_quantity()?;
         let plan = check_propagation_chain(&self.declaration()?)?;
         self.check_joint_outputs(&plan)?;
         Ok(plan)
