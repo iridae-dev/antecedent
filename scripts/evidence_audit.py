@@ -889,8 +889,20 @@ def calibration_rows(root: Path) -> list[dict]:
     return registered_calibration_acceptance(root) + registered_calibration_simulations(root)
 
 
+def all_scientific_rows(root: Path) -> list[dict]:
+    """Every scientific assertion: the claim rows, the scientific test registry and every
+    check the support rule cites outside the claim registries.
+
+    A cited check with no row could never earn the record the rule requires. Scientific
+    checks are Rust tests; a capability citing a Python test is a citation the gate refuses."""
+    import gate_support
+
+    cited = [row for row in gate_support.cited_checks(root.resolve()) if row["evidence_test"].endswith(".rs")]
+    return scientific_rows(claim_rows(root.resolve()), registered_scientific_tests(root) + cited)
+
+
 def scientific_rust_rows(root: Path) -> list[dict]:
-    rows = scientific_rows(claim_rows(root), registered_scientific_tests(root))
+    rows = all_scientific_rows(root)
     rust = registered_rust_assertions(
         [(r["evidence_test"], r["evidence_assertion"]) for r in rows if r["evidence_test"].endswith(".rs")],
         root,
