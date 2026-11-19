@@ -142,7 +142,37 @@ def python_tree(text: str) -> str:
                 and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
                 and isinstance(body[0].value.value, str):
             node.body = body[1:] or [ast.Pass()]
-    return ast.dump(tree, annotate_fields=True, include_attributes=False)
+    return _dump(tree)
+
+
+# Fields the grammar gained after Python 3.11; an empty one is left out of the dump.
+_LATER_FIELDS = frozenset({"type_params"})
+
+
+def _dump(node: object) -> str:
+    """`ast.dump(node, annotate_fields=True, include_attributes=False)` as Python 3.11 prints it.
+
+    `ast.dump` itself changes with the interpreter (3.12 adds `type_params`, 3.13 omits empty
+    fields), which would make a recipe's digest depend on the Python that computes it. This
+    prints the 3.11 form on every interpreter, so a digest recorded under one is current under
+    any other."""
+    if isinstance(node, ast.AST):
+        cls = type(node)
+        args = []
+        for name in node._fields:
+            if name in _LATER_FIELDS and not getattr(node, name, None):
+                continue
+            try:
+                value = getattr(node, name)
+            except AttributeError:
+                continue
+            if value is None and getattr(cls, name, ...) is None:
+                continue
+            args.append(f"{name}={_dump(value)}")
+        return f"{cls.__name__}({', '.join(args)})"
+    if isinstance(node, list):
+        return "[" + ", ".join(_dump(item) for item in node) + "]"
+    return repr(node)
 
 
 def digest(form: str, data: bytes, *, nodes: list[str] | None = None) -> str:

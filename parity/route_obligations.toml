@@ -37858,7 +37858,7 @@ route_estimator = "functional.effect"
 matrix_digest = "1ae52351ad096b20"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|class_cross_world_effects_match_the_exact_functionals_of_the_count_tables|conformance/estimate/cross_world_class_truth"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval|conformance/estimate/cross_world_class_truth"
 uncertainty = "no_interval_reported"
 evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "conformance/estimate/cross_world_class_truth"]
 
@@ -37960,7 +37960,7 @@ route_estimator = "functional.effect"
 matrix_digest = "b225e648bdf79b59"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|class_cross_world_effects_match_the_exact_functionals_of_the_count_tables|conformance/estimate/cross_world_class_truth"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval|conformance/estimate/cross_world_class_truth"
 uncertainty = "no_interval_reported"
 evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "conformance/estimate/cross_world_class_truth"]
 
@@ -38488,7 +38488,7 @@ matrix_digest = "ac653efd20ac7549"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_posterior_truth.rs|nested_graph_posterior_is_the_weighted_mean_of_the_atoms_closed_forms_under_every_suite|conformance/estimate/cross_world_class_truth"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/cross_world_posterior_truth.rs", "conformance/estimate/cross_world_class_truth"]
 
 [[obligation]]
@@ -38505,7 +38505,7 @@ matrix_digest = "5c7bbedb3898cb29"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_posterior_truth.rs|nested_graph_posterior_is_the_weighted_mean_of_the_atoms_closed_forms_under_every_suite|conformance/estimate/cross_world_class_truth"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/cross_world_posterior_truth.rs", "conformance/estimate/cross_world_class_truth"]
 
 [[obligation]]
@@ -38522,7 +38522,7 @@ matrix_digest = "fe3a057791e45172"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_posterior_truth.rs::nested_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_posterior_truth.rs|nested_graph_posterior_is_the_weighted_mean_of_the_atoms_closed_forms_under_every_suite|conformance/estimate/cross_world_class_truth"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/cross_world_posterior_truth.rs", "conformance/estimate/cross_world_class_truth"]
 
 [[obligation]]
