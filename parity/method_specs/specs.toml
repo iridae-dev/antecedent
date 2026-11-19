@@ -247,7 +247,7 @@ provenance = [
   "estimate.bayesian_temporal_white_innovation",
   "estimate.gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 26 of 26 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 27 of 27 public items reviewed"
 identifying_result = "AverageEffect"
 assumptions = "Supported Bayesian AverageEffect ids are g-computation and robust ATE, not glm.adjustment."
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -649,7 +649,7 @@ provenance = [
   "estimate.bayesian_temporal_white_innovation",
   "estimate.gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 26 of 26 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 27 of 27 public items reviewed"
 identifying_result = "AverageEffect"
 assumptions = "the identification premises of AverageEffect on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -3774,7 +3774,7 @@ provenance = [
   "estimate.bayesian_temporal_white_innovation",
   "estimate.gcomp",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 26 of 26 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 27 of 27 public items reviewed"
 identifying_result = "No Bayesian posterior of the contemporaneous projection as a pulse"
 assumptions = "the identification premises of AverageEffect on the recorded route; the module documents no further premise"
 sampling_units = "ordered observations of the declared series or panel; serial dependence is handled by block resampling or block weights"
@@ -4943,7 +4943,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "design.compiled_program_search",
 ]
-api_review = "parity/public_api/antecedent-design.txt: 11 of 11 public items reviewed"
+api_review = "parity/public_api/antecedent-design.txt: 15 of 15 public items reviewed"
 identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Support is separate from the finite candidate set."
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
@@ -4997,7 +4997,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "design.compiled_program_search",
 ]
-api_review = "parity/public_api/antecedent-design.txt: 11 of 11 public items reviewed"
+api_review = "parity/public_api/antecedent-design.txt: 15 of 15 public items reviewed"
 identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Support is separate from the finite candidate set."
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
@@ -5051,7 +5051,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "design.compiled_program_search",
 ]
-api_review = "parity/public_api/antecedent-design.txt: 11 of 11 public items reviewed"
+api_review = "parity/public_api/antecedent-design.txt: 15 of 15 public items reviewed"
 identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Support is separate from the finite candidate set."
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."
@@ -5105,7 +5105,7 @@ decision_basis = "not_supported per the counterpart inventory; execution crates/
 provenance = [
   "design.compiled_program_search",
 ]
-api_review = "parity/public_api/antecedent-design.txt: 11 of 11 public items reviewed"
+api_review = "parity/public_api/antecedent-design.txt: 15 of 15 public items reviewed"
 identifying_result = "Continuous intervention program; global optimum only with a valid certificate"
 assumptions = "Convergence, derivative, resource, and failure contracts are required and unstated. Support is separate from the finite candidate set."
 sampling_units = "Inherited original fitted response law; deterministic finite/poll search adds no independent observations."

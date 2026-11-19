@@ -432,6 +432,7 @@ impl core::clone::Clone for antecedent_estimate::adjustment_resume::PredictionRe
 impl core::clone::Clone for antecedent_estimate::ancova::AncovaFit
 impl core::clone::Clone for antecedent_estimate::ancova::SmallArmInterval
 impl core::clone::Clone for antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit
+impl core::clone::Clone for antecedent_estimate::bayesian::TargetMoments
 impl core::clone::Clone for antecedent_estimate::bayesian_iv::BayesianIvEstimate
 impl core::clone::Clone for antecedent_estimate::bayesian_iv::StageVariances
 impl core::clone::Clone for antecedent_estimate::bayesian_local_ratio::BayesianLocalRatioEstimate
@@ -2981,6 +2982,7 @@ impl core::fmt::Debug for antecedent_estimate::adjustment_resume::PredictionRefu
 impl core::fmt::Debug for antecedent_estimate::ancova::AncovaFit
 impl core::fmt::Debug for antecedent_estimate::ancova::SmallArmInterval
 impl core::fmt::Debug for antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit
+impl core::fmt::Debug for antecedent_estimate::bayesian::TargetMoments
 impl core::fmt::Debug for antecedent_estimate::bayesian_iv::BayesianIvEstimate
 impl core::fmt::Debug for antecedent_estimate::bayesian_iv::StageVariances
 impl core::fmt::Debug for antecedent_estimate::bayesian_local_ratio::BayesianLocalRatioEstimate
@@ -4530,6 +4532,7 @@ impl core::marker::Freeze for antecedent_estimate::adjustment_resume::Prediction
 impl core::marker::Freeze for antecedent_estimate::ancova::AncovaFit [auto]
 impl core::marker::Freeze for antecedent_estimate::ancova::SmallArmInterval [auto]
 impl core::marker::Freeze for antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit [auto]
+impl core::marker::Freeze for antecedent_estimate::bayesian::TargetMoments [auto]
 impl core::marker::Freeze for antecedent_estimate::bayesian_iv::BayesianIvEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::bayesian_iv::StageVariances [auto]
 impl core::marker::Freeze for antecedent_estimate::bayesian_local_ratio::BayesianLocalRatioEstimate [auto]
@@ -5653,6 +5656,7 @@ impl core::marker::Send for antecedent_estimate::adjustment_resume::PredictionRe
 impl core::marker::Send for antecedent_estimate::ancova::AncovaFit [auto]
 impl core::marker::Send for antecedent_estimate::ancova::SmallArmInterval [auto]
 impl core::marker::Send for antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit [auto]
+impl core::marker::Send for antecedent_estimate::bayesian::TargetMoments [auto]
 impl core::marker::Send for antecedent_estimate::bayesian_iv::BayesianIvEstimate [auto]
 impl core::marker::Send for antecedent_estimate::bayesian_iv::StageVariances [auto]
 impl core::marker::Send for antecedent_estimate::bayesian_local_ratio::BayesianLocalRatioEstimate [auto]
@@ -7715,6 +7719,7 @@ impl core::marker::Sync for antecedent_estimate::adjustment_resume::PredictionRe
 impl core::marker::Sync for antecedent_estimate::ancova::AncovaFit [auto]
 impl core::marker::Sync for antecedent_estimate::ancova::SmallArmInterval [auto]
 impl core::marker::Sync for antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit [auto]
+impl core::marker::Sync for antecedent_estimate::bayesian::TargetMoments [auto]
 impl core::marker::Sync for antecedent_estimate::bayesian_iv::BayesianIvEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::bayesian_iv::StageVariances [auto]
 impl core::marker::Sync for antecedent_estimate::bayesian_local_ratio::BayesianLocalRatioEstimate [auto]
@@ -8841,6 +8846,7 @@ impl core::marker::Unpin for antecedent_estimate::adjustment_resume::PredictionR
 impl core::marker::Unpin for antecedent_estimate::ancova::AncovaFit [auto]
 impl core::marker::Unpin for antecedent_estimate::ancova::SmallArmInterval [auto]
 impl core::marker::Unpin for antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit [auto]
+impl core::marker::Unpin for antecedent_estimate::bayesian::TargetMoments [auto]
 impl core::marker::Unpin for antecedent_estimate::bayesian_iv::BayesianIvEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::bayesian_iv::StageVariances [auto]
 impl core::marker::Unpin for antecedent_estimate::bayesian_local_ratio::BayesianLocalRatioEstimate [auto]
@@ -9970,6 +9976,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::adjustment
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ancova::AncovaFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::ancova::SmallArmInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::bayesian::TargetMoments [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::bayesian_iv::BayesianIvEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::bayesian_iv::StageVariances [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::bayesian_local_ratio::BayesianLocalRatioEstimate [auto]
@@ -11095,6 +11102,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::adjustment_re
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ancova::AncovaFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::ancova::SmallArmInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::bayesian::TargetMoments [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::bayesian_iv::BayesianIvEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::bayesian_iv::StageVariances [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::bayesian_local_ratio::BayesianLocalRatioEstimate [auto]
@@ -14446,6 +14454,7 @@ pub field antecedent_estimate::PreparedBayesianProblem::method: alloc::sync::Arc
 pub field antecedent_estimate::PreparedBayesianProblem::overlap: antecedent_estimate::OverlapPolicy
 pub field antecedent_estimate::PreparedBayesianProblem::preparation: core::option::Option<alloc::sync::Arc<antecedent_estimate::PreparationSummary>>
 pub field antecedent_estimate::PreparedBayesianProblem::serial_dependence: antecedent_estimate::SerialDependence
+pub field antecedent_estimate::PreparedBayesianProblem::target_moments: core::option::Option<antecedent_estimate::bayesian::TargetMoments>
 pub field antecedent_estimate::PreparedBayesianProblem::unit_ids: core::option::Option<alloc::vec::Vec<u32>>
 pub field antecedent_estimate::PreparedEstimationProblem::active: f64
 pub field antecedent_estimate::PreparedEstimationProblem::adjustment_set: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
@@ -15083,6 +15092,8 @@ pub field antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit::effect
 pub field antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit::propensity_max: f64
 pub field antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit::propensity_min: f64
 pub field antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit::treated_subjects: usize
+pub field antecedent_estimate::bayesian::TargetMoments::covariates: alloc::vec::Vec<(usize, usize)>
+pub field antecedent_estimate::bayesian::TargetMoments::weights: alloc::sync::Arc<[f64]>
 pub field antecedent_estimate::bayesian_iv::BayesianIvEstimate::effect_draws: alloc::vec::Vec<f64>
 pub field antecedent_estimate::bayesian_iv::BayesianIvEstimate::first_stage_f: f64
 pub field antecedent_estimate::bayesian_iv::BayesianIvEstimate::lower: f64
@@ -20863,6 +20874,7 @@ pub struct antecedent_estimate::adjustment_resume::AdjustedFit
 pub struct antecedent_estimate::adjustment_resume::AdjustedFit has private fields
 pub struct antecedent_estimate::ancova::AncovaFit
 pub struct antecedent_estimate::augmented_panel_did::AugmentedPanelDidFit
+pub struct antecedent_estimate::bayesian::TargetMoments
 pub struct antecedent_estimate::bayesian_iv::BayesianIvEstimate
 pub struct antecedent_estimate::bayesian_iv::IvDesignSample<'a>
 pub struct antecedent_estimate::bayesian_iv::IvSample<'a>

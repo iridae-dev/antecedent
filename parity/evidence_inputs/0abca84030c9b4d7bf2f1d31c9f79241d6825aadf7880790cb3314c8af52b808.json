@@ -1,0 +1,1 @@
+[{"digest":"1d66e93144226eea5d315f8fd0911c9a2f163712c90e45d6f7903789eb804ec8","kind":"evidence_file","path":"crates/antecedent-io-core/data/coverage_records.json","role":"external"},{"digest":"6dfd4a586628726065cdcd265fe8631f39cbdf480f388d3e283ef74cb6ce9983","kind":"evidence_file","path":"crates/antecedent-io-core/data/method_provenance.json","role":"external"}]

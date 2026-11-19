@@ -1605,46 +1605,46 @@
     },
     {
       "path": "crates/antecedent/tests/joint_panel_calibration.rs",
-      "sha256": "50e35e506e7fffbf47101356743b605a70ebb683502e973eec5b677e6e22ec71",
+      "sha256": "91e157a946349217a42368edf72566b8dedb43480a10f9cc5aa48363dd375f3e",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 787,
+          "line": 789,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: interval_label(mode, path) },\n        LEVEL,"
         },
         {
-          "line": 968,
+          "line": 970,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: WARP_DGP, interval: interval_label(mode, path) },\n        LEVEL,"
         },
         {
-          "line": 1231,
+          "line": 1234,
           "call": "CoverageTally::new(",
           "argument": "format!(\"{test} specification set\"), LEVEL"
         },
         {
-          "line": 1509,
+          "line": 1512,
           "call": "CoverageTally::new(",
           "argument": "test, LEVEL"
         },
         {
-          "line": 1852,
+          "line": 1855,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"weighted_posterior_quantile\" },\n        LEVEL,"
         },
         {
-          "line": 2048,
+          "line": 2051,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"experiment_source\", interval: \"monte_carlo_standard_error\" },\n        LEVEL,"
         },
         {
-          "line": 2227,
+          "line": 2230,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp: \"response_data\", interval }, LEVEL"
         },
         {
-          "line": 2569,
+          "line": 2587,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: SELECTED_VALUE_INTERVAL_METHOD },\n        LEVEL,"
         }

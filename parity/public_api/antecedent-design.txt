@@ -469,6 +469,7 @@ impl core::clone::Clone for antecedent_design::decision_reliability::ReplicateOu
 impl core::clone::Clone for antecedent_design::decision_reliability::RiskTail
 impl core::clone::Clone for antecedent_design::decision_reliability::RolloutNoise
 impl core::clone::Clone for antecedent_design::decision_reliability::RolloutUtilityDraws
+impl core::clone::Clone for antecedent_design::decision_reliability::SelectedValueInterval
 impl core::clone::Clone for antecedent_design::decision_reliability::SelectionAssessment
 impl core::clone::Clone for antecedent_design::decision_reliability::SelectionComponent
 impl core::clone::Clone for antecedent_design::decision_reliability::SelectionCorrectedInterval
@@ -699,8 +700,10 @@ impl core::clone::Clone for antecedent_design::program_search::continuous::Compi
 impl core::clone::Clone for antecedent_design::program_search::continuous::ContinuousProgramSearchResult
 impl core::clone::Clone for antecedent_design::program_search::continuous::ContinuousSearchAttempt
 impl core::clone::Clone for antecedent_design::program_search::continuous::ContinuousSearchOptions
+impl core::clone::Clone for antecedent_design::program_search::continuous::ContinuousSearchReliability
 impl core::clone::Clone for antecedent_design::program_search::continuous::ContinuousSearchStop
 impl core::clone::Clone for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch
+impl core::clone::Clone for antecedent_design::program_search::continuous::SelectedProgramReliability
 impl core::clone::Clone for antecedent_design::program_search::selection::CandidateEstimates
 impl core::clone::Clone for antecedent_design::program_search::selection::ObservationalSpan
 impl core::clone::Clone for antecedent_design::program_search::selection::ProgramHoldoutPartition
@@ -1516,6 +1519,7 @@ impl core::cmp::PartialEq for antecedent_design::decision_reliability::Replicate
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::RiskTail
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::RolloutNoise
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::RolloutUtilityDraws
+impl core::cmp::PartialEq for antecedent_design::decision_reliability::SelectedValueInterval
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::SelectionAssessment
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::SelectionComponent
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::SelectionCorrectedInterval
@@ -2378,6 +2382,7 @@ impl core::fmt::Debug for antecedent_design::decision_reliability::ReplicateOutc
 impl core::fmt::Debug for antecedent_design::decision_reliability::RiskTail
 impl core::fmt::Debug for antecedent_design::decision_reliability::RolloutNoise
 impl core::fmt::Debug for antecedent_design::decision_reliability::RolloutUtilityDraws
+impl core::fmt::Debug for antecedent_design::decision_reliability::SelectedValueInterval
 impl core::fmt::Debug for antecedent_design::decision_reliability::SelectionAssessment
 impl core::fmt::Debug for antecedent_design::decision_reliability::SelectionComponent
 impl core::fmt::Debug for antecedent_design::decision_reliability::SelectionCorrectedInterval
@@ -2607,8 +2612,10 @@ impl core::fmt::Debug for antecedent_design::program_search::continuous::Compile
 impl core::fmt::Debug for antecedent_design::program_search::continuous::ContinuousProgramSearchResult
 impl core::fmt::Debug for antecedent_design::program_search::continuous::ContinuousSearchAttempt
 impl core::fmt::Debug for antecedent_design::program_search::continuous::ContinuousSearchOptions
+impl core::fmt::Debug for antecedent_design::program_search::continuous::ContinuousSearchReliability
 impl core::fmt::Debug for antecedent_design::program_search::continuous::ContinuousSearchStop
 impl core::fmt::Debug for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch
+impl core::fmt::Debug for antecedent_design::program_search::continuous::SelectedProgramReliability
 impl core::fmt::Debug for antecedent_design::program_search::selection::CandidateEstimates
 impl core::fmt::Debug for antecedent_design::program_search::selection::ObservationalSpan
 impl core::fmt::Debug for antecedent_design::program_search::selection::ProgramHoldoutPartition
@@ -3449,6 +3456,7 @@ impl core::marker::Freeze for antecedent_design::decision_reliability::Replicate
 impl core::marker::Freeze for antecedent_design::decision_reliability::RiskTail [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::RolloutNoise [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::RolloutUtilityDraws [auto]
+impl core::marker::Freeze for antecedent_design::decision_reliability::SelectedValueInterval [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::SelectionAssessment [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::SelectionComponent [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::SelectionCorrectedInterval [auto]
@@ -3682,8 +3690,10 @@ impl core::marker::Freeze for antecedent_design::program_search::continuous::Com
 impl core::marker::Freeze for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::marker::Freeze for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
 impl core::marker::Freeze for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::marker::Freeze for antecedent_design::program_search::continuous::ContinuousSearchReliability [auto]
 impl core::marker::Freeze for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
 impl core::marker::Freeze for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
+impl core::marker::Freeze for antecedent_design::program_search::continuous::SelectedProgramReliability [auto]
 impl core::marker::Freeze for antecedent_design::program_search::selection::CandidateEstimates [auto]
 impl core::marker::Freeze for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::marker::Freeze for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
@@ -4227,6 +4237,7 @@ impl core::marker::Send for antecedent_design::decision_reliability::ReplicateOu
 impl core::marker::Send for antecedent_design::decision_reliability::RiskTail [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::RolloutNoise [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::RolloutUtilityDraws [auto]
+impl core::marker::Send for antecedent_design::decision_reliability::SelectedValueInterval [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::SelectionAssessment [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::SelectionComponent [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::SelectionCorrectedInterval [auto]
@@ -4460,8 +4471,10 @@ impl core::marker::Send for antecedent_design::program_search::continuous::Compi
 impl core::marker::Send for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::marker::Send for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
 impl core::marker::Send for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::marker::Send for antecedent_design::program_search::continuous::ContinuousSearchReliability [auto]
 impl core::marker::Send for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
 impl core::marker::Send for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
+impl core::marker::Send for antecedent_design::program_search::continuous::SelectedProgramReliability [auto]
 impl core::marker::Send for antecedent_design::program_search::selection::CandidateEstimates [auto]
 impl core::marker::Send for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::marker::Send for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
@@ -4952,6 +4965,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_reliabili
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::RiskTail
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::RolloutNoise
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::RolloutUtilityDraws
+impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::SelectedValueInterval
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::SelectionAssessment
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::SelectionComponent
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::SelectionCorrectedInterval
@@ -5680,6 +5694,7 @@ impl core::marker::Sync for antecedent_design::decision_reliability::ReplicateOu
 impl core::marker::Sync for antecedent_design::decision_reliability::RiskTail [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::RolloutNoise [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::RolloutUtilityDraws [auto]
+impl core::marker::Sync for antecedent_design::decision_reliability::SelectedValueInterval [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::SelectionAssessment [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::SelectionComponent [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::SelectionCorrectedInterval [auto]
@@ -5913,8 +5928,10 @@ impl core::marker::Sync for antecedent_design::program_search::continuous::Compi
 impl core::marker::Sync for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::marker::Sync for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
 impl core::marker::Sync for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::marker::Sync for antecedent_design::program_search::continuous::ContinuousSearchReliability [auto]
 impl core::marker::Sync for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
 impl core::marker::Sync for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
+impl core::marker::Sync for antecedent_design::program_search::continuous::SelectedProgramReliability [auto]
 impl core::marker::Sync for antecedent_design::program_search::selection::CandidateEstimates [auto]
 impl core::marker::Sync for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::marker::Sync for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
@@ -6459,6 +6476,7 @@ impl core::marker::Unpin for antecedent_design::decision_reliability::ReplicateO
 impl core::marker::Unpin for antecedent_design::decision_reliability::RiskTail [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::RolloutNoise [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::RolloutUtilityDraws [auto]
+impl core::marker::Unpin for antecedent_design::decision_reliability::SelectedValueInterval [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::SelectionAssessment [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::SelectionComponent [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::SelectionCorrectedInterval [auto]
@@ -6692,8 +6710,10 @@ impl core::marker::Unpin for antecedent_design::program_search::continuous::Comp
 impl core::marker::Unpin for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::marker::Unpin for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
 impl core::marker::Unpin for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::marker::Unpin for antecedent_design::program_search::continuous::ContinuousSearchReliability [auto]
 impl core::marker::Unpin for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
 impl core::marker::Unpin for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
+impl core::marker::Unpin for antecedent_design::program_search::continuous::SelectedProgramReliability [auto]
 impl core::marker::Unpin for antecedent_design::program_search::selection::CandidateEstimates [auto]
 impl core::marker::Unpin for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::marker::Unpin for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
@@ -7237,6 +7257,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_rel
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::RiskTail [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::RolloutNoise [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::RolloutUtilityDraws [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::SelectedValueInterval [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::SelectionAssessment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::SelectionComponent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::SelectionCorrectedInterval [auto]
@@ -7463,8 +7484,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_sear
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchReliability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::continuous::SelectedProgramReliability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::CandidateEstimates [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
@@ -8005,6 +8028,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliab
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::RiskTail [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::RolloutNoise [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::RolloutUtilityDraws [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::SelectedValueInterval [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::SelectionAssessment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::SelectionComponent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::SelectionCorrectedInterval [auto]
@@ -8231,8 +8255,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::ContinuousProgramSearchResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchReliability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::ContinuousSearchStop [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::PreparedContinuousProgramSearch [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::continuous::SelectedProgramReliability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::CandidateEstimates [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::ObservationalSpan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::ProgramHoldoutPartition [auto]
@@ -9042,6 +9068,8 @@ pub const antecedent_design::decision_reliability::MAX_DECISION_RELIABILITY_BYTE
 pub const antecedent_design::decision_reliability::MIN_DRAWS: usize
 pub const antecedent_design::decision_reliability::MIN_NORMAL_ESS: f64
 pub const antecedent_design::decision_reliability::RECORD_QUERY: &str
+pub const antecedent_design::decision_reliability::SELECTED_VALUE_ESTIMATOR: &str
+pub const antecedent_design::decision_reliability::SELECTED_VALUE_INTERVAL_METHOD: &str
 pub const antecedent_design::decision_reliability::interval::MAX_INTERVAL_LEVEL: f64
 pub const antecedent_design::decision_reliability::interval::MAX_PAIRED_COMPARISON_CANDIDATES: usize
 pub const antecedent_design::decision_reliability::interval::MIN_INTERVAL_LEVEL: f64
@@ -9365,6 +9393,7 @@ pub enum antecedent_design::program_search::ProgramFeasibility
 pub enum antecedent_design::program_search::ProgramSearchError
 pub enum antecedent_design::program_search::ProgramSearchSource<'a>
 pub enum antecedent_design::program_search::certified::CertificateStop
+pub enum antecedent_design::program_search::continuous::ContinuousSearchReliability
 pub enum antecedent_design::program_search::continuous::ContinuousSearchStop
 pub enum antecedent_design::program_search::selection::procedure::SelectionStage
 pub enum antecedent_design::proposal_receipt::ArrivalVerdict
@@ -10477,6 +10506,17 @@ pub field antecedent_design::decision_reliability::RolloutUtilityDraws::reported
 pub field antecedent_design::decision_reliability::RolloutUtilityDraws::seed: u64
 pub field antecedent_design::decision_reliability::RolloutUtilityDraws::stream_scheme: alloc::string::String
 pub field antecedent_design::decision_reliability::RolloutUtilityDraws::utility_unit: alloc::string::String
+pub field antecedent_design::decision_reliability::SelectedValueInterval::calibration: antecedent_io_core::contract_section::CalibrationSlotWire
+pub field antecedent_design::decision_reliability::SelectedValueInterval::coordinate: antecedent_design::decision_reliability::CalibrationCoordinate
+pub field antecedent_design::decision_reliability::SelectedValueInterval::critical_value: f64
+pub field antecedent_design::decision_reliability::SelectedValueInterval::level: f64
+pub field antecedent_design::decision_reliability::SelectedValueInterval::lower: f64
+pub field antecedent_design::decision_reliability::SelectedValueInterval::n_considered: u64
+pub field antecedent_design::decision_reliability::SelectedValueInterval::n_retained: usize
+pub field antecedent_design::decision_reliability::SelectedValueInterval::selected_id: alloc::string::String
+pub field antecedent_design::decision_reliability::SelectedValueInterval::source_standard_deviation: f64
+pub field antecedent_design::decision_reliability::SelectedValueInterval::upper: f64
+pub field antecedent_design::decision_reliability::SelectedValueInterval::value: f64
 pub field antecedent_design::decision_reliability::SelectionAssessment::held_out: core::option::Option<antecedent_design::decision_reliability::HeldOutAssessment>
 pub field antecedent_design::decision_reliability::SelectionAssessment::in_sample: antecedent_design::decision_reliability::McEstimate
 pub field antecedent_design::decision_reliability::SelectionAssessment::in_sample_label: antecedent_design::decision_reliability::ValueLabel
@@ -11209,7 +11249,7 @@ pub field antecedent_design::program_search::continuous::ContinuousProgramSearch
 pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::best: core::option::Option<antecedent_design::program_search::ProgramSearchRow>
 pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::gap: core::option::Option<f64>
 pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::global_certificate: bool
-pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::reliability: &'static str
+pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::reliability: antecedent_design::program_search::continuous::ContinuousSearchReliability
 pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::scope: antecedent_design::scientific_source::ScientificConsumptionScope
 pub field antecedent_design::program_search::continuous::ContinuousProgramSearchResult::stop: antecedent_design::program_search::continuous::ContinuousSearchStop
 pub field antecedent_design::program_search::continuous::ContinuousSearchAttempt::controls: alloc::vec::Vec<f64>
@@ -11222,6 +11262,8 @@ pub field antecedent_design::program_search::continuous::ContinuousSearchOptions
 pub field antecedent_design::program_search::continuous::ContinuousSearchOptions::max_iterations: usize
 pub field antecedent_design::program_search::continuous::ContinuousSearchOptions::objective_tolerance: f64
 pub field antecedent_design::program_search::continuous::ContinuousSearchOptions::step_tolerance: f64
+pub field antecedent_design::program_search::continuous::SelectedProgramReliability::draws: antecedent_design::decision_reliability::DecisionDraws
+pub field antecedent_design::program_search::continuous::SelectedProgramReliability::interval: antecedent_design::decision_reliability::SelectedValueInterval
 pub field antecedent_design::program_search::selection::CandidateEstimates::ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_design::program_search::selection::CandidateEstimates::standard_errors: alloc::vec::Vec<f64>
 pub field antecedent_design::program_search::selection::CandidateEstimates::values: alloc::vec::Vec<f64>
@@ -12491,6 +12533,8 @@ pub fn <antecedent_design::program_search::certified::PreparedCertifiedSearch>::
 pub fn <antecedent_design::program_search::certified::PreparedCertifiedSearch>::fn replay(bytes: &[u8], expected: core::option::Option<antecedent_core::identity::SemanticDigest>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_design::program_search::certified::GlobalProgramCertificate), antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::program_search::certified::PreparedCertifiedSearch>::fn verify_expression(&self, expression: antecedent_core::value_expr::ValueExpr) -> core::result::Result<(), antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::program_search::continuous::ContinuousProgramSearchResult>::fn admitted_bytes(&self) -> u64
+pub fn <antecedent_design::program_search::continuous::ContinuousSearchReliability>::const fn label(&self) -> &'static str
+pub fn <antecedent_design::program_search::continuous::ContinuousSearchReliability>::fn interval(&self) -> core::option::Option<&antecedent_design::decision_reliability::SelectedValueInterval>
 pub fn <antecedent_design::program_search::continuous::PreparedContinuousProgramSearch>::fn compile(contract: antecedent_design::decision_contract::ProgramSearchContract, domain: antecedent_design::program_search::FiniteProgramDomain, scope: antecedent_design::program_search::ProgramSearchScope, scientific_scope: antecedent_design::scientific_source::ScientificConsumptionScope, options: antecedent_design::program_search::continuous::ContinuousSearchOptions, initial: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::program_search::continuous::PreparedContinuousProgramSearch>::fn execute(&self, evaluator: &impl antecedent_design::program_search::continuous::CompiledProgramEvaluator, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::program_search::continuous::ContinuousProgramSearchResult, antecedent_design::program_search::ProgramSearchError>
 pub fn <antecedent_design::program_search::continuous::PreparedContinuousProgramSearch>::fn with_objective(&self, contract: antecedent_design::decision_contract::ProgramSearchContract) -> core::result::Result<Self, antecedent_design::program_search::ProgramSearchError>
@@ -12732,6 +12776,8 @@ pub fn antecedent_design::decision_reliability::calibration::calibration_basis(r
 pub fn antecedent_design::decision_reliability::calibration::candidate_count_band(count: u64) -> core::option::Option<(u64, u64)>
 pub fn antecedent_design::decision_reliability::calibration::record_functional(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> alloc::string::String
 pub fn antecedent_design::decision_reliability::calibration::route_calibration(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> antecedent_io_core::contract_section::CalibrationSlotWire
+pub fn antecedent_design::decision_reliability::calibration::selected_value_basis(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> core::option::Option<antecedent_io_core::calibration::CalibrationBasisWire>
+pub fn antecedent_design::decision_reliability::calibration::selected_value_calibration(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate, level: f64) -> antecedent_io_core::contract_section::CalibrationSlotWire
 pub fn antecedent_design::decision_reliability::calibration::simulate_replicate(design: &antecedent_design::decision_reliability::KnownOptimumDesign, run_seed: u64, replicate: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::ReplicateOutcome, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::calibration::simulate_selection_draws(design: &antecedent_design::decision_reliability::KnownOptimumDesign, stream: &antecedent_design::decision_reliability::StreamId) -> core::result::Result<antecedent_design::decision_reliability::DecisionDraws, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::calibration::support_route(route: antecedent_design::decision_reliability::PublishedRoute, coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> core::result::Result<antecedent_io_core::contract_section::CalibrationSlotWire, antecedent_design::decision_reliability::ReliabilityError>
@@ -12745,6 +12791,7 @@ pub fn antecedent_design::decision_reliability::noise_dependence(draws: &anteced
 pub fn antecedent_design::decision_reliability::producer::reach_carrier(output: antecedent_design::decision_reliability::ProducerOutput) -> core::result::Result<antecedent_design::decision_reliability::ProducerCarrier, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::rank(draws: &antecedent_design::decision_reliability::DecisionDraws, request: &antecedent_design::decision_reliability::RankingRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::RankingReport, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::select_in_sample(draws: &antecedent_design::decision_reliability::DecisionDraws, functional: &antecedent_design::decision_reliability::Functional, plan: antecedent_design::decision_reliability::BatchPlan) -> core::result::Result<antecedent_design::decision_reliability::InSampleSelection, antecedent_design::decision_reliability::ReliabilityError>
+pub fn antecedent_design::decision_reliability::selected_value::selected_value_interval(draws: &antecedent_design::decision_reliability::DecisionDraws, selected_id: &str, level: f64) -> core::result::Result<antecedent_design::decision_reliability::SelectedValueInterval, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::selection::split_draws(draws: &antecedent_design::decision_reliability::DecisionDraws, selection_fraction: f64, gap: u64) -> core::result::Result<(antecedent_design::decision_reliability::DecisionDraws, antecedent_design::decision_reliability::DecisionDraws), antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::selection::winners_curse_bound(estimates: &[antecedent_design::decision_reliability::McEstimate], n_considered: u64, noise_dependence: antecedent_design::decision_reliability::NoiseDependence, in_sample_value: f64) -> core::result::Result<antecedent_design::decision_reliability::WinnersCurseBound, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_robust_artifact::admissible_contract_from_json(json: &str) -> core::result::Result<antecedent_design::decision_contract::AdmissibleDecisionContract, antecedent_io_core::error::IoError>
@@ -12861,6 +12908,7 @@ pub mod antecedent_design::decision_reliability::mc_error
 pub mod antecedent_design::decision_reliability::producer
 pub mod antecedent_design::decision_reliability::ranking
 pub mod antecedent_design::decision_reliability::report
+pub mod antecedent_design::decision_reliability::selected_value
 pub mod antecedent_design::decision_reliability::selection
 pub mod antecedent_design::decision_reliability::stream
 pub mod antecedent_design::decision_robust_artifact
@@ -13217,6 +13265,7 @@ pub struct antecedent_design::decision_reliability::ReliabilityReport
 pub struct antecedent_design::decision_reliability::ReliabilityRequest
 pub struct antecedent_design::decision_reliability::ReplicateOutcome
 pub struct antecedent_design::decision_reliability::RolloutUtilityDraws
+pub struct antecedent_design::decision_reliability::SelectedValueInterval
 pub struct antecedent_design::decision_reliability::SelectionAssessment
 pub struct antecedent_design::decision_reliability::SelectionComponent
 pub struct antecedent_design::decision_reliability::SelectionCorrectedInterval
@@ -13394,6 +13443,7 @@ pub struct antecedent_design::program_search::continuous::ContinuousSearchAttemp
 pub struct antecedent_design::program_search::continuous::ContinuousSearchOptions
 pub struct antecedent_design::program_search::continuous::PreparedContinuousProgramSearch
 pub struct antecedent_design::program_search::continuous::PreparedContinuousProgramSearch has private fields
+pub struct antecedent_design::program_search::continuous::SelectedProgramReliability
 pub struct antecedent_design::program_search::selection::CandidateEstimates
 pub struct antecedent_design::program_search::selection::ObservationalSpan
 pub struct antecedent_design::program_search::selection::ProgramHoldoutPartition
@@ -13678,6 +13728,8 @@ pub use antecedent_design::decision_reliability::calibration::NoiseCoupling = an
 pub use antecedent_design::decision_reliability::calibration::PublishedRoute = antecedent_design::decision_reliability::PublishedRoute
 pub use antecedent_design::decision_reliability::calibration::RECORD_QUERY = antecedent_design::decision_reliability::RECORD_QUERY
 pub use antecedent_design::decision_reliability::calibration::ReplicateOutcome = antecedent_design::decision_reliability::ReplicateOutcome
+pub use antecedent_design::decision_reliability::calibration::SELECTED_VALUE_ESTIMATOR = antecedent_design::decision_reliability::SELECTED_VALUE_ESTIMATOR
+pub use antecedent_design::decision_reliability::calibration::SELECTED_VALUE_INTERVAL_METHOD = antecedent_design::decision_reliability::SELECTED_VALUE_INTERVAL_METHOD
 pub use antecedent_design::decision_reliability::calibration::banded_record_functional = antecedent_design::decision_reliability::banded_record_functional
 pub use antecedent_design::decision_reliability::calibration_basis = antecedent_design::decision_reliability::calibration::calibration_basis
 pub use antecedent_design::decision_reliability::candidate_count_band = antecedent_design::decision_reliability::calibration::candidate_count_band
@@ -13757,6 +13809,10 @@ pub use antecedent_design::decision_reliability::report::StreamAccounting = ante
 pub use antecedent_design::decision_reliability::report::UncertaintyReporting = antecedent_design::decision_reliability::UncertaintyReporting
 pub use antecedent_design::decision_reliability::report::ValidationPlan = antecedent_design::decision_reliability::ValidationPlan
 pub use antecedent_design::decision_reliability::report::assess = antecedent_design::decision_reliability::assess
+pub use antecedent_design::decision_reliability::selected_value::SelectedValueInterval = antecedent_design::decision_reliability::SelectedValueInterval
+pub use antecedent_design::decision_reliability::selected_value_basis = antecedent_design::decision_reliability::calibration::selected_value_basis
+pub use antecedent_design::decision_reliability::selected_value_calibration = antecedent_design::decision_reliability::calibration::selected_value_calibration
+pub use antecedent_design::decision_reliability::selected_value_interval = antecedent_design::decision_reliability::selected_value::selected_value_interval
 pub use antecedent_design::decision_reliability::selection::BoundKind = antecedent_design::decision_reliability::BoundKind
 pub use antecedent_design::decision_reliability::selection::CandidateEstimate = antecedent_design::decision_reliability::CandidateEstimate
 pub use antecedent_design::decision_reliability::selection::HeldOutAssessment = antecedent_design::decision_reliability::HeldOutAssessment
@@ -14771,6 +14827,10 @@ pub variant antecedent_design::program_search::ProgramSearchSource::Means(&'a an
 pub variant antecedent_design::program_search::certified::CertificateStop::Certified
 pub variant antecedent_design::program_search::certified::CertificateStop::ResolutionLimit
 pub variant antecedent_design::program_search::certified::CertificateStop::SplitLimit
+pub variant antecedent_design::program_search::continuous::ContinuousSearchReliability::Interval(alloc::boxed::Box<antecedent_design::program_search::continuous::SelectedProgramReliability>)
+pub variant antecedent_design::program_search::continuous::ContinuousSearchReliability::NoSelection
+pub variant antecedent_design::program_search::continuous::ContinuousSearchReliability::RequiresAlignedLaw
+pub variant antecedent_design::program_search::continuous::ContinuousSearchReliability::Unavailable(alloc::string::String)
 pub variant antecedent_design::program_search::continuous::ContinuousSearchStop::EvaluationLimit
 pub variant antecedent_design::program_search::continuous::ContinuousSearchStop::IterationLimit
 pub variant antecedent_design::program_search::continuous::ContinuousSearchStop::StepTolerance

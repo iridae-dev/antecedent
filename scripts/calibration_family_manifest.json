@@ -19,9 +19,9 @@
       "weight": 0.25
     }
   ],
-  "gate_sha256": "f3532caf58576414f82a8f031bfd3dcd6952eabeb1afbaf8dd429460c9863c2d",
+  "gate_sha256": "8426639f4498344968b5e5a3262f0090e183aabfc9d04bbc82666f1a61b53ffc",
   "acceptance_sha256": "8d2a6a6220d8ac74d75ac2478d6e853a94b6abdf5589cc0f545e97a1c91aa827",
-  "label_audit_sha256": "680596c1f83d5e5a456c1e3ba618d9caf53fe865a24e2008e36bf8975167cf76",
+  "label_audit_sha256": "c3379569e5af6824cd18714b98f1a549d53c2b8b213d19a2f210ff2719a6e833",
   "groups": [
     {
       "index": 1,
@@ -7416,32 +7416,32 @@
     {
       "index": 1479,
       "label": "joint_panel_calibration: joint_panel_posterior_calibration_static_l95",
-      "grid": false
+      "grid": true
     },
     {
       "index": 1480,
       "label": "joint_panel_calibration: joint_panel_posterior_calibration_lagged_l95",
-      "grid": false
+      "grid": true
     },
     {
       "index": 1481,
       "label": "joint_panel_calibration: joint_panel_posterior_calibration_broader_static_l95",
-      "grid": false
+      "grid": true
     },
     {
       "index": 1482,
       "label": "joint_panel_calibration: joint_panel_posterior_calibration_broader_lagged_l95",
-      "grid": false
+      "grid": true
     },
     {
       "index": 1483,
       "label": "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_l95",
-      "grid": false
+      "grid": true
     },
     {
       "index": 1484,
       "label": "joint_panel_calibration: joint_panel_posterior_calibration_time_varying_broader_l95",
-      "grid": false
+      "grid": true
     },
     {
       "index": 1485,
@@ -8911,7 +8911,7 @@
     {
       "index": 1778,
       "label": "joint_panel_calibration: joint_panel_selected_program_value_static_bayesian_l95",
-      "grid": false
+      "grid": true
     },
     {
       "index": 1779,
@@ -8921,7 +8921,7 @@
     {
       "index": 1780,
       "label": "joint_panel_calibration: joint_panel_selected_program_value_temporal_bayesian_l95",
-      "grid": false
+      "grid": true
     }
   ],
   "hypothesis_allocations_sha256": "412b20c792155532f0a0bdef3363d4503a9321b5e5a320f51ac6d8cba584bad5"

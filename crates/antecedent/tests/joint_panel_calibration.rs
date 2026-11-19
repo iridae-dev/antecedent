@@ -120,9 +120,9 @@ use antecedent_estimate::joint_panel::{
 };
 use antecedent_graph::Dag;
 use common::calibration::{
-    Construction, CoverageSide, CoverageTally, RecordKey, ScopeFacts, Z95, gaussian, grid_n,
-    grid_seed, map_replicates, map_replicates_from, n_sim, normal_interval, quantile_interval,
-    replicate_end, replicate_start, stream_seed, uniform,
+    Construction, CoverageSide, CoverageTally, RecordKey, SampleGrid, ScopeFacts, Z95, gaussian,
+    grid_n, grid_seed, map_replicates, map_replicates_from, n_sim, normal_interval,
+    quantile_interval, replicate_end, replicate_start, stream_seed, uniform,
 };
 use warp_speed::{Pooling, QuantileRule, Replicate, next_u64, pooled_draw_sets};
 
@@ -143,9 +143,11 @@ const FREQUENTIST_DRAWS: usize = 100;
 /// coverage. The records are measured at this count, which their validation scope states
 /// (`replicates_ok`); a run with fewer draws is outside the measured scope.
 const INVARIANT_FREQUENTIST_DRAWS: usize = 1000;
-/// Groups and periods of the prior-drawn calibration panels: the fewest the model needs (the
-/// programs run for 24 periods, a class needs several groups). Calibration under prior-drawn
-/// truths is exact at any size, so one size is measured.
+/// Groups of the prior-drawn calibration panels at the base grid point: the fewest the model
+/// needs (the programs run for 24 periods, a class needs several groups). Calibration under
+/// prior-drawn truths is exact at any size; the posterior-calibration tests still measure it
+/// across the short-series grid (`grid_n`: 9, 12 and 24 groups), so the sampler and its
+/// diagnostics are exercised at each size a record claims.
 const CALIBRATION_GROUPS: usize = 12;
 /// Candidate change periods and smoothing grid of the time-varying specification.
 const CHANGE_POINTS: [usize; 3] = [8, 12, 16];
@@ -1168,13 +1170,14 @@ fn prior_law(cell: Cell, varying: bool, seed: u64) -> (Law, Option<TemporalModel
 fn calibration_reading(cell: Cell, varying: bool, seed: u64) -> Reading {
     let path = if varying { Path::Prior } else { Path::Invariant };
     let (law, true_choice) = prior_law(cell, varying, seed);
-    let generated = generate_from(cell, &law, HORIZON, CALIBRATION_GROUPS, seed);
+    let groups = grid_n(CALIBRATION_GROUPS);
+    let generated = generate_from(cell, &law, HORIZON, groups, seed);
     let (_, result, truth, rows, _) = match fit_generated(
         cell,
         path,
         Mode::Bayesian,
         default_sampling(),
-        CALIBRATION_GROUPS,
+        groups,
         generated,
         seed,
     ) {
@@ -2528,16 +2531,19 @@ fn search_reading(
     }
 }
 
+/// The selected-program record's sample size is its decision-draw budget (the source draws the
+/// band is taken over), so each grid point scales the draws on the standard grid: 50, 100 and
+/// 200 bootstrap draws about [`FREQUENTIST_DRAWS`].
 fn frequentist_search_reading(cell: Cell, seed: u64) -> SearchReading {
     let groups = Path::Invariant.groups();
     let generated = generate_panel(cell, Path::Invariant, groups, seed);
     let truth = ProgramTruth::of(Law::of(cell), cell, &generated);
     let best = truth.best_value();
-    let fitted = fit_generated(
+    let draws = SampleGrid::STANDARD.n(FREQUENTIST_DRAWS);
+    let fitted = fit_generated_with(
         cell,
         Path::Invariant,
-        Mode::Frequentist,
-        default_sampling(),
+        PanelInference::Frequentist { draws },
         groups,
         generated,
         seed,
@@ -2545,16 +2551,21 @@ fn frequentist_search_reading(cell: Cell, seed: u64) -> SearchReading {
     search_reading(fitted, &truth, best)
 }
 
+/// The posterior counterpart of [`frequentist_search_reading`]: the decision-draw budget is the
+/// posterior draws, scaled on the standard grid (500, 1000 and 2000 per chain) at the base
+/// panel size.
 fn bayesian_search_reading(cell: Cell, seed: u64) -> SearchReading {
     let (law, _) = prior_law(cell, false, seed);
     let generated = generate_from(cell, &law, HORIZON, CALIBRATION_GROUPS, seed);
     let truth = ProgramTruth::of(law, cell, &generated);
     let best = truth.best_value();
+    let base = default_sampling();
+    let sampling = PanelSamplingOptions { draws: SampleGrid::STANDARD.n(base.draws), ..base };
     let fitted = fit_generated(
         cell,
         Path::Invariant,
         Mode::Bayesian,
-        default_sampling(),
+        sampling,
         CALIBRATION_GROUPS,
         generated,
         seed,
