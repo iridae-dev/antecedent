@@ -111555,7 +111555,7 @@ dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_from"
 test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_selected_program_value_static_bayesian_l95"
 calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
 fingerprint = "08e77d2742e8134925be5915712213ac545fc01933f66613e9c413ae8e82142c"
-dependency_manifest = "c804d27616957cb88deb3a7fcbfe7284f87cd330ece71dbc1edc6f2fa77d77c9"
+dependency_manifest = "1b36658c80e30239554f0cfb02425ef53810ec9b0938ccfee4db5fefb0edec81"
 
 [[record]]
 id = "cov.decision_reliability.not_applicable.bayesian.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_bayesian_l95.v2_validation_not_applicable"
@@ -111612,7 +111612,7 @@ dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_from"
 test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_selected_program_value_temporal_bayesian_l95"
 calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
 fingerprint = "08e77d2742e8134925be5915712213ac545fc01933f66613e9c413ae8e82142c"
-dependency_manifest = "5fb097cd7aec13508ada6bd2a60321124be4705b316cdde15545cf7333f69ca8"
+dependency_manifest = "3b49b2aab72a31d381e7ede979b746c29684910375fc03493254025e728da832"
 
 [[record]]
 id = "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.v2_validation_not_applicable.separate_streams"
@@ -114918,7 +114918,7 @@ dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_panel"
 test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_selected_program_value_static_frequentist_l95"
 calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
 fingerprint = "08e77d2742e8134925be5915712213ac545fc01933f66613e9c413ae8e82142c"
-dependency_manifest = "dbf4f5b1a02cdc24ea093e1b88f997ef693850ae22bca35ad6f693f6c85ed560"
+dependency_manifest = "71404004dff2c401af4e9d4e77535d14aea2704bc3f313e5ec425e12eb74496d"
 
 [[record]]
 id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_frequentist_l95.v2_validation_not_applicable"
@@ -114975,7 +114975,7 @@ dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_panel"
 test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_selected_program_value_temporal_frequentist_l95"
 calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
 fingerprint = "08e77d2742e8134925be5915712213ac545fc01933f66613e9c413ae8e82142c"
-dependency_manifest = "baa69ed12dcd90f9df32e5bb9dad4c75958b6b5c4260d364fe28d8d4dd429c5b"
+dependency_manifest = "df4b9b21a2fe0b67b2fb19357cae43c85ce6bca0685ebbd075701245293b3650"
 
 [[record]]
 id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_all_equal_sixty_four_candidates_boundary_l95.v2_validation_not_applicable.shared_rho_0_5"
