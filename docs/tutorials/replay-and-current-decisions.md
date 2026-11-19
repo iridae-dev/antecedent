@@ -82,6 +82,12 @@ The behaviour is specific to this workflow. The refusal follows from how this wo
 
 A refusal also does not say what to do next. The next step is scientific: replace the trial with new evidence (a successor source in the ledger), or decide that the remaining claims support a smaller question. A replay of the old numbers is a record of what was decided, not a route back to permission.
 
+## Replay a fitted decision
+
+A compiled decision can also contain the fit that produced its outcomes. In the [fitted feedback example](feedback-three-questions.md#compare-actions-after-fitting-the-feedback), the program binds the training rows, the actions, and the decision contract. Its consumer rebuilds the fit and repeats the comparison using the retained identity.
+
+Before handing off a result, keep the program identity separately from the bytes. If the trial rows or action assumptions change, prepare a fresh program for that question. The old artifact still describes the old computation. The evidence-standing check in this tutorial answers whether that computation can be used today.
+
 ## What this established
 
 For this decision, changing a utility refits no route, an export replays from its bytes without a ledger, and withdrawing a source ends current use while leaving the historical numbers reproducible.

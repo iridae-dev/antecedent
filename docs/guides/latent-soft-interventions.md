@@ -11,3 +11,15 @@ Forecasts require overlap in both arms' training context. A failed split does no
 The export includes the source rows. Retain its expectation separately. The native consumer checks the context, source, and compiled program before fitting, then reruns the forecast and verifies the output. Python can dispatch the replay through `antecedent.load`.
 
 The initial evidence register includes equal downstream means with different targeted equations, a single-version case, a variance-only case, a resource refusal, and joint refit replay. The independent checks are declared in the scientific registry and use its generated lane filter. For the audit, the evidence-only support snapshot lets the scientific lane exercise the gate without asserting a passing release record. Release support is derived after the independent checks earn their records.
+
+## Two rollouts with the same headline effect
+
+Imagine a team randomized an onboarding change against its usual flow. The action log records who got the change. In the simulated rollout, one version helps people finish setup and the other improves follow-up. Each adds three points to the sum of the two steps, so the mean completion score alone gives little reason to look for two versions.
+
+Supply both arm tables, the steps that could have changed, and the context measured before the rollout. Read `discovery.evidence` and `discovery.hypotheses` together. A fit can favor a split while leaving the changed equations uncertain. A forecast, when admissible, compares the action as delivered with the baseline at the same context.
+
+The example also generates a rollout in which setup is the only step that changes. This is a useful comparison when interpreting an unresolved split. An unresolved fit leaves open how many versions were delivered. The script prints the result for each dataset and replays any admissible forecast from its saved identity.
+
+Run `python examples/python/hidden_rollout_variants.py` from a checkout. Use a development build while execution awaits release support.
+
+<!-- example: examples/python/hidden_rollout_variants.py -->

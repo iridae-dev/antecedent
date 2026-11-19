@@ -4,6 +4,8 @@ An event forecast represents arrivals by type on a named continuous clock. A com
 
 Choose the observation window and record the complete history from an explicit empty origin. Native likelihood treats the forecast cutoff as the first instant outside the observed window. Gaps and ties in native timestamps need a separate observation model. Branching and decay arrays use target rows and source columns. Excitation describes predictive association. World effects come from the declared causal equations and bindings.
 
+For a complete fit, action comparison, and future-study example, start with [When outside events interrupt a launch](../tutorials/event-driven-launch.md).
+
 ## Python workflow
 
 ```python

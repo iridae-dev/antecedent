@@ -54,6 +54,7 @@ nav:
   - When the comparison group does not overlap: tutorials/when-overlap-fails.md
   - When the causal assumptions stop holding: tutorials/when-assumptions-change.md
   - Use an analysis inside an application: tutorials/application-component.md
+  - When outside events interrupt a launch: tutorials/event-driven-launch.md
 - Guides:
   - Data and inputs:
     - Bring your own table: guides/your-data.md
@@ -66,6 +67,7 @@ nav:
     - Responses, derivatives and distributions: causal-responses.md
     - Several treatment levels: guides/treatment-levels.md
     - Heterogeneous effects and policies: guides/heterogeneous-effects-and-policies.md
+    - Discover hidden intervention variants: guides/latent-soft-interventions.md
     - Mediation and latent classes: guides/mediation-and-latent-classes.md
     - Penalized propensity for AIPW: guides/penalized-aipw.md
     - Reuse DML scores to retarget: guides/dml-scores.md
@@ -105,6 +107,7 @@ nav:
     - Attribute variance to noise terms: guides/intrinsic-influence.md
     - Cross-world quantities: cross-world-execution.md
     - Feedback loops and equilibria: guides/cyclic-systems.md
+    - Event forecasts and stochastic decisions: guides/event-processes.md
   - Joint interventions and search:
     - Fit and compare intervention programs: guides/joint-intervention-responses.md
     - Search and certify programs: guides/joint-program-search.md
@@ -131,6 +134,7 @@ nav:
     - Optimise history-dependent policies: adaptive-policies.md
     - Reliability of a selected decision: decision-reliability.md
   - Evidence and composition:
+    - Choose a 3.0 composition workflow: guides/composition-in-3-0.md
     - External evidence and study synthesis: evidence-ledger.md
     - Experimental evidence for decisions: decision-evidence.md
     - Categorical-choice evidence to decision: choice-evidence.md

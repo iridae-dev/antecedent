@@ -182,6 +182,16 @@ An ordinary Python function is a runtime binding. Exporting it refuses with `pol
 
 This callback demonstration uses the single-period conditional rule. The history-dependent rollout above uses closed-form expressions throughout. The example does not assume a temporal callback interface where this public route provides none. For output declarations, source restrictions and dependency pins, see the [batch callback guide](../guides/intervention-programs.md#batch-callbacks).
 
+## Evaluate a rule on a separate log
+
+The earlier sections show how to write a policy. To evaluate a rule learned from data, finish learning it before opening the evaluation log. The log needs the action taken and its probability under the policy that collected the data. If that policy never tried an action the candidate needs, the log cannot support the comparison.
+
+The Rust example submits two fixed rules and a separate synthetic log. Antecedent weights histories using the recorded assignment probabilities, then resamples whole histories. Both rules are evaluated on the same resamples. Read the reliability diagnostics as a check on how well this log separates the proposed rules. A comparison of fixed rules does not assess the full procedure that learned them.
+
+Run `cargo run -p antecedent --example evaluate_fixed_policies`.
+
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/evaluate_fixed_policies.rs).
+
 ## What this established
 
 The three policies have explicit operational meanings, and one executor carries those meanings into forward simulation, history-dependent rollout and counterfactual replay. Independent arithmetic checks the results; dependency validation prevents circular rules; portable identities and callback recovery make the implementation inspectable and reusable.
