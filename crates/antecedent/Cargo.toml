@@ -1753,3 +1753,46 @@ path = "tests/point_only_routes.rs"
 [[test]]
 name = "policy_value_error_calibration"
 required-features = ["calibration-internal"]
+
+[[test]]
+name = "latent_soft_intervention"
+path = "tests/latent_soft_intervention.rs"
+required-features = ["development"]
+
+[[test]]
+name = "events"
+path = "tests/events.rs"
+required-features = ["development"]
+
+[[test]]
+name = "event_count_calibration"
+path = "tests/event_count_calibration.rs"
+required-features = ["calibration-internal"]
+
+[[example]]
+name = "fitted_feedback_decision"
+path = "../../examples/rust/fitted_feedback_decision.rs"
+
+[[example]]
+name = "trial_to_target_decision"
+path = "../../examples/rust/trial_to_target_decision.rs"
+
+[[example]]
+name = "check_trial_proxy"
+path = "../../examples/rust/check_trial_proxy.rs"
+
+[[example]]
+name = "whole_cluster_uncertainty"
+path = "../../examples/rust/whole_cluster_uncertainty.rs"
+
+[[example]]
+name = "evaluate_fixed_policies"
+path = "../../examples/rust/evaluate_fixed_policies.rs"
+
+[[example]]
+name = "transport_selected_path"
+path = "../../examples/rust/transport_selected_path.rs"
+
+[[example]]
+name = "shared_measurement_errors"
+path = "../../examples/rust/shared_measurement_errors.rs"

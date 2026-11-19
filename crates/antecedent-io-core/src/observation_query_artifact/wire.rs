@@ -31,6 +31,32 @@ pub struct MeasuredSlotWire {
     pub model: MeasurementModelWire,
 }
 
+/// A complete conditional joint law of recorded indicators given one finite
+/// construct. Probabilities are row-major `[construct level][indicator cell]`;
+/// indicator cells use the listed domains in lexicographic product order.
+/// This table permits dependent indicator errors without multiplying their
+/// marginal confusion matrices.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DependentMeasurementWire {
+    /// The latent construct named by the composed model.
+    pub construct: String,
+    /// Population where the joint measurement law applies.
+    pub population_id: String,
+    /// Regime where the joint measurement law applies.
+    pub regime_id: String,
+    /// Evidence or model identity supporting the declared table.
+    pub evidence_id: String,
+    /// Indicator identities in ascending order.
+    pub indicator_ids: Vec<String>,
+    /// Nonempty levels of each indicator, in table order.
+    pub indicator_levels: Vec<Vec<String>>,
+    /// Construct levels in the composed model's order.
+    pub construct_levels: Vec<String>,
+    /// Complete normalized conditional probabilities as IEEE bit patterns.
+    pub probability_bits: Vec<u64>,
+}
+
 /// The data one mechanism's numbers were fitted from, retained for redraw.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -244,6 +270,35 @@ pub enum ObservationQueryWire {
         /// One recorded indicator value, applied through its model.
         measured: Option<MeasuredSlotWire>,
     },
+    /// A finite outcome conditional on several noisy indicators of the same
+    /// construct, with measurement errors declared independent given that
+    /// construct. May also condition an interventional world. Format version 3.
+    JointMeasuredOutcome {
+        /// Outcome variable.
+        outcome: String,
+        /// Assigned values before conditioning.
+        interventions: Vec<(String, String)>,
+        /// Values recorded without measurement error.
+        observed: Vec<(String, String)>,
+        /// At least two distinct recorded indicators of one construct.
+        measured: Vec<MeasuredSlotWire>,
+        /// Must be `conditionally_independent_given_construct`.
+        dependence: String,
+    },
+    /// A finite outcome conditioned on several indicators with an explicitly
+    /// dependent joint error law. Format version 4.
+    DependentMeasuredOutcome {
+        /// Outcome variable.
+        outcome: String,
+        /// Assigned values before conditioning.
+        interventions: Vec<(String, String)>,
+        /// Values recorded without error.
+        observed: Vec<(String, String)>,
+        /// Recorded indicator identity and level, in table order.
+        measured: Vec<(String, String)>,
+        /// Complete `P(indicator vector | construct)` table.
+        error_law: DependentMeasurementWire,
+    },
     /// The parameter uncertainty of a conditional functional by retained-data
     /// redraw: aligned posterior draws of the queried quantities. Format
     /// version 2.
@@ -336,6 +391,12 @@ impl ObservationQueryWire {
                 }
             }
             Self::ConditionalInterventionalOutcome { .. } => "conditional_intervention",
+            Self::JointMeasuredOutcome { interventions, .. } => {
+                if interventions.is_empty() { "conditioning" } else { "conditional_intervention" }
+            }
+            Self::DependentMeasuredOutcome { interventions, .. } => {
+                if interventions.is_empty() { "conditioning" } else { "conditional_intervention" }
+            }
             Self::ParameterRedraw { .. } => "parameter_redraw",
             Self::ConditionalOutcome { .. } => "conditioning",
             Self::InterventionalOutcome { .. } => "intervention",
@@ -359,6 +420,8 @@ impl ObservationQueryWire {
                 | Self::ThresholdCrossing { .. }
                 | Self::GaussianOutcome { .. }
                 | Self::ConditionalInterventionalOutcome { .. }
+                | Self::JointMeasuredOutcome { .. }
+                | Self::DependentMeasuredOutcome { .. }
                 | Self::ParameterRedraw { .. }
         )
     }
@@ -373,6 +436,18 @@ impl ObservationQueryWire {
                 | Self::ConditionalInterventionalOutcome { .. }
                 | Self::ParameterRedraw { .. }
         )
+    }
+
+    /// The joint noisy-indicator query requires its own scientific format.
+    #[must_use]
+    pub const fn is_joint_measured(&self) -> bool {
+        matches!(self, Self::JointMeasuredOutcome { .. })
+    }
+
+    /// A complete dependent-error table has its own versioned scientific rule.
+    #[must_use]
+    pub const fn is_dependent_measured(&self) -> bool {
+        matches!(self, Self::DependentMeasuredOutcome { .. })
     }
 
     /// This query with every assignment list in canonical (variable, level)
@@ -392,6 +467,16 @@ impl ObservationQueryWire {
             Self::ConditionalInterventionalOutcome { interventions, observed, .. } => {
                 interventions.sort();
                 observed.sort();
+            }
+            Self::JointMeasuredOutcome { interventions, observed, measured, .. } => {
+                interventions.sort();
+                observed.sort();
+                measured.sort_by(|left, right| left.indicator_id.cmp(&right.indicator_id));
+            }
+            Self::DependentMeasuredOutcome { interventions, observed, measured, .. } => {
+                interventions.sort();
+                observed.sort();
+                measured.sort();
             }
             Self::ParameterRedraw { target, retained, .. } => {
                 match target {

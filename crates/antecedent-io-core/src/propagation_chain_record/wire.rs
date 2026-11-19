@@ -3,6 +3,7 @@
 use antecedent_contract::dependence::SharedFactorKind;
 use antecedent_contract::propagation_chain::{ChainPlan, LawMeaning, Representation, StageKind};
 use serde::{Deserialize, Serialize};
+use crate::quantity_wire::ScientificQuantityWire;
 
 use super::{bits, word_of};
 
@@ -26,7 +27,7 @@ pub struct ChainSourceWire {
     pub id: String,
     /// `point`, `interval` or `draws`.
     pub representation: String,
-    /// `sampling` or `posterior`, for draws.
+    /// `sampling`, `posterior`, `predictive` or `innovation`, for draws.
     pub meaning: Option<String>,
     /// The alignment identity of the draw table, for draws.
     pub alignment: Option<String>,
@@ -232,6 +233,17 @@ pub struct ChainStageResultWire {
     pub values: Vec<(String, u64)>,
 }
 
+/// One stage column published as part of a joint output law. The scientific
+/// quantity is matched exactly by downstream decision contracts.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChainJointOutputWire {
+    /// Stage whose aligned draw column is retained.
+    pub stage: String,
+    /// Quantity represented by that stage's values.
+    pub quantity: ScientificQuantityWire,
+}
+
 /// The retained propagation record.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -242,10 +254,18 @@ pub struct PropagationChainRecordWire {
     pub required_features: Vec<String>,
     /// `joint_draws` or `independent_product`.
     pub construction: String,
-    /// `point`, `spread`, `posterior`, `enclosure` or `interval`.
+    /// `point`, `spread`, `posterior`, `predictive`, `enclosure` or `interval`.
     pub reading: String,
     /// The stage whose output is the answer.
     pub output: String,
+    /// Versions 2 and 3: the output's scientific coordinate, required for a
+    /// predictive law or assumption envelope. It is not causal proof.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_quantity: Option<ScientificQuantityWire>,
+    /// Version 4: ordered output coordinates from one aligned draw table. The
+    /// primary `output` stage must be present with `output_quantity`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub joint_outputs: Vec<ChainJointOutputWire>,
     /// The sources.
     pub sources: Vec<ChainSourceWire>,
     /// The stages.
@@ -256,6 +276,26 @@ pub struct PropagationChainRecordWire {
     pub label: String,
     /// The stored result of every stage, in stage order.
     pub results: Vec<ChainStageResultWire>,
+    /// Version 2: bit patterns of the output law's aligned draws. Absent for
+    /// version 1 and for a withdrawn output.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_draws: Option<Vec<u64>>,
+    /// Version 2: normalized row weights as bit patterns when an assumption
+    /// reweights the output law; absent means equal row weights.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_weights: Option<Vec<u64>>,
+    /// Version 3: per-draw lower endpoints of the assumption enclosure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_lower_bounds: Option<Vec<u64>>,
+    /// Version 3: per-draw upper endpoints of the assumption enclosure.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_upper_bounds: Option<Vec<u64>>,
+    /// Version 4: one bit-preserved column for each declared joint output.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub joint_output_draws: Option<Vec<Vec<u64>>>,
+    /// Version 4: one normalized weight vector for the joint row axis.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub joint_output_weights: Option<Vec<u64>>,
     /// Digest of everything above except the results.
     pub identity: String,
 }
@@ -269,15 +309,34 @@ pub struct ConsumedPropagationChain {
     pub label: String,
     /// The stage whose output is the answer.
     pub output: String,
+    /// The declared table construction, used to distinguish a product law's
+    /// pairing identity from an input source's alignment identity.
+    pub construction: String,
+    /// Checked output coordinate, when the declaration supplied one.
+    pub output_quantity: Option<ScientificQuantityWire>,
     /// The replayed results, bit-identical to the stored ones.
     pub results: Vec<ChainStageResultWire>,
+    /// Replayed output draws, when this record publishes a law.
+    pub output_draws: Option<Vec<u64>>,
+    /// Replayed output row weights, or equal weights when absent.
+    pub output_weights: Option<Vec<u64>>,
+    /// Replayed lower endpoints of a draw-indexed assumption envelope.
+    pub output_lower_bounds: Option<Vec<u64>>,
+    /// Replayed upper endpoints of a draw-indexed assumption envelope.
+    pub output_upper_bounds: Option<Vec<u64>>,
+    /// Checked version-4 joint output declarations.
+    pub joint_outputs: Vec<ChainJointOutputWire>,
+    /// Replayed version-4 joint output columns.
+    pub joint_output_draws: Option<Vec<Vec<u64>>>,
+    /// Replayed version-4 joint row weights.
+    pub joint_output_weights: Option<Vec<u64>>,
     /// The plan the chain rule yielded.
     pub plan: ChainPlan,
 }
 
 /// Whether a stored value name holds an integer count or code.
 fn is_count(name: &str) -> bool {
-    matches!(name, "n_rows" | "verdict_code")
+    matches!(name, "n_rows" | "verdict_code" | "robust_verdict_code")
 }
 
 impl ChainStageResultWire {

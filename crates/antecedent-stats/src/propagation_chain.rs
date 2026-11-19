@@ -45,7 +45,7 @@
 mod enclosure;
 mod family_table;
 
-pub use enclosure::{Enclosure, evaluate_enclosures};
+pub use enclosure::{Enclosure, MixedSource, evaluate_enclosures, evaluate_mixed_enclosures};
 
 #[cfg(test)]
 use family_table::SeedStream;

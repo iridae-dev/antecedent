@@ -9,6 +9,55 @@
 # evidence_audit fails when a row's test or assertion does not exist.
 
 [[test]]
+evidence_test = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
+evidence_assertion = "whole_chain_bootstrap_union_replays_at_the_final_coordinate"
+kind = "reference"
+fixtures = []
+why = "The original and one hundred source-declared whole-chain bootstrap reruns share fixed assumption bounds and the same terminal coordinate; a Bonferroni-split basic-bootstrap candidate is independently replayed. The source assertion is unearned and the interval remains not_measured."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs"
+evidence_assertion = "joint_cyclic_parameter_and_disturbance_worlds_replay"
+kind = "reference"
+fixtures = []
+why = "A joint likelihood posterior over a cyclic feedback coefficient is paired with Gaussian disturbance draws, solved across two hard-clamp action worlds, evaluated by the multi-action decision compiler, and independently replayed. The source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/observational_survival_policy_routes.rs"
+evidence_assertion = "graph_policy_can_learn_on_less_information_than_nuisance_adjustment"
+kind = "reference"
+fixtures = []
+why = "The graph-checked learner uses only its available policy columns while propensity and outcome nuisance models retain the full adjustment set, and a version-three artifact independently replays the result. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs"
+evidence_assertion = "time_ordered_direct_path_transport_matches_independent_oracle"
+kind = "known_truth"
+fixtures = []
+why = "A time-ordered path intervention is identified under the declared selection diagram, evaluated against an independent finite-SCM target truth, and replayed from a portable artifact. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
+evidence_assertion = "predictive_transport_bridge_and_nonlinear_utility_compile_together"
+kind = "reference"
+fixtures = []
+why = "The predictive bridge declaration, target-scope transport premise and nonlinear decision share one compiler identity and a portable replay artifact. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
+evidence_assertion = "paired_equilibrium_worlds_are_derived_and_replayed"
+kind = "reference"
+fixtures = []
+why = "A checked cyclic SCM solves two distinct hard-clamp worlds on the same disturbance rows, derives the paired decision law, and independently replays the complete model-to-utility artifact. This source row is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/observation_query_facade.rs"
+evidence_assertion = "fitted_joint_error_table_propagates_labelled_count_uncertainty"
+kind = "reference"
+fixtures = []
+why = "The new fitted dependent-indicator compiler's posterior-mean plug-in probability is checked against a hand-computed binary construct calculation; the source test also binds posterior draws and independent artifact replay. This row is unearned until the scientific-record runner executes it."
+
+[[test]]
 evidence_test = "crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs"
 evidence_assertion = "path_specific_graph_posterior_executes_from_the_retained_plan_without_the_builder"
 kind = "known_truth"
@@ -2411,3 +2460,129 @@ evidence_assertion = "every_refuter_re_estimates_the_targeted_effect_under_bayes
 kind = "known_truth"
 fixtures = []
 why = "Under Bayesian inference the random-common-cause and data-subset refuters re-estimate the model-based effect on the declared target, reporting the targeted value and not the all-rows effect."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs"
+evidence_assertion = "equal_downstream_means_preserve_distinct_pathways_and_replay"
+kind = "known_truth"
+fixtures = []
+why = "Two unlabelled additive shifts have equal mean effects on the headline outcome and different shift locations. The compiled route must recover the distinct coordinates, context weights, conditional covariance and fresh native replay against independently planted structural truth. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs"
+evidence_assertion = "one_version_leaves_a_split_unresolved"
+kind = "known_truth"
+fixtures = []
+why = "Under a single shifted Gaussian structural mechanism the held-out comparison leaves a latent split unresolved. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs"
+evidence_assertion = "variance_only_change_does_not_release_a_single_shift_forecast"
+kind = "known_truth"
+fixtures = []
+why = "A Gaussian variance change rejects the restricted fallback and does not release a pathway split or a baseline-anchored forecast. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs"
+evidence_assertion = "joint_refits_keep_baseline_and_weighted_action_aligned"
+kind = "reference"
+fixtures = []
+why = "Complete split-preserving refits retain both arms and their same-fit membership weights; an independent mixture contrast equals each paired readout and the aggregate artifact replay is deterministic. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/latent_soft_intervention/fit.rs"
+evidence_assertion = "full_covariance_comparator_matches_closed_form_on_orthogonal_residuals"
+kind = "reference"
+fixtures = []
+why = "An independently computed Gaussian likelihood on orthogonal standardized residuals agrees with both the analytic null maximizer and predictive score. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs"
+evidence_assertion = "compiler_meter_refuses_an_exhausted_search"
+kind = "reference"
+fixtures = []
+why = "The compiled execution must stop in the numerical search meter. A refusal from the release evidence gate cannot satisfy this assertion. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "actual_update_matches_poisson_bayes_factor_and_rejects_reuse"
+kind = "reference"
+fixtures = []
+why = "Finite posterior weights agree with an independent Poisson Bayes factor and the observation window cannot be used twice."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "fixed_decay_fit_recovers_independent_cluster_fixture"
+kind = "known_truth"
+fixtures = []
+why = "Fixed-decay likelihood recovers parameters from an independently simulated cluster process."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/study.rs"
+evidence_assertion = "finite_same_stream_observation_changes_choice"
+kind = "reference"
+fixtures = []
+why = "Hand enumeration gives the choice-specific value of the finite count signal."
+
+[[test]]
+evidence_test = "crates/antecedent-model/src/nonlinear_sde/event_inputs.rs"
+evidence_assertion = "refined_recorder_agrees_at_all_shared_brownian_grid_states"
+kind = "reference"
+fixtures = []
+why = "The additive half-step recorder matches the previously implemented refined solver at shared output times."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "asymmetric_stationary_rates_match_two_type_reference"
+kind = "reference"
+fixtures = []
+why = "Long-run two-type means match an independently solved asymmetric branching system."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "same_stream_signal_changes_compiled_terminal_choice"
+kind = "reference"
+fixtures = []
+why = "A single conditional parameter hypothesis still values observing the stream when arrival memory affects the continuation."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "holdout_changes_scores_without_changing_the_forecast_at_cutoff"
+kind = "reference"
+fixtures = []
+why = "An added post-cutoff arrival changes held-out outcomes while preserving the issued forecast and fit inputs."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "verified_external_events_bind_payload_and_provider_version"
+kind = "reference"
+fixtures = []
+why = "An exact receipt admits the event paths and a changed provider version refuses before world binding."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/assessment.rs"
+evidence_assertion = "count_interval_matches_hand_ranked_discrete_tails"
+kind = "reference"
+fixtures = []
+why = "Independent order-statistic calculation checks both integer endpoints, including ties."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "conditional_likelihood_matches_poisson_and_direct_asymmetric_reference"
+kind = "reference"
+fixtures = []
+why = "Keep the independent conditional likelihood oracle in the scientific lane."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "fixture_worlds_match_off_grid_path_oracle_and_hawkes_composes"
+kind = "reference"
+fixtures = []
+why = "Keep the independent joint path reference and replay check in the scientific lane."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "rejects_leakage_unstable_parameters_and_unverified_external_source"
+kind = "reference"
+fixtures = []
+why = "Keep the event capability boundary checks with the compiled scientific fixtures."

@@ -307,9 +307,18 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
                 UncertaintyReading::Posterior
             }
             Realization::Envelope(_) => UncertaintyReading::Envelope,
+            Realization::DeclaredPredictive { .. } => UncertaintyReading::Predictive,
+            Realization::DeclaredPosterior { .. } => UncertaintyReading::Posterior,
+            Realization::NestedFit { law, .. } => match law {
+                crate::planner::statistical::NestedFitLaw::Posterior => UncertaintyReading::Posterior,
+                crate::planner::statistical::NestedFitLaw::Predictive => UncertaintyReading::Predictive,
+            },
+            Realization::DeclaredAssumptionEnvelope { .. } => UncertaintyReading::AssumptionEnvelope,
             Realization::GraphImputationV1
             | Realization::CategoricalPosteriorCandidateV1
             | Realization::ExactPoint { .. } => UncertaintyReading::None,
+            Realization::SequentialKnownLawMonteCarlo => UncertaintyReading::MonteCarlo,
+            Realization::SequentialTrajectoryBootstrap => UncertaintyReading::Sampling,
         },
         kind: status.map(claim_kind),
     };

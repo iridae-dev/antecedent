@@ -94,6 +94,8 @@ use antecedent_contract::bridge::{
     ValueKind, derive_bridged_claim_propagating, point_propagation_unavailable,
 };
 use antecedent_contract::{ClaimEnvelope, ClaimFreshness, ClaimKind};
+use antecedent_contract::propagation_chain::{ChainRefusal, TableConstruction};
+use antecedent_core::ExecutionContext;
 use antecedent_core::identity::SemanticDigest;
 use antecedent_io::IoError;
 use antecedent_io::bridge_artifact::{
@@ -107,6 +109,47 @@ pub use antecedent_io::bridge_distribution::{
 use antecedent_io::bridge_distribution_interval::bridged_distribution_interval;
 pub use antecedent_io::bridge_interval::BridgedClaimInterval;
 use antecedent_io::distribution_artifact::DistributionArtifact;
+use antecedent_io::propagation_chain_record::PropagationChainRecordWire;
+
+use super::propagation_chain::{PropagationChainPlan, compile_propagation_chain};
+
+fn compile_bridge_chain_stage(
+    parts: BridgeChainStage,
+    ctx: &ExecutionContext,
+) -> Result<PropagationChainPlan, ChainRefusal> {
+    let BridgeChainStage { sources, stage, reading, output_quantity } = parts;
+    let output = stage.id.clone();
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        reading,
+        &output,
+        sources,
+        vec![stage],
+    )
+    .with_output_quantity(output_quantity);
+    compile_propagation_chain(draft, ctx)
+}
+
+/// A checked bridge could not be represented as a chain stage, or the chain
+/// compiler rejected the stage's law and coordinate.
+#[derive(Clone, Debug)]
+pub enum BridgeChainCompileError {
+    /// The scientific bridge's draw-stage contract refused the mapping.
+    Bridge(ScientificBridgeRefusal),
+    /// The central chain compiler refused the composed declaration.
+    Chain(ChainRefusal),
+}
+
+impl std::fmt::Display for BridgeChainCompileError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Bridge(error) => error.fmt(f),
+            Self::Chain(error) => error.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for BridgeChainCompileError {}
 
 /// One refusal as plain data: registered reason code, namespaced
 /// `scientific_bridge.*` detail and the explanation of what was refused and
@@ -883,17 +926,32 @@ impl ScientificBridgeDistributionResult {
             .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))
     }
 
-    /// The bridge as a measurement-mapping stage of a propagation chain: the
-    /// source draws, the drawn slope and the drawn intercept as columns of one
-    /// aligned table, read by an affine stage whose coefficients are inputs.
+    /// The bridge as a stage of a propagation chain, with its aligned source,
+    /// mapping-parameter and optional innovation columns, output reading and
+    /// scientific coordinate.
     ///
     /// # Errors
-    /// A bridge that is not an affine map of its inputs (a measurement
-    /// correction, or a predictive law through a trial-level line).
+    /// A bridge mapping for which no draw-stage operator is available.
     pub fn chain_stage(&self, stage_id: &str) -> Result<BridgeChainStage, ScientificBridgeRefusal> {
         self.bridged
             .chain_stage(stage_id)
             .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))
+    }
+
+    /// Compile this checked bridge result as one retained chain stage, carrying
+    /// its source-law meaning and target coordinate into the central compiler.
+    /// A caller with later stages can use [`Self::chain_stage`] to construct the
+    /// larger draft and call [`compile_propagation_chain`] once for that chain.
+    ///
+    /// # Errors
+    /// The bridge stage or the chain compiler refused the handoff.
+    pub fn compile_chain_stage(
+        &self,
+        stage_id: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<PropagationChainPlan, BridgeChainCompileError> {
+        let parts = self.chain_stage(stage_id).map_err(BridgeChainCompileError::Bridge)?;
+        compile_bridge_chain_stage(parts, ctx).map_err(BridgeChainCompileError::Chain)
     }
 
     /// Freshness of the derived claim given the freshness of its source.

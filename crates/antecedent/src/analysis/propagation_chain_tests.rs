@@ -77,6 +77,79 @@ fn draft(reading: ChainReading, meaning: LawMeaning) -> PropagationChainRecordWi
 }
 
 #[test]
+fn assumption_envelope_is_a_distinct_compiled_carrier() {
+    use crate::planner::lowered::UncertaintyReading;
+    use crate::planner::statistical::Realization;
+    let draft = PropagationChain::draft(
+        TableConstruction::JointDraws,
+        ChainReading::AssumptionEnvelope,
+        "answer",
+        vec![
+            ChainSourceWire::draws("estimate", LawMeaning::Sampling, "table", &[1.0, 2.0, 3.0]),
+            ChainSourceWire::interval("bias", 0.0, 1.0),
+        ],
+        vec![ChainStageWire::new(
+            "answer", StageKind::DerivedQuantity, &["estimate", "bias"],
+            ChainOpWire::binary("sum"),
+        )],
+    ).with_output_quantity(antecedent_io::quantity_wire::ScientificQuantityWire {
+        version: 1,
+        variable_id: "study.estimate_plus_bias".into(),
+        variable_name: "Estimate plus bias".into(),
+        role: "outcome".into(),
+        units: "points".into(),
+        population_id: "target".into(),
+        regime_id: "observed".into(),
+        horizon: 1,
+        functional_id: "mean".into(),
+        conditioning: Vec::new(),
+        transform_id: "identity".into(),
+    });
+    let plan = compile_propagation_chain(draft, &ctx()).expect("compiles");
+    assert_eq!(plan.lowered().claim().uncertainty(), UncertaintyReading::AssumptionEnvelope);
+    assert!(matches!(plan.lowered().statistical().realization(),
+        Realization::DeclaredAssumptionEnvelope { draw_meaning: LawMeaning::Sampling, .. }));
+    let chain = plan.execute(&ctx()).expect("executes retained program");
+    assert_eq!(chain.lowered_program_identity(), plan.identity());
+    assert_eq!(chain.record().output_lower_bounds.as_ref().map(Vec::len), Some(3));
+}
+
+#[test]
+fn assumption_envelope_reference_decision_uses_compiled_set_carrier() {
+    let draft = PropagationChain::draft(
+        TableConstruction::JointDraws,
+        ChainReading::AssumptionEnvelope,
+        "utility",
+        vec![
+            ChainSourceWire::draws("estimate", LawMeaning::Posterior, "table", &[1.0, 2.0]),
+            ChainSourceWire::interval("assumption", 0.0, 1.0),
+        ],
+        vec![ChainStageWire::new(
+            "utility", StageKind::DecisionUtility, &["estimate", "assumption"],
+            ChainOpWire::binary("sum"),
+        ).with_decision_reference(2.0)],
+    ).with_output_quantity(antecedent_io::quantity_wire::ScientificQuantityWire {
+        version: 1,
+        variable_id: "study.utility".into(),
+        variable_name: "Utility".into(),
+        role: "utility".into(),
+        units: "points".into(),
+        population_id: "target".into(),
+        regime_id: "observed".into(),
+        horizon: 1,
+        functional_id: "expected_utility".into(),
+        conditioning: Vec::new(),
+        transform_id: "identity".into(),
+    });
+    let plan = compile_propagation_chain(draft, &ctx()).expect("compiles");
+    let decision = plan.lowered().evidence().decision().expect("set decision");
+    assert_eq!(decision.carrier(), crate::planner::lowered::CarrierDemand::IdentifiedSet);
+    assert!(decision.scenario_source_identity().is_some());
+    let chain = plan.execute(&ctx()).expect("executes retained program");
+    assert_eq!(chain.record().results[0].count("robust_verdict_code"), Some(2));
+}
+
+#[test]
 fn a_five_stage_chain_seals_exports_and_is_consumed_independently() {
     let chain = PropagationChain::seal(draft(ChainReading::Spread, LawMeaning::Posterior), &ctx())
         .expect("seals");
@@ -173,6 +246,7 @@ fn a_chain_compiles_to_a_six_layer_program_before_anything_is_computed() {
     assert_eq!(lowered.chain_reading(), Some("spread"));
     assert!(matches!(lowered.evidence().composition(), Composition::Chained { stages: 5 }));
     assert_eq!(lowered.evidence().sources().len(), 2);
+    assert!(lowered.evidence().decision().is_none(), "version one keeps its program identity");
     let program = lowered.propagation_chain().expect("the program carries the chain");
     assert_eq!(program.dependents_of("cost"), vec!["net", "utility", "update"]);
     let view = plan.plan_view();
@@ -206,6 +280,68 @@ fn execution_reads_the_retained_program_and_stamps_its_identity() {
     // A change is a new program, compiled and executed.
     let withdrawn = chain.withdraw("cost", &ctx()).expect("changes");
     assert_ne!(withdrawn.lowered_program_identity(), chain.lowered_program_identity());
+}
+
+#[test]
+fn predictive_law_is_lowered_before_its_output_draws_are_published() {
+    use crate::planner::lowered::UncertaintyReading;
+    use crate::planner::statistical::Realization;
+
+    let draft = PropagationChain::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Predictive,
+        "utility",
+        vec![
+            ChainSourceWire::draws("theta", LawMeaning::Posterior, "predictive-table", &[1.0, 2.0, 3.0]),
+            ChainSourceWire::draws("epsilon", LawMeaning::Innovation, "predictive-table", &[0.5, -0.5, 0.5]),
+        ],
+        vec![
+            ChainStageWire::new(
+                "y",
+                StageKind::PredictiveMapping,
+                &["theta", "epsilon"],
+                ChainOpWire::binary("sum"),
+            ),
+            ChainStageWire::new(
+                "utility",
+                StageKind::DecisionUtility,
+                &["y"],
+                ChainOpWire::unary(ChainUnaryWire::Square),
+            )
+            .with_decision_reference(2.0),
+        ],
+    )
+    .with_output_quantity(antecedent_io::quantity_wire::ScientificQuantityWire {
+        version: 1,
+        variable_id: "study.predictive_utility".into(),
+        variable_name: "Predictive utility".into(),
+        role: "utility".into(),
+        units: "utility_points".into(),
+        population_id: "target_population".into(),
+        regime_id: "declared_regime".into(),
+        horizon: 1,
+        functional_id: "decision_utility".into(),
+        conditioning: Vec::new(),
+        transform_id: "identity".into(),
+    });
+    let plan = compile_propagation_chain(draft, &ctx()).expect("compiles");
+    assert_eq!(plan.lowered().claim().uncertainty(), UncertaintyReading::Predictive);
+    assert!(matches!(plan.lowered().statistical().realization(), Realization::DeclaredPredictive { .. }));
+    let terminal = plan.lowered().evidence().decision().expect("compiled terminal comparison");
+    assert_eq!(terminal.actions(), 2);
+    assert_eq!(terminal.carrier(), crate::planner::lowered::CarrierDemand::Mean);
+    assert_eq!(terminal.utility_unit(), Some("utility_points"));
+    let chain = plan.execute(&ctx()).expect("executes retained program");
+    assert_eq!(chain.lowered_program_identity(), plan.identity());
+    assert_eq!(chain.record().version, antecedent_io::propagation_chain_record::PROPAGATION_CHAIN_LAW_VERSION);
+    assert_eq!(chain.record().output_draws.as_ref().map(Vec::len), Some(3));
+    let consumed = consume_propagation_chain(&chain.export().expect("export"), Some(chain.identity()), &ctx())
+        .expect("replay");
+    assert_eq!(consumed.output_draws, chain.record().output_draws);
+    let mut different_quantity = chain.record().clone();
+    different_quantity.output_quantity.as_mut().expect("quantity").units = "thousands".into();
+    let changed = compile_propagation_chain(different_quantity, &ctx()).expect("new coordinate");
+    assert_ne!(changed.identity(), plan.identity());
 }
 
 #[test]

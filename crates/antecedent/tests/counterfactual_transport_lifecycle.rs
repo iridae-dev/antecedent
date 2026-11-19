@@ -30,6 +30,11 @@ use antecedent::{
     CounterfactualTransportPreparation, PreparedCounterfactualTransport,
     consume_counterfactual_transport_artifact, prepare_counterfactual_transport,
 };
+use antecedent::analysis::temporal_path_transport::{
+    TemporalPathSpec, compile_temporal_path_transport,
+    consume_temporal_path_transport,
+};
+use std::sync::Arc;
 use antecedent_core::{ExecutionContext, SearchLimits};
 use antecedent_expr::{ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData};
 use antecedent_io::IoError;
@@ -45,6 +50,51 @@ use counterfactual_transport_adapter as adapter;
 use counterfactual_transport_cases::{Case, ExpectedClass, Target, all_cases};
 
 const TOLERANCE: f64 = 1e-12;
+
+#[test]
+fn time_ordered_direct_path_transport_matches_independent_oracle() {
+    let case = case_named("nonlinear_mediation_covariate_shift");
+    let problem = adapter::problem(&case);
+    let adapted = adapter::catalog(&case);
+    let sources = Arc::from(adapter::sources(&case, &controllable_for(&case)));
+    let data = adapter::laws(&case, &adapted);
+    let id = |name: &str| adapter::variable_id(&case, name).raw();
+    let spec = TemporalPathSpec {
+        treatment: id("X"), outcome: id("Y"),
+        control_bits: 0.0_f64.to_bits(), active_bits: 1.0_f64.to_bits(),
+        outcome_level_bits: 1.0_f64.to_bits(),
+        times: [("Z", 0), ("X", 1), ("M", 2), ("Y", 3)]
+            .into_iter().map(|(name, time)| (id(name), time)).collect(),
+        active_edges: vec![(id("X"), id("Y"))],
+    };
+    let plan = compile_temporal_path_transport(
+        problem, Arc::from("target"), sources, adapted.catalog,
+        data, spec.clone(), options_of(&case), &ctx(),
+    ).expect("time-ordered path transport compiler");
+    assert_eq!(plan.plan_view().route().as_str(), "TemporalPathTransport");
+    let result = plan.execute(&ctx()).expect("two identified target worlds");
+    let active = target_labelled(&case, "Y_{x1,M_{x0}}").expected_value.unwrap();
+    let baseline = target_labelled(&case, "Y_{x0,M_{x0}}").expected_value.unwrap();
+    assert!((result.active.probability() - active).abs() <= TOLERANCE);
+    assert!((result.baseline.probability() - baseline).abs() <= TOLERANCE);
+    assert!((result.contrast - (active - baseline)).abs() <= TOLERANCE);
+    let bytes = plan.export(&result, &ctx()).expect("path artifact");
+    let replay = consume_temporal_path_transport(
+        &bytes, plan.lowered().identity(), &ctx(),
+    ).expect("independent path transport replay");
+    assert_eq!(replay.contrast.to_bits(), result.contrast.to_bits());
+
+    let mut invalid = spec;
+    invalid.times[2].1 = 1;
+    let adapted = adapter::catalog(&case);
+    let invalid_data = adapter::laws(&case, &adapted);
+    assert!(compile_temporal_path_transport(
+        adapter::problem(&case), Arc::from("target"),
+        Arc::from(adapter::sources(&case, &controllable_for(&case))),
+        adapted.catalog, invalid_data, invalid,
+        options_of(&case), &ctx(),
+    ).is_err());
+}
 
 fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(1)

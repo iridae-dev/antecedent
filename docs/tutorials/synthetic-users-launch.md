@@ -221,6 +221,8 @@ The investigation did not establish agent-to-human equivalence, the cause of the
 
 For API details, see [priors](../priors.md), [mechanism transport](../guides/mechanism-and-synthesis-transport.md), [decision contracts](../decisions.md), [study ranking](../design-ranking.md), with [external signals](../design-ranking.md#external-signals) for the `ExternalSignal` route used in step 5, and [from a failed identification to a ranked evidence plan](../design-ranking.md#from-a-failed-identification-to-a-ranked-evidence-plan) for the `antecedent.repair` interface. [Beyond the marketing mix](beyond-marketing-mix.md) follows a complementary investigation from a fitted response through experimental evidence and the next study.
 
+If the launch also faces bursts of outside activity, [When outside events interrupt a launch](event-driven-launch.md) shows how to compare actions under the same event forecast.
+
 ## Run the complete investigation
 
 The example needs no additional dependencies, credentials, network access or confidential content. It generates all observations, keeps the generating truth separate, and runs both paths in about two seconds locally. The pilot counts are illustrative seeded realizations; other observations can lead to more testing or to withholding launch.

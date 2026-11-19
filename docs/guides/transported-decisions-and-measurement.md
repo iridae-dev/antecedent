@@ -74,6 +74,36 @@ Check the connection between a declared transported offer and a callback input, 
 
 **Handoff.** A `TransportedClaimOffer` carries its `TransportIdentity` (source populations, selection diagram, assumptions). A consumer that accepts only native target data refuses it. An accepted handoff stays a transported external claim and its calibration label is never raised. The portable record (`transport_handoff_v1`) is re-derived by the consumer, which rebuilds the offer and contract, re-runs the connection decision and recomputes identities. A stored handoff cannot be relabelled upward. A declared population is the producer's declaration, not proof that data came from it, and a verification receipt covers provider behaviour at exact requests, not the truth of an invariance assumption.
 
+## Move a trial effect into a target decision
+
+The trial contains outcomes and assignments. The target contributes the population and the declared chances of being selected. In this example the target rows carry no usable outcomes. The program checks the selection graph, fits the trial effect under the supplied assignment and selection probabilities, and compares treating the target with holding the status quo.
+
+The choice uses the target average effect. A decision about the chance that an individual outcome falls below a threshold needs a target outcome law. The example checks that the fitted effect draws and the action comparison survive replay. Its interval status is unmeasured.
+
+Run `cargo run -p antecedent --example trial_to_target_decision`.
+
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/trial_to_target_decision.rs).
+
+## Check an early measure in both populations
+
+Suppose you want to use an early outcome to predict how a treatment changes a later outcome. The example takes one pair of effects per independent validation trial, with separate sets of trials in the source and target. It fits each relationship and compares the two on a common grid. The declared margin says how much disagreement the proposed use could tolerate.
+
+Read the discrepancy over the grid alongside the equivalence flag. The script then increases the target shift so the screen fails under the same margin. A passed screen supports this modeled comparison at those grid points. It does not prove that the relationship will hold in an unmeasured population. The assessed decision routes can carry the discrepancy into a utility comparison when the premise and mapping are bound to the same evidence.
+
+Run `cargo run -p antecedent --example check_trial_proxy`.
+
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/check_trial_proxy.rs).
+
+## Fit a joint error table from labelled readings
+
+Two assays are positive. If they share an interference, both can be wrong together. Multiplying separate false-positive rates would discard the evidence that comes from observing both assays on the same specimen.
+
+The example starts with counts of all four reading pairs in specimens with a known underlying condition. It fits one joint table for each condition, then asks about the outcome after two positive readings. The draw table carries uncertainty from the labelled counts through that calculation. Read the outcome probability separately from the calibration status.
+
+Run `cargo run -p antecedent --example shared_measurement_errors`.
+
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/shared_measurement_errors.rs).
+
 ## What is refused, and what to do
 
 The details and remedies are listed in the reference under [transported cohort effect and measurement transport](../reference/refusal-codes.md#transported-cohort-effect-and-measurement-transport), [transported policy, adaptive trial source and period shift](../reference/refusal-codes.md#transported-policy-adaptive-trial-source-and-period-shift) and [provider-sourced transport and handoff](../reference/refusal-codes.md#provider-sourced-transport-and-handoff).

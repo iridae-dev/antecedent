@@ -155,6 +155,8 @@ mod mechanism_discrepancy_api;
 mod method_provenance_api;
 mod missing_report;
 mod mixed_decision_api;
+mod events_api;
+mod latent_soft_intervention_api;
 mod mnar_fixed_shift_api;
 mod mnar_sensitivity_api;
 mod msm_sensitivity_api;

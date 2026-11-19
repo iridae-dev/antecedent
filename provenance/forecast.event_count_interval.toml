@@ -1,0 +1,21 @@
+feature_id = "forecast.event_count_interval"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [
+  { title = "Bootstrap inference for Hawkes and general point processes", doi = "10.1016/j.jeconom.2022.02.006", sections = ["Recursive intensity bootstrap"] },
+]
+implementation_deviations = [
+  "Refits are predictive inputs to independent conditional future paths. Inclusive nearest-rank 0.05 and 0.95 sample quantiles define a discrete central 90 percent count interval.",
+  "The prospective calibration test generates training and future count truth with an independently implemented branching-cluster model. A failed fit or refit counts against coverage.",
+  "The candidate is available under the calibration-internal feature before release support is earned. Publication requires a current matching coverage slot and separate release support.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/event_count_calibration.rs",
+  "crates/antecedent/tests/events_support/cluster_oracle.rs",
+  "crates/antecedent/tests/events.rs",
+  "crates/antecedent/src/analysis/events/assessment.rs",
+]

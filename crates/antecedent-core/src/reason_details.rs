@@ -400,6 +400,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "composition_boundary.verification_receipt_missing",
     "composition_bundle.callback_unavailable",
     "composition_bundle.edge_digest_mismatch",
+    "composition_bundle.execution_cancelled",
     "composition_bundle.expected_identity_mismatch",
     "composition_bundle.graph_or_snapshot_mismatch",
     "composition_bundle.incompatible_version",
@@ -407,6 +408,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "composition_bundle.node_not_found",
     "composition_bundle.oversized",
     "composition_bundle.provider_request_changed",
+    "composition_bundle.resource_refused",
     "composition_bundle.swapped_evidence",
     "composition_bundle.tampered_quantity",
     "composition_bundle.unknown_node_kind",
@@ -798,6 +800,14 @@ pub const REASON_DETAILS: &[&str] = &[
     "effect_constancy_consumer.partition_missing",
     "effect_constancy_consumer.quantity_mismatch",
     "effect_constancy_consumer.support_unsupported",
+    "events.budget",
+    "events.fit_failed",
+    "events.incomplete_law",
+    "events.interval_unmeasured",
+    "events.invalid_request",
+    "events.numerical",
+    "events.unstable",
+    "events.unverified_source",
     "evidence_ledger.cancelled",
     "evidence_ledger.diagonal_covariance_shared_rows",
     "evidence_ledger.duplicate_result",
@@ -1193,6 +1203,8 @@ pub const REASON_DETAILS: &[&str] = &[
     "latent_class_posterior.external_power_prior",
     "latent_class_posterior.mapped_prior",
     "latent_class_posterior.non_positive_scale",
+    "latent_soft_intervention.forecast_inadequate",
+    "latent_soft_intervention.invalid_request",
     "learned_continuous_posterior.band_not_constructed",
     "learned_continuous_posterior.empty_scores",
     "learned_continuous_posterior.external_power_prior",
@@ -3135,6 +3147,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("composition_boundary.verification_receipt_missing", &["external_verification_failed"]),
     ("composition_bundle.callback_unavailable", &["external_capability_missing"]),
     ("composition_bundle.edge_digest_mismatch", &["external_binding_mismatch"]),
+    ("composition_bundle.execution_cancelled", &["cancelled_no_claim"]),
     ("composition_bundle.expected_identity_mismatch", &["external_binding_mismatch"]),
     ("composition_bundle.graph_or_snapshot_mismatch", &["external_binding_mismatch"]),
     ("composition_bundle.incompatible_version", &["schema_mismatch"]),
@@ -3142,6 +3155,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("composition_bundle.node_not_found", &["invalid_argument"]),
     ("composition_bundle.oversized", &["invalid_argument"]),
     ("composition_bundle.provider_request_changed", &["external_binding_mismatch"]),
+    ("composition_bundle.resource_refused", &["execution_resource_limit"]),
     ("composition_bundle.swapped_evidence", &["external_binding_mismatch"]),
     ("composition_bundle.tampered_quantity", &["quantity_semantics_mismatch"]),
     ("composition_bundle.unknown_node_kind", &["invalid_argument"]),
@@ -3533,6 +3547,14 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("effect_constancy_consumer.partition_missing", &["invalid_argument"]),
     ("effect_constancy_consumer.quantity_mismatch", &["invalid_argument"]),
     ("effect_constancy_consumer.support_unsupported", &["route_not_supported"]),
+    ("events.budget", &["execution_resource_limit"]),
+    ("events.fit_failed", &["not_supported"]),
+    ("events.incomplete_law", &["not_supported"]),
+    ("events.interval_unmeasured", &["not_supported"]),
+    ("events.invalid_request", &["invalid_argument"]),
+    ("events.numerical", &["invalid_argument"]),
+    ("events.unstable", &["invalid_argument"]),
+    ("events.unverified_source", &["not_supported"]),
     ("evidence_ledger.cancelled", &["cancelled_no_claim"]),
     ("evidence_ledger.diagonal_covariance_shared_rows", &["evidence_double_counted"]),
     ("evidence_ledger.duplicate_result", &["invalid_argument"]),
@@ -3928,6 +3950,8 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("latent_class_posterior.external_power_prior", &["route_not_supported"]),
     ("latent_class_posterior.mapped_prior", &["route_not_supported"]),
     ("latent_class_posterior.non_positive_scale", &["invalid_argument"]),
+    ("latent_soft_intervention.forecast_inadequate", &["not_supported"]),
+    ("latent_soft_intervention.invalid_request", &["invalid_argument"]),
     ("learned_continuous_posterior.band_not_constructed", &["route_not_supported"]),
     ("learned_continuous_posterior.empty_scores", &["invalid_argument"]),
     ("learned_continuous_posterior.external_power_prior", &["route_not_supported"]),
@@ -6357,6 +6381,8 @@ pub mod composition_bundle {
     pub const CALLBACK_UNAVAILABLE: &str = "composition_bundle.callback_unavailable";
     /// Detail `composition_bundle.edge_digest_mismatch`.
     pub const EDGE_DIGEST_MISMATCH: &str = "composition_bundle.edge_digest_mismatch";
+    /// Detail `composition_bundle.execution_cancelled`.
+    pub const EXECUTION_CANCELLED: &str = "composition_bundle.execution_cancelled";
     /// Detail `composition_bundle.expected_identity_mismatch`.
     pub const EXPECTED_IDENTITY_MISMATCH: &str = "composition_bundle.expected_identity_mismatch";
     /// Detail `composition_bundle.graph_or_snapshot_mismatch`.
@@ -6371,6 +6397,8 @@ pub mod composition_bundle {
     pub const OVERSIZED: &str = "composition_bundle.oversized";
     /// Detail `composition_bundle.provider_request_changed`.
     pub const PROVIDER_REQUEST_CHANGED: &str = "composition_bundle.provider_request_changed";
+    /// Detail `composition_bundle.resource_refused`.
+    pub const RESOURCE_REFUSED: &str = "composition_bundle.resource_refused";
     /// Detail `composition_bundle.swapped_evidence`.
     pub const SWAPPED_EVIDENCE: &str = "composition_bundle.swapped_evidence";
     /// Detail `composition_bundle.tampered_quantity`.
@@ -7295,6 +7323,26 @@ pub mod effect_constancy_consumer {
     pub const SUPPORT_UNSUPPORTED: &str = "effect_constancy_consumer.support_unsupported";
 }
 
+/// Details in the `events` family.
+pub mod events {
+    /// Detail `events.budget`.
+    pub const BUDGET: &str = "events.budget";
+    /// Detail `events.fit_failed`.
+    pub const FIT_FAILED: &str = "events.fit_failed";
+    /// Detail `events.incomplete_law`.
+    pub const INCOMPLETE_LAW: &str = "events.incomplete_law";
+    /// Detail `events.interval_unmeasured`.
+    pub const INTERVAL_UNMEASURED: &str = "events.interval_unmeasured";
+    /// Detail `events.invalid_request`.
+    pub const INVALID_REQUEST: &str = "events.invalid_request";
+    /// Detail `events.numerical`.
+    pub const NUMERICAL: &str = "events.numerical";
+    /// Detail `events.unstable`.
+    pub const UNSTABLE: &str = "events.unstable";
+    /// Detail `events.unverified_source`.
+    pub const UNVERIFIED_SOURCE: &str = "events.unverified_source";
+}
+
 /// Details in the `evidence_ledger` family.
 pub mod evidence_ledger {
     /// Detail `evidence_ledger.cancelled`.
@@ -8211,6 +8259,14 @@ pub mod latent_class_posterior {
     pub const MAPPED_PRIOR: &str = "latent_class_posterior.mapped_prior";
     /// Detail `latent_class_posterior.non_positive_scale`.
     pub const NON_POSITIVE_SCALE: &str = "latent_class_posterior.non_positive_scale";
+}
+
+/// Details in the `latent_soft_intervention` family.
+pub mod latent_soft_intervention {
+    /// Detail `latent_soft_intervention.forecast_inadequate`.
+    pub const FORECAST_INADEQUATE: &str = "latent_soft_intervention.forecast_inadequate";
+    /// Detail `latent_soft_intervention.invalid_request`.
+    pub const INVALID_REQUEST: &str = "latent_soft_intervention.invalid_request";
 }
 
 /// Details in the `learned_continuous_posterior` family.

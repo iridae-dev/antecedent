@@ -1,8 +1,10 @@
 //! Propagation of structural enclosures through chain stages.
 
 use super::{
-    ChainError, Coefficient, Combine, ExprTerm, StageOp, StageSpec, UnaryFn, validate_spec,
+    CANCEL_STRIDE, ChainError, Coefficient, Combine, ExprTerm, MAX_CHAIN_CELLS, StageOp,
+    StageSpec, UnaryFn, check_cancel, validate_spec,
 };
+use antecedent_core::CancellationToken;
 
 // ------------------------------------------------------------------ enclosures
 
@@ -95,6 +97,71 @@ impl Enclosure {
         }
         Ok(Self::hull(&values))
     }
+}
+
+/// One source of a draw-indexed assumption envelope. A fixed enclosure is an
+/// assumption without probabilities; a draw column carries its own law meaning
+/// in the compiler contract, outside this numerical evaluator.
+#[derive(Clone, Copy, Debug)]
+pub enum MixedSource<'a> {
+    /// The same interval assumption on every draw row.
+    Fixed(Enclosure),
+    /// An aligned column of sampling or posterior draws.
+    Draws(&'a [f64]),
+}
+
+/// Evaluate each draw row with its draw values fixed and its interval
+/// assumptions left as boxes. The result is one enclosure per stage per row.
+/// Averaging lower and upper endpoints later encloses the expected value under
+/// every fixed admissible assumption. It grants no sampling coverage and puts
+/// no probability on the interval assumptions.
+///
+/// # Errors
+/// Missing or mismatched draw rows, a table budget exceeded, cancellation, or
+/// an interval operator whose image is not finite.
+pub fn evaluate_mixed_enclosures(
+    sources: &[MixedSource<'_>],
+    stages: &[StageSpec],
+    cancel: &CancellationToken,
+) -> Result<Vec<Vec<Enclosure>>, ChainError> {
+    validate_spec(sources.len(), stages)?;
+    let Some(rows) = sources.iter().find_map(|source| match source {
+        MixedSource::Draws(values) => Some(values.len()),
+        MixedSource::Fixed(_) => None,
+    }) else {
+        return Err(ChainError::Shape("a mixed enclosure needs draw rows"));
+    };
+    if rows == 0 || rows.checked_mul(sources.len() + stages.len())
+        .is_none_or(|cells| cells > MAX_CHAIN_CELLS)
+    {
+        return Err(ChainError::Budget("mixed enclosure cells"));
+    }
+    for source in sources {
+        if let MixedSource::Draws(values) = source
+            && (values.len() != rows || values.iter().any(|value| !value.is_finite()))
+        {
+            return Err(ChainError::Shape("mixed draw columns must be aligned and finite"));
+        }
+    }
+    let mut columns: Vec<Vec<Enclosure>> =
+        (0..stages.len()).map(|_| Vec::with_capacity(rows)).collect();
+    for row in 0..rows {
+        if row % CANCEL_STRIDE == 0 {
+            check_cancel(cancel)?;
+        }
+        let boxes: Vec<Enclosure> = sources
+            .iter()
+            .map(|source| match source {
+                MixedSource::Fixed(value) => Ok(*value),
+                MixedSource::Draws(values) => Enclosure::new(values[row], values[row]),
+            })
+            .collect::<Result<_, _>>()?;
+        let evaluated = evaluate_enclosures(&boxes, stages)?;
+        for (column, value) in columns.iter_mut().zip(evaluated) {
+            column.push(value);
+        }
+    }
+    Ok(columns)
 }
 
 fn check_enclosure(enclosure: Enclosure) -> Result<Enclosure, ChainError> {

@@ -205,7 +205,9 @@ pub struct SampledTableKeyWire {
 }
 
 impl SampledTableKeyWire {
-    fn from_key(key: &SampledTableKey) -> Self {
+    /// Encode a validated sampled table key.
+    #[must_use]
+    pub fn from_key(key: &SampledTableKey) -> Self {
         Self {
             population: key.population.to_string(),
             regime: key.regime.raw(),
@@ -213,7 +215,9 @@ impl SampledTableKeyWire {
         }
     }
 
-    fn to_key(&self) -> SampledTableKey {
+    /// Decode a sampled table key.
+    #[must_use]
+    pub fn to_key(&self) -> SampledTableKey {
         SampledTableKey {
             population: Arc::from(self.population.as_str()),
             regime: RegimeId::from_raw(self.regime),
@@ -333,7 +337,9 @@ pub struct SampledOverlapWire {
 }
 
 impl SampledOverlapWire {
-    fn from_declaration(declaration: &OverlapDeclaration) -> Self {
+    /// Encode a declared sampled-table overlap schedule.
+    #[must_use]
+    pub fn from_declaration(declaration: &OverlapDeclaration) -> Self {
         Self {
             default: declaration.default_relation().name().to_owned(),
             pairs: declaration
@@ -350,7 +356,11 @@ impl SampledOverlapWire {
         }
     }
 
-    fn to_declaration(&self) -> Result<OverlapDeclaration, Error> {
+    /// Decode and validate the overlap declaration.
+    ///
+    /// # Errors
+    /// Unknown relations or a noncanonical pair schedule.
+    pub fn to_declaration(&self) -> Result<OverlapDeclaration, Error> {
         let parse = |name: &str| {
             DatasetOverlap::parse(name)
                 .ok_or_else(|| malformed("overlap", format!("unknown relation `{name}`")))
@@ -379,11 +389,17 @@ pub struct SampledUnseenRuleWire {
 }
 
 impl SampledUnseenRuleWire {
-    fn from_rule(rule: UnseenCellRule) -> Self {
+    /// Encode an unseen-cell rule.
+    #[must_use]
+    pub fn from_rule(rule: UnseenCellRule) -> Self {
         Self { name: rule.name().to_owned(), parameter: rule.parameter().map(f64::to_bits) }
     }
 
-    fn to_rule(&self) -> Result<UnseenCellRule, Error> {
+    /// Decode an unseen-cell rule.
+    ///
+    /// # Errors
+    /// Unknown rule or invalid parameter placement.
+    pub fn to_rule(&self) -> Result<UnseenCellRule, Error> {
         let parameter = self.parameter.map(f64::from_bits);
         let rule = match (self.name.as_str(), parameter) {
             ("refuse", None) => UnseenCellRule::Refuse,
@@ -416,7 +432,9 @@ pub struct SampledLimitsWire {
 }
 
 impl SampledLimitsWire {
-    fn from_limits(limits: &SampledTransportLimits) -> Self {
+    /// Encode sampled estimation limits.
+    #[must_use]
+    pub fn from_limits(limits: &SampledTransportLimits) -> Self {
         Self {
             min_table_total: limits.min_table_total,
             max_unseen_fraction: limits.max_unseen_fraction.to_bits(),
@@ -426,7 +444,9 @@ impl SampledLimitsWire {
         }
     }
 
-    fn to_limits(&self) -> SampledTransportLimits {
+    /// Decode sampled estimation limits; the estimator validates their range.
+    #[must_use]
+    pub fn to_limits(&self) -> SampledTransportLimits {
         SampledTransportLimits {
             min_table_total: self.min_table_total,
             max_unseen_fraction: f64::from_bits(self.max_unseen_fraction),

@@ -132,9 +132,9 @@ impl MissingCarrier {
     #[must_use]
     pub const fn of(carrier: CarrierDemand) -> Option<Self> {
         match carrier {
-            CarrierDemand::Mean | CarrierDemand::IdentifiedSet => None,
+            CarrierDemand::Mean | CarrierDemand::IdentifiedSet | CarrierDemand::DecisionDraws => None,
             CarrierDemand::ParameterPosterior => Some(Self::ParameterPosterior),
-            CarrierDemand::OutcomeLaw => Some(Self::OutcomeLaw),
+            CarrierDemand::OutcomeLaw | CarrierDemand::PredictiveLaw => Some(Self::OutcomeLaw),
         }
     }
 }
@@ -282,7 +282,13 @@ const fn realization_name(realization: &Realization) -> &'static str {
         Realization::Envelope(_) => "envelope",
         Realization::GraphImputationV1 => "graph_imputation_v1",
         Realization::CategoricalPosteriorCandidateV1 => "categorical_posterior_candidate_v1",
+        Realization::SequentialKnownLawMonteCarlo => "sequential_known_law_monte_carlo_v1",
+        Realization::SequentialTrajectoryBootstrap => "sequential_trajectory_bootstrap_v1",
         Realization::ExactPoint { .. } => "exact_point",
+        Realization::DeclaredPredictive { .. } => "declared_predictive",
+        Realization::DeclaredPosterior { .. } => "declared_posterior",
+        Realization::NestedFit { .. } => "nested_fit",
+        Realization::DeclaredAssumptionEnvelope { .. } => "declared_assumption_envelope",
     }
 }
 
@@ -294,9 +300,18 @@ const fn offered_port(realization: &Realization) -> EvidencePort {
             EvidencePort::ParameterPosterior
         }
         Realization::Envelope(_) => EvidencePort::IdentifiedSet,
+        Realization::DeclaredAssumptionEnvelope { .. } => EvidencePort::IdentifiedSet,
+        Realization::DeclaredPredictive { .. } => EvidencePort::PredictiveLaw,
+        Realization::DeclaredPosterior { .. } => EvidencePort::ParameterPosterior,
+        Realization::NestedFit { law, .. } => match law {
+            crate::planner::statistical::NestedFitLaw::Posterior => EvidencePort::ParameterPosterior,
+            crate::planner::statistical::NestedFitLaw::Predictive => EvidencePort::PredictiveLaw,
+        },
         Realization::ExactPoint { .. }
         | Realization::GraphImputationV1
-        | Realization::CategoricalPosteriorCandidateV1 => EvidencePort::Mean,
+        | Realization::CategoricalPosteriorCandidateV1
+        | Realization::SequentialKnownLawMonteCarlo
+        | Realization::SequentialTrajectoryBootstrap => EvidencePort::Mean,
     }
 }
 
@@ -341,11 +356,15 @@ pub(crate) fn require_carrier(
             DISTRIBUTIONAL_CARRIER,
         ));
     }
-    let envelope = matches!(realization, Realization::Envelope(_));
+    let envelope = matches!(realization, Realization::Envelope(_) | Realization::DeclaredAssumptionEnvelope { .. });
     let attempt = |otherwise: NextAttempt| {
         if envelope { ROBUST_OVER_IDENTIFIED_SET } else { otherwise }
     };
     match demanded {
+        CarrierDemand::DecisionDraws => Err(DecisionCarrierError::contract(
+            "decision draws require a compiler-owned reliability route over aligned raw utilities",
+            demanded, name, DISTRIBUTIONAL_CARRIER,
+        )),
         CarrierDemand::IdentifiedSet => Err(DecisionCarrierError::contract(
             "compile_for_robust_decision requires an explicit joint scenario carrier; a marginal envelope cannot establish cross-action dependence",
             demanded,
@@ -374,6 +393,18 @@ pub(crate) fn require_carrier(
             .map_err(|port| {
                 DecisionCarrierError::from_port(port, demanded, name, attempt(BAYESIAN_REALIZATION))
             }),
+        CarrierDemand::PredictiveLaw => {
+            if matches!(realization, Realization::DeclaredPredictive { .. }) {
+                Ok(())
+            } else {
+                offered_port(realization)
+                    .try_coerce(DecisionRequest::IndividualOutcomeRisk)
+                    .map(drop)
+                    .map_err(|port| {
+                        DecisionCarrierError::from_port(port, demanded, name, attempt(INTERVENTIONAL_LAW))
+                    })
+            }
+        }
         CarrierDemand::OutcomeLaw if publishes_interventional_law(cell) && !envelope => Ok(()),
         CarrierDemand::OutcomeLaw => offered_port(realization)
             .try_coerce(DecisionRequest::IndividualOutcomeRisk)
@@ -706,6 +737,7 @@ mod graph_imputation_carrier_tests {
             CarrierDemand::Mean,
             CarrierDemand::ParameterPosterior,
             CarrierDemand::OutcomeLaw,
+            CarrierDemand::PredictiveLaw,
             CarrierDemand::IdentifiedSet,
         ] {
             let program = DecisionProgram {

@@ -459,6 +459,9 @@
   "estimate.latent_class_effects.bayesian": [
    "estimate.latent_class_effects.bayesian"
   ],
+  "estimate.latent_soft_intervention": [
+   "estimate.latent_soft_intervention"
+  ],
   "estimate.matched_case_control_odds_ratio": [
    "estimate.matched_case_control_odds_ratio"
   ],
@@ -560,6 +563,12 @@
   ],
   "external.trust_receipt": [
    "external.trust_receipt"
+  ],
+  "forecast.event_count_interval": [
+   "forecast.event_count_interval"
+  ],
+  "forecast.event_process": [
+   "forecast.event_process"
   ],
   "gcm.attribute.mechanism_refit": [
    "gcm.attribute.mechanism_refit"
@@ -6732,6 +6741,30 @@
   },
   {
    "deviations": [
+    "Uses a declared linear-Gaussian DAG on fully observed continuous variables, with independent randomized recorded-action and control arms. Given the declared context, the analyst assumes independence of execution-version membership and structural disturbances. The compiler treats these as model premises.",
+    "The control-arm training split anchors the DAG equations and their disturbance scales. The bounded action-arm fit compares one or two versions, each admitting additive intercept shifts on at most two declared candidate equations. Exact target identities are descriptive and can remain unresolved. A logistic membership model conditions on pre-intervention roots and reads only those coordinates at forecast time.",
+    "The split likelihood ratio evaluates a training-only alternative against the evaluation sample's maximized single-Gaussian likelihood with a context-dependent mean and an unrestricted covariance. This assesses the defined statistical null. It cannot establish that observed deviations are caused by the declared structural alternatives without the causal and noise assumptions.",
+    "Both one- and two-version forecasts must pass a held-out screen based on sequential conditional probability integral transforms. The screen estimates no interval coverage and an inconclusive predictive check is not evidence for the number of versions.",
+    "Gaussian forecasts use the existing composition engine. Their covariance describes conditional predictive variation at the fitted parameters. Optional split-preserving bootstrap draws refit all equation and membership parameters and reselect the version structure jointly. The draws have no parameter-coverage or interval claim. This source record is staged for independent review and does not itself license the route."
+   ],
+   "digest": "079d4f1251185b595411af7a8ad068b2cdd116b0a7bb6d8499bf0f8fc25565a7",
+   "id": "estimate.latent_soft_intervention",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "doi": "10.1073/pnas.1922664117",
+     "doi_verified": false,
+     "sections": [
+      "The Universal Likelihood Ratio Test",
+      "Mixture Models"
+     ],
+     "title": "Universal inference"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "Huber M-estimation reports the M-estimator's own sandwich (bread Σψ′xxᵀ, scores s·ψ(r/s)) with the MAD scale treated as known; it does not propagate scale-estimation variance, and an unconverged IRLS run refuses.",
     "Ridge and Lasso publish no analytic standard error (shrinkage bias and post-selection inference are outside a sampling variance); use the bootstrap. An unconverged lasso fit, or bootstrap replicate, refuses / is counted as failed."
    ],
@@ -9314,6 +9347,58 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
+  },
+  {
+   "deviations": [
+    "Refits are predictive inputs to independent conditional future paths. Inclusive nearest-rank 0.05 and 0.95 sample quantiles define a discrete central 90 percent count interval.",
+    "The prospective calibration test generates training and future count truth with an independently implemented branching-cluster model. A failed fit or refit counts against coverage.",
+    "The candidate is available under the calibration-internal feature before release support is earned. Publication requires a current matching coverage slot and separate release support."
+   ],
+   "digest": "cd9a578707ed686c39515bd25e397ef206b008de1e2a8be6adec400db4a5f73c",
+   "id": "forecast.event_count_interval",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "doi": "10.1016/j.jeconom.2022.02.006",
+     "doi_verified": false,
+     "sections": [
+      "Recursive intensity bootstrap"
+     ],
+     "title": "Bootstrap inference for Hawkes and general point processes"
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Conditions on a complete supplied left history starting at a declared empty origin. Constant nonnegative baselines and exponential decay rates are fixed by the declaration except for the fitted baselines and branching masses.",
+    "Simulation accepts any branching matrix with a checked positive subinvariance witness. Fixed-decay maximum likelihood searches the nonnegative domain with a strict source-column cap, a narrower convex subset.",
+    "The recursive-refit forecast refits each simulated complete training window. It conditions each future draw on the actual history. A refit failure refuses the aggregate. This is neither a posterior draw nor evidence of real-world forecast accuracy.",
+    "A conditional world response is driven by exogenous, paired arrivals through drift inputs. A separate half-step recorder preserves the established SDE execution lane and its item fingerprints. Grid maxima and indicators have discrete observation semantics.",
+    "Future-study integration enumerates the binary signal on finite weighted simulated continuations. Actual updates use the conditional timestamp likelihood over a disjoint window and retain event excitation across the cutoff."
+   ],
+   "digest": "c44a52d66149ce9c7c36385a2e31a562e4ba353e9023391a7d3ab1747bdf98ec",
+   "id": "forecast.event_process",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "doi": "10.2307/3212693",
+     "doi_verified": false,
+     "sections": [
+      "Cluster process representation"
+     ],
+     "title": "A cluster process representation of a self-exciting process"
+    },
+    {
+     "doi": "10.1016/j.jeconom.2022.02.006",
+     "doi_verified": false,
+     "sections": [
+      "Recursive intensity bootstrap"
+     ],
+     "title": "Bootstrap inference for Hawkes and general point processes"
+    }
+   ]
   },
   {
    "deviations": [

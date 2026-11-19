@@ -27,6 +27,15 @@ const STATISTICAL_PROGRAM_TAG: &str = "antecedent.lowered_program.statistical.v2
 /// Declaration name used when the route record names no estimator.
 const UNNAMED_ESTIMATOR: &str = "unnamed";
 
+/// Law retained by a nested native fitted producer.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum NestedFitLaw {
+    /// Parameter or causal-functional posterior, not outcome risk.
+    Posterior,
+    /// Predictive outcome law.
+    Predictive,
+}
+
 /// How the program turns data into an answer.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Realization {
@@ -42,10 +51,40 @@ pub enum Realization {
     GraphImputationV1,
     /// Fixed, scientifically closed categorical posterior candidate.
     CategoricalPosteriorCandidateV1,
+    /// Monte Carlo utilities from a declared finite sequential model.
+    SequentialKnownLawMonteCarlo,
+    /// Whole-trajectory bootstrap utilities from logged sequential evidence.
+    SequentialTrajectoryBootstrap,
     /// Exact evaluation of an identified functional, with no sampling law.
     ExactPoint {
         /// Name of the evaluator.
         evaluator: Arc<str>,
+    },
+    /// A declared, aligned parameter posterior evaluated by the program.
+    DeclaredPosterior {
+        /// Name of the posterior evaluator.
+        evaluator: Arc<str>,
+    },
+    /// A declared, aligned predictive outcome law transformed by the program.
+    DeclaredPredictive {
+        /// Name of the predictive evaluator.
+        evaluator: Arc<str>,
+    },
+    /// A compiler-owned producer refit from raw evidence before evaluation.
+    NestedFit {
+        /// Child program retaining the actual fit likelihood and prior.
+        producer_program: antecedent_core::SemanticDigest,
+        /// Stable native method name.
+        method: Arc<str>,
+        /// Meaning of the child output law.
+        law: NestedFitLaw,
+    },
+    /// Aligned draws evaluated under each admissible interval assumption.
+    DeclaredAssumptionEnvelope {
+        /// Name of the interval evaluator.
+        evaluator: Arc<str>,
+        /// Whether the aligned row axis is a sampling law or a posterior.
+        draw_meaning: antecedent_contract::propagation_chain::LawMeaning,
     },
 }
 
@@ -70,8 +109,27 @@ impl Realization {
             Self::CategoricalPosteriorCandidateV1 => {
                 writer.text("categorical_posterior_candidate_v1");
             }
+            Self::SequentialKnownLawMonteCarlo => {
+                writer.text("sequential_known_law_monte_carlo_v1");
+            }
+            Self::SequentialTrajectoryBootstrap => {
+                writer.text("sequential_trajectory_bootstrap_v1");
+            }
             Self::ExactPoint { evaluator } => {
                 writer.text("exact_point").text(evaluator);
+            }
+            Self::DeclaredPosterior { evaluator } => {
+                writer.text("declared_posterior").text(evaluator);
+            }
+            Self::DeclaredPredictive { evaluator } => {
+                writer.text("declared_predictive").text(evaluator);
+            }
+            Self::NestedFit { producer_program, method, law } => {
+                writer.text("nested_fit").bytes(producer_program.as_bytes()).text(method)
+                    .text(match law { NestedFitLaw::Posterior => "posterior", NestedFitLaw::Predictive => "predictive" });
+            }
+            Self::DeclaredAssumptionEnvelope { evaluator, draw_meaning } => {
+                writer.text("declared_assumption_envelope").text(evaluator).word(draw_meaning.tag());
             }
         }
     }
@@ -280,6 +338,8 @@ pub enum PosteriorAlgorithm {
     DiscreteMcmc,
     /// Bayesian bootstrap: Dirichlet weights on rows, or on contiguous blocks of a series.
     BayesianBootstrap,
+    /// Random-walk Metropolis over jointly fitted cyclic mechanisms.
+    RandomWalkMetropolis,
 }
 
 impl PosteriorAlgorithm {
@@ -294,6 +354,7 @@ impl PosteriorAlgorithm {
             Self::Enumeration => "enumeration",
             Self::DiscreteMcmc => "discrete_mcmc",
             Self::BayesianBootstrap => "bayesian_bootstrap",
+            Self::RandomWalkMetropolis => "random_walk_metropolis",
         }
     }
 }

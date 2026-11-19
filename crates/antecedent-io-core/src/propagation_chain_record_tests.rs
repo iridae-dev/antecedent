@@ -95,6 +95,272 @@ fn stage<'a>(record: &'a PropagationChainRecordWire, id: &str) -> &'a ChainStage
     record.results.iter().find(|r| r.stage == id).expect("stage result")
 }
 
+fn predictive_quantity() -> ScientificQuantityWire {
+    ScientificQuantityWire {
+        version: 1,
+        variable_id: "study.future_outcome".into(),
+        variable_name: "Future outcome".into(),
+        role: "outcome".into(),
+        units: "events".into(),
+        population_id: "target_population".into(),
+        regime_id: "declared_regime".into(),
+        horizon: 1,
+        functional_id: "future_count".into(),
+        conditioning: Vec::new(),
+        transform_id: "identity".into(),
+    }
+}
+
+#[test]
+fn assumption_envelope_retains_two_axes_and_replays_changes() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::AssumptionEnvelope,
+        "answer",
+        vec![
+            ChainSourceWire::draws("estimate", LawMeaning::Sampling, TABLE, &[1.0, 2.0, 3.0]),
+            ChainSourceWire::interval("bias", 0.0, 1.0),
+        ],
+        vec![ChainStageWire::new(
+            "answer",
+            StageKind::DerivedQuantity,
+            &["estimate", "bias"],
+            ChainOpWire::binary("sum"),
+        )],
+    ).with_output_quantity(predictive_quantity());
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("mixed enclosure");
+    assert_eq!(record.version, PROPAGATION_CHAIN_ASSUMPTION_VERSION);
+    assert_eq!(record.label, "assumption_envelope");
+    let lower: Vec<u64> = [1.0_f64, 2.0, 3.0].iter().map(|x| x.to_bits()).collect();
+    let upper: Vec<u64> = [2.0_f64, 3.0, 4.0].iter().map(|x| x.to_bits()).collect();
+    assert_eq!(record.output_lower_bounds.as_ref(), Some(&lower));
+    assert_eq!(record.output_upper_bounds.as_ref(), Some(&upper));
+    assert_eq!(value(stage(&record, "answer"), "lower"), 2.0);
+    assert_eq!(value(stage(&record, "answer"), "upper"), 3.0);
+    let decoded = PropagationChainRecordWire::decode(&record.export().expect("export"))
+        .expect("decode");
+    let consumed = decoded.consume(Some(&record.identity), &ctx()).expect("replay");
+    assert_eq!(consumed.output_lower_bounds.as_ref(), Some(&lower));
+    let mut tampered = record.clone();
+    tampered.output_upper_bounds.as_mut().expect("upper")[0] = 99.0_f64.to_bits();
+    assert!(matches!(tampered.consume(None, &ctx()), Err(Error::ResultMismatch)));
+    let reweighted = record.with_change(
+        ChainChangeWire::Reweight {
+            source: "estimate".into(),
+            log_weights: vec![0.0_f64.to_bits(), 0.0_f64.to_bits(), 3.0_f64.to_bits()],
+        }, &ctx(),
+    ).expect("reweight");
+    assert_eq!(reweighted.output_lower_bounds.as_ref(), Some(&lower));
+    assert!(reweighted.output_weights.is_some());
+    assert!(value(stage(&reweighted, "answer"), "lower") > 2.0);
+    let withdrawn = record.with_change(
+        ChainChangeWire::Withdraw { source: "bias".into() }, &ctx(),
+    ).expect("withdraw");
+    assert_eq!(withdrawn.output_lower_bounds, None);
+    assert_eq!(withdrawn.output_upper_bounds, None);
+}
+
+#[test]
+fn assumption_envelope_decision_is_conditional_and_replayed() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::AssumptionEnvelope,
+        "utility",
+        vec![
+            ChainSourceWire::draws("estimate", LawMeaning::Sampling, TABLE, &[1.0, 2.0]),
+            ChainSourceWire::interval("bias", 0.0, 1.0),
+        ],
+        vec![ChainStageWire::new(
+            "utility", StageKind::DecisionUtility, &["estimate", "bias"],
+            ChainOpWire::binary("sum"),
+        ).with_decision_reference(2.0)],
+    ).with_output_quantity(ScientificQuantityWire {
+        role: "utility".into(),
+        functional_id: "utility_score".into(),
+        ..predictive_quantity()
+    });
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("robust comparison");
+    assert_eq!(stage(&record, "utility").count("robust_verdict_code"), Some(2));
+    let consumed = record.consume(Some(&record.identity), &ctx()).expect("replay");
+    assert_eq!(consumed.results, record.results);
+}
+
+#[test]
+fn predictive_mapping_retains_the_replayable_outcome_law() {
+    let posterior = [1.0, 2.0, 3.0, 4.0];
+    let disturbance = [-0.5, 0.5, -0.5, 0.5];
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Predictive,
+        "outcome",
+        vec![
+            ChainSourceWire::draws("theta", LawMeaning::Posterior, TABLE, &posterior),
+            ChainSourceWire::draws("noise", LawMeaning::Innovation, TABLE, &disturbance),
+        ],
+        vec![ChainStageWire::new(
+            "outcome",
+            StageKind::PredictiveMapping,
+            &["theta", "noise"],
+            ChainOpWire::binary("sum"),
+        )],
+    )
+    .with_output_quantity(predictive_quantity());
+    let mut wrong_mapping = draft.clone();
+    wrong_mapping.stages[0].kind = StageKind::DerivedQuantity.as_str().to_owned();
+    assert!(matches!(
+        wrong_mapping.plan(),
+        Err(Error::Refused(refusal)) if refusal.code() == "distribution_meaning_mismatch"
+    ));
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("predictive law");
+    assert_eq!(record.version, PROPAGATION_CHAIN_LAW_VERSION);
+    assert_eq!(record.label, "predictive_propagation");
+    let expected: Vec<u64> = [0.5_f64, 2.5, 2.5, 4.5].iter().map(|v| v.to_bits()).collect();
+    assert_eq!(record.output_draws.as_ref(), Some(&expected));
+    assert_eq!(record.output_weights, None);
+    let consumed = PropagationChainRecordWire::decode(&record.export().expect("export"))
+        .expect("decode")
+        .consume(Some(&record.identity), &ctx())
+        .expect("replay");
+    assert_eq!(consumed.output_draws.as_ref(), Some(&expected));
+
+    let mut tampered = record;
+    tampered.output_draws.as_mut().expect("draws")[0] = 7.0_f64.to_bits();
+    assert!(matches!(tampered.consume(None, &ctx()), Err(Error::ResultMismatch)));
+}
+
+#[test]
+fn predictive_input_and_new_innovation_keep_distinct_meanings() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Predictive,
+        "new_outcome",
+        vec![
+            ChainSourceWire::draws("predictor", LawMeaning::Predictive, TABLE, &[1.0, 2.0, 3.0]),
+            ChainSourceWire::draws("coefficient", LawMeaning::Posterior, TABLE, &[2.0, 2.0, 2.0]),
+            ChainSourceWire::draws("new_noise", LawMeaning::Innovation, TABLE, &[0.1, 0.2, 0.3]),
+        ],
+        vec![ChainStageWire::new(
+            "new_outcome",
+            StageKind::PredictiveMapping,
+            &["predictor", "coefficient", "new_noise"],
+            ChainOpWire::expression(vec![
+                ChainExprTermWire::input(0),
+                ChainExprTermWire::input(1),
+                ChainExprTermWire::Multiply,
+                ChainExprTermWire::input(2),
+                ChainExprTermWire::Add,
+            ]),
+        )],
+    )
+    .with_output_quantity(predictive_quantity());
+    let sealed = PropagationChainRecordWire::seal(draft.clone(), &ctx()).expect("new outcome law");
+    assert_eq!(sealed.output_draws.as_ref().map(Vec::len), Some(3));
+    let mut sampling = draft;
+    sampling.sources[0].meaning = Some(LawMeaning::Sampling.as_str().to_owned());
+    assert!(matches!(
+        sampling.plan(),
+        Err(Error::Refused(refusal)) if refusal.code() == "distribution_meaning_mismatch"
+    ));
+}
+
+#[test]
+fn predictive_law_requires_a_quantity_coordinate() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Predictive,
+        "outcome_stage",
+        vec![ChainSourceWire::draws(
+            "outcome", LawMeaning::Predictive, TABLE, &[1.0, 2.0, 3.0],
+        )],
+        vec![ChainStageWire::new(
+            "outcome_stage",
+            StageKind::DerivedQuantity,
+            &["outcome"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0)),
+        )],
+    );
+    let missing = draft.plan().expect_err("coordinate required");
+    assert!(missing.to_string().contains("scientific quantity"));
+}
+
+#[test]
+fn posterior_law_reweights_and_withdraws_with_its_source() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Posterior,
+        "scaled",
+        vec![ChainSourceWire::draws(
+            "theta", LawMeaning::Posterior, TABLE, &[1.0, 2.0, 3.0, 4.0],
+        )],
+        vec![ChainStageWire::new(
+            "scaled",
+            StageKind::DerivedQuantity,
+            &["theta"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(2.0), ChainCoefficientWire::fixed(0.0)),
+        )],
+    );
+    let record = PropagationChainRecordWire::seal(draft, &ctx()).expect("posterior law");
+    assert_eq!(record.version, PROPAGATION_CHAIN_LAW_VERSION);
+    assert_eq!(record.output_draws, Some(vec![2.0_f64.to_bits(), 4.0_f64.to_bits(), 6.0_f64.to_bits(), 8.0_f64.to_bits()]));
+    let changed = record
+        .with_change(ChainChangeWire::reweight("theta", &[0.0, 0.0, 0.0, 2.0]), &ctx())
+        .expect("reweighted law");
+    assert_eq!(changed.output_draws, record.output_draws);
+    assert!(changed.output_weights.is_some());
+    changed.consume(None, &ctx()).expect("reweighted replay");
+    let withdrawn = record
+        .with_change(ChainChangeWire::withdraw("theta"), &ctx())
+        .expect("withdrawn law");
+    assert_eq!(withdrawn.output_draws, None);
+    assert_eq!(withdrawn.output_weights, None);
+    withdrawn.consume(None, &ctx()).expect("withdrawn replay");
+}
+
+#[test]
+fn version_one_posterior_summary_remains_consumable() {
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Posterior,
+        "copy",
+        vec![ChainSourceWire::draws(
+            "theta", LawMeaning::Posterior, TABLE, &[1.0, 2.0, 3.0],
+        )],
+        vec![ChainStageWire::new(
+            "copy",
+            StageKind::DerivedQuantity,
+            &["theta"],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0)),
+        )],
+    );
+    let mut old = PropagationChainRecordWire::seal(draft, &ctx()).expect("new record");
+    old.version = PROPAGATION_CHAIN_VERSION;
+    old.required_features = vec![PROPAGATION_CHAIN_FEATURE.to_owned()];
+    old.output_draws = None;
+    old.output_weights = None;
+    old.identity = propagation_chain_identity(&old).expect("legacy identity");
+    let bytes = old.export().expect("legacy export");
+    let decoded = PropagationChainRecordWire::decode(&bytes).expect("legacy decode");
+    let consumed = decoded.consume(Some(&old.identity), &ctx()).expect("legacy replay");
+    assert_eq!(consumed.output_draws, None);
+    assert_eq!(consumed.results, old.results);
+}
+
+#[test]
+fn decision_reference_is_only_a_finite_utility_comparison() {
+    let mut draft = release_draft();
+    draft.version = PROPAGATION_CHAIN_LAW_VERSION;
+    draft.required_features = vec![PROPAGATION_CHAIN_LAW_FEATURE.to_owned()];
+    draft.reading = ChainReading::Posterior.as_str().to_owned();
+    draft.stages[0].decision_reference = Some(0.0_f64.to_bits());
+    assert!(draft.plan().expect_err("nonutility reference").to_string().contains("utility"));
+    let mut draft = release_draft();
+    draft.version = PROPAGATION_CHAIN_LAW_VERSION;
+    draft.required_features = vec![PROPAGATION_CHAIN_LAW_FEATURE.to_owned()];
+    draft.reading = ChainReading::Posterior.as_str().to_owned();
+    draft.stages[3].decision_reference = Some(f64::NAN.to_bits());
+    assert!(draft.plan().expect_err("nonfinite reference").to_string().contains("finite"));
+}
+
 #[test]
 fn a_four_stage_chain_matches_the_closed_form_and_not_the_utility_of_the_mean() {
     let record = release();

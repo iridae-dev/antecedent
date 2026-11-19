@@ -17,6 +17,32 @@ pub enum NodeKind {
     CausalContract,
     /// A native execution or a portable fit.
     ExecutionOrFit,
+    /// A host-replayed cyclic posterior fit and action producer.
+    CyclicPosteriorFit,
+    /// A host-replayed trial IPW transport fit and decision producer.
+    TrialIpwTransportFit,
+    /// A host-replayed graph-imputation transport fit and decision.
+    GraphImputationTransportFit,
+    /// A host-replayed joint source-target effect fit and decision.
+    JointTransportEffectFit,
+    /// A host-replayed joint transport predictive fit.
+    JointTransportPredictiveFit,
+    /// A host-replayed trial IPW predictive fit.
+    TrialIpwPredictiveFit,
+    /// A host-replayed target feedback fit.
+    CyclicTargetFeedbackFit,
+    /// A host-replayed graph-imputation predictive fit.
+    GraphImputationPredictiveFit,
+    /// A host-replayed assessed bridge target-posterior predictive fit.
+    AssessedBridgePosteriorFit,
+    /// A host-replayed sequential policy reliability producer.
+    SequentialPolicyReliabilityFit,
+    /// A retained aligned sequential decision-draw carrier.
+    SequentialDecisionDraws,
+    /// A live sequential decision reliability diagnostic.
+    SequentialReliabilityDiagnostic,
+    /// A host-replayed decision over a retained predictive chain.
+    PredictiveChainDecision,
     /// An external claim.
     ExternalClaim,
     /// An attestation of an external claim.
@@ -64,6 +90,19 @@ named_variants! {
     NodeKind {
         CausalContract => "causal_contract",
         ExecutionOrFit => "execution_or_fit",
+        CyclicPosteriorFit => "cyclic_posterior_fit",
+        TrialIpwTransportFit => "trial_ipw_transport_fit",
+        GraphImputationTransportFit => "graph_imputation_transport_fit",
+        JointTransportEffectFit => "joint_transport_effect_fit",
+        JointTransportPredictiveFit => "joint_transport_predictive_fit",
+        TrialIpwPredictiveFit => "trial_ipw_predictive_fit",
+        CyclicTargetFeedbackFit => "cyclic_target_feedback_fit",
+        GraphImputationPredictiveFit => "graph_imputation_predictive_fit",
+        AssessedBridgePosteriorFit => "assessed_bridge_posterior_fit",
+        SequentialPolicyReliabilityFit => "sequential_policy_reliability_fit",
+        SequentialDecisionDraws => "sequential_decision_draws",
+        SequentialReliabilityDiagnostic => "sequential_reliability_diagnostic",
+        PredictiveChainDecision => "predictive_chain_decision",
         ExternalClaim => "external_claim",
         Attestation => "attestation",
         EvidenceRelationship => "evidence_relationship",
@@ -92,7 +131,12 @@ impl NodeKind {
     pub const fn stage(self) -> CompositionStage {
         match self {
             Self::CausalContract => CompositionStage::CausalContract,
-            Self::ExecutionOrFit | Self::Distribution | Self::FrozenScores => {
+            Self::ExecutionOrFit | Self::CyclicPosteriorFit | Self::TrialIpwTransportFit
+            | Self::GraphImputationTransportFit | Self::JointTransportEffectFit
+            | Self::JointTransportPredictiveFit | Self::TrialIpwPredictiveFit
+            | Self::CyclicTargetFeedbackFit | Self::GraphImputationPredictiveFit | Self::AssessedBridgePosteriorFit
+            | Self::SequentialPolicyReliabilityFit | Self::SequentialDecisionDraws
+            | Self::Distribution | Self::FrozenScores => {
                 CompositionStage::DistributionArtifact
             }
             Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,
@@ -103,7 +147,7 @@ impl NodeKind {
             | Self::RecalculationReceipt => CompositionStage::Evidence,
             Self::Transformation | Self::Rollout => CompositionStage::Transformation,
             Self::DecisionContract => CompositionStage::DecisionContract,
-            Self::DecisionResult
+            Self::SequentialReliabilityDiagnostic | Self::PredictiveChainDecision | Self::DecisionResult
             | Self::InverseQuery
             | Self::ObservationQuery
             | Self::ScientificBridge

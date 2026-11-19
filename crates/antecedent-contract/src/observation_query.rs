@@ -287,6 +287,71 @@ pub fn check_observation_slots(
     Ok(())
 }
 
+/// Check a joint observation of several noisy indicators of one construct.
+/// The existing one-indicator checker remains unchanged; this additive route
+/// requires an explicit measurement-error independence declaration and checks
+/// every indicator under the same interventions and direct observations.
+///
+/// # Errors
+/// An invalid indicator, repeated identity, mixed construct or incomplete
+/// dependence declaration, plus every refusal of [`check_observation_slots`].
+#[allow(clippy::result_large_err, reason = "a scientific refusal is the cold path")]
+pub fn check_joint_measured_slots(
+    request: &ObservationSlotsRequest<'_>,
+    dependence: &str,
+) -> Result<(), ExternalRefusal> {
+    if dependence != "conditionally_independent_given_construct"
+        || request.conditioning.iter().filter(|slot| {
+            matches!(&slot.value, SlotValue::Measured(_))
+        }).count() < 2
+        || request.conditioning.len() > 32
+    {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+            "joint measurement",
+            "declare 2-16 indicators and conditional independence of their errors given one construct",
+        ));
+    }
+    let mut direct = Vec::new();
+    let mut measured = Vec::new();
+    for slot in request.conditioning {
+        match &slot.value {
+            SlotValue::Direct => direct.push(slot.clone()),
+            SlotValue::Measured(indicator) => measured.push((slot, indicator)),
+        }
+    }
+    if measured.len() > 16 {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+            "joint measurement",
+            "declare at most 16 indicators of one construct",
+        ));
+    }
+    let construct = measured[0].0.variable_id.clone();
+    let mut ids = BTreeSet::new();
+    for (slot, indicator) in measured {
+        if slot.variable_id != construct || !ids.insert(indicator.indicator_id.as_str()) {
+            return Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                antecedent_core::reason_details::observation_query::INVALID_DECLARATION,
+                indicator.indicator_id.clone(),
+                "name distinct indicators of the same latent construct",
+            ));
+        }
+        let mut one = direct.clone();
+        one.push(slot.clone());
+        check_observation_slots(&ObservationSlotsRequest {
+            operation: request.operation,
+            outcome_id: request.outcome_id,
+            conditioning: &one,
+            interventions: request.interventions,
+        })?;
+    }
+    Ok(())
+}
+
 /// The refusal of a variable that is both recorded and intervened on.
 #[must_use]
 pub fn mixed_conditioning_refusal(variable: &str) -> ExternalRefusal {

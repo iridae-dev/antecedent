@@ -505,6 +505,66 @@ pub struct JointBayesianArtifactWire {
     pub data_digest: String,
 }
 
+/// Complete pre-fit input of the joint transport producer. This separate wire
+/// lets a containing compiler bind the exact model and rows before fitting,
+/// then reconstruct that same declaration from a portable result artifact.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct JointBayesianInputWire {
+    /// Model, sharing, overlap rule and prior provenance.
+    pub model: JointModelWire,
+    /// Source trials and unit identities.
+    pub sources: Vec<JointSourceWire>,
+    /// Target covariate sample and unit identity.
+    pub target: JointTargetWire,
+    /// Draw count and stream seed.
+    pub options: JointOptionsWire,
+}
+
+impl JointBayesianInputWire {
+    /// Capture the exact declaration consumed by the producer.
+    #[must_use]
+    pub fn from_declaration(
+        model: &JointTransportModel, sources: &[SourceData], target: &TargetData,
+        options: JointTransportOptions,
+    ) -> Self {
+        Self {
+            model: JointModelWire::from_model(model),
+            sources: sources.iter().map(JointSourceWire::from_source).collect(),
+            target: JointTargetWire {
+                identity: DataIdentityWire::from_identity(&target.identity),
+                rows: target.rows, covariates: target.covariates.clone(),
+            },
+            options: JointOptionsWire { draws: options.draws, seed: options.seed },
+        }
+    }
+
+    /// Reconstruct the same input from a consumed producer artifact.
+    #[must_use]
+    pub fn from_artifact(artifact: &JointBayesianArtifactWire) -> Self {
+        Self {
+            model: artifact.model.clone(), sources: artifact.sources.clone(),
+            target: artifact.target.clone(), options: artifact.options,
+        }
+    }
+
+    /// Restore the domain declaration for a containing compiler's replay.
+    #[must_use]
+    pub fn to_declaration(&self) -> (
+        JointTransportModel, Vec<SourceData>, TargetData, JointTransportOptions,
+    ) {
+        (
+            self.model.to_model(),
+            self.sources.iter().map(JointSourceWire::to_source).collect(),
+            TargetData {
+                identity: self.target.identity.to_identity(), rows: self.target.rows,
+                covariates: self.target.covariates.clone(),
+            },
+            JointTransportOptions { draws: self.options.draws, seed: self.options.seed },
+        )
+    }
+}
+
 #[derive(Serialize)]
 struct PremisesView<'a> {
     tag: &'static str,

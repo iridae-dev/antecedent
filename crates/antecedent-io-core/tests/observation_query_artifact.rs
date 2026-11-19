@@ -19,7 +19,8 @@ use antecedent_io_core::distribution_artifact::DrawAlignment;
 use antecedent_io_core::measurement_model_wire::model_to_wire;
 use antecedent_io_core::{
     MeasuredSlotWire, OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION,
-    OBSERVATION_QUERY_GENERAL_FEATURE, ObservationQueryArtifactError, ObservationQueryArtifactWire,
+    OBSERVATION_QUERY_GENERAL_FEATURE, OBSERVATION_QUERY_JOINT_MEASURED_FEATURE,
+    OBSERVATION_QUERY_JOINT_MEASURED_VERSION, ObservationQueryArtifactError, ObservationQueryArtifactWire,
     ObservationQueryWire, ObservationResultWire, RedrawPriorWire, RedrawTargetWire,
     RetainedMechanismWire, observation_query_identity,
 };
@@ -185,6 +186,41 @@ fn measured_slot(model: &MeasurementModel) -> MeasuredSlotWire {
         representation_version: 1,
         model: model_to_wire(model),
     }
+}
+
+#[test]
+fn joint_indicators_use_one_declared_likelihood_and_replay_v3() {
+    let first = measured_slot(&assay(0.9, "C"));
+    let mut second_model = assay(0.7, "C");
+    second_model.model_id = "assay-2".into();
+    second_model.indicator.id = "test_result_2".into();
+    let mut second = measured_slot(&second_model);
+    second.indicator_id = "test_result_2".into();
+    let query = ObservationQueryWire::JointMeasuredOutcome {
+        outcome: "Y".into(), interventions: Vec::new(), observed: Vec::new(),
+        measured: vec![second.clone(), first.clone()],
+        dependence: "conditionally_independent_given_construct".into(),
+    };
+    let artifact = ObservationQueryArtifactWire::seal(
+        Some(&construct_spec()), query, InferenceBasis::DeclaredModel, &ctx(),
+    ).expect("joint measurement");
+    assert_eq!(artifact.version, OBSERVATION_QUERY_JOINT_MEASURED_VERSION);
+    assert_eq!(artifact.required_features, vec![OBSERVATION_QUERY_JOINT_MEASURED_FEATURE.to_owned()]);
+    let ObservationResultWire::Conditional { levels, construct_posterior, .. } = &artifact.result else {
+        panic!("joint conditional result");
+    };
+    near(level_bits(construct_posterior.as_ref().expect("construct posterior"), "1"), 0.063 / 0.099);
+    near(level_bits(levels, "1"), (0.1 * 0.036 + 0.7 * 0.063) / 0.099);
+    let bytes = artifact.export().expect("v3 bytes");
+    let decoded = ObservationQueryArtifactWire::decode(&bytes).expect("v3 decode");
+    decoded.consume(Some(&artifact.identity), &ctx()).expect("independent replay");
+    let unsupported = ObservationQueryWire::JointMeasuredOutcome {
+        outcome: "Y".into(), interventions: Vec::new(), observed: Vec::new(),
+        measured: vec![first, second], dependence: "unspecified".into(),
+    };
+    assert!(ObservationQueryArtifactWire::seal(
+        Some(&construct_spec()), unsupported, InferenceBasis::DeclaredModel, &ctx(),
+    ).is_err());
 }
 
 fn pair(a: &str, b: &str) -> (String, String) {
