@@ -52,8 +52,8 @@ CI executes no scientific assertion and no calibration measurement:
 0. **`static`** — source reading only, no build and no test: the DCO sign-off of every commit (a
    step of the CI job, not of the gate script), rustfmt, lint allows, test
    targets, crate ownership, the test registry and lane filters, parity inventories, provenance,
-   capability records, the one support count (`scripts/gate_support.py`), the release inventory
-   (`scripts/check_release_inventory.py`), bounds, release claims, links and
+   capability records, the one support count (`scripts/gate_support.py`), the method children and
+   method specifications, bounds, release claims, links and
    every generated file being current, and that every scientific and calibration record is current
    (`scientific_records.py status --check`, `calibration_status.py --check`).
 1. **Builds** — compile, list or lint; no test runs. **`features`** (Clippy and the feature
@@ -107,7 +107,9 @@ bash scripts/gate_evidence_reachability.sh
 python3 scripts/gate_support.py       # the one support rule over every unit, and the one support count
 python3 scripts/gate_support.py --cited-tests   # every cited test is compiled and not ignored (builds test binaries)
 python3 scripts/gate_not_supported_sites.py   # `not_supported` is built only in require_supported
-python3 scripts/check_release_inventory.py   # acceptance manifest, counterparts, scope, children, routes, specifications
+python3 scripts/check_method_children.py
+python3 scripts/reconcile_method_specs.py --check
+python3 scripts/check_acceptance_manifest.py --require-bound
 bash scripts/gate_checked_execution.sh   # every supported estimator cites a test that executes from its retained checked plan
 bash scripts/gate_docs_support_matrix.sh
 bash scripts/gate_public_api.sh   # published crates' public items match parity/public_api/*.txt
@@ -723,7 +725,7 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
 
 Each gate that decides a release has a `--self-test` mode that feeds it
 deliberately broken input and requires a failure: `gate_composition.sh`, `gate_transport.sh`, `gate_gcm_conformance.sh`,
-`check_release_inventory.py`, `gate_parity_schema.sh`, `gate_docs_support_matrix.sh`,
+`gate_parity_schema.sh`, `gate_docs_support_matrix.sh`,
 `gate_release_candidate.sh`, plus the
 citation, reachability, metadata and support gates.
 `scripts/gate_selftests.sh` runs all of them. Each case builds a repo overlay and

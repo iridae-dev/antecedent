@@ -80,7 +80,6 @@ import route_behaviour  # noqa: E402
 import test_evidence  # noqa: E402
 from evidence_kinds import EVIDENCE_KINDS as ALL_EVIDENCE_KINDS  # noqa: E402
 from evidence_kinds import KNOWN_TRUTH_KINDS, fixture_kind_problems  # noqa: E402
-from route_methods import IDS, parse_estimators  # noqa: E402
 from test_evidence import (  # noqa: E402
     checked_execution_body_problems,
     closure,
@@ -97,6 +96,7 @@ CELLS = "parity/support_cells.toml"
 GRAPHLESS = "parity/support_graphless.toml"
 RECORDS = "parity/capability_records.toml"
 MANIFEST = "parity/capabilities/route_manifest.toml"
+IDS = "crates/antecedent/src/strategy_table/ids.rs"
 
 CELL_AXES = ("query", "graph_class", "structure", "inference", "validation")
 GRAPHLESS_AXES = ("family", "design", "method")
@@ -221,6 +221,61 @@ def calibration_simulations() -> set[tuple[str, str]]:
     return _SIMULATIONS
 
 
+def parse_estimators(ids_text: str) -> dict[str, dict]:
+    """Wire name -> {variant, identifiers, provenance} from the exhaustive estimator_data match."""
+    start = ids_text.index("const fn estimator_data")
+    body = ids_text[start:]
+    constants = {
+        m.group(1): re.findall(r"IdentifierId::(\w+)", m.group(2))
+        for m in re.finditer(r"const (\w+): &\[IdentifierId\] =\s*&\[(.*?)\];", ids_text, re.S)
+    }
+    identifier_names = {}
+    ident_start = ids_text.index("const fn identifier_data")
+    for m in re.finditer(
+        r"IdentifierId::(\w+) => IdentifierData \{(.*?)\n        \},", ids_text[ident_start:], re.S
+    ):
+        name = re.search(r'name: "([^"]+)"', m.group(2))
+        if name:
+            identifier_names[m.group(1)] = name.group(1)
+    out: dict[str, dict] = {}
+    for m in re.finditer(r"EstimatorId::(\w+) => EstimatorData \{(.*?)\n        \},", body, re.S):
+        block = m.group(2)
+        name = re.search(r'name: "([^"]+)"', block).group(1)
+        compat = re.search(r"compatible:\s*(\w+)", block).group(1)
+        pair = re.search(r'provenance:\s*\(\s*"([^"]+)",\s*"([^"]+)",?\s*\)', block)
+        same = re.search(r'provenance:\s*same_step\("([^"]+)"\)', block)
+        provenance = (pair.group(1), pair.group(2)) if pair else (same.group(1), same.group(1))
+        out[name] = {
+            "variant": m.group(1),
+            "identifiers": [identifier_names.get(v, v) for v in constants.get(compat, [])],
+            "provenance": provenance,
+        }
+    return out
+
+
+def route_estimator(route: dict, estimators: dict[str, dict]) -> dict | None:
+    """The estimator a route runs: its own wire id, else the one its notes name."""
+    if route["id"] in estimators:
+        return estimators[route["id"]]
+    for wire_id, info in estimators.items():
+        if re.search(rf"\bestimator {re.escape(wire_id)}\b", route["notes"]):
+            return info
+    return None
+
+
+# Graphless routes that dispatch through an analysis module and execute in an estimate module
+# that owns the provenance record.
+GRAPHLESS_EXECUTING_MODULE = {
+    route: "crates/antecedent-estimate/src/association.rs"
+    for route in (
+        "association.descriptive.static",
+        "association.descriptive.temporal",
+        "bayesian.association.descriptive.static",
+        "bayesian.association.descriptive.temporal",
+    )
+}
+
+
 class Provenance:
     """Which provenance record an implementation id resolves to."""
 
@@ -292,24 +347,17 @@ def graphless_ident(row: dict) -> str:
 
 
 def graphless_routes(row: dict, manifest: dict) -> list[dict]:
-    """The manifest routes that run this row: by route id, else by the evidence it cites."""
+    """The manifest routes that run this row: by route id, else by the retained test it cites."""
     prefix = f"graphless.{row['family']}.{row['design']}.{row['method']}"
     found = [r for r in manifest["route"] if r["id"] == prefix or r["id"].startswith(prefix + ".")]
     if found:
         return found
     cited = {row.get("known_truth_test"), row.get("retained_route_test")} - {None}
-    by_route = {m["route"]: m for m in manifest.get("method") or []}
-    return [
-        r
-        for r in manifest["route"]
-        if r.get("retained_route_test") in cited
-        or cited & set((by_route.get(r["id"]) or {}).get("evidence") or [])
-    ]
+    return [r for r in manifest["route"] if r.get("retained_route_test") in cited]
 
 
 def check_graphless(row: dict, prov: Provenance, manifest: dict, ledger: Ledger | None = None) -> Unit:
     unit = Unit("graphless", graphless_ident(row))
-    by_route = {m["route"]: m for m in manifest.get("method") or []}
     routes = graphless_routes(row, manifest)
     if not routes:
         unit.problems.append("no provenance: the route manifest has no route for this row")
@@ -317,9 +365,11 @@ def check_graphless(row: dict, prov: Provenance, manifest: dict, ledger: Ledger 
         modules: list[str] = []
         pairs: list[str] = []
         for route in routes:
-            method = by_route.get(route["id"]) or {}
-            modules += [str(route["owning_module"]).split(" ")[0]] + list(method.get("implementation") or [])
-            pairs += list(method.get("provenance") or [])
+            modules.append(str(route["owning_module"]).split(" ")[0])
+            if route["id"] in GRAPHLESS_EXECUTING_MODULE:
+                modules.append(GRAPHLESS_EXECUTING_MODULE[route["id"]])
+            info = route_estimator(route, prov.estimators)
+            pairs += list(info["provenance"]) if info else []
         named = [s for m in modules for s in prov.module(m)] + [
             p for p in pairs if provenance_links.resolve(p, prov.stems)
         ]

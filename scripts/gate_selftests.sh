@@ -21,18 +21,13 @@ bash scripts/gate_capability_records.sh --self-test
 python3 scripts/release_evidence_report.py --self-test
 python3 scripts/decision_exit_report_cli_selftest.py
 python3 scripts/check_prerequisites.py --self-test
-python3 scripts/check_release_inventory.py --self-test
 python3 scripts/check_test_registry.py --self-test
 python3 scripts/test_check_acceptance_manifest.py
 python3 scripts/test_check_release_closure.py
 python3 scripts/test_evidence_audit.py
 python3 scripts/test_ignored_test_lanes.py
-python3 scripts/test_check_counterparts.py
 python3 scripts/test_joint_panel_reference.py
-python3 scripts/test_closure_audit.py
-python3 scripts/test_closure_report_rows.py
 python3 scripts/test_route_manifest_diff.py
-python3 scripts/test_scenario_matrix_pending.py
 python3 scripts/test_gate_compiler_bypass.py
 python3 scripts/test_penalty_resource_guards.py
 python3 scripts/test_check_architecture.py

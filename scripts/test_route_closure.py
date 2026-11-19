@@ -2,7 +2,6 @@
 
 import unittest
 
-import check_open_capabilities
 import route_closure
 
 POINT = {"id": "rec.point", "status": "supported", "inference_claim": "point_only"}
@@ -85,24 +84,6 @@ class CapabilityRoutes(unittest.TestCase):
         )
         # The mapping makes the route an interval route: the claim is not silently a point.
         self.assertEqual(route_closure.route_claim(route("rec.point"), {"rec.point": POINT}, groups), "interval")
-
-
-class OpenList(unittest.TestCase):
-    def items(self, *routes, measured=("cov.a", "cov.b", "cov.c")):
-        return check_open_capabilities.route_items(list(routes), RECORDS, set(measured))
-
-    def test_a_closed_capability_route_is_not_listed(self):
-        self.assertEqual(self.items(route("rec.interval")), [])
-
-    def test_an_unclosed_capability_route_and_an_owed_record_are_listed(self):
-        kinds = [kind for kind, _, _ in self.items(route("rec.refused"))]
-        self.assertEqual(kinds, ["route"])
-        owed = self.items(route("rec.interval"), measured=("cov.a",))
-        self.assertEqual([(kind, ident) for kind, ident, _ in owed], [("measurement", "r")])
-
-    def test_an_executing_route_without_a_unit_stays_open(self):
-        listed = self.items({"id": "e", "status": "execution_only", "uncertainty": "none"})
-        self.assertEqual(listed, [("route", "e", "none")])
 
 
 CELL = {

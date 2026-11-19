@@ -5,7 +5,7 @@ anyone editing them: which text is generated, where a new page belongs, and how 
 check the site.
 
 Generated pages are `support-matrix.md`, `graphless-support-matrix.md`,
-`counterparts.md`, `examples.md` and `conformance/`, and several other pages hold
+`examples.md` and `conformance/`, and several other pages hold
 generated blocks between `generated:` comment markers. Never edit generated
 text by hand: change the source registry and rerun its generator before
 committing. Release notes live in `release-notes/`, one `vX.Y.Z.md` per version.

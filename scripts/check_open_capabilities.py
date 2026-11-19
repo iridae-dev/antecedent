@@ -1,19 +1,15 @@
-#!/usr/bin/env python3
-"""List every implemented capability that is neither supported nor closed for a stated reason.
+"""List every capability that is neither supported nor closed for a stated reason.
 
 A release has two resting states for a capability: supported, with the evidence its claim
 needs, or refused because the question has no answer. Everything else is open work, whatever
 ledger records it:
 
-  route         a public route that executes without support (`execution_only`, `fitting_gap`),
-                or a `capability` route its capability records do not close
-  measurement   a scenario cell whose calibration is still owed, or a coverage record a
-                capability route's interval allocates that is not measured
-  attempt       a mandatory scope row whose attempt has no recorded outcome
   capability    a capability record that is not supported and names no closed question, or
                 a capability unit the support gate (`gate_support.check_capability`) does
                 not find supported, with the gate's missing evidence
+  measurement   a calibration row still owed in `parity/pending_measurement.toml`
   statement     a published uncertainty statement no measurement covers
+                (`parity/unmeasured_statements.toml`)
 
     python3 scripts/check_open_capabilities.py                 # print the open list
     python3 scripts/check_open_capabilities.py --require-zero  # release: fail while any is open
@@ -26,38 +22,6 @@ from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
 from _repo import load_toml
-from route_closure import (
-    CAPABILITY,
-    OPEN_STATUSES,
-    capability_route_problems,
-    mapped_groups,
-    measured_coverage_ids,
-    owed_measurements,
-    tests_by_target,
-)
-
-OPEN_ROUTE_STATUSES = OPEN_STATUSES
-
-
-def route_items(
-    routes: list[dict],
-    records: list[dict],
-    measured: set[str],
-    groups: dict[str, list[str]] | None = None,
-    group_tests: dict[str, list[str]] | None = None,
-) -> list[tuple[str, str, str]]:
-    """Open routes: executing without a unit, or a capability route its records do not close."""
-    by_id = {str(record["id"]): record for record in records}
-    items: list[tuple[str, str, str]] = []
-    for route in routes:
-        if route.get("status") in OPEN_ROUTE_STATUSES:
-            items.append(("route", route["id"], str(route.get("uncertainty", route["status"]))))
-        elif route.get("status") == CAPABILITY:
-            for problem in capability_route_problems(route, by_id, groups):
-                items.append(("route", route["id"], problem.split(": ", 1)[-1]))
-    for rid, owed in owed_measurements(routes, records, measured, groups, group_tests):
-        items.append(("measurement", rid, f"{owed} is allocated, not measured"))
-    return items
 
 
 def gate_unsupported_capabilities() -> list[tuple[str, str, str]]:
@@ -85,18 +49,9 @@ def open_items(
     """Every open item as (kind, id, what is missing)."""
     parity = root / "parity"
     records = load_toml(parity / "capability_records.toml").get("record", [])
-    items = route_items(
-        load_toml(parity / "capabilities/route_manifest.toml").get("route", []),
-        records,
-        measured_coverage_ids(root),
-        mapped_groups(root),
-        tests_by_target(root),
-    )
+    items: list[tuple[str, str, str]] = []
     for row in load_toml(parity / "pending_measurement.toml").get("pending", []):
         items.append(("measurement", row["row"], f"{row['owed']} ({row['facet']})"))
-    for entry in load_toml(parity / "release_scope/scope.toml").get("entry", []):
-        if entry.get("status") == "pending_attempt":
-            items.append(("attempt", entry["id"], str(entry.get("implementation_status", ""))))
     declared: set[str] = set()
     for record in records:
         if record.get("status") != "supported" and not record.get("closed_question"):

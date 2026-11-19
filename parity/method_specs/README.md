@@ -1,34 +1,11 @@
 # Method specifications
 
-208 records in `specs.toml`, one per child in `parity/method_children/children.toml`. Each carries the identifying result, assumptions, sampling units, estimator or posterior construction, diagnostics and failure policy of its method, the route or method record that executes it, and an explicit review decision.
+`specs.toml` holds one record per child in `parity/method_children/children.toml`. Each carries the identifying result, assumptions, sampling units, estimator or posterior construction, diagnostics and failure policy of its method, and the links that tie it to the catalog and the clean-room review. It records no support status; that comes only from the support model.
 
-`python3 scripts/reconcile_method_specs.py` completes and checks the records; `--check` fails on a record whose structured fields (parent, gap, route, review decision, provenance links, API review) differ from the derived ones, on a review decision that contradicts the executing evidence, and on an admitted record that leaves a scientific field `unlisted`. It does not read the text of the scientific fields.
-
-## Review decision
+`python3 scripts/reconcile_method_specs.py` completes and checks the records. `--check` fails on a record whose structured fields (parent, route, provenance links, API review) differ from the derived ones, on a provenance record that does not exist or is not clean-room, on an unreviewed public surface, and on a scientific field left `unlisted`. It does not read the text of the scientific fields.
 
 | Field | Meaning |
 | --- | --- |
-| `admission` | `supported`, `not_supported`, `refused` or `not_admitted`. Derived from the counterpart inventory (`parity/counterparts.toml`), which is derived from the route manifest's method records and the verified fixtures. |
-| `review_status` | `admitted` (advertised at the admission it names and no further), `specification_only` (a settled axis boundary), `blocked_research` (an unproved identification or posterior question) or `not_admitted`. An explicit `not_admitted` review, for example the reviewed Gaussian-panel slice, is kept and never overwritten. |
-| `decision_basis` | The evidence behind the decision: the counterpart status, the executing fixture, the artifact consumer and the uncertainty procedure with its basis. |
-| `provenance`, `api_review` | The clean-room provenance records that cover the implementing module (or the reason the module implements no algorithm) and whether its public surface is in the reviewed API snapshot. `scripts/gate_provenance_schema.py` fails an admitted method without them. |
-
-A scientific field that a hand-written record leaves `unlisted` is filled when the records are rewritten. A record written under an earlier gap has its failure policy, diagnostics and estimator rewritten from the current evidence; its adjusted claim is the child's recorded `missing` text.
-
-## Counts by review_status
-
-| review_status | Specs |
-| --- | --- |
-| admitted | 178 |
-| blocked_research | 6 |
-| not_admitted | 8 |
-| specification_only | 16 |
-
-## Counts by admission
-
-| admission | Specs |
-| --- | --- |
-| not_supported | 116 |
-| supported | 62 |
-| not_admitted | 8 |
-| refused | 22 |
+| `parent`, `route`, `target` | Follow the child. A child with no route keeps the route its record already names, or `none`. |
+| `provenance`, `api_review` | The clean-room provenance records that cover the child's implementing module (or the reason the module implements no algorithm, or that it has no module) and whether the module's public surface is in the reviewed API snapshot. `scripts/gate_provenance_schema.py` fails a method with an implementing module that has neither. |
+| `identifying_result`, `assumptions`, `sampling_units`, `estimator`, `diagnostics`, `failure_policy` | Hand-written scientific text, never replaced. A field left `unlisted` is filled from the module's own header when the records are rewritten. |

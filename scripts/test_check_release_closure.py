@@ -126,11 +126,12 @@ class ReleaseClosureTest(unittest.TestCase):
     def test_the_release_candidate_runs_the_release_gate_and_inventory(
         self,
     ) -> None:
-        candidate, release = "bash scripts/gate_release.sh", "python3 scripts/check_release_inventory.py\n"
+        candidate = "bash scripts/gate_release.sh"
+        release = "step python3 scripts/check_acceptance_manifest.py --require-bound\n"
         self.assertEqual(closure.attestation_problems(candidate, release), [])
         self.assertTrue(
             any(
-                "does not run the release inventory" in p
+                "does not require every manifest case to be bound" in p
                 for p in closure.attestation_problems(candidate, "")
             )
         )

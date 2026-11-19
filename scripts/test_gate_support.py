@@ -60,6 +60,18 @@ class OwedRecordsMakeUnitsNotSupported(unittest.TestCase):
         self.assertTrue(owed.owed_only)
         self.assertTrue(current.supported, current.problems)
 
+    def test_every_graphless_row_resolves_to_its_routes_and_their_provenance(self):
+        rows = tomllib.loads((gate_support.ROOT / gate_support.GRAPHLESS).read_text(encoding="utf-8"))["support"]
+        manifest = gate_support._load(gate_support.MANIFEST)
+        self.assertNotIn("method", manifest)
+        for row in rows:
+            self.assertTrue(gate_support.graphless_routes(row, manifest), gate_support.graphless_ident(row))
+        route = {"id": "x.route", "notes": "Runs estimator bayesian.gcomp on the model."}
+        self.assertEqual(
+            gate_support.route_estimator(route, self.prov.estimators), self.prov.estimators["bayesian.gcomp"]
+        )
+        self.assertIsNone(gate_support.route_estimator({"id": "y", "notes": ""}, self.prov.estimators))
+
     def test_a_capability_needs_every_independent_fixture_current(self):
         records = tomllib.loads((gate_support.ROOT / gate_support.RECORDS).read_text(encoding="utf-8"))["record"]
         rec = next(

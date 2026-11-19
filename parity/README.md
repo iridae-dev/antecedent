@@ -19,7 +19,6 @@ from independent references to executing assertions and calibration requirements
 - [design_state.toml](design_state.toml) — Design / incremental-state
 - [release.toml](release.toml) — Release-prep / parity-closure
 - [response.toml](response.toml) — response / observation / transport / interference
-- [scenario_matrix.toml](scenario_matrix.toml) — curated cells of the method-family scenario matrix (categorical, dependence, degeneracy, unsupported inputs, held-out regimes, weights/missingness); `scripts/scenario_matrix.py` joins them with `counterparts.toml` and `missing_policy_support.toml`, and `scripts/evidence_audit.py report` lists the gaps (not an inventory)
 - [compiler.toml](compiler.toml) — inspect / claim / reuse / handoff compositions (not analysis-matrix cells)
 
 **Supported units** (one notion of support, one count; see ADR 0020):

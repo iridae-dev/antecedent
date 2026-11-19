@@ -1,13 +1,17 @@
 //! Independent consumers of the previous-release route inventory.
 //!
-//! The consumer here reads `parity/capabilities/route_manifest.toml` as plain text, with no
-//! use of the manifest parsers elsewhere in the workspace. Its `[[route]]` records are the
-//! previous-release routes and its `[[method]]` records the current methods. Every route is
-//! carried onto the methods that carry it; each gets an explicit one-to-one, split, retired or
-//! kept-refusal outcome, or an explicit error that names the remedy. A frozen previous-release
-//! route artifact is read through the current reader.
+//! The consumer here reads the route manifest and the support model
+//! (`parity/support_cells.toml`, `parity/support_graphless.toml`,
+//! `parity/capability_records.toml`) as plain text, with no use of the manifest parsers
+//! elsewhere in the workspace. The manifest's `[[route]]` records are the previous-release
+//! routes; the current methods are the support model's units: one per estimator and inference
+//! of a support-matrix cell, and one per route that is an entry point of a supported estimator,
+//! a graphless support row or a supported capability record. Every route is carried onto the
+//! methods that carry it; each gets an explicit one-to-one, split, retired or kept-refusal
+//! outcome, or an explicit error that names the remedy. A frozen previous-release route
+//! artifact is read through the current reader.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use antecedent_io::release_migration::{
@@ -20,6 +24,10 @@ struct Route {
     status: String,
     design_time_model: String,
     inference: String,
+    graph_class: String,
+    notes: String,
+    retained_route_test: Option<String>,
+    capability_records: Vec<String>,
 }
 
 /// The first `key = "value"` string on a line.
@@ -30,69 +38,156 @@ fn field(line: &str, key: &str) -> Option<String> {
     (end >= start).then(|| rest[start..end].to_owned())
 }
 
-fn manifest_text() -> String {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../parity/capabilities/route_manifest.toml");
-    std::fs::read_to_string(&path).expect("route manifest is readable")
+fn read(relative: &str) -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").join(relative);
+    std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("{relative} is readable"))
+}
+
+/// The top-level lines of every `[[header]]` table; a nested table ends its parent.
+fn tables(text: &str, header: &str) -> Vec<Vec<String>> {
+    let mut found: Vec<Vec<String>> = Vec::new();
+    let mut open = false;
+    for line in text.lines() {
+        if line.starts_with("[[") {
+            open = line.trim() == header;
+            if open {
+                found.push(Vec::new());
+            }
+        } else if open {
+            if let Some(table) = found.last_mut() {
+                table.push(line.to_owned());
+            }
+        }
+    }
+    found
+}
+
+fn value(table: &[String], key: &str) -> Option<String> {
+    table.iter().find_map(|line| field(line, key))
+}
+
+/// Every quoted string of the first `key = [...]` or `key = "..."` line.
+fn strings(table: &[String], key: &str) -> Vec<String> {
+    table
+        .iter()
+        .find_map(|line| {
+            let rest = line.strip_prefix(key)?.trim_start().strip_prefix('=')?;
+            Some(rest.split('"').skip(1).step_by(2).map(str::to_owned).collect())
+        })
+        .unwrap_or_default()
+}
+
+fn design_of(graph_class: &str, route_id: &str) -> &'static str {
+    if graph_class.starts_with("Temporal") || route_id.contains("temporal") {
+        "temporal"
+    } else {
+        "static"
+    }
+}
+
+/// The inference realization a route record states.
+fn inference_of(text: &str) -> &'static str {
+    let first = text.split(';').next().unwrap_or("");
+    if text.starts_with("Frequentist") && !first.contains("Bayesian") {
+        "frequentist"
+    } else if text.starts_with("Bayesian") {
+        "bayesian"
+    } else if text.contains("Bayesian") && text.contains("Frequentist") {
+        "both"
+    } else {
+        "unlisted"
+    }
 }
 
 fn routes_and_methods() -> (Vec<Route>, Vec<CurrentMethod>) {
-    let text = manifest_text();
-    let mut routes: Vec<Route> = Vec::new();
-    let mut methods: Vec<CurrentMethod> = Vec::new();
-    let mut in_method = false;
-    for line in text.lines() {
-        match line.trim() {
-            "[[route]]" => {
-                in_method = false;
-                routes.push(Route {
-                    id: String::new(),
-                    status: String::new(),
-                    design_time_model: String::new(),
-                    inference: String::new(),
-                });
-                continue;
-            }
-            "[[method]]" => {
-                in_method = true;
-                methods.push(CurrentMethod {
-                    id: String::new(),
-                    route: String::new(),
-                    estimator: String::new(),
-                    design: String::new(),
-                    inference: String::new(),
-                    status: String::new(),
-                });
-                continue;
-            }
-            _ => {}
+    let routes: Vec<Route> = tables(&read("parity/capabilities/route_manifest.toml"), "[[route]]")
+        .iter()
+        .map(|t| Route {
+            id: value(t, "id").unwrap_or_default(),
+            status: value(t, "status").unwrap_or_default(),
+            design_time_model: value(t, "design_time_model").unwrap_or_default(),
+            inference: value(t, "inference").unwrap_or_default(),
+            graph_class: value(t, "graph_class").unwrap_or_default(),
+            notes: value(t, "notes").unwrap_or_default(),
+            retained_route_test: value(t, "retained_route_test"),
+            capability_records: strings(t, "capability_record"),
+        })
+        .collect();
+
+    // Support-matrix cells: one method per (query, graph class, estimator, inference).
+    let mut units: BTreeSet<(String, String, String, String)> = BTreeSet::new();
+    let mut estimators: BTreeSet<String> = BTreeSet::new();
+    for cell in tables(&read("parity/support_cells.toml"), "[[cell]]") {
+        let query = value(&cell, "query").unwrap_or_default();
+        let graph = value(&cell, "graph_class").unwrap_or_default();
+        let inference = value(&cell, "inference").unwrap_or_default();
+        for estimator in strings(&cell, "estimators") {
+            estimators.insert(estimator.clone());
+            units.insert((query.clone(), graph.clone(), estimator, inference.clone()));
         }
-        if in_method {
-            let Some(method) = methods.last_mut() else { continue };
-            if let Some(value) = field(line, "id") {
-                method.id = value;
-            } else if let Some(value) = field(line, "route") {
-                method.route = value;
-            } else if let Some(value) = field(line, "estimator") {
-                method.estimator = value;
-            } else if let Some(value) = field(line, "design") {
-                method.design = value;
-            } else if let Some(value) = field(line, "inference") {
-                method.inference = value;
-            } else if let Some(value) = field(line, "status") {
-                method.status = value;
+    }
+    let mut methods: Vec<CurrentMethod> = units
+        .iter()
+        .map(|(query, graph, estimator, inference)| CurrentMethod {
+            id: format!("method.{query}.{graph}.{estimator}.{}", inference.to_lowercase()),
+            route: format!("supported.{query}.{graph}"),
+            estimator: estimator.clone(),
+            design: design_of(graph, "").to_owned(),
+            inference: inference.to_lowercase(),
+            status: "supported".to_owned(),
+        })
+        .collect();
+
+    // Graphless support rows, by the route id they extend or the retained test they cite.
+    let rows = tables(&read("parity/support_graphless.toml"), "[[support]]");
+    let graphless_ids: Vec<String> = rows
+        .iter()
+        .map(|r| {
+            let get = |key: &str| value(r, key).unwrap_or_default();
+            format!("graphless.{}.{}.{}", get("family"), get("design"), get("method"))
+        })
+        .collect();
+    let graphless_tests: BTreeSet<String> =
+        rows.iter().filter_map(|r| value(r, "retained_route_test")).collect();
+    // Capability records the support model supports.
+    let supported_records: BTreeSet<String> =
+        tables(&read("parity/capability_records.toml"), "[[record]]")
+            .iter()
+            .filter(|r| value(r, "status").as_deref() == Some("supported"))
+            .filter_map(|r| value(r, "id"))
+            .collect();
+
+    // Every other route is an entry point of one support unit.
+    for route in routes.iter().filter(|r| !r.id.starts_with("supported.")) {
+        let mut estimator = "unlisted".to_owned();
+        let carried = match route.status.as_str() {
+            "supported" => {
+                let named = estimators
+                    .iter()
+                    .find(|e| **e == route.id || route.notes.contains(&format!("stimator {e} ")));
+                if let Some(wire_id) = named {
+                    estimator.clone_from(wire_id);
+                }
+                named.is_some()
             }
-        } else {
-            let Some(route) = routes.last_mut() else { continue };
-            if let Some(value) = field(line, "id") {
-                route.id = value;
-            } else if let Some(value) = field(line, "status") {
-                route.status = value;
-            } else if let Some(value) = field(line, "design_time_model") {
-                route.design_time_model = value;
-            } else if let Some(value) = field(line, "inference") {
-                route.inference = value;
+            "graphless" => {
+                route.retained_route_test.as_ref().is_some_and(|t| graphless_tests.contains(t))
+                    || graphless_ids
+                        .iter()
+                        .any(|g| route.id == *g || route.id.starts_with(&format!("{g}.")))
             }
+            "capability" => route.capability_records.iter().any(|r| supported_records.contains(r)),
+            _ => false,
+        };
+        if carried {
+            methods.push(CurrentMethod {
+                id: format!("method.{}", route.id),
+                route: route.id.clone(),
+                estimator,
+                design: design_of(&route.graph_class, &route.id).to_owned(),
+                inference: inference_of(&route.inference).to_owned(),
+                status: route.status.clone(),
+            });
         }
     }
     (routes, methods)

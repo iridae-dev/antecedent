@@ -199,9 +199,8 @@ for name in sorted(factory_names):
         problems.append(f"CI factory name {name!r} maps to missing provenance record {claim!r}")
 
 # Method review: every record that names the modules it covers names files that exist, and every
-# admitted method of the specifications links clean-room provenance and a reviewed public surface
-# (or records why its module implements no algorithm). The specifications' admission state is the
-# one parity/method_specs/specs.toml derives from the executing evidence.
+# specification whose child has an implementing module links clean-room provenance and a reviewed
+# public surface (or records why the module implements no algorithm).
 for path in records:
     if path.name == "_template.toml":
         continue
@@ -219,15 +218,15 @@ review_checked = 0
 for spec in _repo.load_toml(root / "parity/method_specs/specs.toml")[
     "spec"
 ]:
-    if spec.get("admission") not in ("supported", "not_supported"):
-        continue
-    review_checked += 1
     sid = spec["id"]
     module = children[sid]["module"].split(";")[0].strip().split(" ")[0]
+    if module in ("", "none", "unlisted"):
+        continue  # no implementing module: nothing to link
+    review_checked += 1
     links = spec.get("provenance", [])
     if not links:
         problems.append(
-            f"spec {sid}: admitted method links no provenance record and records no reason"
+            f"spec {sid}: method links no provenance record and records no reason"
         )
     for link in links:
         if link.startswith("not_applicable:"):
@@ -245,7 +244,7 @@ for spec in _repo.load_toml(root / "parity/method_specs/specs.toml")[
         problems.append(f"spec {sid}: public surface of {module} is not in a reviewed API snapshot")
 
 if review_checked == 0:
-    problems.append("no admitted method provenance/API links were inspected")
+    problems.append("no method provenance/API links were inspected")
 
 for extra in (
     "estimate.identified_set",
@@ -265,5 +264,5 @@ if problems:
     sys.exit(1)
 
 print(
-    f"provenance schema/path audit: ok ({checked} records, {path_refs} path references, {review_checked} admitted provenance/API links, {primary_reviewed} bounded primary method reviews, {non_algorithm_mapped} justified non-algorithm mappings, {item_bound} item-bound artifacts)"
+    f"provenance schema/path audit: ok ({checked} records, {path_refs} path references, {review_checked} method provenance/API links, {primary_reviewed} bounded primary method reviews, {non_algorithm_mapped} justified non-algorithm mappings, {item_bound} item-bound artifacts)"
 )
