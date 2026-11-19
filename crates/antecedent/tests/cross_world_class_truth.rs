@@ -755,6 +755,26 @@ fn a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_an
         let set = result.structural_response.as_ref().unwrap().identified_set.as_ref().unwrap();
         assert!(set.lower[0] <= 1.0 + 1e-6 && 1.0 <= set.upper[0] + 1e-6, "{label}");
     }
+    // A class whose only completion is the generating graph identifies the effect: on the
+    // two-mediator count table of conformance/estimate/cross_world_class_truth the published
+    // value is the fixture's edge g-formula truth (case `cpdag_path_specific`).
+    let pin = pin();
+    let truth = expected(&pin, "cpdag_path_specific");
+    for accepted in [false, true] {
+        let label = format!("single completion accepted={accepted}");
+        let study = builder(
+            table(&pin, "two_mediators"),
+            cpdag(4, &[(0, 1), (0, 2), (1, 3), (2, 3)], &[]),
+            accepted,
+            nested(0, 1, 3),
+            false,
+            RefuteSuite::None,
+        )
+        .build()
+        .unwrap();
+        let effect = study.run(&ctx).unwrap().effect();
+        assert!((effect - truth).abs() <= 1e-9, "{label}: {effect} vs {truth}");
+    }
 }
 
 /// A PAG whose every maximal-ancestral-graph completion identifies the query publishes one
