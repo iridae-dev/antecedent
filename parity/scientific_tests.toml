@@ -2504,11 +2504,60 @@ fixtures = []
 why = "The compiled execution must stop in the numerical search meter. A refusal from the release evidence gate cannot satisfy this assertion. This source assertion is unearned."
 
 [[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "actual_update_matches_poisson_bayes_factor_and_rejects_reuse"
+kind = "reference"
+fixtures = []
+why = "Finite posterior weights agree with an independent Poisson Bayes factor and the observation window cannot be used twice."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "fixed_decay_fit_recovers_independent_cluster_fixture"
+kind = "known_truth"
+fixtures = []
+why = "Fixed-decay likelihood recovers parameters from an independently simulated cluster process."
+
+[[test]]
 evidence_test = "crates/antecedent/src/analysis/events/study.rs"
 evidence_assertion = "finite_same_stream_observation_changes_choice"
 kind = "reference"
 fixtures = []
 why = "Hand enumeration gives the choice-specific value of the finite count signal."
+
+[[test]]
+evidence_test = "crates/antecedent-model/src/nonlinear_sde/event_inputs.rs"
+evidence_assertion = "refined_recorder_agrees_at_all_shared_brownian_grid_states"
+kind = "reference"
+fixtures = []
+why = "The additive half-step recorder matches the previously implemented refined solver at shared output times."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "asymmetric_stationary_rates_match_two_type_reference"
+kind = "reference"
+fixtures = []
+why = "Long-run two-type means match an independently solved asymmetric branching system."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "same_stream_signal_changes_compiled_terminal_choice"
+kind = "reference"
+fixtures = []
+why = "A single conditional parameter hypothesis still values observing the stream when arrival memory affects the continuation."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "holdout_changes_scores_without_changing_the_forecast_at_cutoff"
+kind = "reference"
+fixtures = []
+why = "An added post-cutoff arrival changes held-out outcomes while preserving the issued forecast and fit inputs."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/events.rs"
+evidence_assertion = "verified_external_events_bind_payload_and_provider_version"
+kind = "reference"
+fixtures = []
+why = "An exact receipt admits the event paths and a changed provider version refuses before world binding."
 
 [[test]]
 evidence_test = "crates/antecedent/src/analysis/events/assessment.rs"

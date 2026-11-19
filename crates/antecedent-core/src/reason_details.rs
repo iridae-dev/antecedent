@@ -800,6 +800,14 @@ pub const REASON_DETAILS: &[&str] = &[
     "effect_constancy_consumer.partition_missing",
     "effect_constancy_consumer.quantity_mismatch",
     "effect_constancy_consumer.support_unsupported",
+    "events.budget",
+    "events.fit_failed",
+    "events.incomplete_law",
+    "events.interval_unmeasured",
+    "events.invalid_request",
+    "events.numerical",
+    "events.unstable",
+    "events.unverified_source",
     "evidence_ledger.cancelled",
     "evidence_ledger.diagonal_covariance_shared_rows",
     "evidence_ledger.duplicate_result",
@@ -3539,6 +3547,14 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("effect_constancy_consumer.partition_missing", &["invalid_argument"]),
     ("effect_constancy_consumer.quantity_mismatch", &["invalid_argument"]),
     ("effect_constancy_consumer.support_unsupported", &["route_not_supported"]),
+    ("events.budget", &["execution_resource_limit"]),
+    ("events.fit_failed", &["not_supported"]),
+    ("events.incomplete_law", &["not_supported"]),
+    ("events.interval_unmeasured", &["not_supported"]),
+    ("events.invalid_request", &["invalid_argument"]),
+    ("events.numerical", &["invalid_argument"]),
+    ("events.unstable", &["invalid_argument"]),
+    ("events.unverified_source", &["not_supported"]),
     ("evidence_ledger.cancelled", &["cancelled_no_claim"]),
     ("evidence_ledger.diagonal_covariance_shared_rows", &["evidence_double_counted"]),
     ("evidence_ledger.duplicate_result", &["invalid_argument"]),
@@ -7305,6 +7321,26 @@ pub mod effect_constancy_consumer {
     pub const QUANTITY_MISMATCH: &str = "effect_constancy_consumer.quantity_mismatch";
     /// Detail `effect_constancy_consumer.support_unsupported`.
     pub const SUPPORT_UNSUPPORTED: &str = "effect_constancy_consumer.support_unsupported";
+}
+
+/// Details in the `events` family.
+pub mod events {
+    /// Detail `events.budget`.
+    pub const BUDGET: &str = "events.budget";
+    /// Detail `events.fit_failed`.
+    pub const FIT_FAILED: &str = "events.fit_failed";
+    /// Detail `events.incomplete_law`.
+    pub const INCOMPLETE_LAW: &str = "events.incomplete_law";
+    /// Detail `events.interval_unmeasured`.
+    pub const INTERVAL_UNMEASURED: &str = "events.interval_unmeasured";
+    /// Detail `events.invalid_request`.
+    pub const INVALID_REQUEST: &str = "events.invalid_request";
+    /// Detail `events.numerical`.
+    pub const NUMERICAL: &str = "events.numerical";
+    /// Detail `events.unstable`.
+    pub const UNSTABLE: &str = "events.unstable";
+    /// Detail `events.unverified_source`.
+    pub const UNVERIFIED_SOURCE: &str = "events.unverified_source";
 }
 
 /// Details in the `evidence_ledger` family.

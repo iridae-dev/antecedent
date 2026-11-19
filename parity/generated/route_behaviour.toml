@@ -8029,3 +8029,34 @@ routes = [
   { route = "antecedent.latent_soft_intervention.prepare", stage = "prepare", status = "supported", claim = "point_only" },
   { route = "antecedent.latent_soft_intervention.replay_forecast", stage = "consume", status = "supported", claim = "point_only" },
 ]
+
+[[record]]
+id = "forecast.event_process"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "events.invalid_request" },
+  { code = "invalid_argument", detail = "events.unstable" },
+  { code = "not_supported", detail = "events.fit_failed" },
+  { code = "execution_resource_limit", detail = "events.budget" },
+  { code = "invalid_argument", detail = "events.numerical" },
+  { code = "not_supported", detail = "events.unverified_source" },
+  { code = "not_supported", detail = "events.incomplete_law" },
+  { code = "not_supported", detail = "events.interval_unmeasured" },
+]
+routes = [
+  { route = "antecedent.Study.prepare_event_forecast", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_event_likelihood", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_event_worlds", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_event_assessment", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_event_study", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_event_update", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.events.prepare", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.events.replay", stage = "consume", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "forecast.event_count_interval"
+status = "not_supported"
+routes = [
+  { route = "antecedent.PreparedEventForecast.count_interval", stage = "uncertainty", status = "closed", reason_code = "not_supported", claim = "interval" },
+]

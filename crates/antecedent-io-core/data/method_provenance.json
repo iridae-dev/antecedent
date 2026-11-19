@@ -564,6 +564,12 @@
   "external.trust_receipt": [
    "external.trust_receipt"
   ],
+  "forecast.event_count_interval": [
+   "forecast.event_count_interval"
+  ],
+  "forecast.event_process": [
+   "forecast.event_process"
+  ],
   "gcm.attribute.mechanism_refit": [
    "gcm.attribute.mechanism_refit"
   ],
@@ -9341,6 +9347,58 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
+  },
+  {
+   "deviations": [
+    "Refits are predictive inputs to independent conditional future paths. Inclusive nearest-rank 0.05 and 0.95 sample quantiles define a discrete central 90 percent count interval.",
+    "The prospective calibration test generates training and future count truth with an independently implemented branching-cluster model. A failed fit or refit counts against coverage.",
+    "The candidate is available under the calibration-internal feature before release support is earned. Publication requires a current matching coverage slot and separate release support."
+   ],
+   "digest": "cd9a578707ed686c39515bd25e397ef206b008de1e2a8be6adec400db4a5f73c",
+   "id": "forecast.event_count_interval",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "doi": "10.1016/j.jeconom.2022.02.006",
+     "doi_verified": false,
+     "sections": [
+      "Recursive intensity bootstrap"
+     ],
+     "title": "Bootstrap inference for Hawkes and general point processes"
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Conditions on a complete supplied left history starting at a declared empty origin. Constant nonnegative baselines and exponential decay rates are fixed by the declaration except for the fitted baselines and branching masses.",
+    "Simulation accepts any branching matrix with a checked positive subinvariance witness. Fixed-decay maximum likelihood searches the nonnegative domain with a strict source-column cap, a narrower convex subset.",
+    "The recursive-refit forecast refits each simulated complete training window. It conditions each future draw on the actual history. A refit failure refuses the aggregate. This is neither a posterior draw nor evidence of real-world forecast accuracy.",
+    "A conditional world response is driven by exogenous, paired arrivals through drift inputs. A separate half-step recorder preserves the established SDE execution lane and its item fingerprints. Grid maxima and indicators have discrete observation semantics.",
+    "Future-study integration enumerates the binary signal on finite weighted simulated continuations. Actual updates use the conditional timestamp likelihood over a disjoint window and retain event excitation across the cutoff."
+   ],
+   "digest": "c44a52d66149ce9c7c36385a2e31a562e4ba353e9023391a7d3ab1747bdf98ec",
+   "id": "forecast.event_process",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "doi": "10.2307/3212693",
+     "doi_verified": false,
+     "sections": [
+      "Cluster process representation"
+     ],
+     "title": "A cluster process representation of a self-exciting process"
+    },
+    {
+     "doi": "10.1016/j.jeconom.2022.02.006",
+     "doi_verified": false,
+     "sections": [
+      "Recursive intensity bootstrap"
+     ],
+     "title": "Bootstrap inference for Hawkes and general point processes"
+    }
+   ]
   },
   {
    "deviations": [

@@ -113,6 +113,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     msm_sensitivity_api::register(m)?;
     graph_selection_api::register(m)?;
     mnar_sensitivity_api::register(m)?;
+    crate::events_api::register(m)?;
     crate::latent_soft_intervention_api::register(m)?;
     mnar_fixed_shift_api::register(m)?;
     mechanism_discrepancy_api::register(m)?;

@@ -1007,6 +1007,17 @@ class effect_constancy_consumer:  # noqa: N801
     SUPPORT_UNSUPPORTED: Final = "effect_constancy_consumer.support_unsupported"
 
 
+class events:  # noqa: N801
+    BUDGET: Final = "events.budget"
+    FIT_FAILED: Final = "events.fit_failed"
+    INCOMPLETE_LAW: Final = "events.incomplete_law"
+    INTERVAL_UNMEASURED: Final = "events.interval_unmeasured"
+    INVALID_REQUEST: Final = "events.invalid_request"
+    NUMERICAL: Final = "events.numerical"
+    UNSTABLE: Final = "events.unstable"
+    UNVERIFIED_SOURCE: Final = "events.unverified_source"
+
+
 class evidence_ledger:  # noqa: N801
     CANCELLED: Final = "evidence_ledger.cancelled"
     DIAGONAL_COVARIANCE_SHARED_ROWS: Final = "evidence_ledger.diagonal_covariance_shared_rows"
@@ -4267,6 +4278,14 @@ ALL: Final[tuple[str, ...]] = (
     "effect_constancy_consumer.partition_missing",
     "effect_constancy_consumer.quantity_mismatch",
     "effect_constancy_consumer.support_unsupported",
+    "events.budget",
+    "events.fit_failed",
+    "events.incomplete_law",
+    "events.interval_unmeasured",
+    "events.invalid_request",
+    "events.numerical",
+    "events.unstable",
+    "events.unverified_source",
     "evidence_ledger.cancelled",
     "evidence_ledger.diagonal_covariance_shared_rows",
     "evidence_ledger.duplicate_result",
@@ -7011,6 +7030,14 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "effect_constancy_consumer.partition_missing": ("invalid_argument",),
     "effect_constancy_consumer.quantity_mismatch": ("invalid_argument",),
     "effect_constancy_consumer.support_unsupported": ("route_not_supported",),
+    "events.budget": ("execution_resource_limit",),
+    "events.fit_failed": ("not_supported",),
+    "events.incomplete_law": ("not_supported",),
+    "events.interval_unmeasured": ("not_supported",),
+    "events.invalid_request": ("invalid_argument",),
+    "events.numerical": ("invalid_argument",),
+    "events.unstable": ("invalid_argument",),
+    "events.unverified_source": ("not_supported",),
     "evidence_ledger.cancelled": ("cancelled_no_claim",),
     "evidence_ledger.diagonal_covariance_shared_rows": ("evidence_double_counted",),
     "evidence_ledger.duplicate_result": ("invalid_argument",),

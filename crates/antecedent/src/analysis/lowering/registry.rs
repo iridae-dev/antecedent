@@ -275,6 +275,7 @@ macro_rules! route_lowerings {
             MnarFixedShift,
             /// Latent additive soft-intervention discovery and prediction.
             LatentSoftIntervention,
+            EventProcess,
         }
 
         impl PlanRoute {
@@ -342,6 +343,7 @@ macro_rules! route_lowerings {
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
                     Self::MnarFixedShift => "MnarFixedShift",
                     Self::LatentSoftIntervention => "LatentSoftIntervention",
+                    Self::EventProcess => "EventProcess",
                 }
             }
 
@@ -412,6 +414,7 @@ macro_rules! route_lowerings {
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,
                     Self::MnarFixedShift => RouteFamily::DesignBased,
                     Self::LatentSoftIntervention => RouteFamily::Structural,
+                    Self::EventProcess => RouteFamily::Structural,
                 }
             }
         }

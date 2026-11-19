@@ -2040,6 +2040,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::CategoricalPosteriorCandidate => PlanRoute::CategoricalPosteriorCandidate,
         ProgramCell::MnarFixedShift => PlanRoute::MnarFixedShift,
         ProgramCell::LatentSoftIntervention => PlanRoute::LatentSoftIntervention,
+        ProgramCell::EventProcess => PlanRoute::EventProcess,
     }
 }
 
