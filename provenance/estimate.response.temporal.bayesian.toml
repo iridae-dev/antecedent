@@ -43,7 +43,7 @@ sha256 = "5c6923cf57b1a1049720a813bf8980433ee788b18f1a3c2e7ed13fe1d447ff83"
 role = "implementation"
 path = "crates/antecedent-estimate/src/serial_dependence.rs"
 items = ["const DELTA_STEP", "const EXACT_FIT_RELATIVE_SS", "const MAX_PARTIAL_AUTOCORRELATION", "const NEWTON_POLISH_SLACK", "const NEWTON_POLISH_STEPS", "const NEWTON_POLISH_TOL", "const Q", "const MAX_STEP", "enum DependenceScope", "enum SerialDependence", "fn block", "fn cholesky", "fn cholesky_into", "fn cholesky_solve", "fn coefficients", "fn correlate", "fn description", "fn effective_rows", "fn from_pacf", "fn predictor", "fn phi_to_pacf", "fn from_z", "fn information_matrix", "fn quasi_newton", "fn gradient", "const BFGS_ITERATIONS_PER_DIM", "const GRADIENT_STEP", "const GRADIENT_TOL", "const ARMIJO", "const LINE_SEARCH_HALVINGS", "fn new", "fn newey_west_bandwidth", "fn newton_polish", "fn observed_information", "fn order", "fn pacf_to_phi", "fn pacf_to_phi_into", "fn projected_trace", "fn recolour", "fn recolour_any", "fn recolour_transpose", "fn recolour_transpose_any", "fn reml_autoregression", "fn reml_kernel_bytes", "fn reml_log_likelihood", "fn reml_poll", "fn solve_into", "fn solve_transpose_into", "fn whitened_gram", "fn z_to_phi", "struct ArErrorModel", "struct RemlKernel", "struct Whitener"]
-sha256 = "80737d87ca4d62c40006db8658b02eac29644930052587171cd8b1784fb1c91f"
+sha256 = "93f7875b7590071305e4632123492383f91675de215e9d1adecc31d067b8c144"
 
 [[method_review.artifacts]]
 role = "implementation"

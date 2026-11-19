@@ -54,13 +54,13 @@ sha256 = "ab7d89bd175fe687677b9ec46d40f52bc458ab00a73bb2c1c67e3c8dc3fdf728"
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_sequential/bayesian.rs"
 items = ["fn compose_posterior", "fn contrast_gradient", "fn estimate", "fn fit_mechanisms", "fn level_posterior_assumption", "fn mechanism_serial_dependence", "fn modifier_mean_posterior_assumption", "fn parent_columns", "struct BayesianComposition", "struct FittedMechanisms"]
-sha256 = "c1f50cb19c957c98fc6637b5c4d106c1546b1051a405fcbb7a5d82ee43788c3b"
+sha256 = "0463baf3c36a8fca307efddf62cd4c9b96fbd5f4cef0771d35b41cfef95099ae"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/serial_dependence.rs"
 items = ["const DELTA_STEP", "const DEPENDENCE_NOTE_PREFIX", "const EXACT_FIT_RELATIVE_SS", "const MAX_PARTIAL_AUTOCORRELATION", "const NEWTON_POLISH_SLACK", "const NEWTON_POLISH_STEPS", "const NEWTON_POLISH_TOL", "const Q", "const MAX_STEP", "fn block", "fn cholesky", "fn cholesky_into", "fn cholesky_solve", "fn coefficients", "fn correlate", "fn effective_rows", "fn from_pacf", "fn predictor", "fn phi_to_pacf", "fn from_z", "fn information_matrix", "fn quasi_newton", "fn gradient", "const BFGS_ITERATIONS_PER_DIM", "const GRADIENT_STEP", "const GRADIENT_TOL", "const ARMIJO", "const LINE_SEARCH_HALVINGS", "fn new", "fn newey_west_bandwidth", "fn newton_polish", "fn note", "fn observed_information", "fn order", "fn pacf_to_phi", "fn pacf_to_phi_into", "fn projected_trace", "fn recolour", "fn recolour_any", "fn recolour_transpose", "fn recolour_transpose_any", "fn reml_autoregression", "fn reml_kernel_bytes", "fn reml_log_likelihood", "fn reml_poll", "fn solve_into", "fn solve_transpose_into", "fn tempering_kappa_from_notes", "fn whitened_gram", "fn z_to_phi", "struct ArErrorModel", "struct RemlKernel", "struct Whitener"]
-sha256 = "b8d9a218691afb5fe031aedc15979cfa26de1aa82e5738504bd4098d63fe3b2e"
+sha256 = "e73ec7d7870fbe263897bafe4160b683c6e5de55aa8fe3a27d9b1173b83bf374"
 
 [[method_review.artifacts]]
 role = "implementation"
