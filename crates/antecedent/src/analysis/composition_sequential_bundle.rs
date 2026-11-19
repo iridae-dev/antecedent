@@ -1,6 +1,6 @@
 //! Live raw sequential evaluation, aligned draws and diagnostic bundle.
 use super::{
-    Arc, BundleBuilder, BundleLimits, BundleNode, BundleStage, CanonicalWriter,
+    Arc, BUNDLE_CAPABILITY, BundleBuilder, BundleLimits, BundleNode, BundleStage, CanonicalWriter,
     ChainBundleRecomputeError, ClaimDemand, Composition, CompositionBundle, DataClassification,
     Deserialize, DesignShape, EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef,
     ExecutionContext, FunctionalKind, IdentificationLayer, IoError, LoweredProgram,
@@ -10,7 +10,7 @@ use super::{
     ReplayedBundleDependency, ScientificProblem, SemanticDigest, Serialize,
     StandaloneCompositionLoweredParts, StatisticalProgram, SuppliedSources, UncertaintyReading,
     UpstreamNode, VerifiedNode, export_bundle, fit_node_context, fit_node_failure,
-    native_fit_consumer, node_refused,
+    native_fit_consumer, node_refused, require_bundle_route, require_capability_route_unscoped,
 };
 use antecedent_design::decision_reliability::{
     DecisionDraws, ReliabilityReport, ReliabilityRequest, assess,
@@ -22,6 +22,12 @@ const DIAGNOSTIC: &str = "sequential_reliability_diagnostic_v1";
 const PORTABLE: &str = "sequential_reliability_bundle_v1";
 const DRAW_FACT: &str = "sequential_draws_digest";
 const REPORT_FACT: &str = "sequential_diagnostic_digest";
+// Entry points of the composition bundle unit (`parity/capability_records.toml`). While the unit
+// is not supported, a release build refuses each by its route id and a development build runs it
+// and records the refusal.
+const COMPILE_ROUTE: &str = "antecedent.composition.compile_sequential_reliability_node_bundle";
+const CONSUME_ROUTE: &str =
+    "antecedent.composition.consume_portable_sequential_reliability_node_bundle";
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -177,6 +183,9 @@ pub enum SequentialReliabilityBundleError {
     /// A declared bound or binding check failed.
     #[error("sequential reliability bundle: {0}")]
     Invalid(&'static str),
+    /// A release build refuses the route while its capability unit is not supported.
+    #[error("sequential reliability bundle: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 impl BundleBuilder {
     /// Embed an independently replayed raw sequential policy evaluation.
@@ -335,6 +344,7 @@ pub fn compile_sequential_reliability_node_bundle(
     draws: &str,
     terminal: &str,
 ) -> Result<CompiledSequentialReliabilityBundle, SequentialReliabilityBundleError> {
+    require_capability_route_unscoped(BUNDLE_CAPABILITY, COMPILE_ROUTE)?;
     for (from, to) in [(producer, draws), (draws, terminal)] {
         if !bundle.edges().iter().any(|e| e.from == from && e.to == to) {
             return Err(SequentialReliabilityBundleError::Invalid(
@@ -469,6 +479,7 @@ impl CompiledSequentialReliabilityBundle {
         ctx: &ExecutionContext,
     ) -> Result<SequentialReliabilityBundleReceipt, SequentialReliabilityBundleError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        require_bundle_route(&scoped, COMPILE_ROUTE)?;
         let bytes = export_bundle(&self.bundle, "sequential-reliability-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
         let consumed = native_fit_consumer(&scoped)
@@ -570,6 +581,7 @@ pub fn consume_portable_sequential_reliability_node_bundle(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<SequentialReliabilityBundleReceipt, SequentialReliabilityBundleError> {
+    require_bundle_route(ctx, CONSUME_ROUTE)?;
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(SequentialReliabilityBundleError::Invalid("portable bundle exceeds bound"));
     }

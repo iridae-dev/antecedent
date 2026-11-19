@@ -2336,7 +2336,9 @@ impl core::convert::From<antecedent_core::support_gate::NotSupported> for antece
 impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition::GraphImputationTransportBundleError
 impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition::JointTransportEffectBundleError
 impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition::PredictiveFitDecisionBundleError
+impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition::SequentialReliabilityBundleError
 impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition::TrialIpwBundleError
+impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError
 impl core::convert::From<antecedent_core::temporal::TemporalIndexError> for antecedent::CausalError
 impl core::convert::From<antecedent_core::temporal::TemporalIndexError> for antecedent::CompileCause
 impl core::convert::From<antecedent_counterfactual::error::CounterfactualError> for antecedent::CausalError
@@ -27545,6 +27547,7 @@ pub variant antecedent::analysis::composition::PredictiveFitDecisionBundleError:
 pub variant antecedent::analysis::composition::PredictiveFitDecisionBundleError::NotSupported(antecedent_core::support_gate::NotSupported)
 pub variant antecedent::analysis::composition::SequentialReliabilityBundleError::Bundle(antecedent::analysis::composition::ChainBundleRecomputeError)
 pub variant antecedent::analysis::composition::SequentialReliabilityBundleError::Invalid(&'static str)
+pub variant antecedent::analysis::composition::SequentialReliabilityBundleError::NotSupported(antecedent_core::support_gate::NotSupported)
 pub variant antecedent::analysis::composition::TrialIpwBundleError::Bundle(antecedent::analysis::composition::ChainBundleRecomputeError)
 pub variant antecedent::analysis::composition::TrialIpwBundleError::Invalid(&'static str)
 pub variant antecedent::analysis::composition::TrialIpwBundleError::NotSupported(antecedent_core::support_gate::NotSupported)
@@ -27553,6 +27556,7 @@ pub variant antecedent::analysis::composition_decision_terminal::DecisionBundleR
 pub variant antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError::Evaluation(alloc::string::String)
 pub variant antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError::Invalid(&'static str)
 pub variant antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError::Io(antecedent_io_core::error::IoError)
+pub variant antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError::NotSupported(antecedent_core::support_gate::NotSupported)
 pub variant antecedent::analysis::cross_world_interval::IntervalScalar::PopulationMeanCounterfactualProbability
 pub variant antecedent::analysis::cross_world_interval::IntervalScalar::RealizedCounterfactualMean
 pub variant antecedent::analysis::cross_world_interval::RouteClosure::Exogenous
