@@ -728,7 +728,6 @@ impl PropagationChainRecordWire {
             sources,
             stages,
             output: self.output.clone(),
-            construction: self.construction.clone(),
             reading: parse(ChainReading::from_name(&self.reading), "reading", &self.reading)?,
         })
     }
@@ -1368,6 +1367,7 @@ impl PropagationChainRecordWire {
             identity: recomputed,
             label: self.label.clone(),
             output: self.output.clone(),
+            construction: self.construction.clone(),
             output_quantity: self.output_quantity.clone(),
             results: executed.results,
             output_draws: executed.output_draws,

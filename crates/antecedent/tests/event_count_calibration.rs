@@ -1,7 +1,8 @@
 //! Prospective count calibration against an independent simulator. Run through the calibration lane.
 
 use antecedent::analysis::events::{EventForecastRequest, EventSource, EventWindow, HawkesFitSpec};
-use antecedent::{ExecutionContext, Study};
+use antecedent::Study;
+use antecedent::prelude::ExecutionContext;
 
 #[path = "common/calibration.rs"]
 mod calibration;

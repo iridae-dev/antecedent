@@ -767,10 +767,6 @@ impl<'a> TransportTarget<'a> {
         }
     }
 
-    fn rows(self) -> usize {
-        match self { Self::Binary(value) | Self::ConfoundedBinary(value) | Self::MarBinary(value, _, _, _) => value.rows(), Self::Kernel(value) | Self::ConfoundedKernel(value) | Self::MarKernel(value, _, _, _) => value.rows() }
-    }
-
     fn digest(self) -> Result<[u8; 32], IoError> {
         match self { Self::Binary(value) | Self::ConfoundedBinary(value) => value.digest(), Self::Kernel(value) | Self::ConfoundedKernel(value) => value.digest(), Self::MarBinary(_, _, digest, _) | Self::MarKernel(_, _, digest, _) => Ok(digest) }
     }

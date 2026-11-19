@@ -131,14 +131,13 @@ pub(super) fn admit(
     scratch: u64,
     retained: u64,
 ) -> Result<AdmissionLease, EventError> {
-    ctx.acquire_admission(scratch, retained)
-        .map_err(|error| match error {
-            AdmissionError::Cancelled => crate::error::CausalError::Cancelled {
-                stage: "event process admission",
-            }
-            .into(),
-            _ => EventError::Budget,
-        })
+    let bytes = scratch.checked_add(retained).ok_or(EventError::Budget)?;
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        AdmissionError::Cancelled => {
+            crate::error::CausalError::Cancelled { stage: "event process admission" }.into()
+        }
+        _ => EventError::Budget,
+    })
 }
 
 pub(super) fn digest(tag: &str, value: &impl Serialize) -> Result<SemanticDigest, EventError> {
@@ -531,8 +530,9 @@ impl Study {
             EventSource::Fitted { .. } => "refit_and_forecast",
             _ => "forecast",
         };
-        let program =
-            super::lowering::events::lower(source, bytes, operation, CAPABILITY, None, None)?;
+        let program = Arc::new(super::lowering::events::lower(
+            source, bytes, operation, CAPABILITY, None, None,
+        )?);
         Ok(PreparedEventForecast {
             request: Arc::new(request),
             program,

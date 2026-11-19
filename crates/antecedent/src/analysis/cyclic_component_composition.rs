@@ -296,8 +296,8 @@ fn check_aggregate_evidence(
                 let ledger = ledger.ok_or(ComponentFeedbackError::Invalid(
                     "multiple disjoint-evidence inputs require an evidence ledger",
                 ))?;
-                for a in left {
-                    for b in right {
+                for &a in &left {
+                    for &b in &right {
                         if a == b
                             || !ledger.source(a).is_some_and(|source| source.status.is_active())
                             || !ledger.source(b).is_some_and(|source| source.status.is_active())
@@ -1300,7 +1300,10 @@ impl CompiledBoundedComponentPosteriorDecision {
             inner_artifact: self.inner.export(&live.inner, ctx)?,
             quantities: self.quantities.iter().map(antecedent_io::quantity_wire::ScientificQuantityWire::from).collect(),
             contract_identity: contract.identity().into(), contract_artifact: contract.to_bytes("bounded-component-contract")?,
-            chain_identity: *chain.lowered().identity().as_bytes(), chain_artifact: chain.export(&live.decision, "bounded-component-chain")?,
+            chain_identity: *chain.lowered().identity().as_bytes(),
+            chain_artifact: chain
+                .export(&live.decision, "bounded-component-chain")
+                .map_err(|error| JointComponentPosteriorError::Posterior(error.into()))?,
         })?;
         if bytes.len() > MAX_JOINT_COMPONENT_BYTES { return Err(JointComponentPosteriorError::Invalid("bounded component artifact exceeds its bound")); }
         Ok(bytes)

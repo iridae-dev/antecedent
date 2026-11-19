@@ -45,8 +45,18 @@ pub enum SequentialReliabilityMode {
     /// Common-random-stream rollouts from the declared model.
     Rollout(RolloutConfig),
     /// Shared whole-trajectory bootstrap of ordinary importance-weighted estimates.
-    OffPolicy { behaviour: ContingentPolicy, log: Vec<LoggedTrajectory>, seed: u64,
-        replicates: u64, minimum_effective_sample_size: f64 },
+    OffPolicy {
+        /// Policy that generated the logged trajectories.
+        behaviour: ContingentPolicy,
+        /// Logged trajectories resampled whole.
+        log: Vec<LoggedTrajectory>,
+        /// Seed of the bootstrap random stream.
+        seed: u64,
+        /// Number of bootstrap replicates, at least 2.
+        replicates: u64,
+        /// Smallest acceptable effective sample size, finite and at least 2.
+        minimum_effective_sample_size: f64,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

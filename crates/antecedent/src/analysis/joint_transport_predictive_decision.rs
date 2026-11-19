@@ -264,8 +264,11 @@ pub fn compile_joint_transport_predictive_decision(
     let identification_layer = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SharedEvidenceContract { contract: question },
     ));
-    let prior = Prior::new(format!("joint_transport_predictive_gaussian:{}", source_digest.to_hex()))
-        .map_err(|_| JointTransportPredictiveDecisionError::Invalid("invalid prior identity"))?;
+    let prior = Prior::new(format!(
+        "joint_transport_predictive_gaussian:{}",
+        SemanticDigest::from_bytes(source_digest).to_hex()
+    ))
+    .map_err(|_| JointTransportPredictiveDecisionError::Invalid("invalid prior identity"))?;
     let likelihood = LikelihoodModel::new("joint_transport_shared_baseline_known_variance_normal")
         .map_err(|_| JointTransportPredictiveDecisionError::Invalid("invalid likelihood identity"))?;
     let statistical = StatisticalProgram {

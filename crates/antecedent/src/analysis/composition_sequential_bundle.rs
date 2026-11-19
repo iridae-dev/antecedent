@@ -71,8 +71,10 @@ impl NodeVerifier for SequentialDiagnosticVerifier {
 /// Failure to replay the sequential evidence, carrier or diagnostic.
 #[derive(Debug, thiserror::Error)]
 pub enum SequentialReliabilityBundleError {
+    /// The bundle could not be built, consumed or replayed.
     #[error("sequential reliability bundle: {0}")]
     Bundle(#[from] ChainBundleRecomputeError),
+    /// A declared bound or binding check failed.
     #[error("sequential reliability bundle: {0}")]
     Invalid(&'static str),
 }
@@ -116,8 +118,17 @@ pub struct CompiledSequentialReliabilityBundle {
 /// Live point diagnostic identities; this does not claim calibration.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SequentialReliabilityBundleReceipt {
-    pub bundle_identity: String, pub draws_digest: String, pub diagnostic_digest: String,
-    pub producer_program_identity: [u8; 32], pub lowered_program_identity: [u8; 32],
+    /// Identity of the replayed bundle.
+    pub bundle_identity: String,
+    /// Digest of the retained decision draws.
+    pub draws_digest: String,
+    /// Digest of the reliability diagnostic.
+    pub diagnostic_digest: String,
+    /// Semantic identity of the producer program, as 32 bytes.
+    pub producer_program_identity: [u8; 32],
+    /// Identity of the lowered program that replayed the bundle, as 32 bytes.
+    pub lowered_program_identity: [u8; 32],
+    /// Every bundle node that was replayed, in bundle order.
     pub dependencies: Vec<ReplayedBundleDependency>,
 }
 #[derive(Serialize, Deserialize)]
@@ -173,7 +184,9 @@ pub fn compile_sequential_reliability_node_bundle(bundle: CompositionBundle, pro
     Ok(CompiledSequentialReliabilityBundle { bundle, producer: producer.into(), draws: draws.into(), terminal: terminal.into(), program, lowered })
 }
 impl CompiledSequentialReliabilityBundle {
+    /// The lowered program this bundle executes.
     pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    /// Plan view of the lowered program at the compiled stage.
     pub fn plan_view(&self) -> PlanView { PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled) }
     /// Replay the raw producer and independently reassess the exact retained draws.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<SequentialReliabilityBundleReceipt, SequentialReliabilityBundleError> {
@@ -200,6 +213,11 @@ impl CompiledSequentialReliabilityBundle {
             lowered_program_identity: *self.lowered.identity().as_bytes(), dependencies: consumed.nodes().iter().map(|n| ReplayedBundleDependency {
                 node_id: n.id.clone(), artifact_identity: n.identity.clone(), chain_digest: n.chain_digest.clone() }).collect() })
     }
+    /// Export the bundle and its receipt as a portable artifact.
+    ///
+    /// # Errors
+    /// A receipt that differs from a live execution, an oversized artifact or an
+    /// encoding failure.
     pub fn export_portable(&self, receipt: &SequentialReliabilityBundleReceipt, ctx: &ExecutionContext)
         -> Result<Vec<u8>, SequentialReliabilityBundleError> {
         if self.execute(ctx)? != *receipt { return Err(SequentialReliabilityBundleError::Invalid("receipt differs")); }

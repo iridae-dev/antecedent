@@ -42,12 +42,16 @@ const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct TargetFeedbackFrame {
+    /// Name of the source sample; it must differ from the target sample.
     pub source_sample: String,
+    /// Name of the target sample the frame was drawn from.
     pub target_sample: String,
+    /// Target population the frame represents; it must match the decision contract.
     pub target_population: String,
     /// Ascending dense indices of the only mechanisms permitted to differ in
     /// distribution between source and target populations.
     pub baseline_indices: Vec<usize>,
+    /// Identifier of each target unit, in row order.
     pub unit_ids: Vec<String>,
     /// One complete baseline vector per target unit, in index order.
     pub rows: Vec<Vec<f64>>,
@@ -57,23 +61,32 @@ pub struct TargetFeedbackFrame {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CyclicTargetFeedbackRequest {
+    /// The shared-data cyclic posterior decision request fitted on the source population.
     pub source: CyclicPosteriorDecisionRequest,
+    /// The target frame whose baseline coordinates are standardized over.
     pub target: TargetFeedbackFrame,
+    /// Output equations whose paired-world outcomes feed the decision.
     pub outputs: Vec<CyclicDecisionOutput>,
 }
 
+/// Failure to compile, execute or export a cyclic target feedback decision.
 #[derive(Debug, thiserror::Error)]
 pub enum CyclicTargetFeedbackError {
+    /// The request, target frame or execution state is invalid.
     #[error("cyclic target feedback: {0}")]
     Invalid(&'static str),
+    /// The source cyclic posterior decision refused.
     #[error("cyclic target feedback source: {0}")]
     Source(#[from] CyclicPosteriorDecisionError),
+    /// The cyclic model could not be solved.
     #[error("cyclic target feedback model: {0}")]
     Model(#[from] EquilibriumError),
+    /// Reading or writing the artifact failed.
     #[error("cyclic target feedback artifact: {0}")]
     Io(#[from] IoError),
 }
 
+/// Compiled cyclic target feedback decision bound to its request and seed.
 pub struct CompiledCyclicTargetFeedbackDecision {
     request: CyclicTargetFeedbackRequest,
     contract: DecisionContract,
@@ -82,10 +95,15 @@ pub struct CompiledCyclicTargetFeedbackDecision {
     lowered: Arc<LoweredProgram>,
 }
 
+/// Posterior, decision and lowered-program identity from one execution.
 pub struct CyclicTargetFeedbackResult {
+    /// Cyclic posterior fitted on the source data.
     pub posterior: CyclicPosterior,
+    /// Decision over the target-standardized paired intervention worlds.
     pub decision: ChainDecisionResult,
+    /// Identity of the lowered program that produced this result.
     pub lowered_program_identity: SemanticDigest,
+    /// Calibration status of the result; always `"not_measured"`.
     pub calibration: &'static str,
 }
 
@@ -234,14 +252,20 @@ pub fn compile_cyclic_target_feedback_decision(
 }
 
 impl CompiledCyclicTargetFeedbackDecision {
+    /// The lowered program this decision executes.
     #[must_use]
     pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
 
+    /// Plan view of the lowered program at the compiled stage.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
         PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
     }
 
+    /// Fit the cyclic posterior, standardize over the target frame and score the decision.
+    ///
+    /// # Errors
+    /// A changed execution seed, a source or model refusal, or an invalid target frame.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<CyclicTargetFeedbackResult, CyclicTargetFeedbackError> {
         if ctx.rng.master_seed() != self.seed {
             return Err(CyclicTargetFeedbackError::Invalid("execution seed changed"));
@@ -322,6 +346,11 @@ impl CompiledCyclicTargetFeedbackDecision {
         Ok(SemanticDigest::from_bytes(writer.finish()))
     }
 
+    /// Export the result as a portable artifact after re-executing and matching it.
+    ///
+    /// # Errors
+    /// A result that differs from the live execution, an oversized artifact or an
+    /// encoding failure.
     pub fn export(&self, result: &CyclicTargetFeedbackResult, artifact_id: &str,
         ctx: &ExecutionContext) -> Result<Vec<u8>, CyclicTargetFeedbackError> {
         let live = self.execute(ctx)?;
@@ -331,8 +360,7 @@ impl CompiledCyclicTargetFeedbackDecision {
             || result.decision.decision != live.decision.decision
             || result.decision.chain.identity() != live.decision.chain.identity()
         { return Err(CyclicTargetFeedbackError::Invalid("target feedback result differs on replay")); }
-        let contract = DecisionContractArtifact::new(self.contract.clone())
-            .map_err(CyclicPosteriorDecisionError::Contract)?;
+        let contract = DecisionContractArtifact::new(self.contract.clone())?;
         let chain = compile_action_world_chain_decision(
             live.decision.chain.record().clone(), self.contract.clone(), ctx,
         ).map_err(CyclicPosteriorDecisionError::Chain)?;

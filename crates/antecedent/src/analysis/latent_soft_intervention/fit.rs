@@ -82,8 +82,14 @@ impl SupportRegion {
 
 impl Context {
     fn fit(request: &LatentSoftInterventionRequest, rows: &[&[f64]]) -> Result<Self, CausalError> {
-        let mut context =
-            Self { center: Vec::new(), scale: Vec::new(), lo: Vec::new(), hi: Vec::new() };
+        let mut context = Self {
+            center: Vec::new(),
+            scale: Vec::new(),
+            lo: Vec::new(),
+            hi: Vec::new(),
+            action_region: None,
+            control_region: None,
+        };
         for &node in &request.context {
             let mean = rows.iter().map(|r| r[node]).sum::<f64>() / rows.len() as f64;
             let scale = (rows.iter().map(|r| (r[node] - mean).powi(2)).sum::<f64>()
@@ -754,7 +760,7 @@ mod tests {
     #[test]
     fn an_anchored_mixture_must_also_fit_held_out_residuals() {
         use antecedent_stats::special::normal_ppf;
-        let ctx = ExecutionContext::default();
+        let ctx = ExecutionContext::for_tests(0);
         let mixture = Mixture { shifts: vec![vec![-3.0], vec![3.0]], gate: vec![0.0] };
         let expected = Rows {
             residuals: [-3.0, 3.0]

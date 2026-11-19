@@ -33,7 +33,7 @@ use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity,
     DistributionMetadata, DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
+use antecedent_io::quantity_wire::DistributionMeaningWire;
 use antecedent_io::measured_inference::MeasuredInference;
 use antecedent_io::measured_inference::graph_candidate::{
     GraphPointReading, replay_point, retained_support,
@@ -260,10 +260,9 @@ impl GraphImputationPoint {
         {
             return Err(invalid("graph mixture law requires the exact binary average-effect coordinate").into());
         }
-        let coordinate = ScientificQuantityWire::from(&quantity);
         let identity = DistributionIdentity::new(
             DistributionMeaningWire::CausalFunctionalPosterior,
-            &[coordinate], DrawAlignment::Joint,
+            &[quantity], DrawAlignment::Joint,
             DistributionProvenance {
                 source_id: SemanticDigest::from_bytes(self.receipt).to_hex(),
                 provider_id: "antecedent.graph_imputation".into(),

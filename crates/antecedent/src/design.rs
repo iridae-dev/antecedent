@@ -747,7 +747,7 @@ pub mod design_ranking_artifact {
 }
 /// Per-candidate expected value of sample information with declared integration.
 pub mod evsi {
-    pub use antecedent_design::evsi::{CostToUtilityMap, EvsiError};
+    pub use antecedent_design::evsi::{CostToUtilityMap, EvsiError, StudyCostSpec};
 }
 /// Original finite-law functional replay with complete source rows and scientific identity.
 pub mod functional_source {

@@ -205,26 +205,35 @@ macro_rules! route_lowerings {
             CyclicActionWorldDecision,
             /// Joint fitted-mechanism posterior predictive action worlds.
             CyclicPosteriorActionDecision,
+            /// Target-population feedback standardization over a cyclic fit and a decision.
             CyclicTargetFeedbackDecision,
             /// Checked bridge transport and predictive utility.
             BridgeTransportDecision,
+            /// Premise assessment of a checked bridge transport.
             BridgeTransportPremiseAssessment,
             /// Matched bridge validation and conditional predictive utility.
             AssessedBridgeTransportDecision,
             /// Fitted source-target effect posterior and utility.
             JointTransportEffectDecision,
+            /// Trial inverse-probability-weighted transport and a decision.
             TrialIpwTransportDecision,
+            /// Trial inverse-probability-weighted predictive transport and a decision.
             TrialIpwPredictiveDecision,
+            /// Joint source-target predictive transport and a decision.
             JointTransportPredictiveDecision,
             /// Target-population time-ordered path-specific transport.
             TemporalPathTransport,
             /// Whole-chain resampling union around an assumption envelope.
             SamplingAssumptionUnion,
+            /// Whole-chain resampling union with independent and identically distributed units.
             IidSamplingAssumptionUnion,
             /// Compiler-generated whole-cluster bootstrap assumption union.
             ClusterSamplingAssumptionUnion,
+            /// Whole-chain resampling union with moving-block resampling.
             MovingBlockSamplingAssumptionUnion,
+            /// An observational policy value under m-out-of-n full-refit subsampling.
             PolicySubsampling,
+            /// Sequential policy evaluation with a reliability diagnostic.
             SequentialPolicyReliability,
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation,
@@ -240,14 +249,24 @@ macro_rules! route_lowerings {
             GraphImputationTransportNodeBundleRecomputation,
             /// Bundle replay with a joint source-target effect fit.
             JointTransportEffectNodeBundleRecomputation,
+            /// Bundle replay with an embedded joint predictive transport fit and decision.
             JointTransportPredictiveNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded trial-IPW predictive fit and decision.
             TrialIpwPredictiveNodeDecisionBundleRecomputation,
+            /// Fit the cyclic posterior, standardize over the target frame and score the decision.
+            ///
+            /// # Errors
+            /// A changed execution seed, a source or model refusal, or an invalid target frame.
             CyclicTargetFeedbackNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded graph-imputation predictive fit and decision.
             GraphImputationPredictiveNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded assessed-bridge posterior fit and decision.
             AssessedBridgePosteriorNodeDecisionBundleRecomputation,
+            /// Bundle replay with an embedded sequential policy reliability fit.
             SequentialPolicyReliabilityNodeBundleRecomputation,
             /// Checked connected components and a joint posterior decision.
             JointComponentPosteriorDecision,
+            /// Checked connected components with a bounded-component posterior decision.
             BoundedComponentPosteriorDecision,
             /// Bundle replay with a parameter-posterior decision terminal.
             PosteriorDecisionBundleRecomputation,
@@ -255,19 +274,29 @@ macro_rules! route_lowerings {
             GraphImputation,
             /// Graph-imputation effect posterior and downstream utility.
             GraphImputationEffectDecision,
+            /// Graph-imputation Bernoulli predictive-world draws and a decision.
             GraphImputationBernoulliPredictiveWorldDecision,
+            /// Graph-imputation Gaussian target predictive-world draws and a decision.
             GraphImputationGaussianTargetPredictiveWorldDecision,
+            /// Graph-imputation Bernoulli predictive decision with a whole-cluster bootstrap.
             GraphImputationBernoulliPredictiveClusterBootstrapDecision,
+            /// Graph-imputation Gaussian predictive decision with a whole-cluster bootstrap.
             GraphImputationGaussianPredictiveClusterBootstrapDecision,
             /// Graph-imputation target standardization and downstream utility.
             GraphImputationTransportDecision,
+            /// Graph-imputation transport with a whole-cluster bootstrap.
             GraphImputationTransportClusterBootstrapDecision,
+            /// Graph-imputation transport with a confounded target.
             GraphImputationConfoundedTransportDecision,
+            /// Graph-imputation confounded transport with a whole-cluster bootstrap.
             GraphImputationConfoundedTransportClusterBootstrapDecision,
             /// Graph-imputation transport over mixed target covariates.
             GraphImputationKernelTransportDecision,
+            /// Graph-imputation mixed-covariate kernel transport with a whole-cluster bootstrap.
             GraphImputationKernelTransportClusterBootstrapDecision,
+            /// Graph-imputation confounded kernel transport with a whole-cluster bootstrap.
             GraphImputationConfoundedKernelTransportClusterBootstrapDecision,
+            /// Graph-imputation transport under a missing-at-random target.
             GraphImputationMarTransportDecision,
             /// A scientifically closed categorical posterior candidate.
             CategoricalPosteriorCandidate,
@@ -275,6 +304,7 @@ macro_rules! route_lowerings {
             MnarFixedShift,
             /// Latent additive soft-intervention discovery and prediction.
             LatentSoftIntervention,
+            /// Forecasts of timestamped events and their composed world responses.
             EventProcess,
         }
 

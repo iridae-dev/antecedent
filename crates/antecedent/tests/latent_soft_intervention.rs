@@ -4,7 +4,8 @@ use antecedent::analysis::latent_soft_intervention::{
     LatentSoftInterventionRequest, VersionEvidence, replay_forecast,
 };
 use antecedent::planner::PlanRoute;
-use antecedent::{ExecutionContext, Study};
+use antecedent::Study;
+use antecedent::prelude::ExecutionContext;
 use antecedent_core::CausalRng;
 
 fn standard_normal(rng: &mut CausalRng) -> f64 {
@@ -51,7 +52,7 @@ fn fixture(mixture: bool) -> LatentSoftInterventionRequest {
 
 #[test]
 fn equal_downstream_means_preserve_distinct_pathways_and_replay() {
-    let ctx = ExecutionContext::default();
+    let ctx = ExecutionContext::for_tests(0);
     let prepared = Study::prepare_latent_soft_intervention(fixture(true), &ctx).unwrap();
     let program = prepared.program_identity().to_hex();
     assert_eq!(prepared.plan_view().route(), PlanRoute::LatentSoftIntervention);
@@ -113,7 +114,7 @@ fn equal_downstream_means_preserve_distinct_pathways_and_replay() {
 
 #[test]
 fn one_version_leaves_a_split_unresolved() {
-    let ctx = ExecutionContext::default();
+    let ctx = ExecutionContext::for_tests(0);
     let fitted = Study::prepare_latent_soft_intervention(fixture(false), &ctx)
         .unwrap()
         .execute(&ctx)
@@ -124,7 +125,7 @@ fn one_version_leaves_a_split_unresolved() {
 
 #[test]
 fn compiler_rejects_missing_premises_and_post_action_context() {
-    let ctx = ExecutionContext::default();
+    let ctx = ExecutionContext::for_tests(0);
     let mut request = fixture(true);
     request.version_exogenous_given_context = false;
     assert!(Study::prepare_latent_soft_intervention(request.clone(), &ctx).is_err());
@@ -144,7 +145,7 @@ fn variance_only_change_does_not_release_a_single_shift_forecast() {
         row[1] = 0.4 * row[0] + 4.0 * (a - 0.4 * row[0] - 3.0);
         row[3] += row[1] - a;
     }
-    let ctx = ExecutionContext::default();
+    let ctx = ExecutionContext::for_tests(0);
     let fit =
         Study::prepare_latent_soft_intervention(request, &ctx).unwrap().execute(&ctx).unwrap();
     assert_eq!(fit.discovery().evidence, VersionEvidence::SplitUnresolved);
@@ -156,7 +157,7 @@ fn variance_only_change_does_not_release_a_single_shift_forecast() {
 fn joint_refits_keep_baseline_and_weighted_action_aligned() {
     let mut request = fixture(true);
     request.refits = 4;
-    let ctx = ExecutionContext::default();
+    let ctx = ExecutionContext::for_tests(0);
     let fit =
         Study::prepare_latent_soft_intervention(request, &ctx).unwrap().execute(&ctx).unwrap();
     let output = fit.forecast(&[0.0], &ctx).unwrap();
@@ -177,7 +178,7 @@ fn joint_refits_keep_baseline_and_weighted_action_aligned() {
 
 #[test]
 fn compiler_meter_refuses_an_exhausted_search() {
-    let ctx = ExecutionContext::default();
+    let ctx = ExecutionContext::for_tests(0);
     let mut request = fixture(true);
     request.search_operations = 1;
     let prepared = Study::prepare_latent_soft_intervention(request, &ctx).unwrap();
@@ -191,7 +192,7 @@ fn compiler_meter_refuses_an_exhausted_search() {
 
 #[test]
 fn unearned_release_route_is_inspectable_and_refuses_execution() {
-    let ctx = ExecutionContext::default();
+    let ctx = ExecutionContext::for_tests(0);
     let prepared = Study::prepare_latent_soft_intervention(fixture(true), &ctx).unwrap();
     assert_eq!(prepared.plan_view().route(), PlanRoute::LatentSoftIntervention);
     if !prepared.plan_view().support().supported() && antecedent_core::BUILD_FLAVOR == "release" {

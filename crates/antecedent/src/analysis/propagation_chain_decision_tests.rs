@@ -198,10 +198,9 @@ fn posterior_parameters_do_not_answer_an_outcome_law_decision() {
 }
 
 fn transported_response(weights: Option<Vec<f64>>) -> TransportedResponse {
-    let coordinate = ScientificQuantityWire::from(&outcome());
     let identity = DistributionIdentity::new(
         DistributionMeaningWire::InterventionalPredictive,
-        &[coordinate],
+        &[outcome()],
         DrawAlignment::Joint,
         DistributionProvenance {
             source_id: "transported-wishlists".into(),
@@ -296,10 +295,7 @@ fn weighted_transport_rows_are_shared_across_two_decision_coordinates() {
     let mut sales = outcome();
     sales.variable_id = "steam:sales".into();
     sales.variable_name = "sales".into();
-    let quantities = [
-        ScientificQuantityWire::from(&outcome()),
-        ScientificQuantityWire::from(&sales),
-    ];
+    let quantities = [outcome(), sales.clone()];
     let identity = DistributionIdentity::new(
         DistributionMeaningWire::InterventionalPredictive,
         &quantities, DrawAlignment::Joint,

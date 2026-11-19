@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_contract::bridge::{
-    BridgeContract, BridgeMapping, BridgeScope, TransportabilityPremise,
+    BridgeContract, BridgeMapping, BridgeRefusal, BridgeScope, TransportabilityPremise,
     TrialEffectPair, TrialLevelFit, TrialLevelValidation, fit_trial_level_linear,
 };
 use antecedent_contract::DataClassification;
@@ -221,6 +221,16 @@ fn invalid(message: impl Into<String>) -> BridgeTransportPremiseAssessmentError 
     BridgeTransportPremiseAssessmentError::Invalid(message.into())
 }
 
+/// Refusal of a trial-level line fit, naming its reason code, detail and offending coordinate.
+fn fit_refused(refusal: &BridgeRefusal) -> BridgeTransportPremiseAssessmentError {
+    let mut message = format!("{}: {}", refusal.code, refusal.detail);
+    if let Some(offending) = &refusal.offending {
+        message.push_str(": ");
+        message.push_str(offending);
+    }
+    invalid(message)
+}
+
 fn validate(
     request: &BridgeTransportPremiseAssessmentRequest,
 ) -> Result<(), BridgeTransportPremiseAssessmentError> {
@@ -416,9 +426,9 @@ impl CompiledBridgeTransportPremiseAssessment {
             return Err(invalid("bridge premise assessment was cancelled"));
         }
         let source_fit = fit_trial_level_linear(&self.request.source)
-            .map_err(|error| invalid(error.to_string()))?;
+            .map_err(|refusal| fit_refused(&refusal))?;
         let target_fit = fit_trial_level_linear(&self.request.target)
-            .map_err(|error| invalid(error.to_string()))?;
+            .map_err(|refusal| fit_refused(&refusal))?;
         let count = self.request.surrogate_grid.len() as f64;
         let z = norm_inv(1.0 - 0.05 / (2.0 * count));
         let mut grid = Vec::with_capacity(self.request.surrogate_grid.len());
@@ -628,7 +638,8 @@ impl CompiledBridgeTransportPremiseAssessment {
         if count == 0 || count > 1_000_000 || trials.len() < 3 {
             return Err(invalid("target posterior draw count or trial count invalid"));
         }
-        let fit = fit_trial_level_linear(&self.request.target).map_err(|e| invalid(e.to_string()))?;
+        let fit = fit_trial_level_linear(&self.request.target)
+            .map_err(|refusal| fit_refused(&refusal))?;
         let n = trials.len() as f64;
         let xbar = trials.iter().map(|p| p.surrogate_effect).sum::<f64>() / n;
         let sxx = trials.iter().map(|p| (p.surrogate_effect - xbar).powi(2)).sum::<f64>();

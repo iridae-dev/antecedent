@@ -1703,9 +1703,10 @@ impl PreparedBayesianProblem {
     /// Invalid target weights, coefficient names or insufficient rows.
     pub fn with_target_interactions(mut self, weights: &[f64]) -> Result<Self, EstimationError> {
         let names = self.coef_names.as_ref().ok_or_else(|| EstimationError::data_msg("target interactions need coefficient names"))?;
-        let (design, names) = center_interactions_on_weights(&self.design, names, weights)?;
+        let ((design, names), moments) = center_interactions_on_weights(&self.design, names, weights)?;
         self.design = design;
         self.coef_names = Some(names);
+        self.target_moments = Some(moments);
         Ok(self)
     }
 

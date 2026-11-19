@@ -2485,8 +2485,10 @@ impl NodeVerifier for PredictiveTerminalVerifier {
 /// Failure to bind, refit or score a live predictive fit decision bundle.
 #[derive(Debug, thiserror::Error)]
 pub enum PredictiveFitDecisionBundleError {
+    /// The bundle could not be built, consumed or replayed.
     #[error("predictive fit decision bundle: {0}")]
     Bundle(#[from] ChainBundleRecomputeError),
+    /// A declared bound or binding check failed.
     #[error("predictive fit decision bundle: {0}")]
     Invalid(&'static str),
 }
@@ -2552,8 +2554,17 @@ pub struct CompiledPredictiveFitDecisionBundle {
 /// Replayed bundle identities and live decision fingerprint; no calibration is earned.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PredictiveFitDecisionBundleReceipt {
-    pub bundle_identity: String, pub chain_identity: String, pub decision_fingerprint: String,
-    pub producer_program_identity: [u8; 32], pub lowered_program_identity: [u8; 32],
+    /// Identity of the replayed bundle.
+    pub bundle_identity: String,
+    /// Identity of the retained chain.
+    pub chain_identity: String,
+    /// Fingerprint of the live decision.
+    pub decision_fingerprint: String,
+    /// Semantic identity of the producer program, as 32 bytes.
+    pub producer_program_identity: [u8; 32],
+    /// Identity of the lowered program that replayed the bundle, as 32 bytes.
+    pub lowered_program_identity: [u8; 32],
+    /// Every bundle node that was replayed, in bundle order.
     pub dependencies: Vec<ReplayedBundleDependency>,
 }
 #[derive(Deserialize, Serialize)]
@@ -2664,7 +2675,9 @@ pub fn compile_assessed_bridge_posterior_node_decision_bundle(bundle: Compositio
     compile_predictive_fit_decision_bundle(bundle, producer, chain, terminal, ctx, PredictiveFitKind::Bridge)
 }
 impl CompiledPredictiveFitDecisionBundle {
+    /// The lowered program this bundle executes.
     pub fn lowered(&self) -> &LoweredProgram { &self.lowered }
+    /// Plan view of the lowered program at the compiled stage.
     pub fn plan_view(&self) -> PlanView { PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled) }
     /// Refit raw evidence, execute the predictive chain and rescore its decision.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<PredictiveFitDecisionBundleReceipt, PredictiveFitDecisionBundleError> {
@@ -2690,6 +2703,11 @@ impl CompiledPredictiveFitDecisionBundle {
                 node_id: node.id.clone(), artifact_identity: node.identity.clone(), chain_digest: node.chain_digest.clone(),
             }).collect() })
     }
+    /// Export the bundle and its receipt as a portable artifact.
+    ///
+    /// # Errors
+    /// A receipt that differs from a live execution, an oversized artifact or an
+    /// encoding failure.
     pub fn export_portable(&self, receipt: &PredictiveFitDecisionBundleReceipt, ctx: &ExecutionContext)
         -> Result<Vec<u8>, PredictiveFitDecisionBundleError> {
         if self.execute(ctx)? != *receipt { return Err(PredictiveFitDecisionBundleError::Invalid("receipt changed")); }

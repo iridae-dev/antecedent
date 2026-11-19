@@ -6,7 +6,8 @@ use antecedent::analysis::events::{
     EventWorldRequest, HawkesFitSpec, HawkesParameters, PathFunctional, PathOutput,
 };
 use antecedent::planner::PlanRoute;
-use antecedent::{ExecutionContext, Study};
+use antecedent::Study;
+use antecedent::prelude::ExecutionContext;
 use antecedent_model::mechanism_expr::MechanismExpression;
 use antecedent_model::nonlinear_sde::{
     SdeAction, SdeDiffusion, SdeInput, SdeInterpolation, SdeScheme, SdeSimulationPolicy, SdeSystem,
@@ -351,7 +352,7 @@ fn asymmetric_stationary_rates_match_two_type_reference() {
         .unwrap();
     // Solve .9 x - .2 y = .5 and -.6 x + .9 y = 1 independently.
     let expected = [0.65 / 0.69, 1.2 / 0.69];
-    let mut counts = [0.0; 2];
+    let mut counts = [0.0_f64; 2];
     for path in law.paths() {
         for event in path.iter().filter(|event| event.time >= 21.0) {
             counts[event.kind] += 1.0;

@@ -478,11 +478,11 @@ fn the_identity_ignores_the_order_of_declared_factors_but_not_their_content() {
 fn another_version_or_feature_is_refused_before_the_payload_is_read() {
     let record = release();
     let mut future = record.clone();
-    future.version = 2;
+    future.version = 5;
     let bytes = crate::to_cbor(&future).expect("encodes");
     assert_eq!(
         PropagationChainRecordWire::decode(&bytes),
-        Err(PropagationChainError::UnsupportedVersion { version: 2 })
+        Err(PropagationChainError::UnsupportedVersion { version: 5 })
     );
     let mut foreign = record;
     foreign.required_features = vec!["something_else".to_owned()];

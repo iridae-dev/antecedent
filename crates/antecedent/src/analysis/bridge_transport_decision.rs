@@ -868,11 +868,17 @@ impl CompiledAssessedBridgeRobustDecision {
             version: 1, required_feature: ASSESSED_ROBUST_FEATURE.into(),
             program_identity: *self.lowered.identity().as_bytes(),
             assessment_identity: *self.assessed.assessment.lowered().identity().as_bytes(),
-            assessment_artifact: self.assessed.assessment.export(&live.assessed.assessment, ctx)?,
+            assessment_artifact: self
+                .assessed
+                .assessment
+                .export(&live.assessed.assessment, ctx)
+                .map_err(AssessedBridgeTransportDecisionError::from)?,
             bridge_identity: *self.assessed.bridge.lowered().identity().as_bytes(),
-            bridge_artifact: self.assessed.bridge.export(
-                &live.assessed.bridge, artifact_id, ctx,
-            )?,
+            bridge_artifact: self
+                .assessed
+                .bridge
+                .export(&live.assessed.bridge, artifact_id, ctx)
+                .map_err(AssessedBridgeTransportDecisionError::from)?,
             robust_contract_identity: contract.identity().into(),
             robust_contract_artifact: contract.to_bytes(artifact_id)?,
             robust_identity: *robust_plan.lowered().identity().as_bytes(),

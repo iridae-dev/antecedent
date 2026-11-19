@@ -1,7 +1,6 @@
 //! Composition of retained joint event paths with the cyclic SDE executor.
 
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::execution::AdmissionLease;
@@ -360,7 +359,9 @@ impl CompiledWorlds {
                 ));
             }
             let quantity = output.quantity(&request.population, request.horizon);
-            quantity.validate().map_err(EventError::invalid)?;
+            quantity.validate().map_err(|_| {
+                EventError::invalid("path-output quantity has an empty or ambiguous coordinate")
+            })?;
             slots.push((w, v));
             quantities.push(quantity);
         }
