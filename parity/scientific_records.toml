@@ -5808,11 +5808,11 @@ dependency_manifest = "8f0a614acdbf9ebc72640576997e44dd94114bf37d3a07b5c12f38e03
 test = "antecedent::cross_world_class_truth::a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval"
 roles = ["scientific", "software"]
 passed = true
-commit = "2e3e9ce22b76f835be4719a25a5d506b5c1c01a2"
+commit = "43aa1f4e09e79b53c72aa3be668d50e2c6ebdc9a"
 dirty = false
-fingerprint = "94b9be205787f0ec52e375957e07a086645128180958b67d1b869e52c99cbbf3"
-recorded_at = "2026-11-15T22:08:09Z"
-dependency_manifest = "cca4208ff1fb70b70ddd29537de4aa18b3f81d8eac86f202d572ec8a689f6713"
+fingerprint = "d91e48118c6950415fa457569b1f88b11c784f8305c77a84b96360d9a0994a2a"
+recorded_at = "2026-11-19T12:03:01Z"
+dependency_manifest = "11743b1a24f1df2edec6258c02cace0e3aa171a74801a08e918e55e316dc9ca0"
 
 [[record]]
 test = "antecedent::cross_world_class_truth::a_pag_effect_is_the_single_exact_completion_value_and_publishes_no_interval"
