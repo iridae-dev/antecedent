@@ -7204,7 +7204,7 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "2167a7657cba43f1"
+matrix_digest = "2aa870b78e7776ec"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_route_evidence.rs::admg_explicit_frequentist_none"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/prepared_analysis.rs|admg_frontdoor_distribution_known_truth|conformance/estimate/admg_frontdoor_distribution"
@@ -7221,7 +7221,7 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "e3cc42188075a22c"
+matrix_digest = "c5f63ee940a7ae94"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_route_evidence.rs::admg_accepted_frequentist_none"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/prepared_analysis.rs|admg_frontdoor_distribution_known_truth|conformance/estimate/admg_frontdoor_distribution"
@@ -7238,7 +7238,7 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "4051b3730953c075"
+matrix_digest = "f662619ba5836484"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_route_evidence.rs::admg_explicit_bayesian_none"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/prepared_analysis.rs|admg_frontdoor_distribution_known_truth|conformance/estimate/admg_frontdoor_distribution"
@@ -7255,7 +7255,7 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "687287ab3cac97d7"
+matrix_digest = "cbac3351f4c23855"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_route_evidence.rs::admg_accepted_bayesian_none"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/prepared_analysis.rs|admg_frontdoor_distribution_known_truth|conformance/estimate/admg_frontdoor_distribution"
@@ -14242,7 +14242,7 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "1740cb920e6f617f"
+matrix_digest = "6b7650669377b51b"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_interventional_distribution_explicit_and_accepted"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/temporal_admg_route_evidence.rs|temporal_admg_interventional_distribution_explicit_and_accepted|conformance/estimate/admg_frontdoor_distribution"
@@ -14259,7 +14259,7 @@ inference = "Frequentist"
 validation = "none"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "6b85c1948b067c3c"
+matrix_digest = "862d2be94098218d"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_interventional_distribution_explicit_and_accepted"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/temporal_admg_route_evidence.rs|temporal_admg_interventional_distribution_explicit_and_accepted|conformance/estimate/admg_frontdoor_distribution"
@@ -14276,7 +14276,7 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "c4f394de030edd62"
+matrix_digest = "a3d0d6810e1d8203"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_interventional_distribution_explicit_and_accepted"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/temporal_admg_route_evidence.rs|temporal_admg_interventional_distribution_explicit_and_accepted|conformance/estimate/admg_frontdoor_distribution"
@@ -14293,7 +14293,7 @@ inference = "Bayesian"
 validation = "none"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "1672b383c81c4722"
+matrix_digest = "d1a41704a5d2bd0c"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/temporal_admg_route_evidence.rs::temporal_admg_interventional_distribution_explicit_and_accepted"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/temporal_admg_route_evidence.rs|temporal_admg_interventional_distribution_explicit_and_accepted|conformance/estimate/admg_frontdoor_distribution"
@@ -37858,7 +37858,7 @@ route_estimator = "functional.effect"
 matrix_digest = "1ae52351ad096b20"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval|conformance/estimate/cross_world_class_truth"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|class_cross_world_effects_match_the_exact_functionals_of_the_count_tables|conformance/estimate/cross_world_class_truth"
 uncertainty = "no_interval_reported"
 evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "conformance/estimate/cross_world_class_truth"]
 
@@ -37960,7 +37960,7 @@ route_estimator = "functional.effect"
 matrix_digest = "b225e648bdf79b59"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/cross_world_class_truth.rs::class_cross_world_effects_execute_from_the_retained_plan_without_the_builder"]
-identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|a_cpdag_natural_direct_effect_publishes_the_exact_set_of_completion_values_and_no_interval|conformance/estimate/cross_world_class_truth"
+identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_class_truth.rs|class_cross_world_effects_match_the_exact_functionals_of_the_count_tables|conformance/estimate/cross_world_class_truth"
 uncertainty = "no_interval_reported"
 evidence_reachability = ["crates/antecedent/tests/cross_world_class_truth.rs", "conformance/estimate/cross_world_class_truth"]
 
@@ -41935,7 +41935,7 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "62d08dc5a07e55ba"
+matrix_digest = "9fd27e74421aba6d"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_admg_explicit_frequentist_cheap"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_admg_explicit_frequentist_cheap|conformance/estimate/admg_frontdoor_distribution"
@@ -41952,7 +41952,7 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "e42470a4b98e2e5c"
+matrix_digest = "be61969d175ec777"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_admg_explicit_frequentist_full"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_admg_explicit_frequentist_full|conformance/estimate/admg_frontdoor_distribution"
@@ -41969,7 +41969,7 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "21554095a6956785"
+matrix_digest = "54d4d28a9b7015a1"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_admg_explicit_bayesian_cheap"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_admg_explicit_bayesian_cheap|conformance/estimate/admg_frontdoor_distribution"
@@ -41986,7 +41986,7 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "218d1992227092a1"
+matrix_digest = "3f254bcab5681efc"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_admg_explicit_bayesian_full"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_admg_explicit_bayesian_full|conformance/estimate/admg_frontdoor_distribution"
@@ -42003,7 +42003,7 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "89bd82581af83907"
+matrix_digest = "74e2c4cddc1e6c73"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_admg_accepted_frequentist_cheap"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_admg_accepted_frequentist_cheap|conformance/estimate/admg_frontdoor_distribution"
@@ -42020,7 +42020,7 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "5de0bb6c8912764e"
+matrix_digest = "da35a6ce62d581a1"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_admg_accepted_frequentist_full"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_admg_accepted_frequentist_full|conformance/estimate/admg_frontdoor_distribution"
@@ -42037,7 +42037,7 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "3ab27aaf0f11247b"
+matrix_digest = "dbe2f52615e37e7a"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_admg_accepted_bayesian_cheap"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_admg_accepted_bayesian_cheap|conformance/estimate/admg_frontdoor_distribution"
@@ -42054,7 +42054,7 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "e5e70a3bbb748bd3"
+matrix_digest = "843d6f6d4b0b458c"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_admg_accepted_bayesian_full"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_admg_accepted_bayesian_full|conformance/estimate/admg_frontdoor_distribution"
@@ -42071,7 +42071,7 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "06027961b6cd149e"
+matrix_digest = "5099152bac8215db"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_temporal_admg_explicit_frequentist_cheap"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_temporal_admg_explicit_frequentist_cheap|conformance/estimate/admg_frontdoor_distribution"
@@ -42088,7 +42088,7 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "8d9d515141700241"
+matrix_digest = "c2285b1d268b11f3"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_temporal_admg_explicit_frequentist_full"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_temporal_admg_explicit_frequentist_full|conformance/estimate/admg_frontdoor_distribution"
@@ -42105,7 +42105,7 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "69746c1ee6a63c6e"
+matrix_digest = "c512ed340b9ee829"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_temporal_admg_explicit_bayesian_cheap"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_temporal_admg_explicit_bayesian_cheap|conformance/estimate/admg_frontdoor_distribution"
@@ -42122,7 +42122,7 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "fd8db49dde52b7bc"
+matrix_digest = "1a369eeaf2a35520"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_temporal_admg_explicit_bayesian_full"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_temporal_admg_explicit_bayesian_full|conformance/estimate/admg_frontdoor_distribution"
@@ -42139,7 +42139,7 @@ inference = "Frequentist"
 validation = "cheap"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "57420915ec9ada86"
+matrix_digest = "9bf9f9674343bacd"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_temporal_admg_accepted_frequentist_cheap"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_temporal_admg_accepted_frequentist_cheap|conformance/estimate/admg_frontdoor_distribution"
@@ -42156,7 +42156,7 @@ inference = "Frequentist"
 validation = "full"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "204b6f6d6319f328"
+matrix_digest = "fc706f14f33e3a5a"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_temporal_admg_accepted_frequentist_full"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_temporal_admg_accepted_frequentist_full|conformance/estimate/admg_frontdoor_distribution"
@@ -42173,7 +42173,7 @@ inference = "Bayesian"
 validation = "cheap"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "708afa8cbd74bdf5"
+matrix_digest = "a90c578a912dd77d"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_temporal_admg_accepted_bayesian_cheap"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_temporal_admg_accepted_bayesian_cheap|conformance/estimate/admg_frontdoor_distribution"
@@ -42190,7 +42190,7 @@ inference = "Bayesian"
 validation = "full"
 estimators = ["functional.distribution"]
 route_estimator = "functional.distribution"
-matrix_digest = "2ea28620ede3f16c"
+matrix_digest = "77e36f8bfaaa46a3"
 support_basis = "explicit_support"
 compiler_execution = ["functional.distribution = crates/antecedent/tests/distribution_validation_route_evidence.rs::distribution_temporal_admg_accepted_bayesian_full"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/distribution_validation_route_evidence.rs|distribution_temporal_admg_accepted_bayesian_full|conformance/estimate/admg_frontdoor_distribution"
@@ -44217,7 +44217,7 @@ matrix_digest = "1c04a561337adcf6"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_identify"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/temporal_window_route_evidence.rs|temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_identify|conformance/estimate/temporal_window_truth"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/temporal_window_route_evidence.rs", "conformance/estimate/temporal_window_truth"]
 
 [[obligation]]
@@ -44234,7 +44234,7 @@ matrix_digest = "c8dfa8129e3ab2d0"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_identify"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/temporal_window_route_evidence.rs|temporal_pag_window_mediation_validation_runs_the_mediation_suite_on_every_member|conformance/estimate/temporal_window_truth"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/temporal_window_route_evidence.rs", "conformance/estimate/temporal_window_truth"]
 
 [[obligation]]
@@ -44251,7 +44251,7 @@ matrix_digest = "f3e44936e211c390"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_identify"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/temporal_window_route_evidence.rs|temporal_pag_window_mediation_validation_runs_the_mediation_suite_on_every_member|conformance/estimate/temporal_window_truth"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/temporal_window_route_evidence.rs", "conformance/estimate/temporal_window_truth"]
 
 [[obligation]]
@@ -44268,7 +44268,7 @@ matrix_digest = "6f17bf5061ee1286"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_identify"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/temporal_window_route_evidence.rs|temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_identify|conformance/estimate/temporal_window_truth"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/temporal_window_route_evidence.rs", "conformance/estimate/temporal_window_truth"]
 
 [[obligation]]
@@ -44285,7 +44285,7 @@ matrix_digest = "85922c730e9867d5"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_identify"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/temporal_window_route_evidence.rs|temporal_pag_window_mediation_validation_runs_the_mediation_suite_on_every_member|conformance/estimate/temporal_window_truth"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/temporal_window_route_evidence.rs", "conformance/estimate/temporal_window_truth"]
 
 [[obligation]]
@@ -44302,7 +44302,7 @@ matrix_digest = "f412c4438e5322a5"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/temporal_window_route_evidence.rs::temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_identify"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/temporal_window_route_evidence.rs|temporal_pag_window_mediation_validation_runs_the_mediation_suite_on_every_member|conformance/estimate/temporal_window_truth"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/temporal_window_route_evidence.rs", "conformance/estimate/temporal_window_truth"]
 
 [[obligation]]
@@ -45747,7 +45747,7 @@ matrix_digest = "0965ea8ed1e15398"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::mediation_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|mediation_graph_posterior_is_the_weighted_mean_of_the_atoms_components_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs", "conformance/estimate/functional_graph_posterior_mixtures"]
 
 [[obligation]]
@@ -45764,7 +45764,7 @@ matrix_digest = "e15ede343daba48b"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::mediation_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|mediation_graph_posterior_is_the_weighted_mean_of_the_atoms_components_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs", "conformance/estimate/functional_graph_posterior_mixtures"]
 
 [[obligation]]
@@ -45781,7 +45781,7 @@ matrix_digest = "123985a1eefe0e7e"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::mediation_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|mediation_graph_posterior_is_the_weighted_mean_of_the_atoms_components_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs", "conformance/estimate/functional_graph_posterior_mixtures"]
 
 [[obligation]]
@@ -45798,7 +45798,7 @@ matrix_digest = "e1ef43a3b405ef07"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::mediation_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|mediation_graph_posterior_is_the_weighted_mean_of_the_atoms_components_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs", "conformance/estimate/functional_graph_posterior_mixtures"]
 
 [[obligation]]
@@ -45815,7 +45815,7 @@ matrix_digest = "58d672752182a942"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::mediation_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|mediation_graph_posterior_is_the_weighted_mean_of_the_atoms_components_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs", "conformance/estimate/functional_graph_posterior_mixtures"]
 
 [[obligation]]
@@ -45832,7 +45832,7 @@ matrix_digest = "57e4b5559ec52c1d"
 support_basis = "explicit_support"
 compiler_execution = ["functional.effect = crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs::mediation_graph_posterior_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs|mediation_graph_posterior_is_the_weighted_mean_of_the_atoms_components_under_every_suite|conformance/estimate/functional_graph_posterior_mixtures"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs", "conformance/estimate/functional_graph_posterior_mixtures"]
 
 [[obligation]]
