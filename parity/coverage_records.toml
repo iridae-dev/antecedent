@@ -239021,6 +239021,8 @@ grid = [
 dgp = "crates/antecedent/tests/joint_panel_calibration.rs::experiment_source"
 test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_experiment_update_weights_time_varying_bayesian_l95"
 calibration_sha = "a60c728db674fadfe79d9c08666dd3907d55cf53"
+fingerprint = "ea226b851f2e5603ed2e2d35d72647b9afe6665b186745dcac40d70bf6367b03"
+dependency_manifest = "7f3019d78a1f8d49554319c42a1b32b5ecf0827cc3fa9dd6819e3f7c7932d395"
 
 [[record]]
 id = "cov.joint_response.not_applicable.bayesian.bonferroni_equal_tailed_posterior.l95.joint_response_reference_decomposition_static_l95.v2_validation_not_applicable"
