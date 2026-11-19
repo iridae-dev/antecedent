@@ -111501,6 +111501,120 @@ fingerprint = "5e70a46d98da21f9004462f34858494823295a80d6e93271ac66c2c8ef21f6a7"
 dependency_manifest = "a8fdaa9b65bf1003d57725846106189dc713b815dd297a103cf6742327a31b70"
 
 [[record]]
+id = "cov.decision_reliability.not_applicable.bayesian.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_static_bayesian_l95.v2_validation_not_applicable"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Bayesian"
+estimator = "decision_reliability_selected_program_value"
+interval_method = "simultaneous_sup_t_draws"
+se_kind = "source_draws"
+dependence = "shared_simulation.autocorrelated"
+posterior = "draws"
+functional = "candidates=17-64;rule=maximize_expected_utility;functional=expected_utility;generation=adaptive_search"
+identification = "model_conditional"
+nominal = 0.95
+n_min = 2000
+n_max = 8000
+replicates_min = 0
+posterior_draws_min = 2000
+unidentified_mass_max = 0.0
+observed = 0.985
+mcse = 0.006077622890571612
+replicates = 400
+boundary = false
+role = "one_sided"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 394, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9999466035484132, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+one_sided = { side = "upper", target = "the simultaneous interval contains the value, under the generating law, of the program the search selected, at least at the nominal level" }
+probe = { p0 = { 10 = "b2fecb5bc38f641e76d35909dd4efb06", 32 = "f23ed3c19d17e24ca6f61bda30104d92", 100 = "64c6b0472bde4f46249ffd46839c2f44", 320 = "d98065fbe0d32fe3597618bebdff828c" }, p1 = { 10 = "87761caab9829bcdbc7152906cf5856a", 32 = "4fb80168b738dc999394240700320519", 100 = "95c5a717a1038fab86471a89692fef94", 320 = "cf8fda43dd6bd689e6d2bd5500102801" }, p2 = { 10 = "2a1df98bc95ae12ba405165a884a6d67", 32 = "76699d18250d851fc0520c2fa1d9bcd9", 100 = "dca32e819ce24fc2ad4cee9af26423f1", 320 = "1407b360a27d4761e4adaea9404bdab8" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 394, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9999466035484132, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 2000, n_max = 2000, observed = 0.985, mcse = 0.006077622890571612, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 399, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9999999987713106, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 4000, n_max = 4000, observed = 0.9975, mcse = 0.002496873044429746, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 395, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9999878982675376, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 8000, n_max = 8000, observed = 0.9875, mcse = 0.005555121510822233, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_from"
+test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_selected_program_value_static_bayesian_l95"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+fingerprint = "08e77d2742e8134925be5915712213ac545fc01933f66613e9c413ae8e82142c"
+dependency_manifest = "63a29b3bba0d30e7cd312be66903cf16c99cbc6f984d4bff6fce9fb7e3d1a881"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.bayesian.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_bayesian_l95.v2_validation_not_applicable"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Bayesian"
+estimator = "decision_reliability_selected_program_value"
+interval_method = "simultaneous_sup_t_draws"
+se_kind = "source_draws"
+dependence = "shared_simulation.autocorrelated"
+posterior = "draws"
+functional = "candidates=17-64;rule=maximize_expected_utility;functional=expected_utility;generation=adaptive_search"
+identification = "model_conditional"
+nominal = 0.95
+n_min = 2000
+n_max = 8000
+replicates_min = 0
+posterior_draws_min = 2000
+unidentified_mass_max = 0.0
+observed = 0.9775
+mcse = 0.00741514497498194
+replicates = 400
+boundary = false
+role = "one_sided"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 391, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9982837286124747, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+one_sided = { side = "upper", target = "the simultaneous interval contains the value, under the generating law, of the program the search selected, at least at the nominal level" }
+probe = { p0 = { 10 = "cd156cebbaa0d321209c5420ec591f8c", 32 = "16f7ea25778a8e6b1c1b7385fe3373b6", 100 = "dbb1df45f3dd475ce37b5f41a6175c6f", 320 = "adbd0673e32a07b4f81ae658f2e41ef4" }, p1 = { 10 = "394d4181d80919854c6993b23672e1b2", 32 = "d9946ab00e535216da8fe9e2b42b2b9b", 100 = "13260e11540c27a03f7cec18b3b4a312", 320 = "62d7cd2c5141d33378136c7da0ea6c67" }, p2 = { 10 = "9ffc01a3aec6dcebc67665e483d4b818", 32 = "8c47cf8ff4a10b589b87ff89f5d55047", 100 = "513f13a2368db6a5aeef1c30c0044b96", 320 = "471fd6c9131921bdd7ca2f3a16dbabff" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 391, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9982837286124747, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 2000, n_max = 2000, observed = 0.9775, mcse = 0.00741514497498194, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 393, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.999803520968991, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 4000, n_max = 4000, observed = 0.9825, mcse = 0.006556247020971671, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 391, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9982837286124747, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 8000, n_max = 8000, observed = 0.9775, mcse = 0.00741514497498194, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_from"
+test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_selected_program_value_temporal_bayesian_l95"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+fingerprint = "08e77d2742e8134925be5915712213ac545fc01933f66613e9c413ae8e82142c"
+dependency_manifest = "0be07443c3f1d20aa8f76b3b0b8fe4b7c3ab8fd8c6375d25689dea911e666d4b"
+
+[[record]]
 id = "cov.decision_reliability.not_applicable.frequentist.bonferroni_confidence_set.l95.confidence_set_eight_candidates_l95.v2_validation_not_applicable.separate_streams"
 query = "DecisionReliability"
 graph_class = "NotApplicable"
@@ -114748,6 +114862,120 @@ test = "crates/antecedent-design/tests/decision_reliability_interval_calibration
 calibration_sha = "231107b020975e4371285ae46c4e5c7bfb27858a"
 fingerprint = "f6fad333cbfa3684441420f0e06d540aad2e31c9ab1f6568bbf2c62f99a742ad"
 dependency_manifest = "eaa17af95fff52c154891fe14ea2b31d9541c2191a999197d6ada7f99e2c3094"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_static_frequentist_l95.v2_validation_not_applicable"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selected_program_value"
+interval_method = "simultaneous_sup_t_draws"
+se_kind = "source_draws"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=17-64;rule=maximize_expected_utility;functional=expected_utility;generation=adaptive_search"
+identification = "model_conditional"
+nominal = 0.95
+n_min = 50
+n_max = 200
+replicates_min = 50
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.98
+mcse = 0.007000000000000003
+replicates = 400
+boundary = false
+role = "one_sided"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 392, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9993796522750635, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+one_sided = { side = "upper", target = "the simultaneous interval contains the value, under the generating law, of the program the search selected, at least at the nominal level" }
+probe = { p0 = { 10 = "4b51f714054d0fdae8245703ae24dbe8", 32 = "6f9c9f94d717ba1c88d30a59ad44ba2e", 100 = "7657ef072bdb7407cf5b4d4b052e4dce", 320 = "f618dc0d5de096d3c4db6029b8e6f866" }, p1 = { 10 = "cc9a59aca576e02229e49d7052481c88", 32 = "b3a9c02feb201517680f00d401e6f5f5", 100 = "058e2b9f8885b4ab211bed1e4154f47c", 320 = "a66fbe9deac6a99fff5dcc2e3686e34e" }, p2 = { 10 = "15e265b5da500622cfd261ff57a2aafc", 32 = "aa9ffc4602c15c96ae91d3ac74c837f9", 100 = "f528b364f2208a66c82245d88d75d2e2", 320 = "409f5ec5490195b141fb9dc0660388a6" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 397, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9999997012991374, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 50, n_max = 50, observed = 0.9925, mcse = 0.004313858481684336, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 392, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9993796522750635, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 100, n_max = 100, observed = 0.98, mcse = 0.007000000000000003, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 393, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.999803520968991, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 200, n_max = 200, observed = 0.9825, mcse = 0.006556247020971671, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_panel"
+test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_selected_program_value_static_frequentist_l95"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+fingerprint = "08e77d2742e8134925be5915712213ac545fc01933f66613e9c413ae8e82142c"
+dependency_manifest = "e3557f6d240cab391aa743ffd759683d980dcea1f51d8113ec8411b5dd318cf7"
+
+[[record]]
+id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_sup_t_draws.l95.joint_panel_selected_program_value_temporal_frequentist_l95.v2_validation_not_applicable"
+query = "DecisionReliability"
+graph_class = "NotApplicable"
+structure = "fixed"
+modality = "decision_draws"
+inference = "Frequentist"
+estimator = "decision_reliability_selected_program_value"
+interval_method = "simultaneous_sup_t_draws"
+se_kind = "source_draws"
+dependence = "shared_simulation.independent"
+posterior = ""
+functional = "candidates=17-64;rule=maximize_expected_utility;functional=expected_utility;generation=adaptive_search"
+identification = "model_conditional"
+nominal = 0.95
+n_min = 50
+n_max = 200
+replicates_min = 50
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9775
+mcse = 0.00741514497498194
+replicates = 400
+boundary = false
+role = "one_sided"
+validation_schema = 2
+validation = "not_applicable"
+decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 391, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9982837286124747, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }
+one_sided = { side = "upper", target = "the simultaneous interval contains the value, under the generating law, of the program the search selected, at least at the nominal level" }
+probe = { p0 = { 10 = "f0aeec7803be9112dad40b3ca42fd9bc", 32 = "8e0eaa192f7bfe3e6de5503d3eb2042b", 100 = "73327400cca4c27dec822c9bb62caae1", 320 = "0e6a6c37f6b426ab685fe3489c164910" }, p1 = { 10 = "7ce86eafbf9e99fe444bdbbd1da3392c", 32 = "d90e187b06808a90b5418905aa4b9073", 100 = "3c8d9cb43f4c808183f6582b161d7618", 320 = "8507406992de8f9d728b02fdbdaf6d89" }, p2 = { 10 = "07e13e64e0570d75df6086a870de5173", 32 = "af613de2ad86413cc745d29eb74af655", 100 = "893994eaf95b50f20a97271b65cd8591", 320 = "52c6235ef0d6530be8f45e83255de396" } }
+grid = [
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 391, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9982837286124747, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 0, n_min = 50, n_max = 50, observed = 0.9775, mcse = 0.00741514497498194, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 391, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9982837286124747, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 1, n_min = 100, n_max = 100, observed = 0.9775, mcse = 0.00741514497498194, replicates = 400, boundary = false, role = "one_sided" },
+  { decision_protocol = { cell_cap_per_group = 256, compatible = true, covered = 395, family_alpha = 0.05, family_cells = 1367040, family_digest = "5ae2e55fd28640d998e4fd6c023e39721bc31c900334ec6dc9aef613e8823b42", family_grid_points = 3, family_groups = 1780, id = "suite_coverage_fwer.v1", look_weight = 0.5, looks = [
+  { planned_replicates = 400, weight = 0.5 },
+  { planned_replicates = 2000, weight = 0.25 },
+  { planned_replicates = 20000, weight = 0.25 },
+], lower_only = true, p_value = 0.9999878982675376, planned_replicates = 400, scored = 400, validation_domain = "coverage_measurement" }, point = 2, n_min = 200, n_max = 200, observed = 0.9875, mcse = 0.005555121510822233, replicates = 400, boundary = false, role = "one_sided" },
+]
+dgp = "crates/antecedent/tests/joint_panel_calibration.rs::generate_panel"
+test = "crates/antecedent/tests/joint_panel_calibration.rs::joint_panel_selected_program_value_temporal_frequentist_l95"
+calibration_sha = "0567540be39942e03a768e0f48a8f969b31c7622"
+fingerprint = "08e77d2742e8134925be5915712213ac545fc01933f66613e9c413ae8e82142c"
+dependency_manifest = "ef92a5293928aaed53e3b5138d975d9e629152838e8210cce08f405cf1dd5bd0"
 
 [[record]]
 id = "cov.decision_reliability.not_applicable.frequentist.simultaneous_wald_normal.l95.selection_corrected_all_equal_sixty_four_candidates_boundary_l95.v2_validation_not_applicable.shared_rho_0_5"
