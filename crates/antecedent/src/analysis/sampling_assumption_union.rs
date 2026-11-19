@@ -3084,7 +3084,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only compiler-owned IID bootstrap assertion; coverage has not been earned"]
     fn iid_raw_units_are_resampled_and_whole_chain_replayed() {
         let ctx = ExecutionContext::for_tests(31);
         let mut original = draft(0.0);
@@ -3111,7 +3110,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only compiler-owned cluster bootstrap; coverage has not been earned"]
     fn dependent_unit_pairs_are_resampled_as_complete_clusters() {
         let ctx = ExecutionContext::for_tests(37);
         let mut original = draft(0.0);
@@ -3141,7 +3139,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only stratified whole-cluster bootstrap; coverage has not been earned"]
     fn stratified_clusters_are_kept_complete_and_replayed() {
         let ctx = ExecutionContext::for_tests(43);
         let mut original = draft(0.0);
@@ -3195,7 +3192,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only two-stage panel block bootstrap; coverage has not been earned"]
     fn resampled_panels_keep_one_source_panel_and_consecutive_blocks() {
         let ctx = ExecutionContext::for_tests(53);
         let mut original = draft(0.0);
@@ -3253,7 +3249,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only stratified moving-block bootstrap; coverage has not been earned"]
     fn stratified_moving_blocks_stay_within_interleaved_series_and_replay() {
         let ctx = ExecutionContext::for_tests(47);
         let mut original = draft(0.0);
@@ -3311,7 +3306,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only compiler-owned moving-block bootstrap; coverage has not been earned"]
     fn moving_blocks_replay_and_bind_the_declared_design() {
         let ctx = ExecutionContext::for_tests(41);
         let mut original = draft(0.0);

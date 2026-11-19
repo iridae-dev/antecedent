@@ -724,7 +724,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[ignore = "source-only compiler and support assertions; no calibration earned"]
     fn compiler_identity_population_support_and_study_scope() {
         let ctx = ExecutionContext::for_tests(47);
         let (request, contract) = fixture();
@@ -754,7 +753,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[ignore = "source-only fitted predictive replay; no scientific record earned"]
     fn paired_target_worlds_refit_and_replay() {
         let ctx = ExecutionContext::for_tests(47);
         let (request, contract) = fixture();

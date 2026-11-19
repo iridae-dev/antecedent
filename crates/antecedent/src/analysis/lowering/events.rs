@@ -23,7 +23,11 @@ use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::support::CellStatus;
 
 fn invalid(error: impl std::fmt::Display) -> CausalError {
-    crate::compile_reason!("invalid_argument", "events.invalid_request: {error}")
+    crate::compile_reason!(
+        "invalid_argument",
+        "{}: {error}",
+        antecedent_core::reason_details::events::INVALID_REQUEST
+    )
 }
 
 #[allow(clippy::too_many_lines, reason = "one lowering that assembles every program section")]

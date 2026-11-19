@@ -47,6 +47,7 @@ use crate::planner::lowered::{
 };
 use crate::planner::statistical::{NestedFitLaw, Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
+use crate::support::{require_capability_route, require_capability_route_unscoped};
 use antecedent_contract::DataClassification;
 use antecedent_contract::bridge::{BridgeContract, ValueKind};
 use antecedent_contract::propagation_chain::ChainRefusal;
@@ -891,6 +892,45 @@ pub fn consume_portable_chain_bundle_recomputation(
     Ok(live)
 }
 
+// The capability unit whose support the native-fit bundle routes below run under. A route has no
+// support status of its own: while the unit is not supported, a release build refuses each entry
+// point by its route id (`parity/capability_records.toml`) and a development build runs it and
+// records the refusal in its context.
+const BUNDLE_CAPABILITY: &str = "composition.bundle";
+const BRIDGE_COMPILE_ROUTE: &str = "antecedent.composition.compile_bridge_bundle_recomputation";
+const BRIDGE_CONSUME_ROUTE: &str =
+    "antecedent.composition.consume_portable_bridge_bundle_recomputation";
+const CYCLIC_COMPILE_ROUTE: &str =
+    "antecedent.composition.compile_cyclic_posterior_bundle_recomputation";
+const CYCLIC_CONSUME_ROUTE: &str =
+    "antecedent.composition.consume_portable_cyclic_posterior_bundle_recomputation";
+const CYCLIC_NODE_COMPILE_ROUTE: &str =
+    "antecedent.composition.compile_cyclic_posterior_node_bundle_recomputation";
+const CYCLIC_NODE_CONSUME_ROUTE: &str =
+    "antecedent.composition.consume_portable_cyclic_posterior_node_bundle_recomputation";
+const TRIAL_IPW_NODE_COMPILE_ROUTE: &str =
+    "antecedent.composition.compile_trial_ipw_node_bundle_recomputation";
+const TRIAL_IPW_NODE_CONSUME_ROUTE: &str =
+    "antecedent.composition.consume_portable_trial_ipw_node_bundle_recomputation";
+const GRAPH_TRANSPORT_NODE_COMPILE_ROUTE: &str =
+    "antecedent.composition.compile_graph_imputation_transport_node_bundle_recomputation";
+const GRAPH_TRANSPORT_NODE_CONSUME_ROUTE: &str =
+    "antecedent.composition.consume_portable_graph_imputation_transport_node_bundle_recomputation";
+const JOINT_EFFECT_NODE_COMPILE_ROUTE: &str =
+    "antecedent.composition.compile_joint_transport_effect_node_bundle_recomputation";
+const JOINT_EFFECT_NODE_CONSUME_ROUTE: &str =
+    "antecedent.composition.consume_portable_joint_transport_effect_node_bundle_recomputation";
+const PREDICTIVE_CONSUME_ROUTE: &str =
+    "antecedent.composition.consume_portable_predictive_fit_decision_bundle";
+
+/// Refuse a native-fit bundle entry point while the bundle unit is not supported.
+fn require_bundle_route(
+    ctx: &ExecutionContext,
+    route: &'static str,
+) -> Result<(), antecedent_core::NotSupported> {
+    require_capability_route(ctx, BUNDLE_CAPABILITY, route)
+}
+
 const BRIDGE_BUNDLE_FEATURE: &str = "bridge_bundle_recomputation_portable_v1";
 
 /// Fully embedded bundle with a live predictive scientific bridge terminal.
@@ -937,6 +977,9 @@ pub enum BridgeBundleRecomputeError {
     /// Embedded node, source or fresh result differs.
     #[error("bridge bundle recomputation: {0}")]
     Invalid(&'static str),
+    /// A release build refuses the route while its capability unit is not supported.
+    #[error("bridge bundle recomputation: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -965,6 +1008,7 @@ pub fn compile_bridge_bundle_recomputation(
     source: DistributionArtifact,
     seed: u64,
 ) -> Result<CompiledBridgeBundleRecomputation, BridgeBundleRecomputeError> {
+    require_capability_route_unscoped(BUNDLE_CAPABILITY, BRIDGE_COMPILE_ROUTE)?;
     let node = bundle
         .nodes()
         .iter()
@@ -1035,7 +1079,7 @@ pub fn compile_bridge_bundle_recomputation(
         identifier: None,
         estimator: None,
         realization: Realization::DeclaredPredictive {
-            evaluator: Arc::from("scientific_bridge.bundle_terminal"),
+            evaluator: Arc::from("bridge_bundle.live_predictive_terminal"),
         },
         models: Arc::from([]),
         folds: None,
@@ -1121,6 +1165,7 @@ impl CompiledBridgeBundleRecomputation {
         ctx: &ExecutionContext,
     ) -> Result<BridgeBundleRecomputationReceipt, BridgeBundleRecomputeError> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
+        require_bundle_route(&scoped, BRIDGE_COMPILE_ROUTE)?;
         if scoped.cancellation.is_cancelled() {
             return Err(BridgeBundleRecomputeError::Invalid(
                 "bridge bundle execution was cancelled",
@@ -1213,6 +1258,7 @@ pub fn consume_portable_bridge_bundle_recomputation(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<BridgeBundleRecomputationReceipt, BridgeBundleRecomputeError> {
+    require_bundle_route(ctx, BRIDGE_CONSUME_ROUTE)?;
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(BridgeBundleRecomputeError::Invalid(
             "portable bridge bundle exceeds its byte bound",
@@ -1416,42 +1462,77 @@ impl NodeVerifier for CyclicPosteriorFitVerifier {
 /// Other embedded artifacts retain their usual independent verifiers.
 #[must_use]
 pub fn cyclic_posterior_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
-    native_fit_bundle_consumer(ctx)
+    gated_native_fit_consumer(ctx, CYCLIC_NODE_CONSUME_ROUTE)
 }
 
 /// Consumer with the current native fitted-node verifiers. Each verifier
 /// recompiles from the embedded portable evidence under the supplied context.
 #[must_use]
 pub fn native_fit_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
-    standard_consumer()
-        .register(Box::new(CyclicPosteriorFitVerifier { ctx: ctx.clone() }))
-        .register(Box::new(TrialIpwFitVerifier { ctx: ctx.clone() }))
-        .register(Box::new(GraphImputationTransportFitVerifier { ctx: ctx.clone() }))
-        .register(Box::new(JointTransportEffectFitVerifier { ctx: ctx.clone() }))
-        .register(Box::new(PredictiveFitVerifier {
-            ctx: ctx.clone(),
-            kind: PredictiveFitKind::Joint,
+    gated_native_fit_consumer(ctx, PREDICTIVE_CONSUME_ROUTE)
+}
+
+/// Every verifier that recompiles a native node from its embedded portable evidence under `ctx`.
+fn native_fit_verifiers(ctx: &ExecutionContext) -> Vec<Box<dyn NodeVerifier>> {
+    let predictive = |kind| -> Box<dyn NodeVerifier> {
+        Box::new(PredictiveFitVerifier { ctx: ctx.clone(), kind })
+    };
+    vec![
+        Box::new(CyclicPosteriorFitVerifier { ctx: ctx.clone() }),
+        Box::new(TrialIpwFitVerifier { ctx: ctx.clone() }),
+        Box::new(GraphImputationTransportFitVerifier { ctx: ctx.clone() }),
+        Box::new(JointTransportEffectFitVerifier { ctx: ctx.clone() }),
+        predictive(PredictiveFitKind::Joint),
+        predictive(PredictiveFitKind::Trial),
+        predictive(PredictiveFitKind::Cyclic),
+        predictive(PredictiveFitKind::Graph),
+        predictive(PredictiveFitKind::Bridge),
+        Box::new(PredictiveTerminalVerifier { ctx: ctx.clone() }),
+        Box::new(sequential_live::SequentialFitVerifier { ctx: ctx.clone() }),
+        Box::new(sequential_live::SequentialDrawsVerifier),
+        Box::new(sequential_live::SequentialDiagnosticVerifier { ctx: ctx.clone() }),
+    ]
+}
+
+/// The native-fit consumer a compiled bundle uses after its entry point passed the support gate.
+fn native_fit_consumer(ctx: &ExecutionContext) -> BundleConsumer {
+    native_fit_verifiers(ctx).into_iter().fold(standard_consumer(), BundleConsumer::register)
+}
+
+/// The native-fit consumer handed out by the public entry point `route`. While the bundle unit
+/// is not supported, a release build registers in place of each native verifier one that fails
+/// its node with the `not_supported` refusal, so no native node is refitted or verified.
+fn gated_native_fit_consumer(ctx: &ExecutionContext, route: &'static str) -> BundleConsumer {
+    let Err(refusal) = require_bundle_route(ctx, route) else {
+        return native_fit_consumer(ctx);
+    };
+    native_fit_verifiers(ctx).into_iter().fold(standard_consumer(), |consumer, verifier| {
+        consumer.register(Box::new(NotSupportedVerifier {
+            kind: verifier.kind(),
+            reason: refusal.to_string(),
         }))
-        .register(Box::new(PredictiveFitVerifier {
-            ctx: ctx.clone(),
-            kind: PredictiveFitKind::Trial,
-        }))
-        .register(Box::new(PredictiveFitVerifier {
-            ctx: ctx.clone(),
-            kind: PredictiveFitKind::Cyclic,
-        }))
-        .register(Box::new(PredictiveFitVerifier {
-            ctx: ctx.clone(),
-            kind: PredictiveFitKind::Graph,
-        }))
-        .register(Box::new(PredictiveFitVerifier {
-            ctx: ctx.clone(),
-            kind: PredictiveFitKind::Bridge,
-        }))
-        .register(Box::new(PredictiveTerminalVerifier { ctx: ctx.clone() }))
-        .register(Box::new(sequential_live::SequentialFitVerifier { ctx: ctx.clone() }))
-        .register(Box::new(sequential_live::SequentialDrawsVerifier))
-        .register(Box::new(sequential_live::SequentialDiagnosticVerifier { ctx: ctx.clone() }))
+    })
+}
+
+/// Fails every node of its kind with the `not_supported` refusal of a release build.
+struct NotSupportedVerifier {
+    kind: NodeKind,
+    reason: String,
+}
+
+impl NodeVerifier for NotSupportedVerifier {
+    fn kind(&self) -> NodeKind {
+        self.kind
+    }
+
+    fn verify(
+        &self,
+        _node_id: &str,
+        _bytes: &[u8],
+        _upstream: &[UpstreamNode<'_>],
+    ) -> Result<VerifiedNode, NodeFailure> {
+        Err(NodeFailure { stage: BundleStage::UnknownNodeKind, reason: self.reason.clone() })
+    }
 }
 
 /// A bundle terminal backed by a cyclic posterior fit. The producer artifact
@@ -1488,6 +1569,9 @@ pub enum CyclicPosteriorBundleError {
     /// The portable artifact or its bindings differed.
     #[error("cyclic posterior bundle: {0}")]
     Invalid(&'static str),
+    /// A release build refuses the route while its capability unit is not supported.
+    #[error("cyclic posterior bundle: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1519,6 +1603,7 @@ pub fn compile_cyclic_posterior_bundle_recomputation(
     producer_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<CompiledCyclicPosteriorBundleRecomputation, CyclicPosteriorBundleError> {
+    require_bundle_route(ctx, CYCLIC_COMPILE_ROUTE)?;
     if producer_artifact.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(CyclicPosteriorBundleError::Invalid("producer artifact exceeds its bound"));
     }
@@ -1680,6 +1765,7 @@ pub fn consume_portable_cyclic_posterior_bundle_recomputation(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
+    require_bundle_route(ctx, CYCLIC_CONSUME_ROUTE)?;
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(CyclicPosteriorBundleError::Invalid("portable bundle exceeds its bound"));
     }
@@ -1751,6 +1837,7 @@ pub fn compile_cyclic_posterior_node_bundle_recomputation(
     terminal_node: &str,
     ctx: &ExecutionContext,
 ) -> Result<CompiledCyclicPosteriorNodeBundle, CyclicPosteriorBundleError> {
+    require_bundle_route(ctx, CYCLIC_NODE_COMPILE_ROUTE)?;
     if !bundle.edges().iter().any(|edge| edge.from == producer_node && edge.to == terminal_node) {
         return Err(CyclicPosteriorBundleError::Invalid(
             "fit must be a direct terminal dependency",
@@ -1841,7 +1928,7 @@ impl CompiledCyclicPosteriorNodeBundle {
         let bundle = &self.inner.chain.bundle;
         let bytes = export_bundle(bundle, "cyclic-posterior-node-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = cyclic_posterior_bundle_consumer(&scoped)
+        let consumed = native_fit_consumer(&scoped)
             .consume(
                 &bytes,
                 &BundleLimits::default(),
@@ -1942,6 +2029,7 @@ pub fn consume_portable_cyclic_posterior_node_bundle_recomputation(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<CyclicPosteriorBundleReceipt, CyclicPosteriorBundleError> {
+    require_bundle_route(ctx, CYCLIC_NODE_CONSUME_ROUTE)?;
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(CyclicPosteriorBundleError::Invalid("portable node bundle exceeds its bound"));
     }
@@ -2051,7 +2139,7 @@ impl NodeVerifier for TrialIpwFitVerifier {
 /// It requires a runtime context; the generic consumer does not replay these nodes.
 #[must_use]
 pub fn trial_ipw_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
-    native_fit_bundle_consumer(ctx)
+    gated_native_fit_consumer(ctx, TRIAL_IPW_NODE_CONSUME_ROUTE)
 }
 
 /// Refusal of a trial-IPW fit node or compiler-owned bundle terminal.
@@ -2063,6 +2151,9 @@ pub enum TrialIpwBundleError {
     /// Invalid fit or terminal binding.
     #[error("trial IPW bundle: {0}")]
     Invalid(&'static str),
+    /// A release build refuses the route while its capability unit is not supported.
+    #[error("trial IPW bundle: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 /// A trial-IPW fit and live chain, compiled together before replay.
@@ -2110,6 +2201,7 @@ pub fn compile_trial_ipw_node_bundle_recomputation(
     terminal_node: &str,
     ctx: &ExecutionContext,
 ) -> Result<CompiledTrialIpwNodeBundle, TrialIpwBundleError> {
+    require_bundle_route(ctx, TRIAL_IPW_NODE_COMPILE_ROUTE)?;
     if !bundle.edges().iter().any(|edge| edge.from == producer_node && edge.to == terminal_node) {
         return Err(TrialIpwBundleError::Invalid("trial fit must be a direct terminal dependency"));
     }
@@ -2237,7 +2329,7 @@ impl CompiledTrialIpwNodeBundle {
         let bundle = &self.chain.bundle;
         let bytes = export_bundle(bundle, "trial-ipw-node-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = trial_ipw_bundle_consumer(&scoped)
+        let consumed = native_fit_consumer(&scoped)
             .consume(
                 &bytes,
                 &BundleLimits::default(),
@@ -2335,6 +2427,7 @@ pub fn consume_portable_trial_ipw_node_bundle_recomputation(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<TrialIpwNodeBundleReceipt, TrialIpwBundleError> {
+    require_bundle_route(ctx, TRIAL_IPW_NODE_CONSUME_ROUTE)?;
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(TrialIpwBundleError::Invalid("portable trial bundle exceeds its bound"));
     }
@@ -2449,7 +2542,7 @@ impl NodeVerifier for GraphImputationTransportFitVerifier {
 /// It requires a runtime context; the generic consumer does not replay these nodes.
 #[must_use]
 pub fn graph_imputation_transport_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
-    native_fit_bundle_consumer(ctx)
+    gated_native_fit_consumer(ctx, GRAPH_TRANSPORT_NODE_CONSUME_ROUTE)
 }
 
 /// Refusal of a graph-imputation transport fit node or compiler-owned bundle terminal.
@@ -2461,6 +2554,9 @@ pub enum GraphImputationTransportBundleError {
     /// Invalid fit or terminal binding.
     #[error("graph-imputation transport bundle: {0}")]
     Invalid(&'static str),
+    /// A release build refuses the route while its capability unit is not supported.
+    #[error("graph-imputation transport bundle: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 /// A graph-imputation transport fit and live chain, compiled together before replay.
@@ -2509,6 +2605,7 @@ pub fn compile_graph_imputation_transport_node_bundle_recomputation(
     terminal_node: &str,
     ctx: &ExecutionContext,
 ) -> Result<CompiledGraphImputationTransportNodeBundle, GraphImputationTransportBundleError> {
+    require_bundle_route(ctx, GRAPH_TRANSPORT_NODE_COMPILE_ROUTE)?;
     if !bundle.edges().iter().any(|edge| edge.from == producer_node && edge.to == terminal_node) {
         return Err(GraphImputationTransportBundleError::Invalid(
             "graph transport fit must be a direct terminal dependency",
@@ -2649,7 +2746,7 @@ impl CompiledGraphImputationTransportNodeBundle {
         let bundle = &self.chain.bundle;
         let bytes = export_bundle(bundle, "graph-transport-node-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = graph_imputation_transport_bundle_consumer(&scoped)
+        let consumed = native_fit_consumer(&scoped)
             .consume(
                 &bytes,
                 &BundleLimits::default(),
@@ -2757,6 +2854,7 @@ pub fn consume_portable_graph_imputation_transport_node_bundle_recomputation(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<GraphImputationTransportNodeBundleReceipt, GraphImputationTransportBundleError> {
+    require_bundle_route(ctx, GRAPH_TRANSPORT_NODE_CONSUME_ROUTE)?;
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(GraphImputationTransportBundleError::Invalid(
             "portable graph transport bundle exceeds its bound",
@@ -2879,7 +2977,7 @@ impl NodeVerifier for JointTransportEffectFitVerifier {
 /// It requires a runtime context; the generic consumer does not replay these nodes.
 #[must_use]
 pub fn joint_transport_effect_bundle_consumer(ctx: &ExecutionContext) -> BundleConsumer {
-    native_fit_bundle_consumer(ctx)
+    gated_native_fit_consumer(ctx, JOINT_EFFECT_NODE_CONSUME_ROUTE)
 }
 
 /// Refusal of a joint transport effect fit node or compiler-owned bundle terminal.
@@ -2891,6 +2989,9 @@ pub enum JointTransportEffectBundleError {
     /// Invalid fit or terminal binding.
     #[error("joint transport effect bundle: {0}")]
     Invalid(&'static str),
+    /// A release build refuses the route while its capability unit is not supported.
+    #[error("joint transport effect bundle: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 /// A joint transport effect fit and live chain, compiled together before replay.
@@ -2939,6 +3040,7 @@ pub fn compile_joint_transport_effect_node_bundle_recomputation(
     terminal_node: &str,
     ctx: &ExecutionContext,
 ) -> Result<CompiledJointTransportEffectNodeBundle, JointTransportEffectBundleError> {
+    require_bundle_route(ctx, JOINT_EFFECT_NODE_COMPILE_ROUTE)?;
     if !bundle.edges().iter().any(|edge| edge.from == producer_node && edge.to == terminal_node) {
         return Err(JointTransportEffectBundleError::Invalid(
             "joint transport effect fit must be a direct terminal dependency",
@@ -3077,7 +3179,7 @@ impl CompiledJointTransportEffectNodeBundle {
         let bundle = &self.chain.bundle;
         let bytes = export_bundle(bundle, "joint-transport-effect-node-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = joint_transport_effect_bundle_consumer(&scoped)
+        let consumed = native_fit_consumer(&scoped)
             .consume(
                 &bytes,
                 &BundleLimits::default(),
@@ -3188,6 +3290,7 @@ pub fn consume_portable_joint_transport_effect_node_bundle_recomputation(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<JointTransportEffectNodeBundleReceipt, JointTransportEffectBundleError> {
+    require_bundle_route(ctx, JOINT_EFFECT_NODE_CONSUME_ROUTE)?;
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(JointTransportEffectBundleError::Invalid(
             "portable joint transport effect bundle exceeds its bound",
@@ -3262,6 +3365,26 @@ impl PredictiveFitKind {
             Self::Cyclic => ProgramCell::CyclicTargetFeedbackNodeDecisionBundleRecomputation,
             Self::Graph => ProgramCell::GraphImputationPredictiveNodeDecisionBundleRecomputation,
             Self::Bridge => ProgramCell::AssessedBridgePosteriorNodeDecisionBundleRecomputation,
+        }
+    }
+    // The public compile entry point of each kind, named in its support refusal.
+    fn route(self) -> &'static str {
+        match self {
+            Self::Joint => {
+                "antecedent.composition.compile_joint_transport_predictive_node_decision_bundle"
+            }
+            Self::Trial => {
+                "antecedent.composition.compile_trial_ipw_predictive_node_decision_bundle"
+            }
+            Self::Cyclic => {
+                "antecedent.composition.compile_cyclic_target_feedback_node_decision_bundle"
+            }
+            Self::Graph => {
+                "antecedent.composition.compile_graph_imputation_predictive_node_decision_bundle"
+            }
+            Self::Bridge => {
+                "antecedent.composition.compile_assessed_bridge_posterior_node_decision_bundle"
+            }
         }
     }
     fn name(self) -> &'static str {
@@ -3418,6 +3541,9 @@ pub enum PredictiveFitDecisionBundleError {
     /// A declared bound or binding check failed.
     #[error("predictive fit decision bundle: {0}")]
     Invalid(&'static str),
+    /// A release build refuses the route while its capability unit is not supported.
+    #[error("predictive fit decision bundle: {0}")]
+    NotSupported(#[from] antecedent_core::NotSupported),
 }
 
 impl BundleBuilder {
@@ -3616,6 +3742,7 @@ fn compile_predictive_fit_decision_bundle(
     ctx: &ExecutionContext,
     kind: PredictiveFitKind,
 ) -> Result<CompiledPredictiveFitDecisionBundle, PredictiveFitDecisionBundleError> {
+    require_bundle_route(ctx, kind.route())?;
     for (from, to) in [(producer, chain_id), (chain_id, terminal)] {
         if !bundle.edges().iter().any(|edge| edge.from == from && edge.to == to) {
             return Err(PredictiveFitDecisionBundleError::Invalid(
@@ -3893,7 +4020,7 @@ impl CompiledPredictiveFitDecisionBundle {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let bytes = export_bundle(&self.bundle, "predictive-fit-decision-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = native_fit_bundle_consumer(&scoped)
+        let consumed = native_fit_consumer(&scoped)
             .consume(
                 &bytes,
                 &BundleLimits::default(),
@@ -3991,6 +4118,7 @@ pub fn consume_portable_predictive_fit_decision_bundle(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<PredictiveFitDecisionBundleReceipt, PredictiveFitDecisionBundleError> {
+    require_bundle_route(ctx, PREDICTIVE_CONSUME_ROUTE)?;
     if bytes.len() > MAX_BUNDLE_RECOMPUTE_BYTES {
         return Err(PredictiveFitDecisionBundleError::Invalid("portable bundle exceeds bound"));
     }

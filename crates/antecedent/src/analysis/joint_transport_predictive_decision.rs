@@ -827,7 +827,6 @@ mod tests {
     };
 
     #[test]
-    #[ignore = "source-only predictive-route assertion; no build or scientific record earned"]
     #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     fn paired_target_outcomes_replay_with_a_shared_baseline() {
         let treatment = VariableId::from_raw(0);

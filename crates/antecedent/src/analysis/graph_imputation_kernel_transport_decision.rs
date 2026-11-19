@@ -1071,7 +1071,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "source-only bootstrap selector fixture"]
     fn pooled_selector_reaches_later_imputations() {
         let mut state = antecedent_core::execution::mix64(7 ^ 0x4452_4157_5f56_3201);
         let indices: Vec<_> = (0..40).map(|_| bootstrap_pool_index(&mut state, 200)).collect();
@@ -1085,7 +1084,6 @@ mod tests {
     };
 
     #[test]
-    #[ignore = "source-only mixed target route; whole-route reliability is unearned"]
     #[allow(
         clippy::too_many_lines,
         reason = "one linear sequence of steps that reads top to bottom"
@@ -1315,7 +1313,6 @@ mod tests {
         assert_eq!(sampled.decision.decision, replay.decision.decision);
     }
     #[test]
-    #[ignore = "source-only confounded mixed target route; reliability unearned"]
     #[allow(
         clippy::too_many_lines,
         reason = "one linear sequence of steps that reads top to bottom"

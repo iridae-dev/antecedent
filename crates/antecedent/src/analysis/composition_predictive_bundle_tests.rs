@@ -177,7 +177,6 @@ fn check(
 }
 
 #[test]
-#[ignore = "source-only trial predictive bundle; no calibration earned"]
 fn trial_predictive_fit_chain_and_decision_replay() {
     let (diagram, query, worlds, decision) = fixture();
     let rows = TrialIpwRows {
@@ -250,7 +249,6 @@ fn trial_predictive_fit_chain_and_decision_replay() {
 }
 
 #[test]
-#[ignore = "source-only joint predictive bundle; no calibration earned"]
 fn joint_predictive_fit_chain_and_decision_replay() {
     let (diagram, query, worlds, decision) = fixture();
     let rows = 40;
@@ -314,7 +312,6 @@ fn joint_predictive_fit_chain_and_decision_replay() {
 }
 
 #[test]
-#[ignore = "source-only graph predictive bundle; no calibration earned"]
 fn graph_predictive_fit_chain_and_decision_replay() {
     use crate::analysis::graph_imputation::{CompiledGraphImputation, GraphImputationSpec};
     use crate::analysis::graph_imputation_effect_decision::compile_graph_imputation_bernoulli_predictive_world_decision;
@@ -414,7 +411,6 @@ fn graph_predictive_fit_chain_and_decision_replay() {
 }
 
 #[test]
-#[ignore = "source-only target feedback bundle; no calibration earned"]
 fn cyclic_target_feedback_fit_chain_and_decision_replay() {
     use crate::analysis::cyclic_target_feedback_decision::{
         compile_cyclic_target_feedback_decision, tests::fixture,

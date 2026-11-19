@@ -1097,6 +1097,306 @@ provider_trust = "external mean decisions are point-only attested and never upgr
 exact_request_verification = "reference_node_provider_request_fingerprint_compared_exactly_never_replayed"
 
 [[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_chain_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.chain_recomputation_live_terminal.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A propagation chain with one sampling source of draws 1, 2 and 3 and one derived stage 2 x source, executed and sealed, embedded as the only node of a bundle; the caller retains the chain declaration."
+expected_values = "The compiled program's route is BundleRecomputation; execution replays the embedded dependency through its artifact consumer, reruns the retained chain and reports a live terminal identity equal to the sealed chain's identity, with exactly one dependency in the receipt."
+tolerance = "exact equality for identities, receipts and the dependency count"
+calibration = "point_only_no_interval; the receipt records a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.chain_recomputation_portable_replay.artifact"
+provider_trust = "native_computation_only; every dependency is embedded and passes its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_chain_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.chain_recomputation_live_terminal.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The portable recomputation artifact of the same one-node chain bundle, with the bundle identity and the compiled program identity retained independently of the bytes."
+expected_values = "The consumer rebuilds the bundle under the retained identity, recompiles the chain from the embedded declaration and the outer program under the retained program identity, and replays a live receipt equal to the exported one."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.chain_recomputation_portable_replay.artifact"
+provider_trust = "native_computation_only; the terminal and every dependency are rebuilt from the embedded bytes, never from a supplied provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_bridge_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.bridge_recomputation_live_terminal.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A bundle of a 64-draw posterior-predictive source distribution and the affine predictive bridge (intercept 0.5, slope 2) derived from it with seed 41, connected source to terminal; the caller retains the bridge contract, the source and the seed."
+expected_values = "The compiled program's route is BridgeBundleRecomputation; execution replays every embedded dependency through its consumer and derives the bridge from the bound contract, source and seed, with a live terminal identity equal to the independently derived bridge artifact's."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.bridge_recomputation_portable_replay.artifact"
+provider_trust = "native_computation_only; the bridge terminal is rederived from the bound source and every dependency passes its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_bridge_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.bridge_recomputation_live_terminal.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The portable recomputation artifact of the same bundle, with the bundle identity and the compiled program identity retained independently of the bytes."
+expected_values = "The consumer rebuilds the bundle under the retained identity, recompiles the bridge terminal from its consumed artifact and the outer program under the retained program identity, and replays a receipt equal to the exported one."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.bridge_recomputation_portable_replay.artifact"
+provider_trust = "native_computation_only; the bridge terminal is rederived from the bound source and every dependency passes its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_cyclic_posterior_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.cyclic_posterior_refit_terminal.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A cyclic posterior action decision fitted from 260 intervention-labelled training rows (two chains, 300 warmup and 300 draws), its portable producer artifact and program identity, and a bundle whose only node is the producer's embedded chain terminal."
+expected_values = "The compiled program's route is CyclicPosteriorBundleRecomputation and binds the bundle, the producer artifact and program and the terminal before execution; execution refits the producer from its raw evidence and its chain identity equals the embedded terminal's; a changed producer artifact and a changed bundle identity are refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.cyclic_posterior_portable_replay.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_cyclic_posterior_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.cyclic_posterior_refit_terminal.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The portable recomputation artifact of the same bundle, with the bundle identity and the compiled program identity retained independently of the bytes."
+expected_values = "The consumer rebuilds the bundle under the retained identity, recompiles the outer program under the retained program identity, refits the producer and replays a receipt equal to the exported one; a changed bundle identity is refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.cyclic_posterior_portable_replay.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_cyclic_posterior_node_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.cyclic_posterior_node_refit.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The same cyclic posterior producer embedded as a fit node with its replay seed and connected to its embedded chain terminal."
+expected_values = "The compiled program binds the bundle, the producer and the terminal before execution; execution refits the producer from its embedded raw evidence and the live chain identity equals the embedded terminal's; a corrupted producer, a missing fit-to-terminal edge and a changed bundle identity are refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.cyclic_posterior_node_portable_replay.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_cyclic_posterior_node_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.cyclic_posterior_node_refit.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The portable recomputation artifact of the same bundle, with the bundle identity and the compiled program identity retained independently of the bytes."
+expected_values = "The consumer rebuilds the bundle under the retained identity, recompiles the outer program under the retained program identity, refits the producer and replays a receipt equal to the exported one; a changed bundle identity is refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.cyclic_posterior_node_portable_replay.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_trial_ipw_node_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.trial_ipw_node_refit.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "An 80-row trial-to-target IPW Bayesian-bootstrap effect decision (100 draws, selection and assignment probabilities one half) embedded as a fit node and connected to its embedded chain terminal."
+expected_values = "The compiled program binds the bundle, the producer and the terminal before execution; execution refits the producer from its embedded raw evidence and the live chain identity equals the embedded terminal's; a corrupted producer, a missing fit-to-terminal edge and a changed bundle identity are refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.trial_ipw_node_portable_replay.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_trial_ipw_node_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.trial_ipw_node_refit.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The portable recomputation artifact of the same bundle, with the bundle identity and the compiled program identity retained independently of the bytes."
+expected_values = "The consumer rebuilds the bundle under the retained identity, recompiles the outer program under the retained program identity, refits the producer and replays a receipt equal to the exported one; a changed bundle identity is refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.trial_ipw_node_portable_replay.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_graph_imputation_transport_node_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.graph_imputation_transport_node_refit.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "An 80-row graph-selection imputation source with missing outcomes standardized to an independent target frame, embedded as a fit node and connected to its embedded chain terminal."
+expected_values = "The compiled program binds the bundle, the producer and the terminal before execution; execution refits the producer from its embedded raw evidence and the live chain identity equals the embedded terminal's; a corrupted producer, a missing fit-to-terminal edge and a changed bundle identity are refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.graph_imputation_transport_node_portable_replay.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_graph_imputation_transport_node_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.graph_imputation_transport_node_refit.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The portable recomputation artifact of the same bundle, with the bundle identity and the compiled program identity retained independently of the bytes."
+expected_values = "The consumer rebuilds the bundle under the retained identity, recompiles the outer program under the retained program identity, refits the producer and replays a receipt equal to the exported one; a changed bundle identity is refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.graph_imputation_transport_node_portable_replay.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_joint_transport_effect_node_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.joint_transport_effect_node_refit.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A conjugate joint source-target transport effect decision (1024 draws) embedded as a fit node and connected to its embedded chain terminal."
+expected_values = "The compiled program binds the bundle, the producer and the terminal before execution; execution refits the producer from its embedded raw evidence and the live chain identity equals the embedded terminal's; a corrupted producer, a missing fit-to-terminal edge and a changed bundle identity are refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.joint_transport_effect_node_portable_replay.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_joint_transport_effect_node_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.joint_transport_effect_node_refit.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The portable recomputation artifact of the same bundle, with the bundle identity and the compiled program identity retained independently of the bytes."
+expected_values = "The consumer rebuilds the bundle under the retained identity, recompiles the outer program under the retained program identity, refits the producer and replays a receipt equal to the exported one; a changed bundle identity is refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.joint_transport_effect_node_portable_replay.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_joint_transport_predictive_node_decision_bundle"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.joint_transport_predictive_decision_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A conjugate joint source-target transport predictive decision fitted on 40 source rows with 1024 draws, embedded as a predictive fit node and connected to its predictive chain and its executable chain-decision terminal."
+expected_values = "The compiled program binds the fit, chain and decision nodes and both dependency edges before execution; execution refits the producer from its embedded raw evidence and reports the producer's chain identity; unconnected nodes and a corrupted producer are refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.joint_transport_predictive_decision_bundle.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_trial_ipw_predictive_node_decision_bundle"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.trial_ipw_predictive_decision_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A trial-to-target IPW Bayesian-bootstrap predictive decision fitted on 80 trial and target rows, embedded as a predictive fit node and connected to its predictive chain and its executable chain-decision terminal."
+expected_values = "The compiled program binds the fit, chain and decision nodes and both dependency edges before execution; execution refits the producer from its embedded raw evidence and reports the producer's chain identity; unconnected nodes and a corrupted producer are refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.trial_ipw_predictive_decision_bundle.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_cyclic_target_feedback_node_decision_bundle"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.cyclic_target_feedback_decision_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A cyclic target-feedback posterior decision standardized to a two-row target baseline frame, embedded as a predictive fit node and connected to its predictive chain and its executable chain-decision terminal."
+expected_values = "The compiled program binds the fit, chain and decision nodes and both dependency edges before execution; execution refits the producer from its embedded raw evidence and reports the producer's chain identity; unconnected nodes and a corrupted producer are refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.cyclic_target_feedback_decision_bundle.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_graph_imputation_predictive_node_decision_bundle"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.graph_imputation_predictive_decision_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A Bernoulli graph-imputation predictive world decision over 96 rows with missing binary outcomes, embedded as a predictive fit node and connected to its predictive chain and its executable chain-decision terminal."
+expected_values = "The compiled program binds the fit, chain and decision nodes and both dependency edges before execution; execution refits the producer from its embedded raw evidence and reports the producer's chain identity; unconnected nodes and a corrupted producer are refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.graph_imputation_predictive_decision_bundle.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_assessed_bridge_posterior_node_decision_bundle"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.assessed_bridge_posterior_decision_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A assessed bridge target-posterior predictive decision from twenty source and twenty target validation trials and a 64-draw weighted source, embedded as a predictive fit node and connected to its predictive chain and its executable chain-decision terminal."
+expected_values = "The compiled program binds the fit, chain and decision nodes and both dependency edges before execution; execution refits the producer from its embedded raw evidence and reports the producer's chain identity; unconnected nodes and a corrupted producer are refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.assessed_bridge_posterior_decision_bundle.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_predictive_fit_decision_bundle"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.joint_transport_predictive_decision_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The portable predictive fit decision artifacts of the joint transport, trial IPW, cyclic target-feedback, Bernoulli graph-imputation and assessed bridge posterior bundles, each with its bundle identity and compiled program identity retained independently of the bytes."
+expected_values = "The consumer rebuilds each bundle under the retained identity, recompiles the predictive node-decision program of the fit node's kind under the retained program identity, refits the producer through the native fit consumer and replays a receipt equal to the exported one; a changed bundle identity is refused."
+tolerance = "exact equality for identities and receipts"
+calibration = "point_only_no_interval; the receipt records a refit and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.joint_transport_predictive_decision_bundle.artifact"
+provider_trust = "native_computation_only; every fitted dependency is refitted from its embedded raw evidence by its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "composition.verifiers"
 route = "antecedent.composition_bundle.consume_bundle"
 algorithm_provenance = ["provenance/composition.verifiers.toml"]
@@ -10465,6 +10765,51 @@ provider_trust = "native_computation_only; no external provider value is consume
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
+id = "estimate.observational_policy_value"
+route = "antecedent.policy.consume_compiled_observational_policy"
+algorithm_provenance = ["provenance/estimate.observational_policy_value.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "estimate.observational_policy_value.graph_checked_compiler.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Compiled held-out learned and graph-checked policy programs over one request, their executed reports and replay artifacts, and a context with a different split seed."
+expected_values = "The independent consumer recompiles the program under the retained identity, reruns the split and returns a report equal to the executed one; a different split seed without a retained identity is refused."
+tolerance = "exact equality for reports and identities"
+calibration = "point_only_no_interval; the replay adds no interval or coverage claim"
+artifact_consumer_fixture = "estimate.observational_policy_value.compiled_replay.artifact"
+provider_trust = "native_computation_only; no external provider value is consumed"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "estimate.observational_policy_value"
+route = "antecedent.policy.compile_policy_subsampling"
+algorithm_provenance = ["provenance/estimate.observational_policy_value.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "estimate.observational_policy_value.policy_subsampling_schedule.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A 300-row graph-checked request in which the confounder z drives assignment and the outcome, w enters only the nuisance models and the cross-fitted policy reads z, with a 150-row, one-hundred-replicate full-refit subsampling schedule under split seed 2."
+expected_values = "The compiled program's route is PolicySubsampling; execution scores all 300 rows, every replicate refits the cross-fitted policy on its subsample, and the basic interval has lower <= upper, its slot's calibration status and the method cross_fitted_policy_subsampling_basic_v1; a subsample of every row and 99 replicates are refused at compilation."
+tolerance = "exact equality for identities, reports and intervals"
+calibration = "point_only_no_interval; the subsampling interval is a not_measured calibration candidate and no coverage record is allocated"
+artifact_consumer_fixture = "estimate.observational_policy_value.policy_subsampling_replay.artifact"
+provider_trust = "native_computation_only; no external provider value is consumed"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "estimate.observational_policy_value"
+route = "antecedent.policy.consume_policy_subsampling"
+algorithm_provenance = ["provenance/estimate.observational_policy_value.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "estimate.observational_policy_value.policy_subsampling_schedule.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The subsampling artifact of the same schedule with its program identity retained independently, a context under another split seed, and the identity of a second schedule with 120-row subsamples."
+expected_values = "The independent consumer recompiles the policy and the schedule under the retained identity, refits every subsample and returns a report and interval equal to the executed ones; another split seed and another schedule identity are refused."
+tolerance = "exact equality for identities, reports and intervals"
+calibration = "point_only_no_interval; the subsampling interval is a not_measured calibration candidate and no coverage record is allocated"
+artifact_consumer_fixture = "estimate.observational_policy_value.policy_subsampling_replay.artifact"
+provider_trust = "native_computation_only; no external provider value is consumed"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "gcm.model.graph_falsification"
 route = "antecedent.gcm.evaluate_graph"
 algorithm_provenance = ["provenance/gcm.model.graph_falsification.toml"]
@@ -10904,6 +11249,51 @@ tolerance = "exact refusal code"
 calibration = "exact_or_point_only_no_interval"
 artifact_consumer_fixture = "observation_query.finite_law_conditioning.replay_and_round_trip.artifact"
 provider_trust = "native_computation_only; declared tables carry their owner fit or binding identity, which this route does not verify"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "observation_query.finite_law_conditioning"
+route = "antecedent.observation_query.PreparedMechanismComposition.compile_joint_measured_observation"
+algorithm_provenance = ["provenance/observation_query.finite_law_conditioning.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "observation_query.finite_law_conditioning.joint_measured_indicators.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Construct C with prevalence 0.1 and P(Y=1 | C) = 0.1, 0.7; two recorded indicators of C, conditionally independent given C, with sensitivities 0.9 and 0.7 and specificity 0.8, both observed positive."
+expected_values = "P(C=1, both positive) = 0.1 x 0.9 x 0.7 = 0.063 and P(C=0, both positive) = 0.9 x 0.2 x 0.2 = 0.036, so P(Y=1 | both positive) = (0.1 x 0.036 + 0.7 x 0.063) / 0.099; an unspecified dependence between the indicators is refused at compilation."
+tolerance = "absolute 1e-12 for hand-computed values; equality for replayed results"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "observation_query.finite_law_conditioning.joint_measured_replay.artifact"
+provider_trust = "native_computation_only; declared measurement models carry their owner validation identity, which this route does not verify"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "observation_query.finite_law_conditioning"
+route = "antecedent.observation_query.PreparedMechanismComposition.compile_dependent_measured_observation"
+algorithm_provenance = ["provenance/observation_query.finite_law_conditioning.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "observation_query.finite_law_conditioning.dependent_indicator_errors.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Construct C with prevalence 0.1 and P(Y=1 | C) = 0.1, 0.7; a declared joint error table of indicators a and b given C, (0,0), (0,1), (1,0), (1,1) = 0.7, 0.1, 0.1, 0.1 under C=0 and 0.05, 0.05, 0.05, 0.85 under C=1; both observed positive."
+expected_values = "P(C=1 | a=1, b=1) = 0.1 x 0.85 / (0.9 x 0.1 + 0.1 x 0.85) = p and P(Y=1 | a=1, b=1) = 0.1 x (1 - p) + 0.7 x p; a table that is not normalized is refused at compilation."
+tolerance = "absolute 1e-12 for hand-computed values; equality for replayed results"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "observation_query.finite_law_conditioning.dependent_indicator_replay.artifact"
+provider_trust = "native_computation_only; declared measurement models carry their owner validation identity, which this route does not verify"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "observation_query.finite_law_conditioning"
+route = "antecedent.observation_query.JointMeasuredObservationPlan.consume"
+algorithm_provenance = ["provenance/observation_query.finite_law_conditioning.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "observation_query.finite_law_conditioning.joint_measured_indicators.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The joint measured claim exported as a version-3 artifact and the dependent-error claim exported as a version-4 artifact, each consumed by its compiled plan with the retained program identity."
+expected_values = "Each replay returns the stored result of its claim."
+tolerance = "equality for replayed results"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "observation_query.finite_law_conditioning.joint_measured_replay.artifact"
+provider_trust = "native_computation_only; declared measurement models carry their owner validation identity, which this route does not verify"
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]

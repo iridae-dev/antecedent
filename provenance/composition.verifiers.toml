@@ -33,7 +33,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
-rationale = "One node verifier per portable artifact kind: it dispatches to that artifact's own consumer, recomputes the identity from the decoded content and publishes the binding facts the bundle cross-checks. Scoped re-review compared each bound definition across both paths; only parent-visible access changed. Remaining artifact-inspection definitions were likewise compared across both paths and are unchanged apart from internal visibility."
+rationale = "One node verifier per portable artifact kind: it dispatches to that artifact's own consumer, recomputes the identity from the decoded content and publishes the binding facts the bundle cross-checks. A propagation chain is replayed by its record's own consumer; its node publishes the law meaning, joint-law meaning or assumption-envelope label and the counts of output draws, joint coordinates and rows, and enclosures as diagnostics, never the law fact a decision consumer requires."
 no_independent_algorithm = "Dispatch and fact extraction over other records' consumers (including inspect_inverse, which re-reads an inverse-query artifact); the module has no square root, logarithm, exponential, power or solve."
 covered_by = ["composition.bundle", "decision.functional_inverse"]
 record_sha256 = "36f5a13d2fab0f30d14c18845293716d10b3296e00f65063d58312af5ec22be4"
@@ -54,7 +54,7 @@ sha256 = "d1d9ae46856b781ccd692ab1272810a1e3e443fe167503caf10e2e128c8cfb9d"
 role = "implementation"
 path = "crates/antecedent-design/src/composition_verifiers/replay_inspection.rs"
 items = ["fn bridge_failure", "fn chain_failure", "fn inspect_frozen_scores", "fn inspect_observation_query", "fn inspect_propagation_chain", "fn inspect_recalculation_receipt", "fn inspect_scientific_bridge", "fn observation_failure", "fn publish_draws", "fn push_draw_means"]
-sha256 = "ab0f1be9e12c5fcfd59c9acf68564e9016a8dc97153fd28f66536c0a8133970f"
+sha256 = "4cdd45554f74489169de2f101a60dc78d2d886d5f3cfba387aa974cd75f70c95"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

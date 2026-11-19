@@ -23,6 +23,293 @@ fixtures = []
 why = "A joint likelihood posterior over a cyclic feedback coefficient is paired with Gaussian disturbance draws, solved across two hard-clamp action worlds, evaluated by the multi-action decision compiler, and independently replayed. The source assertion is unearned."
 
 [[test]]
+evidence_test = "crates/antecedent/src/analysis/bridge_transport_premise_assessment.rs"
+evidence_assertion = "independent_target_trials_replay_the_bridge_discrepancy"
+kind = "known_truth"
+fixtures = []
+why = "Twenty source and twenty target validation trials share the surrogate-to-endpoint line 0.3 + 2x up to a planted target shift of 0.05; the compiled premise assessment passes its 0.2 equivalence screen on the prespecified surrogate grid, reports not_measured and is independently replayed. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/composition_cyclic_bundle_tests.rs"
+evidence_assertion = "cyclic_fit_reproduces_the_bundle_terminal_from_raw_evidence"
+kind = "posterior"
+fixtures = []
+why = "A cyclic feedback posterior (two chains of 300 warmup and 300 draws over 260 intervention-labelled rows) is refitted from its raw evidence by the bundle recomputation compiler and reproduces the embedded chain terminal; the portable artifact replays under independently retained bundle and program identities and a changed identity or producer artifact is refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/composition_cyclic_bundle_tests.rs"
+evidence_assertion = "embedded_fit_node_is_refitted_by_the_bundle_consumer"
+kind = "posterior"
+fixtures = []
+why = "An embedded cyclic posterior fit node is refitted from its raw evidence by the native bundle consumer; the node-bundle compiler requires the fit-to-terminal edge, executes a nested predictive fit and replays its portable receipt, and a corrupted producer and a changed bundle identity are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/composition_cyclic_bundle_tests.rs"
+evidence_assertion = "embedded_trial_fit_is_refitted_and_matches_the_live_chain"
+kind = "posterior"
+fixtures = []
+why = "An 80-row trial-to-target IPW Bayesian-bootstrap effect fit is embedded as a bundle node and refitted by the trial consumer; the node-bundle compiler's nested posterior fit reproduces the live chain terminal and replays portably, and a corrupted fit, a missing edge and a changed bundle identity are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/composition_cyclic_bundle_tests.rs"
+evidence_assertion = "embedded_graph_transport_fit_replays_raw_evidence_and_chain"
+kind = "posterior"
+fixtures = []
+why = "A graph-selection imputation transport fit with missing outcomes and an independent target frame is embedded as a bundle node and refitted from raw evidence by the native consumer; the node-bundle compiler reproduces the live chain terminal and replays its portable receipt, and corrupted, unconnected and misidentified bundles are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/composition_cyclic_bundle_tests.rs"
+evidence_assertion = "native_fit_consumer_replays_each_bound_seed_and_preserves_cancellation"
+kind = "posterior"
+fixtures = []
+why = "Two cyclic posterior fits produced under different seeds are refitted in one bundle under an unrelated caller context, each from its own bound replay seed; a changed bound seed fails the producer's seed check, a legacy seedless node replays only under its producing context, and a cancelled context fails the node at execution_cancelled. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/composition_joint_transport_bundle_tests.rs"
+evidence_assertion = "joint_transport_fit_node_refits_and_matches_live_chain"
+kind = "posterior"
+fixtures = []
+why = "A conjugate joint source-target transport effect fit (1024 draws) is embedded as a bundle node and refitted by the native consumer under another context; the node-bundle compiler's nested posterior fit reproduces the live chain terminal and replays portably, and corrupted, unconnected and misidentified bundles are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/composition_predictive_bundle_tests.rs"
+evidence_assertion = "trial_predictive_fit_chain_and_decision_replay"
+kind = "posterior"
+fixtures = []
+why = "A trial IPW predictive fit, its predictive chain and its chain decision form three connected bundle nodes; the predictive node-decision compiler refits the producer from raw rows, reproduces the chain identity and replays the portable receipt, refuses unconnected nodes, a changed identity and a corrupted producer, and fails execution when the fit node comes from changed rows. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/composition_predictive_bundle_tests.rs"
+evidence_assertion = "joint_predictive_fit_chain_and_decision_replay"
+kind = "posterior"
+fixtures = []
+why = "A conjugate joint transport predictive fit (1024 draws), its predictive chain and its chain decision form three connected bundle nodes; the predictive node-decision compiler refits the producer, reproduces the chain identity and replays the portable receipt, and unconnected nodes, a changed identity and a corrupted producer are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/composition_predictive_bundle_tests.rs"
+evidence_assertion = "graph_predictive_fit_chain_and_decision_replay"
+kind = "posterior"
+fixtures = []
+why = "A Bernoulli graph-imputation predictive world fit with missing binary outcomes, its predictive chain and its chain decision form three connected bundle nodes; the predictive node-decision compiler refits the producer, reproduces the chain identity and replays the portable receipt, and unconnected nodes, a changed identity and a corrupted producer are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/composition_predictive_bundle_tests.rs"
+evidence_assertion = "cyclic_target_feedback_fit_chain_and_decision_replay"
+kind = "posterior"
+fixtures = []
+why = "A cyclic target-feedback posterior fit, its predictive chain and its chain decision form three connected bundle nodes; the predictive node-decision compiler refits the producer, reproduces the chain identity and replays the portable receipt, and unconnected nodes, a changed identity and a corrupted producer are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/composition_sequential_bundle.rs"
+evidence_assertion = "producer_carrier_and_diagnostic_recompute_portably"
+kind = "reference"
+fixtures = []
+why = "A finite sequential policy-reliability rollout (128 rollouts), its aligned decision draws and its reliability diagnostic form three connected bundle nodes; the node-bundle compiler reruns the rollouts, reproduces the draws digest and replays the portable receipt, and changed draws are refused at the diagnostic node and at execution. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+evidence_assertion = "common_training_rows_refit_and_replay_the_connected_action_decision"
+kind = "posterior"
+fixtures = []
+why = "Two independently declared scalar feedback components share one joint posterior fit from 260 common training rows; the connected two-action decision replays independently, reordering the components changes the outer identity but not the posterior program, and changed outputs are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+evidence_assertion = "vector_components_fit_joint_worlds_and_replay"
+kind = "posterior"
+fixtures = []
+why = "A vector feedback component with two internal outputs is fitted jointly, solved in two hard-clamp worlds and its action decision replays independently; a missing consumer output and an unsupported binary port are refused at compilation and on replay. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+evidence_assertion = "bounded_component_worlds_replay_after_joint_fit"
+kind = "posterior"
+fixtures = []
+why = "Bounded component outputs over the jointly fitted vector posterior stay within [0, 1], share one reliability scope across training replicates with distinct program identities, and the bounded decision replays independently; a changed transform and a changed posterior are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs"
+evidence_assertion = "prospective_action_selection_grid_keeps_failures_and_design_scope"
+kind = "simulation"
+fixtures = []
+why = "Four training replicates of a planted linear feedback system with a positive promotion effect are refitted under one fixed design scope; every selection of the true best action, tie or wrong choice, and refusal is counted and none is dropped. No selection record is earned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/cyclic_target_feedback_decision.rs"
+evidence_assertion = "paired_target_worlds_refit_and_replay"
+kind = "known_truth"
+fixtures = []
+why = "Each paired target world's action effect equals the closed form 0.2 / (1 - 0.2 b) of its posterior feedback weight b within 1e-7, because the shared target baseline and disturbance cancel; the posterior, chain and decision replay independently. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/graph_imputation.rs"
+evidence_assertion = "graph_imputation_effect_decision_replays_known_positive_effect"
+kind = "known_truth"
+fixtures = []
+why = "The whole graph-selection imputation schedule on rows with a planted treatment effect of 0.5 yields a posterior mean effect above the decision's 0.1 cost; the producer receipt and decision replay independently. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/graph_imputation_effect_decision.rs"
+evidence_assertion = "bernoulli_predictive_worlds_replay_and_bind_model"
+kind = "posterior"
+fixtures = []
+why = "Bernoulli predictive outcome worlds from a graph-selection imputation fit with missing binary outcomes take only the values 0 and 1 and replay independently, a non-predictive binding is refused, and a forty-replicate target cluster bootstrap changes the program identity, replays its worlds and refuses changed cluster ids. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/graph_imputation_effect_decision.rs"
+evidence_assertion = "paired_world_decision_replays"
+kind = "posterior"
+fixtures = []
+why = "Gaussian target-predictive worlds under a declared cross-world correlation, a target cluster bootstrap, a transport world bootstrap and paired source and target worlds each share every graph and coefficient draw across both actions and replay their worlds and decisions independently under distinct program identities; altered declarations are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/graph_imputation_kernel_transport_decision.rs"
+evidence_assertion = "continuous_target_modifier_replays_graph_imputation_and_utility"
+kind = "reference"
+fixtures = []
+why = "Graph selection, imputation and a Gaussian-kernel density-ratio transport to an independent continuous target frame feed a nonlinear utility; the fixed route, a forty-replicate cluster bootstrap and a sampled bootstrap candidate each replay their receipts and decisions, and a disjoint target frame is refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/graph_imputation_kernel_transport_decision.rs"
+evidence_assertion = "confounded_binary_continuous_target_replays_both_policies"
+kind = "reference"
+fixtures = []
+why = "A confounded source with binary and continuous target covariates needs kernel support in both treatment arms; the fixed and sampled kernel transport schedules compile to distinct identities, the sampled candidate replays its draws and decision, and a missing arm support is refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/graph_imputation_mar_transport_decision.rs"
+evidence_assertion = "binary_kernel_and_confounding_replay_weighted_raw_frame"
+kind = "reference"
+fixtures = []
+why = "Weighted complete-case target transport under declared MAR observation probabilities, with a binary kernel and a confounded source, replays its receipt and decision from the raw frame for the fixed and the clustered schedule. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/graph_imputation_transport_decision.rs"
+evidence_assertion = "missing_source_graph_mixture_transports_to_target_and_replays"
+kind = "reference"
+fixtures = []
+why = "A missing-outcome source graph mixture is standardized to a declared target covariate frame; the fixed route, cluster bootstrap, confounded and confounded-bootstrap schedules compile to distinct identities and replay their draws, receipts and decisions, and overlapping frames and a target without overlap are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/joint_transport_effect_decision.rs"
+evidence_assertion = "fitted_target_effect_and_utility_replay_against_known_truth"
+kind = "known_truth"
+fixtures = []
+why = "The conjugate joint source-target fit (1024 draws) recovers the planted target average effect 2 within 0.05, and its fit and utility decision replay independently. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/joint_transport_predictive_decision.rs"
+evidence_assertion = "paired_target_outcomes_replay_with_a_shared_baseline"
+kind = "known_truth"
+fixtures = []
+why = "Paired target outcome worlds under the shared-baseline premise have a mean paired difference within 0.05 of the planted effect 2; the fit and decision replay independently, and changing the declared potential-outcome correlation keeps the fit but changes the chain. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
+evidence_assertion = "iid_raw_units_are_resampled_and_whole_chain_replayed"
+kind = "reference"
+fixtures = []
+why = "The compiler-owned IID raw-unit bootstrap reruns the whole chain one hundred times (101 chain identities) and its union endpoints enclose the original assumption interval; the result replays independently. This source assertion is unearned and the interval remains not_measured."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
+evidence_assertion = "dependent_unit_pairs_are_resampled_as_complete_clusters"
+kind = "reference"
+fixtures = []
+why = "Dependent unit pairs are resampled as complete clusters by the Bonferroni basic cluster bootstrap over one hundred whole-chain reruns, and the candidate replays independently. This source assertion is unearned and the interval remains not_measured."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
+evidence_assertion = "stratified_clusters_are_kept_complete_and_replayed"
+kind = "reference"
+fixtures = []
+why = "Stratified cluster resampling keeps every two-row cluster whole and inside its stratum; the one-hundred-rerun candidate replays independently, an inconsistent stratum is refused and reordered strata change the program identity. This source assertion is unearned and the interval remains not_measured."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
+evidence_assertion = "resampled_panels_keep_one_source_panel_and_consecutive_blocks"
+kind = "reference"
+fixtures = []
+why = "The two-stage panel block bootstrap draws each resampled panel from one source panel in consecutive blocks; the one-hundred-rerun candidate replays independently, a changed design changes the program identity and an invalid panel declaration is refused. This source assertion is unearned and the interval remains not_measured."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
+evidence_assertion = "stratified_moving_blocks_stay_within_interleaved_series_and_replay"
+kind = "reference"
+fixtures = []
+why = "Stratified moving blocks stay within each interleaved series in consecutive within-series steps; the one-hundred-rerun candidate replays independently, a changed design changes the program identity and an invalid design is refused. This source assertion is unearned and the interval remains not_measured."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
+evidence_assertion = "moving_blocks_replay_and_bind_the_declared_design"
+kind = "reference"
+fixtures = []
+why = "The moving-block bootstrap's one hundred whole-chain reruns replay independently, a changed block design changes the program identity and an invalid block length is refused. This source assertion is unearned and the interval remains not_measured."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
+evidence_assertion = "matched_trial_validation_and_bridge_decision_replay_together"
+kind = "reference"
+fixtures = []
+why = "Matched source and target validation trials (planted target shift 0.05 inside a 0.2 margin) pass the premise screen, and the assessed bridge decision and its maximin robust decision replay independently together with their assessment. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
+evidence_assertion = "predictive_bridge_bundle_recomputes_a_live_terminal"
+kind = "reference"
+fixtures = []
+why = "A bundle holding a 64-draw posterior-predictive source and its affine predictive bridge recomputes the bridge as a live terminal whose identity equals the independently derived bridge artifact, and the portable receipt replays under independently retained bundle and program identities. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
+evidence_assertion = "independent_target_posterior_and_source_innovation_replay_together"
+kind = "posterior"
+fixtures = []
+why = "An assessed bridge target posterior from independent target validation trials and a transferred source innovation yields a 63-weight predictive law whose chain and decision replay independently; the fit, chain and decision bundle nodes are refitted by the predictive node-decision compiler and replay through its portable consumer, and unconnected nodes and a changed identity are refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/temporal_path_transport.rs"
+evidence_assertion = "continuous_chain_shared_schedule_replays"
+kind = "known_truth"
+fixtures = []
+why = "The continuous mediator chain recovers the path contrast 2 for the treatment-to-first-mediator edge and 7 for the remaining edges within 1e-10, the bootstrap candidate replays exactly, and a mediator ordering that is not time-ordered is refused. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/trial_ipw_predictive_decision.rs"
+evidence_assertion = "predictive_worlds_refit_and_replay_raw_evidence"
+kind = "posterior"
+fixtures = []
+why = "Dirichlet Bayesian-bootstrap predictive draws stay on each trial arm's empirical support ({1, 3} treated, {0, 2} control), are refitted and replayed from raw rows, a changed row is refused and an undeclared cross-world independence premise refuses compilation. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/trial_ipw_transport_decision.rs"
+evidence_assertion = "trial_effect_is_refit_and_replayed_from_raw_rows"
+kind = "posterior"
+fixtures = []
+why = "The trial-to-target IPW Bayesian-bootstrap effect posterior (100 draws) refits and replays from raw rows and refuses altered rows; a four-replicate prospective grid with true effect 1 counts coverage and correct choices without asserting reliability. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/composition_posterior_decision_bundle.rs"
+evidence_assertion = "parameter_posterior_decision_replays_without_becoming_predictive"
+kind = "posterior"
+fixtures = []
+why = "A parameter-posterior decision bundle (contract, posterior law and result) recomputes through its compiler and replays portably under retained identities, refuses a changed bundle identity, and refuses a contract that would read the parameter posterior as an outcome law. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent-io/src/measured_inference/graph_candidate.rs"
+evidence_assertion = "paired_worlds_share_each_graph_and_coefficient_draw"
+kind = "reference"
+fixtures = []
+why = "The paired graph-imputation replay of a 100-row source produces 200 finite, non-constant paired worlds that are bit-identical across two runs, so each graph and coefficient draw is shared by both worlds of a pair. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/observational_survival_policy_routes.rs"
+evidence_assertion = "cross_fitted_policy_subsampling_compiles_its_schedule_and_independently_replays"
+kind = "reference"
+fixtures = []
+why = "A graph-checked cross-fitted policy whose information set is narrower than its nuisance adjustment compiles a 150-of-300-row, one-hundred-replicate full-refit subsampling schedule; the basic candidate replays independently, is bound to its split seed and schedule identity, and invalid subsample sizes and replicate counts are refused. This source assertion is unearned."
+
+[[test]]
 evidence_test = "crates/antecedent/tests/observational_survival_policy_routes.rs"
 evidence_assertion = "graph_policy_can_learn_on_less_information_than_nuisance_adjustment"
 kind = "reference"

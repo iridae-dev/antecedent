@@ -7,7 +7,7 @@ use antecedent::analysis::multi_level_treatment::AdjustmentColumn;
 use antecedent::analysis::observational_policy::{
     ObservationalPolicyReportWire, ObservationalPolicyRequest, ObservationalPolicySpecWire,
     ObservationalPolicyValue, PolicyGraphDeclaration, compile_observational_policy,
-    consume_compiled_observational_policy,
+    compile_policy_subsampling, consume_compiled_observational_policy, consume_policy_subsampling,
 };
 use antecedent::analysis::observational_survival::{
     ObservationalSurvivalEffect, ObservationalSurvivalReportWire, ObservationalSurvivalRequest,
@@ -291,6 +291,62 @@ fn graph_policy_can_learn_on_less_information_than_nuisance_adjustment() {
         .execute(&ctx)
         .expect("second estimate");
     assert_eq!(other_report.policy_actions, report.policy_actions);
+}
+
+#[test]
+fn cross_fitted_policy_subsampling_compiles_its_schedule_and_independently_replays() {
+    let mut request = policy_request(ObservationalPolicySpecWire {
+        support: Some(vec![0.0, 1.0]),
+        objective: Some("maximize".into()),
+        evaluation: Some("cross_fitted_learning".into()),
+        folds: Some(3),
+        seed: 2,
+        ..ObservationalPolicySpecWire::default()
+    });
+    // A 300-row prefix keeps the hundred full refits of the schedule small.
+    let rows = 300;
+    request.outcome.truncate(rows);
+    request.treatment.truncate(rows);
+    request.adjustment[0].values.truncate(rows);
+    request.adjustment.push(AdjustmentColumn {
+        name: "w".into(),
+        values: (0..rows).map(|i| ((i as f64) * 0.31).sin()).collect(),
+    });
+    request.spec.causal_graph = Some(PolicyGraphDeclaration {
+        nodes: vec!["z".into(), "w".into(), "a".into(), "y".into()],
+        edges: vec![
+            ("z".into(), "a".into()),
+            ("z".into(), "y".into()),
+            ("w".into(), "y".into()),
+            ("a".into(), "y".into()),
+        ],
+        treatment: "a".into(),
+        outcome: "y".into(),
+        information_set: vec!["z".into()],
+    });
+    let ctx = antecedent::prelude::ExecutionContext::production_default(request.spec.seed);
+    let plan = compile_policy_subsampling(request.clone(), 150, 100, &ctx)
+        .expect("the subsampling schedule compiles before any row is drawn");
+    assert_eq!(plan.plan_view().route().as_str(), "PolicySubsampling");
+    let candidate = plan.execute(&ctx).expect("one hundred full-refit subsamples");
+    assert_eq!(candidate.report.evaluation_rows, rows as u64);
+    assert!(candidate.interval.lower <= candidate.interval.upper);
+    assert_eq!(candidate.interval.calibration, candidate.slot.status.as_str());
+    assert_eq!(candidate.basis.key.interval_method, "cross_fitted_policy_subsampling_basic_v1");
+    let bytes = plan.export(&candidate, &ctx).expect("subsampling artifact");
+    let replay = consume_policy_subsampling(&bytes, plan.lowered().identity(), &ctx)
+        .expect("independent recompilation and refits");
+    assert_eq!(replay.report, candidate.report);
+    assert_eq!(replay.interval, candidate.interval);
+    // The artifact is bound to its split seed and to the compiled schedule.
+    let other_seed = antecedent::prelude::ExecutionContext::production_default(3);
+    assert!(consume_policy_subsampling(&bytes, plan.lowered().identity(), &other_seed).is_err());
+    let other = compile_policy_subsampling(request.clone(), 120, 100, &ctx)
+        .expect("a second subsample size compiles");
+    assert_ne!(other.lowered().identity(), plan.lowered().identity());
+    assert!(consume_policy_subsampling(&bytes, other.lowered().identity(), &ctx).is_err());
+    assert!(compile_policy_subsampling(request.clone(), rows, 100, &ctx).is_err());
+    assert!(compile_policy_subsampling(request, 150, 99, &ctx).is_err());
 }
 
 #[test]

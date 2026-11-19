@@ -762,7 +762,6 @@ mod tests {
     };
 
     #[test]
-    #[ignore = "source-only predictive route; no build or calibration earned"]
     #[allow(clippy::too_many_lines, reason = "one scenario walked from compile through replay")]
     #[allow(clippy::float_cmp, reason = "the planted predictive draws take exact coded values")]
     fn predictive_worlds_refit_and_replay_raw_evidence() {

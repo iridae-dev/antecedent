@@ -1307,7 +1307,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only bootstrap selector fixture"]
     fn pooled_selector_reaches_later_imputations() {
         let mut state = antecedent_core::execution::mix64(7 ^ 0x4452_4157_5f56_3201);
         let indices: Vec<_> = (0..40).map(|_| bootstrap_pool_index(&mut state, 200)).collect();
@@ -1322,7 +1321,6 @@ mod tests {
     };
 
     #[test]
-    #[ignore = "source-only full transport schedule assertion; reliability not earned"]
     #[allow(clippy::too_many_lines, reason = "one scenario walked from compile through replay")]
     fn missing_source_graph_mixture_transports_to_target_and_replays() {
         let mut treatment = Vec::new();

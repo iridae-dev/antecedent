@@ -10,7 +10,7 @@ use super::{
     ReplayedBundleDependency, ScientificProblem, SemanticDigest, Serialize,
     StandaloneCompositionLoweredParts, StatisticalProgram, SuppliedSources, UncertaintyReading,
     UpstreamNode, VerifiedNode, export_bundle, fit_node_context, fit_node_failure,
-    native_fit_bundle_consumer, node_refused,
+    native_fit_consumer, node_refused,
 };
 use antecedent_design::decision_reliability::{
     DecisionDraws, ReliabilityReport, ReliabilityRequest, assess,
@@ -471,7 +471,7 @@ impl CompiledSequentialReliabilityBundle {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
         let bytes = export_bundle(&self.bundle, "sequential-reliability-bundle")
             .map_err(ChainBundleRecomputeError::Bundle)?;
-        let consumed = native_fit_bundle_consumer(&scoped)
+        let consumed = native_fit_consumer(&scoped)
             .consume(
                 &bytes,
                 &BundleLimits::default(),
@@ -642,7 +642,6 @@ mod tests {
         (model, policies)
     }
     #[test]
-    #[ignore = "source-only sequential diagnostic bundle; no calibration earned"]
     #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     fn producer_carrier_and_diagnostic_recompute_portably() {
         let (model, policies) = fixture();

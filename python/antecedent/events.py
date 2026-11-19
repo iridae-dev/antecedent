@@ -132,7 +132,6 @@ def replay(
     """Recompile and execute a forecast or world request under an expected identity."""
     plan = prepare(request, source=source, receipt=receipt, execution=execution)
     if plan._native.replay_identity() != expected_program:
-        raise EventRefusal(
-            "events.invalid_request", "events.invalid_request: replay program identity changed"
-        )
+        detail = _reason_details.events.INVALID_REQUEST
+        raise EventRefusal(detail, f"{detail}: replay program identity changed")
     return plan.execute(execution=execution)

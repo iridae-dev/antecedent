@@ -573,7 +573,6 @@ mod tests {
     // Known-truth fixture; deliberately unearned until builds and reference
     // assertions are permitted. The effect is exactly 2 at every target unit.
     #[test]
-    #[ignore = "source-only composability assertion; scientific record not earned"]
     #[allow(
         clippy::too_many_lines,
         reason = "one linear sequence of steps that reads top to bottom"

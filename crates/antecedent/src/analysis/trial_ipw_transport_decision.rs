@@ -656,7 +656,6 @@ mod tests {
     };
 
     #[test]
-    #[ignore = "source-only complete trial transport decision; reliability unearned"]
     #[allow(
         clippy::too_many_lines,
         reason = "one linear sequence of steps that reads top to bottom"

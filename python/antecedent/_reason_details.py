@@ -608,6 +608,8 @@ class counterfactual_transport:  # noqa: N801
 class counterfactual_transport_sampled:  # noqa: N801
     BOUNDS_EXCEEDED: Final = "counterfactual_transport_sampled.bounds_exceeded"
     CANCELLED: Final = "counterfactual_transport_sampled.cancelled"
+    CONTRAST_ENVELOPE: Final = "counterfactual_transport_sampled.contrast_envelope"
+    CONTRAST_NONFINITE: Final = "counterfactual_transport_sampled.contrast_nonfinite"
     ENVELOPE_BUDGET: Final = "counterfactual_transport_sampled.envelope_budget"
     ENVELOPE_UNDEFINED: Final = "counterfactual_transport_sampled.envelope_undefined"
     INTERVAL_NOT_COMPUTABLE: Final = "counterfactual_transport_sampled.interval_not_computable"
@@ -2919,6 +2921,8 @@ class sequential_evaluation:  # noqa: N801
     ARTIFACT_ID_MISSING: Final = "sequential_evaluation.artifact_id_missing"
     ARTIFACT_KIND_MISMATCH: Final = "sequential_evaluation.artifact_kind_mismatch"
     BEHAVIOUR_SUPPORT_MISSING: Final = "sequential_evaluation.behaviour_support_missing"
+    BOOTSTRAP_CONFIG: Final = "sequential_evaluation.bootstrap_config"
+    BOOTSTRAP_OVERFLOW: Final = "sequential_evaluation.bootstrap_overflow"
     CANCELLED: Final = "sequential_evaluation.cancelled"
     CHANNEL_BINDING_MISMATCH: Final = "sequential_evaluation.channel_binding_mismatch"
     CHANNEL_CONSTRUCT_MISMATCH: Final = "sequential_evaluation.channel_construct_mismatch"
@@ -2942,6 +2946,7 @@ class sequential_evaluation:  # noqa: N801
     LIMIT_EXCEEDED: Final = "sequential_evaluation.limit_exceeded"
     LOG_PARTIALLY_COUNTED: Final = "sequential_evaluation.log_partially_counted"
     LOGGED_TRAJECTORY_INCONSISTENT: Final = "sequential_evaluation.logged_trajectory_inconsistent"
+    LOW_EFFECTIVE_SUPPORT: Final = "sequential_evaluation.low_effective_support"
     MALFORMED: Final = "sequential_evaluation.malformed"
     MODEL_ACTIONS: Final = "sequential_evaluation.model_actions"
     MODEL_FIELD: Final = "sequential_evaluation.model_field"
@@ -2964,6 +2969,7 @@ class sequential_evaluation:  # noqa: N801
     POLICY_VERSION: Final = "sequential_evaluation.policy_version"
     RECORD_ALREADY_COUNTED: Final = "sequential_evaluation.record_already_counted"
     RECORD_IDENTITY: Final = "sequential_evaluation.record_identity"
+    RELIABILITY_CARRIER: Final = "sequential_evaluation.reliability_carrier"
     RESOURCE_BUDGET_EXCEEDED: Final = "sequential_evaluation.resource_budget_exceeded"
     RETURN_OVERFLOW: Final = "sequential_evaluation.return_overflow"
     ROLLOUT_BELIEF: Final = "sequential_evaluation.rollout_belief"
@@ -3972,6 +3978,8 @@ ALL: Final[tuple[str, ...]] = (
     "counterfactual_transport.zero_conditioning_mass",
     "counterfactual_transport_sampled.bounds_exceeded",
     "counterfactual_transport_sampled.cancelled",
+    "counterfactual_transport_sampled.contrast_envelope",
+    "counterfactual_transport_sampled.contrast_nonfinite",
     "counterfactual_transport_sampled.envelope_budget",
     "counterfactual_transport_sampled.envelope_undefined",
     "counterfactual_transport_sampled.interval_not_computable",
@@ -5788,6 +5796,8 @@ ALL: Final[tuple[str, ...]] = (
     "sequential_evaluation.artifact_id_missing",
     "sequential_evaluation.artifact_kind_mismatch",
     "sequential_evaluation.behaviour_support_missing",
+    "sequential_evaluation.bootstrap_config",
+    "sequential_evaluation.bootstrap_overflow",
     "sequential_evaluation.cancelled",
     "sequential_evaluation.channel_binding_mismatch",
     "sequential_evaluation.channel_construct_mismatch",
@@ -5811,6 +5821,7 @@ ALL: Final[tuple[str, ...]] = (
     "sequential_evaluation.limit_exceeded",
     "sequential_evaluation.log_partially_counted",
     "sequential_evaluation.logged_trajectory_inconsistent",
+    "sequential_evaluation.low_effective_support",
     "sequential_evaluation.malformed",
     "sequential_evaluation.model_actions",
     "sequential_evaluation.model_field",
@@ -5833,6 +5844,7 @@ ALL: Final[tuple[str, ...]] = (
     "sequential_evaluation.policy_version",
     "sequential_evaluation.record_already_counted",
     "sequential_evaluation.record_identity",
+    "sequential_evaluation.reliability_carrier",
     "sequential_evaluation.resource_budget_exceeded",
     "sequential_evaluation.return_overflow",
     "sequential_evaluation.rollout_belief",
@@ -6724,6 +6736,8 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "counterfactual_transport.zero_conditioning_mass": ("transport_support_failure",),
     "counterfactual_transport_sampled.bounds_exceeded": ("route_not_supported",),
     "counterfactual_transport_sampled.cancelled": ("transport_budget_cancel",),
+    "counterfactual_transport_sampled.contrast_envelope": ("route_not_supported",),
+    "counterfactual_transport_sampled.contrast_nonfinite": ("transport_numerical_failure",),
     "counterfactual_transport_sampled.envelope_budget": ("transport_budget_cancel",),
     "counterfactual_transport_sampled.envelope_undefined": ("transport_support_failure",),
     "counterfactual_transport_sampled.interval_not_computable": ("transport_support_failure",),
@@ -8588,6 +8602,8 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "sequential_evaluation.artifact_id_missing": ("invalid_argument",),
     "sequential_evaluation.artifact_kind_mismatch": ("invalid_argument",),
     "sequential_evaluation.behaviour_support_missing": ("history_support_violated",),
+    "sequential_evaluation.bootstrap_config": ("invalid_argument",),
+    "sequential_evaluation.bootstrap_overflow": ("invalid_argument",),
     "sequential_evaluation.cancelled": ("cancelled_no_claim",),
     "sequential_evaluation.channel_binding_mismatch": ("measurement_binding_mismatch",),
     "sequential_evaluation.channel_construct_mismatch": ("measurement_binding_mismatch",),
@@ -8611,6 +8627,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "sequential_evaluation.limit_exceeded": ("invalid_argument",),
     "sequential_evaluation.log_partially_counted": ("evidence_double_counted",),
     "sequential_evaluation.logged_trajectory_inconsistent": ("invalid_argument",),
+    "sequential_evaluation.low_effective_support": ("history_support_violated",),
     "sequential_evaluation.malformed": ("invalid_argument",),
     "sequential_evaluation.model_actions": ("invalid_argument",),
     "sequential_evaluation.model_field": ("invalid_argument",),
@@ -8633,6 +8650,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "sequential_evaluation.policy_version": ("invalid_argument",),
     "sequential_evaluation.record_already_counted": ("evidence_double_counted",),
     "sequential_evaluation.record_identity": ("invalid_argument",),
+    "sequential_evaluation.reliability_carrier": ("invalid_argument",),
     "sequential_evaluation.resource_budget_exceeded": ("invalid_argument",),
     "sequential_evaluation.return_overflow": ("invalid_argument",),
     "sequential_evaluation.rollout_belief": ("invalid_argument",),

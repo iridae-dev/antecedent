@@ -984,7 +984,6 @@ mod compiled_tests {
     }
 
     #[test]
-    #[ignore = "source-only whole-schedule reference assertion; decision reliability not earned"]
     fn graph_imputation_effect_decision_replays_known_positive_effect() {
         use super::super::graph_imputation_effect_decision::{
             compile_graph_imputation_effect_decision, consume_graph_imputation_effect_decision,

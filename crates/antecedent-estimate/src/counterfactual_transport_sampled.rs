@@ -985,7 +985,7 @@ pub fn estimate_sampled_counterfactual_transport_contrast(
     if matches!(request.unseen_rule, UnseenCellRule::UnseenMassEnvelope { .. }) {
         return Err(refused(
             antecedent_core::reason_code!("route_not_supported"),
-            "counterfactual_transport_sampled.contrast_envelope",
+            antecedent_core::reason_details::counterfactual_transport_sampled::CONTRAST_ENVELOPE,
             "a structural unseen-mass envelope has no differentiable point contrast",
         ));
     }
@@ -1003,7 +1003,7 @@ pub fn estimate_sampled_counterfactual_transport_contrast(
     let _admission = ctx.acquire_admission(0, memory).map_err(|_| {
         refused(
             antecedent_core::reason_code!("transport_budget_cancel"),
-            "counterfactual_transport.budget",
+            antecedent_core::reason_details::counterfactual_transport::BUDGET,
             "the sampled contrast exceeds memory admission",
         )
     })?;
@@ -1058,7 +1058,7 @@ pub fn estimate_sampled_counterfactual_transport_contrast(
     if !contrast.is_finite() {
         return Err(refused(
             antecedent_core::reason_code!("transport_numerical_failure"),
-            "counterfactual_transport_sampled.contrast_nonfinite",
+            antecedent_core::reason_details::counterfactual_transport_sampled::CONTRAST_NONFINITE,
             "the paired path contrast is nonfinite",
         ));
     }

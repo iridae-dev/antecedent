@@ -2029,10 +2029,32 @@ refusals = [
   { code = "external_binding_mismatch", detail = "composition_bundle.expected_identity_mismatch" },
   { code = "invalid_argument", detail = "composition_bundle.invalid_container" },
   { code = "invalid_argument", detail = "composition_bundle.node_not_found" },
+  { code = "cancelled_no_claim", detail = "composition_bundle.execution_cancelled" },
+  { code = "execution_resource_limit", detail = "composition_bundle.resource_refused" },
 ]
 routes = [
   { route = "antecedent.bundle.export_bundle", stage = "representation", status = "supported", claim = "point_only" },
   { route = "antecedent.bundle.consume_bundle", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_chain_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_chain_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_bridge_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_bridge_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_cyclic_posterior_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_cyclic_posterior_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_cyclic_posterior_node_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_cyclic_posterior_node_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_trial_ipw_node_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_trial_ipw_node_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_graph_imputation_transport_node_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_graph_imputation_transport_node_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_joint_transport_effect_node_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_joint_transport_effect_node_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_joint_transport_predictive_node_decision_bundle", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_trial_ipw_predictive_node_decision_bundle", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_cyclic_target_feedback_node_decision_bundle", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_graph_imputation_predictive_node_decision_bundle", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_assessed_bridge_posterior_node_decision_bundle", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_predictive_fit_decision_bundle", stage = "consume", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -4750,6 +4772,8 @@ refusals = [
   { code = "route_not_supported", detail = "counterfactual_transport_sampled.shared_units_unlinked" },
   { code = "invalid_argument", detail = "counterfactual_transport_sampled.invalid_artifact" },
   { code = "route_not_supported", detail = "counterfactual_transport_sampled.bounds_exceeded" },
+  { code = "route_not_supported", detail = "counterfactual_transport_sampled.contrast_envelope" },
+  { code = "transport_numerical_failure", detail = "counterfactual_transport_sampled.contrast_nonfinite" },
 ]
 routes = [
   { route = "antecedent_estimate.estimate_sampled_counterfactual_transport", stage = "evaluate", status = "supported", claim = "point_only" },
@@ -5172,6 +5196,9 @@ routes = [
   { route = "antecedent._native.observation_query_required_observations_conjugate", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent._native.observation_query_consume", stage = "consume", status = "supported", claim = "point_only" },
   { route = "antecedent._native.observation_query_unsupported", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", claim = "point_only" },
+  { route = "antecedent.observation_query.PreparedMechanismComposition.compile_joint_measured_observation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.observation_query.PreparedMechanismComposition.compile_dependent_measured_observation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.observation_query.JointMeasuredObservationPlan.consume", stage = "consume", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -5476,6 +5503,10 @@ refusals = [
   { code = "invalid_argument", detail = "sequential_evaluation.return_overflow" },
   { code = "invalid_argument", detail = "sequential_evaluation.weighted_estimate_overflow" },
   { code = "invalid_argument", detail = "sequential_evaluation.weighted_sum_overflow" },
+  { code = "invalid_argument", detail = "sequential_evaluation.bootstrap_config" },
+  { code = "history_support_violated", detail = "sequential_evaluation.low_effective_support" },
+  { code = "invalid_argument", detail = "sequential_evaluation.bootstrap_overflow" },
+  { code = "invalid_argument", detail = "sequential_evaluation.reliability_carrier" },
 ]
 routes = [
   { route = "antecedent.sequential_evaluation.evaluate_policy", stage = "evaluate", status = "supported", claim = "point_only" },
@@ -7522,6 +7553,9 @@ refusals = [
 ]
 routes = [
   { route = "antecedent.policy.observational_value", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.policy.consume_compiled_observational_policy", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.policy.compile_policy_subsampling", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.policy.consume_policy_subsampling", stage = "consume", status = "supported", claim = "point_only" },
 ]
 
 [[record]]

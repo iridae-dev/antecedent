@@ -931,7 +931,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "prospective source-only reliability grid; no selection record is earned"]
     fn prospective_action_selection_grid_keeps_failures_and_design_scope() {
         use antecedent_design::decision_eval::Verdict;
         let mut refused = 0_usize;

@@ -1674,7 +1674,6 @@ mod continuous_chain_tests {
     use super::*;
 
     #[test]
-    #[ignore = "source-only continuous chain transport; coverage is not earned"]
     fn continuous_chain_shared_schedule_replays() {
         let ctx = ExecutionContext::for_tests(991);
         let source = (0..200)

@@ -193,7 +193,6 @@ fn predictive_transport_bridge_and_nonlinear_utility_compile_together() {
 }
 
 #[test]
-#[ignore = "source-only matched validation and decision replay; scientific records are unearned"]
 #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 fn matched_trial_validation_and_bridge_decision_replay_together() {
     let trials = |offset: f64| TrialLevelValidation {
@@ -307,7 +306,6 @@ fn matched_trial_validation_and_bridge_decision_replay_together() {
 }
 
 #[test]
-#[ignore = "source-only live bridge bundle terminal; no calibration earned"]
 fn predictive_bridge_bundle_recomputes_a_live_terminal() {
     let mut declaration =
         contract(BridgeMapping::Affine { intercept: 0.5, slope: 2.0 }, None, None);
@@ -635,7 +633,6 @@ fn a_predictive_bridge_handoff_compiles_as_a_predictive_law() {
 }
 
 #[test]
-#[ignore = "source-only target posterior predictive bridge decision; reliability not earned"]
 #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 fn independent_target_posterior_and_source_innovation_replay_together() {
     use crate::analysis::bridge_transport_decision::{

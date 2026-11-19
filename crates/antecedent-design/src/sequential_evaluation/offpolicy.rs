@@ -567,7 +567,7 @@ pub fn bootstrap_off_policy(
     {
         return Err(refusal!(
             "invalid_argument",
-            "sequential_evaluation.bootstrap_config",
+            antecedent_core::reason_details::sequential_evaluation::BOOTSTRAP_CONFIG,
             "bootstrap requires at least two policies and replicates and a finite minimum effective sample size of at least two",
             "supply a bounded bootstrap configuration and minimum support"
         ));
@@ -585,7 +585,7 @@ pub fn bootstrap_off_policy(
         if estimate.effective_sample_size < minimum_effective_sample_size {
             return Err(refusal!(
                 "history_support_violated",
-                "sequential_evaluation.low_effective_support",
+                antecedent_core::reason_details::sequential_evaluation::LOW_EFFECTIVE_SUPPORT,
                 "a policy has insufficient effective sample size in the log",
                 "supply more overlapping trajectories or restrict the policy set"
             ));
@@ -644,7 +644,7 @@ pub fn bootstrap_off_policy(
             if !value.is_finite() {
                 return Err(refusal!(
                     "invalid_argument",
-                    "sequential_evaluation.bootstrap_overflow",
+                    antecedent_core::reason_details::sequential_evaluation::BOOTSTRAP_OVERFLOW,
                     "a bootstrap estimate is not finite",
                     "rescale the outcome utilities"
                 ));

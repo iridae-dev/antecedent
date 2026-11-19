@@ -813,7 +813,6 @@ mod mar_schedule_tests {
     use antecedent_io::measured_inference::graph_candidate::RawTargetFrame;
 
     #[test]
-    #[ignore = "source-only full MAR transport and replay schedule; calibration not earned"]
     #[allow(
         clippy::too_many_lines,
         reason = "one linear sequence of steps that reads top to bottom"

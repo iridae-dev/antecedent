@@ -674,7 +674,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "source-only premise assessment; simultaneous coverage is not earned"]
     fn independent_target_trials_replay_the_bridge_discrepancy() {
         let trials = |target: bool| TrialLevelValidation {
             trials: (0..20)

@@ -16,7 +16,7 @@ use calibration::{
 const TEST: &str = "hawkes_recursive_refit_count_l90";
 
 #[test]
-#[ignore = "prospective independent full-refit coverage; no record earned"]
+#[ignore = "coverage: prospective independent full-refit coverage; no record earned"]
 fn hawkes_recursive_refit_count_l90() {
     let cutoff = 256.0;
     let mut tally = CoverageTally::for_record(

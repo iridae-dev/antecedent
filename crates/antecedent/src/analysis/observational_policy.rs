@@ -51,6 +51,7 @@ use crate::planner::statistical::{
     FoldPlan, ModelRole, ModelSlot, Realization, ResampleUnit, StatisticalProgram,
 };
 use crate::planner::{PlanStage, PlanView};
+use crate::support::require_capability_route;
 
 /// Calibration standing of the reported standard errors.
 pub const OBSERVATIONAL_POLICY_CALIBRATION: &str = "not_measured";
@@ -778,7 +779,7 @@ impl CompiledObservationalPolicy {
                 se_kind: "held_out_influence_score".into(),
                 dependence: "independent_learning_evaluation_rows".into(),
                 posterior: String::new(),
-                functional: format!("policy_value.{assignment}.{graph_schedule}"),
+                functional: format!("held_out_policy_value.{assignment}.{graph_schedule}"),
                 level: LEVEL,
                 identification: "point_conditional_on_declared_dag".into(),
             },
@@ -1283,6 +1284,13 @@ impl PolicyRequestWire {
     }
 }
 
+// The capability unit whose support the policy subsampling routes run under; a release build
+// refuses each entry point by its route id (`parity/capability_records.toml`) while the unit is
+// not supported, and a development build runs it and records the refusal in its context.
+const POLICY_CAPABILITY: &str = "estimate.observational_policy_value";
+const SUBSAMPLING_COMPILE_ROUTE: &str = "antecedent.policy.compile_policy_subsampling";
+const SUBSAMPLING_CONSUME_ROUTE: &str = "antecedent.policy.consume_policy_subsampling";
+
 /// Compiler-owned m-out-of-n full-refit policy subsampling schedule.
 #[derive(Clone, Debug)]
 pub struct CompiledPolicySubsampling {
@@ -1319,6 +1327,7 @@ pub fn compile_policy_subsampling(
     replicates: usize,
     ctx: &ExecutionContext,
 ) -> Result<CompiledPolicySubsampling, CausalError> {
+    require_capability_route(ctx, POLICY_CAPABILITY, SUBSAMPLING_COMPILE_ROUTE)?;
     let n = request.outcome.len();
     if subsample_rows < 20
         || subsample_rows >= n
@@ -1508,6 +1517,7 @@ pub fn consume_policy_subsampling(
     expected: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<CrossFittedPolicyValueCandidate, CausalError> {
+    require_capability_route(ctx, POLICY_CAPABILITY, SUBSAMPLING_CONSUME_ROUTE)?;
     if bytes.len() > 80 * 1024 * 1024 {
         return Err(policy_compiler_refusal("policy subsampling artifact exceeds its byte bound"));
     }

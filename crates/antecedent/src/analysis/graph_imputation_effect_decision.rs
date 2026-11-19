@@ -1768,7 +1768,6 @@ mod paired_world_tests {
     };
 
     #[test]
-    #[ignore = "source-only Bernoulli graph predictive decision; reliability not earned"]
     #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     #[allow(clippy::float_cmp, reason = "the predictive worlds are exactly zero or one")]
     fn bernoulli_predictive_worlds_replay_and_bind_model() {
@@ -1915,7 +1914,6 @@ mod paired_world_tests {
     }
 
     #[test]
-    #[ignore = "source-only paired graph-imputation world decision; reliability not earned"]
     #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
     #[allow(clippy::float_cmp, reason = "the paired worlds are compared for any exact difference")]
     fn paired_world_decision_replays() {

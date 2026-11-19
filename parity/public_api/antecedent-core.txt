@@ -8104,6 +8104,8 @@ pub const antecedent_core::reason_details::counterfactual_transport::SUPPORT_FAI
 pub const antecedent_core::reason_details::counterfactual_transport::ZERO_CONDITIONING_MASS: &str
 pub const antecedent_core::reason_details::counterfactual_transport_sampled::BOUNDS_EXCEEDED: &str
 pub const antecedent_core::reason_details::counterfactual_transport_sampled::CANCELLED: &str
+pub const antecedent_core::reason_details::counterfactual_transport_sampled::CONTRAST_ENVELOPE: &str
+pub const antecedent_core::reason_details::counterfactual_transport_sampled::CONTRAST_NONFINITE: &str
 pub const antecedent_core::reason_details::counterfactual_transport_sampled::ENVELOPE_BUDGET: &str
 pub const antecedent_core::reason_details::counterfactual_transport_sampled::ENVELOPE_UNDEFINED: &str
 pub const antecedent_core::reason_details::counterfactual_transport_sampled::INTERVAL_NOT_COMPUTABLE: &str
@@ -9920,6 +9922,8 @@ pub const antecedent_core::reason_details::sequential_evaluation::ACTION_UTILITY
 pub const antecedent_core::reason_details::sequential_evaluation::ARTIFACT_ID_MISSING: &str
 pub const antecedent_core::reason_details::sequential_evaluation::ARTIFACT_KIND_MISMATCH: &str
 pub const antecedent_core::reason_details::sequential_evaluation::BEHAVIOUR_SUPPORT_MISSING: &str
+pub const antecedent_core::reason_details::sequential_evaluation::BOOTSTRAP_CONFIG: &str
+pub const antecedent_core::reason_details::sequential_evaluation::BOOTSTRAP_OVERFLOW: &str
 pub const antecedent_core::reason_details::sequential_evaluation::CANCELLED: &str
 pub const antecedent_core::reason_details::sequential_evaluation::CHANNEL_BINDING_MISMATCH: &str
 pub const antecedent_core::reason_details::sequential_evaluation::CHANNEL_CONSTRUCT_MISMATCH: &str
@@ -9943,6 +9947,7 @@ pub const antecedent_core::reason_details::sequential_evaluation::INTERVAL_NOT_S
 pub const antecedent_core::reason_details::sequential_evaluation::LIMIT_EXCEEDED: &str
 pub const antecedent_core::reason_details::sequential_evaluation::LOGGED_TRAJECTORY_INCONSISTENT: &str
 pub const antecedent_core::reason_details::sequential_evaluation::LOG_PARTIALLY_COUNTED: &str
+pub const antecedent_core::reason_details::sequential_evaluation::LOW_EFFECTIVE_SUPPORT: &str
 pub const antecedent_core::reason_details::sequential_evaluation::MALFORMED: &str
 pub const antecedent_core::reason_details::sequential_evaluation::MODEL_ACTIONS: &str
 pub const antecedent_core::reason_details::sequential_evaluation::MODEL_FIELD: &str
@@ -9965,6 +9970,7 @@ pub const antecedent_core::reason_details::sequential_evaluation::POLICY_MISMATC
 pub const antecedent_core::reason_details::sequential_evaluation::POLICY_VERSION: &str
 pub const antecedent_core::reason_details::sequential_evaluation::RECORD_ALREADY_COUNTED: &str
 pub const antecedent_core::reason_details::sequential_evaluation::RECORD_IDENTITY: &str
+pub const antecedent_core::reason_details::sequential_evaluation::RELIABILITY_CARRIER: &str
 pub const antecedent_core::reason_details::sequential_evaluation::RESOURCE_BUDGET_EXCEEDED: &str
 pub const antecedent_core::reason_details::sequential_evaluation::RETURN_OVERFLOW: &str
 pub const antecedent_core::reason_details::sequential_evaluation::ROLLOUTS: &str

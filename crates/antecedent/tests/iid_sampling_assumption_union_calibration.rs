@@ -10,15 +10,17 @@ mod common;
 
 use antecedent::analysis::propagation_chain::PropagationChain;
 use antecedent::analysis::sampling_assumption_union::{
-    compile_iid_sampling_assumption_union, IidSamplingAssumptionUnionRequest,
+    IidSamplingAssumptionUnionRequest, compile_iid_sampling_assumption_union,
 };
-use antecedent_contract::propagation_chain::{ChainReading, LawMeaning, StageKind, TableConstruction};
+use antecedent_contract::propagation_chain::{
+    ChainReading, LawMeaning, StageKind, TableConstruction,
+};
 use antecedent_core::{CalibrationBasis, ExecutionContext};
 use antecedent_io::propagation_chain_record::{ChainOpWire, ChainSourceWire, ChainStageWire};
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts,
-    gaussian, grid_n, grid_seed, map_replicates, n_sim,
+    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, gaussian, grid_n,
+    grid_seed, map_replicates, n_sim,
 };
 
 const TEST: &str = "iid_sampling_assumption_union_joint_endpoints_l95";
@@ -29,47 +31,60 @@ fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis)>
     let mut noise = gaussian(seed ^ 0xA01C_F201);
     let observations: Vec<f64> = (0..n).map(|_| 1.0 + noise()).collect();
     let original = PropagationChain::draft(
-        TableConstruction::JointDraws, ChainReading::AssumptionEnvelope,
+        TableConstruction::JointDraws,
+        ChainReading::AssumptionEnvelope,
         "answer",
         vec![
             ChainSourceWire::draws(
-                "raw.units", LawMeaning::Sampling, "iid-raw-units", &observations,
+                "raw.units",
+                LawMeaning::Sampling,
+                "iid-raw-units",
+                &observations,
             ),
             ChainSourceWire::interval("fixed.bias", 0.0, 1.0),
         ],
         vec![ChainStageWire::new(
-            "answer", StageKind::DerivedQuantity, &["raw.units", "fixed.bias"],
+            "answer",
+            StageKind::DerivedQuantity,
+            &["raw.units", "fixed.bias"],
             ChainOpWire::binary("sum"),
         )],
-    ).with_output_quantity(ScientificQuantityWire {
-        version: 1, variable_id: "target.mean_plus_bias".into(),
+    )
+    .with_output_quantity(ScientificQuantityWire {
+        version: 1,
+        variable_id: "target.mean_plus_bias".into(),
         variable_name: "target mean plus fixed bias".into(),
-        role: "outcome".into(), units: "score".into(),
-        population_id: "target".into(), regime_id: "observed".into(),
-        horizon: 0, functional_id: "identified_set_mean".into(),
-        conditioning: Vec::new(), transform_id: "identity".into(),
+        role: "outcome".into(),
+        units: "score".into(),
+        population_id: "target".into(),
+        regime_id: "observed".into(),
+        horizon: 0,
+        functional_id: "identified_set_mean".into(),
+        conditioning: Vec::new(),
+        transform_id: "identity".into(),
     });
     let request = IidSamplingAssumptionUnionRequest {
         original,
         unit_ids: (0..n).map(|row| format!("unit-{row}")).collect(),
-        bootstrap_replicates: 200, level: REPORTED_LEVEL,
+        bootstrap_replicates: 200,
+        level: REPORTED_LEVEL,
     };
     let ctx = ExecutionContext::for_tests(grid_seed(seed));
     let plan = compile_iid_sampling_assumption_union(request, &ctx).ok()?;
     let candidate = plan.calibration_candidate(&ctx).ok()?;
     assert_eq!(candidate.result.calibration, "not_measured");
     assert_eq!(candidate.basis.interval_method.as_ref(), INTERVAL);
-    Some(((candidate.result.union_lower, candidate.result.union_upper - 1.0),
-        1.0, candidate.basis))
+    Some(((candidate.result.union_lower, candidate.result.union_upper - 1.0), 1.0, candidate.basis))
 }
 
 #[test]
-#[ignore = "source-only prospective whole-route joint-set coverage; no record earned"]
+#[ignore = "coverage: source-only prospective whole-route joint-set coverage; no record earned"]
 fn iid_sampling_assumption_union_joint_endpoints_l95() {
     let n = grid_n(120);
-    let mut tally = CoverageTally::for_record(RecordKey {
-        test: TEST, dgp: DGP, interval: INTERVAL,
-    }, REPORTED_LEVEL);
+    let mut tally = CoverageTally::for_record(
+        RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },
+        REPORTED_LEVEL,
+    );
     for result in map_replicates(n_sim(), |rep| replicate(0xD0C0_7001 + rep, n)) {
         if let Some((interval, truth, basis)) = result {
             let construction = Construction {
@@ -87,12 +102,16 @@ fn iid_sampling_assumption_union_joint_endpoints_l95() {
                 identification: basis.identification.to_string(),
                 reported_level: basis.level,
             };
-            tally.bind_validation(&construction, ScopeFacts {
-                row_count: basis.row_count,
-                replicates_ok: basis.replicates_ok,
-                posterior_draws: basis.posterior_draws,
-                unidentified_mass: basis.unidentified_mass,
-            }, &basis.validation);
+            tally.bind_validation(
+                &construction,
+                ScopeFacts {
+                    row_count: basis.row_count,
+                    replicates_ok: basis.replicates_ok,
+                    posterior_draws: basis.posterior_draws,
+                    unidentified_mass: basis.unidentified_mass,
+                },
+                &basis.validation,
+            );
             tally.record(Some(interval), truth);
         } else {
             tally.skip();

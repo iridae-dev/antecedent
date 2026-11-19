@@ -2538,7 +2538,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore = "source-only paired bootstrap selector fixture"]
     fn paired_selector_reaches_later_imputations() {
         let mut state = mix64(7 ^ 0x4452_4157_5f56_3201);
         let indices: Vec<_> =
@@ -2548,7 +2547,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only treatment-arm kernel overlap fixture"]
     fn confounded_kernel_requires_both_arm_supports() {
         let target = KernelTransportStandardization {
             columns: vec![(2, vec![0.5, 0.6])],
@@ -2591,7 +2589,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only selection-diagram refusal fixture"]
     fn selection_collider_is_not_s_admissible() {
         use antecedent_graph::{Dag, DenseNodeId};
         let node = DenseNodeId::from_raw;
@@ -2702,7 +2699,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only paired graph and imputation worlds; calibration not earned"]
     #[allow(clippy::float_cmp, reason = "replayed worlds must match bit for bit")]
     fn paired_worlds_share_each_graph_and_coefficient_draw() {
         let bytes = encoded(parts(GraphSupport::TreatmentRootPreTreatmentCovariates, 3, 100));

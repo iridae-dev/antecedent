@@ -18,7 +18,6 @@ use antecedent_estimate::joint_bayesian_transport::{
 use antecedent_graph::SelectionDiagram;
 
 #[test]
-#[ignore = "source-only joint transport bundle; no scientific record is earned"]
 #[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 fn joint_transport_fit_node_refits_and_matches_live_chain() {
     let treatment = VariableId::from_raw(0);

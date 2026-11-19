@@ -24144,3 +24144,381 @@ crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_open_ledger_groups.py"
 gates = ["inventory"]
+
+[[test]]
+id = "bridge-transport-premise-calibration"
+crate = "antecedent"
+cargo_target = "bridge_transport_premise_calibration"
+path = "crates/antecedent/tests/bridge_transport_premise_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "cluster-sampling-assumption-union-calibration"
+crate = "antecedent"
+cargo_target = "cluster_sampling_assumption_union_calibration"
+path = "crates/antecedent/tests/cluster_sampling_assumption_union_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "composition-posterior-decision-bundle"
+crate = "antecedent"
+cargo_target = "composition_posterior_decision_bundle"
+path = "crates/antecedent/tests/composition_posterior_decision_bundle.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "continuous-chain-transport-calibration"
+crate = "antecedent"
+cargo_target = "continuous_chain_transport_calibration"
+path = "crates/antecedent/tests/continuous_chain_transport_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "cyclic-posterior-predictive-calibration"
+crate = "antecedent"
+cargo_target = "cyclic_posterior_predictive_calibration"
+path = "crates/antecedent/tests/cyclic_posterior_predictive_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "cyclic-target-feedback-choice-calibration"
+crate = "antecedent"
+cargo_target = "cyclic_target_feedback_choice_calibration"
+path = "crates/antecedent/tests/cyclic_target_feedback_choice_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "event-count-calibration"
+crate = "antecedent"
+cargo_target = "event_count_calibration"
+path = "crates/antecedent/tests/event_count_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "events"
+crate = "antecedent"
+cargo_target = "events"
+path = "crates/antecedent/tests/events.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "fitted-dependent-measurement-calibration"
+crate = "antecedent"
+cargo_target = "fitted_dependent_measurement_calibration"
+path = "crates/antecedent/tests/fitted_dependent_measurement_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-binary-cluster-calibration"
+crate = "antecedent"
+cargo_target = "graph_imputation_binary_cluster_calibration"
+path = "crates/antecedent/tests/graph_imputation_binary_cluster_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-kernel-cluster-calibration"
+crate = "antecedent"
+cargo_target = "graph_imputation_kernel_cluster_calibration"
+path = "crates/antecedent/tests/graph_imputation_kernel_cluster_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-kernel-transport-calibration"
+crate = "antecedent"
+cargo_target = "graph_imputation_kernel_transport_calibration"
+path = "crates/antecedent/tests/graph_imputation_kernel_transport_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-mar-cluster-calibration"
+crate = "antecedent"
+cargo_target = "graph_imputation_mar_cluster_calibration"
+path = "crates/antecedent/tests/graph_imputation_mar_cluster_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-predictive-calibration"
+crate = "antecedent"
+cargo_target = "graph_imputation_predictive_calibration"
+path = "crates/antecedent/tests/graph_imputation_predictive_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-predictive-cluster-calibration"
+crate = "antecedent"
+cargo_target = "graph_imputation_predictive_cluster_calibration"
+path = "crates/antecedent/tests/graph_imputation_predictive_cluster_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-transport-calibration"
+crate = "antecedent"
+cargo_target = "graph_imputation_transport_calibration"
+path = "crates/antecedent/tests/graph_imputation_transport_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-narrow-cross-fitted-policy-calibration"
+crate = "antecedent"
+cargo_target = "graph_narrow_cross_fitted_policy_calibration"
+path = "crates/antecedent/tests/graph_narrow_cross_fitted_policy_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-narrow-cross-fitted-subsampling-policy-calibration"
+crate = "antecedent"
+cargo_target = "graph_narrow_cross_fitted_subsampling_policy_calibration"
+path = "crates/antecedent/tests/graph_narrow_cross_fitted_subsampling_policy_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-narrow-policy-calibration"
+crate = "antecedent"
+cargo_target = "graph_narrow_policy_calibration"
+path = "crates/antecedent/tests/graph_narrow_policy_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "iid-sampling-assumption-union-calibration"
+crate = "antecedent"
+cargo_target = "iid_sampling_assumption_union_calibration"
+path = "crates/antecedent/tests/iid_sampling_assumption_union_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "joint-transport-predictive-calibration"
+crate = "antecedent"
+cargo_target = "joint_transport_predictive_calibration"
+path = "crates/antecedent/tests/joint_transport_predictive_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "latent-soft-intervention"
+crate = "antecedent"
+cargo_target = "latent_soft_intervention"
+path = "crates/antecedent/tests/latent_soft_intervention.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "sampled-temporal-path-transport-calibration"
+crate = "antecedent"
+cargo_target = "sampled_temporal_path_transport_calibration"
+path = "crates/antecedent/tests/sampled_temporal_path_transport_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "sequential-policy-choice-calibration"
+crate = "antecedent"
+cargo_target = "sequential_policy_choice_calibration"
+path = "crates/antecedent/tests/sequential_policy_choice_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "trial-ipw-predictive-calibration"
+crate = "antecedent"
+cargo_target = "trial_ipw_predictive_calibration"
+path = "crates/antecedent/tests/trial_ipw_predictive_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "bridge-transport-premise-assessment-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/bridge_transport_premise_assessment.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "composition-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/composition.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "composition-cyclic-bundle-tests"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/composition_cyclic_bundle_tests.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "composition-joint-transport-bundle-tests"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/composition_joint_transport_bundle_tests.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "composition-predictive-bundle-tests"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/composition_predictive_bundle_tests.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "composition-sequential-bundle-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/composition_sequential_bundle.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "cyclic-action-world-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-component-composition-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-posterior-action-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "cyclic-target-feedback-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/cyclic_target_feedback_decision.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "events-assessment-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/events/assessment.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "events-study-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/events/study.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-imputation-effect-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/graph_imputation_effect_decision.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-kernel-transport-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/graph_imputation_kernel_transport_decision.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-mar-transport-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/graph_imputation_mar_transport_decision.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-imputation-transport-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/graph_imputation_transport_decision.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-transport-effect-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_transport_effect_decision.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "joint-transport-predictive-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_transport_predictive_decision.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "latent-soft-intervention-fit-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/latent_soft_intervention/fit.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "propagation-chain-decision-tests"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/propagation_chain_decision_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "propagation-chain-robust-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/propagation_chain_robust_decision.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "sampling-assumption-union-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/sampling_assumption_union.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "sequential-policy-reliability-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/sequential_policy_reliability.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "temporal-path-transport-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/temporal_path_transport.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "trial-ipw-predictive-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/trial_ipw_predictive_decision.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "trial-ipw-transport-decision-unit"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/trial_ipw_transport_decision.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "nonlinear-sde-event-inputs-unit"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/nonlinear_sde/event_inputs.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "events-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_events.py"
+gates = ["inventory"]
+
+[[test]]
+id = "latent-soft-intervention-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_latent_soft_intervention.py"
+gates = ["inventory"]

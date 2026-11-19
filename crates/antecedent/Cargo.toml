@@ -1769,6 +1769,73 @@ name = "event_count_calibration"
 path = "tests/event_count_calibration.rs"
 required-features = ["calibration-internal"]
 
+[[test]]
+name = "composition_posterior_decision_bundle"
+path = "tests/composition_posterior_decision_bundle.rs"
+
+[[test]]
+name = "bridge_transport_premise_calibration"
+
+[[test]]
+name = "cluster_sampling_assumption_union_calibration"
+
+[[test]]
+name = "continuous_chain_transport_calibration"
+
+[[test]]
+name = "cyclic_posterior_predictive_calibration"
+
+[[test]]
+name = "cyclic_target_feedback_choice_calibration"
+
+[[test]]
+name = "fitted_dependent_measurement_calibration"
+
+[[test]]
+name = "graph_imputation_binary_cluster_calibration"
+
+[[test]]
+name = "graph_imputation_kernel_cluster_calibration"
+
+[[test]]
+name = "graph_imputation_kernel_transport_calibration"
+
+[[test]]
+name = "graph_imputation_mar_cluster_calibration"
+
+[[test]]
+name = "graph_imputation_predictive_calibration"
+
+[[test]]
+name = "graph_imputation_predictive_cluster_calibration"
+
+[[test]]
+name = "graph_imputation_transport_calibration"
+
+[[test]]
+name = "graph_narrow_cross_fitted_policy_calibration"
+
+[[test]]
+name = "graph_narrow_cross_fitted_subsampling_policy_calibration"
+
+[[test]]
+name = "graph_narrow_policy_calibration"
+
+[[test]]
+name = "iid_sampling_assumption_union_calibration"
+
+[[test]]
+name = "joint_transport_predictive_calibration"
+
+[[test]]
+name = "sampled_temporal_path_transport_calibration"
+
+[[test]]
+name = "sequential_policy_choice_calibration"
+
+[[test]]
+name = "trial_ipw_predictive_calibration"
+
 [[example]]
 name = "fitted_feedback_decision"
 path = "../../examples/rust/fitted_feedback_decision.rs"

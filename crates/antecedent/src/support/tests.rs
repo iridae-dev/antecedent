@@ -1545,3 +1545,35 @@ fn every_query_kind_has_an_axis_role_and_the_axis_names_match_the_declared_list(
         ALL_QUERY_KINDS.iter().filter(|kind| matches!(axis_role(**kind), AxisRole::Design)).count();
     assert_eq!(designs, 13);
 }
+
+#[test]
+fn a_capability_route_runs_only_as_an_entry_point_of_a_supported_unit() {
+    use super::gate::{capability_supported, require_capability_route};
+    // A unit the embedded status does not list is not supported: a release build refuses the
+    // route by name, and a development build runs it and records what a release build refuses.
+    let ctx = antecedent_core::ExecutionContext::for_tests(1);
+    let gated = require_capability_route(&ctx, "unlisted.capability", "antecedent.test.route");
+    if cfg!(feature = "development") {
+        assert!(gated.is_ok());
+        assert!(ctx.would_refuse().iter().any(|entry| {
+            entry.detail == "antecedent.test.route" && entry.missing == ["unlisted.capability"]
+        }));
+    } else {
+        let refusal = gated.expect_err("an unlisted unit is not supported");
+        assert_eq!(refusal.code(), "not_supported");
+        assert_eq!(
+            refusal.to_string(),
+            "reason=not_supported: antecedent.test.route (missing: unlisted.capability)"
+        );
+        assert!(ctx.would_refuse().is_empty());
+    }
+    // A listed unit's route runs exactly when the derived status supports the unit.
+    for unit in ["composition.bundle", "estimate.observational_policy_value"] {
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        let gated = require_capability_route(&ctx, unit, "antecedent.test.route");
+        assert_eq!(gated.is_ok(), capability_supported(unit) || cfg!(feature = "development"));
+        if capability_supported(unit) {
+            assert!(ctx.would_refuse().is_empty());
+        }
+    }
+}

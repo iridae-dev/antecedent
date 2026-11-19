@@ -2928,6 +2928,18 @@ codes = ["transport_budget_cancel"]
 meaning = "The evaluation was cancelled."
 
 [[detail]]
+id = "counterfactual_transport_sampled.contrast_envelope"
+family = "counterfactual_transport_sampled"
+codes = ["route_not_supported"]
+meaning = "A paired path contrast is requested under the unseen-mass envelope rule, which bounds each world but has no differentiable point contrast."
+
+[[detail]]
+id = "counterfactual_transport_sampled.contrast_nonfinite"
+family = "counterfactual_transport_sampled"
+codes = ["transport_numerical_failure"]
+meaning = "The difference of the two sampled worlds' path probabilities is not finite."
+
+[[detail]]
 id = "counterfactual_transport_sampled.envelope_budget"
 family = "counterfactual_transport_sampled"
 codes = ["transport_budget_cancel"]
@@ -13728,6 +13740,18 @@ codes = ["history_support_violated"]
 meaning = "The target policy takes an action in a reachable history where the logging policy has probability zero or declares no decision."
 
 [[detail]]
+id = "sequential_evaluation.bootstrap_config"
+family = "sequential_evaluation"
+codes = ["invalid_argument"]
+meaning = "The off-policy bootstrap has fewer than two policies, a replicate count outside its bound, or a minimum effective sample size that is not finite or below two."
+
+[[detail]]
+id = "sequential_evaluation.bootstrap_overflow"
+family = "sequential_evaluation"
+codes = ["invalid_argument"]
+meaning = "A bootstrap replicate of a policy value is not finite."
+
+[[detail]]
 id = "sequential_evaluation.cancelled"
 family = "sequential_evaluation"
 codes = ["cancelled_no_claim"]
@@ -13866,6 +13890,12 @@ codes = ["invalid_argument"]
 meaning = "A logged trajectory contradicts the model, the logging policy, a stopping boundary or the budget, or is censored before a commit or the horizon."
 
 [[detail]]
+id = "sequential_evaluation.low_effective_support"
+family = "sequential_evaluation"
+codes = ["history_support_violated"]
+meaning = "A policy's importance-weighted effective sample size in the log is below the declared minimum."
+
+[[detail]]
 id = "sequential_evaluation.malformed"
 family = "sequential_evaluation"
 codes = ["invalid_argument"]
@@ -13996,6 +14026,12 @@ id = "sequential_evaluation.record_identity"
 family = "sequential_evaluation"
 codes = ["invalid_argument"]
 meaning = "An observation record has a blank identity."
+
+[[detail]]
+id = "sequential_evaluation.reliability_carrier"
+family = "sequential_evaluation"
+codes = ["invalid_argument"]
+meaning = "Sequential evaluations cannot form one decision-reliability carrier: no utility unit or fewer than two policies, rollouts under different models or streams, bootstraps under different models, logging policies or trajectory counts, or an inconsistent draw carrier."
 
 [[detail]]
 id = "sequential_evaluation.resource_budget_exceeded"

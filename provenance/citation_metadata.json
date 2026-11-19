@@ -367,6 +367,21 @@
     "url": "https://api.crossref.org/works/10.1016/j.jeconom.2020.12.001",
     "year": 2021
   },
+  "10.1016/j.jeconom.2022.02.006": {
+    "authors": [
+      "Giuseppe Cavaliere",
+      "Ye Lu",
+      "Anders Rahbek",
+      "Jacob St\u00e6rk-\u00d8stergaard"
+    ],
+    "doi": "10.1016/j.jeconom.2022.02.006",
+    "response_sha256": "b2b6becfeae9b1be7951c39ec2ac9f6259abb1a3638cca5d9e897dfaaccd65fb",
+    "titles": [
+      "Bootstrap inference for Hawkes and general point processes"
+    ],
+    "url": "https://api.crossref.org/works/10.1016/j.jeconom.2022.02.006",
+    "year": 2023
+  },
   "10.1016/s0004-3702(98)00023-x": {
     "authors": [
       "Leslie Pack Kaelbling",
@@ -523,6 +538,20 @@
       "Reconstructing regime-dependent causal relationships from observational time series"
     ],
     "url": "https://api.crossref.org/works/10.1063/5.0020538",
+    "year": 2020
+  },
+  "10.1073/pnas.1922664117": {
+    "authors": [
+      "Larry Wasserman",
+      "Aaditya Ramdas",
+      "Sivaraman Balakrishnan"
+    ],
+    "doi": "10.1073/pnas.1922664117",
+    "response_sha256": "65854e5123e8615fb45d0d265f389109f359559f7971c8e3d8395cb7d86f4c14",
+    "titles": [
+      "Universal inference"
+    ],
+    "url": "https://api.crossref.org/works/10.1073/pnas.1922664117",
     "year": 2020
   },
   "10.1073/pnas.2014602118": {
@@ -2923,6 +2952,19 @@
     ],
     "url": "https://api.crossref.org/works/10.2307/3002019",
     "year": 1946
+  },
+  "10.2307/3212693": {
+    "authors": [
+      "Alan G. Hawkes",
+      "David Oakes"
+    ],
+    "doi": "10.2307/3212693",
+    "response_sha256": "35bd28604bc3532d0daa72e55616a80475a127d6bc223d1054280e0e99a14a80",
+    "titles": [
+      "A cluster process representation of a self-exciting process"
+    ],
+    "url": "https://api.crossref.org/works/10.2307/3212693",
+    "year": 1974
   },
   "10.2514/3.3166": {
     "authors": [

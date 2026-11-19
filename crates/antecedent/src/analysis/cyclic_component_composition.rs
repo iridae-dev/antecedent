@@ -2071,7 +2071,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only joint component posterior; no connected calibration is earned"]
     #[allow(clippy::too_many_lines, reason = "one scenario walked from fit through replay")]
     fn common_training_rows_refit_and_replay_the_connected_action_decision() {
         use super::super::cyclic_action_world_decision::CyclicDecisionOutput;
@@ -2340,7 +2339,6 @@ mod tests {
         assert_eq!(equations[1].weights, [0.3, 0.2]);
     }
     #[test]
-    #[ignore = "source-only joint vector component posterior; connected calibration is not earned"]
     #[allow(clippy::too_many_lines, reason = "one scenario walked from fit through replay")]
     fn vector_components_fit_joint_worlds_and_replay() {
         use super::super::cyclic_action_world_decision::CyclicDecisionOutput;
@@ -2519,7 +2517,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "source-only bounded fitted component output; reliability not earned"]
     #[allow(clippy::too_many_lines, reason = "one scenario walked from fit through replay")]
     fn bounded_component_worlds_replay_after_joint_fit() {
         use super::super::cyclic_action_world_decision::CyclicDecisionOutput;

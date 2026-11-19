@@ -63,7 +63,7 @@
 /// `sequential_evaluation.<rule>` detail, the message and the remedy, all
 /// written where the refusal is emitted.
 macro_rules! refusal {
-    ($code:literal, $detail:literal, $message:expr, $remedy:expr $(,)?) => {
+    ($code:literal, $detail:expr, $message:expr, $remedy:expr $(,)?) => {
         $crate::sequential_evaluation::SequentialEvaluationError::new(
             antecedent_core::reason_code!($code),
             $detail,

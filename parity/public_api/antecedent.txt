@@ -2331,6 +2331,12 @@ impl core::convert::From<antecedent_core::query::error::QueryError> for antecede
 impl core::convert::From<antecedent_core::query::error::QueryError> for antecedent::CompileCause
 impl core::convert::From<antecedent_core::query::error::QueryError> for antecedent::analysis::temporal_path_transport::TemporalPathTransportError
 impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::CausalError
+impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition::BridgeBundleRecomputeError
+impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition::CyclicPosteriorBundleError
+impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition::GraphImputationTransportBundleError
+impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition::JointTransportEffectBundleError
+impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition::PredictiveFitDecisionBundleError
+impl core::convert::From<antecedent_core::support_gate::NotSupported> for antecedent::analysis::composition::TrialIpwBundleError
 impl core::convert::From<antecedent_core::temporal::TemporalIndexError> for antecedent::CausalError
 impl core::convert::From<antecedent_core::temporal::TemporalIndexError> for antecedent::CompileCause
 impl core::convert::From<antecedent_counterfactual::error::CounterfactualError> for antecedent::CausalError
@@ -27519,23 +27525,29 @@ pub variant antecedent::analysis::composition::BridgeBundleRecomputeError::Bridg
 pub variant antecedent::analysis::composition::BridgeBundleRecomputeError::Bundle(antecedent_design::composition_bundle::BundleError)
 pub variant antecedent::analysis::composition::BridgeBundleRecomputeError::Invalid(&'static str)
 pub variant antecedent::analysis::composition::BridgeBundleRecomputeError::Io(antecedent_io_core::error::IoError)
+pub variant antecedent::analysis::composition::BridgeBundleRecomputeError::NotSupported(antecedent_core::support_gate::NotSupported)
 pub variant antecedent::analysis::composition::ChainBundleRecomputeError::Bundle(antecedent_design::composition_bundle::BundleError)
 pub variant antecedent::analysis::composition::ChainBundleRecomputeError::Chain(antecedent_contract::propagation_chain::ChainRefusal)
 pub variant antecedent::analysis::composition::ChainBundleRecomputeError::Invalid(&'static str)
 pub variant antecedent::analysis::composition::ChainBundleRecomputeError::Io(antecedent_io_core::error::IoError)
 pub variant antecedent::analysis::composition::CyclicPosteriorBundleError::Bundle(antecedent::analysis::composition::ChainBundleRecomputeError)
 pub variant antecedent::analysis::composition::CyclicPosteriorBundleError::Invalid(&'static str)
+pub variant antecedent::analysis::composition::CyclicPosteriorBundleError::NotSupported(antecedent_core::support_gate::NotSupported)
 pub variant antecedent::analysis::composition::CyclicPosteriorBundleError::Producer(antecedent::analysis::cyclic_posterior_action_decision::CyclicPosteriorDecisionError)
 pub variant antecedent::analysis::composition::GraphImputationTransportBundleError::Bundle(antecedent::analysis::composition::ChainBundleRecomputeError)
 pub variant antecedent::analysis::composition::GraphImputationTransportBundleError::Invalid(&'static str)
+pub variant antecedent::analysis::composition::GraphImputationTransportBundleError::NotSupported(antecedent_core::support_gate::NotSupported)
 pub variant antecedent::analysis::composition::JointTransportEffectBundleError::Bundle(antecedent::analysis::composition::ChainBundleRecomputeError)
 pub variant antecedent::analysis::composition::JointTransportEffectBundleError::Invalid(&'static str)
+pub variant antecedent::analysis::composition::JointTransportEffectBundleError::NotSupported(antecedent_core::support_gate::NotSupported)
 pub variant antecedent::analysis::composition::PredictiveFitDecisionBundleError::Bundle(antecedent::analysis::composition::ChainBundleRecomputeError)
 pub variant antecedent::analysis::composition::PredictiveFitDecisionBundleError::Invalid(&'static str)
+pub variant antecedent::analysis::composition::PredictiveFitDecisionBundleError::NotSupported(antecedent_core::support_gate::NotSupported)
 pub variant antecedent::analysis::composition::SequentialReliabilityBundleError::Bundle(antecedent::analysis::composition::ChainBundleRecomputeError)
 pub variant antecedent::analysis::composition::SequentialReliabilityBundleError::Invalid(&'static str)
 pub variant antecedent::analysis::composition::TrialIpwBundleError::Bundle(antecedent::analysis::composition::ChainBundleRecomputeError)
 pub variant antecedent::analysis::composition::TrialIpwBundleError::Invalid(&'static str)
+pub variant antecedent::analysis::composition::TrialIpwBundleError::NotSupported(antecedent_core::support_gate::NotSupported)
 pub variant antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError::Bundle(antecedent_design::composition_bundle::BundleError)
 pub variant antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError::Contract(antecedent_design::decision_contract::DecisionContractError)
 pub variant antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError::Evaluation(alloc::string::String)

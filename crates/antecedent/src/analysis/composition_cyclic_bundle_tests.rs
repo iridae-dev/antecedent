@@ -121,7 +121,6 @@ fn contract() -> DecisionContract {
 }
 
 #[test]
-#[ignore = "source-only posterior method; scientific record has not been earned"]
 fn cyclic_fit_reproduces_the_bundle_terminal_from_raw_evidence() {
     let ctx = ExecutionContext::for_tests(47);
     let producer = compile_cyclic_posterior_action_decision(request(), outputs(), contract(), &ctx)
@@ -183,7 +182,6 @@ fn cyclic_fit_reproduces_the_bundle_terminal_from_raw_evidence() {
 }
 
 #[test]
-#[ignore = "source-only cyclic posterior fit; scientific record has not been earned"]
 fn embedded_fit_node_is_refitted_by_the_bundle_consumer() {
     let ctx = ExecutionContext::for_tests(47);
     let producer = compile_cyclic_posterior_action_decision(request(), outputs(), contract(), &ctx)
@@ -259,7 +257,6 @@ fn embedded_fit_node_is_refitted_by_the_bundle_consumer() {
 }
 
 #[test]
-#[ignore = "source-only trial IPW bundle; no sampling or decision reliability is earned"]
 #[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 fn embedded_trial_fit_is_refitted_and_matches_the_live_chain() {
     use crate::analysis::trial_ipw_transport_decision::{
@@ -402,7 +399,6 @@ fn embedded_trial_fit_is_refitted_and_matches_the_live_chain() {
 }
 
 #[test]
-#[ignore = "source-only graph transport fit bundle; no whole-route calibration is earned"]
 #[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 fn embedded_graph_transport_fit_replays_raw_evidence_and_chain() {
     use crate::analysis::graph_imputation::{CompiledGraphImputation, GraphImputationSpec};
@@ -575,7 +571,6 @@ fn embedded_graph_transport_fit_replays_raw_evidence_and_chain() {
 }
 
 #[test]
-#[ignore = "source-only mixed-seed posterior replay; no scientific record is earned"]
 fn native_fit_consumer_replays_each_bound_seed_and_preserves_cancellation() {
     let mut builder = BundleBuilder::new();
     let mut artifacts = Vec::new();

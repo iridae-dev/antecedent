@@ -494,6 +494,8 @@ pub const REASON_DETAILS: &[&str] = &[
     "counterfactual_transport.zero_conditioning_mass",
     "counterfactual_transport_sampled.bounds_exceeded",
     "counterfactual_transport_sampled.cancelled",
+    "counterfactual_transport_sampled.contrast_envelope",
+    "counterfactual_transport_sampled.contrast_nonfinite",
     "counterfactual_transport_sampled.envelope_budget",
     "counterfactual_transport_sampled.envelope_undefined",
     "counterfactual_transport_sampled.interval_not_computable",
@@ -2310,6 +2312,8 @@ pub const REASON_DETAILS: &[&str] = &[
     "sequential_evaluation.artifact_id_missing",
     "sequential_evaluation.artifact_kind_mismatch",
     "sequential_evaluation.behaviour_support_missing",
+    "sequential_evaluation.bootstrap_config",
+    "sequential_evaluation.bootstrap_overflow",
     "sequential_evaluation.cancelled",
     "sequential_evaluation.channel_binding_mismatch",
     "sequential_evaluation.channel_construct_mismatch",
@@ -2333,6 +2337,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "sequential_evaluation.limit_exceeded",
     "sequential_evaluation.log_partially_counted",
     "sequential_evaluation.logged_trajectory_inconsistent",
+    "sequential_evaluation.low_effective_support",
     "sequential_evaluation.malformed",
     "sequential_evaluation.model_actions",
     "sequential_evaluation.model_field",
@@ -2355,6 +2360,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "sequential_evaluation.policy_version",
     "sequential_evaluation.record_already_counted",
     "sequential_evaluation.record_identity",
+    "sequential_evaluation.reliability_carrier",
     "sequential_evaluation.resource_budget_exceeded",
     "sequential_evaluation.return_overflow",
     "sequential_evaluation.rollout_belief",
@@ -3241,6 +3247,8 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("counterfactual_transport.zero_conditioning_mass", &["transport_support_failure"]),
     ("counterfactual_transport_sampled.bounds_exceeded", &["route_not_supported"]),
     ("counterfactual_transport_sampled.cancelled", &["transport_budget_cancel"]),
+    ("counterfactual_transport_sampled.contrast_envelope", &["route_not_supported"]),
+    ("counterfactual_transport_sampled.contrast_nonfinite", &["transport_numerical_failure"]),
     ("counterfactual_transport_sampled.envelope_budget", &["transport_budget_cancel"]),
     ("counterfactual_transport_sampled.envelope_undefined", &["transport_support_failure"]),
     ("counterfactual_transport_sampled.interval_not_computable", &["transport_support_failure"]),
@@ -5057,6 +5065,8 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("sequential_evaluation.artifact_id_missing", &["invalid_argument"]),
     ("sequential_evaluation.artifact_kind_mismatch", &["invalid_argument"]),
     ("sequential_evaluation.behaviour_support_missing", &["history_support_violated"]),
+    ("sequential_evaluation.bootstrap_config", &["invalid_argument"]),
+    ("sequential_evaluation.bootstrap_overflow", &["invalid_argument"]),
     ("sequential_evaluation.cancelled", &["cancelled_no_claim"]),
     ("sequential_evaluation.channel_binding_mismatch", &["measurement_binding_mismatch"]),
     ("sequential_evaluation.channel_construct_mismatch", &["measurement_binding_mismatch"]),
@@ -5080,6 +5090,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("sequential_evaluation.limit_exceeded", &["invalid_argument"]),
     ("sequential_evaluation.log_partially_counted", &["evidence_double_counted"]),
     ("sequential_evaluation.logged_trajectory_inconsistent", &["invalid_argument"]),
+    ("sequential_evaluation.low_effective_support", &["history_support_violated"]),
     ("sequential_evaluation.malformed", &["invalid_argument"]),
     ("sequential_evaluation.model_actions", &["invalid_argument"]),
     ("sequential_evaluation.model_field", &["invalid_argument"]),
@@ -5102,6 +5113,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("sequential_evaluation.policy_version", &["invalid_argument"]),
     ("sequential_evaluation.record_already_counted", &["evidence_double_counted"]),
     ("sequential_evaluation.record_identity", &["invalid_argument"]),
+    ("sequential_evaluation.reliability_carrier", &["invalid_argument"]),
     ("sequential_evaluation.resource_budget_exceeded", &["invalid_argument"]),
     ("sequential_evaluation.return_overflow", &["invalid_argument"]),
     ("sequential_evaluation.rollout_belief", &["invalid_argument"]),
@@ -6601,6 +6613,10 @@ pub mod counterfactual_transport_sampled {
     pub const BOUNDS_EXCEEDED: &str = "counterfactual_transport_sampled.bounds_exceeded";
     /// Detail `counterfactual_transport_sampled.cancelled`.
     pub const CANCELLED: &str = "counterfactual_transport_sampled.cancelled";
+    /// Detail `counterfactual_transport_sampled.contrast_envelope`.
+    pub const CONTRAST_ENVELOPE: &str = "counterfactual_transport_sampled.contrast_envelope";
+    /// Detail `counterfactual_transport_sampled.contrast_nonfinite`.
+    pub const CONTRAST_NONFINITE: &str = "counterfactual_transport_sampled.contrast_nonfinite";
     /// Detail `counterfactual_transport_sampled.envelope_budget`.
     pub const ENVELOPE_BUDGET: &str = "counterfactual_transport_sampled.envelope_budget";
     /// Detail `counterfactual_transport_sampled.envelope_undefined`.
@@ -10741,6 +10757,10 @@ pub mod sequential_evaluation {
     pub const ARTIFACT_KIND_MISMATCH: &str = "sequential_evaluation.artifact_kind_mismatch";
     /// Detail `sequential_evaluation.behaviour_support_missing`.
     pub const BEHAVIOUR_SUPPORT_MISSING: &str = "sequential_evaluation.behaviour_support_missing";
+    /// Detail `sequential_evaluation.bootstrap_config`.
+    pub const BOOTSTRAP_CONFIG: &str = "sequential_evaluation.bootstrap_config";
+    /// Detail `sequential_evaluation.bootstrap_overflow`.
+    pub const BOOTSTRAP_OVERFLOW: &str = "sequential_evaluation.bootstrap_overflow";
     /// Detail `sequential_evaluation.cancelled`.
     pub const CANCELLED: &str = "sequential_evaluation.cancelled";
     /// Detail `sequential_evaluation.channel_binding_mismatch`.
@@ -10787,6 +10807,8 @@ pub mod sequential_evaluation {
     pub const LOG_PARTIALLY_COUNTED: &str = "sequential_evaluation.log_partially_counted";
     /// Detail `sequential_evaluation.logged_trajectory_inconsistent`.
     pub const LOGGED_TRAJECTORY_INCONSISTENT: &str = "sequential_evaluation.logged_trajectory_inconsistent";
+    /// Detail `sequential_evaluation.low_effective_support`.
+    pub const LOW_EFFECTIVE_SUPPORT: &str = "sequential_evaluation.low_effective_support";
     /// Detail `sequential_evaluation.malformed`.
     pub const MALFORMED: &str = "sequential_evaluation.malformed";
     /// Detail `sequential_evaluation.model_actions`.
@@ -10831,6 +10853,8 @@ pub mod sequential_evaluation {
     pub const RECORD_ALREADY_COUNTED: &str = "sequential_evaluation.record_already_counted";
     /// Detail `sequential_evaluation.record_identity`.
     pub const RECORD_IDENTITY: &str = "sequential_evaluation.record_identity";
+    /// Detail `sequential_evaluation.reliability_carrier`.
+    pub const RELIABILITY_CARRIER: &str = "sequential_evaluation.reliability_carrier";
     /// Detail `sequential_evaluation.resource_budget_exceeded`.
     pub const RESOURCE_BUDGET_EXCEEDED: &str = "sequential_evaluation.resource_budget_exceeded";
     /// Detail `sequential_evaluation.return_overflow`.

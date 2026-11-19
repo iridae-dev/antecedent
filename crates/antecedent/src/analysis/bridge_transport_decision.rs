@@ -196,7 +196,7 @@ pub fn compile_bridge_transport_decision(
         identifier: None,
         estimator: None,
         realization: Realization::DeclaredPredictive {
-            evaluator: Arc::from("scientific_bridge.predictive_transport"),
+            evaluator: Arc::from("declared_bridge.predictive_transport"),
         },
         models: Arc::from([]),
         folds: None,

@@ -9,7 +9,7 @@ use crate::decision_reliability::{
 fn invalid(message: &'static str) -> super::SequentialEvaluationError {
     refusal!(
         "invalid_argument",
-        "sequential_evaluation.reliability_carrier",
+        antecedent_core::reason_details::sequential_evaluation::RELIABILITY_CARRIER,
         message,
         "evaluate a fixed finite policy set under one model and common stream"
     )
