@@ -1753,3 +1753,7 @@ path = "tests/point_only_routes.rs"
 [[test]]
 name = "policy_value_error_calibration"
 required-features = ["calibration-internal"]
+
+[[test]]
+name = "latent_soft_intervention"
+path = "tests/latent_soft_intervention.rs"

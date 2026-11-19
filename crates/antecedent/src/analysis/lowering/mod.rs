@@ -23,6 +23,7 @@ mod design_based;
 mod discovery;
 pub(crate) mod graph_imputation;
 mod graph_posterior;
+pub(crate) mod latent_soft_intervention;
 pub(crate) mod mnar_fixed_shift;
 mod query_digest;
 mod registry;

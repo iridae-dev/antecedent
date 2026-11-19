@@ -459,6 +459,9 @@
   "estimate.latent_class_effects.bayesian": [
    "estimate.latent_class_effects.bayesian"
   ],
+  "estimate.latent_soft_intervention": [
+   "estimate.latent_soft_intervention"
+  ],
   "estimate.matched_case_control_odds_ratio": [
    "estimate.matched_case_control_odds_ratio"
   ],
@@ -6729,6 +6732,30 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
+  },
+  {
+   "deviations": [
+    "Uses a declared linear-Gaussian DAG on fully observed continuous variables, with independent randomized recorded-action and control arms. Given the declared context, the analyst assumes independence of execution-version membership and structural disturbances. The compiler treats these as model premises.",
+    "The control-arm training split anchors the DAG equations and their disturbance scales. The bounded action-arm fit compares one or two versions, each admitting additive intercept shifts on at most two declared candidate equations. Exact target identities are descriptive and can remain unresolved. A logistic membership model conditions on pre-intervention roots and reads only those coordinates at forecast time.",
+    "The split likelihood ratio evaluates a training-only alternative against the evaluation sample's maximized single-Gaussian likelihood with a context-dependent mean and an unrestricted covariance. This assesses the defined statistical null. It cannot establish that observed deviations are caused by the declared structural alternatives without the causal and noise assumptions.",
+    "Both one- and two-version forecasts must pass a held-out screen based on sequential conditional probability integral transforms. The screen estimates no interval coverage and an inconclusive predictive check is not evidence for the number of versions.",
+    "Gaussian forecasts use the existing composition engine. Their covariance describes conditional predictive variation at the fitted parameters. Optional split-preserving bootstrap draws refit all equation and membership parameters and reselect the version structure jointly. The draws have no parameter-coverage or interval claim. This source record is staged for independent review and does not itself license the route."
+   ],
+   "digest": "079d4f1251185b595411af7a8ad068b2cdd116b0a7bb6d8499bf0f8fc25565a7",
+   "id": "estimate.latent_soft_intervention",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "doi": "10.1073/pnas.1922664117",
+     "doi_verified": false,
+     "sections": [
+      "The Universal Likelihood Ratio Test",
+      "Mixture Models"
+     ],
+     "title": "Universal inference"
+    }
+   ]
   },
   {
    "deviations": [

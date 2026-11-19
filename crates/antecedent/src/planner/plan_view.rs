@@ -2039,6 +2039,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::GraphImputationMarTransportDecision => PlanRoute::GraphImputationMarTransportDecision,
         ProgramCell::CategoricalPosteriorCandidate => PlanRoute::CategoricalPosteriorCandidate,
         ProgramCell::MnarFixedShift => PlanRoute::MnarFixedShift,
+        ProgramCell::LatentSoftIntervention => PlanRoute::LatentSoftIntervention,
     }
 }
 

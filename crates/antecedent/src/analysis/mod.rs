@@ -221,6 +221,7 @@ mod missing_imputation;
 mod missing_imputation_vector;
 pub mod missing_support;
 mod mixed_source;
+pub mod latent_soft_intervention;
 pub mod mnar_fixed_shift;
 pub mod mnar_sensitivity;
 pub mod msm_sensitivity;

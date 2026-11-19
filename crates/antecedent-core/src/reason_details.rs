@@ -1195,6 +1195,8 @@ pub const REASON_DETAILS: &[&str] = &[
     "latent_class_posterior.external_power_prior",
     "latent_class_posterior.mapped_prior",
     "latent_class_posterior.non_positive_scale",
+    "latent_soft_intervention.forecast_inadequate",
+    "latent_soft_intervention.invalid_request",
     "learned_continuous_posterior.band_not_constructed",
     "learned_continuous_posterior.empty_scores",
     "learned_continuous_posterior.external_power_prior",
@@ -3932,6 +3934,8 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("latent_class_posterior.external_power_prior", &["route_not_supported"]),
     ("latent_class_posterior.mapped_prior", &["route_not_supported"]),
     ("latent_class_posterior.non_positive_scale", &["invalid_argument"]),
+    ("latent_soft_intervention.forecast_inadequate", &["not_supported"]),
+    ("latent_soft_intervention.invalid_request", &["invalid_argument"]),
     ("learned_continuous_posterior.band_not_constructed", &["route_not_supported"]),
     ("learned_continuous_posterior.empty_scores", &["invalid_argument"]),
     ("learned_continuous_posterior.external_power_prior", &["route_not_supported"]),
@@ -8219,6 +8223,14 @@ pub mod latent_class_posterior {
     pub const MAPPED_PRIOR: &str = "latent_class_posterior.mapped_prior";
     /// Detail `latent_class_posterior.non_positive_scale`.
     pub const NON_POSITIVE_SCALE: &str = "latent_class_posterior.non_positive_scale";
+}
+
+/// Details in the `latent_soft_intervention` family.
+pub mod latent_soft_intervention {
+    /// Detail `latent_soft_intervention.forecast_inadequate`.
+    pub const FORECAST_INADEQUATE: &str = "latent_soft_intervention.forecast_inadequate";
+    /// Detail `latent_soft_intervention.invalid_request`.
+    pub const INVALID_REQUEST: &str = "latent_soft_intervention.invalid_request";
 }
 
 /// Details in the `learned_continuous_posterior` family.

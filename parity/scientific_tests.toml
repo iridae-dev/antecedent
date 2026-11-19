@@ -2460,3 +2460,59 @@ evidence_assertion = "every_refuter_re_estimates_the_targeted_effect_under_bayes
 kind = "known_truth"
 fixtures = []
 why = "Under Bayesian inference the random-common-cause and data-subset refuters re-estimate the model-based effect on the declared target, reporting the targeted value and not the all-rows effect."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs"
+evidence_assertion = "equal_downstream_means_preserve_distinct_pathways_and_replay"
+kind = "known_truth"
+fixtures = []
+why = "Two unlabelled additive shifts have equal mean effects on the headline outcome and different shift locations. The compiled route must recover the distinct coordinates, context weights, conditional covariance and fresh native replay against independently planted structural truth. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs"
+evidence_assertion = "one_version_leaves_a_split_unresolved"
+kind = "known_truth"
+fixtures = []
+why = "Under a single shifted Gaussian structural mechanism the held-out comparison leaves a latent split unresolved. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs"
+evidence_assertion = "variance_only_change_does_not_release_a_single_shift_forecast"
+kind = "known_truth"
+fixtures = []
+why = "A Gaussian variance change rejects the restricted fallback and does not release a pathway split or a baseline-anchored forecast. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs"
+evidence_assertion = "joint_refits_keep_baseline_and_weighted_action_aligned"
+kind = "reference"
+fixtures = []
+why = "Complete split-preserving refits retain both arms and their same-fit membership weights; an independent mixture contrast equals each paired readout and the aggregate artifact replay is deterministic. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/latent_soft_intervention/fit.rs"
+evidence_assertion = "full_covariance_comparator_matches_closed_form_on_orthogonal_residuals"
+kind = "reference"
+fixtures = []
+why = "An independently computed Gaussian likelihood on orthogonal standardized residuals agrees with both the analytic null maximizer and predictive score. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs"
+evidence_assertion = "compiler_meter_refuses_an_exhausted_search"
+kind = "reference"
+fixtures = []
+why = "The compiled execution must stop in the numerical search meter. A refusal from the release evidence gate cannot satisfy this assertion. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/study.rs"
+evidence_assertion = "finite_same_stream_observation_changes_choice"
+kind = "reference"
+fixtures = []
+why = "Hand enumeration gives the choice-specific value of the finite count signal."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/assessment.rs"
+evidence_assertion = "count_interval_matches_hand_ranked_discrete_tails"
+kind = "reference"
+fixtures = []
+why = "Independent order-statistic calculation checks both integer endpoints, including ties."

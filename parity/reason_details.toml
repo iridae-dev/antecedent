@@ -7074,6 +7074,18 @@ codes = ["population_not_estimable"]
 meaning = "A class falls below the minimum weight or its effect is not separated from another's by the declared gap."
 
 [[detail]]
+id = "latent_soft_intervention.forecast_inadequate"
+family = "latent_soft_intervention"
+codes = ["not_supported"]
+meaning = "The held-out evaluation leaves the fitted recorded-action response inadequate for forecasting."
+
+[[detail]]
+id = "latent_soft_intervention.invalid_request"
+family = "latent_soft_intervention"
+codes = ["invalid_argument"]
+meaning = "The declaration, source, fitted coordinate, or replay request is invalid for the latent soft-intervention route."
+
+[[detail]]
 id = "latent_class.wrong_contract"
 family = "latent_class"
 codes = ["route_not_supported"]

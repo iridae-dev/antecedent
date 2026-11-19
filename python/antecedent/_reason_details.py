@@ -490,6 +490,7 @@ class composition_boundary:  # noqa: N801
 class composition_bundle:  # noqa: N801
     CALLBACK_UNAVAILABLE: Final = "composition_bundle.callback_unavailable"
     EDGE_DIGEST_MISMATCH: Final = "composition_bundle.edge_digest_mismatch"
+    EXECUTION_CANCELLED: Final = "composition_bundle.execution_cancelled"
     EXPECTED_IDENTITY_MISMATCH: Final = "composition_bundle.expected_identity_mismatch"
     GRAPH_OR_SNAPSHOT_MISMATCH: Final = "composition_bundle.graph_or_snapshot_mismatch"
     INCOMPATIBLE_VERSION: Final = "composition_bundle.incompatible_version"
@@ -497,6 +498,7 @@ class composition_bundle:  # noqa: N801
     NODE_NOT_FOUND: Final = "composition_bundle.node_not_found"
     OVERSIZED: Final = "composition_bundle.oversized"
     PROVIDER_REQUEST_CHANGED: Final = "composition_bundle.provider_request_changed"
+    RESOURCE_REFUSED: Final = "composition_bundle.resource_refused"
     SWAPPED_EVIDENCE: Final = "composition_bundle.swapped_evidence"
     TAMPERED_QUANTITY: Final = "composition_bundle.tampered_quantity"
     UNKNOWN_NODE_KIND: Final = "composition_bundle.unknown_node_kind"
@@ -1516,6 +1518,11 @@ class latent_class_posterior:  # noqa: N801
     EXTERNAL_POWER_PRIOR: Final = "latent_class_posterior.external_power_prior"
     MAPPED_PRIOR: Final = "latent_class_posterior.mapped_prior"
     NON_POSITIVE_SCALE: Final = "latent_class_posterior.non_positive_scale"
+
+
+class latent_soft_intervention:  # noqa: N801
+    FORECAST_INADEQUATE: Final = "latent_soft_intervention.forecast_inadequate"
+    INVALID_REQUEST: Final = "latent_soft_intervention.invalid_request"
 
 
 class learned_continuous_posterior:  # noqa: N801
@@ -3860,6 +3867,7 @@ ALL: Final[tuple[str, ...]] = (
     "composition_boundary.verification_receipt_missing",
     "composition_bundle.callback_unavailable",
     "composition_bundle.edge_digest_mismatch",
+    "composition_bundle.execution_cancelled",
     "composition_bundle.expected_identity_mismatch",
     "composition_bundle.graph_or_snapshot_mismatch",
     "composition_bundle.incompatible_version",
@@ -3867,6 +3875,7 @@ ALL: Final[tuple[str, ...]] = (
     "composition_bundle.node_not_found",
     "composition_bundle.oversized",
     "composition_bundle.provider_request_changed",
+    "composition_bundle.resource_refused",
     "composition_bundle.swapped_evidence",
     "composition_bundle.tampered_quantity",
     "composition_bundle.unknown_node_kind",
@@ -4653,6 +4662,8 @@ ALL: Final[tuple[str, ...]] = (
     "latent_class_posterior.external_power_prior",
     "latent_class_posterior.mapped_prior",
     "latent_class_posterior.non_positive_scale",
+    "latent_soft_intervention.forecast_inadequate",
+    "latent_soft_intervention.invalid_request",
     "learned_continuous_posterior.band_not_constructed",
     "learned_continuous_posterior.empty_scores",
     "learned_continuous_posterior.external_power_prior",
@@ -6600,6 +6611,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "composition_boundary.verification_receipt_missing": ("external_verification_failed",),
     "composition_bundle.callback_unavailable": ("external_capability_missing",),
     "composition_bundle.edge_digest_mismatch": ("external_binding_mismatch",),
+    "composition_bundle.execution_cancelled": ("cancelled_no_claim",),
     "composition_bundle.expected_identity_mismatch": ("external_binding_mismatch",),
     "composition_bundle.graph_or_snapshot_mismatch": ("external_binding_mismatch",),
     "composition_bundle.incompatible_version": ("schema_mismatch",),
@@ -6607,6 +6619,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "composition_bundle.node_not_found": ("invalid_argument",),
     "composition_bundle.oversized": ("invalid_argument",),
     "composition_bundle.provider_request_changed": ("external_binding_mismatch",),
+    "composition_bundle.resource_refused": ("execution_resource_limit",),
     "composition_bundle.swapped_evidence": ("external_binding_mismatch",),
     "composition_bundle.tampered_quantity": ("quantity_semantics_mismatch",),
     "composition_bundle.unknown_node_kind": ("invalid_argument",),
@@ -7401,6 +7414,8 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "latent_class_posterior.external_power_prior": ("route_not_supported",),
     "latent_class_posterior.mapped_prior": ("route_not_supported",),
     "latent_class_posterior.non_positive_scale": ("invalid_argument",),
+    "latent_soft_intervention.forecast_inadequate": ("not_supported",),
+    "latent_soft_intervention.invalid_request": ("invalid_argument",),
     "learned_continuous_posterior.band_not_constructed": ("route_not_supported",),
     "learned_continuous_posterior.empty_scores": ("invalid_argument",),
     "learned_continuous_posterior.external_power_prior": ("route_not_supported",),

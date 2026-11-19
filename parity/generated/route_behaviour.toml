@@ -8014,3 +8014,18 @@ routes = [
   { route = "antecedent.priors.select_alpha_prior_gamma_poisson", stage = "evaluate", status = "supported", claim = "interval" },
   { route = "antecedent.inference.Bayesian.count_prior_wrong_route", stage = "evaluate", status = "closed", reason_code = "option_not_applicable", claim = "interval" },
 ]
+
+[[record]]
+id = "estimate.latent_soft_intervention"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "latent_soft_intervention.invalid_request" },
+  { code = "not_supported", detail = "latent_soft_intervention.forecast_inadequate" },
+]
+routes = [
+  { route = "antecedent.Study.prepare_latent_soft_intervention", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.PreparedLatentSoftIntervention.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.FittedLatentSoftIntervention.forecast", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.latent_soft_intervention.prepare", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.latent_soft_intervention.replay_forecast", stage = "consume", status = "supported", claim = "point_only" },
+]

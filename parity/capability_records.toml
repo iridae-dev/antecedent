@@ -23484,3 +23484,44 @@ fixtures = [
   { id = "association.conjugate_count_posterior.selected_prior_provenance.artifact", role = "artifact", intent = "A Beta prior at the data-selected power-prior discount carries the criterion, selected alpha, level and interval semantics as restriction ids of its identity.", evidence_test = "python/tests/test_composed_prior_currency.py", evidence_assertion = "test_a_selected_count_prior_records_its_interval_semantics" },
   { id = "association.conjugate_count_posterior.interval.construction", role = "construction", intent = "The scored interval is the equal-tailed 95% credible interval of the cell the route reports, finite and ordered.", evidence_test = "crates/antecedent/tests/count_conjugate_calibration.rs", evidence_assertion = "the_route_reports_the_closed_form_interval_for_a_known_cell" },
 ]
+
+[[record]]
+id = "estimate.latent_soft_intervention"
+capability = "estimate.latent_soft_intervention"
+status = "supported"
+consumer_question = "Which declared structural equations may shift under unlabelled executions of a recorded action, and what joint response does the fitted action law predict from pre-intervention context?"
+theorem = "A baseline-anchored linear Gaussian DAG and conditionally exogenous version assignment define a bounded mixture of sparse intercept shifts. The honest split comparison addresses the specified single-Gaussian null. Target scores are descriptive, and indistinguishable pathways are retained as competing hypotheses. Scope and claims remain conditional on the declared model."
+reference = "provenance/estimate.latent_soft_intervention.toml"
+guarantee = "compiled_model_conditional_gaussian_mixture_response"
+graph_class = "Fully observed static continuous DAG with supplied pre-intervention roots and two to six candidate equations."
+population_semantics = "One declared population, independent randomized recorded-action and baseline arms, conditional execution-version exogeneity."
+evidence_family = "Two arm tables, multiplicity restricted to two versions, and pre-intervention forecast coordinates within both arms' training support."
+provider = "Native retained compiler route and existing Gaussian composition engine."
+estimand = "Context-conditional joint law of the recorded action as delivered and its baseline comparator."
+inference_claim = "point_only"
+inference_notes = "Gaussian mixture at fitted parameters. Optional whole-fit resampling is diagnostic and supplies no confidence interval. Release support awaits independent evidence."
+owners = ["antecedent", "antecedent-py", "python/antecedent"]
+identity_inputs = ["arm rows", "scope and assumptions", "graph, roles and targets", "search controls and seed", "lowered program", "fit", "query context"]
+wire_changes = ["Additive source-bound latent_soft_intervention_forecast_v1 replay artifact."]
+compatibility = "Existing intervention, latent-class, Gaussian composition, artifact versions and identities retain their contracts."
+search = true
+search_impl = ["crates/antecedent/src/analysis/latent_soft_intervention/fit.rs"]
+bounds = { cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = 41000, depth_limit = 2, memory_limit = "declared execution admission; bounded source and workspace" }
+refusals = [
+  { detail = "latent_soft_intervention.invalid_request", when = "The request, data, context, or replay expectation violates the route's contract." },
+  { detail = "latent_soft_intervention.forecast_inadequate", when = "The fitted response fails the held-out forecasting guard." },
+]
+routes = [
+  { name = "antecedent.Study.prepare_latent_soft_intervention", stage = "prepare", status = "supported" },
+  { name = "antecedent.PreparedLatentSoftIntervention.execute", stage = "evaluate", status = "supported" },
+  { name = "antecedent.FittedLatentSoftIntervention.forecast", stage = "evaluate", status = "supported" },
+  { name = "antecedent.latent_soft_intervention.prepare", stage = "prepare", status = "supported" },
+  { name = "antecedent.latent_soft_intervention.replay_forecast", stage = "consume", status = "supported" },
+]
+fixtures = [
+  { id = "estimate.latent_soft_intervention.distinct_pathways.truth", role = "truth", shared_evidence = true, intent = "Independent structural truth for two paths with equal headline effects and different conditional mixture weights.", evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs", evidence_assertion = "equal_downstream_means_preserve_distinct_pathways_and_replay" },
+  { id = "estimate.latent_soft_intervention.retained_program.positive", role = "positive", shared_evidence = true, intent = "Fit and forecasts come from the original inspected compiler plan.", evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs", evidence_assertion = "equal_downstream_means_preserve_distinct_pathways_and_replay" },
+  { id = "estimate.latent_soft_intervention.replay.artifact", role = "artifact", shared_evidence = true, intent = "Replay recomputes the fit and law and refuses a changed context.", evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs", evidence_assertion = "equal_downstream_means_preserve_distinct_pathways_and_replay" },
+  { id = "estimate.latent_soft_intervention.premises.negative", role = "negative", intent = "The compiler refuses undeclared version exogeneity and post-action context.", evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs", evidence_assertion = "compiler_rejects_missing_premises_and_post_action_context" },
+  { id = "estimate.latent_soft_intervention.search_meter.budget", role = "budget", intent = "Execution under an exhausted SearchBudget refuses with the operations stop.", evidence_test = "crates/antecedent/tests/latent_soft_intervention.rs", evidence_assertion = "compiler_meter_refuses_an_exhausted_search" },
+]

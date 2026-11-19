@@ -1074,6 +1074,45 @@ impl MnarFixedShiftLoweredParts {
     }
 }
 
+/// The six layers of a bounded latent soft-intervention program.
+pub(crate) struct LatentSoftInterventionLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl LatentSoftInterventionLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::LatentSoftIntervention;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        // Promotion of this capability annotates the same scientific program.
+        ScientificProblem { supported: false, ..self.scientific.clone() }.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+            binding: None,
+        }
+    }
+}
+
 /// The compiled cell a lowered program was lowered for: a route cell of
 /// `Study::compile`, a cyclic family that prepares through its own entry, a
 /// standalone experiment plan, or a propagation chain.
@@ -1175,6 +1214,8 @@ pub(crate) enum ProgramCell {
     CategoricalPosteriorCandidate,
     /// A fixed declared MNAR operation.
     MnarFixedShift,
+    /// Latent additive soft-intervention discovery and prediction.
+    LatentSoftIntervention,
 }
 
 impl ProgramCell {
@@ -1238,6 +1279,7 @@ impl ProgramCell {
             Self::GraphImputationMarTransportDecision => "GraphImputationMarTransportDecision",
             Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
             Self::MnarFixedShift => "MnarFixedShift",
+            Self::LatentSoftIntervention => "LatentSoftIntervention",
         }
     }
 }
@@ -1344,7 +1386,8 @@ impl LoweredProgram {
             | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
             | ProgramCell::GraphImputationMarTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
-            | ProgramCell::MnarFixedShift => None,
+            | ProgramCell::MnarFixedShift
+            | ProgramCell::LatentSoftIntervention => None,
         }
     }
 
@@ -1408,7 +1451,8 @@ impl LoweredProgram {
             | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
             | ProgramCell::GraphImputationMarTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
-            | ProgramCell::MnarFixedShift => None,
+            | ProgramCell::MnarFixedShift
+            | ProgramCell::LatentSoftIntervention => None,
         }
     }
 
@@ -1472,7 +1516,8 @@ impl LoweredProgram {
             | ProgramCell::GraphImputationConfoundedKernelTransportClusterBootstrapDecision
             | ProgramCell::GraphImputationMarTransportDecision
             | ProgramCell::CategoricalPosteriorCandidate
-            | ProgramCell::MnarFixedShift => None,
+            | ProgramCell::MnarFixedShift
+            | ProgramCell::LatentSoftIntervention => None,
         }
     }
 

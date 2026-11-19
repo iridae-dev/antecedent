@@ -273,6 +273,8 @@ macro_rules! route_lowerings {
             CategoricalPosteriorCandidate,
             /// A bounded fixed-shift MNAR operation.
             MnarFixedShift,
+            /// Latent additive soft-intervention discovery and prediction.
+            LatentSoftIntervention,
         }
 
         impl PlanRoute {
@@ -339,6 +341,7 @@ macro_rules! route_lowerings {
                     Self::GraphImputationMarTransportDecision => "GraphImputationMarTransportDecision",
                     Self::CategoricalPosteriorCandidate => "CategoricalPosteriorCandidate",
                     Self::MnarFixedShift => "MnarFixedShift",
+                    Self::LatentSoftIntervention => "LatentSoftIntervention",
                 }
             }
 
@@ -408,6 +411,7 @@ macro_rules! route_lowerings {
                     Self::GraphImputationMarTransportDecision => RouteFamily::GraphImputation,
                     Self::CategoricalPosteriorCandidate => RouteFamily::CategoricalPosteriorCandidate,
                     Self::MnarFixedShift => RouteFamily::DesignBased,
+                    Self::LatentSoftIntervention => RouteFamily::Structural,
                 }
             }
         }
