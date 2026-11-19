@@ -50,7 +50,7 @@ def covariance_route(case: dict) -> dict:
     s = [frac(v) for v in case["covariance"]]
     k = len(c)
     return {
-        "mean": float(sum(ci * mi for ci, mi in zip(c, m))),
+        "mean": float(sum(ci * mi for ci, mi in zip(c, m, strict=True))),
         "variance": float(sum(c[i] * s[i * k + j] * c[j] for i in range(k) for j in range(k))),
     }
 
@@ -59,7 +59,7 @@ def aligned_route(case: dict) -> dict:
     c = [frac(v) for v in case["coefficients"]]
     columns = [[frac(v) for v in column] for column in case["pieces"]]
     n = len(columns[0])
-    rows = [sum(ci * column[i] for ci, column in zip(c, columns)) for i in range(n)]
+    rows = [sum(ci * column[i] for ci, column in zip(c, columns, strict=True)) for i in range(n)]
     mean = sum(rows) / n
     variance = sum((r - mean) ** 2 for r in rows) / n
     return {"mean": float(mean), "variance": float(variance)}

@@ -360,9 +360,8 @@ class Body:
         end = self._find(eq + 1, hi, ";")
         if end is None:
             return None
-        m = None
-        for m in re.finditer(r"\belse\s*\{", s[eq:end]):
-            pass
+        matches = list(re.finditer(r"\belse\s*\{", s[eq:end]))
+        m = matches[-1] if matches else None
         if m is None:
             return None
         brace = eq + m.end() - 1
@@ -700,7 +699,7 @@ class Types:
                 continue
             stored = _stored_parameters(generic[0][1], generic[0][2])
             arguments = [a for a in _split(alias.group(2)) if not a.strip().startswith("'")]
-            held = {WORD.findall(argument)[-1] for argument, kept in zip(arguments, stored)
+            held = {WORD.findall(argument)[-1] for argument, kept in zip(arguments, stored, strict=False)
                     if kept and re.fullmatch(r"\s*(?:\w+\s*::\s*)*\w+\s*", argument)} & types.structs
             if held:
                 types.contains[name], types.alias_home[name] = held, home
@@ -1135,7 +1134,7 @@ def reach(graph: Graph, roots: set[Key], *, executed: set[Key] = frozenset(), un
             waiting.discard(key)
             closed.pop(key, None)
         unreached: set[Key] = set()
-        for relation, target in edges:
+        for _relation, target in edges:
             target_node = graph.node(target)
             if target_node is None:
                 continue
@@ -1150,7 +1149,7 @@ def reach(graph: Graph, roots: set[Key], *, executed: set[Key] = frozenset(), un
                     name(impl, key)
         if unreached:
             # An impl header is named with its methods: dead when every method named is.
-            for relation, target in edges:
+            for _relation, target in edges:
                 target_node = graph.node(target)
                 if target_node is not None and target_node.kind == "impl":
                     children = {t for _, t in edges if t[0] == target[0] and t[1].startswith(target[1] + "/")}

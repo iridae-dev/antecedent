@@ -134,7 +134,7 @@ def check(document):
         beta_log_ml(base_a + al * k0, base_b + al * (n0 - k0), k, n)
         for al in eb["grid"]
     ]
-    for i, (got, want) in enumerate(zip(scores, eb["expected_scores"])):
+    for i, (got, want) in enumerate(zip(scores, eb["expected_scores"], strict=True)):
         close(got, want, tol, f"eb score {i}", problems)
     best = 0
     for i in range(1, len(scores)):

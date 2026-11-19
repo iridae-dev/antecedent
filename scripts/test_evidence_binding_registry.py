@@ -3,16 +3,19 @@
 * An edit to the body of `fn invert` in `crates/antecedent-estimate/src/synthetic_rollout.rs`
   (the grid search of the conformal synthetic-control set) owed every calibration record
   bound through the facade's dispatch: associations, attributions, effects. It owes the
-  measurements of the conformal sets, and no record outside the two test targets whose
-  code can build a synthetic-control rollout: the synthetic-control measurements (one
-  helper builds every interval kind under a flag) and the joint-response measurements
-  (their recipe chooses its inference from a deserialisable value). Seven records the
-  rebinding left broad still owe.
+  measurements of the conformal sets, and no record outside the test targets whose code
+  can build a synthetic-control rollout: the synthetic-control measurements (one helper
+  builds every interval kind under a flag), the joint-response measurements (their recipe
+  chooses its inference from a deserialisable value), and the synthetic-control rows of
+  the range and graphless wider-range measurements. Seven records the rebinding left
+  broad still owe.
 * A comment in a Nix evidence recipe, or in the policy code, owed every record. It owes
   none.
 
 Nothing is written: the edits are laid over the checkout for one currency check. A record
-that is owed for another reason is not counted against either edit.
+that is owed for another reason is not counted against either edit, and a calibration record
+kept current by a probe attestation is checked through that attestation (its own row in the
+records), not through the measurement binding the attestation replaced.
 """
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import calibration_status
 import evidence_manifests as manifests
 import narrow_evidence_binding as narrowing
 from rust_items import File
@@ -34,7 +38,12 @@ SYNTHETIC = "crates/antecedent/tests/synthetic_control_calibration.rs"
 CONFORMAL = {f"{SYNTHETIC}::conformal_synthetic_control_{name}_set"
              for name in ("first_period", "last_period", "constant_effect")}
 # The test targets whose code can build a synthetic-control rollout.
-ROLLOUT_TARGETS = (SYNTHETIC, "crates/antecedent/tests/joint_response_calibration.rs")
+ROLLOUT_TARGETS = (
+    SYNTHETIC,
+    "crates/antecedent/tests/joint_response_calibration.rs",
+    "crates/antecedent/tests/synthetic_control_range_calibration.rs",
+    "crates/antecedent/tests/graphless_wider_range_calibration.rs",
+)
 # Seven measurements of this target keep the broad selection: their manifests name items
 # the source of their build does not hold under the same names, so they were not narrowed.
 LEFT_BROAD = "crates/antecedent/tests/randomized_interval_calibration.rs"
@@ -73,7 +82,17 @@ class RegistryTests(unittest.TestCase):
         for rel in POLICY:
             lay(rel, (ROOT / rel).read_text(encoding="utf-8") + "\n# An edit to a comment.\n")
         checker = Overlaid(ROOT, edited)
-        cls.records = narrowing.records(ROOT, "all")
+        coverage = calibration_status.load_records(ROOT / "parity" / "coverage_records.toml")
+        statuses = calibration_status.classify(
+            coverage,
+            calibration_status.load_attestations(ROOT / "parity" / "calibration_probe_attestations.toml"),
+            calibration_status.tree_fingerprints(coverage, root=ROOT),
+        )
+        by_probe = {rid for rid, status in statuses.items() if status.via == "probe"}
+        cls.records = [
+            record for record in narrowing.records(ROOT, "all")
+            if not (record[0] == "calibration" and record[1]["key"] in by_probe)
+        ]
         cls.reasons: dict[tuple[str, str], list[str]] = {}
         cls.tests: dict[tuple[str, str], str] = {}
         for kind, binding, ref, test in cls.records:
@@ -93,7 +112,7 @@ class RegistryTests(unittest.TestCase):
 
     def test_the_edit_reaches_the_measurements_of_the_routine_it_serves(self):
         owed = {label for label in self.owed_by(ROLLOUT) if label[0] == "calibration"}
-        self.assertTrue(CONFORMAL <= {self.tests[label] for label in owed})
+        self.assertTrue({self.tests[label] for label in owed} >= CONFORMAL)
 
     def test_the_edit_owes_no_record_of_another_route(self):
         owed = {label for label in self.owed_by(ROLLOUT) if label[0] == "calibration"}

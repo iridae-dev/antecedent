@@ -1,5 +1,4 @@
 """A pass/fail calibration gate pass is carried while nothing it executed changed."""
-import json
 import sys
 import tempfile
 import unittest
@@ -80,7 +79,7 @@ class SelectSkipsCarriedGates(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             ledger = Path(tmp) / "gates.toml"
             ledger.write_text(
-                '[[gate]]\ngroup = "crate__t"\npassed = 1\ncalibration_sha = "%s"\nexecuted_files = ["x/y.rs"]\n' % SHA,
+                f'[[gate]]\ngroup = "crate__t"\npassed = 1\ncalibration_sha = "{SHA}"\nexecuted_files = ["x/y.rs"]\n',
                 encoding="utf-8",
             )
             unbound = groups.Group(2, "crate: other", False, False)

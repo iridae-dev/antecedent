@@ -76,8 +76,7 @@ def _preparation_declarations(**values: Any) -> Mapping[str, Any]:
             name: value
             for name, value in bound.arguments.items()
             # A measurement declaration is dispatched before preparation (prepare_measured).
-            if name
-            not in {"data", "execution", "measurement", "measurement_draws", "imputations"}
+            if name not in {"data", "execution", "measurement", "measurement_draws", "imputations"}
         }
     )
 

@@ -146,7 +146,7 @@ class ShardMergeTest(unittest.TestCase):
             ranges, (tail, stop) = shards.plan_ranges(start, end, count)
             self.assertEqual(stop, end)
             self.assertEqual(ranges[0][0], start)
-            for (_, b), (a, _) in zip(ranges, ranges[1:] + [(tail, 0)]):
+            for (_, b), (a, _) in zip(ranges, ranges[1:] + [(tail, 0)], strict=False):
                 self.assertEqual(b, a)
             self.assertTrue(all(b > a for a, b in ranges))
             self.assertLessEqual(end - tail, max(count, -(-(end - start) // 20)))
@@ -298,13 +298,13 @@ class EstimateOrderingTest(unittest.TestCase):
         self.assertEqual(order[0], "t: short")
 
     def test_a_named_estimate_file_that_is_missing_or_malformed_is_an_error(self):
-        with patch.dict(os.environ, {groups.ESTIMATES_ENV: str(self.root / "absent.tsv")}):
-            with self.assertRaises(SystemExit):
-                groups.estimated_durations()
+        absent = {groups.ESTIMATES_ENV: str(self.root / "absent.tsv")}
+        with patch.dict(os.environ, absent), self.assertRaises(SystemExit):
+            groups.estimated_durations()
         self.file.write_text("t: short\tfast\n", encoding="utf-8")
-        with patch.dict(os.environ, {groups.ESTIMATES_ENV: str(self.file)}):
-            with self.assertRaises(SystemExit):
-                groups.estimated_durations()
+        named = {groups.ESTIMATES_ENV: str(self.file)}
+        with patch.dict(os.environ, named), self.assertRaises(SystemExit):
+            groups.estimated_durations()
 
     def test_shard_counts_split_only_tasks_longer_than_the_share(self):
         a, b, c = self.patched()
