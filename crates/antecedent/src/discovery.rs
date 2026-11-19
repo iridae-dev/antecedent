@@ -627,6 +627,7 @@ pub fn discover_exact_dag_marginals(
 /// # Errors
 ///
 /// No table, a discovery failure on any table, or posteriors that do not pool.
+#[doc(hidden)]
 pub fn discover_pooled_exact_dag_posterior(
     tables: &[TabularData],
     variables: &[VariableId],
@@ -646,6 +647,7 @@ pub fn discover_pooled_exact_dag_posterior(
 /// # Errors
 ///
 /// No table, a discovery failure on any table, or marginals that do not pool.
+#[doc(hidden)]
 pub fn discover_pooled_exact_dag_marginals(
     tables: &[TabularData],
     variables: &[VariableId],
@@ -680,6 +682,7 @@ pub fn pool_posteriors_over_imputations(
 ///
 /// No table, a discovery failure on any table (including the diagnostics gate), or posteriors
 /// that do not pool.
+#[doc(hidden)]
 pub fn discover_pooled_order_mcmc(
     tables: &[TabularData],
     variables: &[VariableId],
@@ -702,6 +705,7 @@ pub fn discover_pooled_order_mcmc(
 /// # Errors
 ///
 /// No table, a discovery failure on any table, or posteriors that do not pool.
+#[doc(hidden)]
 pub fn discover_pooled_structure_mcmc(
     tables: &[TabularData],
     variables: &[VariableId],
@@ -722,6 +726,7 @@ pub fn discover_pooled_structure_mcmc(
 /// # Errors
 ///
 /// No table, a discovery failure on any table, or posteriors that do not pool.
+#[doc(hidden)]
 pub fn discover_pooled_ci_screened_posterior(
     tables: &[TabularData],
     variables: &[VariableId],
@@ -753,6 +758,7 @@ pub fn discover_pooled_ci_screened_posterior(
 /// # Errors
 ///
 /// No series, a discovery failure on any series, or posteriors that do not pool.
+#[doc(hidden)]
 pub fn discover_pooled_dbn_posterior(
     series: &[TimeSeriesData],
     variables: &[VariableId],
