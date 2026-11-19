@@ -34,6 +34,18 @@ def allowed(path):
 
 
 class FormTests(unittest.TestCase):
+    def test_a_python_recipe_digest_does_not_depend_on_the_interpreter(self):
+        # The 3.11 form of the tree, which every recorded digest was computed from: no
+        # `type_params` (3.12) and every empty field printed (3.13 omits them).
+        source = '"""Doc."""\ndef f(a: int, *, b=None) -> int:\n    """Doc."""\n    return a\n'
+        self.assertEqual(
+            recipes.python_tree(source),
+            "Module(body=[FunctionDef(name='f', args=arguments(posonlyargs=[], "
+            "args=[arg(arg='a', annotation=Name(id='int', ctx=Load()))], kwonlyargs=[arg(arg='b')], "
+            "kw_defaults=[Constant(value=None)], defaults=[]), body=[Return(value=Name(id='a', "
+            "ctx=Load()))], decorator_list=[], returns=Name(id='int', ctx=Load()))], type_ignores=[])",
+        )
+
     def test_nix_comments_and_layout_are_not_content(self):
         base = recipes.digest("nix", NIX.encode())
         edited = NIX.replace("# The evidence build.", "# Builds the evidence targets.\n#\n").replace(
