@@ -129,8 +129,10 @@ impl PreparedEventForecast {
             ));
         }
         let history = &request.history;
+        // The observed history (its window, pre-window arrivals and event
+        // count) is data; its size reaches the record through the row count.
         let design = digest(
-            "antecedent.events.count.coverage.scope.v1",
+            "antecedent.events.count.coverage.construction.v1",
             &(
                 &history.catalog,
                 &history.time_unit,
@@ -139,14 +141,11 @@ impl PreparedEventForecast {
                 refits,
                 request.paths,
                 request.max_events,
-                history.left.len(),
-                history.window.end - history.window.start,
-                history.window.start - history.empty_origin,
                 request.forecast.end - request.forecast.start,
             ),
         )?
         .to_hex();
-        let functional = format!("event_count:scope={design}");
+        let functional = format!("event_count:construction={design}");
         let basis = CalibrationBasis::new(
             [
                 "OutcomePrediction",

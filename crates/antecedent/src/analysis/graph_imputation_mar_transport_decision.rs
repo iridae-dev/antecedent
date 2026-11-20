@@ -736,17 +736,14 @@ impl CompiledMarTransportDecision {
             .map(|(id, bandwidth)| format!("{id}:{:016x}", bandwidth.to_bits()))
             .collect::<Vec<_>>()
             .join(",");
-        let cluster_count =
-            self.target.frame.cluster_ids.iter().collect::<std::collections::BTreeSet<_>>().len();
+        // Source and target row counts reach the record through the scope's
+        // row count; the target cluster count is not part of the construction.
         let functional = format!(
-            "target_average_effect:graph_support={}:graphs={}:domains={}:selected={:?}:source_n={}:target_n={}:target_clusters={}:imputations={}:iterations={}:posterior_draws={}:prior_bits={:016x}:mode={}:confounded={}:mar_conditioning={:?}:probability_policy=declared_complete_vector:observation_mechanism={:?}:sampling_design={:?}:weights=sampling_over_observation:bandwidths={}:overlap_bits={:016x}:target_sampling={}:replicates={}",
+            "target_average_effect:graph_support={}:graphs={}:domains={}:selected={:?}:imputations={}:iterations={}:posterior_draws={}:prior_bits={:016x}:mode={}:confounded={}:mar_conditioning={:?}:probability_policy=declared_complete_vector:observation_mechanism={:?}:sampling_design={:?}:weights=sampling_over_observation:bandwidths={}:overlap_bits={:016x}:target_sampling={}:replicates={}",
             parts.support.as_str(),
             parts.atoms.len(),
             parts.domains.iter().map(u8::to_string).collect::<String>(),
             self.target.selection_targets,
-            parts.rows(),
-            self.target.frame.row_ids.len(),
-            cluster_count,
             parts.imputations,
             parts.iterations,
             parts.posterior_draws,

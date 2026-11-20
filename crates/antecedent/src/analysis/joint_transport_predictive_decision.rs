@@ -611,12 +611,11 @@ impl CompiledJointTransportPredictiveDecision {
             )
         })?;
         let functional = format!(
-            "target_treated_outcome:features={}:varying={:?}:shared_baseline:target_noise_bits={:016x}:cross_world_rho_bits={:016x}:empirical_target_frame:target_rows={}:draws={}",
+            "target_treated_outcome:features={}:varying={:?}:shared_baseline:target_noise_bits={:016x}:cross_world_rho_bits={:016x}:empirical_target_frame:draws={}",
             self.request.model.features.len(),
             self.request.model.varying,
             self.request.target_noise_variance.to_bits(),
             self.request.target_noise_correlation.to_bits(),
-            self.request.target.rows,
             self.request.options.draws,
         );
         let basis = CalibrationBasis::new(

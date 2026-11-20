@@ -530,21 +530,13 @@ impl CompiledBridgeTransportPremiseAssessment {
         })
     }
 
-    /// Candidate for whole-grid simultaneous coverage calibration. The scope
-    /// binds the trial surrogate designs, trial identities, premise and margin
-    /// while allowing terminal responses to vary across simulation replicates.
-    ///
-    /// # Errors
-    /// Trial fitting or discrepancy construction refused.
-    pub fn calibration_candidate(
-        &self,
-        ctx: &ExecutionContext,
-    ) -> Result<BridgeTransportPremiseCalibrationCandidate, BridgeTransportPremiseAssessmentError>
-    {
-        let result = self.execute(ctx)?;
+    /// Digest of the assessment's construction: the declared premise, the fit
+    /// thresholds, the equivalence margin and the surrogate evaluation grid.
+    /// The trials themselves, their identities and their count are data.
+    pub(crate) fn calibration_construction(&self) -> SemanticDigest {
         let request = &self.request;
         let mut writer = CanonicalWriter::new(
-            "antecedent.bridge_transport_premise_assessment.calibration_scope.v1",
+            "antecedent.bridge_transport_premise_assessment.calibration_construction.v1",
         );
         writer
             .text(&request.premise.id)
@@ -559,21 +551,30 @@ impl CompiledBridgeTransportPremiseAssessment {
             .word(u64::from(request.target.min_trials))
             .word(request.target.min_r_squared.to_bits())
             .word(request.equivalence_margin.to_bits());
-        for (ids, validation) in [
-            (&request.source_trial_ids, &request.source),
-            (&request.target_trial_ids, &request.target),
-        ] {
-            writer.word(ids.len() as u64);
-            for (id, trial) in ids.iter().zip(&validation.trials) {
-                writer.text(id).word(trial.surrogate_effect.to_bits());
-            }
-        }
         writer.word(request.surrogate_grid.len() as u64);
         for &x in &request.surrogate_grid {
             writer.word(x.to_bits());
         }
-        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
-        let functional = format!("trial_mapping_discrepancy_grid:scope={scope}");
+        SemanticDigest::from_bytes(writer.finish())
+    }
+
+    /// Candidate for whole-grid simultaneous coverage calibration. The
+    /// construction binds the premise, fit thresholds, margin and surrogate
+    /// grid; the trials and their count are the record's scope.
+    ///
+    /// # Errors
+    /// Trial fitting or discrepancy construction refused.
+    pub fn calibration_candidate(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<BridgeTransportPremiseCalibrationCandidate, BridgeTransportPremiseAssessmentError>
+    {
+        let result = self.execute(ctx)?;
+        let request = &self.request;
+        let functional = format!(
+            "trial_mapping_discrepancy_grid:construction={}",
+            self.calibration_construction().to_hex()
+        );
         let basis = CalibrationBasis::new(
             [
                 "MechanismChange",

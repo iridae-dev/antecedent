@@ -1217,21 +1217,13 @@ impl CompiledClusterSamplingAssumptionUnion {
             "antecedent.cluster_sampling_assumption_union.template.v1",
             &antecedent_io::to_cbor(&template)?,
         );
-        let mut writer = CanonicalWriter::new(
-            "antecedent.cluster_sampling_assumption_union.calibration_scope.v1",
+        // The cluster schedule is data: its unit count reaches the record
+        // through the scope's row count.
+        let functional = format!(
+            "joint_set_endpoints:cluster_template={}:replicates={}",
+            SemanticDigest::from_bytes(template_digest).to_hex(),
+            self.request.bootstrap_replicates,
         );
-        writer
-            .bytes(&template_digest)
-            .word(self.request.bootstrap_replicates as u64)
-            .word(self.groups.len() as u64);
-        for group in &self.groups {
-            writer.word(group.len() as u64);
-            for &row in group {
-                writer.word(row as u64);
-            }
-        }
-        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
-        let functional = format!("joint_set_endpoints:cluster_scope={scope}");
         let basis = CalibrationBasis::new(
             [
                 "IdentifiedSet",
@@ -1658,24 +1650,13 @@ impl CompiledStratifiedClusterSamplingAssumptionUnion {
             "antecedent.stratified_cluster_sampling_assumption_union.template.v1",
             &antecedent_io::to_cbor(&template)?,
         );
-        let mut writer = CanonicalWriter::new(
-            "antecedent.stratified_cluster_sampling_assumption_union.calibration_scope.v1",
+        // The strata and cluster schedule are data: their unit count reaches
+        // the record through the scope's row count.
+        let functional = format!(
+            "joint_set_endpoints:stratified_cluster_template={}:replicates={}",
+            SemanticDigest::from_bytes(template_digest).to_hex(),
+            self.request.bootstrap_replicates,
         );
-        writer
-            .bytes(&template_digest)
-            .word(self.request.bootstrap_replicates as u64)
-            .word(self.strata.len() as u64);
-        for groups in &self.strata {
-            writer.word(groups.len() as u64);
-            for group in groups {
-                writer.word(group.len() as u64);
-                for &row in group {
-                    writer.word(row as u64);
-                }
-            }
-        }
-        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
-        let functional = format!("joint_set_endpoints:stratified_cluster_scope={scope}");
         let basis = CalibrationBasis::new(
             [
                 "IdentifiedSet",
@@ -2052,16 +2033,13 @@ impl CompiledMovingBlockSamplingAssumptionUnion {
             "antecedent.moving_block_sampling_assumption_union.template.v1",
             &antecedent_io::to_cbor(&template)?,
         );
-        let mut writer = CanonicalWriter::new(
-            "antecedent.moving_block_sampling_assumption_union.calibration_scope.v1",
+        // The series length reaches the record through the scope's row count.
+        let functional = format!(
+            "joint_set_endpoints:moving_block_template={}:replicates={}:block_length={}",
+            SemanticDigest::from_bytes(template_digest).to_hex(),
+            self.request.bootstrap_replicates,
+            self.request.block_length,
         );
-        writer
-            .bytes(&template_digest)
-            .word(self.request.bootstrap_replicates as u64)
-            .word(self.request.unit_ids.len() as u64)
-            .word(self.request.block_length as u64);
-        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
-        let functional = format!("joint_set_endpoints:moving_block_scope={scope}");
         let basis = CalibrationBasis::new(
             [
                 "IdentifiedSet",
@@ -2487,23 +2465,14 @@ impl CompiledStratifiedMovingBlockSamplingAssumptionUnion {
             "antecedent.stratified_moving_block_sampling_assumption_union.template.v1",
             &antecedent_io::to_cbor(&template)?,
         );
-        let mut writer = CanonicalWriter::new(
-            "antecedent.stratified_moving_block_sampling_assumption_union.calibration_scope.v1",
+        // The strata schedule is data: its unit count reaches the record
+        // through the scope's row count.
+        let functional = format!(
+            "joint_set_endpoints:stratified_moving_block_template={}:replicates={}:block_length={}",
+            SemanticDigest::from_bytes(template_digest).to_hex(),
+            self.request.bootstrap_replicates,
+            self.request.block_length,
         );
-        writer
-            .bytes(&template_digest)
-            .word(self.request.bootstrap_replicates as u64)
-            .word(self.request.unit_ids.len() as u64)
-            .word(self.request.block_length as u64)
-            .word(self.strata.len() as u64);
-        for rows in &self.strata {
-            writer.word(rows.len() as u64);
-            for &row in rows {
-                writer.word(row as u64);
-            }
-        }
-        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
-        let functional = format!("joint_set_endpoints:stratified_moving_block_scope={scope}");
         let basis = CalibrationBasis::new(
             [
                 "IdentifiedSet",
@@ -2924,23 +2893,14 @@ impl CompiledPanelBlockSamplingAssumptionUnion {
             "antecedent.panel_block_sampling_assumption_union.template.v1",
             &antecedent_io::to_cbor(&template)?,
         );
-        let mut writer = CanonicalWriter::new(
-            "antecedent.panel_block_sampling_assumption_union.calibration_scope.v1",
+        // The panel schedule is data: its unit count reaches the record
+        // through the scope's row count.
+        let functional = format!(
+            "joint_set_endpoints:panel_block_template={}:replicates={}:block_length={}",
+            SemanticDigest::from_bytes(template_digest).to_hex(),
+            self.request.bootstrap_replicates,
+            self.request.block_length,
         );
-        writer
-            .bytes(&template_digest)
-            .word(self.request.bootstrap_replicates as u64)
-            .word(self.request.unit_ids.len() as u64)
-            .word(self.request.block_length as u64)
-            .word(self.panels.len() as u64);
-        for rows in &self.panels {
-            writer.word(rows.len() as u64);
-            for &row in rows {
-                writer.word(row as u64);
-            }
-        }
-        let scope = SemanticDigest::from_bytes(writer.finish()).to_hex();
-        let functional = format!("joint_set_endpoints:panel_block_scope={scope}");
         let basis = CalibrationBasis::new(
             [
                 "IdentifiedSet",
