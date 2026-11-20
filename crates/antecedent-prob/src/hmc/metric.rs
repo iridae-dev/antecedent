@@ -7,8 +7,9 @@ use super::{HmcOptions, MIN_METRIC_WARMUP};
 /// Slow-window schedule of metric adaptation over `n_warmup` iterations, as in Stan: a fast
 /// initial buffer, then windows that double in length (each re-estimating the metric), then a
 /// fast terminal buffer for the final step-size adaptation. Warmups too short for that fall
-/// back to one window between proportional buffers. Returns `[start, end)` per window.
-pub(super) fn metric_windows(n_warmup: usize) -> Vec<(usize, usize)> {
+/// back to one window between proportional buffers. Returns `[start, end)` per window. The tuned
+/// random-walk Metropolis sampler adapts its proposal covariance on the same schedule.
+pub(crate) fn metric_windows(n_warmup: usize) -> Vec<(usize, usize)> {
     if n_warmup < MIN_METRIC_WARMUP {
         return Vec::new();
     }
