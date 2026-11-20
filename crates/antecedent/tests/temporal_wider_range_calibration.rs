@@ -773,18 +773,31 @@ fn run_wide_sequential(seed: u64, bayesian: bool) -> Option<Replicate> {
         builder
     };
     let ctx = ExecutionContext::for_tests(seed);
-    let prepared = builder.build().ok()?.prepare(&ctx).ok()?;
-    let result = prepared.estimate(&data, &ctx).ok()?;
-    let contract = prepared.contract_for_result(&result).ok()?;
+    let prepared = builder
+        .build()
+        .expect("valid sequential design")
+        .prepare(&ctx)
+        .expect("prepared sequential design");
+    let result = match prepared.estimate(&data, &ctx) {
+        Ok(result) => result,
+        Err(error) if error.reason_code() == Some("positivity_violated") => return None,
+        Err(error) => panic!("unexpected sequential estimate error: {error}"),
+    };
+    let contract = prepared.contract_for_result(&result).expect("reported sequential construction");
     let reported = constructions(&contract, &result);
     let (interval, (mut construction, scope, _)) = if bayesian {
         let found = reported
             .into_iter()
-            .find(|(construction, _, _)| construction.interval_method == POSTERIOR_INTERVAL)?;
-        (posterior_interval(&result)?, found)
+            .find(|(construction, _, _)| construction.interval_method == POSTERIOR_INTERVAL)
+            .expect("published posterior construction");
+        (posterior_interval(&result).expect("published posterior interval"), found)
     } else {
-        let [lower, upper] = result.sequential_contrast()?.interval?;
-        ((lower, upper), reported.into_iter().next()?)
+        let [lower, upper] = result
+            .sequential_contrast()
+            .expect("sequential result")
+            .interval
+            .expect("published Wald interval");
+        ((lower, upper), reported.into_iter().next().expect("published Wald construction"))
     };
     if !bayesian {
         construction.interval_method = NORMAL_INTERVAL.into();
@@ -804,6 +817,21 @@ fn measure_wide_sequential(test: &'static str, bayesian: bool, seed: u64) {
     let runs = map_replicates(n_sim(), |rep| {
         run_wide_sequential(grid_seed(stream_seed(seed, rep)), bayesian)
     });
+    let offered = runs.iter().flatten().count();
+    let covered = runs
+        .iter()
+        .flatten()
+        .filter(|run| {
+            let (lower, upper) = run.interval;
+            assert!(lower.is_finite() && upper.is_finite() && lower <= upper);
+            lower <= CONTRAST_TRUTH && CONTRAST_TRUTH <= upper
+        })
+        .count();
+    eprintln!(
+        "{test}: this batch covered {covered}/{offered} offered intervals and {covered}/{} attempts, with {} positivity refusals",
+        runs.len(),
+        runs.len() - offered
+    );
     score(test, "sequential_panel_wide_probabilities", interval, CONTRAST_TRUTH, "", runs);
 }
 
