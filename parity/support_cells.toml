@@ -9018,7 +9018,6 @@ checked_execution = [
 limitations = "Posterior mean of mechanism-change Shapley contributions on an explicit TemporalDag unfolded to a lag-aligned static SCM. Conditional on mechanism-family selection from unweighted populations. Does not address model misspecification or identification uncertainty. Each draw places Dirichlet weights on contiguous blocks of lag-aligned times (one Exp(1) weight per block of at least the lag span plus one rows, shared by every row of the block) and refits every mechanism under them; the posterior and its equal-tailed credible interval are published. No coverage record measures this construction; calibration is not claimed."
 calibration = ["cov.change_attribution.temporal_dag.bayesian.posterior_quantile.l90.change_attribution_temporal_dag_graph_posterior_bayesian_coverage.v2_validation_none", "cov.change_attribution.temporal_dag.bayesian.posterior_quantile.l95.change_attribution_temporal_dag_graph_posterior_bayesian_coverage.v2_validation_none"]
 
-
 [[cell]]
 query = "AnomalyAttribution"
 graph_class = "Dag"
@@ -12416,7 +12415,6 @@ checked_execution = [
 ]
 limitations = "Change attribution over a graph posterior whose atoms are a TemporalPag (member by member over its temporal MAG completions). Held to a derivation from the definitions in exact rationals (conformance/estimate/class_attribution_truth): each atom attributed as the structure it stands for, a class atom sharing its probability equally among its completions, the published contribution the posterior-weighted mean over the atoms that attribute it, the identified set their per-component range, and a mask that is no structure of the posterior's kind (or an atom a hedge leaves unidentified) unidentified posterior mass that is not redistributed, the status graph-dependent. Atoms' posteriors are conditional on their structures and never mixed: the posterior is published only when every atom publishes the very same draws, and is held to its closed-form Dirichlet moments. Posterior probabilities are the declared weights of the atoms; change attribution at cheap/full is a refusal."
 calibration = ["cov.change_attribution.temporal_pag.bayesian.posterior_quantile.l90.change_attribution_temporal_pag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior", "cov.change_attribution.temporal_pag.bayesian.posterior_quantile.l95.change_attribution_temporal_pag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior"]
-
 
 [[cell]]
 query = "TransportQuery"
@@ -22128,7 +22126,6 @@ checked_execution = [
 ]
 limitations = "Cheap and full validation of a graph-posterior ResponseCurve over Admg, TemporalAdmg, Cpdag or Pag atoms run the functional refuter state on the posterior-mixed curve, refitting the whole graph-posterior procedure on perturbed data: the placebo treatment (which removes the effect the identified curve reads, so the refitted curve is flat at the mean outcome), the placebo outcome and bootstrap stability of the whole mixed curve under full, and subset stability (Bayesian: prior sensitivity and the posterior predictive check where the route has them); each is one joint statistic over the grid, and a refuter the curve cannot honour is recorded as refused. A curve conditional on the atoms that identify it (lost mass to atoms the identifier refuses) is refuted as that same conditional curve. Beside them the support of the curve over the posterior atoms is reported (curve.atom_support): the identified mass equals the posterior weight of the accepted atoms. Known-truth evidence: the front-door curve [0.314, 0.596] of an exact table (exact Frequentist plug-in, Dirichlet mean within a band) and the sampled Cpdag and PAG curves; every refuter passes on the clean law. The verdicts are diagnostics, not a calibration claim."
 calibration = ["cov.response_curve.pag.bayesian.posterior_quantile.l90.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_0", "cov.response_curve.pag.bayesian.posterior_quantile.l90.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_1", "cov.response_curve.pag.bayesian.posterior_quantile.l90.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a__1", "cov.response_curve.pag.bayesian.posterior_quantile.l95.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_0", "cov.response_curve.pag.bayesian.posterior_quantile.l95.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_1", "cov.response_curve.pag.bayesian.posterior_quantile.l95.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a__1"]
-
 
 [[cell]]
 query = "Counterfactual"
@@ -39862,7 +39859,6 @@ limitations = "Unconditional finite-discrete interventional distribution on a su
 calibration = ["cov.interventional_distribution.pag.bayesian.posterior_quantile.l90.distribution_pag_bayesian_given.v2_validation_none.v2_structure_accepted", "cov.interventional_distribution.pag.bayesian.posterior_quantile.l95.distribution_pag_bayesian_given.v2_validation_none.v2_structure_accepted"]
 # generated:distribution_classes:end
 
-
 [[cell]]
 query = "Counterfactual"
 graph_class = "Admg"
@@ -42876,7 +42872,6 @@ checked_execution = [
 limitations = "Mediation decomposition of one treatment on one outcome through the declared mediators, on a supplied or accepted PAG, validation none, unconditional finite-discrete table: the total, natural direct and pure natural indirect effect E[Y(a0, M(a1))] - E[Y(a0)], each identified by the path-specific identifier and evaluated by the finite-discrete plug-in. The fixture case is the same Markovian graph with every mark decided and visible, so every ADMG sharing the m-separation model of its MAG completion yields one functional per component (total 0.25, natural direct 0.15625, pure natural indirect 0.1875). Each component is the class result of the path-specific executor; the Bayesian cell publishes the components' posterior means without draws, and no estimate.mediation.joint is disclosed over a PAG. Bayesian: the posterior is the Dirichlet row posterior of the same functional; the posterior mean is checked within the fixture's declared band. The components equal the exact enumerated truths of the generating structural model on the retained exact-law table (conformance/estimate/mediation_mixed_graphs; the independent generator evaluates the outcome equation under each treatment and mediator-treatment argument, not a mediation formula); the pure indirect effect is never total minus direct, and a mediator-outcome confounder the graph states is refused as not identified. Validation full runs the mediation-native suite (sequential-ignorability sensitivity, a mediator placebo, and subset stability of the three components and, under full, further stability refits refitted together). On the exact-law table scaled to 40 times the rows the mediator placebo leaves the total effect in the total and direct components and removes the indirect one, and every subset refit returns its enumerated component, each within 0.03 with every verdict passing; the sensitivity grid is a diagnostic the reference does not assert (its statistic has no independent closed form here), and the verdicts are checks, not a calibration claim. Graph-posterior structures and conditional queries stay refused. No sampling interval is claimed to cover; no coverage record measures this construction."
 calibration = ["cov.mediation_effect.pag.bayesian.identified_set.l90.mediation_pag_given_bayesian_coverage.v2_validation_full.v2_structure_accepted"]
 # generated:mediation_mixed:end
-
 
 [[cell]]
 query = "Counterfactual"
