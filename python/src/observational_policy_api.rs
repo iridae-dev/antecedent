@@ -34,6 +34,25 @@ fn evaluate_observational_policy(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
+    let request =
+        policy_request(outcome, treatment, adjustment_names, adjustment_columns, declaration_json)?;
+    detach_catch(py, move || {
+        let ctx =
+            crate::transport_common::execution_context(request.spec.seed, memory_bytes, cancel);
+        let report = ObservationalPolicyValue::evaluate(&request, &ctx).map_err(py_err)?;
+        serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))
+    })
+}
+
+/// The policy request: the outcome, treatment and named adjustment columns and the parsed
+/// declaration. `adjustment_columns[j]` is the column named `adjustment_names[j]`.
+pub(crate) fn policy_request(
+    outcome: Vec<f64>,
+    treatment: Vec<f64>,
+    adjustment_names: Vec<String>,
+    adjustment_columns: Vec<Vec<f64>>,
+    declaration_json: &str,
+) -> PyResult<ObservationalPolicyRequest> {
     check_declared_size(declaration_json, MAX_JSON_BYTES, "observational policy value")?;
     let spec: ObservationalPolicySpecWire =
         serde_json::from_str(declaration_json).map_err(|e| {
@@ -48,7 +67,7 @@ fn evaluate_observational_policy(
             antecedent::reason::reason_code!("invalid_argument"),
         ));
     }
-    let request = ObservationalPolicyRequest {
+    Ok(ObservationalPolicyRequest {
         outcome,
         treatment,
         adjustment: adjustment_names
@@ -57,12 +76,6 @@ fn evaluate_observational_policy(
             .map(|(name, values)| AdjustmentColumn { name, values })
             .collect(),
         spec,
-    };
-    detach_catch(py, move || {
-        let ctx =
-            crate::transport_common::execution_context(request.spec.seed, memory_bytes, cancel);
-        let report = ObservationalPolicyValue::evaluate(&request, &ctx).map_err(py_err)?;
-        serde_json::to_string(&report).map_err(|e| crate::serialization_err(e.to_string()))
     })
 }
 

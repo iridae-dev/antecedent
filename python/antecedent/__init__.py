@@ -492,6 +492,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "recovery_chain",
     "release_migration",
     "repair",
+    "sampling_assumption_union",
     "scenario_decision",
     "scenario_invariance",
     "scientific_bridge",
@@ -589,6 +590,7 @@ if _TYPE_CHECKING:
     from . import recovery_chain as recovery_chain
     from . import release_migration as release_migration
     from . import repair as repair
+    from . import sampling_assumption_union as sampling_assumption_union
     from . import scenario_decision as scenario_decision
     from . import scenario_invariance as scenario_invariance
     from . import scientific_bridge as scientific_bridge

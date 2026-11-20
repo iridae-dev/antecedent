@@ -45,6 +45,16 @@ snapshot and executed-fit identities for the separately supported same-row
 retarget operation. Connecting a receipt to scores checks both bindings; a
 changed fit refuses even when the data snapshot is the same.
 
+A sequential policy reliability
+(:func:`antecedent.decision_reliability.sequential_policy_reliability`) embeds as three
+connected nodes with :meth:`BundleBuilder.add_sequential_policy_reliability`: its sealed raw
+producer, its decision draws and its diagnostic, each verified by recomputation.
+:func:`compile_sequential_reliability_node_bundle` compiles the built bundle into one program
+that replays the producer and reassesses the diagnostic from the retained draws
+(:class:`SequentialReliabilityBundleReceipt`, a point diagnostic), and
+:func:`consume_portable_sequential_reliability_node_bundle` reconstructs and recomputes the
+sealed bundle under the retained bundle and program identities.
+
 Rust owns the graph, the digests, the verifiers and every refusal; this module
 raises each as a :class:`CompositionBundleRefusal`, a
 :class:`~antecedent.errors.StructuredRefusal` (a ``CausalUnsupportedError``) with its
@@ -58,13 +68,14 @@ import json
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from inspect import signature as _signature
-from typing import Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from antecedent import _reason_details
 
 from . import _native
 from ._artifact_protocol import (
     ArtifactAcceptance,
+    ArtifactExpectation,
     ExportedArtifact,
     artifact_consumer,
     artifact_export,
@@ -74,9 +85,14 @@ from ._artifact_protocol import (
 from ._refusal import raise_refusal
 from ._scientific import ScientificResult
 from ._validate import count
+from ._validate import name as _name
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .execution import Execution, resolve_execution
 from .outcomes import outcome_operation
+
+if TYPE_CHECKING:
+    from .decision_reliability import SequentialPolicyReliability
 
 _UNSET: Any = object()
 
@@ -559,6 +575,51 @@ class BundleBuilder:
         raise_refusal(refusal, _refusal_type)
         self._ids.append(node_id)
         self._last = node_id
+        return self
+
+    def add_sequential_policy_reliability(
+        self,
+        reliability: SequentialPolicyReliability,
+        *,
+        producer: str = "sequential_producer",
+        draws: str = "sequential_draws",
+        diagnostic: str = "sequential_diagnostic",
+        execution: Execution | None = None,
+    ) -> BundleBuilder:
+        """Embed a sequential policy reliability as three connected nodes.
+
+        ``reliability`` comes from
+        :func:`antecedent.decision_reliability.sequential_policy_reliability`. ``producer``
+        holds its sealed raw declaration, ``draws`` its aligned decision draws and
+        ``diagnostic`` its report on those draws, connected producer to draws to diagnostic.
+        Each node is verified by recomputation before it is accepted: the producer is
+        re-evaluated under the seed it was computed with and the diagnostic is reassessed from
+        the draws. On a refusal the builder is unchanged. ``execution`` supplies threads,
+        limits and cancellation. :func:`compile_sequential_reliability_node_bundle` recomputes
+        the three nodes of the built bundle.
+
+        Raises:
+            CausalTypeError: ``reliability`` is not a computed sequential policy reliability.
+            CompositionBundleRefusal: a node id already in use, or a node that does not verify.
+        """
+        native = getattr(reliability, "_native", None)
+        if not isinstance(native, _native.SequentialPolicyReliabilityHandle):
+            raise CausalTypeError(
+                "reliability must be a SequentialPolicyReliability computed in this process by "
+                "decision_reliability.sequential_policy_reliability"
+            )
+        ids = (_name(producer, "producer"), _name(draws, "draws"), _name(diagnostic, "diagnostic"))
+        execution = resolve_execution(execution)
+        refusal = execution._call(
+            _native.composition_add_sequential_policy_reliability,
+            self._native,
+            native,
+            *ids,
+            execution.cancel,
+        )
+        raise_refusal(refusal, _refusal_type)
+        self._ids.extend(ids)
+        self._last = ids[-1]
         return self
 
     def _require_nodes(self, *node_ids: str) -> None:
@@ -1152,6 +1213,160 @@ def detect_kind(data: object) -> str | None:
     return _native.composition_detect_kind(_bytes(data))
 
 
+# ------------------------------------------------------------ sequential reliability bundle
+
+_SEQUENTIAL_KIND = "sequential_reliability_bundle_v1"
+
+
+@dataclass(repr=False, frozen=True)
+class SequentialReliabilityBundleReceipt(ScientificResult):
+    """A recomputed producer, draw carrier and diagnostic of a sequential reliability bundle.
+
+    ``bundle_identity`` is the bundle that was consumed, ``draws_digest`` and
+    ``diagnostic_digest`` identify the retained decision draws and the live reassessment of
+    them, and ``producer_program_identity`` the producer program that was re-evaluated.
+    ``program_identity`` is the compiled recomputation a consumer retains to replay it, and
+    ``dependencies`` lists every replayed node as ``node_id``, ``artifact_identity`` and
+    ``chain_digest``. The diagnostic is a point diagnostic: no calibration is claimed.
+    ``acceptance`` is set on a replayed receipt.
+    """
+
+    bundle_identity: str
+    draws_digest: str
+    diagnostic_digest: str
+    producer_program_identity: str
+    program_identity: str
+    dependencies: tuple[Mapping[str, str], ...]
+    acceptance: ArtifactAcceptance | None = field(default=None, compare=False)
+    _native: Any = field(default=None, repr=False, compare=False)
+    _artifact_bytes: bytes | None = field(default=None, repr=False, compare=False)
+
+    @property
+    def route(self) -> str | None:
+        """The compiled route of a receipt computed here; ``None`` for a replayed one."""
+        return None if self._native is None else str(self._native.route)
+
+    def export(
+        self, *, execution: Execution | None = None
+    ) -> ExportedArtifact[SequentialReliabilityBundleReceipt]:
+        """The bundle and this receipt, sealed for
+        :func:`consume_portable_sequential_reliability_node_bundle`.
+
+        The bundle is recomputed again and must reproduce this receipt before it is sealed. A
+        replayed receipt exports the bytes it was consumed from. The expectation carries the
+        bundle identity and :attr:`program_identity`.
+        """
+        expectation = ArtifactExpectation(
+            _SEQUENTIAL_KIND,
+            {"bundle_identity": self.bundle_identity, "program_identity": self.program_identity},
+        )
+        if self._native is None:
+            if self._artifact_bytes is None:
+                raise CausalValueError("this receipt holds neither a program nor its artifact")
+            return ExportedArtifact(self._artifact_bytes, _SEQUENTIAL_KIND, expectation)
+        execution = resolve_execution(execution)
+        data, refusal = execution._call(self._native.export, execution.cancel)
+        raise_refusal(refusal, _refusal_type)
+        assert data is not None
+        return ExportedArtifact(bytes(data), _SEQUENTIAL_KIND, expectation)
+
+
+def _sequential_receipt(text: str, native: Any = None) -> SequentialReliabilityBundleReceipt:
+    wire = json.loads(text)
+    return SequentialReliabilityBundleReceipt(
+        bundle_identity=wire["bundle_identity"],
+        draws_digest=wire["draws_digest"],
+        diagnostic_digest=wire["diagnostic_digest"],
+        producer_program_identity=wire["producer_program_identity"],
+        program_identity=wire["program_identity"],
+        dependencies=tuple(wire["dependencies"]),
+        _native=native,
+    )
+
+
+@outcome_operation
+def compile_sequential_reliability_node_bundle(
+    bundle: Bundle,
+    *,
+    producer: str = "sequential_producer",
+    draws: str = "sequential_draws",
+    diagnostic: str = "sequential_diagnostic",
+    execution: Execution | None = None,
+) -> SequentialReliabilityBundleReceipt:
+    """Compile and recompute the producer, draws and diagnostic nodes of a built bundle.
+
+    The three nodes are those :meth:`BundleBuilder.add_sequential_policy_reliability` embeds:
+    an embedded sequential producer, its decision draws and its diagnostic, joined by direct
+    producer to draws and draws to diagnostic edges. The compiled program consumes the whole
+    bundle, replays every node, re-evaluates the producer and reassesses the diagnostic from
+    the draws; the producer, the carrier and the live diagnostic must agree.
+
+    Raises:
+        CausalTypeError: ``bundle`` is not a :class:`Bundle`.
+        CompositionBundleRefusal: a missing, misplaced or non-embedded node or edge
+            (``edge_digest_mismatch``), a node that does not replay or a producer, carrier and
+            diagnostic that disagree (``swapped_evidence``).
+    """
+    if not isinstance(bundle, Bundle):
+        raise CausalTypeError("bundle must be a built composition_bundle.Bundle")
+    execution = resolve_execution(execution)
+    handle, refusal = execution._call(
+        _native.sequential_reliability_bundle_compile,
+        bundle._native,
+        _name(producer, "producer"),
+        _name(draws, "draws"),
+        _name(diagnostic, "diagnostic"),
+        execution.seed,
+        execution.cancel,
+    )
+    raise_refusal(refusal, _refusal_type)
+    assert handle is not None
+    return _sequential_receipt(handle.receipt_json, native=handle)
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="composition_bundle.consume_portable_sequential_reliability_node_bundle: the native "
+    "consumer rebuilds the bundle under the retained identity, recompiles the recomputation "
+    "under the retained program identity, re-evaluates the producer and compares the receipt",
+    replayable=True,
+    identity=("expected_bundle", "expected_identity"),
+)
+def consume_portable_sequential_reliability_node_bundle(
+    artifact: bytes | ExportedArtifact[Any],
+    *,
+    expected_bundle: str,
+    expected_identity: str,
+    execution: Execution | None = None,
+) -> SequentialReliabilityBundleReceipt:
+    """Independently reconstruct and recompute a sealed sequential reliability bundle.
+
+    ``expected_bundle`` is the bundle identity and ``expected_identity`` the
+    :attr:`SequentialReliabilityBundleReceipt.program_identity`, both retained beside the
+    bytes. The bundle is rebuilt and recompiled, the producer is re-evaluated and the live
+    receipt must equal the sealed one.
+
+    Raises:
+        CausalTypeError: ``artifact`` is not bytes or an exported artifact.
+        CausalValueError: ``expected_identity`` is not 64 hexadecimal characters.
+        ExpectedIdentityMismatchRefusal: another bundle identity, program identity or receipt.
+        CompositionBundleRefusal: a node that does not replay.
+    """
+    execution = resolve_execution(execution)
+    text, refusal = execution._call(
+        _native.sequential_reliability_bundle_consume,
+        container_bytes(artifact),
+        _name(expected_bundle, "expected_bundle"),
+        _name(expected_identity, "expected_identity"),
+        execution.seed,
+        execution.cancel,
+    )
+    raise_refusal(refusal, _refusal_type)
+    assert text is not None
+    # The consumer decorator records the acceptance and the consumed bytes on the result.
+    return _sequential_receipt(text)
+
+
 __all__ = [
     "EMBEDDABLE_KINDS",
     "NODE_KINDS",
@@ -1182,13 +1397,16 @@ __all__ = [
     "ReferenceUnresolved",
     "Relationship",
     "Requirement",
+    "SequentialReliabilityBundleReceipt",
     "SuppliedSources",
     "SwappedEvidenceRefusal",
     "TamperedQuantityRefusal",
     "UnknownNodeKindRefusal",
     "UnsupportedLawRefusal",
     "Verified",
+    "compile_sequential_reliability_node_bundle",
     "consume_bundle",
+    "consume_portable_sequential_reliability_node_bundle",
     "describe_artifact",
     "detect_kind",
     "mean_decision",

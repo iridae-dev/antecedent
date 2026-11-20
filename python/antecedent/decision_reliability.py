@@ -64,6 +64,15 @@ recomputes it from the carried draws.
 semantic coordinates. A point-only output (:class:`PointOnlyOutput`) is refused with a typed
 reason (``joint_law_required`` for a cohort mean, ``diagnostic_not_available`` for a rollout or
 off-policy mean).
+
+**Fixed sequential policies.** :func:`sequential_policy_reliability` compiles a declared
+:mod:`~antecedent.sequential_evaluation` model, two or more fixed policies and an evaluation
+mode (common-stream rollouts, or a whole-trajectory bootstrap of a logged behaviour policy) into
+one program, evaluates every policy and assesses the decision among them. The result
+(:class:`SequentialPolicyReliability`) exports the raw declaration, and
+:func:`consume_sequential_policy_reliability` re-evaluates it from scratch. Its producer, draws
+and diagnostic embed in a composition bundle with
+:meth:`antecedent.composition_bundle.BundleBuilder.add_sequential_policy_reliability`.
 """
 
 from __future__ import annotations
@@ -71,12 +80,14 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
 from . import _native
 from ._artifact_protocol import (
+    ArtifactAcceptance,
+    ArtifactExpectation,
     ExportedArtifact,
     artifact_consumer,
     artifact_export,
@@ -96,9 +107,19 @@ from ._reliability_records import (
 from ._scientific import ScientificResult
 from ._validate import count as _count
 from ._validate import finite_float_protocol as _real
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution
 from .outcomes import outcome_operation, require_success
+
+if TYPE_CHECKING:
+    from .sequential_evaluation import (
+        FiniteModel,
+        LearnedFromEvaluationData,
+        LoggedTrajectory,
+        Policy,
+        ReweightedStaticScores,
+    )
 
 __all__ = [
     "MonteCarloErrorReport",
@@ -128,14 +149,17 @@ __all__ = [
     "PointOnlyOutput",
     "ProducerCarrier",
     "RolloutUtilityDraws",
+    "SequentialPolicyReliability",
     "assess",
     "consume_decision_reliability_artifact",
     "consume_derived_uncertainty",
+    "consume_sequential_policy_reliability",
     "coverage_design",
     "derive_uncertainty",
     "publish",
     "rank",
     "reach_carrier",
+    "sequential_policy_reliability",
 ]
 
 _PURPOSES = ("source", "selection", "validation", "evaluation")
@@ -1382,3 +1406,218 @@ def coverage_design() -> CoverageDesign:
     _refuse(refusal)
     assert text is not None
     return CoverageDesign(json.loads(text))
+
+
+# --------------------------------------------------------------------------- sequential policies
+
+
+_SEQUENTIAL_KIND = "sequential_policy_reliability_v1"
+
+
+@dataclass(repr=False, frozen=True)
+class SequentialPolicyReliability(ScientificResult):
+    """The reliability diagnostic of a decision among fixed sequential policies.
+
+    ``draws`` holds, for every policy, its aligned per-rollout utilities (common random streams
+    from the declared model) or its whole-trajectory bootstrap estimates (logged trajectories
+    under a logging policy). ``report`` is the expected-utility decision among the policies on
+    those draws, with the three uncertainty components reported separately; every number is a
+    point diagnostic and no coverage is claimed. ``program_identity`` identifies the compiled
+    program a consumer retains to replay it; ``acceptance`` is set on a replayed result.
+    """
+
+    draws: DecisionDraws
+    report: ReliabilityReport
+    program_identity: str
+    acceptance: ArtifactAcceptance | None = field(default=None, compare=False)
+    _native: Any = field(default=None, repr=False, compare=False)
+    _artifact_bytes: bytes | None = field(default=None, repr=False, compare=False)
+
+    @property
+    def route(self) -> str | None:
+        """The compiled route of a diagnostic computed here; ``None`` for a replayed one."""
+        return None if self._native is None else str(self._native.route)
+
+    def to_dict(self) -> dict[str, Any]:
+        """The draws, the report and the program identity as plain data."""
+        return {
+            "draws": self.draws.to_wire(),
+            "report": thaw(self.report.raw),
+            "program_identity": self.program_identity,
+        }
+
+    def export(
+        self, *, execution: Execution | None = None
+    ) -> ExportedArtifact[SequentialPolicyReliability]:
+        """The raw declaration and the diagnostic digests, for independent recomputation.
+
+        The model, the policies and the evaluation mode are evaluated again and must reproduce
+        these draws and this report before they are sealed. A replayed result exports the
+        bytes it was consumed from. The expectation carries :attr:`program_identity`.
+        """
+        expectation = ArtifactExpectation(_SEQUENTIAL_KIND, self.program_identity)
+        if self._native is None:
+            if self._artifact_bytes is None:
+                raise CausalValueError("this diagnostic holds neither a program nor its artifact")
+            return ExportedArtifact(self._artifact_bytes, _SEQUENTIAL_KIND, expectation)
+        policy = _execution_policy(execution)
+        data, refusal = policy._call(self._native.export, policy.cancel)
+        _refuse(refusal)
+        assert data is not None
+        return ExportedArtifact(bytes(data), _SEQUENTIAL_KIND, expectation)
+
+
+def _sequential(parts: tuple[str, str, str], native: Any = None) -> SequentialPolicyReliability:
+    draws, report, identity = parts
+    return SequentialPolicyReliability(
+        DecisionDraws(json.loads(draws)),
+        ReliabilityReport(json.loads(report)),
+        identity,
+        _native=native,
+    )
+
+
+def _sequential_mode(
+    seed: int,
+    rollouts: int | None,
+    behaviour: Policy | None,
+    log: Sequence[LoggedTrajectory] | None,
+    replicates: int | None,
+    minimum_effective_sample_size: float | None,
+) -> dict[str, Any]:
+    off_policy = (behaviour, log, replicates, minimum_effective_sample_size)
+    if all(value is None for value in off_policy):
+        if rollouts is None:
+            raise CausalValueError(
+                "declare rollouts= for model rollouts, or behaviour=, log=, replicates= and "
+                "minimum_effective_sample_size= for a bootstrap of logged trajectories"
+            )
+        count = _count(rollouts, "rollouts", minimum=0, reason_code="invalid_argument")
+        return {"rollout": {"seed": seed, "rollouts": count}}
+    if rollouts is not None or any(value is None for value in off_policy):
+        raise CausalValueError(
+            "a bootstrap of logged trajectories needs behaviour=, log=, replicates= and "
+            "minimum_effective_sample_size=, and no rollouts="
+        )
+    from .sequential_evaluation import LoggedTrajectory, Policy
+
+    if not isinstance(behaviour, Policy):
+        raise CausalTypeError("behaviour must be a sequential_evaluation.Policy")
+    trajectories = list(log or ())
+    if any(not isinstance(item, LoggedTrajectory) for item in trajectories):
+        raise CausalTypeError("log must hold sequential_evaluation.LoggedTrajectory records")
+    return {
+        "off_policy": {
+            "behaviour": behaviour.to_wire(),
+            "log": [item._wire() for item in trajectories],
+            "seed": seed,
+            "replicates": _count(
+                replicates, "replicates", minimum=0, reason_code="invalid_argument"
+            ),
+            "minimum_effective_sample_size": _real(
+                minimum_effective_sample_size, "minimum_effective_sample_size"
+            ),
+        }
+    }
+
+
+@outcome_operation
+def sequential_policy_reliability(
+    model: FiniteModel,
+    policies: Sequence[Policy | ReweightedStaticScores | LearnedFromEvaluationData],
+    *,
+    unit: str,
+    seed: int,
+    rollouts: int | None = None,
+    behaviour: Policy | None = None,
+    log: Sequence[LoggedTrajectory] | None = None,
+    replicates: int | None = None,
+    minimum_effective_sample_size: float | None = None,
+    execution: Execution | None = None,
+) -> SequentialPolicyReliability:
+    """Evaluate fixed sequential policies and assess the decision among them.
+
+    ``model`` and ``policies`` are :mod:`antecedent.sequential_evaluation` declarations; every
+    policy must be a fixed contingent policy (a static score table or a policy learned from the
+    data being evaluated is refused by name) and at least two distinct policies are needed.
+    ``unit`` names the utility unit. With ``rollouts``, each policy is simulated on the same
+    common random streams of ``seed``; with ``behaviour``, ``log``, ``replicates`` and
+    ``minimum_effective_sample_size``, whole logged trajectories are resampled under ``seed``
+    and each policy's ordinary importance-weighted estimate is recomputed per replicate. Every
+    reachable history is first enumerated, so an unsupported action refuses rather than going
+    unsampled. The compiler binds the model, the policies and the mode into one program before
+    any policy is evaluated.
+
+    Raises:
+        CausalTypeError: a declaration of the wrong type.
+        CausalValueError: neither or both evaluation modes, or an incomplete one.
+        DecisionReliabilityRefusal: a learned or static-score policy, duplicate policies, an
+            invalid model or mode, an unsupported action, or a reliability refusal.
+    """
+    from .sequential_evaluation import FiniteModel, _spec_wire
+
+    if not isinstance(model, FiniteModel):
+        raise CausalTypeError("model must be a sequential_evaluation.FiniteModel")
+    if isinstance(policies, (str, bytes)) or not isinstance(policies, Sequence):
+        raise CausalTypeError("policies must be a sequence of sequential policies")
+    policy = _execution_policy(execution)
+    mode = _sequential_mode(
+        _count(seed, "seed", minimum=0, reason_code="invalid_argument"),
+        rollouts,
+        behaviour,
+        log,
+        replicates,
+        minimum_effective_sample_size,
+    )
+    handle, refusal = policy._call(
+        _native.sequential_policy_reliability_compile,
+        _dumps(model.to_wire()),
+        _dumps([_spec_wire(item) for item in policies]),
+        _name(unit, "unit"),
+        _dumps(mode),
+        policy.seed,
+        policy.cancel,
+    )
+    _refuse(refusal)
+    assert handle is not None
+    return _sequential(handle.parts, native=handle)
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="decision_reliability.consume_sequential_policy_reliability: the native consumer "
+    "recompiles the raw model, policies and mode, re-evaluates them and compares the draws and "
+    "report digests",
+    replayable=True,
+)
+def consume_sequential_policy_reliability(
+    artifact: bytes | ExportedArtifact[Any],
+    *,
+    expected_identity: str | None = None,
+    execution: Execution | None = None,
+) -> SequentialPolicyReliability:
+    """Independently recompute a sealed sequential reliability diagnostic.
+
+    The raw model, policies and evaluation mode carried by ``artifact`` are compiled and
+    evaluated again and the draws and report are compared with the sealed digests. With
+    ``expected_identity`` (the :attr:`SequentialPolicyReliability.program_identity` retained
+    beside the bytes) the recompiled program must also have that identity.
+
+    Raises:
+        CausalTypeError: ``artifact`` is not bytes or an exported artifact.
+        CausalValueError: ``expected_identity`` is not 64 hexadecimal characters.
+        DecisionReliabilityRefusal: another program identity (``external_binding_mismatch``),
+            a diagnostic that does not replay, or an evaluation refusal.
+    """
+    policy = _execution_policy(execution)
+    parts, refusal = policy._call(
+        _native.sequential_policy_reliability_consume,
+        container_bytes(artifact),
+        None if expected_identity is None else _name(expected_identity, "expected_identity"),
+        policy.seed,
+        policy.cancel,
+    )
+    _refuse(refusal)
+    assert parts is not None
+    # The consumer decorator records the acceptance and the consumed bytes on the result.
+    return _sequential(parts)
