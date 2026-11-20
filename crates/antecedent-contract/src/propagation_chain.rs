@@ -1296,9 +1296,11 @@ fn finish_plan(
     let Some(output) = plans.iter().find(|plan| plan.id == decl.output) else {
         return Err(malformed("the output names a stage of the chain", Some(&decl.output)));
     };
+    // An assumption envelope of predictive draws encloses a predictive law under every
+    // admissible assumption; its output meaning is checked with the reading.
     if decl.sources.iter().any(|source| {
         matches!(source.meaning, Some(LawMeaning::Predictive | LawMeaning::Innovation))
-    }) && decl.reading != ChainReading::Predictive
+    }) && !matches!(decl.reading, ChainReading::Predictive | ChainReading::AssumptionEnvelope)
     {
         return Err(refuse(
             MEANING_CODE,
@@ -1380,11 +1382,14 @@ fn check_reading(reading: ChainReading, output: &StagePlan) -> Result<(), ChainR
         NodeRepresentation::Enclosure => match reading {
             ChainReading::Enclosure => {}
             ChainReading::AssumptionEnvelope => {
-                if !matches!(output.meaning, Some(LawMeaning::Sampling | LawMeaning::Posterior)) {
+                if !matches!(
+                    output.meaning,
+                    Some(LawMeaning::Sampling | LawMeaning::Posterior | LawMeaning::Predictive)
+                ) {
                     return Err(refuse(
                         REPRESENTATION_CODE,
                         "propagation_chain.assumption_envelope_needs_draws",
-                        "an assumption envelope needs sampling or posterior draws alongside the interval assumption",
+                        "an assumption envelope needs sampling, posterior or predictive draws alongside the interval assumption",
                         stage,
                         FIX_CHAIN_DECLARATION,
                     ));

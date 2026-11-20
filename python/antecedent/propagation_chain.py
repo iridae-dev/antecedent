@@ -610,7 +610,7 @@ class ChainAssumptionEnvelope:
 
     The endpoints have no measured coverage. The interval assumptions carry no
     probability law; each draw row is evaluated over every admissible value.
-    ``draw_meaning`` says whether the row axis is sampling or posterior.
+    ``draw_meaning`` says whether the row axis is sampling, posterior or predictive.
     """
 
     lower: np.ndarray

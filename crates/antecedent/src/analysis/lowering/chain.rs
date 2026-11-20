@@ -83,9 +83,10 @@ pub(crate) fn declaration_identity(
 fn uncertainty(plan: &ChainPlan) -> UncertaintyReading {
     match plan.stage(&plan.output) {
         Some(output) => match (output.representation, output.meaning) {
-            (NodeRepresentation::Enclosure, Some(LawMeaning::Sampling | LawMeaning::Posterior)) => {
-                UncertaintyReading::AssumptionEnvelope
-            }
+            (
+                NodeRepresentation::Enclosure,
+                Some(LawMeaning::Sampling | LawMeaning::Posterior | LawMeaning::Predictive),
+            ) => UncertaintyReading::AssumptionEnvelope,
             (NodeRepresentation::Enclosure, _) => UncertaintyReading::Envelope,
             (NodeRepresentation::Draws, Some(LawMeaning::Posterior)) => {
                 UncertaintyReading::Posterior

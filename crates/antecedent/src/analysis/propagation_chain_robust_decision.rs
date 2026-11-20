@@ -1,6 +1,6 @@
 //! Compiler-routed dominance decision over an assumption envelope.
 //!
-//! Each chain row fixes its sampling or posterior draw and encloses every
+//! Each chain row fixes its sampling, posterior or predictive draw and encloses every
 //! admissible interval assumption. Utilities and chance constraints are
 //! evaluated by interval arithmetic. Averaging row bounds encloses expected
 //! utility under every fixed admissible assumption. A winner is reported only
