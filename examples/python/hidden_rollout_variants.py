@@ -57,7 +57,7 @@ def main() -> None:
             forecast = fitted.forecast({"context": 0.0})
             exported = fitted.export({"context": 0.0})
             replay = ant.load(exported, expected=exported.expectation)
-            assert replay.forecast == forecast
+            assert replay.value.forecast == forecast
             print("Conditional forecast at context 0", forecast)
         else:
             print("The fit withheld a forecast for this dataset.")

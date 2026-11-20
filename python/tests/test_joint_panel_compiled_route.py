@@ -201,7 +201,9 @@ def test_experiment_names_the_experiment_route():
 
 def test_certified_search_names_the_search_route():
     groups, worlds = declarations()
-    result = require_success(request(groups, worlds).estimate(execution=Execution(seed=7)))
+    # The search starts from a fitted mechanism, so the fit must converge.
+    prepared = request(groups, worlds, max_iterations=2000, tolerance=1e-4)
+    result = require_success(prepared.estimate(execution=Execution(seed=20261021)))
     controls = [
         {
             "channel": name,
@@ -219,7 +221,7 @@ def test_certified_search_names_the_search_route():
         initial=[0.0] * len(controls),
         absolute_gap=1e-3,
         max_splits=8,
-        execution=Execution(seed=7),
+        execution=Execution(seed=20261021),
     )
     names_route(certificate, "JointPanelProgramSearch")
     assert certificate.program_identity != result.program_identity

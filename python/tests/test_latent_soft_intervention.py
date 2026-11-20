@@ -48,6 +48,6 @@ def test_prepared_forecast_loads_through_shared_dispatch() -> None:
     exported = fitted.export({"x": 0.0})
     consumed = ant.load(exported, expected=exported.expectation)
     assert consumed.acceptance.replayed
-    assert consumed.forecast == forecast
+    assert consumed.value.forecast == forecast
     with pytest.raises(CausalError):
         ant.load(exported, expected=fitted.export({"x": 0.4}).expectation)
