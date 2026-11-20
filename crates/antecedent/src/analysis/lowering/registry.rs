@@ -306,6 +306,21 @@ macro_rules! route_lowerings {
             LatentSoftIntervention,
             /// Forecasts of timestamped events and their composed world responses.
             EventProcess,
+            /// A fitted joint multi-channel panel response over its declared program worlds.
+            JointPanelResponse,
+            /// A fitted joint panel response under a piecewise or smooth time-varying mechanism.
+            JointPanelTimeVarying,
+            /// A joint panel response pooled over multiply imputed completed panels.
+            JointPanelImputation,
+            /// A search for the best program over a fitted joint panel response.
+            JointPanelProgramSearch,
+            /// Held-out selection of a program from randomized or instrumented candidates.
+            JointPanelProgramSelection,
+            /// An independent experiment conditioning a joint panel or design law, and the
+            /// decision and next-study value read from the conditioned law.
+            JointPanelExperiment,
+            /// A design-native joint functional with its retained design proof.
+            JointDesign,
         }
 
         impl PlanRoute {
@@ -374,6 +389,13 @@ macro_rules! route_lowerings {
                     Self::MnarFixedShift => "MnarFixedShift",
                     Self::LatentSoftIntervention => "LatentSoftIntervention",
                     Self::EventProcess => "EventProcess",
+                    Self::JointPanelResponse => "JointPanelResponse",
+                    Self::JointPanelTimeVarying => "JointPanelTimeVarying",
+                    Self::JointPanelImputation => "JointPanelImputation",
+                    Self::JointPanelProgramSearch => "JointPanelProgramSearch",
+                    Self::JointPanelProgramSelection => "JointPanelProgramSelection",
+                    Self::JointPanelExperiment => "JointPanelExperiment",
+                    Self::JointDesign => "JointDesign",
                 }
             }
 
@@ -445,6 +467,13 @@ macro_rules! route_lowerings {
                     Self::MnarFixedShift => RouteFamily::DesignBased,
                     Self::LatentSoftIntervention => RouteFamily::Structural,
                     Self::EventProcess => RouteFamily::Structural,
+                    Self::JointPanelResponse => RouteFamily::JointPanel,
+                    Self::JointPanelTimeVarying => RouteFamily::JointPanel,
+                    Self::JointPanelImputation => RouteFamily::JointPanel,
+                    Self::JointPanelProgramSearch => RouteFamily::JointPanel,
+                    Self::JointPanelProgramSelection => RouteFamily::JointPanel,
+                    Self::JointPanelExperiment => RouteFamily::JointPanel,
+                    Self::JointDesign => RouteFamily::JointPanel,
                 }
             }
         }

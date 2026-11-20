@@ -7906,6 +7906,16 @@ routes = [
   { route = "antecedent.joint_panel.InstrumentedSelectionResult.selected_value_reading", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.joint_panel.JointDesignResult.population_reference_region", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent.joint_panel.JointDesignResult.updated_contrast_reading", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.Study.prepare_joint_panel", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.Study.prepare_joint_panel_imputed", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.joint_panel.JointPanelResult.compile_search", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.joint_panel.JointPanelResult.compile_certified_search", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.joint_panel.PreparedRandomizedSelection.compile", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.joint_panel.InstrumentedSelectionRequest.compile", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.joint_panel.PreparedJointPanel.with_experiment", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.decision_evidence.condition_panel_jointly_on_retained_evidence", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.joint_panel.PreparedJointDesign.compile", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.joint_panel.PreparedNativeJointDesign.compile", stage = "prepare", status = "supported", claim = "point_only" },
 ]
 
 [[record]]

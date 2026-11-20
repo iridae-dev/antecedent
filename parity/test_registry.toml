@@ -144,6 +144,27 @@ path = "crates/antecedent/src/analysis/joint_panel/selection.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "joint-panel-release-support-gate"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_panel/compiled.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-experiment-lowering"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/joint_panel/experiment.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-search-lowering"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/joint_panel/search.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "joint-instrumented-structural-features"
 crate = "antecedent-stats"
 cargo_target = "lib"
@@ -5973,6 +5994,20 @@ cargo_target = "suite_05"
 path = "crates/antecedent/tests/joint_law_propagation_facade.rs"
 suite_map_line = "suite_05: inverse_forward_sources_facade, joint_class_response, joint_law_propagation_facade, joint_sensitivity_lifecycle, learned_continuous_lifecycle, local_polynomial_ratio_route, longitudinal_regime_route, mag_visible_numeric, manufacturing_temporal, mapped_posterior_transfer, measurement_model_facade, mechanism_composition_facade, mnar_sensitivity_facade, msm_sensitivity_decision, multi_source_acceptance, mz_transport_lifecycle, nan_cell_ingest, native_claim_support_and_horizon_draws, native_claims, native_coordinate_parity, nested_counterfactual_route_evidence, numeric_pins, observation_query_facade, observation_recovery_lifecycle, observational_interference_route, pag, pag_admg_numeric_pins, pag_identified_envelope_numeric_pins, panel_did_interval_calibration, panel_did_route, path_specific_edge_gformula_pins"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-compiled-route"
+crate = "antecedent"
+cargo_target = "joint_panel_compiled"
+path = "crates/antecedent/tests/joint_panel_compiled.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "joint-panel-compiled-route-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_joint_panel_compiled_route.py"
+gates = ["inventory"]
 
 [[test]]
 id = "joint-panel-streamed-memory"

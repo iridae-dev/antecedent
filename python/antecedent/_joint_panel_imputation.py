@@ -78,6 +78,15 @@ class PreparedPanelImputation:
 
     _handle: Any
 
+    def plan_view(self) -> dict[str, Any]:
+        """The compiled program's layers, read without fitting or simulating."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
+
     def estimate(self, *, execution: Execution | None = None) -> PanelImputationResult:
         """Impute, fit every completed panel and pool, under the caller's ``execution``.
 

@@ -602,6 +602,25 @@ namespaces_in_use = {
     if "." in refusal.get("detail", "")
 }
 code_details, dynamic_details = scan_details(namespaces_in_use)
+# A literal that is exactly a capability record's id (or capability) names the capability a
+# route gates on; it is not a refusal detail. Only the bare literal is exempt: a
+# `"<id>: message"` literal still reads as a detail, and an id some record also declares as a
+# refusal detail stays checked as one.
+_capability_names = {
+    name for rec in records for name in (rec.get("id"), rec.get("capability")) if name
+}
+_declared_anywhere = {
+    refusal.get("detail", "")
+    for rec in records
+    for refusal in [*(rec.get("refusals") or []), *(rec.get("input_exceptions") or [])]
+}
+for _ns_details in code_details.values():
+    for _detail in sorted(set(_ns_details) & (_capability_names - _declared_anywhere)):
+        _kept = [use for use in _ns_details[_detail] if use[2].value != _detail]
+        if _kept:
+            _ns_details[_detail] = _kept
+        else:
+            del _ns_details[_detail]
 # Generated behaviour: the file must equal what the records, the reason-detail registry and
 # source derive; supported records then take their refusal codes from it.
 if generated is None:

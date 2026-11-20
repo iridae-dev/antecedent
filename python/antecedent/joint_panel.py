@@ -182,6 +182,15 @@ class PanelProgramCertificate:
 
     _handle: Any
 
+    def plan_view(self) -> dict[str, Any]:
+        """The compiled certified-search program's layers, read without searching."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The executed program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
+
     def report(self) -> dict[str, Any]:
         """Return feasible controls, global gap, shape proofs and fitted source identity.
 
@@ -207,6 +216,15 @@ class RandomizedProgramSelection:
 
     _handle: Any
 
+    def plan_view(self) -> dict[str, Any]:
+        """The layers of the compiled selection program this selection executed."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The executed program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
+
     def report(self) -> dict[str, Any]:
         """Return held-out value/error, original split and whole-procedure diagnostics."""
         return json.loads(self._handle.report())
@@ -227,6 +245,15 @@ class PreparedRandomizedProgramSelection:
     """A complete experimental selection procedure with a genuine observational split."""
 
     _handle: Any
+
+    def plan_view(self) -> dict[str, Any]:
+        """The compiled program's layers, read without fitting or selecting."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
 
     def execute(
         self,
@@ -326,6 +353,15 @@ class InstrumentedProgramSelection:
 
     _handle: Any
 
+    def plan_view(self) -> dict[str, Any]:
+        """The layers of the compiled selection program this selection executed."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The executed program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
+
     def report(self) -> dict[str, Any]:
         """Selected doses, training search bounds, held-out value and resampling diagnostics."""
         return json.loads(self._handle.report())
@@ -387,6 +423,11 @@ class PanelResult:
     """One native shared-draw execution, retaining its compiled scientific scope."""
 
     _handle: Any
+
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
 
     def experiment_quantity(self, functional: Mapping[str, Any] | str = "terminal_mean") -> Any:
         """Return the exact compiled response quantity for an experimental bridge."""
@@ -696,6 +737,15 @@ class PreparedPanel:
     """Native checked preparation with synchronized reuse of compatible fits."""
 
     _handle: Any
+
+    def plan_view(self) -> dict[str, Any]:
+        """The compiled program's layers, read without fitting or simulating."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
 
     def inspect(self) -> dict[str, Any]:
         """Inspect source/design obligations without fitting or simulation."""

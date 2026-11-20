@@ -2758,6 +2758,12 @@ status = "bound"
 python = "antecedent.joint_panel.PreparedRandomizedProgramSelection"
 
 [[entry]]
+rust = "antecedent::analysis::joint_panel::selection::instrumented::PreparedInstrumentedSelection"
+kind = "type"
+status = "bound"
+python = "antecedent.joint_panel.select_instrumented_program"
+
+[[entry]]
 rust = "antecedent::analysis::joint_panel::selection::instrumented::replay_instrumented_selection"
 kind = "fn"
 status = "bound"

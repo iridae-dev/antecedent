@@ -439,9 +439,10 @@ def test_compiled_excursion_conditions_panel_only_under_explicit_bridge():
         updated.report(ledger)
 
 
-def test_compiled_excursion_conditions_panel_jointly_with_the_retained_covariance():
+def joint_excursion_declaration():
+    """The fitted panel, a joint two-component excursion declaration and its fresh ledger."""
     from antecedent import decision_evidence as de
-    from antecedent._joint_panel_experiment import PanelJointComponent, replay_joint_experiment
+    from antecedent._joint_panel_experiment import PanelJointComponent
 
     result = _fitted()
     report = result.report()
@@ -539,6 +540,13 @@ def test_compiled_excursion_conditions_panel_jointly_with_the_retained_covarianc
         experiment=experiment,
         mapping=mapping,
     )
+    return result, args, ledger, experiment
+
+
+def test_compiled_excursion_conditions_panel_jointly_with_the_retained_covariance():
+    from antecedent._joint_panel_experiment import replay_joint_experiment
+
+    result, args, ledger, experiment = joint_excursion_declaration()
     updated = result.condition_joint_excursion(**args)
     summary = updated.report(ledger)
     assert summary["calibration"] == "not_measured"

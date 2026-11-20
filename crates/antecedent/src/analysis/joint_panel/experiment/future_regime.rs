@@ -10,10 +10,11 @@
 //! update it would cause, the response it would move and the decision that response drives.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
-    ExecutionContext, ExperimentRankingReceipt, JointPanelError, JointPanelResponseFunctional,
-    PanelExperimentDecisionState, PanelExperimentMapping, PanelExperimentResult, PanelFutureSample,
-    PanelFutureSampleValue, SemanticDigest, contrast_weights, rank_law_next_studies,
-    validate_bridge_window,
+    CanonicalWriter, ExecutionContext, ExperimentOperation, ExperimentRankingReceipt,
+    JointPanelError, JointPanelResponseFunctional, PanelExperimentDecisionState,
+    PanelExperimentMapping, PanelExperimentResult, PanelFutureSample, PanelFutureSampleValue,
+    SemanticDigest, contrast_weights, enter_experiment, law_bytes, lower, rank_law_next_studies,
+    validate_bridge_window, write_functional,
 };
 use antecedent_contract::bridge::{BridgeContract, SourceMappingDependence};
 use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap, SourceId, SourceStatus};
@@ -32,6 +33,21 @@ pub struct PanelFutureRegime {
     pub mapping: PanelExperimentMapping,
     /// Current ledger origin of this regime's mapping evidence.
     pub mapping_evidence: SourceId,
+}
+
+impl PanelFutureRegime {
+    /// Identity of this regime as declared for the candidate `study`: the study identity,
+    /// bridge, functional, paired mapping and mapping origin. The ranking program binds it
+    /// before the regime is validated against the law.
+    fn declaration_identity(&self, study: &str) -> SemanticDigest {
+        let mut writer =
+            CanonicalWriter::new("antecedent.joint_panel.future_regime_declaration.v1");
+        writer.text(study).bytes(self.bridge.identity().as_bytes());
+        write_functional(&mut writer, &self.functional);
+        self.mapping.write(&mut writer);
+        writer.bytes(self.mapping_evidence.digest().as_bytes());
+        SemanticDigest::from_bytes(writer.finish())
+    }
 }
 
 /// A candidate study: sampling model and cost, and optionally its own regime.
@@ -207,9 +223,13 @@ impl PanelExperimentResult {
     /// mapping pairing or evidence is not supported refuses the whole ranking; it is never
     /// replaced by the observed estimand.
     ///
+    /// The ranking executes the `JointPanelExperiment` ranking program, a child of this
+    /// update's program that binds every declared regime; every value carries its identity.
+    ///
     /// # Errors
     /// Invalid catalog, replicate bounds or costs, an unsupported or unaligned regime, stale
-    /// current authority, resources, cancellation or callback failures.
+    /// current authority, resources, cancellation or callback failures; a call inside another
+    /// program's lowered dispatch is refused.
     pub fn rank_next_studies<A: serde::Serialize>(
         &self,
         problem: &DecisionProblem<A, PanelExperimentDecisionState>,
@@ -218,10 +238,18 @@ impl PanelExperimentResult {
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<Vec<PanelFutureStudyValue>, JointPanelError> {
+        let samples = studies.iter().map(|study| study.sample.clone()).collect::<Vec<_>>();
+        let regimes = studies
+            .iter()
+            .filter_map(|study| {
+                study.regime.as_ref().map(|regime| regime.declaration_identity(&study.sample.id))
+            })
+            .collect::<Vec<_>>();
+        let (program, scoped) =
+            self.conditioned().enter_ranking(ctx, problem, &samples, &regimes, replicates)?;
         self.retention.observe_current();
         let scientific = self.law_source(ledger)?;
         let coefficients = contrast_weights(self.original.request())?;
-        let mut samples = Vec::with_capacity(studies.len());
         let mut means = Vec::with_capacity(studies.len());
         let mut identities = std::collections::BTreeMap::new();
         for study in studies {
@@ -233,10 +261,9 @@ impl PanelExperimentResult {
                 means.push(None);
                 identities.insert(study.sample.id.clone(), None);
             }
-            samples.push(study.sample.clone());
         }
         let values = rank_law_next_studies(
-            &ExperimentRankingReceipt::from(&scientific),
+            &ExperimentRankingReceipt::new(&scientific, program),
             &self.law,
             &self.update,
             &coefficients,
@@ -244,7 +271,7 @@ impl PanelExperimentResult {
             &samples,
             &means,
             replicates,
-            ctx,
+            &scoped,
         )?;
         Ok(values
             .into_iter()
@@ -260,6 +287,10 @@ impl PanelExperimentResult {
     /// The result is the actual conditioned posterior over the same joint draws and the moved
     /// response means; deciding on those means is what the ranking's value averages over.
     ///
+    /// The update executes the `JointPanelExperiment` condition program of the declared
+    /// study and outcome, a child of this update's program, under the context this update
+    /// was conditioned with.
+    ///
     /// # Errors
     /// An unsupported regime, stale authority, a nonfinite outcome or an invalid likelihood.
     pub fn update_for_future_study(
@@ -268,6 +299,29 @@ impl PanelExperimentResult {
         observed_mean: f64,
         ledger: &EvidenceLedger,
     ) -> Result<PanelFutureStudyUpdate, JointPanelError> {
+        let mut declared = CanonicalWriter::new("antecedent.joint_panel.future_study_outcome.v1");
+        declared
+            .bytes(self.dependency.as_bytes())
+            .text(&study.sample.id)
+            .word(study.sample.sample_size)
+            .real(study.sample.observation_variance)
+            .real(observed_mean);
+        match &study.regime {
+            Some(regime) => {
+                declared.word(1).bytes(regime.declaration_identity(&study.sample.id).as_bytes());
+            }
+            None => {
+                declared.word(0);
+            }
+        }
+        let program = lower(
+            ExperimentOperation::Condition,
+            self.program.identity(),
+            SemanticDigest::from_bytes(declared.finish()),
+            law_bytes(&self.law),
+            None,
+        )?;
+        enter_experiment(&self.program.caller, &program)?;
         self.validate_current(ledger)?;
         if !observed_mean.is_finite()
             || study.sample.sample_size == 0

@@ -24,6 +24,7 @@ mod discovery;
 pub(crate) mod events;
 pub(crate) mod graph_imputation;
 mod graph_posterior;
+pub(crate) mod joint_panel;
 pub(crate) mod latent_soft_intervention;
 pub(crate) mod mnar_fixed_shift;
 mod query_digest;

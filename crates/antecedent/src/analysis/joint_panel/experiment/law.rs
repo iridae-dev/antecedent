@@ -1,13 +1,14 @@
 //! Fitless experiment conditioning of an authenticated joint-design posterior.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
-    Arc, BridgeContract, DecisionProblem, DistributionArtifact, DistributionCalibration,
-    DistributionTrust, EvidenceLedger, ExecutionContext, ExperimentRankingReceipt, JointPanelError,
-    JointPanelResponseFunctional, PanelExperimentDecisionSource, PanelExperimentDecisionState,
+    Arc, BridgeContract, ConditionedLaw, DecisionProblem, DistributionArtifact,
+    DistributionCalibration, DistributionTrust, EvidenceLedger, ExecutedProgram, ExecutionContext,
+    ExperimentOperation, ExperimentRankingReceipt, JointPanelError, JointPanelResponseFunctional,
+    LoweredProgram, PanelExperimentDecisionSource, PanelExperimentDecisionState,
     PanelExperimentEvidence, PanelExperimentMapping, PanelExperimentModularPolicy,
-    PanelExperimentUpdate, PanelFutureSample, PanelFutureSampleValue, SemanticDigest, SourceId,
-    admit, rank_law_next_samples, source, validate_mapping_moments, validate_model_dependency,
-    validate_update,
+    PanelExperimentUpdate, PanelFutureSample, PanelFutureSampleValue, PlanView, SemanticDigest,
+    SourceId, admit, enter_experiment, experiment_program, law_bytes, rank_law_next_samples,
+    source, validate_mapping_moments, validate_model_dependency, validate_update,
 };
 use antecedent_design::scientific_source::{ScientificDecisionSource, ScientificSourcePayload};
 
@@ -28,6 +29,22 @@ pub struct JointLawExperimentRequest {
     pub evidence: PanelExperimentEvidence,
 }
 
+impl JointLawExperimentRequest {
+    /// The update of the design's terminal-mean contrast this request declares.
+    pub(super) fn into_update(self) -> PanelExperimentUpdate {
+        PanelExperimentUpdate {
+            bridge: self.bridge,
+            functional: JointPanelResponseFunctional::TerminalMean,
+            observed_mean: self.observed_mean,
+            observation_variance: self.observation_variance,
+            sample_size: self.sample_size,
+            modular_policy: PanelExperimentModularPolicy::FrozenJointImportance,
+            mapping: self.mapping,
+            evidence: self.evidence,
+        }
+    }
+}
+
 /// Conditional update of a native design posterior, without a response-model refit.
 #[derive(Clone, Debug)]
 pub struct JointLawExperimentResult {
@@ -38,9 +55,36 @@ pub struct JointLawExperimentResult {
     dependency: SemanticDigest,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
     native_design: Option<Arc<NativeDesignReplay>>,
+    program: ExecutedProgram,
 }
 
 impl JointLawExperimentResult {
+    /// The experiment program this update executed: a child of the program of the design
+    /// law it conditioned, with the experiment as trial evidence.
+    #[must_use]
+    pub fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.program.lowered
+    }
+    /// Inspect the experiment program this update executed.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        self.program.plan_view()
+    }
+    /// Identity of the experiment program this update executed.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program.identity()
+    }
+    /// The conditioned law a decision or ranking on this update reads.
+    fn conditioned(&self) -> ConditionedLaw {
+        ConditionedLaw {
+            program: self.program.identity(),
+            law: self.dependency,
+            bytes: law_bytes(&self.law),
+            experiment: self.update.evidence.experiment,
+        }
+    }
+
     /// Derive the experimental contrast quantity from the original target and basis.
     /// # Errors
     /// Sources without one authenticated world-mean output per target world refuse.
@@ -55,18 +99,54 @@ impl JointLawExperimentResult {
     }
 
     /// Execute the declared frozen finite-law likelihood update over native design draws.
+    ///
+    /// The update executes the `JointPanelExperiment` law condition program, a child of the
+    /// source's law (cited by its dependency identity) with the experiment as trial
+    /// evidence; the result carries it.
+    ///
     /// # Errors
     /// Nonposterior laws, unbound targets, unsupported bridges, changed evidence,
-    /// invalid mappings and failed admission remain explicit refusals.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "One authenticated likelihood update retains source, evidence and admission checks together."
-    )]
+    /// invalid mappings and failed admission remain explicit refusals; a call inside another
+    /// program's lowered dispatch is refused.
     pub fn condition(
         original: ScientificDecisionSource,
         request: JointLawExperimentRequest,
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
+    ) -> Result<Self, JointPanelError> {
+        let parent = original.dependency_identity();
+        let update = request.into_update();
+        let lowered = Self::condition_program(parent, &update)?;
+        let scoped = enter_experiment(ctx, &lowered)?;
+        Self::condition_in(original, update, ledger, &scoped, ExecutedProgram::new(lowered, ctx))
+    }
+
+    /// The law condition program of `update`, a child of the program `parent`.
+    fn condition_program(
+        parent: SemanticDigest,
+        update: &PanelExperimentUpdate,
+    ) -> Result<Arc<LoweredProgram>, JointPanelError> {
+        experiment_program(
+            ExperimentOperation::LawCondition,
+            parent,
+            update.evidence_identity(),
+            update.evidence_bytes(),
+            None,
+        )
+    }
+
+    /// The update of [`Self::condition`] with the dispatch-scoped `ctx`; the result carries
+    /// `program`.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one likelihood update retains source, evidence and admission checks together"
+    )]
+    fn condition_in(
+        original: ScientificDecisionSource,
+        update: PanelExperimentUpdate,
+        ledger: &EvidenceLedger,
+        ctx: &ExecutionContext,
+        program: ExecutedProgram,
     ) -> Result<Self, JointPanelError> {
         original
             .authorize(
@@ -88,21 +168,11 @@ impl JointLawExperimentResult {
                 "design sampling draws cannot become a Bayesian experimental prior".into(),
             ));
         }
-        if request.bridge.target.quantity != Self::quantity(&original)? {
+        if update.bridge.target.quantity != Self::quantity(&original)? {
             return Err(JointPanelError::compile(
                 "experimental translation must target this exact native-design contrast",
             ));
         }
-        let update = PanelExperimentUpdate {
-            bridge: request.bridge,
-            functional: JointPanelResponseFunctional::TerminalMean,
-            observed_mean: request.observed_mean,
-            observation_variance: request.observation_variance,
-            sample_size: request.sample_size,
-            modular_policy: PanelExperimentModularPolicy::FrozenJointImportance,
-            mapping: request.mapping,
-            evidence: request.evidence,
-        };
         validate_update(&update, ledger)?;
         validate_model_dependency(original.dependency_identity(), &update, ledger)?;
         source::check_cancelled(ctx)?;
@@ -169,6 +239,7 @@ impl JointLawExperimentResult {
             dependency,
             retention,
             native_design: None,
+            program,
         })
     }
 
@@ -204,6 +275,10 @@ impl JointLawExperimentResult {
     }
 
     /// Evaluate a terminal decision under the declared conditional experiment law.
+    ///
+    /// The evaluation executes the `JointPanelExperiment` decision program, a child of this
+    /// update's program, under the context the update was conditioned with.
+    ///
     /// # Errors
     /// Current evidence, source requirements or utility/feasibility semantics refuse.
     pub fn decide(
@@ -211,6 +286,7 @@ impl JointLawExperimentResult {
         contract: &antecedent_design::decision_contract::DecisionContract,
         ledger: &EvidenceLedger,
     ) -> Result<antecedent_design::scientific_source::ScopedDecisionResult, JointPanelError> {
+        self.conditioned().enter_decision(&self.program.caller, contract)?;
         self.law_source(ledger)?.evaluate(
             contract,
             antecedent_design::scientific_source::ScientificConsumptionScope::ModelConditional,
@@ -219,8 +295,13 @@ impl JointLawExperimentResult {
     }
 
     /// Rank independent future samples of the same translated native estimand.
+    ///
+    /// The ranking executes the `JointPanelExperiment` ranking program, a child of this
+    /// update's program; every value carries its identity.
+    ///
     /// # Errors
-    /// Current evidence, future-study definitions, utilities, resources or cancellation refuse.
+    /// Current evidence, future-study definitions, utilities, resources or cancellation
+    /// refuse; a call inside another program's lowered dispatch is refused.
     pub fn rank_next_samples<A: serde::Serialize>(
         &self,
         problem: &DecisionProblem<A, PanelExperimentDecisionState>,
@@ -229,16 +310,18 @@ impl JointLawExperimentResult {
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<Vec<PanelFutureSampleValue>, JointPanelError> {
+        let (program, scoped) =
+            self.conditioned().enter_ranking(ctx, problem, candidates, &[], replicates)?;
         let scientific = self.law_source(ledger)?;
         rank_law_next_samples(
-            &ExperimentRankingReceipt::from(&scientific),
+            &ExperimentRankingReceipt::new(&scientific, program),
             &self.law,
             &self.update,
             &self.coefficients,
             problem,
             candidates,
             replicates,
-            ctx,
+            &scoped,
         )
     }
 
@@ -703,22 +786,33 @@ struct NativeDesignReplay {
 
 impl super::super::designs::JointDesignResult {
     /// Condition the actual native posterior and retain its complete original-data replay.
+    ///
+    /// The update executes the `JointPanelExperiment` law condition program, a child of this
+    /// design's program with the experiment as trial evidence; the result carries it.
+    ///
     /// # Errors
-    /// No posterior, invalid translation/current evidence, resources or cancellation.
+    /// No posterior, invalid translation/current evidence, resources or cancellation; a call
+    /// inside another program's lowered dispatch is refused.
     pub fn condition_experiment(
         &self,
         request: JointLawExperimentRequest,
         ledger: &EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<JointLawExperimentResult, JointPanelError> {
+        let original = self.posterior_source()?;
+        let update = request.into_update();
+        let lowered =
+            JointLawExperimentResult::condition_program(self.program_identity(), &update)?;
+        let scoped = enter_experiment(ctx, &lowered)?;
+        let program = ExecutedProgram::new(lowered, ctx);
         let mut result =
-            JointLawExperimentResult::condition(self.posterior_source()?, request, ledger, ctx)?;
+            JointLawExperimentResult::condition_in(original, update, ledger, &scoped, program)?;
         let bytes = self.export_artifact()?;
         let quote =
             bytes.len().checked_mul(8).and_then(|n| u64::try_from(n).ok()).ok_or_else(|| {
                 JointPanelError::compile("native design replay retention quote overflow")
             })?;
-        let retention = Arc::new(admit(ctx, quote)?);
+        let retention = Arc::new(admit(&scoped, quote)?);
         result.native_design = Some(Arc::new(NativeDesignReplay { bytes, _retention: retention }));
         Ok(result)
     }

@@ -108,7 +108,8 @@ impl PreparedStudy<JointPanelState> {
         Ok(())
     }
 
-    /// Retain the restricted identification of the joint response.
+    /// Retain the restricted identification of the joint response, and lower the handle's
+    /// program again with it.
     pub(super) fn with_gaussian_restricted_identification(
         &self,
         result: &IdentificationResult,
@@ -185,11 +186,13 @@ impl PreparedStudy<JointPanelState> {
             proof: None,
         });
         next.state.attempts = attempts.into();
+        next.relower()?;
         Ok(next)
     }
 
     /// Check the declared restriction against the fitted mechanism. A result whose claim rests
-    /// on the restriction keeps it when the checks pass; a flagged check withdraws it.
+    /// on the restriction keeps it when the checks pass; a flagged check withdraws it, and the
+    /// result's handle lowers its program again with the withdrawn identification.
     pub(super) fn checked_against_fit(&self, fit: &JointPanelFit) -> Result<Self, JointPanelError> {
         let Some(position) = self.state.attempts.iter().position(|attempt| {
             attempt.id == RESTRICTION_ATTEMPT
@@ -305,6 +308,7 @@ impl PreparedStudy<JointPanelState> {
             support.identified = false;
         }
         next.state.attempts = attempts.into();
+        next.relower()?;
         Ok(next)
     }
 }

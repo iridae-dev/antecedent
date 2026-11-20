@@ -416,12 +416,54 @@ fn score(fit: &Mixture, rows: &Rows) -> f64 {
     rows.residuals.iter().zip(&rows.design).map(|(row, x)| log_sum_exp(fit.log_terms(row, x))).sum()
 }
 
+/// Rows behind the plug-in parameters the predictive screen evaluates: the training rows of
+/// the least-weighted fitted version (its shift) and the control training rows (the anchored
+/// equations' intercepts and residual scales).
+#[derive(Clone, Copy)]
+struct PlugIn {
+    shift_rows: f64,
+    control_rows: f64,
+}
+
+impl PlugIn {
+    /// Parameters known exactly: no estimation allowance.
+    #[cfg(test)]
+    const EXACT: Self = Self { shift_rows: f64::INFINITY, control_rows: f64::INFINITY };
+
+    fn of(fit: &Mixture, train: &Rows, control_rows: usize) -> Self {
+        let mut mass = vec![0.0; fit.shifts.len()];
+        for design in &train.design {
+            for (total, weight) in mass.iter_mut().zip(fit.weights(design)) {
+                *total += weight;
+            }
+        }
+        Self {
+            shift_rows: mass.into_iter().fold(f64::INFINITY, f64::min).max(1.0),
+            control_rows: (control_rows as f64).max(1.0),
+        }
+    }
+
+    /// Largest PIT departure plug-in error alone produces, each term at the two-sided tail
+    /// probability `tail`: a location error of a version shift and the anchored intercept
+    /// moves a Gaussian PIT by at most |delta| * phi(0), and a relative error of the anchored
+    /// residual scale by at most |s - 1| * phi(1).
+    fn allowance(self, tail: f64) -> f64 {
+        use antecedent_kernels::special::{norm_inv, norm_pdf};
+
+        let z = norm_inv(1.0 - 0.5 * tail);
+        let location = (1.0 / self.shift_rows + 1.0 / self.control_rows).sqrt() * norm_pdf(0.0);
+        let scale = (0.5 / self.control_rows).sqrt() * norm_pdf(1.0);
+        z * (location + scale)
+    }
+}
+
 // Evaluate the fitted joint density by successive conditional probability integral
 // transforms. Later coordinates update the membership weights with earlier residuals;
 // a check of marginal mixtures alone would ignore the joint version structure.
 fn predictive_adequacy(
     fit: &Mixture,
     rows: &Rows,
+    plug_in: PlugIn,
     ctx: &ExecutionContext,
 ) -> Result<bool, CausalError> {
     use antecedent_kernels::special::norm_cdf;
@@ -455,10 +497,13 @@ fn predictive_adequacy(
             pit.push(value.clamp(0.0, 1.0));
         }
     }
-    // A conservative screen for the two prefitted candidates across coordinates.
-    // This uses an independent-uniform reference, not a calibration claim about
-    // the estimated or selected model.
-    let bound = ((400.0 * width as f64).ln() / (2.0 * count as f64)).sqrt();
+    // A conservative screen for the two prefitted candidates across coordinates: the DKW
+    // band of the evaluation rows against an independent-uniform reference, widened by the
+    // departure the plug-in shifts and anchored equations produce at the same per-coordinate
+    // tail budget, so a correctly specified law is not refused for its estimation error. It
+    // is not a calibration claim about the estimated or selected model.
+    let tail = 1.0 / (400.0 * width as f64);
+    let bound = ((1.0 / tail).ln() / (2.0 * count as f64)).sqrt() + plug_in.allowance(tail);
     for pit in &mut pits {
         cancelled(ctx, "latent soft intervention predictive adequacy")?;
         pit.sort_unstable_by(f64::total_cmp);
@@ -707,7 +752,13 @@ pub(super) fn run(
     } else {
         true
     };
-    let forecast_admissible = single_version_adequate && predictive_adequacy(&mixture, &eval, ctx)?;
+    let forecast_admissible = single_version_adequate
+        && predictive_adequacy(
+            &mixture,
+            &eval,
+            PlugIn::of(&mixture, &train, control_train.len()),
+            ctx,
+        )?;
     for shift in &mut mixture.shifts {
         let mut full = vec![0.0; equations.len()];
         for (&node, &effect) in columns.iter().zip(shift.iter()) {
@@ -776,7 +827,7 @@ mod tests {
                 .collect(),
             design: vec![vec![1.0]; 200],
         };
-        assert!(predictive_adequacy(&mixture, &expected, &ctx).unwrap());
+        assert!(predictive_adequacy(&mixture, &expected, PlugIn::EXACT, &ctx).unwrap());
 
         // Both arms can remain distinguishable while their within-version spread
         // violates the control-anchored forecast.
@@ -790,7 +841,7 @@ mod tests {
                 .collect(),
             design: vec![vec![1.0]; 200],
         };
-        assert!(!predictive_adequacy(&mixture, &wider, &ctx).unwrap());
+        assert!(!predictive_adequacy(&mixture, &wider, PlugIn::EXACT, &ctx).unwrap());
     }
 
     #[test]

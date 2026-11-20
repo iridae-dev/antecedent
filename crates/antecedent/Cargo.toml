@@ -1106,6 +1106,10 @@ name = "joint_panel_streamed_memory"
 path = "tests/joint_panel_streamed_memory.rs"
 
 [[test]]
+name = "joint_panel_compiled"
+path = "tests/joint_panel_compiled.rs"
+
+[[test]]
 name = "graph_posterior_exposure_routes"
 path = "tests/graph_posterior_exposure_routes.rs"
 

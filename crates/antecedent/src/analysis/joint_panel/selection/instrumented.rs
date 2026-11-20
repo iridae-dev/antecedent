@@ -1,8 +1,16 @@
 //! Continuous selection evaluates the chosen joint structural-feature contrast
 //! using an independently fitted validation sample, rather than another RNG seed.
+//!
+//! [`InstrumentedSelectionRequest::compile`] lowers a `JointPanelProgramSelection` program
+//! over the request's samples; executing the compiled selection enters that program's
+//! dispatch, passes the release support gate and runs the unchanged held-out procedure.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use super::invalid;
+use super::{compiler_refusal, enter, invalid, lower_selection};
 
+use crate::analysis::joint_panel::compiled::Entry;
+use crate::analysis::lowering::joint_panel::search::SearchOperation;
+use crate::planner::lowered::LoweredProgram;
+use crate::planner::{PlanStage, PlanView};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest, ValueExpr, VariableId};
 use antecedent_design::program_search::{
     ProgramSearchError,
@@ -23,6 +31,11 @@ use antecedent_estimate::joint_design::instrumented::{
     JointStructuralFeatureBinding, fit_instrumented_joint_polynomial,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+/// Domain tag of the complete request identity: data, features, moments, population and
+/// algorithm.
+const IDENTITY_TAG: &str = "antecedent.structural_dose_selection.v1";
 
 /// One raw-dose coordinate of the complete joint intervention.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -103,10 +116,19 @@ pub struct InstrumentedSelectionResult {
     pub procedure: WholeProcedureSelection<InstrumentedSelectedAction>,
     /// Full data, feature, moment, population and algorithm identity.
     pub identity: SemanticDigest,
-    request: InstrumentedSelectionRequest,
+    request: Arc<InstrumentedSelectionRequest>,
     seed: u64,
     repetitions: usize,
     tie_tolerance: f64,
+    program: SemanticDigest,
+}
+/// A compiled structural-dose selection: the complete retained request and the lowered
+/// program it executes. Compiling fits, searches and evaluates nothing.
+#[derive(Clone, Debug)]
+pub struct PreparedInstrumentedSelection {
+    request: Arc<InstrumentedSelectionRequest>,
+    identity: SemanticDigest,
+    lowered: Arc<LoweredProgram>,
 }
 fn sum(mut values: Vec<ValueExpr>) -> ValueExpr {
     if values.is_empty() {
@@ -172,24 +194,64 @@ impl InstrumentedSelectionRequest {
         }
         Ok(())
     }
+    /// Compile this request to a program-selection program over its training and held-out
+    /// units: the continuous dose box is the candidate domain, and the budget and
+    /// restrictions are its constraints. Compiling fits, searches and evaluates nothing.
+    /// # Errors
+    /// `public_builder_reentry` inside a lowered dispatch, a request that does not encode, or
+    /// a program layer the planner refuses to declare.
+    pub fn compile(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedInstrumentedSelection, ProgramSearchError> {
+        Entry::Public.admit(ctx).map_err(compiler_refusal)?;
+        let encoded = antecedent_io::convert::to_cbor(self).map_err(super::codec)?;
+        let identity =
+            SemanticDigest::from_bytes(CanonicalWriter::digest_bytes(IDENTITY_TAG, &encoded));
+        let lowered = lower_selection(
+            SearchOperation::InstrumentedSelection,
+            identity,
+            encoded.len(),
+            0,
+            self.restrictions.len() + usize::from(self.budget.is_some()),
+            &self.utility_units,
+        )?;
+        Ok(PreparedInstrumentedSelection {
+            request: Arc::new(self.clone()),
+            identity,
+            lowered: Arc::new(lowered),
+        })
+    }
     /// Execute native joint-feature IV fitting, compiler-derived continuous search,
     /// and independent observational evaluation of the chosen structural contrast.
     /// Every resample repeats the complete same method-owner procedure. Its
     /// delete-unit uncertainty is asymptotic under the explicit homogeneous moment
     /// model, not a posterior, weak-IV guarantee or release calibration support.
+    /// The request compiles ([`Self::compile`]) and the compiled selection executes.
     /// # Errors
     /// Invalid split/target, failed rank or feature premises, infeasible domains,
-    /// unsupported certificate expressions, cancellation or resources.
-    #[allow(
-        clippy::items_after_statements,
-        reason = "the admitted selection keeps its block helper local"
-    )]
+    /// unsupported certificate expressions, cancellation or resources;
+    /// `public_builder_reentry` inside a lowered dispatch, and `not_supported` from a release
+    /// build that does not support the route.
     pub fn execute(
         &self,
         repetitions: usize,
         tie_tolerance: f64,
         ctx: &ExecutionContext,
     ) -> Result<InstrumentedSelectionResult, ProgramSearchError> {
+        self.compile(ctx)?.execute(repetitions, tie_tolerance, ctx)
+    }
+    /// The held-out procedure, run with the dispatch-scoped context.
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the admitted selection keeps its block helper local"
+    )]
+    fn select(
+        &self,
+        repetitions: usize,
+        tie_tolerance: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<WholeProcedureSelection<InstrumentedSelectedAction>, ProgramSearchError> {
         if ctx.cancellation.is_cancelled() {
             return Err(ProgramSearchError::Cancelled);
         }
@@ -226,7 +288,7 @@ impl InstrumentedSelectionRequest {
                 })
                 .collect()
         }
-        let procedure = execute_heldout_selection(
+        execute_heldout_selection(
             self,
             &blocks(&self.training),
             &blocks(&self.validation),
@@ -234,20 +296,7 @@ impl InstrumentedSelectionRequest {
             repetitions,
             tie_tolerance,
             ctx,
-        )?;
-        let encoded = antecedent_io::convert::to_cbor(self).map_err(super::codec)?;
-        let identity = SemanticDigest::from_bytes(CanonicalWriter::digest_bytes(
-            "antecedent.structural_dose_selection.v1",
-            &encoded,
-        ));
-        Ok(InstrumentedSelectionResult {
-            procedure,
-            identity,
-            request: self.clone(),
-            seed: ctx.rng.master_seed(),
-            repetitions,
-            tie_tolerance,
-        })
+        )
     }
     fn fit_view(
         &self,
@@ -292,6 +341,51 @@ impl InstrumentedSelectionRequest {
             return Err(invalid("selected structural contrast arithmetic failed"));
         }
         Ok((value, variance.max(0.0)))
+    }
+}
+impl PreparedInstrumentedSelection {
+    /// The complete retained request.
+    #[must_use]
+    pub fn request(&self) -> &InstrumentedSelectionRequest {
+        &self.request
+    }
+    /// The lowered program this selection executes.
+    #[must_use]
+    pub const fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
+    /// One view over every layer of the lowered program this selection executes. Reading it
+    /// fits and selects nothing.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Prepared)
+    }
+    /// Identity of the lowered program this selection executes.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.lowered.identity()
+    }
+    /// Execute the held-out procedure of [`InstrumentedSelectionRequest::execute`] inside the
+    /// dispatch of this selection's program.
+    /// # Errors
+    /// As [`InstrumentedSelectionRequest::execute`].
+    pub fn execute(
+        &self,
+        repetitions: usize,
+        tie_tolerance: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<InstrumentedSelectionResult, ProgramSearchError> {
+        let scoped = enter(&self.lowered, ctx)?;
+        let procedure = self.request.select(repetitions, tie_tolerance, &scoped)?;
+        Ok(InstrumentedSelectionResult {
+            procedure,
+            identity: self.identity,
+            request: Arc::clone(&self.request),
+            seed: ctx.rng.master_seed(),
+            repetitions,
+            tie_tolerance,
+            program: self.lowered.identity(),
+        })
     }
 }
 impl ProgramSelectionProcedure<JointInstrumentedUnit> for InstrumentedSelectionRequest {
@@ -444,6 +538,11 @@ impl ProgramSelectionProcedure<JointInstrumentedUnit> for InstrumentedSelectionR
     }
 }
 impl InstrumentedSelectionResult {
+    /// Identity of the lowered selection program that produced this result.
+    #[must_use]
+    pub const fn program_identity(&self) -> SemanticDigest {
+        self.program
+    }
     /// Selected controls, actual training bound, held-out contrast and full resampling evidence.
     #[must_use]
     pub fn report(&self) -> serde_json::Value {
@@ -461,7 +560,7 @@ impl InstrumentedSelectionResult {
     pub fn export(&self) -> Result<Vec<u8>, ProgramSearchError> {
         antecedent_io::convert::to_cbor(&Document {
             version: 1,
-            request: self.request.clone(),
+            request: InstrumentedSelectionRequest::clone(&self.request),
             seed: self.seed,
             repetitions: self.repetitions,
             tie_tolerance: self.tie_tolerance,

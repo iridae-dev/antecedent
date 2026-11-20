@@ -259,6 +259,9 @@ MODULE_RECORDS = {
     "crates/antecedent-estimate/src/temporal_design/misclassification.rs": (
         "measurement.binary_misclassification",
     ),
+    # The selectable panel families are parameterizations of the one hierarchical Gaussian
+    # panel likelihood the joint-panel record documents.
+    "crates/antecedent-estimate/src/joint_panel/family.rs": ("response.joint_panel",),
     # Checked execution of the sequential contrast, the history routes and the Bayesian
     # regime and policy values: the methods are the estimators' own records.
     "crates/antecedent/src/analysis/execute/checked_sequential_contrast.rs": (

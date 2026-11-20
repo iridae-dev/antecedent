@@ -97,6 +97,9 @@ pub enum RouteFamily {
     /// A noncausal association of the observed data: a conditional law, regression
     /// coefficients, an association measure or a scored predictive model.
     Associational,
+    /// Joint multi-channel panel models: fitted responses, imputation, program search and
+    /// selection, experiment updates and design-native joint functionals.
+    JointPanel,
 }
 
 impl RouteFamily {
@@ -117,6 +120,7 @@ impl RouteFamily {
             Self::GraphImputation => "graph_imputation",
             Self::CategoricalPosteriorCandidate => "categorical_posterior_candidate",
             Self::Associational => "associational",
+            Self::JointPanel => "joint_panel",
         }
     }
 }
@@ -1696,7 +1700,8 @@ impl PlanView {
             | RouteFamily::PropagationChain
             | RouteFamily::GraphImputation
             | RouteFamily::CategoricalPosteriorCandidate
-            | RouteFamily::Associational => None,
+            | RouteFamily::Associational
+            | RouteFamily::JointPanel => None,
         };
         let scientific = program.scientific();
         let support = SupportView {
@@ -2098,6 +2103,13 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::MnarFixedShift => PlanRoute::MnarFixedShift,
         ProgramCell::LatentSoftIntervention => PlanRoute::LatentSoftIntervention,
         ProgramCell::EventProcess => PlanRoute::EventProcess,
+        ProgramCell::JointPanelResponse => PlanRoute::JointPanelResponse,
+        ProgramCell::JointPanelTimeVarying => PlanRoute::JointPanelTimeVarying,
+        ProgramCell::JointPanelImputation => PlanRoute::JointPanelImputation,
+        ProgramCell::JointPanelProgramSearch => PlanRoute::JointPanelProgramSearch,
+        ProgramCell::JointPanelProgramSelection => PlanRoute::JointPanelProgramSelection,
+        ProgramCell::JointPanelExperiment => PlanRoute::JointPanelExperiment,
+        ProgramCell::JointDesign => PlanRoute::JointDesign,
     }
 }
 
@@ -2360,5 +2372,17 @@ mod tests {
         assert_eq!(PlanRoute::CyclicFamily("system").as_str(), "CyclicFamily");
         assert_eq!(PlanRoute::Planning("bernoulli").family(), RouteFamily::Planning);
         assert_eq!(PlanRoute::Planning("bernoulli").as_str(), "ExperimentPlanning");
+    }
+
+    #[test]
+    fn every_joint_panel_route_names_its_cell_in_the_joint_panel_family() {
+        let mut names = BTreeSet::new();
+        for route in crate::planner::lowered::JointPanelRoute::ALL {
+            let cell = route.cell();
+            let plan = super::plan_route(cell);
+            assert_eq!(plan.as_str(), cell.as_str(), "the view names the cell it lowers");
+            assert_eq!(plan.family(), RouteFamily::JointPanel, "{}", cell.as_str());
+            assert!(names.insert(plan.as_str()), "{} has one plan route", cell.as_str());
+        }
     }
 }

@@ -64,7 +64,9 @@ pub use cell::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportGraphClass, SupportInference,
     SupportQuery, SupportRefusal, SupportStructure, SupportValidation,
 };
-pub(crate) use gate::{require_capability_route, require_capability_route_unscoped};
+pub(crate) use gate::{
+    capability_supported, require_capability_route, require_capability_route_unscoped,
+};
 pub(crate) use matrix::retarget_permitted;
 pub use matrix::{
     cell_coordinate, classify, classify_estimator, refuse_if_not_applicable,

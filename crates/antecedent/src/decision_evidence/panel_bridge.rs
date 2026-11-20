@@ -1,15 +1,25 @@
 //! Explicit model-conditional use of a retained randomized excursion in a panel response.
+//!
+//! Each update executes a `JointPanelExperiment` program, a child of the panel response's
+//! program whose trial evidence binds the retained experiment: an excursion update, or a
+//! joint update on the components of a retained experiment.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+use std::sync::Arc;
+
 use super::{
     CompiledAdaptiveRegimeEvidence, CompiledClusterEvidence, CompiledExcursionEvidence,
     CompiledExperimentalEvidence, CompiledRegimeEvidence, EvidenceRefusal,
 };
+use crate::analysis::joint_panel::compiled;
 use crate::analysis::joint_panel::{
     JointPanelError, JointPanelResponseFunctional, JointPanelResult, PanelExperimentDecisionSource,
     PanelExperimentEvidence, PanelExperimentMapping, PanelExperimentModularPolicy,
     PanelExperimentResult, PanelExperimentUpdate, PanelJointExperimentComponent,
     PanelJointExperimentResult, PanelJointExperimentUpdate,
 };
+use crate::analysis::lowering::joint_panel::experiment::{ExperimentOperation, lower};
+use crate::planner::PlanView;
+use crate::planner::lowered::{JointPanelRoute, LoweredProgram};
 use antecedent_contract::{
     QuantityRole, ScientificQuantity,
     bridge::{AssumptionKind, BridgeContract},
@@ -73,6 +83,22 @@ impl ExcursionPanelUpdate {
     pub fn into_parts(self) -> (PanelExperimentResult, CompiledExcursionEvidence) {
         (self.result, self.source)
     }
+    /// The excursion program this update executed: a child of the panel response's program
+    /// with the retained excursion as trial evidence.
+    #[must_use]
+    pub fn lowered(&self) -> &Arc<LoweredProgram> {
+        self.result.lowered()
+    }
+    /// Inspect the excursion program this update executed.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        self.result.plan_view()
+    }
+    /// Identity of the excursion program this update executed.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.result.program_identity()
+    }
     /// Explicit assumption that supplies the Gaussian sampling model.
     #[must_use]
     pub fn likelihood_assumption_id(&self) -> &str {
@@ -132,6 +158,23 @@ fn check_excursion_translation(
     Ok(())
 }
 
+/// Lower the experiment program of `operation` over `panel`, a child of its program whose
+/// trial evidence has identity `experiment`, enter the program's dispatch from a public entry
+/// point and pass the release support gate. Returns the program and the context the update
+/// runs with.
+fn enter_update(
+    panel: &JointPanelResult,
+    operation: ExperimentOperation,
+    experiment: SemanticDigest,
+    bytes: u64,
+    ctx: &ExecutionContext,
+) -> Result<(Arc<LoweredProgram>, ExecutionContext), JointPanelError> {
+    let lowered = Arc::new(lower(operation, panel.program_identity(), experiment, bytes, None)?);
+    let scoped = compiled::enter(ctx, &lowered)?;
+    compiled::require_release_support(&scoped, JointPanelRoute::Experiment)?;
+    Ok((lowered, scoped))
+}
+
 fn check_source(
     source: &CompiledExcursionEvidence,
     id: antecedent_contract::evidence_ledger::SourceId,
@@ -169,8 +212,13 @@ fn check_dependency_source(
 /// bridge, overlap, mapping, posterior and model-conditional authority checks remain in force.
 /// This does not establish that an excursion equals a sustained or adaptive policy effect.
 ///
+/// The update executes the `JointPanelExperiment` excursion program, a child of `panel`'s
+/// program whose trial evidence binds the retained excursion, the component, the likelihood
+/// assumption and the declared update; the result carries it.
+///
 /// # Errors
-/// Mismatched source, target, likelihood declaration, evidence, data, bridge, or execution policy.
+/// Mismatched source, target, likelihood declaration, evidence, data, bridge, or execution
+/// policy; a call inside another program's lowered dispatch is refused.
 #[allow(
     clippy::float_cmp,
     reason = "exact equality preserves the declared boundary and identity semantics"
@@ -184,6 +232,19 @@ pub fn condition_panel_on_compiled_excursion(
     ledger: &EvidenceLedger,
     ctx: &ExecutionContext,
 ) -> Result<ExcursionPanelUpdate, JointPanelError> {
+    let mut declared = CanonicalWriter::new("antecedent.decision_evidence.excursion_update.v1");
+    declared
+        .bytes(excursion.source().dependency_identity().as_bytes())
+        .text(component)
+        .text(likelihood_assumption_id)
+        .bytes(update.evidence_identity().as_bytes());
+    let (lowered, scoped) = enter_update(
+        panel,
+        ExperimentOperation::Excursion,
+        SemanticDigest::from_bytes(declared.finish()),
+        update.evidence_bytes(),
+        ctx,
+    )?;
     let quantity = compiled_excursion_quantity(&excursion, component)
         .map_err(|e| JointPanelError::Compile(e.to_string()))?;
     check_excursion_translation(
@@ -208,7 +269,7 @@ pub fn condition_panel_on_compiled_excursion(
     }
     check_source(&excursion, update.evidence.experiment, ledger)?;
     let experiment_id = update.evidence.experiment;
-    let result = panel.condition_experiment(update, ledger, ctx)?;
+    let result = panel.condition_experiment_in(update, ledger, &scoped, lowered, ctx)?;
     Ok(ExcursionPanelUpdate {
         source: excursion,
         result,
@@ -433,6 +494,22 @@ impl RetainedJointPanelUpdate {
     pub fn result(&self) -> &PanelJointExperimentResult {
         &self.result
     }
+    /// The joint experiment program this update executed: a child of the panel response's
+    /// program with the retained experiment as trial evidence.
+    #[must_use]
+    pub fn lowered(&self) -> &Arc<LoweredProgram> {
+        self.result.lowered()
+    }
+    /// Inspect the joint experiment program this update executed.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        self.result.plan_view()
+    }
+    /// Identity of the joint experiment program this update executed.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.result.program_identity()
+    }
     /// Explicit assumption that supplies the Gaussian sampling model.
     #[must_use]
     pub fn likelihood_assumption_id(&self) -> &str {
@@ -462,9 +539,15 @@ impl RetainedJointPanelUpdate {
 /// the named targets are informed. Evidence whose interference is only bounded yields an
 /// assumption-bounded result that answers sensitivity questions, not decisions.
 ///
+/// The update executes the `JointPanelExperiment` joint condition program, a child of
+/// `panel`'s program whose trial evidence binds the retained experiment, the likelihood
+/// assumption, every named component's translation and the declared origins; the result
+/// carries it.
+///
 /// # Errors
 /// Evidence without a joint covariance, a mismatched source, target or likelihood declaration,
-/// or any refusal of [`PanelJointExperimentResult`].
+/// or any refusal of [`PanelJointExperimentResult`]; a call inside another program's lowered
+/// dispatch is refused.
 pub fn condition_panel_jointly_on_retained_evidence(
     panel: &JointPanelResult,
     experiment: impl Into<RetainedExperiment>,
@@ -475,11 +558,39 @@ pub fn condition_panel_jointly_on_retained_evidence(
     ctx: &ExecutionContext,
 ) -> Result<RetainedJointPanelUpdate, JointPanelError> {
     let experiment = experiment.into();
-    let names: Vec<&str> = components.iter().map(|c| c.component.as_str()).collect();
+    let (names, components): (Vec<String>, Vec<PanelJointExperimentComponent>) = components
+        .into_iter()
+        .map(|c| {
+            let translation = PanelJointExperimentComponent {
+                bridge: c.bridge,
+                functional: c.functional,
+                mapping: c.mapping,
+            };
+            (c.component, translation)
+        })
+        .unzip();
+    let mut declared =
+        CanonicalWriter::new("antecedent.decision_evidence.retained_joint_update.v1");
+    declared
+        .bytes(experiment.dependency_identity().as_bytes())
+        .text(likelihood_assumption_id)
+        .word(components.len() as u64);
+    for (name, component) in names.iter().zip(&components) {
+        declared.text(name).bytes(component.evidence_identity().as_bytes());
+    }
+    declared.bytes(evidence.origins_identity().as_bytes());
+    let (lowered, scoped) = enter_update(
+        panel,
+        ExperimentOperation::JointCondition,
+        SemanticDigest::from_bytes(declared.finish()),
+        components.iter().fold(0_u64, |bytes, c| bytes.saturating_add(c.evidence_bytes())),
+        ctx,
+    )?;
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
     let sampling = joint_contrast_sampling(experiment.evidence(), &names)?;
-    for c in &components {
+    for (name, c) in names.iter().zip(&components) {
         let quantity = experiment
-            .component_quantity(&c.component)
+            .component_quantity(name)
             .map_err(|e| JointPanelError::Compile(e.to_string()))?;
         check_excursion_translation(
             experiment.dependency_identity(),
@@ -493,16 +604,9 @@ pub fn condition_panel_jointly_on_retained_evidence(
     let sample_size = u64::try_from(design.treated_units.min(design.control_units))
         .map_err(|_| JointPanelError::Compile("independent-unit count overflow".into()))?;
     let experiment_id = evidence.experiment;
-    let result = panel.condition_joint_experiment(
+    let result = panel.condition_joint_experiment_in(
         PanelJointExperimentUpdate {
-            components: components
-                .into_iter()
-                .map(|c| PanelJointExperimentComponent {
-                    bridge: c.bridge,
-                    functional: c.functional,
-                    mapping: c.mapping,
-                })
-                .collect(),
+            components,
             observed_means: sampling.observed,
             sampling_covariance: sampling.covariance,
             sample_size,
@@ -511,6 +615,8 @@ pub fn condition_panel_jointly_on_retained_evidence(
             contrast_bias_bounds: sampling.contrast_bias_bounds,
         },
         ledger,
+        &scoped,
+        lowered,
         ctx,
     )?;
     Ok(RetainedJointPanelUpdate {

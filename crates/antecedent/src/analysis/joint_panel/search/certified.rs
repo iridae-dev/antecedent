@@ -1,10 +1,11 @@
 //! Certified search derived from the same retained response evaluated by ordinary search.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::{
-    Arc, ExecutionContext, FrozenPanelEvaluator, JointPanelContinuousSearchRequest,
+    Arc, Entry, ExecutionContext, FrozenPanelEvaluator, JointPanelContinuousSearchRequest,
     JointPanelError, JointPanelResult, JointPanelScientificScope, JointPanelSearchUncertainty,
-    ScientificDecisionSource, ScientificSourcePayload, SemanticDigest, engine,
-    map_scientific_error, map_search_error, source,
+    LoweredProgram, PlanView, ScientificDecisionSource, ScientificSourcePayload, SearchOperation,
+    SearchProgram, SearchSpec, SemanticDigest, engine, map_scientific_error, map_search_error,
+    source,
 };
 use antecedent_core::{ValueExpr, VariableId};
 use antecedent_design::decision_contract::{ProgramObjective, UtilityExpr};
@@ -38,6 +39,7 @@ pub struct JointPanelCertifiedSearch {
     scale: f64,
     bindings: Vec<PanelExpressionControl>,
     time_weights: Vec<f64>,
+    program: SearchProgram,
 }
 /// Numerical certificate and independently usable scientific source for its actual incumbent.
 #[derive(Clone, Debug)]
@@ -50,6 +52,14 @@ pub struct JointPanelCertifiedSearchResult {
     pub fitted_dependency: SemanticDigest,
     /// Original compiled scientific question.
     pub parent_target: SemanticDigest,
+    program: SemanticDigest,
+}
+impl JointPanelCertifiedSearchResult {
+    /// Identity of the lowered certified search program that produced this result.
+    #[must_use]
+    pub const fn program_identity(&self) -> SemanticDigest {
+        self.program
+    }
 }
 /// Strongest executable numerical search route admitted by the actual response.
 #[derive(Clone, Debug)]
@@ -64,6 +74,17 @@ pub enum JointPanelProgramSearchResult {
         /// Concrete certificate capability that was unavailable.
         certificate_refusal: String,
     },
+}
+impl JointPanelProgramSearchResult {
+    /// Identity of the lowered program that produced this result: the certified search, or
+    /// the continuous search that ran when no certificate was admitted.
+    #[must_use]
+    pub const fn program_identity(&self) -> SemanticDigest {
+        match self {
+            Self::Certified(result) => result.program_identity(),
+            Self::BestFound { result, .. } => result.program_identity(),
+        }
+    }
 }
 fn supports_interval(expression: &ValueExpr) -> bool {
     match expression {
@@ -153,9 +174,12 @@ impl JointPanelResult {
     /// Scheduled controls, remaining schedules, history, population, temporal path,
     /// lag/saturation/interaction parameters and source authority stay bound.
     ///
+    /// The search lowers a program-search program that is a child of this result's program.
+    ///
     /// # Errors
     /// Invalid original search, unsupported mean/law demand, numerical expression,
-    /// resources, cancellation, or unsupported causal extrapolation.
+    /// resources, cancellation, or unsupported causal extrapolation;
+    /// `public_builder_reentry` inside a lowered dispatch.
     #[expect(
         clippy::too_many_lines,
         reason = "binds the complete fitted objective and domain before constructing its proof owner"
@@ -165,6 +189,7 @@ impl JointPanelResult {
         request: JointPanelContinuousSearchRequest,
         ctx: &ExecutionContext,
     ) -> Result<JointPanelCertifiedSearch, JointPanelError> {
+        Entry::Public.admit(ctx)?;
         source::check_cancelled(ctx)?;
         if request.uncertainty != JointPanelSearchUncertainty::PointMeans
             || !request.contract.constraints.is_empty()
@@ -262,19 +287,41 @@ impl JointPanelResult {
                 error => map_search_error(error),
             },
         )?;
+        let spec = SearchSpec::continuous(self, &request, SearchOperation::Certified);
+        let program = spec.lower(&request.contract)?;
+        // The incumbent's response is retargeted as a child of the certified program.
+        let mut evaluator = admitted.evaluator;
+        evaluator.program = program.identity();
         Ok(JointPanelCertifiedSearch {
             plan,
-            evaluator: admitted.evaluator,
+            evaluator,
             expression,
             initial: request.initial,
             offset,
             scale,
             bindings,
             time_weights: weights,
+            program,
         })
     }
 }
 impl JointPanelCertifiedSearch {
+    /// The lowered program this search executes.
+    #[must_use]
+    pub const fn lowered(&self) -> &Arc<LoweredProgram> {
+        &self.program.lowered
+    }
+    /// One view over every layer of the lowered program this search executes. Reading it
+    /// evaluates, bounds and searches nothing.
+    #[must_use]
+    pub fn plan_view(&self) -> PlanView {
+        self.program.plan_view()
+    }
+    /// Identity of the lowered program this search executes.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program.identity()
+    }
     /// Export both the frozen panel evaluation and the independently replayable
     /// numerical certificate, including the exact control and time bindings.
     /// # Errors
@@ -333,21 +380,26 @@ impl JointPanelCertifiedSearch {
     /// Certify the bounded fitted objective, then re-evaluate the incumbent through
     /// the original compiler to bind its returned scientific source. A certificate
     /// is scoped to this numerical fitted objective, not selected-value reliability.
+    /// Both run inside the dispatch of this search's program, and the incumbent's response is
+    /// retargeted from the frozen fit as a child of this program.
     ///
     /// # Errors
-    /// Numerical mismatch, changed authority, resources, cancellation or bad options.
+    /// Numerical mismatch, changed authority, resources, cancellation or bad options;
+    /// `public_builder_reentry` inside another lowered dispatch, and `not_supported` from a
+    /// release build that does not support the route.
     pub fn execute(
         &self,
         options: CertificateOptions,
         ctx: &ExecutionContext,
     ) -> Result<JointPanelCertifiedSearchResult, JointPanelError> {
         use antecedent_design::program_search::continuous::CompiledProgramEvaluator;
+        let scoped = self.program.enter(ctx)?;
         let _admitted_expression = self.expression.admitted_bytes();
         let certificate =
-            self.plan.execute(self.initial.clone(), options, ctx).map_err(map_search_error)?;
+            self.plan.execute(self.initial.clone(), options, &scoped).map_err(map_search_error)?;
         let compiled = self
             .evaluator
-            .evaluate_program(&certificate.controls, ctx)
+            .evaluate_program(&certificate.controls, &scoped)
             .map_err(map_search_error)?;
         compiled
             .source
@@ -376,6 +428,7 @@ impl JointPanelCertifiedSearch {
             best_source: compiled.source,
             fitted_dependency: self.evaluator.result.dependency_identity(),
             parent_target: self.evaluator.result.request().target.identity(),
+            program: self.program.identity(),
         })
     }
 }

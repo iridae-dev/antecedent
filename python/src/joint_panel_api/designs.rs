@@ -17,6 +17,14 @@ pub(super) struct PyPreparedJointDesign {
 }
 #[pymethods]
 impl PyPreparedJointDesign {
+    /// The compiled program's layers as JSON, read without fitting or simulating.
+    fn plan_view(&self) -> String {
+        self.inner.plan_view().to_json().to_string()
+    }
+    /// The lowered program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     #[pyo3(signature=(inference_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn execute(
         &self,
@@ -62,6 +70,10 @@ pub(super) struct PyJointDesignResult {
 }
 #[pymethods]
 impl PyJointDesignResult {
+    /// The lowered program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     #[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn export_reference_decomposition<'py>(
         &self,
@@ -295,6 +307,14 @@ struct PyPreparedNativeJointDesign {
 }
 #[pymethods]
 impl PyPreparedNativeJointDesign {
+    /// The compiled program's layers as JSON, read without fitting or simulating.
+    fn plan_view(&self) -> String {
+        self.inner.plan_view().to_json().to_string()
+    }
+    /// The lowered program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     fn identification(&self) -> PyResult<String> {
         serde_json::to_string(self.inner.identification())
             .map_err(|e| crate::value_err(e.to_string()))
@@ -343,6 +363,10 @@ pub(super) struct PyNativeJointDesignResult {
 }
 #[pymethods]
 impl PyNativeJointDesignResult {
+    /// The lowered program's identity as 64 hex characters.
+    fn program_identity(&self) -> String {
+        self.inner.program_identity().to_hex()
+    }
     fn report(&self, py: Python<'_>) -> PyResult<String> {
         crate::detach_catch(py, || {
             serde_json::to_string(&serde_json::json!({"identification":self.inner.prepared().identification(),"law":self.inner.law(),"dependency":self.inner.dependency_identity().to_hex(),"source_dependency":self.inner.prepared().dependency().to_hex(),"support":self.inner.support(),"calibration":self.inner.calibration()})).map_err(|e|crate::value_err(e.to_string()))

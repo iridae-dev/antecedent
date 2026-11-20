@@ -1,5 +1,6 @@
 //! Execute the next coarser response attempt after unique change attribution fails.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+use super::compiled::Entry;
 use super::{
     Arc, ExecutionContext, JointPanelError, JointPanelFunctional, JointPanelResponseFunctional,
     JointPanelResult, JointPanelWorld, PanelResponse, ScientificTarget, ScientificWorldId,
@@ -21,11 +22,25 @@ impl JointPanelResult {
     /// identified causal attribution. Endpoints explicitly bind exposure/history,
     /// saturation, population and remaining mechanism blocks. Temporal mechanism
     /// indices refer to this one fitted path, preserving selection and draw coupling.
-    /// A stationary fit cannot manufacture a distinct after mechanism.
+    /// A stationary fit cannot manufacture a distinct after mechanism. The decomposition
+    /// runs inside the dispatch of the result's program.
     ///
     /// # Errors
-    /// Invalid endpoints, paths, resources, cancellation or numerical failure.
+    /// Invalid endpoints, paths, resources, cancellation or numerical failure; the compiler
+    /// refusals of the panel handle's `estimate`.
     pub fn decompose_reference(
+        &self,
+        request: &PanelDecompositionRequest,
+        periods: &MechanismPeriodMap,
+        ctx: &ExecutionContext,
+    ) -> Result<PanelDecomposition, JointPanelError> {
+        let scoped = self.prepared().enter_dispatch(Entry::Public, ctx)?;
+        self.decompose_reference_dispatched(request, periods, &scoped)
+    }
+
+    /// [`Self::decompose_reference`] with `ctx` already inside the dispatch of the result's
+    /// program.
+    fn decompose_reference_dispatched(
         &self,
         request: &PanelDecompositionRequest,
         periods: &MechanismPeriodMap,
@@ -49,16 +64,20 @@ impl JointPanelResult {
     /// moments, without holding any per-draw table or paired path of the whole law.
     ///
     /// The values equal those of the retained route; use it when the per-draw tables are not
-    /// needed. Failed law slots stay counted as failed.
+    /// needed. Failed law slots stay counted as failed. The decomposition runs inside the
+    /// dispatch of the result's program.
     ///
     /// # Errors
-    /// Invalid endpoints, paths, resources, cancellation or numerical failure.
+    /// Invalid endpoints, paths, resources, cancellation or numerical failure; the compiler
+    /// refusals of the panel handle's `estimate`.
     pub fn decompose_reference_streamed(
         &self,
         request: &PanelDecompositionRequest,
         periods: &MechanismPeriodMap,
         ctx: &ExecutionContext,
     ) -> Result<StreamedDecomposition, JointPanelError> {
+        let scoped = self.prepared().enter_dispatch(Entry::Public, ctx)?;
+        let ctx = &scoped;
         source::check_cancelled(ctx)?;
         let data = self.prepared().model_data();
         Ok(match &self.fit {
@@ -106,9 +125,16 @@ pub struct JointPanelExplanationAttempt {
     /// Source bound to the actual derived per-period Linear target and conditional proof.
     pub source: ScientificDecisionSource,
     compiled: JointPanelResult,
+    parent_program: SemanticDigest,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
 }
 impl JointPanelExplanationAttempt {
+    /// Identity of the lowered program of the result the coarser contrast was derived from.
+    /// The derived response carries its own program identity.
+    #[must_use]
+    pub const fn parent_program_identity(&self) -> SemanticDigest {
+        self.parent_program
+    }
     /// Refuse promotion from a coarser response change to unique causal attribution.
     /// # Errors
     /// Always refuses without an independently earned finer attribution proof.
@@ -131,8 +157,11 @@ impl JointPanelResult {
     /// The actual target is (later−earlier) for `world` minus the same change for
     /// `reference_world`. Each selected period is its own prefix world in the
     /// common Linear contrast. This reuses the already fitted mechanism and draws.
+    /// The derived program is lowered and evaluated inside its own dispatch; the attempt
+    /// records this result's program identity as its parent.
     /// # Errors
-    /// Invalid worlds/windows, target compilation, numerical, resource or cancellation errors.
+    /// Invalid worlds/windows, target compilation, numerical, resource or cancellation errors;
+    /// the compiler refusals of the panel handle's `estimate`.
     pub fn attempt_explanation(
         &self,
         request: JointPanelExplanationRequest,
@@ -156,8 +185,10 @@ impl JointPanelResult {
         let (worlds, terms) = prefix_worlds(&selected, &request)?;
         let target = coarse_target(self, &selected, &worlds, &terms)?;
         let prepared = self.prepared().retarget(worlds, target, ctx)?;
+        let scoped = prepared.enter_dispatch(Entry::Public, ctx)?;
         // Reuse this result's immutable fitted law even if the caller disabled future caching.
-        let compiled = prepared.evaluate_fit(self.fit.clone(), self.dependency_identity(), ctx)?;
+        let compiled =
+            prepared.evaluate_fit(self.fit.clone(), self.dependency_identity(), &scoped, ctx)?;
         let weights = compiled
             .request()
             .worlds
@@ -212,6 +243,7 @@ impl JointPanelResult {
             draws,
             source,
             compiled,
+            parent_program: self.program_identity(),
             retention,
         })
     }
@@ -417,6 +449,8 @@ pub struct CheckedReferenceDecomposition {
     pub decomposition: PanelDecomposition,
     /// Exact compiler identification product whose world permissions were consumed.
     pub identification_identity: SemanticDigest,
+    /// Identity of the lowered program of the result whose fitted law was decomposed.
+    pub program_identity: SemanticDigest,
     /// Every hybrid is checked; endpoint support is not substituted for hybrid support.
     pub hybrids: Vec<HybridReferenceSupport>,
 }
@@ -464,17 +498,22 @@ impl JointPanelResult {
     /// empirical population inherit their original world proof. Changed parameter
     /// periods, population weights or context require independent transport evidence;
     /// a fitted curve or a matching dose range cannot supply that evidence. These
-    /// obligations do not prevent the model-conditional reference calculation.
+    /// obligations do not prevent the model-conditional reference calculation. The
+    /// decomposition runs inside the dispatch of the result's program, whose identity the
+    /// checked decomposition records.
     ///
     /// # Errors
-    /// Numerical request validation, cancellation, admission or response failure.
+    /// Numerical request validation, cancellation, admission or response failure; the compiler
+    /// refusals of the panel handle's `estimate`.
     pub fn decompose_reference_checked(
         &self,
         request: &PanelDecompositionRequest,
         periods: &MechanismPeriodMap,
         ctx: &ExecutionContext,
     ) -> Result<CheckedReferenceDecomposition, JointPanelError> {
-        let decomposition = self.decompose_reference(request, periods, ctx)?;
+        let scoped = self.prepared().enter_dispatch(Entry::Public, ctx)?;
+        let ctx = &scoped;
+        let decomposition = self.decompose_reference_dispatched(request, periods, ctx)?;
         let groups = self.prepared().model_data().groups.len();
         let empirical = 1.0 / groups as f64;
         let terminal = request.time_weights.iter().enumerate().all(|(index, weight)| {
@@ -555,6 +594,7 @@ impl JointPanelResult {
         Ok(CheckedReferenceDecomposition {
             decomposition,
             identification_identity: self.identification().identity(),
+            program_identity: self.program_identity(),
             hybrids,
         })
     }

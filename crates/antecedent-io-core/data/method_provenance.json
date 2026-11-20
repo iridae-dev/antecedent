@@ -1,5 +1,23 @@
 {
  "capability": {
+  "JointPanelExperiment": [
+   "composition.panel_experiment_update"
+  ],
+  "JointPanelProgramSearch": [
+   "design.compiled_program_search"
+  ],
+  "JointPanelResponse": [
+   "composition.panel_experiment_update",
+   "design.compiled_program_search",
+   "estimate.joint_design",
+   "response.joint_panel",
+   "response.joint_panel_reference",
+   "response.joint_panel_time_varying_posterior"
+  ],
+  "JointPanelTimeVarying": [
+   "response.joint_panel",
+   "response.joint_panel_time_varying_posterior"
+  ],
   "adaptive_inference.adaptive_weighting": [
    "adaptive_inference.adaptive_weighting"
   ],
@@ -830,18 +848,6 @@
   "method.conjugate_refresh.static.bayesian": [
    "state.conjugate_refresh"
   ],
-  "method.continuous.static.bayesian": [
-   "design.compiled_program_search"
-  ],
-  "method.continuous.static.frequentist": [
-   "design.compiled_program_search"
-  ],
-  "method.continuous.temporal.bayesian": [
-   "design.compiled_program_search"
-  ],
-  "method.continuous.temporal.frequentist": [
-   "design.compiled_program_search"
-  ],
   "method.decision.static.frequentist": [
    "design.decision"
   ],
@@ -857,22 +863,6 @@
   ],
   "method.evsi.temporal.bayesian": [
    "design.evsi"
-  ],
-  "method.joint_panel.temporal.bayesian": [
-   "composition.panel_experiment_update",
-   "design.compiled_program_search",
-   "estimate.joint_design",
-   "response.joint_panel",
-   "response.joint_panel_reference",
-   "response.joint_panel_time_varying_posterior"
-  ],
-  "method.joint_panel.temporal.frequentist": [
-   "composition.panel_experiment_update",
-   "design.compiled_program_search",
-   "estimate.joint_design",
-   "response.joint_panel",
-   "response.joint_panel_reference",
-   "response.joint_panel_time_varying_posterior"
   ],
   "method.ols_refresh.static.frequentist": [
    "state.ols_refresh"
@@ -917,14 +907,6 @@
   ],
   "method.temporal_policy_transport.temporal.frequentist": [
    "transport.period_shift_policy"
-  ],
-  "method.time_varying.temporal.bayesian": [
-   "response.joint_panel",
-   "response.joint_panel_time_varying_posterior"
-  ],
-  "method.time_varying.temporal.frequentist": [
-   "response.joint_panel",
-   "response.joint_panel_time_varying_posterior"
   ],
   "mnar_fixed_shift.compiled_candidate": [
    "mnar_fixed_shift.compiled_candidate"

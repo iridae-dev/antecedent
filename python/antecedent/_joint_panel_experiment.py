@@ -224,6 +224,15 @@ class PanelJointExperiment:
 
     _handle: Any
 
+    def plan_view(self) -> dict[str, Any]:
+        """The layers of the compiled joint-experiment program this update executed."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The executed program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
+
     def report(self, ledger: Any) -> dict[str, Any]:
         """Scope, dependency identity, informed quantities and the weights (if a likelihood)."""
         return json.loads(self._handle.report(ledger._handle))
@@ -380,6 +389,15 @@ class PanelExperiment:
     """
 
     _handle: Any
+
+    def plan_view(self) -> dict[str, Any]:
+        """The compiled program's layers, read without fitting or simulating."""
+        return dict(json.loads(self._handle.plan_view()))
+
+    @property
+    def program_identity(self) -> str:
+        """The lowered program's identity as 64 hex characters."""
+        return str(self._handle.program_identity())
 
     def report(self, ledger: Any) -> dict[str, Any]:
         """Prior/posterior means, complete weights and exact scientific quantities."""

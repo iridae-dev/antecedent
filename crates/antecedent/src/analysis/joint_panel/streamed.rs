@@ -7,10 +7,11 @@
 //! slots, the joint draw alignment across worlds and every reduced bit match the full-output
 //! route followed by the same projection.
 // SPDX-License-Identifier: MIT OR Apache-2.0
+use super::compiled::Entry;
 use super::ports::functional_weights;
 use super::{
     JointPanelError, JointPanelFit, JointPanelResponseFunctional, JointPanelResult,
-    JointPanelState, JointPanelWorld, engine, source,
+    JointPanelState, JointPanelWorld, engine, source, worker_error,
 };
 use crate::PreparedStudy;
 use antecedent_core::{ExecutionContext, ScientificTarget, SemanticDigest};
@@ -25,6 +26,7 @@ pub struct JointPanelProjectedLaw {
     weights: Vec<Vec<f64>>,
     fit: JointPanelFit,
     dependency: SemanticDigest,
+    program: SemanticDigest,
 }
 impl JointPanelProjectedLaw {
     /// Projected point value for each world, in request order.
@@ -57,22 +59,16 @@ impl JointPanelProjectedLaw {
     pub fn dependency_identity(&self) -> SemanticDigest {
         self.dependency
     }
-}
-
-fn worker_error(
-    error: antecedent_core::execution::MapExecutionError<JointPanelError>,
-) -> JointPanelError {
-    match error {
-        antecedent_core::execution::MapExecutionError::Work(error) => error,
-        antecedent_core::execution::MapExecutionError::Admission(
-            antecedent_core::execution::AdmissionError::Cancelled,
-        ) => engine::PanelError::Cancelled.into(),
-        antecedent_core::execution::MapExecutionError::Admission(error) => {
-            engine::PanelError::Resource(error.to_string()).into()
-        }
+    /// Identity of the lowered program whose worlds were evaluated and reduced, as for a full
+    /// result.
+    #[must_use]
+    pub fn program_identity(&self) -> SemanticDigest {
+        self.program
     }
 }
 
+/// Reduce `fit` over the worlds of `prepared` with `ctx`, the context inside the dispatch of
+/// `prepared`'s program.
 fn project_fit(
     prepared: &PreparedStudy<JointPanelState>,
     fit: JointPanelFit,
@@ -123,7 +119,13 @@ fn project_fit(
             )?
         }
     };
-    Ok(JointPanelProjectedLaw { projected, weights, fit, dependency })
+    Ok(JointPanelProjectedLaw {
+        projected,
+        weights,
+        fit,
+        dependency,
+        program: prepared.program_identity(),
+    })
 }
 
 impl PreparedStudy<JointPanelState> {
@@ -131,68 +133,82 @@ impl PreparedStudy<JointPanelState> {
     ///
     /// The fit, its dependency key and the cache are exactly those of [`Self::estimate`]; only
     /// the response evaluation differs. Peak response storage is one tile of `tile_draws`
-    /// draws, and the retained output is one value per world and draw slot.
+    /// draws, and the retained output is one value per world and draw slot. It runs inside
+    /// the dispatch of the handle's lowered program, as [`Self::estimate`] does.
     ///
     /// # Errors
     /// Numerical, dependency, cancellation and resource errors remain typed; a zero tile or
-    /// a functional outside any world's horizon is refused.
+    /// a functional outside any world's horizon is refused; the compiler refusals of
+    /// [`Self::estimate`].
     pub fn estimate_projected(
         &self,
         functional: &JointPanelResponseFunctional,
         tile_draws: usize,
         ctx: &ExecutionContext,
     ) -> Result<JointPanelProjectedLaw, JointPanelError> {
-        ctx.try_map_indexed(1, |_, worker| {
-            source::check_cancelled(worker)?;
-            self.state
-                .identification
-                .validate_target(&self.state.request.target)
-                .map_err(JointPanelError::compile)?;
-            let dependency = source::fit_dependency(&self.state, worker)?;
-            let fit = self.fit(dependency, worker)?;
-            project_fit(self, fit, dependency, functional, tile_draws, worker)
-        })
-        .map_err(worker_error)?
-        .pop()
-        .ok_or_else(|| JointPanelError::compile("admitted projected panel worker returned nothing"))
+        let scoped = self.enter_dispatch(Entry::Public, ctx)?;
+        scoped
+            .try_map_indexed(1, |_, worker| {
+                source::check_cancelled(worker)?;
+                self.state
+                    .identification
+                    .validate_target(&self.state.request.target)
+                    .map_err(JointPanelError::compile)?;
+                let dependency = source::fit_dependency(&self.state, worker)?;
+                let fit = self.fit(dependency, worker)?;
+                project_fit(self, fit, dependency, functional, tile_draws, worker)
+            })
+            .map_err(worker_error)?
+            .pop()
+            .ok_or_else(|| {
+                JointPanelError::compile("admitted projected panel worker returned nothing")
+            })
     }
 }
 
 impl JointPanelResult {
     /// Reduce this result's own frozen law again, tile by tile, without a second full copy.
     ///
+    /// The reduction runs inside the dispatch of the result's program.
+    ///
     /// # Errors
-    /// An invalid functional or tile, cancellation or resource refusal.
+    /// An invalid functional or tile, cancellation or resource refusal; the compiler refusals
+    /// of the panel handle's `estimate`.
     pub fn project_streamed(
         &self,
         functional: &JointPanelResponseFunctional,
         tile_draws: usize,
         ctx: &ExecutionContext,
     ) -> Result<JointPanelProjectedLaw, JointPanelError> {
-        ctx.try_map_indexed(1, |_, worker| {
-            project_fit(
-                &self.program,
-                self.fit.clone(),
-                self.dependency,
-                functional,
-                tile_draws,
-                worker,
-            )
-        })
-        .map_err(worker_error)?
-        .pop()
-        .ok_or_else(|| JointPanelError::compile("admitted projected panel worker returned nothing"))
+        let scoped = self.program.enter_dispatch(Entry::Public, ctx)?;
+        scoped
+            .try_map_indexed(1, |_, worker| {
+                project_fit(
+                    &self.program,
+                    self.fit.clone(),
+                    self.dependency,
+                    functional,
+                    tile_draws,
+                    worker,
+                )
+            })
+            .map_err(worker_error)?
+            .pop()
+            .ok_or_else(|| {
+                JointPanelError::compile("admitted projected panel worker returned nothing")
+            })
     }
 
     /// Evaluate other worlds on this frozen fit, reduced tile by tile.
     ///
     /// The streamed counterpart of [`Self::retarget_frozen`]: the fit and its dependencies stay
     /// frozen and the caller's context controls only resources and cancellation, but the
-    /// worlds-by-draws-by-periods rows are never retained.
+    /// worlds-by-draws-by-periods rows are never retained. The reduction runs inside the
+    /// dispatch of the retargeted program.
     ///
     /// # Errors
     /// Changed scientific/program bindings, an invalid functional or tile, cancellation or
-    /// resource failures.
+    /// resource failures; the compiler refusals of the panel handle's `estimate`.
     pub fn project_frozen_streamed(
         &self,
         worlds: Vec<JointPanelWorld>,
@@ -202,18 +218,22 @@ impl JointPanelResult {
         ctx: &ExecutionContext,
     ) -> Result<JointPanelProjectedLaw, JointPanelError> {
         let prepared = self.program.retarget(worlds, target, ctx)?;
-        ctx.try_map_indexed(1, |_, worker| {
-            project_fit(
-                &prepared,
-                self.fit.clone(),
-                self.dependency,
-                functional,
-                tile_draws,
-                worker,
-            )
-        })
-        .map_err(worker_error)?
-        .pop()
-        .ok_or_else(|| JointPanelError::compile("admitted projected panel worker returned nothing"))
+        let scoped = prepared.enter_dispatch(Entry::Public, ctx)?;
+        scoped
+            .try_map_indexed(1, |_, worker| {
+                project_fit(
+                    &prepared,
+                    self.fit.clone(),
+                    self.dependency,
+                    functional,
+                    tile_draws,
+                    worker,
+                )
+            })
+            .map_err(worker_error)?
+            .pop()
+            .ok_or_else(|| {
+                JointPanelError::compile("admitted projected panel worker returned nothing")
+            })
     }
 }
