@@ -10,6 +10,8 @@ use antecedent_kernels::{chol_solve_into, cholesky_spd_into, equilibrate_into, s
 
 use crate::error::StateError;
 
+mod signed_uniform;
+
 /// Score family for local graph scores.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
@@ -22,6 +24,9 @@ pub enum GraphScoreFamily {
     /// Gaussian score it is not invariant within a Markov equivalence class when the noise is
     /// not Gaussian, so a posterior under it can orient edges the Gaussian posterior cannot.
     LaplaceBic,
+    /// Linear Gaussian SEM marginal likelihood with zero intercept, known unit noise
+    /// variance and independent signed `Uniform[0.5, 1]` coefficients (up to three parents).
+    GaussianSignedUniform,
 }
 
 /// Semantic cache key for a graph-score table (no pointer identity).
@@ -123,7 +128,7 @@ pub struct LocalScoreCache {
     parents: HashMap<u32, Arc<[u32]>>,
     /// Fingerprint of the data the cached scores belong to.
     bound_data: Option<u64>,
-    /// Gram of the mean-centered columns, built once for the bound data.
+    /// Gram of the columns (centered for BIC, raw for the zero-intercept model).
     gram: Option<Vec<f64>>,
     /// Sum of local scores under the current parent sets, maintained incrementally.
     running_total: Option<f64>,
@@ -275,6 +280,15 @@ impl LocalScoreCache {
                 gaussian_bic_from_gram(data, gram, node, parents)?
             }
             GraphScoreFamily::LaplaceBic => laplace_bic_local(data, node, parents)?,
+            GraphScoreFamily::GaussianSignedUniform => {
+                let gram = self.gram.get_or_insert_with(|| {
+                    let g = signed_uniform::raw_gram(data);
+                    self.bytes =
+                        self.bytes.saturating_add(std::mem::size_of_val(g.as_slice()) as u64);
+                    g
+                });
+                signed_uniform::score(data, gram, node, parents)?
+            }
         };
         let cost = 32 + 8 * parents.len() as u64;
         if self.bytes.saturating_add(cost) > self.byte_budget {
@@ -781,6 +795,7 @@ pub fn full_graph_score(
     let gram = match family {
         GraphScoreFamily::GaussianBic => gaussian_design_gram(data),
         GraphScoreFamily::LaplaceBic => Vec::new(),
+        GraphScoreFamily::GaussianSignedUniform => signed_uniform::raw_gram(data),
     };
     let mut total = 0.0;
     #[allow(
@@ -792,6 +807,9 @@ pub fn full_graph_score(
         total += match family {
             GraphScoreFamily::GaussianBic => gaussian_bic_from_gram(data, &gram, node, &pa)?,
             GraphScoreFamily::LaplaceBic => laplace_bic_local(data, node, &pa)?,
+            GraphScoreFamily::GaussianSignedUniform => {
+                signed_uniform::score(data, &gram, node, &pa)?
+            }
         };
     }
     Ok(total)
@@ -1237,6 +1255,65 @@ mod tests {
             }
         }
         assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+    #[test]
+    fn signed_uniform_matches_independent_integrated_coefficient_moments() {
+        // 60-digit direct integration of the row likelihood by exact polynomial
+        // moments in tests/oracle_data/gaussian_signed_uniform_reference.py.
+        let data = GraphScoreData::new(
+            3,
+            4,
+            Arc::from([0.2, -0.3, 0.1, -0.4, 0.1, 0.2, 0.1, -0.2, 0.3, 0.3, -0.4, 0.2]),
+        )
+        .unwrap();
+        let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
+            data_version: 1,
+            family: GraphScoreFamily::GaussianSignedUniform,
+            var_fingerprint: 1,
+            penalty_fingerprint: 1,
+        });
+        let expected = -3.018_683_580_238_146_4;
+        for parents in [[0, 1, 2], [2, 0, 1], [1, 2, 0]] {
+            let actual = cache.local_score(&data, 3, &Arc::from(parents)).unwrap();
+            assert!((actual - expected).abs() < 1e-11, "{actual}");
+        }
+        let empty = cache.local_score(&data, 3, &Arc::from([])).unwrap();
+        let no_parents = -0.5 * (3.0 * std::f64::consts::TAU.ln() + 0.29);
+        assert!((empty - no_parents).abs() < 1e-14);
+        assert!(cache.local_score(&data, 3, &Arc::from([0, 0])).is_err());
+    }
+
+    #[test]
+    fn signed_uniform_integrates_concentrated_interior_and_boundary_modes() {
+        // Orthogonal designs factorize: integrate each coefficient using the
+        // analytic Gaussian CDF. The third parent is orthogonal to the outcome
+        // and tests a far-tail integral under both signs.
+        let x: f64 = 20.0;
+        let data =
+            GraphScoreData::new(3, 4, Arc::from([x, 0., 0., 0., x, 0., 0., 0., x, 15., -24., 0.]))
+                .unwrap();
+        let mass = |y: f64| {
+            let interval = |a: f64, b: f64| {
+                let (l, r) = (x * a - y, x * b - y);
+                let (l, r) = if l < 0.0 && r <= 0.0 { (-r, -l) } else { (l, r) };
+                0.5 * (antecedent_kernels::erfc(l / std::f64::consts::SQRT_2)
+                    - antecedent_kernels::erfc(r / std::f64::consts::SQRT_2))
+                    / x
+            };
+            interval(-1., -0.5) + interval(0.5, 1.)
+        };
+        let expected = [15., -24., 0.].into_iter().map(|y| mass(y).ln()).sum::<f64>();
+        let actual =
+            signed_uniform::score(&data, &signed_uniform::raw_gram(&data), 3, &[0, 1, 2]).unwrap();
+        assert!((actual - expected).abs() < 1e-10, "got {actual}, expected {expected}");
+        let zero = GraphScoreData::new(1, 5, Arc::from([0.0; 5])).unwrap();
+        let gram = signed_uniform::raw_gram(&zero);
+        let no_parents = signed_uniform::score(&zero, &gram, 4, &[]).unwrap();
+        let redundant = signed_uniform::score(&zero, &gram, 4, &[0, 1, 2]).unwrap();
+        assert!((no_parents - redundant).abs() < 1e-12);
+        assert!(signed_uniform::score(&zero, &gram, 4, &[0, 1, 2, 3]).is_err());
+        let large = GraphScoreData::new(1, 1, Arc::from([1e15])).unwrap();
+        assert!(signed_uniform::score(&large, &signed_uniform::raw_gram(&large), 0, &[]).is_err());
     }
 }
 
