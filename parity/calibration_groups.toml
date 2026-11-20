@@ -14998,8 +14998,9 @@ whole = true
 # Binary target, randomized treatment graph-imputation study with independent two-row target
 # clusters. Each replicate draws a new MAR-outcome source sample and target clusters, executes 40
 # whole-cluster target resamples with full graph, imputation, transport, fit and decision schedules,
-# and compares the route's nearest-rank 95% effect interval against known target-population truth.
-# The 60/120/240-row grid verifies its exact runtime basis.
+# each on its own imputation and posterior streams, and compares the route's replicate
+# order-statistic 95% effect interval against known target-population truth. The 60/120/240-row
+# grid verifies its exact runtime basis.
 [[group]]
 label = "graph_imputation_binary_cluster_calibration: graph_imputation_binary_cluster_target_l95"
 package = "antecedent"
@@ -15012,8 +15013,9 @@ whole = true
 # Binary target, pretreatment-confounded assignment graph-imputation study with independent two-row
 # target clusters. Each replicate draws a new MAR-outcome source sample and target clusters,
 # executes 40 whole-cluster target resamples with full graph, imputation, transport, fit and
-# decision schedules, and compares the route's nearest-rank 95% effect interval against known
-# target-population truth. The 60/120/240-row grid verifies its exact runtime basis.
+# decision schedules, each on its own imputation and posterior streams, and compares the route's
+# replicate order-statistic 95% effect interval against known target-population truth. The
+# 60/120/240-row grid verifies its exact runtime basis.
 [[group]]
 label = "graph_imputation_binary_cluster_calibration: graph_imputation_confounded_binary_cluster_target_l95"
 package = "antecedent"
@@ -15054,9 +15056,9 @@ whole = true
 # Bernoulli individual control outcome study with MAR source outcomes, an independent binary target
 # frame and a future individual drawn from that frame. Every replicate recompiles graph selection,
 # imputation, target transport, predictive worlds and the joint decision; it checks the exact
-# world-specific runtime basis and scores the 95% predictive interval against the generated future
-# outcome. The known treatment advantage also permits reporting action choices under a stable
-# separate action-study scope.
+# world-specific runtime basis and scores the 95% interval of the predictive success probability
+# against the known success probability of that individual. The known treatment advantage also
+# permits reporting action choices under a stable separate action-study scope.
 [[group]]
 label = "graph_imputation_predictive_calibration: graph_imputation_bernoulli_predictive_control_l95"
 package = "antecedent"
@@ -15069,9 +15071,9 @@ whole = true
 # Bernoulli individual active outcome study with MAR source outcomes, an independent binary target
 # frame and a future individual drawn from that frame. Every replicate recompiles graph selection,
 # imputation, target transport, predictive worlds and the joint decision; it checks the exact
-# world-specific runtime basis and scores the 95% predictive interval against the generated future
-# outcome. The known treatment advantage also permits reporting action choices under a stable
-# separate action-study scope.
+# world-specific runtime basis and scores the 95% interval of the predictive success probability
+# against the known success probability of that individual. The known treatment advantage also
+# permits reporting action choices under a stable separate action-study scope.
 [[group]]
 label = "graph_imputation_predictive_calibration: graph_imputation_bernoulli_predictive_active_l95"
 package = "antecedent"
@@ -15220,8 +15222,8 @@ whole = true
 
 # Bernoulli control predictive coverage under independent two-row target clusters and a known
 # treatment-response law. The full graph, imputation and target predictive fit reruns across 40
-# whole-cluster resamples; a future population outcome and known-optimum decision are scored under
-# their exact scopes.
+# whole-cluster resamples; the success probability of a future population individual and the
+# known-optimum decision are scored under their exact scopes.
 [[group]]
 label = "graph_imputation_predictive_cluster_calibration: graph_imputation_bernoulli_predictive_cluster_control_l95"
 package = "antecedent"
@@ -15233,8 +15235,8 @@ whole = true
 
 # Bernoulli active predictive coverage under independent two-row target clusters and a known
 # treatment-response law. The full graph, imputation and target predictive fit reruns across 40
-# whole-cluster resamples; a future population outcome and known-optimum decision are scored under
-# their exact scopes.
+# whole-cluster resamples; the success probability of a future population individual and the
+# known-optimum decision are scored under their exact scopes.
 [[group]]
 label = "graph_imputation_predictive_cluster_calibration: graph_imputation_bernoulli_predictive_cluster_active_l95"
 package = "antecedent"

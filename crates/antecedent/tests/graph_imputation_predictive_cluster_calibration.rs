@@ -1,6 +1,9 @@
 //! Predictive coverage with independent two-row target clusters. Each
 //! replicate resamples whole clusters and refits the complete predictive
-//! graph-imputation model; truth is a future target-population individual.
+//! graph-imputation model. Gaussian truth is a future target-population
+//! individual's outcome; Bernoulli truth is that individual's success
+//! probability under the known population law, because the interval of a 0/1
+//! outcome is its support and covers every outcome.
 
 mod common;
 
@@ -63,7 +66,7 @@ fn replicate(seed: u64, n: usize, binary: bool, world: usize) -> Option<Observat
     let x = f64::from(u8::from(future_rng() < 0.75));
     let a = world as f64;
     let truth = if binary {
-        f64::from(u8::from(future_rng() < logistic(-1.0 + 0.4 * x + a * (1.0 + 0.4 * x))))
+        0.75 * logistic(-1.0 + 0.4 + a * 1.4) + 0.25 * logistic(-1.0 + a)
     } else {
         0.2 * x + a * (0.5 + 0.5 * x) + 0.3 * normal()
     };
@@ -179,12 +182,13 @@ fn replicate(seed: u64, n: usize, binary: bool, world: usize) -> Option<Observat
 
 fn run_grid(test: &'static str, binary: bool, world: usize) {
     let n = grid_n(120);
-    let interval = if binary { "predictive_binary_worlds" } else { "predictive_gaussian_worlds" };
+    let interval =
+        if binary { "predictive_binary_success_probability" } else { "predictive_gaussian_worlds" };
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test,
             dgp: if binary {
-                "mar_logit_binary_target_future"
+                "mar_logit_binary_target_population_success_probability"
             } else {
                 "mar_gaussian_binary_target_future"
             },

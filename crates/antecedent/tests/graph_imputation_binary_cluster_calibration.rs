@@ -1,7 +1,8 @@
 //! Target-population coverage under independent two-row target clusters. Every
 //! replicate generates new source rows and target clusters, recompiles the
 //! complete cluster-bootstrap graph, imputation, transport and decision
-//! schedule, and compares its interval with analytic population truth.
+//! schedule, and compares its replicate order-statistic interval with analytic
+//! population truth.
 
 mod common;
 
@@ -27,7 +28,7 @@ use common::calibration::{
 const ROOT_TEST: &str = "graph_imputation_binary_cluster_target_l95";
 const CONFOUNDED_TEST: &str = "graph_imputation_confounded_binary_cluster_target_l95";
 const DGP: &str = "binary_modifier_mar_target_cluster_shift";
-const INTERVAL: &str = "nearest_rank_95";
+const INTERVAL: &str = "replicate_order_statistic_95";
 
 fn quantity() -> ScientificQuantity {
     ScientificQuantity {

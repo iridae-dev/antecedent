@@ -30,7 +30,7 @@ use antecedent_design::decision_contract::{DecisionContract, DecisionContractErr
 use antecedent_io::IoError;
 use antecedent_io::measured_inference::graph_candidate::{
     GraphPointReading, TransportStandardization, replay_confounded_transport_point,
-    replay_transport_point,
+    replay_transport_point, replicate_source,
 };
 use antecedent_io::propagation_chain_record::{
     ChainCoefficientWire, ChainOpWire, ChainSourceWire, ChainStageWire, PropagationChainRecordWire,
@@ -62,6 +62,9 @@ const CLUSTER_FEATURE: &str = "graph_imputation_transport_target_cluster_bootstr
 const CONFOUNDED_CLUSTER_FEATURE: &str =
     "graph_imputation_confounded_transport_target_cluster_bootstrap_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
+/// Interval method of a draw table with one draw per resampling replicate
+/// ([`order_statistic_interval_95`]).
+const REPLICATE_INTERVAL: &str = "replicate_order_statistic_95";
 
 /// Refusal of the bound source, target, decision or portable replay.
 #[derive(Debug, thiserror::Error)]
@@ -174,7 +177,8 @@ pub struct GraphImputationTransportDecisionResult {
 pub struct GraphImputationTransportCalibrationCandidate {
     /// Full compiler execution, including the final decision.
     pub result: GraphImputationTransportDecisionResult,
-    /// Nearest-rank equal-tail 95% interval from the target effect draws.
+    /// Equal-tail 95% interval from the target effect draws: nearest-rank on
+    /// a fixed frame, replicate order statistics under target resampling.
     pub interval: (f64, f64),
     /// Runtime construction and scope for a prospective coverage record.
     pub basis: CalibrationBasis,
@@ -608,8 +612,10 @@ pub fn compile_graph_imputation_confounded_transport_target_bootstrap_decision(
 }
 
 /// Compile an independent-cluster binary target bootstrap. Every replicate
-/// reruns graph discovery, imputation, target standardization and decision.
-/// The confounded flag chooses the separately checked pretreatment support.
+/// reruns graph discovery, imputation, target standardization and decision on
+/// its own imputation and posterior streams, and the interval is the replicate
+/// order-statistic interval of the retained draws. The confounded flag chooses
+/// the separately checked pretreatment support.
 ///
 /// # Errors
 /// Invalid producer, frame, cluster policy or decision.
@@ -672,6 +678,20 @@ pub(crate) fn bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
             return (word % bound) as usize;
         }
     }
+}
+
+/// Equal-tail 95% interval from `B` exchangeable draws sorted ascending: their
+/// `floor(0.025 (B + 1))`-th and `ceil(0.975 (B + 1))`-th order statistics,
+/// clamped to the sample. A further draw exchangeable with them falls between
+/// those order statistics with probability `(upper - lower) / (B + 1)`, at
+/// least 0.95 for every `B >= 39`. Nearest-rank quantiles (`ceil(pB)`) give
+/// `38/41` at forty replicates and miss twice as often above as below,
+/// whatever the draws' law.
+pub(crate) fn order_statistic_interval_95(ordered: &[f64]) -> (f64, f64) {
+    let slots = ordered.len() + 1;
+    let lower = (slots * 25 / 1000).clamp(1, ordered.len());
+    let upper = (slots * 975).div_ceil(1000).clamp(lower, ordered.len());
+    (ordered[lower - 1], ordered[upper - 1])
 }
 
 pub(crate) fn bootstrap_cluster_rows(state: &mut u64, groups: &[Vec<usize>]) -> Vec<usize> {
@@ -861,10 +881,16 @@ impl CompiledGraphImputationTransportDecision {
                     sampled.target_unit_ids =
                         (0..indices.len()).map(|row| format!("{prefix}{row}")).collect();
                 }
+                // Each replicate redraws its completed tables and posterior on
+                // its own streams. On the declared streams every replicate held
+                // the same posterior draws, so the retained draws repeated one
+                // another and understated the source and imputation spread.
+                let replicate_bytes =
+                    replicate_source(&self.native_source, policy.seed, replicate)?;
                 let run = if self.confounded {
-                    replay_confounded_transport_point(&self.native_source, &sampled, ctx)?
+                    replay_confounded_transport_point(&replicate_bytes, &sampled, ctx)?
                 } else {
-                    replay_transport_point(&self.native_source, &sampled, ctx)?
+                    replay_transport_point(&replicate_bytes, &sampled, ctx)?
                 };
                 if run.draws.is_empty() {
                     return Err(GraphImputationTransportDecisionError::Invalid(
@@ -948,8 +974,15 @@ impl CompiledGraphImputationTransportDecision {
             ));
         }
         ordered.sort_by(f64::total_cmp);
-        let rank = |numerator: usize| (ordered.len() * numerator).div_ceil(1000).saturating_sub(1);
-        let interval = (ordered[rank(25)], ordered[rank(975)]);
+        // Under target resampling each draw is one independent replicate.
+        let replicated = self.cluster_bootstrap.is_some() || self.target_bootstrap.is_some();
+        let interval = if replicated {
+            order_statistic_interval_95(&ordered)
+        } else {
+            let rank =
+                |numerator: usize| (ordered.len() * numerator).div_ceil(1000).saturating_sub(1);
+            (ordered[rank(25)], ordered[rank(975)])
+        };
         let source = GraphImputationSource::decode(&self.native_source)
             .map_err(GraphImputationTransportDecisionError::Invalid)?;
         let parts = source.parts();
@@ -1034,7 +1067,7 @@ impl CompiledGraphImputationTransportDecision {
                 "multi_env",
                 "Bayesian",
                 feature,
-                "nearest_rank_95",
+                if replicated { REPLICATE_INTERVAL } else { "nearest_rank_95" },
                 "",
                 if self.cluster_bootstrap.is_some() {
                     "independent_source_units_and_target_clusters"
@@ -1304,6 +1337,18 @@ mod tests {
                 .groups(5)
                 .is_err()
         );
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "the interval returns sample values exactly")]
+    fn order_statistic_interval_reaches_nominal_exchangeable_coverage() {
+        for (draws, lower, upper) in [(40, 1, 40), (200, 5, 196), (256, 6, 251)] {
+            let ordered: Vec<f64> = (1..=draws).map(f64::from).collect();
+            assert_eq!(order_statistic_interval_95(&ordered), (f64::from(lower), f64::from(upper)));
+            // A further exchangeable draw lands in one of `draws + 1` equally
+            // likely gaps; `upper - lower` of them lie inside the interval.
+            assert!(f64::from(upper - lower) / f64::from(draws + 1) >= 0.95);
+        }
     }
 
     #[test]

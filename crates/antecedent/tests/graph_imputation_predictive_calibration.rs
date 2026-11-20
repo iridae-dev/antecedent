@@ -1,6 +1,9 @@
 //! Individual target-outcome and action-choice studies. Each replicate fits new
-//! MAR source rows and an independent binary target frame, then scores one
-//! independent future individual drawn from that exact frame.
+//! MAR source rows and an independent binary target frame. A Gaussian interval
+//! is scored against one independent future individual drawn from that exact
+//! frame; a Bernoulli interval is scored against that individual's success
+//! probability, the frame mean of the known unit probabilities, because the
+//! interval of a 0/1 outcome is its support and covers every outcome.
 
 mod common;
 
@@ -61,7 +64,8 @@ fn replicate(seed: u64, n: usize, binary: bool, world: usize) -> Option<Observat
     let x = target_x[index];
     let a = world as f64;
     let truth = if binary {
-        f64::from(u8::from(future_rng() < logistic(-1.0 + 0.4 * x + a * (1.0 + 0.4 * x))))
+        target_x.iter().map(|&x| logistic(-1.0 + 0.4 * x + a * (1.0 + 0.4 * x))).sum::<f64>()
+            / n as f64
     } else {
         0.2 * x + a * (0.5 + 0.5 * x) + 0.3 * normal()
     };
@@ -167,12 +171,13 @@ fn replicate(seed: u64, n: usize, binary: bool, world: usize) -> Option<Observat
 
 fn run_grid(test: &'static str, binary: bool, world: usize) {
     let n = grid_n(120);
-    let interval = if binary { "predictive_binary_worlds" } else { "predictive_gaussian_worlds" };
+    let interval =
+        if binary { "predictive_binary_success_probability" } else { "predictive_gaussian_worlds" };
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test,
             dgp: if binary {
-                "mar_logit_binary_target_future"
+                "mar_logit_binary_target_frame_success_probability"
             } else {
                 "mar_gaussian_binary_target_future"
             },

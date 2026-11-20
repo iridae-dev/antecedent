@@ -7763,6 +7763,7 @@ pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedN
 pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::levels: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::name: alloc::string::String
 pub field antecedent_io::measured_inference::count_fitted_interval::CountFittedNodeWire::parents: alloc::vec::Vec<u32>
+pub field antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading::probabilities: alloc::vec::Vec<[f64; 2]>
 pub field antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading::program: [u8; 32]
 pub field antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading::receipt: [u8; 32]
 pub field antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading::source: [u8; 32]
@@ -9926,6 +9927,7 @@ pub fn antecedent_io::measured_inference::graph_candidate::replay_target_predict
 pub fn antecedent_io::measured_inference::graph_candidate::replay_transport_paired_worlds(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::TransportStandardization, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::graph_candidate::replay_transport_paired_worlds_bootstrap(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::TransportStandardization, replicates: u32, seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPairedWorldReading, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::graph_candidate::replay_transport_point(bytes: &[u8], target: &antecedent_io::measured_inference::graph_candidate::TransportStandardization, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::GraphPointReading, antecedent_io_core::error::IoError>
+pub fn antecedent_io::measured_inference::graph_candidate::replicate_source(bytes: &[u8], seed: u64, replicate: u32) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::graph_candidate::retained_support(n: usize, treatment: u32, outcome: u32, support: antecedent_core::graph_imputation_contract::GraphSupport) -> core::result::Result<antecedent_io::measured_inference::graph_candidate::RetainedSupport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::measured_inference::graph_candidate::route_functional(parts: &antecedent_core::graph_imputation_contract::GraphImputationParts) -> alloc::string::String
 pub fn antecedent_io::measured_inference::mnar_candidate::measure_source(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>

@@ -868,6 +868,9 @@ fn reconstruct(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reconstructed, Io
 struct Execution {
     draws: Vec<f64>,
     paired_worlds: Vec<[f64; 2]>,
+    /// Bernoulli predictive routes only: each paired world's target success
+    /// probabilities, aligned to `paired_worlds`.
+    paired_probabilities: Vec<[f64; 2]>,
     mean: f64,
     sd: f64,
     receipt: [u8; 32],
@@ -1267,6 +1270,7 @@ fn execute(
     let retained: Vec<u64> = rec.atoms.iter().map(|atom| atom.operation.mask).collect();
     let mut pooled = Vec::new();
     let mut pooled_worlds = Vec::new();
+    let mut pooled_probabilities = Vec::new();
     let mut unidentified_by_table = Vec::new();
     let mut table_leases = Vec::new();
     let mut paired_leases = Vec::new();
@@ -1342,7 +1346,7 @@ fn execute(
         let mut flags = Vec::new();
         let mut keys = Vec::new();
         let mut effects = Vec::new();
-        let mut world_atoms: Vec<(u64, f64, Vec<[f64; 2]>)> = Vec::new();
+        let mut world_atoms: Vec<(u64, f64, Vec<[f64; 2]>, Vec<[f64; 2]>)> = Vec::new();
         let mut assumptions = AssumptionSet::new();
         let mut total = 0.0;
         let mut value_count: u64 = 0;
@@ -1448,17 +1452,101 @@ fn execute(
                     columns.push(fit.draws.column(column).map_err(execution_refused)?);
                 }
                 let bytes = (fit.draws.n_draws as u64)
-                    .checked_mul(16)
+                    .checked_mul(if logit_predictive { 32 } else { 16 })
                     .ok_or_else(|| invalid("paired atom admission overflow"))?;
                 paired_leases.push(scoped.acquire_admission(0, bytes).map_err(admission)?);
                 let mut world_values = Vec::with_capacity(fit.draws.n_draws);
+                let mut success_values = Vec::new();
+                // A declared residual or replicate seed selects a stream inside
+                // the producer's execution stream, as the coefficient draws it
+                // pairs with do. Keyed by the declared seed alone, every analysis
+                // reused one fixed residual sample, whose Monte Carlo quantile
+                // error then repeated in each interval instead of averaging out.
+                let stream = match predictive_seed.or(gaussian_predictive.map(|(_, _, seed)| seed))
+                {
+                    Some(seed) => mix64(seed ^ mix64(parts.execution_seed ^ 0x5052_4544_5354_524d)),
+                    None => parts.execution_seed,
+                };
                 let mut predictive_rng = antecedent_core::CausalRng::from_seed(mix64(
-                    predictive_seed.unwrap_or_else(|| {
-                        gaussian_predictive.map_or(parts.execution_seed, |(_, _, seed)| seed)
-                    }) ^ (u64::from(index) << 32)
-                        ^ mask
-                        ^ 0x4245_524e_5052_4544,
+                    stream ^ (u64::from(index) << 32) ^ mask ^ 0x4245_524e_5052_4544,
                 ));
+                // A 0/1 world is one realization of a success probability, and a
+                // 95% interval of that realization is its support. What a
+                // Bernoulli predictive law asserts is the probability that a
+                // future unit drawn from the target frame succeeds under each
+                // action: the frame average of the unit probabilities under this
+                // graph, completed table and coefficient draw.
+                let success_frame = if logit_predictive {
+                    let weights = target_weights
+                        .as_ref()
+                        .ok_or_else(|| invalid("predictive target weights missing"))?;
+                    let mass = weights.iter().sum::<f64>();
+                    let Some(TransportTarget::Binary(frame)) = target else {
+                        return Err(invalid("predictive worlds need a complete target frame"));
+                    };
+                    if weights.len() != design.nrows
+                        || !mass.is_finite()
+                        || mass <= 0.0
+                        || frame.rows() == 0
+                    {
+                        return Err(invalid("predictive target weights differ from design rows"));
+                    }
+                    let mut centers = Vec::with_capacity(prepared.adjustment_set.len());
+                    let mut frame_columns = Vec::with_capacity(prepared.adjustment_set.len());
+                    for (offset, variable) in prepared.adjustment_set.iter().enumerate() {
+                        let col = 2 + offset;
+                        let values = &design.matrix[col * design.nrows..(col + 1) * design.nrows];
+                        centers.push(
+                            values
+                                .iter()
+                                .zip(weights)
+                                .map(|(value, weight)| value * weight)
+                                .sum::<f64>()
+                                / mass,
+                        );
+                        frame_columns.push(
+                            frame
+                                .columns
+                                .iter()
+                                .find(|(id, _)| *id == variable.raw())
+                                .map(|(_, values)| values.as_slice())
+                                .filter(|values| values.len() == frame.rows())
+                                .ok_or_else(|| {
+                                    invalid("predictive graph needs an absent target covariate")
+                                })?,
+                        );
+                    }
+                    // Binary target covariates repeat: average over their
+                    // distinct rows, each weighted by its frame share.
+                    let mut counts = BTreeMap::<Vec<u64>, usize>::new();
+                    for row in 0..frame.rows() {
+                        *counts
+                            .entry(
+                                frame_columns.iter().map(|column| column[row].to_bits()).collect(),
+                            )
+                            .or_default() += 1;
+                    }
+                    paired_leases.push(
+                        scoped
+                            .acquire_admission(
+                                0,
+                                (counts.len() as u64)
+                                    .saturating_mul((centers.len() as u64).saturating_add(1))
+                                    .saturating_mul(16),
+                            )
+                            .map_err(admission)?,
+                    );
+                    let rows = frame.rows() as f64;
+                    let patterns: Vec<(Vec<f64>, f64)> = counts
+                        .into_iter()
+                        .map(|(key, count)| {
+                            (key.into_iter().map(f64::from_bits).collect(), count as f64 / rows)
+                        })
+                        .collect();
+                    Some((centers, patterns))
+                } else {
+                    None
+                };
                 for draw in 0..fit.draws.n_draws {
                     if logit_predictive || gaussian_predictive.is_some() {
                         // One observed target-frame covariate row is shared by
@@ -1540,6 +1628,29 @@ fn execute(
                                 if u0 < p0 { 1.0 } else { 0.0 },
                                 if u1 < p1 { 1.0 } else { 0.0 },
                             ]);
+                            if let Some((centers, patterns)) = &success_frame {
+                                let mut success = [0.0; 2];
+                                for (values, share) in patterns {
+                                    let mut base = columns[0][draw];
+                                    let mut modifier = 0.0;
+                                    for (offset, value) in values.iter().enumerate() {
+                                        base += value * columns[2 + offset][draw];
+                                        modifier += (value - centers[offset])
+                                            * columns[2 + covariates + offset][draw];
+                                    }
+                                    let effect = columns[t][draw] + modifier;
+                                    success[0] += share
+                                        * logistic_probability(base + prepared.control * effect);
+                                    success[1] += share
+                                        * logistic_probability(base + prepared.active * effect);
+                                }
+                                if success.iter().any(|value| !value.is_finite()) {
+                                    return Err(invalid(
+                                        "Bernoulli success probabilities are nonfinite",
+                                    ));
+                                }
+                                success_values.push(success);
+                            }
                         }
                         continue;
                     }
@@ -1587,7 +1698,7 @@ fn execute(
                     }
                     world_values.push([control, active]);
                 }
-                world_atoms.push((mask, weight, world_values));
+                world_atoms.push((mask, weight, world_values, success_values));
             }
             if !matches!(
                 fit.identification,
@@ -1659,7 +1770,7 @@ fn execute(
                 let u = rng.next_f64();
                 let mut cumulative = 0.0;
                 let mut selected = world_atoms.len() - 1;
-                for (i, (_, weight, _)) in world_atoms.iter().enumerate() {
+                for (i, (_, weight, _, _)) in world_atoms.iter().enumerate() {
                     cumulative += weight / total;
                     if u < cumulative {
                         selected = i;
@@ -1669,6 +1780,14 @@ fn execute(
                 let draws = &world_atoms[selected].2;
                 let row = ((rng.next_f64() * draws.len() as f64) as usize).min(draws.len() - 1);
                 pooled_worlds.push(draws[row]);
+                if logit_predictive {
+                    pooled_probabilities.push(
+                        *world_atoms[selected]
+                            .3
+                            .get(row)
+                            .ok_or_else(|| invalid("Bernoulli success probabilities misaligned"))?,
+                    );
+                }
             }
         }
         receipt.word(kept.len() as u64);
@@ -1687,6 +1806,7 @@ fn execute(
     Ok(Execution {
         draws: pooled,
         paired_worlds: pooled_worlds,
+        paired_probabilities: pooled_probabilities,
         mean,
         sd,
         receipt: receipt.finish(),
@@ -1898,6 +2018,11 @@ fn execute_source(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reading, IoErr
 pub struct GraphPairedWorldReading {
     /// `[control, active]` coordinates from the same fitted draw.
     pub worlds: Vec<[f64; 2]>,
+    /// Bernoulli predictive routes only, aligned to `worlds`: the probability
+    /// that a future target-frame unit succeeds under `[control, active]`
+    /// given that row's graph, completed table and coefficients. Empty on
+    /// every other route.
+    pub probabilities: Vec<[f64; 2]>,
     /// Source-bound paired execution receipt.
     pub receipt: [u8; 32],
     /// Retained producer program and source identities.
@@ -1926,6 +2051,7 @@ pub fn replay_paired_worlds(
     }
     Ok(GraphPairedWorldReading {
         worlds: run.paired_worlds,
+        probabilities: run.paired_probabilities,
         receipt: writer.finish(),
         program: rec.source.program(),
         source: rec.source.parts().data_digest,
@@ -1977,7 +2103,9 @@ pub fn replay_point(bytes: &[u8], ctx: &ExecutionContext) -> Result<GraphPointRe
 /// Replay target-population predictive Bernoulli action worlds using a
 /// Laplace-approximated logit child for each imputation and retained graph.
 /// A target covariate row and coefficient state are shared; Bernoulli
-/// innovations are independent conditional on that state. No calibration is implied.
+/// innovations are independent conditional on that state. Each row also
+/// carries the target-frame success probability of both actions under its
+/// state. No calibration is implied.
 ///
 /// # Errors
 /// Invalid source, target, outcome, model, cancellation or resource refusal.
@@ -1992,15 +2120,23 @@ pub fn replay_bernoulli_logit_predictive_worlds(
         (target.rows() as u64).saturating_mul(target.columns.len() as u64).saturating_mul(16);
     let _target_lease = ctx.acquire_admission(0, target_bytes).map_err(admission)?;
     let run = execute(&rec, Some(TransportTarget::Binary(target)), true, true, None, None, ctx)?;
+    if run.paired_probabilities.len() != run.paired_worlds.len() {
+        return Err(invalid("Bernoulli success probabilities misaligned"));
+    }
     let mut writer = CanonicalWriter::new(
         "antecedent.graph_imputation_bernoulli_logit.target_predictive_worlds.execution.v1",
     );
     writer.bytes(&run.receipt).bytes(&target.digest()?).word(run.paired_worlds.len() as u64);
-    for pair in &run.paired_worlds {
-        writer.word(pair[0].to_bits()).word(pair[1].to_bits());
+    for (pair, success) in run.paired_worlds.iter().zip(&run.paired_probabilities) {
+        writer
+            .word(pair[0].to_bits())
+            .word(pair[1].to_bits())
+            .word(success[0].to_bits())
+            .word(success[1].to_bits());
     }
     Ok(GraphPairedWorldReading {
         worlds: run.paired_worlds,
+        probabilities: run.paired_probabilities,
         receipt: writer.finish(),
         program: rec.source.program(),
         source: rec.source.parts().data_digest,
@@ -2052,6 +2188,7 @@ pub fn replay_gaussian_target_predictive_worlds(
     }
     Ok(GraphPairedWorldReading {
         worlds: run.paired_worlds,
+        probabilities: run.paired_probabilities,
         receipt: writer.finish(),
         program: rec.source.program(),
         source: rec.source.parts().data_digest,
@@ -2060,10 +2197,31 @@ pub fn replay_gaussian_target_predictive_worlds(
     })
 }
 
+/// The declared source with its imputation and child-posterior streams moved
+/// to replicate `replicate` of a resampling schedule seeded by `seed`. A
+/// replicate that reran the declared streams would re-read the completed tables
+/// and posterior draws every other replicate holds, so the draws retained across
+/// replicates would repeat one another instead of sampling the imputation and
+/// posterior law independently. The moved streams stay reproducible from the
+/// declaration and the schedule seed.
+///
+/// # Errors
+/// A malformed source.
+pub fn replicate_source(bytes: &[u8], seed: u64, replicate: u32) -> Result<Vec<u8>, IoError> {
+    let source = GraphImputationSource::decode(bytes).map_err(invalid)?;
+    let mut parts = source.parts().clone();
+    let stream = mix64(seed ^ (u64::from(replicate) << 32) ^ 0x5245_504c_4943_4154);
+    parts.imputation_seed = mix64(parts.imputation_seed ^ stream);
+    parts.execution_seed = mix64(parts.execution_seed ^ stream.rotate_left(29));
+    Ok(GraphImputationSource::new(parts, source.program()).map_err(invalid)?.encode())
+}
+
 /// Resample complete independent target clusters and rerun the entire graph,
-/// imputation and individual predictive-world fit for each replicate. Both
+/// imputation and individual predictive-world fit for each replicate, each on
+/// its own imputation and posterior streams ([`replicate_source`]). Both
 /// actions retain the same graph, coefficient draw and target row. One paired
-/// outcome row is sampled from each full replay; no calibration is implied.
+/// outcome row, with its success probabilities on a Bernoulli route, is
+/// sampled from each full replay; no calibration is implied.
 ///
 /// # Errors
 /// Invalid target or clusters, changed support, fit, resource or replay failure.
@@ -2127,6 +2285,8 @@ pub fn replay_target_predictive_cluster_bootstrap_worlds(
     let mut state = seed;
     let mut draw_state = mix64(seed ^ 0x4452_4157_5f56_3201);
     let mut pairs = Vec::with_capacity(replicates as usize);
+    let mut successes =
+        Vec::with_capacity(if gaussian.is_none() { replicates as usize } else { 0 });
     let mut receipt = CanonicalWriter::new(
         "antecedent.graph_imputation.target_predictive_cluster_bootstrap.execution.v1",
     );
@@ -2145,11 +2305,11 @@ pub fn replay_target_predictive_cluster_bootstrap_worlds(
     } else {
         receipt.text("bernoulli_logit");
     }
-    let original = reconstruct(bytes, ctx)?;
     for replicate in 0..replicates {
         if ctx.cancellation.is_cancelled() {
             return Err(cancelled());
         }
+        let original = reconstruct(&replicate_source(bytes, seed, replicate)?, ctx)?;
         let mut indices = Vec::new();
         for _ in 0..groups.len() {
             let chosen = paired_bootstrap_pool_index(&mut state, groups.len());
@@ -2200,9 +2360,18 @@ pub fn replay_target_predictive_cluster_bootstrap_worlds(
             .word(draw_index as u64)
             .word(pair[0].to_bits())
             .word(pair[1].to_bits());
+        if gaussian.is_none() {
+            let success = *run
+                .paired_probabilities
+                .get(draw_index)
+                .ok_or_else(|| invalid("Bernoulli success probabilities misaligned"))?;
+            receipt.word(success[0].to_bits()).word(success[1].to_bits());
+            successes.push(success);
+        }
         pairs.push(pair);
     }
     reading.worlds = pairs;
+    reading.probabilities = successes;
     reading.receipt = receipt.finish();
     reading._paired_leases.push(lease);
     Ok(reading)
@@ -2233,6 +2402,7 @@ pub fn replay_transport_paired_worlds(
     }
     Ok(GraphPairedWorldReading {
         worlds: run.paired_worlds,
+        probabilities: run.paired_probabilities,
         receipt: writer.finish(),
         program: rec.source.program(),
         source: rec.source.parts().data_digest,
@@ -2759,6 +2929,30 @@ mod tests {
         assert_eq!(first.worlds.len(), 200);
         assert!(first.worlds.iter().all(|pair| pair[0].is_finite() && pair[1].is_finite()));
         assert!(first.worlds.windows(2).any(|pair| pair[0] != pair[1]));
+    }
+
+    #[test]
+    fn replicate_sources_keep_the_declaration_and_move_only_the_streams() {
+        let bytes = encoded(parts(GraphSupport::TreatmentRootPreTreatmentCovariates, 3, 100));
+        let declared = GraphImputationSource::decode(&bytes).unwrap();
+        let first = replicate_source(&bytes, 7, 0).unwrap();
+        assert_eq!(first, replicate_source(&bytes, 7, 0).unwrap());
+        let mut seen = BTreeSet::new();
+        for replicate in 0..8 {
+            let moved =
+                GraphImputationSource::decode(&replicate_source(&bytes, 7, replicate).unwrap())
+                    .unwrap();
+            let (moved_parts, declared_parts) = (moved.parts(), declared.parts());
+            assert_eq!(moved.program(), declared.program());
+            assert_eq!(moved_parts.data_digest, declared_parts.data_digest);
+            assert_eq!(moved_parts.source_digest(), declared_parts.source_digest());
+            assert_eq!(moved_parts.atoms, declared_parts.atoms);
+            assert_eq!(moved_parts.posterior_draws, declared_parts.posterior_draws);
+            assert!(seen.insert((moved_parts.imputation_seed, moved_parts.execution_seed)));
+            assert_ne!(moved_parts.imputation_seed, declared_parts.imputation_seed);
+            assert_ne!(moved_parts.execution_seed, declared_parts.execution_seed);
+        }
+        assert_ne!(first, replicate_source(&bytes, 8, 0).unwrap());
     }
 
     // An attesting record keyed exactly as the route's own basis is, covering a row range.

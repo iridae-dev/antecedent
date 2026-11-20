@@ -38,7 +38,9 @@ use super::graph_imputation::{
     CompiledGraphImputation, GraphImputationError, GraphImputationExpectation,
     GraphImputationPoint, consume as consume_graph_imputation,
 };
-use super::graph_imputation_transport_decision::{TargetClusterBootstrap, TargetFrameBootstrap};
+use super::graph_imputation_transport_decision::{
+    TargetClusterBootstrap, TargetFrameBootstrap, order_statistic_interval_95,
+};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
     compile_chain_decision, consume_chain_decision,
@@ -1053,8 +1055,9 @@ pub fn compile_graph_imputation_gaussian_target_predictive_world_decision(
 }
 
 /// Add independent whole-target-cluster bootstrap to a compiled predictive
-/// world route. Each replicate refits the graph-imputation target model and
-/// retains one intact paired individual outcome draw.
+/// world route. Each replicate refits the graph-imputation target model on its
+/// own imputation and posterior streams and retains one intact paired
+/// individual outcome draw.
 ///
 /// # Errors
 /// The route is not predictive or the declared cluster policy is invalid.
@@ -1178,7 +1181,10 @@ pub struct GraphImputationWorldReliabilityCandidate {
 pub struct GraphImputationPredictiveCalibrationCandidate {
     /// Complete predictive execution.
     pub result: GraphImputationWorldDecisionResult,
-    /// Nearest-rank 95% intervals for the two individual action outcomes.
+    /// Equal-tail 95% order-statistic intervals, one per action. Gaussian
+    /// worlds bound a future target unit's outcome. Bernoulli worlds bound the
+    /// probability that a future target unit succeeds: the outcome itself is
+    /// 0 or 1, and an interval of it is that support, true of any law.
     pub world_intervals: [(f64, f64); 2],
     /// Separate exact prospective coverage scopes for those outcomes.
     pub coverage_bases: [CalibrationBasis; 2],
@@ -1331,7 +1337,7 @@ impl CompiledGraphImputationWorldDecision {
                 else { "graph_imputation_bernoulli_target_predictive_cluster_bootstrap_decision_v1" } }
                 else if self.gaussian.is_some() { "graph_imputation_gaussian_target_predictive_world_decision_v1" }
                 else { "graph_imputation_bernoulli_logit_target_predictive_world_decision_v1" },
-            if self.gaussian.is_some() { "predictive_gaussian_worlds" } else { "predictive_binary_worlds" }, "", if self.cluster_bootstrap.is_some() { "independent_source_units_and_target_clusters" }
+            if self.gaussian.is_some() { "predictive_gaussian_worlds" } else { "predictive_binary_success_probability" }, "", if self.cluster_bootstrap.is_some() { "independent_source_units_and_target_clusters" }
                 else { "independent_source_target_units" },
             if self.gaussian.is_some() { "correlated_gaussian_individual_residuals_v1" }
                 else { "laplace_joint_normal_prior_independent_potential_outcome_innovations_given_graph_and_coefficients_v1" }, &functional,
@@ -1352,17 +1358,29 @@ impl CompiledGraphImputationWorldDecision {
     {
         let result = self.execute(ctx)?;
         let base = self.predictive_calibration_basis()?;
+        // A Bernoulli world's own 95% interval is {0, 1} whenever both outcomes
+        // have at least 2.5% mass, so it covers every future outcome by
+        // construction. Its success probability is the quantity it predicts.
+        let rows = if self.gaussian.is_some() {
+            &result.producer.worlds
+        } else {
+            if result.producer.probabilities.len() != result.producer.worlds.len() {
+                return Err(GraphImputationEffectDecisionError::Invalid(
+                    "Bernoulli worlds lack aligned success probabilities",
+                ));
+            }
+            &result.producer.probabilities
+        };
         let mut intervals = [(0.0, 0.0); 2];
         for (world, interval) in intervals.iter_mut().enumerate() {
-            let mut values: Vec<_> = result.producer.worlds.iter().map(|row| row[world]).collect();
+            let mut values: Vec<_> = rows.iter().map(|row| row[world]).collect();
             if values.len() < 40 || values.iter().any(|value| !value.is_finite()) {
                 return Err(GraphImputationEffectDecisionError::Invalid(
                     "predictive interval needs forty finite draws",
                 ));
             }
             values.sort_by(f64::total_cmp);
-            let rank = |n: usize| (values.len() * n).div_ceil(1000).saturating_sub(1);
-            *interval = (values[rank(25)], values[rank(975)]);
+            *interval = order_statistic_interval_95(&values);
         }
         let coverage_bases = std::array::from_fn(|world| {
             let mut basis = base.clone();
@@ -1862,6 +1880,8 @@ mod paired_world_tests {
         .unwrap();
         let result = plan.execute(&ctx).unwrap();
         assert!(result.producer.worlds.iter().flatten().all(|&value| value == 0.0 || value == 1.0));
+        assert_eq!(result.producer.probabilities.len(), result.producer.worlds.len());
+        assert!(result.producer.probabilities.iter().flatten().all(|&p| 0.0 < p && p < 1.0));
         assert_eq!(result.calibration, "not_measured");
         let artifact = plan.export(&result, "bernoulli-predictive", &ctx).unwrap();
         let replay =
@@ -1893,7 +1913,19 @@ mod paired_world_tests {
         assert_ne!(fixed_identity, cluster.lowered().identity());
         let candidate = cluster.predictive_calibration_candidate(&ctx).unwrap();
         assert_eq!(candidate.result.producer.worlds.len(), 40);
+        assert_eq!(candidate.result.producer.probabilities.len(), 40);
         assert_eq!(candidate.coverage_bases[0].replicates_ok, Some(40));
+        assert_eq!(
+            candidate.coverage_bases[0].interval_method.as_ref(),
+            "predictive_binary_success_probability"
+        );
+        // A success-probability interval, not the {0, 1} support of the outcome.
+        assert!(
+            candidate
+                .world_intervals
+                .iter()
+                .all(|&(lower, upper)| 0.0 < lower && lower <= upper && upper < 1.0)
+        );
         let bytes = cluster.export(&candidate.result, "bernoulli-cluster", &ctx).unwrap();
         let replay =
             consume_graph_imputation_world_decision(&bytes, cluster.lowered().identity(), &ctx)
