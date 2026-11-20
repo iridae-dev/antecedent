@@ -43,6 +43,20 @@ use crate::structure_mcmc::StructureMcmc;
 const N_ROWS: usize = 400;
 /// Replicates (datasets) per standing design.
 const N_SIM: u64 = 100;
+/// The release verdict always uses the registered budget. The runner separately
+/// captures executed code on an instrumented prefix whose verdict is discarded.
+fn calibration_replicates(registered: u64) -> u64 {
+    if std::env::var("ANTECEDENT_CALIBRATION_SMOKE").as_deref() != Ok("1") {
+        return registered;
+    }
+    eprintln!("calibration-smoke graph discovery coverage slice; no measurement verdict");
+    std::env::var("ANTECEDENT_CALIBRATION_NSIM")
+        .ok()
+        .and_then(|count| count.parse::<u64>().ok())
+        .filter(|count| *count > 0)
+        .map_or(registered, |count| registered.min(count))
+}
+
 /// Equal-width bins of the predicted skeleton marginal.
 const N_BINS: usize = 10;
 /// Fraction of replicates the publication gate must pass.
@@ -225,13 +239,21 @@ fn assert_marginals_match_the_exact_posterior_under(
     let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
     let mut truth_bins: Vec<BinCells> = Vec::new();
     let mut failures: Vec<String> = Vec::new();
-    for rep in 0..N_SIM {
+    let replicates = calibration_replicates(N_SIM);
+    let threads = std::env::var("ANTECEDENT_CALIBRATION_THREADS")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(1)
+        .max(1);
+    let results = ExecutionContext::production(0, threads).map_indexed(
+        usize::try_from(replicates).expect("registered replicate count fits usize"),
+        |index, _| {
+        let rep = u64::try_from(index).expect("registered replicate index fits u64");
         let (cols, truth) = sparse_sem(n, N_ROWS, 0x00ED_6E00 + rep);
         let data = crate::test_tables::continuous_table(&name_refs, cols);
         let ctx = ExecutionContext::for_tests(9_000 + rep);
         let Some(post) = sampler(false, &data, &vars, prior, &ctx) else {
-            println!("exact-posterior-match {label} n={n} rep={rep} sampler error");
-            continue;
+            return Ok::<_, std::convert::Infallible>((format!("exact-posterior-match {label} n={n} rep={rep} sampler error"), None));
         };
         let published = post.diagnostics().converged;
         let exact =
@@ -290,7 +312,7 @@ fn assert_marginals_match_the_exact_posterior_under(
         }
         let gate: Vec<&str> =
             post.diagnostics().notes.iter().filter_map(|note| note.strip_prefix("gate_")).collect();
-        println!(
+        let message = format!(
             "exact-posterior-match {label} n={n} rep={rep} published={published} \
              worst_error={:.5} at {}->{} outside_tolerance={} gate=[{}]",
             worst.0,
@@ -299,16 +321,19 @@ fn assert_marginals_match_the_exact_posterior_under(
             violation.is_some(),
             gate.join("; ")
         );
-        if !published {
-            continue;
+        Ok((message, published.then(|| (bin_skeleton(n, &post, &truth), violation))))
+    }).expect("execute every registered graph dataset");
+    for (message, published) in results {
+        println!("{message}");
+        if let Some((bins, violation)) = published {
+            if let Some(message) = violation {
+                failures.push(message);
+            }
+            truth_bins.push(bins);
         }
-        if let Some(message) = violation {
-            failures.push(message);
-        }
-        truth_bins.push(bin_skeleton(n, &post, &truth));
     }
-    let rate = truth_bins.len() as f64 / N_SIM as f64;
-    println!("exact-posterior-match {label} n={n} published={}/{N_SIM}", truth_bins.len());
+    let rate = truth_bins.len() as f64 / replicates as f64;
+    println!("exact-posterior-match {label} n={n} published={}/{replicates}", truth_bins.len());
     assert!(
         rate >= MIN_PUBLISHED_FRACTION,
         "{label} n={n}: the publication gate passed {rate:.2} of replicates, below \
@@ -632,7 +657,13 @@ fn rows_from_dag(
 
 /// Preserve the bin sufficient statistics from each independent dataset, even when the
 /// reliability assertion fails. The numerical assertion itself still supplies the verdict.
-fn print_reliability_report(label: &str, replicates: &[BinCells], pooled: &BinCells, passed: bool) {
+fn print_reliability_report(
+    label: &str,
+    family: GraphScoreFamily,
+    replicates: &[BinCells],
+    pooled: &BinCells,
+    passed: bool,
+) {
     let bins: Vec<_> = pooled
         .iter()
         .enumerate()
@@ -646,7 +677,7 @@ fn print_reliability_report(label: &str, replicates: &[BinCells], pooled: &BinCe
         })
         .collect();
     let report = serde_json::json!({
-        "design": label, "score": "GaussianBic", "variables": RELIABILITY_VARIABLES,
+        "design": label, "score": format!("{family:?}"), "variables": RELIABILITY_VARIABLES,
         "rows_per_dataset": N_ROWS, "minimum_bin_cells": RELIABILITY_MIN_CELLS,
         "maximum_abs_z": RELIABILITY_MAX_Z, "bins": bins,
         "dataset_bins": replicates, "reliability_passed": passed,
@@ -663,20 +694,27 @@ fn print_reliability_report(label: &str, replicates: &[BinCells], pooled: &BinCe
 /// errors of zero (clusters are replicates, whose edges share one dataset), for every bin of at
 /// least [`RELIABILITY_MIN_CELLS`] edges.
 fn assert_edge_marginals_reliable_under_draws_from_the_prior(label: &str, prior: &GraphPrior) {
+    check_complete_edge_reliability(label, prior, GraphScoreFamily::GaussianBic, 0x00ED_9E00);
+}
+
+fn check_complete_edge_reliability(
+    label: &str,
+    prior: &GraphPrior,
+    family: GraphScoreFamily,
+    seed: u64,
+) {
     let n = RELIABILITY_VARIABLES;
     let vars = variable_ids(n);
     let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
     let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
     let mut replicates: Vec<BinCells> = Vec::new();
-    for rep in 0..RELIABILITY_REPLICATES {
-        let mut rng = CausalRng::from_seed(0x00ED_9E00 + rep);
+    for rep in 0..calibration_replicates(RELIABILITY_REPLICATES) {
+        let mut rng = CausalRng::from_seed(seed + rep);
         let truth = draw_dag_from_prior(prior, n, &mut rng);
         let cols = rows_from_dag(&truth, n, N_ROWS, &mut rng);
         let data = crate::test_tables::continuous_table(&name_refs, cols);
         let ctx = ExecutionContext::for_tests(7_000 + rep);
-        let exact =
-            crate::exact_dag_marginals(&data, &vars, prior, GraphScoreFamily::GaussianBic, &ctx)
-                .unwrap();
+        let exact = crate::exact_dag_marginals(&data, &vars, prior, family, &ctx).unwrap();
         let mut cells = [(0.0, 0.0, 0.0); N_BINS];
         for from in 0..n {
             for to in 0..n {
@@ -715,7 +753,7 @@ fn assert_edge_marginals_reliable_under_draws_from_the_prior(label: &str, prior:
             failures.push(format!("bin {bin}: {cells} edges, z = {z:.2}"));
         }
     }
-    print_reliability_report(label, &replicates, &pooled, failures.is_empty());
+    print_reliability_report(label, family, &replicates, &pooled, failures.is_empty());
     assert!(
         failures.is_empty(),
         "{label}: edge marginals are not reliable under draws from the prior: {}",
@@ -747,6 +785,39 @@ fn per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior() {
     assert_edge_marginals_reliable_under_draws_from_the_prior(
         "per_edge_and_soft_tiers",
         &per_edge_and_soft_tier_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn signed_uniform_per_edge_edge_probabilities_match_generating_frequencies() {
+    check_complete_edge_reliability(
+        "per_edge",
+        &per_edge_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
+        GraphScoreFamily::GaussianSignedUniform,
+        0x6A140000,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn signed_uniform_soft_tiers_edge_probabilities_match_generating_frequencies() {
+    check_complete_edge_reliability(
+        "soft_tiers",
+        &soft_tier_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
+        GraphScoreFamily::GaussianSignedUniform,
+        0x6A150000,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/measure_calibration.sh"]
+fn signed_uniform_per_edge_and_soft_tiers_edge_probabilities_match_generating_frequencies() {
+    check_complete_edge_reliability(
+        "per_edge_and_soft_tiers",
+        &per_edge_and_soft_tier_prior(RELIABILITY_VARIABLES, MAX_PARENTS),
+        GraphScoreFamily::GaussianSignedUniform,
+        0x6A160000,
     );
 }
 
@@ -835,7 +906,7 @@ fn assert_pooled_marginals_reliable_under_imputation(label: &str, prior: &GraphP
     let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
     let name_refs: Vec<&str> = names.iter().map(String::as_str).collect();
     let mut replicates: Vec<BinCells> = Vec::new();
-    for rep in 0..RELIABILITY_REPLICATES {
+    for rep in 0..calibration_replicates(RELIABILITY_REPLICATES) {
         let mut rng = CausalRng::from_seed(0x00ED_9F00 + rep);
         let truth = draw_dag_from_prior(prior, n, &mut rng);
         let cols = rows_from_dag(&truth, n, N_ROWS, &mut rng);
@@ -911,7 +982,13 @@ fn assert_pooled_marginals_reliable_under_imputation(label: &str, prior: &GraphP
             failures.push(format!("bin {bin}: {cells} edges, z = {z:.2}"));
         }
     }
-    print_reliability_report(label, &replicates, &pooled, failures.is_empty());
+    print_reliability_report(
+        label,
+        GraphScoreFamily::GaussianBic,
+        &replicates,
+        &pooled,
+        failures.is_empty(),
+    );
     assert!(
         failures.is_empty(),
         "{label}: pooled edge marginals are not reliable under imputation: {}",

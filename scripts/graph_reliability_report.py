@@ -17,9 +17,37 @@ DESIGNS = {"per_edge", "soft_tiers", "per_edge_and_soft_tiers", "per_edge_pooled
            "per_edge_and_soft_tiers_pooled"}
 
 
+def required_report(group: str) -> tuple[str, str] | None:
+    """Score and simulation design for each fixed discovery reliability gate."""
+    prefix = "antecedent-discovery__"
+    if not group.startswith(prefix):
+        return None
+    test = group.removeprefix(prefix)
+    for design, prior in (("per_edge", "per_edge_prior"), ("soft_tiers", "soft_tier"),
+                          ("per_edge_and_soft_tiers", "per_edge_and_soft_tier")):
+        if test == f"{prior}_marginals_are_reliable_under_draws_from_the_prior":
+            return "GaussianBic", design
+        if test == f"signed_uniform_{design}_edge_probabilities_match_generating_frequencies":
+            return "GaussianSignedUniform", design
+    if test == "pooled_marginals_are_reliable_under_regression_imputation_of_a_hidden_column":
+        return "GaussianBic", "per_edge_pooled"
+    if test == "pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors":
+        return "GaussianBic", "per_edge_and_soft_tiers_pooled"
+    return None
+
+
+def parse_report(text: str) -> dict:
+    reports = [json.loads(line[len(MARKER):]) for line in text.splitlines()
+               if line.startswith(MARKER)]
+    if len(reports) != 1:
+        raise ValueError("expected exactly one complete directed-edge reliability report")
+    return reports[0]
+
+
 def check_report(report: dict) -> list[int]:
     """Recompute the fixed six-variable study's bin statistics and failed bins."""
-    if (report["design"] not in DESIGNS or report["score"] != "GaussianBic"
+    if (report["design"] not in DESIGNS or report["score"] not in {"GaussianBic", "GaussianSignedUniform"}
+            or (report["score"] == "GaussianSignedUniform" and report["design"].endswith("_pooled"))
             or report["rows_per_dataset"] != 400 or report["variables"] != 6
             or report["minimum_bin_cells"] != 200 or report["maximum_abs_z"] != 3.5):
         raise ValueError("unknown directed-edge reliability design")
@@ -64,11 +92,7 @@ def main() -> int:
     status = 0
     for path in parser.parse_args().logs:
         try:
-            reports = [json.loads(line.removeprefix(MARKER)) for line in path.read_text().splitlines()
-                       if line.startswith(MARKER)]
-            if len(reports) != 1:
-                raise ValueError("expected exactly one complete directed-edge reliability report")
-            report = reports[0]
+            report = parse_report(path.read_text())
             failed = check_report(report)
         except (KeyError, OSError, TypeError, ValueError, OverflowError) as error:
             parser.exit(2, f"{path}: invalid reliability report: {error}\n")

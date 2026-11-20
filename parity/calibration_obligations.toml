@@ -136,6 +136,9 @@ gate = [
   "sequential_policy_choice_calibration: sequential_known_law_action_choice",
   "sequential_policy_choice_calibration: sequential_logged_bootstrap_action_choice",
   "cyclic_target_feedback_choice_calibration: cyclic_target_feedback_action_choice",
+  "antecedent-discovery: signed_uniform_per_edge_edge_probabilities_match_generating_frequencies",
+  "antecedent-discovery: signed_uniform_soft_tiers_edge_probabilities_match_generating_frequencies",
+  "antecedent-discovery: signed_uniform_per_edge_and_soft_tiers_edge_probabilities_match_generating_frequencies",
 ]
 
 # The published Student reference law ends at 49 clusters per arm. The

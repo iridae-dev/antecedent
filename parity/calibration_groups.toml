@@ -3918,6 +3918,7 @@ target = "lib"
 tests = ["graph_posterior_calibration::order_mcmc_marginals_match_the_exact_posterior_at_other_parent_caps"]
 ignored = true
 grid = false
+whole = true
 
 [[group]]
 label = "calibration_response: intervention_response_dag_graph_posterior_frequentist_nominal_coverage"
@@ -14521,6 +14522,7 @@ target = "lib"
 tests = ["graph_posterior_calibration::structure_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors"]
 ignored = true
 grid = false
+whole = true
 
 [[group]]
 label = "antecedent-discovery: order_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors"
@@ -14529,6 +14531,7 @@ target = "lib"
 tests = ["graph_posterior_calibration::order_mcmc_marginals_match_the_exact_posterior_under_per_edge_priors"]
 ignored = true
 grid = false
+whole = true
 
 [[group]]
 label = "antecedent-discovery: per_edge_prior_marginals_are_reliable_under_draws_from_the_prior"
@@ -14537,6 +14540,7 @@ target = "lib"
 tests = ["graph_posterior_calibration::per_edge_prior_marginals_are_reliable_under_draws_from_the_prior"]
 ignored = true
 grid = false
+whole = true
 
 [[group]]
 label = "antecedent-discovery: soft_tier_marginals_are_reliable_under_draws_from_the_prior"
@@ -14545,6 +14549,7 @@ target = "lib"
 tests = ["graph_posterior_calibration::soft_tier_marginals_are_reliable_under_draws_from_the_prior"]
 ignored = true
 grid = false
+whole = true
 
 [[group]]
 label = "antecedent-discovery: per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior"
@@ -14553,6 +14558,7 @@ target = "lib"
 tests = ["graph_posterior_calibration::per_edge_and_soft_tier_marginals_are_reliable_under_draws_from_the_prior"]
 ignored = true
 grid = false
+whole = true
 
 [[group]]
 label = "measured_exposure_calibration: measured_exposure_shared_misclassification_rubin_l95"
@@ -14600,6 +14606,7 @@ target = "lib"
 tests = ["graph_posterior_calibration::pooled_marginals_are_reliable_under_regression_imputation_of_a_hidden_column"]
 ignored = true
 grid = false
+whole = true
 
 [[group]]
 label = "antecedent-discovery: pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors"
@@ -14608,6 +14615,7 @@ target = "lib"
 tests = ["graph_posterior_calibration::pooled_marginals_are_reliable_under_imputation_with_per_edge_and_soft_tier_priors"]
 ignored = true
 grid = false
+whole = true
 [[group]]
 label = "count_conjugate_calibration: exceedance_route_covers_under_the_stated_prior"
 package = "antecedent"
@@ -15321,4 +15329,31 @@ target = "graph_narrow_cross_fitted_subsampling_policy_calibration"
 tests = ["graph_narrow_cross_fitted_subsampling_policy_l95"]
 ignored = true
 grid = true
+whole = true
+
+[[group]]
+label = "antecedent-discovery: signed_uniform_per_edge_edge_probabilities_match_generating_frequencies"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::signed_uniform_per_edge_edge_probabilities_match_generating_frequencies"]
+ignored = true
+grid = false
+whole = true
+
+[[group]]
+label = "antecedent-discovery: signed_uniform_soft_tiers_edge_probabilities_match_generating_frequencies"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::signed_uniform_soft_tiers_edge_probabilities_match_generating_frequencies"]
+ignored = true
+grid = false
+whole = true
+
+[[group]]
+label = "antecedent-discovery: signed_uniform_per_edge_and_soft_tiers_edge_probabilities_match_generating_frequencies"
+package = "antecedent-discovery"
+target = "lib"
+tests = ["graph_posterior_calibration::signed_uniform_per_edge_and_soft_tiers_edge_probabilities_match_generating_frequencies"]
+ignored = true
+grid = false
 whole = true

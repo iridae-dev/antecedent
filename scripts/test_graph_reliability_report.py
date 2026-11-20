@@ -1,7 +1,11 @@
 """The graph reliability report distinguishes failed science from incomplete execution."""
 import unittest
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from graph_reliability_report import check_report
+from collect_coverage_records import log_problems
 
 
 def two_populated_bins(observed):
@@ -24,6 +28,24 @@ class ReliabilityReportTests(unittest.TestCase):
     def test_reconstructs_pass_and_fail(self):
         self.assertEqual(check_report(two_populated_bins(1)), [])
         self.assertEqual(check_report(two_populated_bins(0)), [0])
+
+    def test_collection_requires_the_registered_score_and_full_success(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "antecedent-discovery__signed_uniform_per_edge_edge_probabilities_match_generating_frequencies.log"
+            def problems(report):
+                path.write_text("graph-reliability-report " + json.dumps(report) +
+                                "\ntest result: ok. 1 passed; 0 failed;\n")
+                return log_problems(path)[0]
+
+            report = two_populated_bins(1)
+            self.assertTrue(problems(report))
+            report["score"] = "GaussianSignedUniform"
+            self.assertFalse(problems(report))
+            report["dataset_bins"].pop()
+            self.assertTrue(problems(report))
+            path.write_text("calibration-smoke graph discovery coverage slice; no measurement verdict\n"
+                            "test result: ok. 1 passed; 0 failed;\n")
+            self.assertTrue(any("smoke" in why for why in log_problems(path)[0]))
 
     def test_rejects_false_pass_and_inconsistent_cluster_denominator(self):
         report = two_populated_bins(0)

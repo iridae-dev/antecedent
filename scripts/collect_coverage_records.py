@@ -670,6 +670,17 @@ def log_problems(log: Path) -> tuple[list[str], set[str]]:
     text = read_text(log, errors="ignore")
     results = CARGO_RESULT.findall(text)
     problems = []
+    if re.search(r"^(?:test \S+ \.\.\. )?calibration-smoke ", text, re.M):
+        problems.append(f"{log.name}: a smoke slice cannot earn a calibration record")
+    from graph_reliability_report import check_report, parse_report, required_report
+    required = required_report(log.stem)
+    if required is not None:
+        try:
+            report = parse_report(text)
+            if (report["score"], report["design"]) != required or check_report(report):
+                raise ValueError("incorrect study identity or failed reliability bins")
+        except (KeyError, TypeError, ValueError, OverflowError) as error:
+            problems.append(f"{log.name}: invalid directed-edge reliability evidence: {error}")
     if any(status == "FAILED" or int(failed) for status, _, failed in results):
         problems.append(f"{log.name}: a test failed")
     if sum(int(passed) for _, passed, _ in results) < 1:

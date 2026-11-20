@@ -281,7 +281,7 @@ imputations=[...])` runs the pooled search and mixes the effect over the pooled 
 measurement stage's completed tables reach structure uncertainty without a manual step. In Rust the
 same are `discover_pooled_*` and `pool_posteriors_over_imputations`.
 
-## Proposal for review: directed-edge reliability in a Gaussian structural model
+## Directed-edge reliability in the signed-uniform Gaussian structural model
 
 Five discovery calibration gates ask whether directed edges assigned probability
 `p` are present with frequency `p` under a simulated graph prior. Three use
@@ -292,25 +292,33 @@ with mean 0.0117 and observed frequency 0.0028. It fails the registered
 reliability test. Changing the sampler cannot correct a discrepancy in the
 exact target.
 
-**Proposed score.** Offer a separate, explicitly selected marginal likelihood
-for a zero-intercept linear Gaussian structural equation with known unit noise
-variance. Give each present edge an independent fair sign and a coefficient
-magnitude uniform on [0.5, 1], matching the generating law of the existing
-fixtures. For each node and candidate parent set, integrate the Gaussian
-likelihood over those coefficients, including the normalizing constants.
-Multiply by the existing per-edge and soft-tier graph prior, subject to the
-declared DAG and parent constraints. Gram matrices and cross-products computed
-once per table suffice to evaluate the local integrands. Bound numerical
-integration error in log weights and check its effect on the resulting edge
-marginals before publishing them. Bind the score, noise variance and coefficient
-prior to the query, artifact and evidence identities.
+The discrepancy is visible in a one-parent regression. Take two orthogonal,
+centered columns with 400 rows and squared norms of 400. Adding the parent
+leaves the fitted residual variance unchanged. Gaussian BIC gives the edge a
+relative weight of `1 / √400 = 0.05` before the graph prior. Under the
+fixture's coefficient and unit-noise model, the corresponding likelihood ratio
+is `2 ∫[0.5,1] exp(−200 b²) db`, approximately `1.91e−24`. Both calculations
+penalize the unnecessary edge, but they assign it very different weights.
 
-**Proposed complete-data claim.** For independent datasets drawn from this
-declared joint graph, coefficient and observation model, the directed-edge
-probabilities are reliable under that model. Check local integrals against an
-independent high-precision implementation and edge marginals against small-DAG
-enumeration. Freeze the reliability bins, sample budget, clustered uncertainty
-rule and fresh validation seeds before earning the three prior-specific passes.
+**Complete-data score.** Select `ExactDagPosterior(score="gaussian_signed_uniform", max_parents=3)`
+for a zero-intercept linear Gaussian structural equation with known unit noise
+variance. Each present edge has an independent fair sign and coefficient
+magnitude uniform on [0.5, 1]. Each local score integrates the Gaussian
+likelihood over the permitted coefficients. The graph weights also include the
+declared structure prior and constraints. A node can have up to three parents.
+An unresolved numerical integral refuses the search.
+
+**Scope of the calibration study.** Each of three fixed studies draws 400
+independent graphs and datasets from the stated model, with six variables and
+400 observations per dataset. The studies vary the per-edge prior and soft
+tier penalty. They compare predicted probabilities against directed edges in
+the generating graph in ten equal-width bins. A bin needs 200 predicted edges
+to enter the reliability check. The uncertainty calculation clusters edges by
+dataset. A user with a different sample size or probabilities falling in a
+sparsely populated bin needs evidence for that setting. In development runs
+of these fixed studies, only the lowest and highest bins reached 200 edges.
+All six eligible bins passed the registered check. These designs provide
+little information about edges assigned a probability near 65%.
 
 **Missing-data claim requires separate evidence.** Hiding a column's cells and
 filling them from one fitted regression omits parameter and graph uncertainty.
@@ -321,11 +329,10 @@ independent observed-data calculation on small graphs. Then calibrate the
 actual published procedure under the declared missingness law, including its
 finite imputation budget and refusals.
 
-**Release decision.** This proposal needs method and scope approval before
-implementation. The five Gaussian-BIC reliability gates retain their own
-results. Adoption requires an explicit decision on the two pooled reliability
-claims in the capability registry and on the three complete-data obligations.
-Each new claim earns its own records on its own implementation.
+**Release evidence.** The signed-uniform studies have their own gate identities.
+The three complete-data and two pooled Gaussian-BIC obligations retain their
+own verdicts. A pass for the signed-uniform score earns evidence only for that
+score and study design.
 
 ## Uncertainty over a discovered structure
 
