@@ -32,7 +32,7 @@ use std::sync::Arc;
 const SAMPLED_SCOPE: &str = "counterfactual_transport_sampled_counts_point_only";
 
 /// One count-table key: `(population, regime label, concrete interventions)`.
-type TableKeyTuple = (String, String, Vec<(String, f64)>);
+pub(crate) type TableKeyTuple = (String, String, Vec<(String, f64)>);
 
 fn level_bits(level: f64) -> u64 {
     (level + 0.0).to_bits()
@@ -226,7 +226,7 @@ fn regime_of<'c>(
         })
 }
 
-fn parse_count_table(
+pub(crate) fn parse_count_table(
     table: &Bound<'_, PyAny>,
     catalog: &EvidenceCatalog,
     graph: &Admg,
@@ -308,7 +308,7 @@ fn table_key(
     })
 }
 
-fn parse_overlap(
+pub(crate) fn parse_overlap(
     overlap: &(String, Vec<(TableKeyTuple, TableKeyTuple, String)>),
     catalog: &EvidenceCatalog,
     graph: &Admg,
@@ -333,7 +333,7 @@ fn parse_overlap(
     Ok(declaration)
 }
 
-fn parse_unseen_rule(rule: &(String, Option<f64>)) -> PyResult<UnseenCellRule> {
+pub(crate) fn parse_unseen_rule(rule: &(String, Option<f64>)) -> PyResult<UnseenCellRule> {
     let parameter = |what: &str| {
         rule.1.ok_or_else(|| crate::value_err(format!("the {what} rule needs a parameter")))
     };

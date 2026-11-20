@@ -253,6 +253,7 @@ mod transport_buffers;
 mod transport_common;
 mod transport_counterfactual_api;
 mod transport_counterfactual_sampled_api;
+mod transport_decision_api;
 mod transport_exact_api;
 mod transport_grid_api;
 mod transport_interference_api;
@@ -1930,6 +1931,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     contract_refusals_api::register(m)?;
     inspect_receipt_api::register(m)?;
     release_migration_api::register(m)?;
+    transport_decision_api::register(m)?;
     registry::register_module(m)
 }
 
