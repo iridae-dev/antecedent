@@ -842,7 +842,8 @@ fn assert_pooled_marginals_reliable_under_imputation(label: &str, prior: &GraphP
         let observed: Vec<bool> =
             (0..N_ROWS).map(|_| rng.next_f64() >= POOLED_MISSING_SHARE).collect();
         let ctx = ExecutionContext::for_tests(9_000 + rep);
-        let mut pooled = vec![0.0; n * n];
+        let mut parts = Vec::with_capacity(POOLED_IMPUTATIONS);
+        let mut component_mean = vec![0.0; n * n];
         for _ in 0..POOLED_IMPUTATIONS {
             let mut completed = cols.clone();
             completed[n - 1] = impute_last_column(&cols, &observed, &mut rng);
@@ -855,9 +856,27 @@ fn assert_pooled_marginals_reliable_under_imputation(label: &str, prior: &GraphP
                 &ctx,
             )
             .unwrap();
-            for (cell, p) in pooled.iter_mut().zip(exact.edge_marginals.iter()) {
+            for (cell, p) in component_mean.iter_mut().zip(exact.edge_marginals.iter()) {
                 *cell += p / POOLED_IMPUTATIONS as f64;
             }
+            parts.push(exact);
+        }
+        let pooled = crate::ExactDagMarginals::pooled_over_imputations(&parts).unwrap();
+        assert_eq!(pooled.edge_marginals.len(), component_mean.len());
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "an edge marginal in [0, 1] indexes one of ten bins"
+        )]
+        let reliability_bin = |p: f64| ((p * N_BINS as f64) as usize).min(N_BINS - 1);
+        for (edge, (&actual, &expected)) in
+            pooled.edge_marginals.iter().zip(&component_mean).enumerate()
+        {
+            assert!(
+                (actual - expected).abs() <= 8.0 * f64::EPSILON,
+                "{label} dataset {rep}, edge {edge}: pooled {actual}, component mean {expected}"
+            );
+            assert_eq!(reliability_bin(actual), reliability_bin(expected));
         }
         let mut cells = [(0.0, 0.0, 0.0); N_BINS];
         for from in 0..n {
@@ -865,13 +884,8 @@ fn assert_pooled_marginals_reliable_under_imputation(label: &str, prior: &GraphP
                 if from == to {
                     continue;
                 }
-                let p = pooled[from * n + to];
-                #[allow(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_sign_loss,
-                    reason = "p is an edge marginal in [0, 1], so the bin index is in range"
-                )]
-                let bin = ((p * N_BINS as f64) as usize).min(N_BINS - 1);
+                let p = pooled.edge_marginals[from * n + to];
+                let bin = reliability_bin(p);
                 cells[bin].0 += 1.0;
                 cells[bin].1 += p;
                 cells[bin].2 += f64::from(u8::from(truth.has_edge(n, from, to)));
