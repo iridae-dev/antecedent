@@ -375,6 +375,9 @@ fn fit_outcome_models(
     let hazard = fit_logistic(&hx, width, &hy, Some(&hw), 0.0)?.coefficients;
     let mut transitions = Vec::new();
     if data.horizon > 1 && data.confounders > 0 {
+        // With just one transition time its period feature is constant and is
+        // absorbed by the intercept. Only estimate identifiable coefficients.
+        let width = design.width - usize::from(data.horizon == 2);
         let mut precision = vec![0.0; width * width];
         let mut xty = vec![vec![0.0; width]; data.confounders];
         let mut total = 0.0;
@@ -384,7 +387,7 @@ fn fit_outcome_models(
                 continue;
             }
             for row in design.transition_offsets[i]..design.transition_offsets[i + 1] {
-                let x = &design.transition_x[row * width..(row + 1) * width];
+                let x = &design.transition_x[row * design.width..row * design.width + width];
                 total += w;
                 for a in 0..width {
                     for b in 0..width {
@@ -414,7 +417,7 @@ fn fit_outcome_models(
                     continue;
                 }
                 for row in design.transition_offsets[i]..design.transition_offsets[i + 1] {
-                    let x = &design.transition_x[row * width..(row + 1) * width];
+                    let x = &design.transition_x[row * design.width..row * design.width + width];
                     let fitted: f64 = coefficients.iter().zip(x).map(|(a, b)| a * b).sum();
                     rss += w * (design.transition_y[c][row] - fitted).powi(2);
                 }
@@ -923,6 +926,28 @@ mod tests {
             }
         }
         (totals[0] - totals[1]) / draws as f64
+    }
+
+    #[test]
+    fn a_single_transition_time_is_absorbed_by_the_intercept() {
+        let (unit, period, treatment, censored, event, l) = trajectories(500, 2);
+        let data = Trajectories::new(
+            TrajectoryRows {
+                unit: &unit,
+                period: &period,
+                treatment: &treatment,
+                censored: &censored,
+                event: &event,
+                confounders: &[l],
+            },
+            2,
+        )
+        .unwrap();
+        let design = ProcedureDesign::new(&data);
+        let models = fit_outcome_models(&data, &design, None).unwrap();
+        let (coefficients, sd) = &models.transitions[0];
+        assert_eq!(coefficients.len(), 3);
+        assert!(sd.is_finite() && *sd > 0.0);
     }
 
     #[test]

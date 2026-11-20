@@ -20,7 +20,7 @@
 //! two arms treated with probability `0.35` (floor `0.35`); the interference clusters treated
 //! with probability `0.25` (floor `0.25`); the three-arm and three-level designs alternating
 //! the rows `(0.6, 0.2, 0.2)` and `(0.2, 0.2, 0.6)` (floor `0.2`, the middle arm at the floor in
-//! every period); the factorial factors both treated with probability `0.2` (floor `0.2`); the
+//! every period); the factorial treatment probabilities `0.4` and `0.5` (joint cell floor `0.2`); the
 //! quantile design treated with probability `0.4` (floor `0.4`).
 //!
 //! Wide fitted probabilities of the sequential contrast. The base panel keeps every action
@@ -346,7 +346,7 @@ fn multi_arm(
 
 /// The base two-factor panel with the effects landing `lag` periods after the decisions. The
 /// factors are assigned independently with probabilities `0.5` and `0.4` (the floor design
-/// `0.2` and `0.2`); the outcome adds `1.0` for the first factor, `0.5` for the second and
+/// `0.4` and `0.5`, so the smallest joint cell probability is `0.2`); the outcome adds `1.0` for the first factor, `0.5` for the second and
 /// `0.4` for both.
 fn factorial(
     units: usize,
@@ -355,7 +355,7 @@ fn factorial(
     seed: u64,
 ) -> (TabularData, TemporalDesignQuery) {
     let mut next = uniform(seed, 0x7D03);
-    let (pa, pb) = if floor { (0.2, 0.2) } else { (0.5, 0.4) };
+    let (pa, pb) = if floor { (0.4, 0.5) } else { (0.5, 0.4) };
     let (mut unit_labels, mut periods, mut first, mut second, mut outcome) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
     let length = usize::try_from(periods_of(5, lag)).expect("a length fits");
