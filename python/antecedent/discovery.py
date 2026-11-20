@@ -1575,6 +1575,9 @@ class ExactDagMarginals:
     the screened selection of :class:`ScreenedExactMarginals`, whose ``conditional_on_screen``
     states that every number is conditional on the CI screen), exact for the selected score with the
     edge prior of the run (uniform unless a :class:`StructurePrior` was given).
+    For Gaussian BIC these are normalized graph weights. In the 400-row, six-variable
+    directed-edge reliability studies the lowest bin consistently assigned more weight
+    than the frequency of observed edges. This includes the two imputation studies.
     ``log_evidence`` is the graph log normalizer ``log sum_G exp(score(G))``. With the default
     Gaussian BIC score this is a pseudo-posterior normalizer based on fitted residual variances. Above six variables the graphs themselves cannot be listed, so
     the graph-level outputs of :class:`GraphPosterior` (atoms, weights, the MAP graph, the
@@ -1624,6 +1627,11 @@ class ExactDagPosterior:
 
     ``prior`` (a :class:`StructurePrior`) gives per-edge inclusion probabilities and soft tiers;
     unset, the edge prior is uniform. The default score is ``gaussian_bic``.
+    Its edge marginals sum normalized BIC graph weights. For example, in the 400-row
+    complete-data per-edge-prior study, 10,011 low-bin edges had mean weight 1.17%
+    and observed frequency 0.28%. The corresponding imputation study gave 1.27%
+    and 0.32%. Use the study for the actual score, prior, and missing-data procedure
+    when interpreting a weight as a probability.
     ``gaussian_signed_uniform`` specifies zero intercepts, known unit noise, and
     independent coefficients with equiprobable signs and uniform magnitudes in [0.5, 1].
     On complete data this score supports up to three parents per variable. For five or
