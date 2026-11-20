@@ -5234,7 +5234,7 @@
     "A treated path outside the donor hull is reported as a diagnostic, not repaired by extrapolation; the difference-in-differences synthetic variant is not given a posterior and is refused naming the frequentist route.",
     "The route is explicitly unsupported and uncalibrated: no coverage record covers the credible interval."
    ],
-   "digest": "3c9b30f50cc2c01d1aa6c9d261bac25e3939f204059c4a335fe3877f404b3d09",
+   "digest": "8cdc029d8264fa415ef171e9119208beff5fb9866753a37b79dc2e13cb05527f",
    "id": "estimate.bayesian_synthetic_control",
    "review": "method_review",
    "scope_limits": [

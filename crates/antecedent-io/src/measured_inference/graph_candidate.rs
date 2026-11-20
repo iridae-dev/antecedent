@@ -1188,6 +1188,20 @@ fn exponential_tilt(log_weights: &[f64], offsets: &[f64], dims: usize) -> Option
             }
         }
     }
+    // The rounded log partition can stop decreasing near its minimum even
+    // though an undamped Newton step already matches the target mean.
+    if dims == 1 && offsets.iter().any(|x| *x < 0.0) && offsets.iter().any(|x| *x > 0.0) {
+        let residual: f64 = shares.iter().zip(offsets).map(|(w, x)| w * x).sum();
+        let variance: f64 =
+            shares.iter().zip(offsets).map(|(w, x)| w * (x - residual).powi(2)).sum();
+        if variance.is_finite() && variance > 0.0 {
+            dual(&[lambda[0] - residual / variance], &mut trial);
+            let mean: f64 = trial.iter().zip(offsets).map(|(w, x)| w * x).sum();
+            if mean.is_finite() && mean.abs() <= CALIBRATION_TOLERANCE {
+                return Some(trial);
+            }
+        }
+    }
     None
 }
 
@@ -2984,6 +2998,29 @@ mod tests {
             (0..40).map(|_| paired_bootstrap_pool_index(&mut state, 200)).collect();
         assert!(indices.iter().any(|&index| index < 100));
         assert!(indices.iter().any(|&index| index >= 100));
+    }
+
+    #[test]
+    fn scalar_tilt_recovers_an_interior_mean_at_objective_roundoff() {
+        let logs = [
+            -1.218_466_299_332_129_4,
+            -2.208_435_119_067_189_6,
+            -0.207_348_667_936_931_3,
+            -0.708_485_091_871_425_8,
+            -1.315_819_452_468_806_7,
+        ];
+        let offsets = [
+            0.278_856_416_866_444_63,
+            0.110_322_369_695_075_64,
+            0.607_378_046_342_574_4,
+            -0.152_260_756_334_914_6,
+            -0.040_552_995_191_203_31,
+        ];
+        let shares = super::exponential_tilt(&logs, &offsets, 1).unwrap();
+        let mean: f64 = shares.iter().zip(offsets).map(|(share, offset)| share * offset).sum();
+        assert!(mean.abs() <= super::CALIBRATION_TOLERANCE);
+        assert!((shares.iter().sum::<f64>() - 1.0).abs() <= super::CALIBRATION_TOLERANCE);
+        assert!(super::exponential_tilt(&logs, &offsets.map(f64::abs), 1).is_none());
     }
 
     #[test]
