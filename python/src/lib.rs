@@ -78,6 +78,7 @@ mod counterfactual_id_api;
 mod cpdag_scenario_api;
 mod cross_world_api;
 mod cross_world_execution_api;
+mod cyclic_decision_api;
 mod cyclic_system_api;
 mod data_diagnostics_api;
 mod data_snapshot;
@@ -1928,6 +1929,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     decision_evidence_api::register(m)?;
     tiered_identify_api::register(m)?;
     contract_refusals_api::register(m)?;
+    cyclic_decision_api::register(m)?;
     inspect_receipt_api::register(m)?;
     release_migration_api::register(m)?;
     registry::register_module(m)
