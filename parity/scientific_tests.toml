@@ -289,6 +289,13 @@ fixtures = []
 why = "The trial-to-target IPW Bayesian-bootstrap effect posterior (100 draws) refits and replays from raw rows and refuses altered rows; a four-replicate prospective grid with true effect 1 counts coverage and correct choices without asserting reliability. This source assertion is unearned."
 
 [[test]]
+evidence_test = "crates/antecedent/tests/composition_facade.rs"
+evidence_assertion = "live_decision_terminal_replays_from_an_embedded_bundle"
+kind = "reference"
+fixtures = []
+why = "A predictive decision bundle (contract, four-draw jointly aligned interventional law and result) is rescored through its compiler on the bound law to the embedded result's decision fingerprint with all three dependencies replayed, and its portable artifact replays the same receipt under retained bundle and program identities. This source assertion is unearned."
+
+[[test]]
 evidence_test = "crates/antecedent/tests/composition_posterior_decision_bundle.rs"
 evidence_assertion = "parameter_posterior_decision_replays_without_becoming_predictive"
 kind = "posterior"

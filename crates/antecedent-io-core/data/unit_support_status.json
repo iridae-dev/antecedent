@@ -2305,6 +2305,16 @@
       "id": "association.conjugate_count_posterior",
       "status": "supported",
       "missing_evidence": []
+    },
+    {
+      "id": "estimate.latent_soft_intervention",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "forecast.event_process",
+      "status": "supported",
+      "missing_evidence": []
     }
   ]
 }

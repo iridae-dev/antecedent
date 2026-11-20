@@ -1397,6 +1397,96 @@ provider_trust = "native_computation_only; every fitted dependency is refitted f
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_sequential_reliability_node_bundle"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.sequential_reliability_node_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A finite two-state, one-period sequential model with two committing actions, evaluated for two contingent policies by 128 rollouts under seed 5; its raw policy-reliability artifact, its aligned decision draws and its reliability diagnostic are embedded as fit, carrier and diagnostic nodes connected producer to carrier to diagnostic."
+expected_values = "The compiled program's route is SequentialPolicyReliabilityNodeBundleRecomputation and binds the three nodes and both dependency edges before execution; execution reruns the producer from its embedded raw artifact, reassesses the retained draws and reports a draws digest equal to the producer's; a bundle without the edges is refused at compilation, and changed draws fail at the diagnostic node and at execution."
+tolerance = "exact equality for identities, digests and receipts"
+calibration = "point_only_no_interval; the receipt records a rerun and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.sequential_reliability_node_bundle_portable_replay.artifact"
+provider_trust = "native_computation_only; the producer is rerun from its embedded raw artifact and every dependency passes its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_sequential_reliability_node_bundle"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.sequential_reliability_node_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The portable sequential reliability artifact of the same bundle, with the bundle identity and the compiled program identity retained independently of the bytes."
+expected_values = "The consumer rebuilds the bundle under the retained identity, recompiles the node-bundle program under the retained program identity, reruns the producer, reassesses the retained draws and replays a receipt equal to the exported one; a changed bundle identity is refused."
+tolerance = "exact equality for identities, digests and receipts"
+calibration = "point_only_no_interval; the receipt records a rerun and a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.sequential_reliability_node_bundle_portable_replay.artifact"
+provider_trust = "native_computation_only; the producer is rerun from its embedded raw artifact and every dependency passes its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_decision_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.predictive_decision_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "Four equally likely jointly aligned interventional predictive draws of p = (1, 3, 2, 0), q = (4, 0, 2, 6) and a safe column fixed at 3, an expected-utility contract between risky = p * q (with q at most 5 in at least 75% of draws) and safe = max(safe, 0), and the decision result scored from them, embedded as distribution, contract and result nodes with both dependency edges into the result."
+expected_values = "The compiled program's route is BundleRecomputation; execution replays all three embedded dependencies through their consumers, rescores the contract on the bound law and its decision fingerprint equals the embedded result's (risky 2, safe 3 by hand enumeration)."
+tolerance = "exact equality for identities, fingerprints and receipts"
+calibration = "point_only_no_interval; the receipt records a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.predictive_decision_bundle_portable_replay.artifact"
+provider_trust = "native_computation_only; the decision terminal is rescored from the bound contract and predictive law and every dependency passes its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_decision_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.predictive_decision_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The portable predictive decision artifact of the same bundle, with the bundle identity and the compiled program identity retained independently of the bytes."
+expected_values = "The consumer rebuilds the bundle under the retained identity, reconstructs the contract and the predictive law from their embedded nodes, recompiles the outer program under the retained program identity and replays a receipt equal to the exported one."
+tolerance = "exact equality for identities, fingerprints and receipts"
+calibration = "point_only_no_interval; the receipt records a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.predictive_decision_bundle_portable_replay.artifact"
+provider_trust = "native_computation_only; the decision terminal is rescored from the bound contract and predictive law and every dependency passes its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_posterior_decision_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.posterior_decision_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A jointly aligned three-draw parameter posterior of one coefficient (draws 1, 2 and 3), a posterior expected-utility contract between an action whose utility is the coefficient and a zero-utility baseline, and the decision result scored from them, embedded as distribution, contract and result nodes with both dependency edges into the result."
+expected_values = "The compiled program's route is PosteriorDecisionBundleRecomputation; execution replays every embedded dependency through its consumer, rescores the contract on the bound posterior and its decision fingerprint equals the embedded result's; a contract that reads an outcome coordinate of the parameter posterior is refused at compilation."
+tolerance = "exact equality for identities, fingerprints and receipts"
+calibration = "point_only_no_interval; the receipt records a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.posterior_decision_bundle_portable_replay.artifact"
+provider_trust = "native_computation_only; the decision terminal is rescored from the bound contract and posterior and every dependency passes its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_posterior_decision_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.posterior_decision_bundle.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The portable parameter-posterior decision artifact of the same bundle, with the bundle identity and the compiled program identity retained independently of the bytes."
+expected_values = "The consumer rebuilds the bundle under the retained identity, reconstructs the contract and the posterior from their embedded nodes, recompiles the outer program under the retained program identity and replays a receipt equal to the exported one; a changed bundle identity is refused."
+tolerance = "exact equality for identities, fingerprints and receipts"
+calibration = "point_only_no_interval; the receipt records a recomputation and adds no interval or coverage claim"
+artifact_consumer_fixture = "composition.bundle.posterior_decision_bundle_portable_replay.artifact"
+provider_trust = "native_computation_only; the decision terminal is rescored from the bound contract and posterior and every dependency passes its own consumer, and a reference node prevents a receipt"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "composition.verifiers"
 route = "antecedent.composition_bundle.consume_bundle"
 algorithm_provenance = ["provenance/composition.verifiers.toml"]
