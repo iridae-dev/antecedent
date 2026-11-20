@@ -14983,9 +14983,11 @@ whole = true
 
 # Independent continuous source and target covariate frames, randomized binary treatment,
 # MAR-missing Gaussian outcomes and known linear treatment-effect modification. Every replicate
-# reruns source imputation, graph selection, kernel target standardization, child posterior fitting
-# and final utility, then scores the route's exact 95% target-frame effect interval against analytic
-# truth conditional on the target frame. The grid is 60/120/240 rows.
+# reruns source imputation, graph selection, kernel target standardization calibrated to the frame's
+# covariate means, child posterior fitting and final utility, then scores the route's exact 95%
+# target-frame effect interval (Rubin's rules with Barnard-Rubin degrees of freedom across the
+# completed tables) against analytic truth conditional on the target frame. The grid is 60/120/240
+# rows.
 [[group]]
 label = "graph_imputation_kernel_transport_calibration: graph_imputation_kernel_target_frame_l95"
 package = "antecedent"
@@ -15027,9 +15029,10 @@ whole = true
 
 # Continuous target, randomized treatment graph-imputation study with independent two-row target
 # clusters. Each replicate draws a new MAR-outcome source sample and target clusters, executes 40
-# whole-cluster target resamples with full graph, imputation, transport, fit and decision schedules,
-# and compares the route's nearest-rank 95% effect interval against known target-population truth.
-# The 60/120/240-row grid verifies its exact runtime basis.
+# whole-cluster target resamples with full graph, imputation, mean-calibrated kernel transport, fit
+# and decision schedules, each on its own imputation and posterior streams, and compares the route's
+# replicate order-statistic 95% effect interval against known target-population truth. The
+# 60/120/240-row grid verifies its exact runtime basis.
 [[group]]
 label = "graph_imputation_kernel_cluster_calibration: graph_imputation_kernel_cluster_target_l95"
 package = "antecedent"
@@ -15041,8 +15044,9 @@ whole = true
 
 # Continuous target, pretreatment-confounded assignment graph-imputation study with independent
 # two-row target clusters. Each replicate draws a new MAR-outcome source sample and target clusters,
-# executes 40 whole-cluster target resamples with full graph, imputation, transport, fit and
-# decision schedules, and compares the route's nearest-rank 95% effect interval against known
+# executes 40 whole-cluster target resamples with full graph, imputation, mean-calibrated kernel
+# transport, fit and decision schedules, each on its own imputation and posterior streams, and
+# compares the route's replicate order-statistic 95% effect interval against known
 # target-population truth. The 60/120/240-row grid verifies its exact runtime basis.
 [[group]]
 label = "graph_imputation_kernel_cluster_calibration: graph_imputation_confounded_kernel_cluster_target_l95"
@@ -15116,8 +15120,9 @@ whole = true
 # Declared-MAR binary target-cluster study. Two-row independent target clusters carry a partially
 # observed modifier whose known positive observation probability depends on an always-observed
 # binary covariate; complete rows use inverse-observation weights. Every replicate refits the
-# complete 40-resample graph-imputation transport and utility schedule and scores its 95% interval
-# against the analytic target-population effect. Exact runtime interval scope is bound.
+# complete 40-resample graph-imputation transport and utility schedule, each resample on its own
+# imputation and posterior streams, and scores its replicate order-statistic 95% interval against
+# the analytic target-population effect. Exact runtime interval scope is bound.
 [[group]]
 label = "graph_imputation_mar_cluster_calibration: graph_imputation_mar_binary_cluster_l95"
 package = "antecedent"
@@ -15130,8 +15135,9 @@ whole = true
 # Declared-MAR confounded binary target-cluster study. Two-row independent target clusters carry a
 # partially observed modifier whose known positive observation probability depends on an
 # always-observed binary covariate; complete rows use inverse-observation weights. Every replicate
-# refits the complete 40-resample graph-imputation transport and utility schedule and scores its 95%
-# interval against the analytic target-population effect. Exact runtime interval scope is bound.
+# refits the complete 40-resample graph-imputation transport and utility schedule, each resample on
+# its own imputation and posterior streams, and scores its replicate order-statistic 95% interval
+# against the analytic target-population effect. Exact runtime interval scope is bound.
 [[group]]
 label = "graph_imputation_mar_cluster_calibration: graph_imputation_mar_confounded_binary_cluster_l95"
 package = "antecedent"
@@ -15144,8 +15150,9 @@ whole = true
 # Declared-MAR kernel target-cluster study. Two-row independent target clusters carry a partially
 # observed modifier whose known positive observation probability depends on an always-observed
 # binary covariate; complete rows use inverse-observation weights. Every replicate refits the
-# complete 40-resample graph-imputation transport and utility schedule and scores its 95% interval
-# against the analytic target-population effect. Exact runtime interval scope is bound.
+# complete 40-resample graph-imputation transport and utility schedule, each resample on its own
+# imputation and posterior streams, and scores its replicate order-statistic 95% interval against
+# the analytic target-population effect. Exact runtime interval scope is bound.
 [[group]]
 label = "graph_imputation_mar_cluster_calibration: graph_imputation_mar_kernel_cluster_l95"
 package = "antecedent"
@@ -15158,8 +15165,9 @@ whole = true
 # Declared-MAR confounded kernel target-cluster study. Two-row independent target clusters carry a
 # partially observed modifier whose known positive observation probability depends on an
 # always-observed binary covariate; complete rows use inverse-observation weights. Every replicate
-# refits the complete 40-resample graph-imputation transport and utility schedule and scores its 95%
-# interval against the analytic target-population effect. Exact runtime interval scope is bound.
+# refits the complete 40-resample graph-imputation transport and utility schedule, each resample on
+# its own imputation and posterior streams, and scores its replicate order-statistic 95% interval
+# against the analytic target-population effect. Exact runtime interval scope is bound.
 [[group]]
 label = "graph_imputation_mar_cluster_calibration: graph_imputation_mar_confounded_kernel_cluster_l95"
 package = "antecedent"

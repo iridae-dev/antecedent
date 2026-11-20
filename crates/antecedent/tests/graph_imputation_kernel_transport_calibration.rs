@@ -1,8 +1,9 @@
 //! Whole-route coverage of a mixed target graph-imputation effect. Each
 //! replicate draws an independent continuous target frame, samples a new
 //! source trial with missing outcomes, reruns graph selection per imputation,
-//! kernel standardizes each graph and scores the final effect interval against
-//! analytic truth conditional on that target frame.
+//! kernel standardizes each graph and scores the final effect interval, Rubin's
+//! rules across the completed tables, against analytic truth conditional on
+//! that target frame.
 
 mod common;
 
@@ -25,7 +26,7 @@ use common::calibration::{
 
 const TEST: &str = "graph_imputation_kernel_target_frame_l95";
 const DGP: &str = "mar_continuous_modifier_independent_target_frame";
-const INTERVAL: &str = "nearest_rank_95";
+const INTERVAL: &str = "rubin_barnard_t_95";
 
 fn replicate(seed: u64, n: usize) -> Option<((f64, f64), f64, CalibrationBasis)> {
     let mut source_x = uniform(seed, 0x6B31_1001);

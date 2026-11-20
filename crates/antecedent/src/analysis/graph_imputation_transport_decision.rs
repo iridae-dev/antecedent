@@ -19,7 +19,7 @@ use antecedent_contract::propagation_chain::{
     ChainReading, LawMeaning, StageKind, TableConstruction,
 };
 use antecedent_contract::{ClaimKind, DataClassification, QuantityRole, ScientificQuantity};
-use antecedent_core::graph_imputation_contract::GraphImputationSource;
+use antecedent_core::graph_imputation_contract::{GraphImputationParts, GraphImputationSource};
 use antecedent_core::{
     ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, PhysicalEffect,
     PhysicalOperator, SemanticDigest, VariableId,
@@ -27,6 +27,7 @@ use antecedent_core::{
 use antecedent_data::{ImputationSpec, TabularData};
 use antecedent_design::decision_artifact::DecisionContractArtifact;
 use antecedent_design::decision_contract::{DecisionContract, DecisionContractError};
+use antecedent_estimate::multiple_imputation::rubin_pool;
 use antecedent_io::IoError;
 use antecedent_io::measured_inference::graph_candidate::{
     GraphPointReading, TransportStandardization, replay_confounded_transport_point,
@@ -64,7 +65,7 @@ const CONFOUNDED_CLUSTER_FEATURE: &str =
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
 /// Interval method of a draw table with one draw per resampling replicate
 /// ([`order_statistic_interval_95`]).
-const REPLICATE_INTERVAL: &str = "replicate_order_statistic_95";
+pub(crate) const REPLICATE_INTERVAL: &str = "replicate_order_statistic_95";
 
 /// Refusal of the bound source, target, decision or portable replay.
 #[derive(Debug, thiserror::Error)]
@@ -692,6 +693,72 @@ pub(crate) fn order_statistic_interval_95(ordered: &[f64]) -> (f64, f64) {
     let lower = (slots * 25 / 1000).clamp(1, ordered.len());
     let upper = (slots * 975).div_ceil(1000).clamp(lower, ordered.len());
     (ordered[lower - 1], ordered[upper - 1])
+}
+
+/// Interval method of a fixed frame's draws pooled across completed tables
+/// ([`imputation_pooled_interval_95`]).
+pub(crate) const POOLED_INTERVAL: &str = "rubin_barnard_t_95";
+
+/// 95% interval of a fixed frame's posterior draws pooled from `tables`
+/// completed tables, held in their execution order as equal consecutive
+/// blocks, by Rubin's rules: `Q ± t_v sqrt(W + (1 + 1/m) B)` from the table
+/// posterior means and variances, with the Barnard-Rubin degrees of freedom at
+/// the complete-data `df_complete` (large-sample when `None`).
+///
+/// A plain mixture of `m` tables' posteriors has variance `W + (m - 1) B / m`,
+/// with `W` the mean within-table variance and `B` the variance of the table
+/// means: it is the posterior only as `m` grows. At the two tables a study
+/// commonly declares, the mixture carries `B / 2` of the `3 B / 2` Rubin's
+/// total assigns a finite `m`, and with a tenth of the outcomes missing its
+/// nearest-rank interval covers about 0.93. `B` then rests on one degree of
+/// freedom, which the `t` reference carries and a quantile of the mixture
+/// cannot. `None` unless the draws split into `tables >= 2` equal blocks of at
+/// least two finite draws.
+pub(crate) fn imputation_pooled_interval_95(
+    draws: &[f64],
+    tables: usize,
+    df_complete: Option<f64>,
+) -> Option<(f64, f64)> {
+    if tables < 2 || draws.len() % tables != 0 || draws.len() / tables < 2 {
+        return None;
+    }
+    let block = draws.len() / tables;
+    let mut means = Vec::with_capacity(tables);
+    let mut variances = Vec::with_capacity(tables);
+    for table in draws.chunks_exact(block) {
+        let mean = table.iter().sum::<f64>() / block as f64;
+        means.push(mean);
+        variances.push(
+            table.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / (block - 1) as f64,
+        );
+    }
+    let pooled = rubin_pool(&means, &variances, df_complete).ok()?;
+    let interval = pooled.interval(0.95);
+    (interval.0.is_finite() && interval.1.is_finite()).then_some(interval)
+}
+
+/// Complete-data degrees of freedom of a transported child fit: the source
+/// rows less the coefficients of the widest retained design, an intercept,
+/// the treatment, and each adjusted or selected covariate with its centred
+/// treatment interaction. `None` when no degree remains.
+pub(crate) fn transported_child_df(
+    parts: &GraphImputationParts,
+    selections: &[u32],
+) -> Option<f64> {
+    let widest = parts
+        .atoms
+        .iter()
+        .map(|atom| {
+            let mut covariates: Vec<u32> =
+                atom.adjustment.iter().chain(selections).copied().collect();
+            covariates.sort_unstable();
+            covariates.dedup();
+            covariates.len()
+        })
+        .max()
+        .unwrap_or(selections.len());
+    let coefficients = 2 + 2 * widest;
+    (parts.rows() > coefficients).then(|| (parts.rows() - coefficients) as f64)
 }
 
 pub(crate) fn bootstrap_cluster_rows(state: &mut u64, groups: &[Vec<usize>]) -> Vec<usize> {
@@ -1349,6 +1416,33 @@ mod tests {
             // likely gaps; `upper - lower` of them lie inside the interval.
             assert!(f64::from(upper - lower) / f64::from(draws + 1) >= 0.95);
         }
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp, reason = "refusals compare as None")]
+    fn pooled_interval_combines_completed_tables_by_rubin_rules() {
+        // Two tables of a hundred draws at -1 and +1, each spread 0.5 about its mean.
+        let draws: Vec<f64> = (0..200)
+            .map(|i| {
+                let table = if i < 100 { -1.0 } else { 1.0 };
+                table + if i % 2 == 0 { -0.5 } else { 0.5 }
+            })
+            .collect();
+        let within = 25.0 / 99.0;
+        let expected =
+            rubin_pool(&[-1.0, 1.0], &[within, within], Some(60.0)).unwrap().interval(0.95);
+        let (lower, upper) = imputation_pooled_interval_95(&draws, 2, Some(60.0)).unwrap();
+        assert!((lower - expected.0).abs() < 1e-12 && (upper - expected.1).abs() < 1e-12);
+        // The between-table variance 2 enters at (1 + 1/2) 2 = 3, not at the
+        // plain mixture's 2 / 2 = 1, and on a t reference with few degrees.
+        assert!(lower < -1.96 * (within + 3.0).sqrt() && upper > 1.96 * (within + 3.0).sqrt());
+        // Identical tables leave the within-table variance on the complete-data t.
+        let same: Vec<f64> = (0..200).map(|i| if i % 2 == 0 { -0.5 } else { 0.5 }).collect();
+        let (lower, upper) = imputation_pooled_interval_95(&same, 2, Some(60.0)).unwrap();
+        let half = antecedent_stats::student_t_ppf(0.975, 60.0 * 61.0 / 63.0) * within.sqrt();
+        assert!((lower + half).abs() < 1e-9 && (upper - half).abs() < 1e-9);
+        assert_eq!(imputation_pooled_interval_95(&draws[..199], 2, None), None);
+        assert_eq!(imputation_pooled_interval_95(&draws, 1, None), None);
     }
 
     #[test]

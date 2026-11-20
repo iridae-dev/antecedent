@@ -2,7 +2,10 @@
 //! The supplied observation probabilities and MAR are assumptions; target
 //! sampling uncertainty and calibration are not inferred by this route.
 use super::graph_imputation::{CompiledGraphImputation, GraphImputationError, GraphImputationSpec};
-use super::graph_imputation_transport_decision::effect_chain;
+use super::graph_imputation_transport_decision::{
+    POOLED_INTERVAL, REPLICATE_INTERVAL, effect_chain, imputation_pooled_interval_95,
+    order_statistic_interval_95, transported_child_df,
+};
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
 };
@@ -27,7 +30,7 @@ use antecedent_design::decision_artifact::DecisionContractArtifact;
 use antecedent_design::decision_contract::{DecisionContract, DecisionContractError};
 use antecedent_io::IoError;
 use antecedent_io::measured_inference::graph_candidate::{
-    GraphPointReading, MarTargetStandardization, replay_mar_transport_point,
+    GraphPointReading, MarTargetStandardization, replay_mar_transport_point, replicate_source,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
@@ -77,7 +80,9 @@ pub struct MarTransportResult {
     /// Always not measured.
     pub calibration: &'static str,
 }
-/// Independent-cluster resampling of the raw target frame.
+/// Independent-cluster resampling of the raw target frame. Each replicate
+/// refits the source on its own imputation and posterior streams and retains
+/// one draw; the interval is the replicate order-statistic interval.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MarClusterBootstrap {
@@ -584,6 +589,10 @@ impl CompiledMarTransportDecision {
         clippy::cast_possible_truncation,
         reason = "the replicate count is bounded by the bootstrap policy"
     )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one linear sequence of steps that reads top to bottom"
+    )]
     fn run_cluster_bootstrap(
         &self,
         reading: &mut GraphPointReading,
@@ -646,7 +655,12 @@ impl CompiledMarTransportDecision {
             sampled.frame.row_ids = (0..indices.len()).map(|i| format!("{prefix}{i}")).collect();
             sampled.frame.cluster_ids =
                 cluster_slots.into_iter().map(|slot| format!("{prefix}cluster:{slot}")).collect();
-            let run = replay_mar_transport_point(&self.native_source, &sampled, ctx)?;
+            // Each replicate redraws its completed tables and posterior on its
+            // own streams. On the declared streams every replicate held the
+            // same posterior draws, so the retained draws repeated one another
+            // and understated the source and imputation spread.
+            let replicate_bytes = replicate_source(&self.native_source, policy.seed, replicate)?;
+            let run = replay_mar_transport_point(&replicate_bytes, &sampled, ctx)?;
             if run.draws.is_empty() {
                 return Err(MarTransportError::Invalid(
                     "bootstrap replicate has no posterior draws",
@@ -697,7 +711,8 @@ impl CompiledMarTransportDecision {
 pub struct MarTransportCalibrationCandidate {
     /// Full raw-to-decision execution.
     pub result: MarTransportResult,
-    /// Nearest-rank equal-tail 95% effect interval.
+    /// 95% effect interval: replicate order statistics under cluster
+    /// resampling, Rubin's rules across the completed tables on a fixed frame.
     pub interval: (f64, f64),
     /// Exact unmeasured interval scope.
     pub interval_basis: CalibrationBasis,
@@ -724,11 +739,22 @@ impl CompiledMarTransportDecision {
             return Err(MarTransportError::Invalid("interval needs at least forty finite draws"));
         }
         draws.sort_by(f64::total_cmp);
-        let rank = |n: usize| (draws.len() * n).div_ceil(1000).saturating_sub(1);
-        let interval = (draws[rank(25)], draws[rank(975)]);
         let source = GraphImputationSource::decode(&self.native_source)
             .map_err(MarTransportError::Invalid)?;
         let parts = source.parts();
+        // Under cluster resampling each draw is one independent replicate, each
+        // on its own completed tables. On a fixed frame the draws pool the
+        // declared tables, which Rubin's rules combine.
+        let interval = if self.bootstrap.is_some() {
+            order_statistic_interval_95(&draws)
+        } else {
+            imputation_pooled_interval_95(
+                &result.producer.draws,
+                parts.imputations as usize,
+                transported_child_df(parts, &self.target.selection_targets),
+            )
+            .ok_or(MarTransportError::Invalid("draws do not pool across completed tables"))?
+        };
         let bandwidths = self
             .target
             .bandwidths
@@ -772,7 +798,7 @@ impl CompiledMarTransportDecision {
                 "multi_env",
                 "Bayesian",
                 FEATURE,
-                "nearest_rank_95",
+                if self.bootstrap.is_some() { REPLICATE_INTERVAL } else { POOLED_INTERVAL },
                 "",
                 "independent_source_target_units",
                 "declared_mar_weighted_target",

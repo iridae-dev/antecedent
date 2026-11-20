@@ -468,8 +468,10 @@ fn validate_selection_admissibility(
 
 /// Independent target frame for mixed binary and continuous pretreatment
 /// covariates. Continuous columns use declared Gaussian kernel bandwidths for
-/// source-to-target density-ratio standardization on every completed table.
-/// The empirical target frame and bandwidths remain model assumptions; this
+/// source-to-target density-ratio standardization on every completed table,
+/// and the ratio is tilted so the weighted source reproduces the frame's mean
+/// of every adjustment covariate (a fixed bandwidth alone misses them by order
+/// `h^2`). The empirical target frame and bandwidths remain model assumptions; this
 /// route earns no interval coverage or decision reliability from the binary
 /// stratum route.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -922,6 +924,7 @@ impl<'a> TransportTarget<'a> {
 }
 
 #[allow(clippy::float_cmp, reason = "coded binary levels and treatment arms are compared exactly")]
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 fn kernel_transport_weights(
     source_columns: &[Vec<f64>],
     target_columns: &[&[f64]],
@@ -1028,7 +1031,204 @@ fn kernel_transport_weights(
     if weights.iter().any(|weight| !weight.is_finite()) {
         return Err(execution_refused("normalized kernel transport weights are nonfinite"));
     }
+    calibrate_to_target_means(&mut weights, source_columns, target_columns, target_weights)?;
     Ok(weights)
+}
+
+/// Damped Newton iterations allowed to the target-mean calibration.
+const CALIBRATION_ITERATIONS: usize = 100;
+
+/// Largest weighted-mean miss a calibrated covariate may keep, in units of its
+/// range over the weighted source rows.
+const CALIBRATION_TOLERANCE: f64 = 1e-10;
+
+/// Tilt kernel density-ratio weights so that the weighted source reproduces
+/// the target frame's mean of every adjustment covariate.
+///
+/// A fixed-bandwidth ratio `q_h / p_h` weights the source toward the target
+/// smoothed by the kernel, not toward the target: wherever the target density
+/// bends or stops inside the source support, the weighted covariate means miss
+/// the target's by order `h^2`, and a larger source does not shrink the miss.
+/// A uniform target on `[0.2, 1]` over a uniform source on `[0, 1]` at
+/// `h = 0.12` weights the source mean of the covariate to 0.5865, not 0.6. The
+/// transported effect is the treatment coefficient with its interactions
+/// centred at these means, so it carried the miss as a bias that the interval
+/// lost to as the sample grew.
+///
+/// Exponential tilting, `w_i exp(lambda' (x_i - mu))`, is the reweighting
+/// closest to the kernel weights in Kullback-Leibler divergence whose means are
+/// the target's (entropy balancing with the kernel ratio as base weights). It
+/// keeps every positive weight positive and every zero weight zero, and leaves
+/// the weighted source matching the target's means exactly, as the binary
+/// route's stratum ratios match its target frequencies by construction. A
+/// covariate already constant at its target mean is left alone; target means
+/// outside the weighted source support are refused.
+fn calibrate_to_target_means(
+    weights: &mut [f64],
+    source_columns: &[Vec<f64>],
+    target_columns: &[&[f64]],
+    target_weights: Option<&[f64]>,
+) -> Result<(), IoError> {
+    let rows = weights.len();
+    let kept: Vec<usize> = (0..rows).filter(|&row| weights[row] > 0.0).collect();
+    let mut active = Vec::with_capacity(source_columns.len());
+    for (column, target) in source_columns.iter().zip(target_columns) {
+        let (mut mass, mut sum) = (0.0, 0.0);
+        for (row, value) in target.iter().enumerate() {
+            let weight = target_weights.map_or(1.0, |frame| frame[row]);
+            mass += weight;
+            sum += weight * value;
+        }
+        let mean = sum / mass;
+        let (low, high) =
+            kept.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(low, high), &row| {
+                (low.min(column[row]), high.max(column[row]))
+            });
+        let range = high - low;
+        if !mean.is_finite() || !range.is_finite() {
+            return Err(execution_refused("target-mean calibration needs finite covariates"));
+        }
+        if range > 0.0 {
+            active.push((column.as_slice(), mean, range));
+        } else if (low - mean).abs() > CALIBRATION_TOLERANCE * low.abs().max(1.0) {
+            return Err(execution_refused(
+                "a target covariate mean lies outside the weighted source support",
+            ));
+        }
+    }
+    if active.is_empty() {
+        return Ok(());
+    }
+    // Offsets from the target means, in units of each covariate's range.
+    let offsets: Vec<f64> = kept
+        .iter()
+        .flat_map(|&row| {
+            active.iter().map(move |&(column, mean, range)| (column[row] - mean) / range)
+        })
+        .collect();
+    let base: Vec<f64> = kept.iter().map(|&row| weights[row].ln()).collect();
+    let shares = exponential_tilt(&base, &offsets, active.len()).ok_or_else(|| {
+        execution_refused("target covariate means are not interior to the weighted source support")
+    })?;
+    for weight in weights.iter_mut() {
+        *weight = 0.0;
+    }
+    for (&row, share) in kept.iter().zip(&shares) {
+        weights[row] = share * rows as f64;
+    }
+    Ok(())
+}
+
+/// Row shares proportional to `exp(log_weights_i + lambda' d_i)` whose mean
+/// offset `sum_i p_i d_i` is zero, by damped Newton steps on the convex dual
+/// `log sum_i exp(log_weights_i + lambda' d_i)`: its gradient is the tilted
+/// mean offset and its Hessian the tilted covariance of the offsets. `offsets`
+/// holds `dims` offsets per row. `None` when no tilt reaches a zero mean
+/// offset, so zero is not interior to the rows' offsets.
+fn exponential_tilt(log_weights: &[f64], offsets: &[f64], dims: usize) -> Option<Vec<f64>> {
+    let dual =
+        |lambda: &[f64], shares: &mut Vec<f64>| -> f64 {
+            shares.clear();
+            shares.extend(log_weights.iter().zip(offsets.chunks_exact(dims)).map(
+                |(log, offset)| log + offset.iter().zip(lambda).map(|(d, l)| d * l).sum::<f64>(),
+            ));
+            let peak = shares.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let mut total = 0.0;
+            for share in shares.iter_mut() {
+                *share = (*share - peak).exp();
+                total += *share;
+            }
+            for share in shares.iter_mut() {
+                *share /= total;
+            }
+            peak + total.ln()
+        };
+    let mut lambda = vec![0.0; dims];
+    let mut shares = Vec::with_capacity(log_weights.len());
+    let mut trial = Vec::with_capacity(log_weights.len());
+    let mut objective = dual(&lambda, &mut shares);
+    for _ in 0..CALIBRATION_ITERATIONS {
+        let mut gradient = vec![0.0; dims];
+        for (share, offset) in shares.iter().zip(offsets.chunks_exact(dims)) {
+            for (g, d) in gradient.iter_mut().zip(offset) {
+                *g += share * d;
+            }
+        }
+        if gradient.iter().all(|g| g.abs() <= CALIBRATION_TOLERANCE) {
+            return shares.iter().all(|share| share.is_finite()).then_some(shares);
+        }
+        let mut hessian = vec![0.0; dims * dims];
+        for (share, offset) in shares.iter().zip(offsets.chunks_exact(dims)) {
+            for a in 0..dims {
+                for b in 0..=a {
+                    hessian[a * dims + b] +=
+                        share * (offset[a] - gradient[a]) * (offset[b] - gradient[b]);
+                }
+            }
+        }
+        let mut step = gradient.clone();
+        if !cholesky_solve_lower(&mut hessian, &mut step, dims) {
+            return None;
+        }
+        let decrease = gradient.iter().zip(&step).map(|(g, s)| g * s).sum::<f64>();
+        let mut length = 1.0;
+        loop {
+            let candidate: Vec<f64> =
+                lambda.iter().zip(&step).map(|(value, s)| value - length * s).collect();
+            let value = dual(&candidate, &mut trial);
+            if value.is_finite() && value <= objective - 1e-4 * length * decrease {
+                lambda = candidate;
+                objective = value;
+                std::mem::swap(&mut shares, &mut trial);
+                break;
+            }
+            length *= 0.5;
+            if length < 1e-12 {
+                return None;
+            }
+        }
+    }
+    None
+}
+
+/// Solve `A x = b` in place for a symmetric positive definite `A` given by its
+/// lower triangle (row-major, `dims` by `dims`). False when `A` is not
+/// numerically positive definite.
+fn cholesky_solve_lower(matrix: &mut [f64], rhs: &mut [f64], dims: usize) -> bool {
+    for j in 0..dims {
+        let original = matrix[j * dims + j];
+        let mut diagonal = original;
+        for p in 0..j {
+            diagonal -= matrix[j * dims + p] * matrix[j * dims + p];
+        }
+        if !diagonal.is_finite() || diagonal <= 1e-14 * original {
+            return false;
+        }
+        let pivot = diagonal.sqrt();
+        matrix[j * dims + j] = pivot;
+        for i in j + 1..dims {
+            let mut value = matrix[i * dims + j];
+            for p in 0..j {
+                value -= matrix[i * dims + p] * matrix[j * dims + p];
+            }
+            matrix[i * dims + j] = value / pivot;
+        }
+    }
+    for i in 0..dims {
+        let mut value = rhs[i];
+        for p in 0..i {
+            value -= matrix[i * dims + p] * rhs[p];
+        }
+        rhs[i] = value / matrix[i * dims + i];
+    }
+    for i in (0..dims).rev() {
+        let mut value = rhs[i];
+        for p in i + 1..dims {
+            value -= matrix[p * dims + i] * rhs[p];
+        }
+        rhs[i] = value / matrix[i * dims + i];
+    }
+    true
 }
 
 fn binary_target_weights(
@@ -1411,9 +1611,28 @@ fn execute(
                         )
                         .map_err(fit_error)?
                 } else {
-                    fitter
+                    let mut prepared = fitter
                         .prepare_for_population(&data, &estimand, &query, Some(&registry))
-                        .map_err(fit_error)?
+                        .map_err(fit_error)?;
+                    // Calibrated kernel ratios and declared-MAR stratum ratios
+                    // reproduce the target frame's covariate means exactly, so
+                    // the interactions are centred at the frame's own means,
+                    // not at means estimated from the source rows. A source
+                    // Bayesian bootstrap of those means describes no
+                    // uncertainty of this estimate: given the frame they are
+                    // fixed, and under target resampling the replicate spread
+                    // carries their sampling variation. Kept, it widened every
+                    // interval by a variance the estimate does not have.
+                    if matches!(
+                        target,
+                        TransportTarget::Kernel(_)
+                            | TransportTarget::ConfoundedKernel(_)
+                            | TransportTarget::MarKernel(..)
+                            | TransportTarget::MarBinary(..)
+                    ) {
+                        prepared.target_moments = None;
+                    }
+                    prepared
                 };
                 (prepared, weights)
             } else {
@@ -3390,6 +3609,53 @@ mod mar_weighted_transport_tests {
             binary_target_weights(&keys, &source, &target).unwrap(),
             vec![0.5, 0.5, 1.5, 1.5]
         );
+    }
+
+    #[test]
+    fn kernel_weights_reproduce_the_weighted_target_frame_means() {
+        // A uniform target on [0.2, 1] over a uniform source on [0, 1]: at this
+        // bandwidth the density ratio alone weights the source mean to about
+        // 0.5865 against the target's 0.6.
+        let source_x: Vec<f64> = (0..201).map(|i| f64::from(i) / 200.0).collect();
+        let source_z: Vec<f64> = (0..201).map(|i| f64::from(u8::from(i % 3 == 0))).collect();
+        let target_x: Vec<f64> = (0..161).map(|i| 0.2 + 0.8 * f64::from(i) / 160.0).collect();
+        let target_z: Vec<f64> = (0..161).map(|i| f64::from(u8::from(i % 2 == 0))).collect();
+        let observation: Vec<f64> = (0..161).map(|i| if i % 4 == 0 { 2.0 } else { 1.0 }).collect();
+        let target = KernelTransportStandardization {
+            columns: vec![(2, target_x.clone()), (3, target_z.clone())],
+            selection_targets: vec![2],
+            source_population: "source".into(),
+            target_population: "target".into(),
+            source_sample: "source".into(),
+            target_sample: "target".into(),
+            source_unit_ids: (0..201).map(|i| format!("s{i}")).collect(),
+            target_unit_ids: (0..161).map(|i| format!("t{i}")).collect(),
+            bandwidths: vec![(2, 0.12)],
+            min_kernel_overlap: 0.01,
+        };
+        let source = vec![source_x.clone(), source_z.clone()];
+        let columns = vec![target_x.as_slice(), target_z.as_slice()];
+        let weights = kernel_transport_weights(
+            &source,
+            &columns,
+            &[2, 3],
+            &[1, 0, 0, 1],
+            &target,
+            None,
+            Some(&observation),
+        )
+        .unwrap();
+        let total = weights.iter().sum::<f64>();
+        assert!((total - 201.0).abs() < 1e-9);
+        assert!(weights.iter().all(|weight| *weight > 0.0));
+        let mass = observation.iter().sum::<f64>();
+        for (source, target) in [(&source_x, &target_x), (&source_z, &target_z)] {
+            let weighted =
+                source.iter().zip(&weights).map(|(value, w)| value * w).sum::<f64>() / total;
+            let expected =
+                target.iter().zip(&observation).map(|(value, w)| value * w).sum::<f64>() / mass;
+            assert!((weighted - expected).abs() < 1e-9, "{weighted} against {expected}");
+        }
     }
 
     #[test]
