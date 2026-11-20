@@ -123,6 +123,7 @@ mod gcm_api;
 mod gcm_estimand_api;
 mod graph_build;
 mod graph_falsification_api;
+mod graph_imputation_decision_api;
 mod graph_io;
 mod graph_membership_api;
 mod graph_score_api;
@@ -1924,6 +1925,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     data_diagnostics_api::register(m)?;
     data_snapshot::register(m)?;
     execution_api::register(m)?;
+    graph_imputation_decision_api::register(m)?;
     choice_inference_api::register(m)?;
     decision_evidence_api::register(m)?;
     tiered_identify_api::register(m)?;

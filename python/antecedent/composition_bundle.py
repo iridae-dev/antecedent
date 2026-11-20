@@ -58,7 +58,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from inspect import signature as _signature
-from typing import Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from antecedent import _reason_details
 
@@ -77,6 +77,10 @@ from ._validate import count
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .outcomes import outcome_operation
+
+if TYPE_CHECKING:
+    from .execution import Execution
+    from .graph_imputation_decision import GraphImputationDecisionArtifact
 
 _UNSET: Any = object()
 
@@ -555,6 +559,48 @@ class BundleBuilder:
             json.dumps([[key, float(value)] for key, value in inspected.items()])
             if inspected
             else None,
+        )
+        raise_refusal(refusal, _refusal_type)
+        self._ids.append(node_id)
+        self._last = node_id
+        return self
+
+    def add_graph_imputation_transport_fit(
+        self,
+        artifact: GraphImputationDecisionArtifact,
+        *,
+        node_id: str,
+        execution: Execution | None = None,
+    ) -> BundleBuilder:
+        """Embed a transported graph-imputation effect decision as a refittable fit node.
+
+        ``artifact`` is the export of a ``transport`` route of
+        :func:`antecedent.graph_imputation_decision.compile_graph_imputation_decision`. It is
+        consumed under its program identity before it is added (the source reimputed, the
+        graphs reselected, the target standardized and the decision replayed), and the replay
+        seed (``execution.seed``) is recorded so a consumer refits it the same way. Connect it
+        to the ``propagation_chain`` node its decision read
+        (:meth:`~antecedent.graph_imputation_decision.CompiledGraphImputationDecision.chain_artifact`).
+
+        Raises:
+            CausalTypeError: ``artifact`` is not a graph-imputation decision artifact.
+            CompositionBundleRefusal: the fit does not replay, or ``node_id`` is already used.
+        """
+        from .execution import resolve_execution
+        from .graph_imputation_decision import GraphImputationDecisionArtifact
+
+        if not isinstance(artifact, GraphImputationDecisionArtifact):
+            raise CausalTypeError(
+                "artifact must be the GraphImputationDecisionArtifact of a transported decision"
+            )
+        execution = resolve_execution(execution)
+        refusal = execution._call(
+            _native.graph_imputation_transport_bundle_add_fit,
+            self._native,
+            node_id,
+            artifact.data,
+            artifact.program,
+            execution.seed,
         )
         raise_refusal(refusal, _refusal_type)
         self._ids.append(node_id)

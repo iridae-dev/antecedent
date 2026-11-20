@@ -190,12 +190,41 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+/// The declaration a compiled handle was built from: the column names, the original table and
+/// the native specification. A decision on the mixture recompiles its own producer from it, so
+/// the handle keeps its plan and the decision owns an identical one.
+#[derive(Clone)]
+pub(crate) struct GraphImputationDeclaration {
+    pub(crate) names: Vec<String>,
+    pub(crate) rows: usize,
+    pub(crate) source: TabularData,
+    pub(crate) spec: antecedent::analysis::graph_imputation::GraphImputationSpec,
+}
+
+impl GraphImputationDeclaration {
+    /// Compile the declared mixture again on `ctx`; the program identity is the handle's.
+    pub(crate) fn compile(
+        &self,
+        ctx: &antecedent::prelude::ExecutionContext,
+    ) -> Result<
+        antecedent::analysis::graph_imputation::CompiledGraphImputation,
+        antecedent::analysis::graph_imputation::GraphImputationError,
+    > {
+        antecedent::analysis::graph_imputation::CompiledGraphImputation::compile(
+            self.source.clone(),
+            &self.spec,
+            ctx,
+        )
+    }
+}
+
 // This handle owns the retained native compiler output; Python supplies no scientific callback.
 #[pyclass(name = "CompiledGraphImputationHandle", unsendable)]
-struct PyCompiledGraphImputation {
+pub(crate) struct PyCompiledGraphImputation {
     plan: antecedent::analysis::graph_imputation::CompiledGraphImputation,
     point: Option<antecedent::analysis::graph_imputation::GraphImputationPoint>,
     ctx: antecedent::prelude::ExecutionContext,
+    pub(crate) declaration: GraphImputationDeclaration,
 }
 
 fn compiled_py_error(message: impl std::fmt::Display) -> PyErr {
@@ -206,9 +235,10 @@ fn compiled_py_error(message: impl std::fmt::Display) -> PyErr {
     ))
 }
 
-fn compiled_runtime_error(
-    error: antecedent::analysis::graph_imputation::GraphImputationError,
-) -> PyErr {
+/// The structured refusal JSON of a graph-imputation compiler or replay error.
+pub(crate) fn producer_refusal(
+    error: &antecedent::analysis::graph_imputation::GraphImputationError,
+) -> String {
     use antecedent::analysis::graph_imputation::GraphImputationError;
     use antecedent::execution::SearchStop;
     let (code, detail, message) = match error {
@@ -235,23 +265,27 @@ fn compiled_runtime_error(
         GraphImputationError::Engine(CausalError::Cancelled { stage }) => (
             reason_code!("cancelled_no_claim"),
             antecedent::reason::reason_details::graph_imputation::CANCELLED,
-            stage.to_owned(),
+            (*stage).to_owned(),
         ),
         GraphImputationError::Engine(CausalError::Resource { message }) => (
             reason_code!("execution_resource_limit"),
             antecedent::reason::reason_details::graph_imputation::RESOURCE_LIMIT,
-            message,
+            message.clone(),
         ),
-        GraphImputationError::Engine(error) => {
-            return crate::errors::value_error_of(&error_refusal(&error));
-        }
+        GraphImputationError::Engine(engine) => return error_refusal(engine),
         other => (
             reason_code!("invalid_argument"),
             antecedent::reason::reason_details::graph_imputation::EXECUTION_REFUSED,
             other.to_string(),
         ),
     };
-    crate::errors::value_error_of(&refusal(code, detail, &message))
+    refusal(code, detail, &message)
+}
+
+fn compiled_runtime_error(
+    error: antecedent::analysis::graph_imputation::GraphImputationError,
+) -> PyErr {
+    crate::errors::value_error_of(&producer_refusal(&error))
 }
 
 type CompiledArtifactParts = (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>);
@@ -299,7 +333,8 @@ impl PyCompiledGraphImputation {
         let support = GraphImputationSupport::from_label(&graph_support).ok_or_else(|| {
             compiled_py_error(
                 "unknown graph support; declare `treatment_root_direct_effect`, \
-                 `treatment_direct_effect` or `pre_treatment_covariates`",
+                 `treatment_direct_effect`, `pre_treatment_covariates` or \
+                 `treatment_root_pre_treatment_covariates`",
             )
         })?;
         let domains = domains
@@ -310,6 +345,7 @@ impl PyCompiledGraphImputation {
                 _ => Err(compiled_py_error("unknown variable domain")),
             })
             .collect::<PyResult<Vec<u8>>>()?;
+        let rows = columns.first().map_or(0, Vec::len);
         let source = TabularData::from_f64_columns(
             names.iter().zip(&columns).map(|(name, values)| (name.as_str(), values.as_slice())),
         )
@@ -328,9 +364,10 @@ impl PyCompiledGraphImputation {
             execution_seed: seed,
         };
         let ctx = crate::execution_api::context(seed);
-        let plan = CompiledGraphImputation::compile(source, &spec, &ctx)
+        let plan = CompiledGraphImputation::compile(source.clone(), &spec, &ctx)
             .map_err(compiled_runtime_error)?;
-        Ok(Self { plan, point: None, ctx })
+        let declaration = GraphImputationDeclaration { names, rows, source, spec };
+        Ok(Self { plan, point: None, ctx, declaration })
     }
 
     fn execute(&mut self) -> PyResult<String> {
