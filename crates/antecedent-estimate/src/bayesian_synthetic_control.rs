@@ -19,6 +19,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod conditional;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::CausalRng;
@@ -373,8 +375,13 @@ fn run_chain(
         accepted: 0,
         proposals: 0,
     };
+    let conditional_pair = donors > 10 && conditional::uniform_independent(spec);
     for sweep in 0..spec.burn_in + kept * THIN {
-        for _ in 0..2 * donors {
+        for step in 0..2 * donors {
+            if conditional_pair && step % 2 == 0 {
+                conditional::update(&mut state, panel, &mut rng);
+                continue;
+            }
             out.proposals += 1;
             out.accepted += usize::from(transfer_step(&mut state, panel, spec, &mut rng));
         }
@@ -519,7 +526,9 @@ fn assemble(
         n_post_periods: panel.n_post,
         post_periods: panel.post_periods.clone(),
         period_effect_draws: Vec::new(),
-        model: if spec.ar1_rho.abs() <= 0.0 {
+        model: if panel.donors.len() > 10 && conditional::uniform_independent(spec) {
+            "simplex synthetic control; uniform Dirichlet donor-weight prior; independent Gaussian pre-fit errors; pairwise-transfer Metropolis with Gibbs donor-pair and variance updates"
+        } else if spec.ar1_rho.abs() <= 0.0 {
             "simplex synthetic control; Dirichlet donor-weight prior; independent Gaussian pre-fit errors; pairwise-transfer Metropolis with Gibbs variance"
         } else {
             "simplex synthetic control; Dirichlet donor-weight prior; declared-coefficient AR(1) Gaussian pre-fit errors continued into the post period; pairwise-transfer Metropolis with Gibbs variance"

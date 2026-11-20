@@ -14276,6 +14276,13 @@ path = "crates/antecedent-estimate/src/bayesian_staggered_event_study/tests.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "audit-crates-antecedent-estimate-src-bayesian-synthetic-control-conditional-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/bayesian_synthetic_control/conditional.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "audit-crates-antecedent-estimate-src-bayesian-synthetic-control-tests-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
