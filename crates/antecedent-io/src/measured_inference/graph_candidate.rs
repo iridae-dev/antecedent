@@ -1304,11 +1304,20 @@ fn execute(
         None => "antecedent.graph_candidate.execution.v1",
     });
     receipt.bytes(program.as_bytes()).bytes(&contract).word(u64::from(parts.imputations));
-    if let Some(target) = target {
+    let transported_imputer = if let Some(target) = target {
         receipt.bytes(&target.digest()?);
-    }
+        let (imputer, interacted) = congenial_imputer(rec, target)?;
+        receipt.word(interacted.len() as u64);
+        for id in interacted {
+            receipt.word(u64::from(id));
+        }
+        Some(imputer)
+    } else {
+        None
+    };
+    let imputer = transported_imputer.as_ref().unwrap_or(&rec.imputer);
     for index in 0..parts.imputations {
-        let (data, completed_digest) = complete_table(rec, index, &scoped)?;
+        let (data, completed_digest) = complete_table(rec, imputer, index, &scoped)?;
         let graphs = graph_imputation_exact_dags(
             &data,
             &rec.variables,
@@ -1687,12 +1696,52 @@ fn execute(
     })
 }
 
+/// The source imputer made congenial with a transported child fit, and the covariates it
+/// interacts with treatment.
+///
+/// A transported child centres one treatment interaction on the target weights for every
+/// covariate it adjusts for or selects, so its target effect reads how the source effect varies
+/// with those covariates. An additive conditional model fills each missing cell as if the effect
+/// did not vary, which pulls the transported effect toward the source-average effect. Each
+/// retained graph's adjustment set and each selection target therefore enters the imputation
+/// model as a product with treatment (passive imputation).
+fn congenial_imputer(
+    rec: &Reconstructed,
+    target: TransportTarget<'_>,
+) -> Result<(Imputer, Vec<u32>), IoError> {
+    let parts = rec.source.parts();
+    let mut covariates: Vec<u32> = rec
+        .atoms
+        .iter()
+        .flat_map(|atom| atom.operation.adjustment.iter().copied())
+        .chain(target.selections().iter().copied())
+        .filter(|&id| id != parts.treatment && id != parts.outcome)
+        .collect();
+    covariates.sort_unstable();
+    covariates.dedup();
+    let name = |id: u32| -> Result<Arc<str>, IoError> {
+        parts
+            .names
+            .get(id as usize)
+            .map(|text| Arc::<str>::from(text.as_str()))
+            .ok_or_else(|| invalid("an interacted covariate is outside the source schema"))
+    };
+    let treatment = name(parts.treatment)?;
+    let mut pairs = Vec::with_capacity(covariates.len());
+    for &id in &covariates {
+        pairs.push((Arc::clone(&treatment), name(id)?));
+    }
+    let imputer = rec.imputer.clone().with_interactions(&pairs).map_err(execution_refused)?;
+    Ok((imputer, covariates))
+}
+
 fn complete_table(
     rec: &Reconstructed,
+    imputer: &Imputer,
     index: u32,
     ctx: &ExecutionContext,
 ) -> Result<(TabularData, [u8; 32]), IoError> {
-    let completed = rec.imputer.impute(index, ctx).map_err(|error| {
+    let completed = imputer.impute(index, ctx).map_err(|error| {
         if ctx.cancellation.is_cancelled() { cancelled() } else { execution_refused(error) }
     })?;
     let replacements: Vec<_> = rec

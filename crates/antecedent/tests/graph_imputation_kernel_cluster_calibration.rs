@@ -77,7 +77,10 @@ fn replicate(seed: u64, n: usize, confounded: bool) -> Option<((f64, f64), f64, 
                 .with_seed(grid_seed(seed ^ 0x6B31_2001)),
             domains: Arc::<[u8]>::from(vec![1, 0, 0]),
             posterior_draws: 100,
-            prior_scale: 1.0,
+            // The conjugate prior is beta | sigma2 ~ N(0, sigma2 * scale^2). With residual SD
+            // 0.1 a unit scale puts the 0.8 effect eight prior SDs from zero and shrinks every
+            // posterior toward it; the weakly informative scale lets the data dominate.
+            prior_scale: 10.0,
             execution_seed: grid_seed(seed ^ 0x6B31_2002),
         },
         &ctx,
