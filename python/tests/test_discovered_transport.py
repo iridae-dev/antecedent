@@ -278,6 +278,29 @@ def test_a_lagged_dag_is_identified_at_horizon_one_with_autoregressive_history()
     assert ("x", "y", 1) in envelope.members[0].directed_edges
 
 
+def test_a_temporal_graph_verdict_runs_under_the_callers_execution() -> None:
+    from antecedent import Execution, ResourceLimits
+    from antecedent.graph import TemporalDag
+
+    template = TemporalDag.from_lagged_edges(
+        ["x", "y", "z"],
+        [("x", 1, "y", 0), ("z", 1, "y", 0), ("z", 1, "z", 0)],
+    )
+    default = discovered.transport_temporal_graph(
+        template,
+        ["x", "y", "z"],
+        **TEMPORAL_QUERY,  # type: ignore[arg-type]
+    )
+    explicit = discovered.transport_temporal_graph(
+        template,
+        ["x", "y", "z"],
+        execution=Execution(seed=5, threads=1, limits=ResourceLimits(memory_bytes=1 << 30)),
+        **TEMPORAL_QUERY,  # type: ignore[arg-type]
+    )
+    assert explicit.status == default.status == "identified_in_every_member"
+    assert explicit.members == default.members
+
+
 def test_a_temporal_pag_enumerates_circles_and_its_members_disagree() -> None:
     from antecedent.graph import TemporalPag
 

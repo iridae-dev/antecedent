@@ -60,10 +60,13 @@ mod bound_study_ranking_api;
 mod bounds_api;
 mod bridge;
 mod bridge_transport_decision_api;
+
+mod bundle_recomputation_api;
 mod callbacks;
 mod candidate_screen_api;
 mod categorical_posterior_candidate_api;
 mod categorical_treatment_api;
+mod chain_decision_api;
 mod checked_claim_api;
 mod choice_inference_api;
 mod cohort_decision_api;
@@ -1936,6 +1939,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     inspect_receipt_api::register(m)?;
     release_migration_api::register(m)?;
     bridge_transport_decision_api::register(m)?;
+
+    chain_decision_api::register(m)?;
+    bundle_recomputation_api::register(m)?;
     registry::register_module(m)
 }
 

@@ -7,6 +7,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::strategy_table::{EstimatorId, estimator_targets_cell};
 use antecedent::support::{
     CellStatus, cell_coordinate, classify, refused_message, support_cell_from_coordinate,
     supported_cells, supported_neighbors,
@@ -54,8 +55,38 @@ fn support_cell_report(coordinate: &str) -> PyResult<String> {
     })
 }
 
+/// Whether `estimator` estimates the quantity a matrix coordinate names under its inference
+/// mode, read from the declared target table without preparing anything. Returns
+/// `(targets, code, detail)`: `code` and `detail` say what does not match when it does not.
+/// A malformed coordinate raises `invalid_argument` and an unknown estimator `unknown_strategy`.
+#[pyfunction]
+fn support_cell_estimator_target(
+    coordinate: &str,
+    estimator: &str,
+) -> PyResult<(bool, Option<String>, Option<String>)> {
+    crate::catch_ffi(|| {
+        let cell = support_cell_from_coordinate(coordinate).ok_or_else(|| {
+            value_err_code(
+                antecedent::reason::reason_code!("invalid_argument"),
+                format!(
+                    "support cell {coordinate:?} is not a query:graph:structure:inference:validation \
+                     coordinate over the matrix axes"
+                ),
+            )
+        })?;
+        let estimator = estimator.parse::<EstimatorId>().map_err(|error| {
+            value_err_code(antecedent::reason::reason_code!("unknown_strategy"), error.to_string())
+        })?;
+        Ok(match estimator_targets_cell(cell, estimator) {
+            Ok(()) => (true, None, None),
+            Err(refusal) => (false, Some(refusal.code.to_owned()), Some(refusal.detail)),
+        })
+    })
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(support_cells, m)?)?;
     m.add_function(wrap_pyfunction!(support_cell_report, m)?)?;
+    m.add_function(wrap_pyfunction!(support_cell_estimator_target, m)?)?;
     Ok(())
 }

@@ -198,3 +198,26 @@ def test_a_malformed_or_off_matrix_coordinate_is_refused():
         host.support_cell_report("no:such:axis:value:here")
     with pytest.raises(CausalTypeError, match=r"coordinate must be a text coordinate"):
         host.support_cell_report(None)  # type: ignore[arg-type]
+
+
+def test_an_estimator_targets_a_cell_exactly_as_the_validity_inventory_records():
+    from _repo_text import REPO_ROOT, load_toml
+
+    cells = load_toml(REPO_ROOT / "parity" / "estimator_validity.toml")["cell"]
+    estimators = sorted({estimator for cell in cells for estimator in cell["valid"]})
+    for cell in cells[::100]:
+        for estimator in estimators:
+            reading = host.estimator_targets_cell(cell["coordinate"], estimator)
+            assert (reading["coordinate"], reading["estimator"]) == (cell["coordinate"], estimator)
+            assert reading["targets"] == (estimator in cell["valid"]), reading
+            if reading["targets"]:
+                assert reading["code"] is None and reading["detail"] is None
+            else:
+                assert reading["code"] in ("strategy_incompatible", "estimator_inference_mismatch")
+                assert reading["detail"]
+    with pytest.raises(CausalValueError) as malformed:
+        host.estimator_targets_cell("static:dag", estimators[0])
+    assert malformed.value.reason_code == "invalid_argument"
+    with pytest.raises(CausalValueError) as unknown:
+        host.estimator_targets_cell(cells[0]["coordinate"], "no.such.estimator")
+    assert unknown.value.reason_code == "unknown_strategy"

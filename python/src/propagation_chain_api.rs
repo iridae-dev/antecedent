@@ -21,7 +21,7 @@ use crate::transport_common::execution_context;
 
 type Refused<T> = (Option<T>, Option<String>);
 /// Exported record, lowered program identity, law meaning and table alignment.
-type ChainParts = (Py<PyBytes>, String, String, Option<String>, Option<String>);
+pub(crate) type ChainParts = (Py<PyBytes>, String, String, Option<String>, Option<String>);
 
 const STAGE: &str = "propagate_chain";
 
@@ -51,7 +51,7 @@ fn invalid_json(message: String) -> String {
     .to_string()
 }
 
-fn chain_parts(py: Python<'_>, chain: &PropagationChain) -> Refused<ChainParts> {
+pub(crate) fn chain_parts(py: Python<'_>, chain: &PropagationChain) -> Refused<ChainParts> {
     let bytes = match chain.export() {
         Ok(bytes) => bytes,
         Err(refusal) => return (None, Some(refusal_json(&refusal))),

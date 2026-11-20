@@ -313,7 +313,10 @@ fn decision_artifact_refusal(error: &IoError) -> String {
     }
 }
 
-fn support_policy_of(unsupported: &str, weakest_support: &str) -> PyResult<SupportPolicy> {
+pub(crate) fn support_policy_of(
+    unsupported: &str,
+    weakest_support: &str,
+) -> PyResult<SupportPolicy> {
     Ok(SupportPolicy {
         unsupported: parse_unsupported(unsupported)?,
         weakest_support: SupportStatus::from_name(weakest_support).ok_or_else(|| {

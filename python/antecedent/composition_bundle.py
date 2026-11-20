@@ -65,6 +65,7 @@ from antecedent import _reason_details
 from . import _native
 from ._artifact_protocol import (
     ArtifactAcceptance,
+    ArtifactExpectation,
     ExportedArtifact,
     artifact_consumer,
     artifact_export,
@@ -76,7 +77,12 @@ from ._scientific import ScientificResult
 from ._validate import count
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
-from .outcomes import outcome_operation
+from .execution import Execution, native_controls, resolve_execution
+from .joint_distribution import JointDistributionArtifact
+from .outcomes import outcome_operation, require_success
+
+if TYPE_CHECKING:
+    from .propagation_chain import PropagationChain
 
 if TYPE_CHECKING:
     from .execution import Execution
@@ -196,6 +202,36 @@ RELATIONSHIPS: tuple[str, ...] = (
     "shared_fitted_model",
     "unknown_dependence",
     "independent",
+)
+PredictiveFitKind = Literal[
+    "joint_transport_predictive_fit",
+    "trial_ipw_predictive_fit",
+    "cyclic_target_feedback_fit",
+    "graph_imputation_predictive_fit",
+    "assessed_bridge_posterior_fit",
+]
+"""The node kind of a native predictive producer embedded with
+:meth:`BundleBuilder.add_predictive_fit`."""
+#: Kinds :meth:`BundleBuilder.add_predictive_fit` embeds.
+PREDICTIVE_FIT_KINDS: tuple[str, ...] = (
+    "joint_transport_predictive_fit",
+    "trial_ipw_predictive_fit",
+    "cyclic_target_feedback_fit",
+    "graph_imputation_predictive_fit",
+    "assessed_bridge_posterior_fit",
+)
+RecomputationRoute = Literal[
+    "chain", "predictive_decision", "posterior_decision", "predictive_fit_decision"
+]
+"""The terminal a :class:`CompiledBundleRecomputation` executes live: a propagation chain, a
+decision result scored on a predictive law or on a parameter posterior, or a predictive producer
+-> chain -> decision path."""
+#: Routes :func:`consume_bundle_recomputation` replays.
+RECOMPUTATION_ROUTES: tuple[str, ...] = (
+    "chain",
+    "predictive_decision",
+    "posterior_decision",
+    "predictive_fit_decision",
 )
 STAGES: tuple[str, ...] = (
     "tampered_quantity",
@@ -452,6 +488,12 @@ def _bytes(data: object) -> bytes:
     raise CausalTypeError("an artifact is bytes, ExportedArtifact, or an exporting object")
 
 
+def _controls(execution: Execution) -> dict[str, Any]:
+    return native_controls(
+        execution, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes"
+    )
+
+
 def _kind(kind: str, *, allow_auto: bool) -> str:
     if kind == "auto" and allow_auto:
         return kind
@@ -654,6 +696,87 @@ class BundleBuilder:
             raise CausalValueError("the native builder returned neither a node nor a refusal")
         self._ids.append(added)
         self._last = added
+        return self
+
+    def add_predictive_fit(
+        self,
+        kind: PredictiveFitKind,
+        artifact: object,
+        *,
+        program: str,
+        node_id: str,
+        execution: Execution | None = None,
+    ) -> BundleBuilder:
+        """Embed a native predictive producer: its exported artifact and its program identity.
+
+        ``kind`` is one of :data:`PREDICTIVE_FIT_KINDS` (a joint transport, a trial IPW transport,
+        a cyclic target-feedback fit, a graph-imputation fit or an assessed scientific bridge
+        posterior) and ``program`` the identity of the producer's compiled program. The producer
+        is reidentified and refitted from its raw evidence under ``execution`` before the node is
+        accepted. The execution's seed is recorded with the node and every replay refits under
+        it, so pass the execution the producer ran under. The producer's chain and its
+        :meth:`add_predictive_chain_decision` terminal follow it by :meth:`connect` edges, and
+        :func:`compile_predictive_fit_decision_bundle` recomputes the path.
+
+        Raises:
+            CausalValueError: ``kind`` is not a predictive fit kind or ``program`` is not a
+                64-hex identity.
+            CausalTypeError: the artifact is neither container bytes nor an exporting object.
+            CompositionBundleRefusal: the node id is used, or the artifact does not replay as that
+                producer under ``program`` (``swapped_evidence``).
+        """
+        if kind not in PREDICTIVE_FIT_KINDS:
+            raise CausalValueError(
+                f"`{kind}` is not a predictive fit kind; use one of {PREDICTIVE_FIT_KINDS}"
+            )
+        if not isinstance(program, str) or not isinstance(node_id, str):
+            raise CausalTypeError("program and node_id must be strings")
+        policy = resolve_execution(execution)
+        refusal = policy._call(
+            self._native.add_predictive_fit,
+            kind,
+            node_id,
+            _bytes(artifact),
+            program,
+            **_controls(policy),
+        )
+        raise_refusal(refusal, _refusal_type)
+        self._ids.append(node_id)
+        self._last = node_id
+        return self
+
+    def add_predictive_chain_decision(
+        self,
+        decision: object,
+        *,
+        node_id: str,
+        execution: Execution | None = None,
+    ) -> BundleBuilder:
+        """Embed a chain decision as a terminal that is recompiled and scored live.
+
+        ``decision`` is a :class:`~antecedent.propagation_chain.ChainDecision` (or its exported
+        bytes) over a ``predictive`` chain law: an action-world decision follows a joint
+        transport, trial IPW, cyclic target-feedback or graph-imputation producer, a plain one an
+        assessed bridge posterior. The decision is consumed independently before the node is
+        accepted; the execution's seed is recorded with the node.
+
+        Raises:
+            CausalTypeError: ``decision`` is neither container bytes nor an exporting object.
+            CompositionBundleRefusal: the node id is used, or the artifact does not replay as a
+                predictive chain decision (``swapped_evidence``).
+        """
+        if not isinstance(node_id, str):
+            raise CausalTypeError("node_id must be a string")
+        policy = resolve_execution(execution)
+        refusal = policy._call(
+            self._native.add_predictive_chain_decision,
+            node_id,
+            _bytes(decision),
+            **_controls(policy),
+        )
+        raise_refusal(refusal, _refusal_type)
+        self._ids.append(node_id)
+        self._last = node_id
         return self
 
     def build(self) -> Bundle:
@@ -1198,16 +1321,374 @@ def detect_kind(data: object) -> str | None:
     return _native.composition_detect_kind(_bytes(data))
 
 
+# ------------------------------------------------------------------- recomputation
+
+
+def _recomputed(pair: tuple[Any, str | None]) -> Any:
+    value, refusal = pair
+    raise_refusal(refusal, _refusal_type)
+    if value is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native recomputation returned neither a result nor a refusal")
+    return value
+
+
+@dataclass(frozen=True)
+class ReplayedDependency:
+    """One embedded dependency that passed its own artifact consumer in this run."""
+
+    node_id: str
+    artifact_identity: str
+    chain_digest: str
+
+
+@dataclass(repr=False, frozen=True, slots=True)
+class BundleRecomputation(ScientificResult):
+    """The receipt of a bundle terminal executed live by its compiled program.
+
+    Every embedded dependency passed its own consumer in this run (``dependencies``, in bundle
+    order, with the recomputed identity and Merkle digest of each) and the terminal was executed
+    by the program ``program_identity``. A ``chain`` route names the recomputed
+    ``terminal_identity``; a ``predictive_decision`` or ``posterior_decision`` route the
+    ``decision_fingerprint`` of the decision freshly scored on the bound source law; a
+    ``predictive_fit_decision`` route the refitted ``chain_identity``, the live
+    ``decision_fingerprint`` and the ``producer_program_identity``. Nothing outside the embedded
+    evidence is refitted and no calibration is earned. ``replayed`` is ``True`` for a receipt an
+    independent consumer recomputed from a portable artifact.
+    """
+
+    route: RecomputationRoute
+    bundle_identity: str
+    program_identity: str
+    dependencies: tuple[ReplayedDependency, ...]
+    terminal_node: str | None = None
+    terminal_identity: str | None = None
+    chain_identity: str | None = None
+    decision_fingerprint: str | None = None
+    producer_program_identity: str | None = None
+    replayed: bool = False
+    _handle: Any = field(repr=False, compare=False, default=None)
+
+    @artifact_export
+    def export(
+        self, *, execution: Execution | None = None
+    ) -> ExportedArtifact[BundleRecomputation]:
+        """Re-execute, require this receipt, and embed the bundle with it for a fresh process.
+
+        :func:`consume_bundle_recomputation` rebuilds the graph, recompiles the terminal program
+        and requires the same live receipt; its expectation is :attr:`program_identity`. A
+        replayed receipt forwards the bytes it was read from.
+
+        Raises:
+            CompositionBundleRefusal: the live receipt changed or the artifact exceeds its bound.
+        """
+        kind = f"{self.route}_bundle_recomputation"
+        if self._handle is None:
+            data = getattr(self, "_artifact_bytes", None)
+            if data is None:
+                raise CausalTypeError("this receipt retains neither its compiled program nor bytes")
+        else:
+            plan, run = self._handle
+            policy = resolve_execution(execution)
+            data = _recomputed(policy._call(plan.export_portable, run, **_controls(policy)))
+        return ExportedArtifact(bytes(data), kind, ArtifactExpectation(kind, self.program_identity))
+
+
+def _recomputation_of(run: Any, *, plan: Any) -> BundleRecomputation:
+    body = json.loads(run.receipt_json())
+    return BundleRecomputation(
+        route=body["route"],
+        bundle_identity=str(body["bundle_identity"]),
+        program_identity=str(body["program_identity"]),
+        dependencies=tuple(
+            ReplayedDependency(
+                str(item["node_id"]), str(item["artifact_identity"]), str(item["chain_digest"])
+            )
+            for item in body["dependencies"]
+        ),
+        terminal_node=body["terminal_node"],
+        terminal_identity=body["terminal_identity"],
+        chain_identity=body["chain_identity"],
+        decision_fingerprint=body["decision_fingerprint"],
+        producer_program_identity=body["producer_program_identity"],
+        replayed=plan is None,
+        _handle=None if plan is None else (plan, run),
+    )
+
+
+class CompiledBundleRecomputation:
+    """A sealed bundle and its live terminal compiled into one six-layer program.
+
+    The graph, every node identity and the terminal declaration are bound before anything runs.
+    :attr:`route` names the terminal, :attr:`program_identity` is the identity a consumer retains
+    with :attr:`bundle_identity`, :meth:`plan_view` shows every layer and :meth:`execute` replays
+    the dependencies and runs the terminal.
+    """
+
+    def __init__(self, handle: Any, bundle_identity: str) -> None:
+        self._handle = handle
+        self._bundle_identity = bundle_identity
+
+    @property
+    def route(self) -> RecomputationRoute:
+        """``chain``, ``predictive_decision``, ``posterior_decision`` or
+        ``predictive_fit_decision``."""
+        route: RecomputationRoute = self._handle.route
+        return route
+
+    @property
+    def program_identity(self) -> str:
+        """Identity of the compiled program (lowercase hex)."""
+        return str(self._handle.program_identity)
+
+    @property
+    def bundle_identity(self) -> str:
+        """Identity of the compiled bundle."""
+        return self._bundle_identity
+
+    def plan_view(self) -> dict[str, Any]:
+        """Every layer of the compiled program, with nothing executed."""
+        return dict(json.loads(self._handle.plan_view_json()))
+
+    @outcome_operation
+    def execute(self, *, execution: Execution | None = None) -> BundleRecomputation:
+        """Replay every embedded dependency through its own consumer and execute the terminal.
+
+        A reference node, a failed dependency or a terminal that differs from its live result
+        refuses; a cancelled run raises :class:`~antecedent.errors.CausalCancelledError`.
+
+        Raises:
+            CompositionBundleRefusal: a dependency or the live terminal does not replay.
+        """
+        policy = resolve_execution(execution)
+        run = _recomputed(policy._call(self._handle.execute, **_controls(policy)))
+        return _recomputation_of(run, plan=self._handle)
+
+    def __repr__(self) -> str:
+        return (
+            f"CompiledBundleRecomputation(route={self.route!r}, "
+            f"program_identity={self.program_identity[:12]!r})"
+        )
+
+
+def _bundle(bundle: object) -> Bundle:
+    bundle = require_success(bundle)
+    if not isinstance(bundle, Bundle):
+        raise CausalTypeError(f"bundle must be a built Bundle, not {type(bundle).__name__}")
+    return bundle
+
+
+def _node(value: object, what: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise CausalTypeError(f"{what} must be a node id")
+    return value
+
+
+@outcome_operation
+def compile_chain_bundle_recomputation(
+    bundle: Bundle,
+    terminal: str,
+    *,
+    chain: PropagationChain | None = None,
+    execution: Execution | None = None,
+) -> CompiledBundleRecomputation:
+    """Compile a fully embedded bundle with its propagation-chain terminal into one program.
+
+    ``terminal`` is an embedded ``propagation_chain`` node. Its own record is compiled unless
+    ``chain`` gives the live :class:`~antecedent.propagation_chain.PropagationChain` the terminal
+    must equal; either way execution requires the embedded record and the live result to agree.
+
+    Raises:
+        CausalTypeError: ``bundle``, ``terminal`` or ``chain`` has the wrong type.
+        CompositionBundleRefusal: the terminal is absent, a reference or not a chain, or the chain
+            declaration refuses.
+    """
+    from .propagation_chain import PropagationChain
+
+    built = _bundle(bundle)
+    record = None
+    if chain is not None:
+        chain = require_success(chain)
+        if not isinstance(chain, PropagationChain):
+            raise CausalTypeError("chain must be a PropagationChain")
+        record = chain._record
+    policy = resolve_execution(execution)
+    handle = _recomputed(
+        policy._call(
+            _native.chain_bundle_recomputation_compile,
+            built._native,
+            _node(terminal, "terminal"),
+            record,
+            cancel=policy.cancel,
+        )
+    )
+    return CompiledBundleRecomputation(handle, built.identity)
+
+
+@outcome_operation
+def compile_decision_bundle_recomputation(
+    bundle: Bundle,
+    terminal: str,
+    *,
+    contract: Contract,
+    source: JointDistributionArtifact,
+    carrier: Literal["predictive", "parameter_posterior"] = "predictive",
+) -> CompiledBundleRecomputation:
+    """Compile a bundle whose terminal decision result is rescored live on its source law.
+
+    ``terminal`` is an embedded ``decision_result`` node evaluated from ``contract`` on
+    ``source``, a jointly aligned :class:`~antecedent.joint_distribution.JointDistributionArtifact`.
+    ``carrier="predictive"`` needs a predictive outcome law; ``"parameter_posterior"`` a
+    parameter-posterior law, an expected-utility or expected-loss criterion and no ``outcome``
+    functional, because posterior parameter draws are not outcome risk. The contract, the source,
+    the graph and the node all enter the program identity before any utility is scored. A
+    portable consumer reconstructs the contract and the source from the bundle's own
+    ``decision_contract`` and ``distribution`` nodes.
+
+    Raises:
+        CausalTypeError: an argument has the wrong type.
+        CausalValueError: ``carrier`` is not ``predictive`` or ``parameter_posterior``.
+        CompositionBundleRefusal: the terminal is absent or a reference, the contract is invalid,
+            or the law cannot carry the decision (``decision_contract_unsatisfied``).
+    """
+    built = _bundle(bundle)
+    contract = require_success(contract)
+    source = require_success(source)
+    if not isinstance(contract, Contract):
+        raise CausalTypeError("contract must be a decision.Contract")
+    if not isinstance(source, JointDistributionArtifact):
+        raise CausalTypeError("source must be a JointDistributionArtifact")
+    if carrier not in ("predictive", "parameter_posterior"):
+        raise CausalValueError("carrier must be predictive or parameter_posterior")
+    handle = _recomputed(
+        _native.decision_bundle_recomputation_compile(
+            built._native,
+            _node(terminal, "terminal"),
+            json.dumps(contract._wire()),
+            source._native,
+            posterior=carrier == "parameter_posterior",
+        )
+    )
+    return CompiledBundleRecomputation(handle, built.identity)
+
+
+@outcome_operation
+def compile_predictive_fit_decision_bundle(
+    bundle: Bundle,
+    *,
+    producer: str,
+    chain: str,
+    terminal: str,
+    execution: Execution | None = None,
+) -> CompiledBundleRecomputation:
+    """Compile a native producer -> predictive chain -> live decision path of a bundle.
+
+    ``producer`` is a node added with :meth:`BundleBuilder.add_predictive_fit`; its kind selects
+    the producer's compiler. ``chain`` is the embedded ``propagation_chain`` the producer's
+    decision retained and ``terminal`` the :meth:`BundleBuilder.add_predictive_chain_decision`
+    node, joined by the edges ``producer -> chain -> terminal``. Execution refits the producer
+    from its raw evidence, executes the predictive chain and rescores the decision; it earns no
+    calibration.
+
+    Raises:
+        CausalTypeError: ``bundle`` or a node id has the wrong type.
+        CompositionBundleRefusal: the producer is not a predictive fit node, an edge is missing,
+            a node is a reference or of another kind, or the decision and chain differ.
+    """
+    built = _bundle(bundle)
+    policy = resolve_execution(execution)
+    handle = _recomputed(
+        policy._call(
+            _native.predictive_fit_decision_bundle_compile,
+            built._native,
+            _node(producer, "producer"),
+            _node(chain, "chain"),
+            _node(terminal, "terminal"),
+            **_controls(policy),
+        )
+    )
+    return CompiledBundleRecomputation(handle, built.identity)
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="composition_bundle.consume_bundle_recomputation: rebuilds the portable bundle under the "
+    "retained bundle identity, recompiles its terminal program under the retained program "
+    "identity, replays every dependency, executes the terminal and requires the stored receipt",
+    replayable=True,
+    identity=("expected_bundle", "expected_program"),
+)
+def consume_bundle_recomputation(
+    artifact: bytes,
+    *,
+    route: RecomputationRoute,
+    expected_bundle: str,
+    expected_program: str,
+    execution: Execution | None = None,
+) -> BundleRecomputation:
+    """Independently consume a portable bundle recomputation.
+
+    The bundle is rebuilt under ``expected_bundle``, the terminal's program recompiled and
+    compared with ``expected_program``, every dependency replayed by its own consumer and the
+    terminal executed again; the live receipt must equal the stored one. ``route`` is the
+    :attr:`BundleRecomputation.route` the producer handed over with the two identities: a
+    ``predictive_decision`` or ``posterior_decision`` rebuilds the contract and the source law from
+    the bundle's own nodes, and a ``predictive_fit_decision`` refits its producer.
+
+    Raises:
+        CausalValueError: ``route`` is not one of :data:`RECOMPUTATION_ROUTES`, or
+            ``expected_program`` is not a 64-hex identity.
+        CompositionBundleRefusal: a foreign feature, a changed graph or program
+            (``external_binding_mismatch``), a failed dependency or a changed live terminal.
+    """
+    if route not in RECOMPUTATION_ROUTES:
+        raise CausalValueError(f"route must be one of {RECOMPUTATION_ROUTES}")
+    if not isinstance(expected_bundle, str) or not isinstance(expected_program, str):
+        raise CausalTypeError("expected_bundle and expected_program must be identity strings")
+    data = container_bytes(artifact)
+    policy = resolve_execution(execution)
+    controls = _controls(policy)
+    if route == "chain":
+        pair = policy._call(
+            _native.chain_bundle_recomputation_consume,
+            data,
+            expected_bundle,
+            expected_program,
+            **controls,
+        )
+    elif route == "predictive_fit_decision":
+        pair = policy._call(
+            _native.predictive_fit_decision_bundle_consume,
+            data,
+            expected_bundle,
+            expected_program,
+            **controls,
+        )
+    else:
+        pair = policy._call(
+            _native.decision_bundle_recomputation_consume,
+            data,
+            expected_bundle,
+            expected_program,
+            posterior=route == "posterior_decision",
+            **controls,
+        )
+    return _recomputation_of(_recomputed(pair), plan=None)
+
+
 __all__ = [
     "EMBEDDABLE_KINDS",
     "NODE_KINDS",
+    "PREDICTIVE_FIT_KINDS",
+    "RECOMPUTATION_ROUTES",
     "RELATIONSHIPS",
     "STAGES",
     "ArtifactDescription",
     "Bundle",
     "BundleBuilder",
+    "BundleRecomputation",
     "CallbackUnavailableRefusal",
     "ClaimLabel",
+    "CompiledBundleRecomputation",
     "CompositionBundleRefusal",
     "ConsumedBundle",
     "ConsumedNode",
@@ -1223,10 +1704,13 @@ __all__ = [
     "NodeStatus",
     "NodeSummary",
     "OversizedRefusal",
+    "PredictiveFitKind",
     "ProviderRequestChangedRefusal",
     "ProviderRequirement",
+    "RecomputationRoute",
     "ReferenceUnresolved",
     "Relationship",
+    "ReplayedDependency",
     "Requirement",
     "SuppliedSources",
     "SwappedEvidenceRefusal",
@@ -1234,7 +1718,11 @@ __all__ = [
     "UnknownNodeKindRefusal",
     "UnsupportedLawRefusal",
     "Verified",
+    "compile_chain_bundle_recomputation",
+    "compile_decision_bundle_recomputation",
+    "compile_predictive_fit_decision_bundle",
     "consume_bundle",
+    "consume_bundle_recomputation",
     "describe_artifact",
     "detect_kind",
     "mean_decision",

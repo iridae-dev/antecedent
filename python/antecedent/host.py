@@ -43,6 +43,7 @@ __all__ = [
     "error_families",
     "error_family",
     "error_response",
+    "estimator_targets_cell",
     "fallback_response",
     "inspection_status",
     "operation_record",
@@ -277,6 +278,34 @@ def support_cell_report(coordinate: str) -> dict[str, Any]:
     if not isinstance(coordinate, str):
         raise CausalTypeError("coordinate must be a text coordinate")
     return cast(dict[str, Any], json.loads(_native.support_cell_report(coordinate)))
+
+
+def estimator_targets_cell(coordinate: str, estimator: str) -> dict[str, Any]:
+    """Whether ``estimator`` estimates the quantity a matrix coordinate names.
+
+    Read from the declared target table (the query kind, the design variant and the inference
+    mode of the cell, with its validation suite); nothing is prepared, fitted or scanned. Returns
+    ``{"coordinate", "estimator", "targets", "code", "detail"}``: ``targets`` is ``True`` when the
+    estimator's declared target is the cell's quantity, otherwise ``code`` is
+    ``strategy_incompatible`` or ``estimator_inference_mismatch`` and ``detail`` names what does
+    not match. It reads any coordinate over the matrix axes, supported or not, and the estimators
+    that target a supported cell are its valid ones whether or not the cell lists them.
+
+    Raises:
+        CausalTypeError: ``coordinate`` or ``estimator`` is not a string.
+        CausalValueError: the coordinate is malformed or names an axis value outside the matrix
+            (``invalid_argument``), or the estimator is unknown (``unknown_strategy``).
+    """
+    if not isinstance(coordinate, str) or not isinstance(estimator, str):
+        raise CausalTypeError("coordinate and estimator must be strings")
+    targets, code, detail = _native.support_cell_estimator_target(coordinate, estimator)
+    return {
+        "coordinate": coordinate,
+        "estimator": estimator,
+        "targets": bool(targets),
+        "code": code,
+        "detail": detail,
+    }
 
 
 def claim_record(claim: Mapping[str, Any]) -> dict[str, Any]:
