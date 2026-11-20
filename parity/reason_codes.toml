@@ -238,7 +238,7 @@ meaning = "No execution route implements this combination of query, structure, d
 [[code]]
 id = "dynamics_not_identified"
 applies_to = ["runtime_refusal"]
-meaning = "The trajectory design does not identify the requested continuous-time dynamics: no unit is observed at two or more times, or the observed information of the requested coordinates is singular at the converged optimum (a coordinate the observations cannot determine, such as the dynamics of an unobserved state, or an unidentified diffusion factor). The refusal names the evidence and the observation or coordinate change that would identify the dynamics."
+meaning = "The trajectory design does not identify the requested continuous-time dynamics: no unit is observed at two or more times, or the observed information of the requested coordinates is singular at the converged optimum (a coordinate the observations cannot determine, such as the dynamics of an unobserved state, or an unidentified diffusion factor), or a self-exciting event process has a fitted type with no arrivals or a likelihood fit or recursive refit that does not reach its numerical cutoff. The refusal names the evidence and the observation or coordinate change that would identify the dynamics."
 
 [[code]]
 id = "quantity_semantics_mismatch"
@@ -571,7 +571,7 @@ meaning = "A representation changed coordinate system or version without an expl
 [[code]]
 id = "uncertainty_representation_insufficient"
 applies_to = ["runtime_refusal"]
-meaning = "A quantity was asked for a reading its uncertainty representation cannot carry: a fixed value asked for a spread, an interval or enclosure asked for a posterior, a spread or a pool, a sampling law asked for a posterior or a future-study update, or an interval of a composed quantity with no measured coverage record at its composed coordinate. The refusal names the representation (draws, posterior draws, an enclosure reading, a measured record) that would carry it."
+meaning = "A quantity was asked for a reading its uncertainty representation cannot carry: a fixed value asked for a spread, an interval or enclosure asked for a posterior, a spread or a pool, a sampling law asked for a posterior or a future-study update, an interval of a composed quantity with no measured coverage record at its composed coordinate, or an event count interval with no current matching coverage record. The refusal names the representation (draws, posterior draws, an enclosure reading, a measured record) that would carry it."
 
 [[code]]
 id = "differential_error_not_pooled"

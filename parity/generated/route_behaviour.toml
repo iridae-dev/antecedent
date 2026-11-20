@@ -8086,12 +8086,12 @@ status = "supported"
 refusals = [
   { code = "invalid_argument", detail = "events.invalid_request" },
   { code = "invalid_argument", detail = "events.unstable" },
-  { code = "not_supported", detail = "events.fit_failed" },
+  { code = "dynamics_not_identified", detail = "events.fit_failed" },
   { code = "execution_resource_limit", detail = "events.budget" },
   { code = "invalid_argument", detail = "events.numerical" },
-  { code = "not_supported", detail = "events.unverified_source" },
-  { code = "not_supported", detail = "events.incomplete_law" },
-  { code = "not_supported", detail = "events.interval_unmeasured" },
+  { code = "external_verification_failed", detail = "events.unverified_source" },
+  { code = "invalid_argument", detail = "events.incomplete_law" },
+  { code = "uncertainty_representation_insufficient", detail = "events.interval_unmeasured" },
 ]
 routes = [
   { route = "antecedent.Study.prepare_event_forecast", stage = "prepare", status = "supported", claim = "point_only" },
@@ -8108,5 +8108,5 @@ routes = [
 id = "forecast.event_count_interval"
 status = "not_supported"
 routes = [
-  { route = "antecedent.PreparedEventForecast.count_interval", stage = "uncertainty", status = "closed", reason_code = "not_supported", claim = "interval" },
+  { route = "antecedent.PreparedEventForecast.count_interval", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", claim = "interval" },
 ]

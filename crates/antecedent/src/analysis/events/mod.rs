@@ -99,16 +99,13 @@ impl EventError {
     pub fn reason_code(&self) -> Option<&'static str> {
         use antecedent_core::reason_code;
         Some(match self {
-            Self::Invalid(_) | Self::Unstable | Self::Numerical(_) => {
+            Self::Invalid(_) | Self::Unstable | Self::Numerical(_) | Self::IncompleteLaw { .. } => {
                 reason_code!("invalid_argument")
             }
             Self::Budget => reason_code!("execution_resource_limit"),
-            Self::Fit(_)
-            | Self::Unverified
-            | Self::IncompleteLaw { .. }
-            | Self::IntervalUnmeasured => {
-                reason_code!("not_supported")
-            }
+            Self::Fit(_) => reason_code!("dynamics_not_identified"),
+            Self::Unverified => reason_code!("external_verification_failed"),
+            Self::IntervalUnmeasured => reason_code!("uncertainty_representation_insufficient"),
             Self::Compiler(_) => return None,
         })
     }

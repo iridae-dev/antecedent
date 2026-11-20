@@ -243,7 +243,7 @@ fn unmeasured_count_interval_is_withheld() {
     let plan = Study::prepare_event_forecast(request, None, &ctx).unwrap();
     let error = plan.count_interval(0, &ctx).unwrap_err();
     assert!(matches!(error, EventError::IntervalUnmeasured));
-    assert_eq!(error.reason_code(), Some("not_supported"));
+    assert_eq!(error.reason_code(), Some("uncertainty_representation_insufficient"));
 }
 
 #[test]

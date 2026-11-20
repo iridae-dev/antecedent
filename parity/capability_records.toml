@@ -23648,7 +23648,7 @@ compatibility = "Separate construction and measurement from every existing inter
 prerequisite_records = ["forecast.event_process"]
 search = false
 bounds = { cancellation = true, operation_limit = "event forecast execution limits", memory_limit = "execution admission limits" }
-refusals = [{ code = "not_supported", detail = "events.interval_unmeasured", when = "The request falls outside a current matching count-coverage record." }]
+refusals = [{ code = "uncertainty_representation_insufficient", detail = "events.interval_unmeasured", when = "The request falls outside a current matching count-coverage record." }]
 fixtures = [
   { id = "forecast.event_count_interval.smoothed_rank.construction", role = "construction", intent = "The exact boundary-count shares and endpoints match independent rank-slot arithmetic.", evidence_test = "crates/antecedent/src/analysis/events/assessment.rs", evidence_assertion = "count_interval_matches_hand_ranked_discrete_tails" },
   { id = "forecast.event_count_interval.coverage_candidate.positive", role = "positive", intent = "A recursive-refit forecast supplies the exact count interval construction for independent coverage." },
@@ -23656,5 +23656,5 @@ fixtures = [
   { id = "forecast.event_count_interval.calibration_slot.artifact", role = "artifact", intent = "The interval carries the forecast and matching calibration identities." },
 ]
 routes = [
-  { name = "antecedent.PreparedEventForecast.count_interval", stage = "uncertainty", status = "closed", reason_code = "not_supported", claim = "interval", refusal_test = "crates/antecedent/tests/events.rs", refusal_assertion = "unmeasured_count_interval_is_withheld" },
+  { name = "antecedent.PreparedEventForecast.count_interval", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", claim = "interval", refusal_test = "crates/antecedent/tests/events.rs", refusal_assertion = "unmeasured_count_interval_is_withheld" },
 ]
