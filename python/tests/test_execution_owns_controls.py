@@ -133,6 +133,12 @@ ALLOWLIST: dict[str, str] = {
     "antecedent.scientific_bridge.PreparedDistributionBridge.derive:seed": "mapping seed recorded with the derived table",
     "antecedent.sequential_evaluation.rollout:seed": "stream recorded on the rollout estimate",
     "antecedent.decision_reliability.sequential_policy_reliability:seed": "declared rollout or bootstrap stream, in the program identity and replayed from the artifact",
+    "antecedent.graph_imputation_decision.GaussianResidual:seed": (
+        "declared residual stream of the Gaussian predictive worlds, in the program identity"
+    ),
+    "antecedent.graph_imputation_decision.TargetBootstrap:seed": (
+        "declared target-resampling stream of the bootstrap decision, in the program identity"
+    ),
     "antecedent.cyclic.SdeSimulation:seed": "declared Monte Carlo stream of the ensemble, in the request and replayed from it",
     "antecedent.cyclic.StochasticDifferentialEquation.fit:parameter_seed": "declared stream of the parameter draws, in the request and replayed from it",
     "antecedent.transport._joint_sensitivity.consume_joint_mechanism_sensitivity_artifact:max_memory_bytes": "consumer ceiling on the stored search envelope, not Execution memory",

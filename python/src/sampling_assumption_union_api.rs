@@ -338,7 +338,7 @@ impl PySamplingAssumptionUnion {
 /// identities, groups, block length, replicate count and level, or the declared reruns.
 /// Returns `(handle, refusal)`.
 #[pyfunction]
-#[pyo3(signature = (scheme, request_json, seed=0, cancel=None))]
+#[pyo3(signature = (scheme, request_json, seed=1, cancel=None))]
 fn sampling_assumption_union_compile(
     py: Python<'_>,
     scheme: &str,
@@ -376,7 +376,7 @@ struct FeatureProbe {
 /// seed they were produced with: every chain is recompiled and rerun and the result is
 /// compared. Returns `(result_json, refusal)`.
 #[pyfunction]
-#[pyo3(signature = (artifact, expected_identity, seed=0, cancel=None))]
+#[pyo3(signature = (artifact, expected_identity, seed=1, cancel=None))]
 fn sampling_assumption_union_consume(
     py: Python<'_>,
     artifact: &[u8],

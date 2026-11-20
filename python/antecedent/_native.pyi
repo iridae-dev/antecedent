@@ -8374,7 +8374,7 @@ class CompositionBundleBuilder:
         artifact: bytes,
         program: str,
         *,
-        seed: int = 0,
+        seed: int = 1,
         threads: int | None = None,
         cancel: CancellationToken | None = None,
         memory_bytes: int | None = None,
@@ -8384,7 +8384,7 @@ class CompositionBundleBuilder:
         node_id: str,
         artifact: bytes,
         *,
-        seed: int = 0,
+        seed: int = 1,
         threads: int | None = None,
         cancel: CancellationToken | None = None,
         memory_bytes: int | None = None,
@@ -12953,7 +12953,7 @@ class ChainDecisionPlanHandle:
     def execute(
         self,
         *,
-        seed: int = 0,
+        seed: int = 1,
         threads: int | None = None,
         cancel: CancellationToken | None = None,
         memory_bytes: int | None = None,
@@ -12973,7 +12973,7 @@ class ChainRobustDecisionPlanHandle:
     def execute(
         self,
         *,
-        seed: int = 0,
+        seed: int = 1,
         threads: int | None = None,
         cancel: CancellationToken | None = None,
         memory_bytes: int | None = None,
@@ -13006,7 +13006,7 @@ def chain_decision_consume(
     data: bytes,
     expected_identity: str | None = None,
     *,
-    seed: int = 0,
+    seed: int = 1,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
     memory_bytes: int | None = None,
@@ -13021,7 +13021,7 @@ def chain_robust_decision_consume(
     data: bytes,
     expected_identity: str | None = None,
     *,
-    seed: int = 0,
+    seed: int = 1,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
     memory_bytes: int | None = None,
@@ -13035,7 +13035,7 @@ class BundleRecomputationPlanHandle:
     def execute(
         self,
         *,
-        seed: int = 0,
+        seed: int = 1,
         threads: int | None = None,
         cancel: CancellationToken | None = None,
         memory_bytes: int | None = None,
@@ -13044,7 +13044,7 @@ class BundleRecomputationPlanHandle:
         self,
         run: BundleRecomputationRunHandle,
         *,
-        seed: int = 0,
+        seed: int = 1,
         threads: int | None = None,
         cancel: CancellationToken | None = None,
         memory_bytes: int | None = None,
@@ -13065,7 +13065,7 @@ def chain_bundle_recomputation_consume(
     expected_bundle: str,
     expected_program: str,
     *,
-    seed: int = 0,
+    seed: int = 1,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
     memory_bytes: int | None = None,
@@ -13084,7 +13084,7 @@ def decision_bundle_recomputation_consume(
     expected_program: str,
     *,
     posterior: bool = False,
-    seed: int = 0,
+    seed: int = 1,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
     memory_bytes: int | None = None,
@@ -13095,7 +13095,7 @@ def predictive_fit_decision_bundle_compile(
     chain: str,
     terminal: str,
     *,
-    seed: int = 0,
+    seed: int = 1,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
     memory_bytes: int | None = None,
@@ -13105,7 +13105,7 @@ def predictive_fit_decision_bundle_consume(
     expected_bundle: str,
     expected_program: str,
     *,
-    seed: int = 0,
+    seed: int = 1,
     threads: int | None = None,
     cancel: CancellationToken | None = None,
     memory_bytes: int | None = None,
@@ -13337,13 +13337,13 @@ class SamplingAssumptionUnionHandle:
 def sampling_assumption_union_compile(
     scheme: str,
     request_json: str,
-    seed: int = 0,
+    seed: int = 1,
     cancel: CancellationToken | None = None,
 ) -> tuple[SamplingAssumptionUnionHandle | None, str | None]: ...
 def sampling_assumption_union_consume(
     artifact: bytes,
     expected_identity: str,
-    seed: int = 0,
+    seed: int = 1,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
 
@@ -13387,7 +13387,7 @@ def observational_policy_export(
 def observational_policy_consume(
     artifact: bytes,
     expected_identity: str | None = None,
-    seed: int = 0,
+    seed: int = 1,
     *,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
@@ -13407,7 +13407,7 @@ def policy_subsampling_compile(
 def policy_subsampling_consume(
     artifact: bytes,
     expected_identity: str,
-    seed: int = 0,
+    seed: int = 1,
     *,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
@@ -13417,13 +13417,13 @@ def sequential_policy_reliability_compile(
     policies_json: str,
     unit: str,
     mode_json: str,
-    seed: int = 0,
+    seed: int = 1,
     cancel: CancellationToken | None = None,
 ) -> tuple[SequentialPolicyReliabilityHandle | None, str | None]: ...
 def sequential_policy_reliability_consume(
     artifact: bytes,
     expected_identity: str | None = None,
-    seed: int = 0,
+    seed: int = 1,
     cancel: CancellationToken | None = None,
 ) -> tuple[tuple[str, str, str] | None, str | None]: ...
 def composition_add_sequential_policy_reliability(
@@ -13439,13 +13439,13 @@ def sequential_reliability_bundle_compile(
     producer: str,
     draws: str,
     diagnostic: str,
-    seed: int = 0,
+    seed: int = 1,
     cancel: CancellationToken | None = None,
 ) -> tuple[SequentialReliabilityBundleHandle | None, str | None]: ...
 def sequential_reliability_bundle_consume(
     artifact: bytes,
     expected_bundle: str,
     expected_identity: str,
-    seed: int = 0,
+    seed: int = 1,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...

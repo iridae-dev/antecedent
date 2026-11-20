@@ -21,6 +21,7 @@ use antecedent::analysis::composition::{
     consume_portable_trial_ipw_node_bundle_recomputation, joint_transport_effect_bundle_consumer,
     trial_ipw_bundle_consumer,
 };
+use antecedent::analysis::inverse_query::DecisionContract;
 use antecedent::analysis::joint_transport_effect_decision::{
     CompiledJointTransportEffectDecision, JointTransportEffectDecisionError,
     JointTransportEffectDecisionRequest, JointTransportEffectDecisionResult,
@@ -53,7 +54,6 @@ use antecedent::analysis::trial_ipw_transport_decision::{
 };
 use antecedent::analysis::{trial_ipw_predictive_decision, trial_ipw_transport_decision};
 use antecedent::design::decision_artifact::contract_from_json_refusal;
-use antecedent::design::decision_contract::DecisionContract;
 use antecedent::design::decision_eval::{DecisionResult, Verdict};
 use antecedent::estimate::ExactEvaluationLimits;
 use antecedent::estimate::counterfactual_transport_sampled::{

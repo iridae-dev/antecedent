@@ -217,7 +217,7 @@ impl PyChainDecisionPlan {
     }
 
     /// Execute the retained chain and score the contract on its aligned output law.
-    #[pyo3(signature = (*, seed=0, threads=None, cancel=None, memory_bytes=None))]
+    #[pyo3(signature = (*, seed=1, threads=None, cancel=None, memory_bytes=None))]
     fn execute(
         &self,
         py: Python<'_>,
@@ -352,7 +352,7 @@ fn chain_decision_compile_transported(
 /// Independently consume a chain decision artifact: the chain record and contract are
 /// consumed, recompiled into their joint program, re-executed and compared bit for bit.
 #[pyfunction]
-#[pyo3(signature = (data, expected_identity=None, *, seed=0, threads=None, cancel=None, memory_bytes=None))]
+#[pyo3(signature = (data, expected_identity=None, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
 fn chain_decision_consume(
     py: Python<'_>,
     data: &[u8],
@@ -395,7 +395,7 @@ impl PyChainRobustDecisionPlan {
     }
 
     /// Replay the rowwise assumption bounds and bound every action's utility and constraints.
-    #[pyo3(signature = (*, seed=0, threads=None, cancel=None, memory_bytes=None))]
+    #[pyo3(signature = (*, seed=1, threads=None, cancel=None, memory_bytes=None))]
     fn execute(
         &self,
         py: Python<'_>,
@@ -496,7 +496,7 @@ fn chain_robust_decision_compile(
 
 /// Independently consume a robust chain decision artifact under the retained program identity.
 #[pyfunction]
-#[pyo3(signature = (data, expected_identity=None, *, seed=0, threads=None, cancel=None, memory_bytes=None))]
+#[pyo3(signature = (data, expected_identity=None, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
 fn chain_robust_decision_consume(
     py: Python<'_>,
     data: &[u8],

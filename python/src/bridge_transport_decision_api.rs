@@ -34,16 +34,14 @@ use antecedent::analysis::composition::{
     CompiledBridgeBundleRecomputation, CompositionBundle, compile_bridge_bundle_recomputation,
     consume_portable_bridge_bundle_recomputation,
 };
+use antecedent::analysis::inverse_query::DecisionContract;
 use antecedent::analysis::inverse_query::DistributionArtifact;
 use antecedent::analysis::{ChainDecisionError, ChainDecisionResult, ChainRobustDecisionResult};
 use antecedent::contract::bridge::{
-    BridgeContract, BridgeScope, TransportabilityPremise, TrialEffectPair, TrialLevelFit,
-    TrialLevelValidation,
+    BridgeContract, BridgeScope, TransportabilityPremise, TrialEffectPair, TrialLevelValidation,
 };
 use antecedent::design::decision_artifact::contract_from_json_refusal;
-use antecedent::design::decision_contract::DecisionContract;
 use antecedent::design::decision_eval::{DecisionResult, Verdict};
-use antecedent::design::decision_evaluation::EvaluationError;
 use antecedent::io::IoError;
 use antecedent::prelude::ExecutionContext;
 use antecedent::scientific::SemanticDigest;
@@ -130,19 +128,16 @@ fn io_refusal(error: &IoError, stage: &str) -> PyResult<String> {
     }
 }
 
-fn evaluation_refusal(error: &EvaluationError) -> PyResult<String> {
-    match error {
-        EvaluationError::Contract(inner) => Ok(external_refusal_json(&inner.to_refusal())),
-        EvaluationError::Evaluation(inner) => Ok(external_refusal_json(&inner.to_refusal())),
-        EvaluationError::Cancelled { .. } => Err(cancelled()),
-        other => Ok(RefusalJson::new(
-            antecedent::reason::reason_code!("decision_contract_unsatisfied"),
-            DECISION_STAGE,
-            EVALUATION_REFUSED,
-            &other.to_string(),
-        )
-        .json()),
-    }
+// The evaluator's error type is not reachable through the facade, so it is reported by its
+// message, as the chain decision binding reports it.
+fn evaluation_refusal(error: &impl std::fmt::Display) -> PyResult<String> {
+    Ok(RefusalJson::new(
+        antecedent::reason::reason_code!("decision_contract_unsatisfied"),
+        DECISION_STAGE,
+        EVALUATION_REFUSED,
+        &error.to_string(),
+    )
+    .json())
 }
 
 fn chain_refusal(error: &ChainDecisionError) -> PyResult<String> {
@@ -299,22 +294,26 @@ fn bridge_contract(text: &str) -> PyResult<BridgeContract> {
 // Results as JSON.
 // ---------------------------------------------------------------------------
 
-fn fit_json(fit: &TrialLevelFit) -> Json {
-    json!({
-        "intercept": fit.intercept,
-        "slope": fit.slope,
-        "r_squared": fit.r_squared,
-        "trials": fit.trials,
-        "surrogate_min": fit.surrogate_min,
-        "surrogate_max": fit.surrogate_max,
-    })
+// The fit type is not reachable through the facade; a macro reads its fields in place.
+macro_rules! fit_json {
+    ($fit:expr) => {{
+        let fit = &$fit;
+        json!({
+            "intercept": fit.intercept,
+            "slope": fit.slope,
+            "r_squared": fit.r_squared,
+            "trials": fit.trials,
+            "surrogate_min": fit.surrogate_min,
+            "surrogate_max": fit.surrogate_max,
+        })
+    }};
 }
 
 fn assessment_json(result: &BridgeTransportPremiseAssessmentResult) -> Json {
     json!({
         "program_identity": result.lowered_program_identity.to_hex(),
-        "source_fit": fit_json(&result.source_fit),
-        "target_fit": fit_json(&result.target_fit),
+        "source_fit": fit_json!(result.source_fit),
+        "target_fit": fit_json!(result.target_fit),
         "grid": result.grid.iter().map(|point| json!({
             "surrogate_effect": point.surrogate_effect,
             "difference": point.difference,

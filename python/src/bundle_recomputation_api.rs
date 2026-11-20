@@ -309,7 +309,7 @@ impl PyBundleRecomputationPlan {
     }
 
     /// Replay every dependency through its own consumer and execute the live terminal.
-    #[pyo3(signature = (*, seed=0, threads=None, cancel=None, memory_bytes=None))]
+    #[pyo3(signature = (*, seed=1, threads=None, cancel=None, memory_bytes=None))]
     fn execute(
         &self,
         py: Python<'_>,
@@ -334,7 +334,7 @@ impl PyBundleRecomputationPlan {
     }
 
     /// Re-execute, require the same receipt, and embed the graph with it for a fresh process.
-    #[pyo3(signature = (run, *, seed=0, threads=None, cancel=None, memory_bytes=None))]
+    #[pyo3(signature = (run, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
     fn export_portable(
         &self,
         py: Python<'_>,
@@ -490,7 +490,7 @@ fn decision_bundle_recomputation_compile(
 /// Compile a producer -> chain -> decision bundle. The producer kind is the kind of the
 /// `producer` node; the chain and the predictive chain-decision terminal follow it by edges.
 #[pyfunction]
-#[pyo3(signature = (bundle, producer, chain, terminal, *, seed=0, threads=None, cancel=None, memory_bytes=None))]
+#[pyo3(signature = (bundle, producer, chain, terminal, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
 #[allow(clippy::too_many_arguments, reason = "the three bound nodes and the execution controls")]
 fn predictive_fit_decision_bundle_compile(
     bundle: PyRef<'_, PyCompositionBundle>,
@@ -566,7 +566,7 @@ fn consume_run(
 /// Rebuild a portable chain recomputation, recompile its terminal program, replay every
 /// dependency and require the live receipt under the retained bundle and program identities.
 #[pyfunction]
-#[pyo3(signature = (data, expected_bundle, expected_program, *, seed=0, threads=None, cancel=None, memory_bytes=None))]
+#[pyo3(signature = (data, expected_bundle, expected_program, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
 #[allow(clippy::too_many_arguments, reason = "the artifact, its two identities and the controls")]
 fn chain_bundle_recomputation_consume(
     py: Python<'_>,
@@ -590,7 +590,7 @@ fn chain_bundle_recomputation_consume(
 /// Rebuild a portable decision recomputation from its embedded contract and source law,
 /// recompile it and require the live receipt; `posterior` names the parameter-posterior route.
 #[pyfunction]
-#[pyo3(signature = (data, expected_bundle, expected_program, *, posterior=false, seed=0, threads=None, cancel=None, memory_bytes=None))]
+#[pyo3(signature = (data, expected_bundle, expected_program, *, posterior=false, seed=1, threads=None, cancel=None, memory_bytes=None))]
 #[allow(
     clippy::too_many_arguments,
     reason = "the artifact, its identities, its route and the controls"
@@ -627,7 +627,7 @@ fn decision_bundle_recomputation_consume(
 /// Rebuild a portable producer -> chain -> decision bundle, refit the producer from its raw
 /// evidence, rescore the decision and require the live receipt.
 #[pyfunction]
-#[pyo3(signature = (data, expected_bundle, expected_program, *, seed=0, threads=None, cancel=None, memory_bytes=None))]
+#[pyo3(signature = (data, expected_bundle, expected_program, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
 #[allow(clippy::too_many_arguments, reason = "the artifact, its two identities and the controls")]
 fn predictive_fit_decision_bundle_consume(
     py: Python<'_>,
@@ -654,7 +654,7 @@ impl PyBundleBuilder {
     /// identity. The producer is reidentified and refitted from its raw evidence before the
     /// node is accepted; `seed` is recorded with the node and every replay refits under it.
     /// Returns the refusal, or `None`.
-    #[pyo3(signature = (kind, node_id, artifact, program, *, seed=0, threads=None, cancel=None, memory_bytes=None))]
+    #[pyo3(signature = (kind, node_id, artifact, program, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
     #[allow(clippy::too_many_arguments, reason = "the node declaration and the execution controls")]
     fn add_predictive_fit(
         &mut self,
@@ -704,7 +704,7 @@ impl PyBundleBuilder {
 
     /// Embed an exported chain-decision artifact as a terminal that is recompiled and scored
     /// live; `seed` is recorded with the node. Returns the refusal, or `None`.
-    #[pyo3(signature = (node_id, artifact, *, seed=0, threads=None, cancel=None, memory_bytes=None))]
+    #[pyo3(signature = (node_id, artifact, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
     #[allow(clippy::too_many_arguments, reason = "the node declaration and the execution controls")]
     fn add_predictive_chain_decision(
         &mut self,

@@ -102,7 +102,7 @@ fn observational_policy_export(
 /// produced with, and under the retained program identity when one is given. Returns the
 /// replayed report as JSON.
 #[pyfunction]
-#[pyo3(signature = (artifact, expected_identity=None, seed=0, *, memory_bytes=None, cancel=None))]
+#[pyo3(signature = (artifact, expected_identity=None, seed=1, *, memory_bytes=None, cancel=None))]
 fn observational_policy_consume(
     py: Python<'_>,
     artifact: &[u8],
@@ -212,7 +212,7 @@ fn policy_subsampling_compile(
 /// Independently recompile and rerun a sealed subsampling schedule under the retained program
 /// identity and the split seed it was produced with. Returns the candidate as JSON.
 #[pyfunction]
-#[pyo3(signature = (artifact, expected_identity, seed=0, *, memory_bytes=None, cancel=None))]
+#[pyo3(signature = (artifact, expected_identity, seed=1, *, memory_bytes=None, cancel=None))]
 fn policy_subsampling_consume(
     py: Python<'_>,
     artifact: &[u8],
@@ -372,7 +372,7 @@ impl PySequentialPolicyReliability {
 /// decision among them. `policies_json` is a list of policy specifications; `mode_json` is
 /// `{"rollout": {...}}` or `{"off_policy": {...}}`. Returns `(handle, refusal)`.
 #[pyfunction]
-#[pyo3(signature = (model_json, policies_json, unit, mode_json, seed=0, cancel=None))]
+#[pyo3(signature = (model_json, policies_json, unit, mode_json, seed=1, cancel=None))]
 fn sequential_policy_reliability_compile(
     py: Python<'_>,
     model_json: &str,
@@ -417,7 +417,7 @@ fn sequential_policy_reliability_compile(
 /// declaration, under the retained program identity when one is given. Returns
 /// `((draws_json, report_json, program_identity), refusal)`.
 #[pyfunction]
-#[pyo3(signature = (artifact, expected_identity=None, seed=0, cancel=None))]
+#[pyo3(signature = (artifact, expected_identity=None, seed=1, cancel=None))]
 fn sequential_policy_reliability_consume(
     py: Python<'_>,
     artifact: &[u8],
@@ -623,7 +623,7 @@ impl PySequentialReliabilityBundle {
 /// recompute it: the producer is replayed from its raw declaration and the diagnostic is
 /// reassessed from the retained draws. Returns `(handle, refusal)`.
 #[pyfunction]
-#[pyo3(signature = (bundle, producer, draws, diagnostic, seed=0, cancel=None))]
+#[pyo3(signature = (bundle, producer, draws, diagnostic, seed=1, cancel=None))]
 fn sequential_reliability_bundle_compile(
     py: Python<'_>,
     bundle: PyRef<'_, PyCompositionBundle>,
@@ -659,7 +659,7 @@ fn sequential_reliability_bundle_compile(
 /// identity and program identity, and recompute its producer and diagnostic. Returns
 /// `(receipt_json, refusal)`.
 #[pyfunction]
-#[pyo3(signature = (artifact, expected_bundle, expected_identity, seed=0, cancel=None))]
+#[pyo3(signature = (artifact, expected_bundle, expected_identity, seed=1, cancel=None))]
 fn sequential_reliability_bundle_consume(
     py: Python<'_>,
     artifact: &[u8],

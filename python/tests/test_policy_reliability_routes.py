@@ -33,7 +33,8 @@ NARROW_GRAPH = [("z", "a"), ("z", "y"), ("w", "y"), ("a", "y")]
 def _draw(n: int, seed: int = 6) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     rng = np.random.default_rng(seed)
     z = rng.normal(size=n)
-    a = (rng.uniform(size=n) < 1 / (1 + np.exp(-z))).astype(float)
+    # Propensities stay inside [0.1, 0.9] so every scored row clears the declared positivity floor.
+    a = (rng.uniform(size=n) < 0.1 + 0.8 / (1 + np.exp(-z))).astype(float)
     y = 1.0 + z + 1.5 * z * a + 0.5 * rng.normal(size=n)
     return y, a, z
 

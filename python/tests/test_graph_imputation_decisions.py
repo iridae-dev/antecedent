@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
-from antecedent import Execution, build_flavor
+from antecedent import Execution
 from antecedent.composition_bundle import Bundle
 from antecedent.decision import Action, Contract, Criterion, x
 from antecedent.graph_imputation_decision import (
@@ -603,12 +603,7 @@ def test_transported_fit_composes_into_a_bundle_and_replays() -> None:
     consumed = consume_graph_imputation_fit_bundle(
         bundle.export(), expected_identity=bundle.identity, execution=_execution()
     )
-    if build_flavor() == "release":
-        assert not consumed.node("fit").verified
-        with pytest.raises(GraphImputationDecisionRefusal) as refused:
-            compile_graph_imputation_transport_bundle(bundle, fit="fit", terminal="terminal")
-        assert refused.value.code == "not_supported"
-        return
+    # The transported fit node is a supported route in release and development builds alike.
     assert consumed.all_replayed and consumed.node("fit").verified
     recomputation = compile_graph_imputation_transport_bundle(
         bundle, fit="fit", terminal="terminal", execution=_execution()
