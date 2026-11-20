@@ -15061,9 +15061,10 @@ whole = true
 # Bernoulli individual control outcome study with MAR source outcomes, an independent binary target
 # frame and a future individual drawn from that frame. Every replicate recompiles graph selection,
 # imputation, target transport, predictive worlds and the joint decision; it checks the exact
-# world-specific runtime basis and scores the 95% interval of the predictive success probability
-# against the known success probability of that individual. The known treatment advantage also
-# permits reporting action choices under a stable separate action-study scope.
+# world-specific runtime basis and scores the 95% interval of the predictive success probability,
+# pooled across the completed tables by Rubin's rules on the logit scale, against the known success
+# probability of that individual. The known treatment advantage also permits reporting action
+# choices under a stable separate action-study scope.
 [[group]]
 label = "graph_imputation_predictive_calibration: graph_imputation_bernoulli_predictive_control_l95"
 package = "antecedent"
@@ -15076,9 +15077,10 @@ whole = true
 # Bernoulli individual active outcome study with MAR source outcomes, an independent binary target
 # frame and a future individual drawn from that frame. Every replicate recompiles graph selection,
 # imputation, target transport, predictive worlds and the joint decision; it checks the exact
-# world-specific runtime basis and scores the 95% interval of the predictive success probability
-# against the known success probability of that individual. The known treatment advantage also
-# permits reporting action choices under a stable separate action-study scope.
+# world-specific runtime basis and scores the 95% interval of the predictive success probability,
+# pooled across the completed tables by Rubin's rules on the logit scale, against the known success
+# probability of that individual. The known treatment advantage also permits reporting action
+# choices under a stable separate action-study scope.
 [[group]]
 label = "graph_imputation_predictive_calibration: graph_imputation_bernoulli_predictive_active_l95"
 package = "antecedent"

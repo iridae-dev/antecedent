@@ -2643,7 +2643,8 @@ fn paired_bootstrap_pool_index(state: &mut u64, len: usize) -> usize {
     }
 }
 
-/// IID-resample aligned target rows and rerun the full paired-world route.
+/// IID-resample aligned target rows and rerun the full paired-world route, each
+/// replicate on its own imputation and posterior streams ([`replicate_source`]).
 /// One intact graph/imputation/coefficient world pair is retained per replicate.
 /// This is a model-conditional candidate, with no earned coverage.
 ///
@@ -2714,7 +2715,10 @@ pub fn replay_transport_paired_worlds_bootstrap(
             *values = indices.iter().map(|&index| original[index]).collect();
         }
         // Unit identities denote slots; the selected original indices are sealed.
-        let run = replay_transport_paired_worlds(bytes, &sampled, ctx)?;
+        // Each replicate redraws its completed tables and posterior on its own
+        // streams, so the retained pairs do not repeat one posterior.
+        let replicate_bytes = replicate_source(bytes, seed, replicate)?;
+        let run = replay_transport_paired_worlds(&replicate_bytes, &sampled, ctx)?;
         if run.worlds.is_empty() {
             return Err(invalid("paired bootstrap produced no worlds"));
         }

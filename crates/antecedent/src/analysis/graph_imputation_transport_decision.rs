@@ -738,6 +738,30 @@ pub(crate) fn imputation_pooled_interval_95(
     (interval.0.is_finite() && interval.1.is_finite()).then_some(interval)
 }
 
+/// Interval method of a fixed frame's Bernoulli success probabilities pooled
+/// across completed tables ([`imputation_pooled_probability_interval_95`]).
+pub(crate) const POOLED_PROBABILITY_INTERVAL: &str =
+    "predictive_binary_success_probability_rubin_logit";
+
+/// [`imputation_pooled_interval_95`] for probability draws, pooled on their
+/// logit and mapped back. Rubin's rules rest on near-normal table posteriors;
+/// a probability posterior is bounded and skewed near either bound, its
+/// logit is not, and the back-transformed interval stays inside `(0, 1)`.
+/// `None` also when a draw is not strictly between 0 and 1.
+pub(crate) fn imputation_pooled_probability_interval_95(
+    probabilities: &[f64],
+    tables: usize,
+    df_complete: Option<f64>,
+) -> Option<(f64, f64)> {
+    let logits = probabilities
+        .iter()
+        .map(|&p| (p > 0.0 && p < 1.0).then(|| (p / (1.0 - p)).ln()))
+        .collect::<Option<Vec<f64>>>()?;
+    let (lower, upper) = imputation_pooled_interval_95(&logits, tables, df_complete)?;
+    let logistic = |value: f64| 1.0 / (1.0 + (-value).exp());
+    Some((logistic(lower), logistic(upper)))
+}
+
 /// Complete-data degrees of freedom of a transported child fit: the source
 /// rows less the coefficients of the widest retained design, an intercept,
 /// the treatment, and each adjusted or selected covariate with its centred
@@ -746,6 +770,17 @@ pub(crate) fn transported_child_df(
     parts: &GraphImputationParts,
     selections: &[u32],
 ) -> Option<f64> {
+    child_df(parts, selections, 2)
+}
+
+/// Complete-data degrees of freedom of a source-frame child fit: the source
+/// rows less the coefficients of the widest retained design, an intercept,
+/// the treatment and each adjusted covariate. `None` when no degree remains.
+pub(crate) fn source_child_df(parts: &GraphImputationParts) -> Option<f64> {
+    child_df(parts, &[], 1)
+}
+
+fn child_df(parts: &GraphImputationParts, selections: &[u32], per_covariate: usize) -> Option<f64> {
     let widest = parts
         .atoms
         .iter()
@@ -758,7 +793,7 @@ pub(crate) fn transported_child_df(
         })
         .max()
         .unwrap_or(selections.len());
-    let coefficients = 2 + 2 * widest;
+    let coefficients = 2 + per_covariate * widest;
     (parts.rows() > coefficients).then(|| (parts.rows() - coefficients) as f64)
 }
 
@@ -1451,6 +1486,30 @@ mod tests {
         assert!((lower + half).abs() < 1e-9 && (upper - half).abs() < 1e-9);
         assert_eq!(imputation_pooled_interval_95(&draws[..199], 2, None), None);
         assert_eq!(imputation_pooled_interval_95(&draws, 1, None), None);
+    }
+
+    #[test]
+    fn pooled_probability_interval_pools_on_the_logit_scale() {
+        let probabilities: Vec<f64> = (0..200)
+            .map(|i| {
+                let table = if i < 100 { 0.3 } else { 0.4 };
+                table + if i % 2 == 0 { -0.05 } else { 0.05 }
+            })
+            .collect();
+        let logits: Vec<f64> = probabilities
+            .iter()
+            .map(|probability| (probability / (1.0 - probability)).ln())
+            .collect();
+        let (lower, upper) = imputation_pooled_interval_95(&logits, 2, Some(60.0)).unwrap();
+        let logistic = |value: f64| 1.0 / (1.0 + (-value).exp());
+        let interval =
+            imputation_pooled_probability_interval_95(&probabilities, 2, Some(60.0)).unwrap();
+        assert!((interval.0 - logistic(lower)).abs() < 1e-12);
+        assert!((interval.1 - logistic(upper)).abs() < 1e-12);
+        assert!(0.0 < interval.0 && interval.0 < interval.1 && interval.1 < 1.0);
+        let mut bounded = probabilities;
+        bounded[0] = 1.0;
+        assert!(imputation_pooled_probability_interval_95(&bounded, 2, None).is_none());
     }
 
     #[test]
