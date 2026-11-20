@@ -38,6 +38,7 @@ def region_coverage(export: dict) -> dict[str, set[tuple[int, int]]]:
     kind 0 is code. A function that never ran contributes nothing.
     """
     coverage: dict[str, set[tuple[int, int]]] = {}
+    resolved: dict[str, str] = {}
     for block in export.get("data", []):
         for function in block.get("functions", []):
             if function.get("count", 0) <= 0:
@@ -45,7 +46,10 @@ def region_coverage(export: dict) -> dict[str, set[tuple[int, int]]]:
             filenames = function.get("filenames", [])
             for region in function.get("regions", []):
                 if region[4] > 0 and region[7] == 0:
-                    path = str(Path(filenames[region[5]]).resolve())
+                    name = filenames[region[5]]
+                    if name not in resolved:
+                        resolved[name] = str(Path(name).resolve())
+                    path = resolved[name]
                     coverage.setdefault(path, set()).add((region[0], region[1]))
     return coverage
 

@@ -43,6 +43,33 @@ class ConditionalDgpReferenceTest(unittest.TestCase):
 
 
 class PassingGroupHarvestTest(unittest.TestCase):
+    def test_partial_run_uses_actual_runner_verdicts_only_after_its_start(self) -> None:
+        import calibration_groups as groups
+
+        sha = "a" * 40
+        good = groups.Group(1, "test: good", False, True)
+        bad = groups.Group(2, "test: bad", False, True)
+        prior = groups.Group(3, "test: earlier", False, False)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            timings = root / "times"
+            old = f"{prior.label}\t1\t0\t{sha}\t1\t400\n".encode()
+            timings.write_bytes(old)
+            (root / f"{prior.safe}.log").touch()
+            with timings.open("a") as out:
+                for group in (good, bad):
+                    for point in group.points:
+                        status = int(group is bad and point == 2)
+                        out.write(f"{groups.task_label(group, point)}\t1\t{status}\t{sha}\t1\t400\n")
+                        (root / f"{group.safe}.p{point}.log").touch()
+            with patch.object(groups, "TIMINGS", timings), patch.object(
+                groups, "gate_groups", return_value=[good, bad, prior]
+            ):
+                self.assertEqual(
+                    collector.completed_owed_logs(root, sha, len(old)),
+                    [root / f"{good.safe}.p{point}.log" for point in good.points],
+                )
+
     def test_failed_recheck_and_incomplete_grid_skip_whole_groups(self) -> None:
         sha = "a" * 40
         with tempfile.TemporaryDirectory() as directory:
@@ -86,6 +113,20 @@ class PassingGroupHarvestTest(unittest.TestCase):
 
 
 class AppendAttestedRecordsTest(unittest.TestCase):
+    def test_owed_run_refreshes_stale_ids_and_retains_current_siblings(self):
+        existing = {rid: {"id": rid} for rid in ("current", "by_probe", "owed")}
+        measured = {rid: {"id": rid, "new": True} for rid in (*existing, "missing")}
+        with patch.object(collector.calibration_status, "tree_fingerprints", return_value={
+            "current": "manifest:measurement", "by_probe": "manifest:attestation", "owed": None,
+        }):
+            updates, replacements = collector.owed_updates(existing, measured, [])
+        self.assertEqual(set(updates), {"missing", "owed"})
+        self.assertEqual(replacements, ["owed"])
+        merged = collector.append_attested_records(existing, updates, replace_ids=replacements)
+        self.assertEqual(merged["by_probe"], existing["by_probe"])
+        self.assertEqual(merged["current"], existing["current"])
+        self.assertEqual(merged["owed"], measured["owed"])
+
     def test_append_preserves_old_rows_and_original_sha(self) -> None:
         old = {"old": {"id": "old", "calibration_sha": "old-sha", "observed": 0.8}}
         new = {"new": {"id": "new", "calibration_sha": "new-sha", "observed": 0.9}}

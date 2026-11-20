@@ -786,6 +786,31 @@ def write_gate_ledger(rows: dict[str, dict], keep: dict[str, dict] | None = None
     write_text(GATES, "\n".join(lines))
 
 
+def completed_owed_logs(log_dir: Path, sha: str, offset: int) -> list[Path]:
+    """Only complete groups whose runner verdicts were appended in this invocation."""
+    from calibration_groups import TIMINGS, gate_groups, task_label
+
+    if offset < 0:
+        raise SystemExit("invalid timing file offset")
+    if not TIMINGS.is_file():
+        return []
+    with TIMINGS.open("rb") as timings:
+        timings.seek(offset)
+        entries = [line.decode().rstrip("\n").split("\t") for line in timings]
+    passed = {row[0]: row[2] == "0" for row in entries if len(row) == 6 and row[3] == sha}
+    logs = []
+    for group in gate_groups():
+        if not all(passed.get(task_label(group, point)) for point in group.points):
+            continue
+        stems = [group.safe if point is None else f"{group.safe}.p{point}" for point in group.points]
+        first = [log_dir / f"{stem}.log" for stem in stems]
+        if not all(path.is_file() for path in first):
+            raise SystemExit(f"runner completed {group.label} but its logs are missing")
+        logs.extend(first)
+        logs.extend(path for stem in stems if (path := log_dir / f"{stem}.recheck.log").is_file())
+    return sorted(logs)
+
+
 def passing_group_logs(logs: list[Path], sha: str) -> list[Path]:
     """Harvest only complete passing groups; never recover selected grid points."""
     by_group: dict[str, list[Path]] = {}
@@ -920,7 +945,8 @@ def _bind_forked(rid: str):
     return _BIND(rid)
 
 
-def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_DIR) -> None:
+def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_DIR,
+                       *, selected_logs: list[Path] | None = None) -> None:
     """Stamp each record with the fingerprint of its test target in the tree.
 
     Only a tree equal to HEAD in everything a fingerprint reads, measured at HEAD,
@@ -944,7 +970,16 @@ def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_D
 
     fp = calibration_status.tree_fingerprinter()
     fingerprints = calibration_status.identity_fingerprints(list(records.values()), fp)
-    runs = record_runs(log_dir)
+    if selected_logs is None:
+        runs = record_runs(log_dir)
+    else:
+        runs = {}
+        for log in selected_logs:
+            stem = log.name.removesuffix(".log").removesuffix(".recheck")
+            for line in read_text(log).splitlines():
+                if line.startswith("calibration-record "):
+                    rid = json.loads(line.partition(" ")[2])["id"]
+                    runs.setdefault(rid, set()).add(stem)
     import evidence_earning
     # Each record's manifest is independent and content-addressed, so records are bound in
     # parallel: workers forked after the first record share its warm source scans, build
@@ -1338,6 +1373,18 @@ def sync_estimator_rows(records: dict[str, dict]) -> int:
     return changed
 
 
+def owed_updates(existing: dict[str, dict], measured: dict[str, dict],
+                 replacements: list[str]) -> tuple[dict[str, dict], list[str]]:
+    """Remeasure owed IDs, preserving current evidence co-emitted by the same group."""
+    collisions = [existing[rid] for rid in measured.keys() & existing.keys()]
+    if not collisions:
+        return measured, replacements
+    current = calibration_status.tree_fingerprints(collisions)
+    allowed = set(replacements) | {rid for rid, manifest in current.items() if manifest is None}
+    updates = {rid: rec for rid, rec in measured.items() if rid not in current or rid in allowed}
+    return updates, sorted(allowed)
+
+
 def append_attested_records(
     existing: dict[str, dict],
     measured: dict[str, dict],
@@ -1395,6 +1442,10 @@ def main() -> int:
         help="append only new record IDs, preserving existing rows and gate evidence even when stale",
     )
     parser.add_argument(
+        "--owed-completions-from", type=int, metavar="BYTE_OFFSET",
+        help="collect completed owed groups from this run, preserving existing current records",
+    )
+    parser.add_argument(
         "--passing-only",
         action="store_true",
         help="with --keep-existing, harvest only whole completed passing groups; retain failures in logs",
@@ -1428,6 +1479,8 @@ def main() -> int:
     parser.add_argument("--log-dir", type=Path, default=LOG_DIR, help="logs to collect")
     parser.add_argument("--out", type=Path, help="scratch registry path (with --smoke only)")
     args = parser.parse_args()
+    if args.owed_completions_from is not None and not (args.keep_existing and args.passing_only):
+        raise SystemExit("--owed-completions-from requires --keep-existing and --passing-only")
     if args.inspect_legacy_logs:
         if (args.append_attested or args.only_cell or args.defer_generated or args.no_cells
             or args.keep_existing or args.passing_only or args.replace_record or args.keep_attested
@@ -1496,8 +1549,17 @@ def main() -> int:
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise SystemExit(f"calibration SHA must be 40 hex, got {sha!r}")
     collection_logs = sorted(args.log_dir.glob("*.log"))
+    if args.owed_completions_from is not None:
+        collection_logs = completed_owed_logs(args.log_dir, sha, args.owed_completions_from)
+        if not collection_logs:
+            print("no complete passing owed groups from this run")
+            return 0
+    completed_count = len(collection_logs)
     if args.passing_only:
         collection_logs = passing_group_logs(collection_logs, sha)
+    incomplete_harvest = args.owed_completions_from is not None and len(collection_logs) < completed_count
+    if incomplete_harvest and not collection_logs:
+        raise SystemExit("none of the completed groups passed collection checks")
     records = load_records(
         sha,
         args.log_dir,
@@ -1505,7 +1567,9 @@ def main() -> int:
         selected_logs=collection_logs,
         allow_empty=args.passing_only,
     )
-    stamp_fingerprints(records, sha, args.log_dir)
+    if args.owed_completions_from is not None:
+        records, args.replace_record = owed_updates(existing_records(), records, args.replace_record)
+    stamp_fingerprints(records, sha, args.log_dir, selected_logs=collection_logs)
     if args.append_attested:
         existing = existing_records()
         records = append_attested_records(existing, records)
@@ -1572,6 +1636,9 @@ def main() -> int:
         print("deferred generated support assets; evidence registries are preserved")
     else:
         subprocess.run([sys.executable, str(GENERATOR)], cwd=ROOT, check=True)
+    if incomplete_harvest:
+        print("collected the valid groups; some completed groups failed collection checks")
+        return 1
     return 0
 
 

@@ -16,6 +16,7 @@ class StubbedDriverBranches(unittest.TestCase):
                 "python3": "#!/bin/sh\nprintf 'PY' >> \"$CAPTURE\"; printf ' <%s>' \"$@\" >> \"$CAPTURE\"; printf '\n' >> \"$CAPTURE\"\n",
                 "bash": "#!/bin/sh\nprintf 'BASH' >> \"$CAPTURE\"; printf ' <%s>' \"$@\" >> \"$CAPTURE\"; printf '\n' >> \"$CAPTURE\"\n",
             }
+            fake["python3"] += 'if [ "$2" = run ]; then exit "${RUN_EXIT:-0}"; fi\n'
             for name, content in fake.items():
                 path = root / name
                 path.write_text(content, encoding="utf-8")
@@ -25,6 +26,7 @@ class StubbedDriverBranches(unittest.TestCase):
                 (["--pilot", "--group", "two words", "--replicates", "17"], ["<pilot>", "<two words>", "<17>"]),
                 (["--group", "two words", "--replace-record", "r one"], ["<run>", "<two words>", "<--keep-existing>", "<r one>"]),
                 ([], ["<run>", "<--keep-not_measured>"]),
+                (["--owed"], ["<run>", "<--keep-existing>", "<--passing-only>", "<--owed-completions-from>"]),
                 (["--all"], ["<run>", "<--all>", "<scripts/collect_coverage_records.py>"]),
                 (["--missing-only"], ["<run>", "<--missing-only>", "<--keep-existing>"])
             ]:
@@ -35,3 +37,10 @@ class StubbedDriverBranches(unittest.TestCase):
                     calls = capture.read_text(encoding="utf-8")
                     for token in expected:
                         self.assertIn(token, calls)
+            capture.write_text("", encoding="utf-8")
+            result = subprocess.run(
+                ["/bin/bash", str(SCRIPT), "--jobs", "1", "--owed"],
+                env={**env, "RUN_EXIT": "3"}, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 3)
+            self.assertIn("<--owed-completions-from>", capture.read_text(encoding="utf-8"))

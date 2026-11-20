@@ -172,8 +172,18 @@ echo "== measuring calibration at ${HEAD_SHA} with ${JOBS} parallel job(s) =="
 # archiving logs, building or starting any measurement; it supplies the decision
 # context to each gate child rather than trusting an inherited caller value.
 RUN_STATUS=0
+OWED_COLLECTION=()
+if [[ "$OWED" == 1 ]]; then
+  # The runner appends a verdict only after the test, recheck and coverage capture finish.
+  # Limit the harvest to this invocation, including after a partial run or prebuild failure.
+  offset=0
+  if [[ -f target/calibration-timings.tsv ]]; then
+    offset="$(wc -c < target/calibration-timings.tsv)"
+  fi
+  OWED_COLLECTION=(--owed-completions-from "$offset")
+fi
 python3 scripts/calibration_groups.py run ${MODE[@]+"${MODE[@]}"} ${FILTERS[@]+"${FILTERS[@]}"} ${ONLY[@]+"${ONLY[@]}"} ${REPLICATES[@]+"${REPLICATES[@]}"} ${SCHEDULE[@]+"${SCHEDULE[@]}"} --jobs "$JOBS" || RUN_STATUS=$?
-if [[ "$RUN_STATUS" != "0" && "$MISSING_ONLY" != "1" && "$HAVE_FILTERS" == 0 ]]; then
+if [[ "$RUN_STATUS" != "0" && "$OWED" != 1 && "$MISSING_ONLY" != "1" && "$HAVE_FILTERS" == 0 ]]; then
   exit "$RUN_STATUS"
 fi
 
@@ -193,8 +203,8 @@ if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(record_outputs_excluded)" 
 fi
 
 echo "== collecting coverage records at ${HEAD_SHA} =="
-if [[ "$MISSING_ONLY" == "1" || "$HAVE_FILTERS" == 1 || "$HAVE_REPLACEMENTS" == 1 ]]; then
-  python3 scripts/collect_coverage_records.py --keep-existing --passing-only ${REPLACEMENTS[@]+"${REPLACEMENTS[@]}"}
+if [[ "$OWED" == 1 || "$MISSING_ONLY" == "1" || "$HAVE_FILTERS" == 1 || "$HAVE_REPLACEMENTS" == 1 ]]; then
+  python3 scripts/collect_coverage_records.py --keep-existing --passing-only ${OWED_COLLECTION[@]+"${OWED_COLLECTION[@]}"} ${REPLACEMENTS[@]+"${REPLACEMENTS[@]}"}
 elif [[ -n "$ALL" ]]; then
   python3 scripts/collect_coverage_records.py
 else
