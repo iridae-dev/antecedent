@@ -61,7 +61,10 @@ fn multinomial(law: &ExactDiscreteLaw, n: u64, rng: &mut Rng) -> Vec<u64> {
     let last = law.probabilities().iter().rposition(|p| *p > 0.0).unwrap();
     let mut counts = vec![0u64; law.probabilities().len()];
     for _ in 0..n {
-        let cell = cumulative.partition_point(|c| *c <= rng.unit()).min(last);
+        // One uniform per unit: the binary search calls its predicate several times, and a
+        // fresh draw per call would sample a distorted law that starves the late cells.
+        let u = rng.unit();
+        let cell = cumulative.partition_point(|c| *c <= u).min(last);
         counts[cell] += 1;
     }
     counts

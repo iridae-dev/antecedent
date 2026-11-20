@@ -743,7 +743,9 @@ class PreparedCyclicSystem:
 
         Prior support is restricted to the certified likelihood domain. Inspect
         ``diagnostics_pass`` before interpreting draws; structural-selection and
-        covariance uncertainty are not included.
+        covariance uncertainty are not included. ``proposal_scale`` is the starting
+        random-walk step and per-chain start spread: warmup tunes the step and
+        proposal covariance, then freezes them for the retained draws.
         """
         assert execution is not None
         seed = _seed()

@@ -644,7 +644,8 @@ pub struct ComponentJointPosteriorSchedule {
     pub warmup: usize,
     /// Retained draws per chain.
     pub draws_per_chain: usize,
-    /// Proposal standard deviation.
+    /// Starting random-walk step and per-chain start spread. Warmup tunes the step and
+    /// proposal covariance, then freezes them for the retained draws.
     pub proposal_scale: f64,
 }
 

@@ -90,7 +90,8 @@ pub struct CyclicSamplingPolicy {
     pub warmup: usize,
     /// Retained draws per chain.
     pub draws: usize,
-    /// Fixed symmetric random-walk proposal scale.
+    /// Symmetric random-walk proposal scale: fixed for latent-state abduction, and the
+    /// starting step and per-chain start spread of the warmup-tuned parameter posterior.
     pub proposal_scale: f64,
     /// Reproducible semantic stream seed.
     pub seed: u64,

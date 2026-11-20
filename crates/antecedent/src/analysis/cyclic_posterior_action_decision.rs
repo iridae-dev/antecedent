@@ -78,7 +78,8 @@ pub struct CyclicPosteriorDecisionRequest {
     pub warmup: usize,
     /// Retained draws per chain.
     pub draws_per_chain: usize,
-    /// Isotropic random-walk proposal standard deviation.
+    /// Starting isotropic random-walk step and per-chain start spread. Warmup tunes the step
+    /// and proposal covariance, then freezes them for the retained draws.
     pub proposal_scale: f64,
     /// Distinct hard-clamp action worlds.
     pub worlds: Vec<Vec<Clamp>>,

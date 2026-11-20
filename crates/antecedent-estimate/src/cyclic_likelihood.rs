@@ -9,7 +9,7 @@ use antecedent_core::ExecutionContext;
 #[cfg(test)]
 use antecedent_model::nonlinear_equilibrium::SolvePolicy;
 use antecedent_model::nonlinear_equilibrium::{EquilibriumError, EquilibriumModel, RegimeRow};
-use antecedent_prob::metropolis::{MetropolisOptions, sample_metropolis};
+use antecedent_prob::metropolis::{MetropolisOptions, sample_metropolis, sample_metropolis_tuned};
 use serde::{Deserialize, Serialize};
 
 /// Coordinates eligible for likelihood estimation.
@@ -261,6 +261,13 @@ where
 /// Sample a zero-mean independent normal parameter prior, restricted to the
 /// template's certified-bijection likelihood domain. `prior_sd` is fixed before fitting.
 /// Structural selection and covariance uncertainty are not included.
+///
+/// Each chain starts at the template's values plus an independent Gaussian offset of the
+/// declared proposal scale, so the between-chain diagnostics compare distinct starts. The
+/// declared scale is the starting step: warmup tunes the step and the proposal covariance
+/// ([`antecedent_prob::metropolis::sample_metropolis_tuned`]) and freezes them before the first
+/// retained draw. A fixed isotropic step tuned for one posterior width mixes slowly once more
+/// rows narrow the posterior or its coordinates correlate, and the R-hat gate then refuses.
 pub fn sample_cyclic_posterior(
     template: &EquilibriumModel,
     parameters: &[CyclicParameter],
@@ -287,8 +294,9 @@ pub fn sample_cyclic_posterior(
             Err(_) => f64::NAN,
         }
     };
-    let result = sample_metropolis(&initial, options, ctx, log_density)
-        .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
+    let result =
+        sample_metropolis_tuned(&initial, options.proposal_scale, options, ctx, log_density)
+            .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
     let p = parameters.len();
     let summary = antecedent_prob::mcmc_summary(&result.samples, options.chains, options.draws, p);
     let moved =

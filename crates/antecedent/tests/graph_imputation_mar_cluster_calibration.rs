@@ -157,7 +157,13 @@ fn replicate(
             observation_probabilities,
             always_observed: vec![3],
         },
-        selection_targets: vec![2],
+        // The target standardizes on every retained graph's adjustment set plus the selection
+        // targets, and each retained graph must make that set S-admissible. The pretreatment
+        // support keeps graphs with z -> x and z -> y; standardizing on x alone would condition
+        // on the collider in S -> x <- z -> y there, so the route refuses that declaration.
+        // Declaring the always-observed MAR covariate z as a selection target as well
+        // standardizes on both covariates, which is admissible in every retained graph.
+        selection_targets: vec![2, 3],
         source_population: "source".into(),
         target_population: "target-frame".into(),
         source_sample: producer.source_identity().to_hex(),
@@ -188,7 +194,10 @@ fn replicate(
 }
 
 fn run_grid(test: &'static str, kernel: bool, confounded: bool) {
-    let n = grid_n(120);
+    // The binary target is stratified on (x, z), and the confounded route needs both source
+    // arms in every target stratum. At 60 rows a 0.3/0.7 assignment leaves some stratum
+    // without one arm in about 4% of replicates; from 100 rows that falls below 0.2%.
+    let n = grid_n(200);
     let mut tally =
         CoverageTally::for_record(RecordKey { test, dgp: DGP, interval: INTERVAL }, REPORTED_LEVEL);
     for result in map_replicates(n_sim(), |rep| replicate(0xD0C0_5001 + rep, n, kernel, confounded))

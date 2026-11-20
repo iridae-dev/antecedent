@@ -22,8 +22,7 @@ mod output;
 mod target;
 use admission::{admit_hmc_work, hmc_has_absolute_scale};
 use metric::DiagonalMetric;
-#[cfg(test)]
-use metric::metric_windows;
+pub(crate) use metric::metric_windows;
 use output::{ChainLayout, pack_and_gate_hmc};
 use target::{GaussianRef, GlmTarget, HmcTarget};
 
